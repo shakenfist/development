@@ -29,11 +29,10 @@ the `--dangerously-skip-permissions` flag for autonomous operation.
 │  │             │    │ Tests           │    │ (Claude Code)           │ │
 │  └─────────────┘    └─────────────────┘    └───────────┬─────────────┘ │
 │                                                         │               │
-│                                        ┌────────────────┴────────────┐  │
-│                                        │                             │  │
-│                                        ▼                             ▼  │
-│                              Upload review.json            Post markdown│
-│                              as artifact                   comment      │
+│                                                         ▼               │
+│                                              Post PR comment with       │
+│                                              markdown + embedded JSON   │
+│                                              (in <details> section)     │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -45,8 +44,8 @@ the `--dangerously-skip-permissions` flag for autonomous operation.
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                     PR Address Comments Workflow                        │
 │  ┌─────────────────────┐    ┌─────────────────────────────────────────┐│
-│  │ Download            │───▶│ Address Comments with Claude Code       ││
-│  │ review.json artifact│    │ (one commit per actionable item)        ││
+│  │ Extract JSON from   │───▶│ Address Comments with Claude Code       ││
+│  │ PR review comment   │    │ (one commit per actionable item)        ││
 │  └─────────────────────┘    └───────────┬─────────────────────────────┘│
 │                                         │                               │
 │                           ┌─────────────┴─────────────┐                 │
@@ -64,6 +63,11 @@ of parsing markdown. This provides:
 - **Clean data handoff** between reviewer and addresser
 - **No regex parsing** of natural language output
 - **Iteration until valid** - reviewer can retry if JSON is malformed
+- **Self-contained comments** - JSON is embedded in the PR comment itself
+
+The JSON is embedded in a collapsed `<details>` section at the end of the
+human-readable markdown. This keeps the comment clean while making the data
+easily extractable by the address-comments automation.
 
 ### Review Schema
 
@@ -144,12 +148,14 @@ The automated reviewer (`tools/review-pr-with-claude.sh`):
 3. Prompts Claude Code to review the changes
 4. Requests JSON output following the schema
 5. Validates JSON against the schema using `tools/render-review.py --validate`
-6. Renders JSON to human-readable markdown
-7. Posts markdown as a PR comment
-8. Uploads `review.json` as a workflow artifact
+6. Renders JSON to human-readable markdown with `--embed-json` flag
+7. Posts the combined markdown (human-readable + embedded JSON) as a PR comment
 
 The validation step ensures the output is parseable. If validation fails, the
 script can retry (in practice, Claude Code follows the schema reliably).
+
+The embedded JSON appears in a collapsed `<details>` section at the end of the
+comment, keeping the review readable while preserving machine-parseable data.
 
 ### Example Prompt Structure
 
@@ -181,9 +187,10 @@ Diff:
 
 The comment addresser (`tools/address-comments-with-claude.sh`):
 
-1. Downloads `review.json` artifact from the sanity-checks workflow
-2. Validates JSON against the schema
-3. Extracts items where `action == "fix"` or `action == "document"`
+1. Fetches PR review comments and finds the most recent automated review
+2. Extracts JSON from the `<details>` section in the review comment
+3. Validates JSON against the schema
+4. Extracts items where `action == "fix"` or `action == "document"`
 4. For each actionable item:
    - Prompts Claude Code with the specific issue details
    - Claude either makes a fix or explains why it disagrees
