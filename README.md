@@ -26,6 +26,10 @@ to Shaken Fist projects:
   test suites)
 - [`templates/renovate/`](templates/renovate/) --
   Renovate dependency updater workflow and configuration
+- [`templates/export-repo-config/`](templates/export-repo-config/) --
+  Daily repository configuration export and drift detection
+- [`templates/codeql/`](templates/codeql/) --
+  CodeQL code scanning for public repositories
 
 ## Shared GitHub Actions
 

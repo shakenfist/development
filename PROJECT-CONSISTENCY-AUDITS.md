@@ -184,7 +184,13 @@ should group them in `renovate.json` so they are bumped together:
 ## Exporting repo configuration changes
 
 We archive github repo configuration changes using `export-repo-config.yml`.
-Please ensure this is setup as well.
+The workflow delegates to the shared reusable workflow in
+`shakenfist/actions` and runs daily at 00:30 UTC.
+
+**Templates:** Use the template in
+[`templates/export-repo-config/`](templates/export-repo-config/) as
+the canonical starting point. The workflow is project-agnostic and
+can be copied directly with no modifications.
 
 ## Default branch naming
 
@@ -244,7 +250,12 @@ Additionally, these repository settings are recommended:
 ## GitHub CodeQL advanced security
 
 All **public** projects should have a GitHub Advanced Security CodeQL actions
-workflow much like `occystrap/.github/workflows/codeql-analysis.yml`.
+workflow.
+
+**Templates:** Use the template in
+[`templates/codeql/`](templates/codeql/) as the canonical starting
+point. Update the `branches:` lists if your project doesn't use
+`develop` as the default branch.
 
 **Private repos are excluded:** CodeQL code scanning requires a paid GitHub
 Advanced Security (GHAS) license for private repositories. Without GHAS,

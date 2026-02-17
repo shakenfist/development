@@ -219,9 +219,9 @@ automation.
 - [x] Add `.github/workflows/pr-re-review.yml`
 - [x] Add `.github/workflows/pr-address-comments.yml` (developer automation)
 - [x] Add `.github/workflows/renovate.yml` and `renovate.json`
-- [ ] Add `.github/workflows/export-repo-config.yml`
-- [ ] Add `.github/workflows/codeql-analysis.yml`
-- [ ] Add `.pre-commit-config.yaml` with `actionlint` and `shellcheck`
+- [x] Add `.github/workflows/export-repo-config.yml`
+- [x] Add `.github/workflows/codeql-analysis.yml`
+- [x] Add `.pre-commit-config.yaml` with `actionlint` and `shellcheck`
 - [x] Add top-level `permissions` to `functional-tests.yml`
 
 **Not applicable:** `pr-fix-tests.yml` / `test-drift-fix.yml`
@@ -518,8 +518,7 @@ None.
 - **clingwrap** -- 12 items (has AGENTS.md/ARCHITECTURE.md but
   missing most CI/release infrastructure including developer
   automation, plus permissions).
-- **agent-python** -- 3 items remaining (needs
-  export-repo-config, CodeQL, and pre-commit).
+- **agent-python** -- 0 items remaining. **Complete.**
 - **client-python** -- 15 items (missing nearly everything
   including developer automation, plus permissions on 2 workflows).
 - **library-utilities** -- 13 items (missing nearly everything
