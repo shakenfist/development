@@ -60,14 +60,17 @@ internal-only tooling or historical archive repositories:
    use `permissions: {}` at the top level and per-job overrides.
 9. **Developer automation**: Workflow automations that respond to
    comments from authorized users. These include:
-   - `pr-fix-tests.yml` -- "@shakenfist-bot please attempt to fix"
-     triggers Claude Code to fix CI failures
    - `pr-address-comments.yml` -- "@shakenfist-bot please address
      comments" triggers Claude Code to address review comments
    - `pr-re-review.yml` -- "@shakenfist-bot please re-review" triggers
      another automated review (already covered in criterion 3)
-   Reference: `imago/.github/workflows/`. These automations should be
-   moved to the `actions/` repository and rolled out to all projects.
+   - `pr-fix-tests.yml` + `test-drift-fix.yml` (optional) --
+     "@shakenfist-bot please attempt to fix" triggers Claude Code
+     to fix CI failures. Only suitable for projects with large test
+     suites prone to drift (e.g. imago, occystrap). Use templates
+     from `templates/test-drift-fix/`.
+   Use templates from `templates/ci-review-automation/` for the
+   core workflows.
 10. **Workflow naming**: Workflow and job display names should be
     English sentences with correct capitalization (no kebab case).
     Prefer `self-hosted` runners; Claude Code jobs on `claude` runners;
@@ -202,7 +205,8 @@ between the shared and inline copies.
 ### agent-python
 
 Python package with `pyproject.toml`. Has `functional-tests.yml` CI
-workflow but no Claude Code review integration.
+workflow with Claude Code review integration and developer
+automation.
 
 **Needed cleanups:**
 
@@ -211,15 +215,17 @@ workflow but no Claude Code review integration.
 - [x] Remove `release.sh`
 - [x] Add `.github/workflows/release.yml` (has `pyproject.toml`)
 - [x] Add `RELEASE-SETUP.md`
-- [ ] Add Claude Code automated review to CI workflow
-- [ ] Add `.github/workflows/pr-re-review.yml`
-- [ ] Add `.github/workflows/pr-fix-tests.yml` (developer automation)
-- [ ] Add `.github/workflows/pr-address-comments.yml` (developer automation)
+- [x] Add Claude Code automated review to CI workflow
+- [x] Add `.github/workflows/pr-re-review.yml`
+- [x] Add `.github/workflows/pr-address-comments.yml` (developer automation)
 - [ ] Add `.github/workflows/renovate.yml` and `renovate.json`
 - [ ] Add `.github/workflows/export-repo-config.yml`
 - [ ] Add `.github/workflows/codeql-analysis.yml`
 - [ ] Add `.pre-commit-config.yaml` with `actionlint` and `shellcheck`
-- [ ] Add top-level `permissions` to `functional-tests.yml`
+- [x] Add top-level `permissions` to `functional-tests.yml`
+
+**Not applicable:** `pr-fix-tests.yml` / `test-drift-fix.yml`
+(small test suite, not prone to drift).
 
 ### client-python
 
@@ -508,9 +514,8 @@ None.
 - **clingwrap** -- 12 items (has AGENTS.md/ARCHITECTURE.md but
   missing most CI/release infrastructure including developer
   automation, plus permissions).
-- **agent-python** -- 9 items remaining (release infrastructure
-  done; needs CI review, developer automation, renovate,
-  export-repo-config, CodeQL, pre-commit, and workflow permissions).
+- **agent-python** -- 4 items remaining (needs renovate,
+  export-repo-config, CodeQL, and pre-commit).
 - **client-python** -- 15 items (missing nearly everything
   including developer automation, plus permissions on 2 workflows).
 - **library-utilities** -- 13 items (missing nearly everything

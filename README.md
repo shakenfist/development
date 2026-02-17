@@ -7,6 +7,8 @@ the Shaken Fist project.
 
 - [Automated PR Review with Claude Code](docs/automated-pr-review.md) -- How we use
   Claude Code to automate code review and address review comments
+- [CI Review Automation](docs/ci-review-automation.md) -- Workflow templates
+  for bot-triggered reviews, retests, test fixing, and comment addressing
 - [Release Automation](docs/release-automation.md) -- Automated PyPI releases
   with Sigstore signing and trusted publishers
 
@@ -17,6 +19,11 @@ to Shaken Fist projects:
 
 - [`templates/release-automation/`](templates/release-automation/) --
   `release.yml` workflow and `RELEASE-SETUP.md` for PyPI releases
+- [`templates/ci-review-automation/`](templates/ci-review-automation/) --
+  Bot-triggered workflows for PR review, retest, and comment addressing
+- [`templates/test-drift-fix/`](templates/test-drift-fix/) --
+  Automatic test fixing with Claude Code (for projects with large
+  test suites)
 
 ## Shared GitHub Actions
 
@@ -37,6 +44,7 @@ The following projects have Claude Code-powered automation:
 |---------|------------------|------------|-------------------|--------|
 | [imago](https://github.com/shakenfist/imago) | Yes | Yes | Yes | Yes |
 | [occystrap](https://github.com/shakenfist/occystrap) | Yes | Yes | Yes | Yes |
+| [agent-python](https://github.com/shakenfist/agent-python) | Yes | No | Yes | Yes |
 
 ## About Shaken Fist
 

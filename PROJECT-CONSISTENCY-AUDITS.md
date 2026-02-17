@@ -80,6 +80,40 @@ cost limitations. We should include that job in every project too.
 That workflow needs top-level `permissions` including
 `pull-requests: write` and `issues: write`.
 
+**Templates:** Use the templates in
+[`templates/ci-review-automation/`](templates/ci-review-automation/) as
+the canonical starting point. These contain the bot-triggered workflows
+and instructions for adding the automated reviewer job to your CI
+workflow. See [docs/ci-review-automation.md](docs/ci-review-automation.md)
+for full details on the automation system and setup steps.
+
+## Developer automation
+
+In addition to automated review, projects should include bot-triggered
+workflows for common developer tasks:
+
+- `pr-address-comments.yml` -- "@shakenfist-bot please address
+  comments" triggers Claude Code to address review comments
+- `pr-retest.yml` -- "@shakenfist-bot please retest" triggers a
+  re-run of functional tests
+
+These are available as templates in
+[`templates/ci-review-automation/`](templates/ci-review-automation/).
+
+### Test drift fixing (optional)
+
+Projects with large test suites that are prone to drift (e.g. imago,
+occystrap) should also add:
+
+- `pr-fix-tests.yml` -- "@shakenfist-bot please attempt to fix"
+  triggers Claude Code to fix CI failures
+- `test-drift-fix.yml` -- implementation for the test fixer
+  (requires project-specific customisation)
+
+These are in a separate template set at
+[`templates/test-drift-fix/`](templates/test-drift-fix/). Simple
+projects with small, stable test suites don't need these.
+
 ## Renovate for dependency bumps
 
 We use renovate for dependency bumps. THe job runs in a workflow defined
