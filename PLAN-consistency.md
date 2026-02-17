@@ -218,7 +218,7 @@ automation.
 - [x] Add Claude Code automated review to CI workflow
 - [x] Add `.github/workflows/pr-re-review.yml`
 - [x] Add `.github/workflows/pr-address-comments.yml` (developer automation)
-- [ ] Add `.github/workflows/renovate.yml` and `renovate.json`
+- [x] Add `.github/workflows/renovate.yml` and `renovate.json`
 - [ ] Add `.github/workflows/export-repo-config.yml`
 - [ ] Add `.github/workflows/codeql-analysis.yml`
 - [ ] Add `.pre-commit-config.yaml` with `actionlint` and `shellcheck`
@@ -226,6 +226,10 @@ automation.
 
 **Not applicable:** `pr-fix-tests.yml` / `test-drift-fix.yml`
 (small test suite, not prone to drift).
+
+**Note:** `renovate.json` includes `constraints.python: ">=3.8"`
+matching the oldest supported distro (Ubuntu 20.04). See
+`ARCHITECTURE.md` for the supported platforms table.
 
 ### client-python
 
@@ -514,7 +518,7 @@ None.
 - **clingwrap** -- 12 items (has AGENTS.md/ARCHITECTURE.md but
   missing most CI/release infrastructure including developer
   automation, plus permissions).
-- **agent-python** -- 4 items remaining (needs renovate,
+- **agent-python** -- 3 items remaining (needs
   export-repo-config, CodeQL, and pre-commit).
 - **client-python** -- 15 items (missing nearly everything
   including developer automation, plus permissions on 2 workflows).

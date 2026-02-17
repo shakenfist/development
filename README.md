@@ -24,6 +24,8 @@ to Shaken Fist projects:
 - [`templates/test-drift-fix/`](templates/test-drift-fix/) --
   Automatic test fixing with Claude Code (for projects with large
   test suites)
+- [`templates/renovate/`](templates/renovate/) --
+  Renovate dependency updater workflow and configuration
 
 ## Shared GitHub Actions
 

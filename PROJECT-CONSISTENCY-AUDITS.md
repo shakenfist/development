@@ -116,10 +116,70 @@ projects with small, stable test suites don't need these.
 
 ## Renovate for dependency bumps
 
-We use renovate for dependency bumps. THe job runs in a workflow defined
-in `renovate.yml`, which you can find an example of at
-`shakenfist/.github/workflows/renovate.yml`, but you also need a copy of
-`shakenfist/renovate.json`.
+We use renovate for dependency bumps. Each project needs:
+
+- `.github/workflows/renovate.yml` -- workflow that runs renovate
+  hourly on a self-hosted runner. Only the
+  `RENOVATE_AUTODISCOVER_FILTER` value changes per repo.
+- `renovate.json` -- renovate configuration with package grouping
+  rules and scheduling.
+
+**Templates:** Use the templates in
+[`templates/renovate/`](templates/renovate/) as the canonical
+starting point. See `agent-python` for a complete example including
+Python version constraints.
+
+### Python version constraints
+
+Projects that must support multiple Linux distributions should set
+`constraints.python` in `renovate.json` to match the oldest Python
+version they support. This prevents renovate from proposing
+dependency updates that are incompatible with older distros.
+
+The constraint should match the `requires-python` value in
+`pyproject.toml`. Both values are derived from the oldest supported
+distribution's system Python.
+
+```json
+{
+  "constraints": {
+    "python": ">=3.8"
+  }
+}
+```
+
+For projects with a supported platforms matrix, document the distro
+list and Python versions in `ARCHITECTURE.md` and add comments in
+both `pyproject.toml` and `renovate.json` pointing back to that
+table. When dropping a distribution, update:
+
+1. The supported platforms table in `ARCHITECTURE.md`
+2. `requires-python` in `pyproject.toml`
+3. `constraints.python` in `renovate.json`
+
+CI should test on the oldest supported Python version to catch any
+dependency bumps that break compatibility.
+
+### Package grouping
+
+Projects with tightly coupled dependencies (e.g. the grpc stack)
+should group them in `renovate.json` so they are bumped together:
+
+```json
+{
+  "packageRules": [
+    {
+      "description": "Group grpc packages together",
+      "matchPackagePatterns": [
+        "^grpcio",
+        "^googleapis-common-protos",
+        "^protobuf"
+      ],
+      "groupName": "grpc packages"
+    }
+  ]
+}
+```
 
 ## Exporting repo configuration changes
 
