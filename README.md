@@ -5,8 +5,18 @@ the Shaken Fist project.
 
 ## Documentation
 
-- [Automated PR Review with Claude Code](docs/automated-pr-review.md) - How we use
+- [Automated PR Review with Claude Code](docs/automated-pr-review.md) -- How we use
   Claude Code to automate code review and address review comments
+- [Release Automation](docs/release-automation.md) -- Automated PyPI releases
+  with Sigstore signing and trusted publishers
+
+## Templates
+
+Standardised configuration files for rolling out infrastructure
+to Shaken Fist projects:
+
+- [`templates/release-automation/`](templates/release-automation/) --
+  `release.yml` workflow and `RELEASE-SETUP.md` for PyPI releases
 
 ## Shared GitHub Actions
 
