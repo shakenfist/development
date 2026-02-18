@@ -298,7 +298,9 @@ The `actions: read` permission is required for CodeQL to access workflow run
 information. Without it, you'll see "Resource not accessible by integration"
 errors.
 
-## GitHub Actions workflow permissions
+## GitHub Action
+
+### Workflow permissions
 
 All GitHub Actions workflows must have a top-level `permissions` block
 to restrict the default `GITHUB_TOKEN` scope. This is flagged by GitHub
@@ -310,7 +312,7 @@ Workflows where every job only reads should use
 `permissions: contents: read`. Workflows with mixed needs should use
 `permissions: {}` at the top level and declare per-job permissions.
 
-## Linting for CI jobs
+### Linting for CI jobs
 
 Please ensure we have `actionslint`, `shellcheck`, and a git precommit
 that runs them setup as well. You can find examples in `kerbside`, and
@@ -332,7 +334,7 @@ Additionally, we have some rules of our own:
   "functional-test.yml". This matters because some of the developer
   automations need to know the name of the workflow to function.
 
-## Piped commands in GitHub Actions must check PIPESTATUS
+### Piped commands in GitHub Actions must check PIPESTATUS
 
 When piping a command through `tee` (or any other filter) in a GitHub
 Actions `run:` step, the exit code of the upstream command can be
@@ -364,36 +366,48 @@ The only exception is when failure is intentionally ignored (e.g.
 `command | tee log.txt || true`), or when the upstream command cannot
 fail (e.g. `echo ... | tee`).
 
-## Linting for helper bash scripts
+### Linting for helper bash scripts
 
 For projects that have helper shell scripts, we should include a shellcheck
 precommit to ensure they're not bonkers.
 
-## Developer automation
+### Developer automation
 
-`imago` is the most mature example here, although `shakenfist` also has a
-minor example for exceptions found in functional tests. `imago` has a
-series of GitHub workflow automations that respond to comments from
-authorised users to perform common actions:
+Projects should include bot-triggered workflows that respond to
+`@shakenfist-bot` comments from authorised users:
 
-* "@shakenfist-bot please attempt to fix" causes a Claude Code automation
-  that attempts to fix failures found in a CI run.
-* "@shakenfist-bot please address comments" causes a Claude Code automation
-  that attempts to address review comments from the automated reviewer
-  to run.
-* "@shakenfist-bot please re-review" causes the automated reviewer to run
-  again, as normally automated reviews are limited to a single review per
-  PR.
-* "@shakenfist-bot please retest" causes the functional tests to be rerun.
-  This is needed because automated commits (for example from the automated
-  review comment fixer) do not cause new CI runs.
+* `pr-address-comments.yml` -- "@shakenfist-bot please address
+  comments" triggers Claude Code to address review comments from
+  the automated reviewer.
+* `pr-re-review.yml` -- "@shakenfist-bot please re-review" triggers
+  a second automated review (normally limited to one per PR).
+* `pr-retest.yml` -- "@shakenfist-bot please retest" re-runs the
+  functional tests. Needed because automated commits (e.g. from
+  the comment fixer) do not trigger new CI runs.
 
-We should move the implementation for these automations into the `actions`
-repository and then progressively roll them out to all projects.
+These workflows use two shared composite actions from the `actions`
+repository:
 
-Additionally, the automated reviewer's prompt should ensure that it checks
-that documentation in the docs/ directory has been updated for any user
-visible changes.
+* **`shakenfist/actions/pr-bot-trigger@main`** -- handles the
+  common boilerplate: trigger phrase matching, permission checks,
+  comment reactions, starting messages, and PR detail extraction.
+* **`shakenfist/actions/review-pr-with-claude@main`** -- runs the
+  automated review with structured JSON output, issue creation,
+  and markdown rendering (used by `pr-re-review.yml`).
+
+**Templates:** Use the templates in
+[`templates/ci-review-automation/`](templates/ci-review-automation/)
+as the canonical starting point. These contain `pr-re-review.yml`,
+`pr-address-comments.yml`, and `pr-retest.yml`.
+
+Additionally, the automated reviewer's prompt should ensure that it
+checks that documentation in the `docs/` directory has been updated
+for any user-visible changes.
+
+### pypi caching for self-hosted runners
+
+Self hosted runners should use the devpi pypi cache at http://192.168.1.4:3141
+in order to reduce network load and increase reliability.
 
 ## Console script logging setup
 
