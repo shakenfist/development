@@ -198,6 +198,14 @@ shared versions:
 This migration is not blocking but should be done to avoid drift
 between the shared and inline copies.
 
+### Template bugs found during occystrap audit
+
+- **`templates/export-repo-config/export-repo-config.yml`** has
+  `permissions: contents: read` but the reusable workflow it calls
+  creates branches, pushes commits, and creates PRs -- it needs
+  `contents: write` and `pull-requests: write`. The template
+  should be updated before rolling out to more projects.
+
 ---
 
 ## Per-project audit results
@@ -414,16 +422,55 @@ Python package with `pyproject.toml`. Has `AGENTS.md`,
 `ARCHITECTURE.md`, `release.yml`, `RELEASE-SETUP.md`,
 `.pre-commit-config.yaml`, `renovate.yml`, `renovate.json`,
 `export-repo-config.yml`, `codeql-analysis.yml`, `pr-re-review.yml`,
-and Claude Code automated review in `functional-tests.yml`.
-All workflows have proper top-level `permissions` blocks.
+`pr-retest.yml`, `pr-fix-tests.yml`, `pr-address-comments.yml`,
+`test-drift-fix.yml`, and Claude Code automated review in
+`functional-tests.yml`. All workflows have proper top-level
+`permissions` blocks.
 
 **Needed cleanups:**
 
-- [ ] Add `.github/workflows/pr-fix-tests.yml` (developer automation)
-- [ ] Add `.github/workflows/pr-address-comments.yml` (developer automation)
+- [x] Add `.github/workflows/pr-fix-tests.yml` (developer automation)
+- [x] Add `.github/workflows/pr-address-comments.yml` (developer automation)
+- [x] Add `.github/workflows/pr-retest.yml` (developer automation)
+- [x] Add `.github/workflows/test-drift-fix.yml` (developer automation)
+- [x] Console script logging setup: add
+  `logging.basicConfig(level=logging.INFO)` and
+  `logging.getLogger(__name__).propagate = False` after
+  `setup_console()` in `main.py` so that INFO messages from
+  module loggers propagate to a configured root logger (see
+  PROJECT-CONSISTENCY-AUDITS.md "Console script logging setup")
+- [x] Add `constraints.python` to `renovate.json` matching
+  `requires-python = ">=3.7"` in `pyproject.toml` (needed for
+  projects supporting multiple Linux distributions)
+- [x] Resync `pr-address-comments.yml` from template
+  (`templates/ci-review-automation/`). Resynced; also fixes
+  PIPESTATUS as the template is now the canonical source for
+  that pattern.
+- [x] Add `.claude/skills/` directory with Claude skills for
+  repetitive operations (documentation-updates,
+  testing-discipline, pr-preparation)
+- [ ] Enable GitHub security settings: Dependabot security updates
+  and secret scanning are both disabled (per audit 2026-02-08).
+  This is a manual GitHub UI change.
+- [x] Resync `codeql-analysis.yml` from template
+  (`templates/codeql/`). Now uses `[self-hosted, static]` runner,
+  clean template format, job-level permissions with `actions: read`.
+- [x] Update `Co-Authored-By` in `test-drift-fix.yml` from
+  `Claude Opus 4.5` to `Claude Opus 4.6` (3 places)
+- [x] Check `export-repo-config.yml` permissions: occystrap's
+  `contents: write` + `pull-requests: write` are correct -- the
+  reusable workflow creates branches, pushes, and creates PRs.
+  The template at `contents: read` is too restrictive and should
+  be fixed there instead.
+- [x] Fix comment in `release.yml` line 35: says `pbr versioning`
+  but occystrap uses `setuptools_scm`
 
-**Already compliant:** All criteria except developer automation
-(`pr-fix-tests.yml` and `pr-address-comments.yml`).
+**Already compliant:** LLM tooling (`AGENTS.md`, `ARCHITECTURE.md`),
+release process (`pyproject.toml`, `release.yml`, `RELEASE-SETUP.md`),
+Claude Code automated review in CI, developer automation (all four
+bot-triggered workflows), renovate, repo config export, CodeQL,
+linting (`.pre-commit-config.yaml` with actionlint, shellcheck,
+check-log-levels), workflow permissions, default branch (`develop`).
 
 ### ryll
 
@@ -491,12 +538,12 @@ and workflow permissions.
 - **imago** -- fully compliant with all criteria including full
   developer automation (`pr-fix-tests.yml`, `pr-address-comments.yml`,
   `pr-retest.yml`).
-- **occystrap** -- missing only developer automation workflows
-  (`pr-fix-tests.yml`, `pr-address-comments.yml`).
 
 ### Nearly compliant projects (1-3 items)
 
-None.
+- **occystrap** -- 1 item remaining: enable GitHub security
+  settings (Dependabot + secret scanning) in the GitHub UI.
+  All other items complete.
 
 ### Partially compliant projects (4-6 items)
 
@@ -505,7 +552,6 @@ None.
   to add permissions to.
 
 ### Major work needed (7+ items)
-
 - **ryll** -- needs entire `.github/workflows/` directory, renovate,
   export-repo-config, pr-re-review, developer automation, CodeQL,
   and CI workflows for Claude review (8 items).
@@ -548,9 +594,10 @@ Note: The 7 projects missing workflow permissions account for 35
 individual workflow files that need top-level `permissions` blocks
 added. Shakenfist alone accounts for 17 of these.
 
-Note: Developer automation includes `pr-fix-tests.yml` and
-`pr-address-comments.yml`. Only imago currently has these
-workflows.
+Note: Developer automation includes `pr-fix-tests.yml`,
+`pr-address-comments.yml`, `pr-retest.yml`, and optionally
+`test-drift-fix.yml`. Imago, occystrap, and agent-python
+currently have these workflows.
 
 ### Suggested approach
 

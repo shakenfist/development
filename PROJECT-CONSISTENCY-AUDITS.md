@@ -129,12 +129,15 @@ We use renovate for dependency bumps. Each project needs:
 starting point. See `agent-python` for a complete example including
 Python version constraints.
 
-### Python version constraints
+### Python version constraints for end-user tooling
 
 Projects that must support multiple Linux distributions should set
 `constraints.python` in `renovate.json` to match the oldest Python
 version they support. This prevents renovate from proposing
 dependency updates that are incompatible with older distros.
+
+At the moment the projects which need to meet this requirement are:
+agent-python; and occystrap.
 
 The constraint should match the `requires-python` value in
 `pyproject.toml`. Both values are derived from the oldest supported
