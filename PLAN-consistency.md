@@ -42,10 +42,12 @@ internal-only tooling or historical archive repositories:
    Use the templates in `templates/release-automation/` as the starting
    point.
 3. **Claude Code automated review in CI**: Automated review job in CI
-   workflow (runs after all other tests pass). The reviewer job needs
-   `pull-requests: write` permission to post comments. Also need
-   `.github/workflows/pr-re-review.yml` (with `pull-requests: write`
-   and `issues: write`).
+   workflow (runs after all other tests pass). Must use the shared
+   action `shakenfist/actions/review-pr-with-claude@main` (not
+   per-project scripts). The reviewer job needs `pull-requests: write`
+   and `issues: write` permissions to post comments and create issues.
+   Also need `.github/workflows/pr-re-review.yml` (with
+   `pull-requests: write` and `issues: write`).
 4. **Renovate**: `.github/workflows/renovate.yml` and `renovate.json`.
 5. **Repo config export**: `.github/workflows/export-repo-config.yml`.
 6. **GitHub CodeQL**: `.github/workflows/codeql-analysis.yml` for
@@ -181,30 +183,47 @@ Then for each project, the per-repo files to add are:
 
 The shared `export-repo-config` reusable workflow and
 `review-pr-with-claude` composite action are now available in the
-`actions/` repo. However, the following projects already have their
-own inline copies of this logic and should be migrated to use the
-shared versions:
+`actions/` repo. The shared action now produces structured JSON
+reviews (validated against a schema), creates GitHub issues for
+actionable items, and renders to markdown with embedded JSON for
+the `address-comments` automation.
+
+The following projects still have their own inline copies and
+should be migrated to use the shared versions:
 
 - **shakenfist** -- has its own 168-line `export-repo-config.yml`
   and its own 337-line `tools/review-pr-with-claude.sh` plus inline
   `pr-re-review.yml`. These should be replaced with calls to the
   shared action/workflow.
-- **imago** -- has its own `pr-re-review.yml` with inline review
-  logic. Should be converted to use the shared composite action.
+- ~~**imago** -- calls its own `tools/review-pr-with-claude.sh`
+  directly from `functional-tests.yml` and `pr-re-review.yml`.~~
+  DONE -- migrated to shared action. The per-project
+  `tools/review-pr-with-claude.sh`, `tools/render-review.py`,
+  `tools/create-review-issues.py`, and `tools/review-schema.json`
+  can be removed in a future cleanup.
 - **kerbside-patches** -- has Claude review logic in
   `daily-rebase-checks.yml`. Evaluate whether this can use the
   shared action.
 
 This migration is not blocking but should be done to avoid drift
-between the shared and inline copies.
+between the shared and inline copies. Projects using the shared
+action also need `issues: write` permission on their reviewer job
+(for issue creation).
 
 ### Template bugs found during occystrap audit
 
-- **`templates/export-repo-config/export-repo-config.yml`** has
+- ~~**`templates/export-repo-config/export-repo-config.yml`** has
   `permissions: contents: read` but the reusable workflow it calls
   creates branches, pushes commits, and creates PRs -- it needs
-  `contents: write` and `pull-requests: write`. The template
-  should be updated before rolling out to more projects.
+  `contents: write` and `pull-requests: write`.~~ FIXED.
+
+- **`actions/review-pr-with-claude`** shared action had a simple
+  plain-markdown prompt instead of the structured JSON format used
+  in per-project scripts (imago, occystrap). The shared action has
+  now been updated to include `render-review.py`,
+  `create-review-issues.py`, and `review-schema.json`, producing
+  structured reviews with issue creation and embedded JSON for
+  automation. FIXED.
 
 ---
 
@@ -326,13 +345,19 @@ automation.
 - [x] Add top-level `permissions` to `pr-re-review.yml`
 - [x] Add top-level `permissions` to `functional-tests.yml`
 - [x] Add top-level `permissions` to `test-drift-fix.yml`
+- [x] Migrate `functional-tests.yml` and `pr-re-review.yml` from
+  per-project `tools/review-pr-with-claude.sh` to the shared action
+  `shakenfist/actions/review-pr-with-claude@main`
+- [x] Add `issues: write` to top-level permissions in
+  `functional-tests.yml` (needed for the shared action's issue
+  creation feature)
 
 **Already compliant:** All criteria. `AGENTS.md`, `ARCHITECTURE.md`,
 `.claude/skills/`, `.pre-commit-config.yaml`, `renovate.yml`,
 `renovate.json`, `export-repo-config.yml`, `codeql-analysis.yml`,
 `pr-re-review.yml`, `pr-fix-tests.yml`, `pr-address-comments.yml`,
-`pr-retest.yml`, Claude Code automated review in CI. All workflows
-have top-level `permissions` blocks.
+`pr-retest.yml`, Claude Code automated review in CI (using shared
+action). All workflows have top-level `permissions` blocks.
 
 **Not applicable:** `pyproject.toml`, `release.yml`, `RELEASE-SETUP.md`
 (this is a Rust project, not a Python package released to pypi).
@@ -463,6 +488,9 @@ Python package with `pyproject.toml`. Has `AGENTS.md`,
   be fixed there instead.
 - [x] Fix comment in `release.yml` line 35: says `pbr versioning`
   but occystrap uses `setuptools_scm`
+- [x] Add `issues: write` to automated reviewer job permissions
+  in `functional-tests.yml` (needed for the shared action's issue
+  creation feature)
 
 **Already compliant:** LLM tooling (`AGENTS.md`, `ARCHITECTURE.md`),
 release process (`pyproject.toml`, `release.yml`, `RELEASE-SETUP.md`),

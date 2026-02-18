@@ -59,19 +59,36 @@ on the release pipeline and setup steps.
 
 ## Claude Code for automated review in CI
 
-We also run Claude Code for automated review in CI. Copy the relevant
-configration from `shakenfist/.github/workflows/functional-tests.yml`,
-noting that we only run automated reviewws once all other CI tests have
-passed to avoid being wasteful with LLM credits. The automated reviewer
-job must have `pull-requests: write` permission so it can post review
-comments. If the workflow's top-level permissions are restrictive (e.g.
-`contents: read`), add job-level permissions to the reviewer job:
+We run Claude Code for automated review in CI. The automated reviewer
+only runs once all other CI tests have passed to avoid being wasteful
+with LLM credits.
+
+**All projects must use the shared action
+`shakenfist/actions/review-pr-with-claude@main`** for automated
+reviews. Do not use per-project `tools/review-pr-with-claude.sh`
+scripts -- the shared action is the canonical implementation and
+contains the structured JSON review format, issue creation, and
+markdown rendering. Using the shared action ensures all projects
+benefit from improvements in one place.
+
+The shared action produces structured JSON reviews that are:
+- Validated against a schema
+- Used to create GitHub issues for actionable items (`fix`/`document`)
+- Rendered to markdown with embedded JSON for the `address-comments`
+  automation to parse
+
+The automated reviewer job must have `pull-requests: write` and
+`issues: write` permissions so it can post review comments and
+create issues. If the workflow's top-level permissions are
+restrictive (e.g. `contents: read`), add job-level permissions
+to the reviewer job:
 
 ```yaml
   automated_reviewer:
     permissions:
       contents: read
       pull-requests: write
+      issues: write
 ```
 
 There is also another job called `pr-re-review.yml` that triggers a
