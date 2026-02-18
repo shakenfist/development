@@ -449,9 +449,8 @@ Python package with `pyproject.toml`. Has `AGENTS.md`,
 - [x] Add `.claude/skills/` directory with Claude skills for
   repetitive operations (documentation-updates,
   testing-discipline, pr-preparation)
-- [ ] Enable GitHub security settings: Dependabot security updates
-  and secret scanning are both disabled (per audit 2026-02-08).
-  This is a manual GitHub UI change.
+- [x] Enable GitHub security settings: Dependabot security updates,
+  secret scanning, and push protection all now enabled.
 - [x] Resync `codeql-analysis.yml` from template
   (`templates/codeql/`). Now uses `[self-hosted, static]` runner,
   clean template format, job-level permissions with `actions: read`.
@@ -538,12 +537,13 @@ and workflow permissions.
 - **imago** -- fully compliant with all criteria including full
   developer automation (`pr-fix-tests.yml`, `pr-address-comments.yml`,
   `pr-retest.yml`).
+- **occystrap** -- fully compliant. All items complete including
+  developer automation, workflow template resyncs, Claude skills,
+  and GitHub security settings.
 
 ### Nearly compliant projects (1-3 items)
 
-- **occystrap** -- 1 item remaining: enable GitHub security
-  settings (Dependabot + secret scanning) in the GitHub UI.
-  All other items complete.
+None.
 
 ### Partially compliant projects (4-6 items)
 
