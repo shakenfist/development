@@ -191,10 +191,15 @@ the `address-comments` automation.
 The following projects still have their own inline copies and
 should be migrated to use the shared versions:
 
-- **shakenfist** -- has its own 168-line `export-repo-config.yml`
+- ~~**shakenfist** -- has its own 168-line `export-repo-config.yml`
   and its own 337-line `tools/review-pr-with-claude.sh` plus inline
   `pr-re-review.yml`. These should be replaced with calls to the
-  shared action/workflow.
+  shared action/workflow.~~
+  DONE -- migrated to shared action/workflow.
+  `export-repo-config.yml` now calls the shared reusable workflow,
+  `pr-re-review.yml` and `functional-tests.yml` reviewer job now use
+  `shakenfist/actions/review-pr-with-claude@main`, and
+  `tools/review-pr-with-claude.sh` has been removed.
 - ~~**imago** -- calls its own `tools/review-pr-with-claude.sh`
   directly from `functional-tests.yml` and `pr-re-review.yml`.~~
   DONE -- migrated to shared action. The per-project
@@ -533,19 +538,26 @@ automated review in `functional-tests.yml`.
 
 **Needed cleanups:**
 
-- [ ] Add `.github/workflows/pr-fix-tests.yml` (developer automation)
-- [ ] Add `.github/workflows/pr-address-comments.yml` (developer automation)
+- [x] Add `.github/workflows/pr-fix-tests.yml` (developer automation)
+- [x] Add `.github/workflows/pr-address-comments.yml` (developer automation)
+- [x] Migrate `export-repo-config.yml` to shared reusable workflow
+- [x] Migrate `pr-re-review.yml` to shared `review-pr-with-claude` action
+- [x] Migrate `functional-tests.yml` reviewer to shared action (with
+  job-level `permissions` and bot-commit check)
+- [x] Remove `tools/review-pr-with-claude.sh` (replaced by shared action)
+- [x] Add `tools/address-comments-with-claude.sh`, `render-review.py`,
+  and `review-schema.json` (supporting tools for developer automation)
 - [ ] Add top-level `permissions` to `ci-dependencies.yml`
 - [ ] Add top-level `permissions` to `ci-images.yml`
 - [ ] Add top-level `permissions` to `ci-images-test.yml`
 - [ ] Add top-level `permissions` to `code-formatting.yml`
 - [ ] Add top-level `permissions` to `codeql-analysis.yml`
 - [ ] Add top-level `permissions` to `docs-tests.yml`
-- [ ] Add top-level `permissions` to `export-repo-config.yml`
+- [x] Add top-level `permissions` to `export-repo-config.yml`
 - [ ] Add top-level `permissions` to `functional-tests.yml`
 - [ ] Add top-level `permissions` to `functional-tests-skip.yml`
 - [ ] Add top-level `permissions` to `pin-indirect-dependencies.yml`
-- [ ] Add top-level `permissions` to `pr-re-review.yml`
+- [x] Add top-level `permissions` to `pr-re-review.yml`
 - [ ] Add top-level `permissions` to `publish-website.yml`
 - [ ] Add top-level `permissions` to `refresh-website.yml`
 - [ ] Add top-level `permissions` to `release.yml`
@@ -597,8 +609,9 @@ None.
   including developer automation, plus permissions on 2 workflows).
 - **library-utilities** -- 13 items (missing nearly everything
   including developer automation, no workflows directory).
-- **shakenfist** -- needs developer automation plus top-level
-  `permissions` on 17 workflows (19 items). Otherwise compliant.
+- **shakenfist** -- needs top-level `permissions` on 15 workflows
+  (15 items remaining). Developer automation, shared action migration,
+  and `export-repo-config.yml`/`pr-re-review.yml` permissions done.
 
 ### Most common missing items across non-excluded projects
 
