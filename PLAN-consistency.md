@@ -547,26 +547,25 @@ automated review in `functional-tests.yml`.
 - [x] Remove `tools/review-pr-with-claude.sh` (replaced by shared action)
 - [x] Add `tools/address-comments-with-claude.sh`, `render-review.py`,
   and `review-schema.json` (supporting tools for developer automation)
-- [ ] Add top-level `permissions` to `ci-dependencies.yml`
-- [ ] Add top-level `permissions` to `ci-images.yml`
-- [ ] Add top-level `permissions` to `ci-images-test.yml`
-- [ ] Add top-level `permissions` to `code-formatting.yml`
-- [ ] Add top-level `permissions` to `codeql-analysis.yml`
-- [ ] Add top-level `permissions` to `docs-tests.yml`
+- [x] Add top-level `permissions` to `ci-dependencies.yml`
+- [x] Add top-level `permissions` to `ci-images.yml`
+- [x] Add top-level `permissions` to `ci-images-test.yml`
+- [x] Add top-level `permissions` to `code-formatting.yml`
+- [x] Add top-level `permissions` to `codeql-analysis.yml`
+- [x] Add top-level `permissions` to `docs-tests.yml`
 - [x] Add top-level `permissions` to `export-repo-config.yml`
-- [ ] Add top-level `permissions` to `functional-tests.yml`
-- [ ] Add top-level `permissions` to `functional-tests-skip.yml`
-- [ ] Add top-level `permissions` to `pin-indirect-dependencies.yml`
+- [x] Add top-level `permissions` to `functional-tests.yml`
+- [x] Add top-level `permissions` to `functional-tests-skip.yml`
+- [x] Add top-level `permissions` to `pin-indirect-dependencies.yml`
 - [x] Add top-level `permissions` to `pr-re-review.yml`
-- [ ] Add top-level `permissions` to `publish-website.yml`
-- [ ] Add top-level `permissions` to `refresh-website.yml`
-- [ ] Add top-level `permissions` to `release.yml`
-- [ ] Add top-level `permissions` to `renovate.yml`
-- [ ] Add top-level `permissions` to `scheduled-tests.yml`
-- [ ] Add top-level `permissions` to `sync-external-docs.yml`
+- [x] Add top-level `permissions` to `publish-website.yml`
+- [x] Add top-level `permissions` to `refresh-website.yml`
+- [x] Add top-level `permissions` to `release.yml`
+- [x] Add top-level `permissions` to `renovate.yml`
+- [x] Add top-level `permissions` to `scheduled-tests.yml`
+- [x] Add top-level `permissions` to `sync-external-docs.yml`
 
-**Already compliant:** All other criteria except developer automation
-and workflow permissions.
+**DONE** - All items complete.
 
 ---
 
@@ -580,6 +579,9 @@ and workflow permissions.
 - **occystrap** -- fully compliant. All items complete including
   developer automation, workflow template resyncs, Claude skills,
   and GitHub security settings.
+- **agent-python** -- 0 items remaining. Complete.
+- **shakenfist** -- fully compliant. Developer automation, shared
+  action migration, and workflow permissions all complete.
 
 ### Nearly compliant projects (1-3 items)
 
@@ -604,14 +606,10 @@ None.
 - **clingwrap** -- 12 items (has AGENTS.md/ARCHITECTURE.md but
   missing most CI/release infrastructure including developer
   automation, plus permissions).
-- **agent-python** -- 0 items remaining. **Complete.**
 - **client-python** -- 15 items (missing nearly everything
   including developer automation, plus permissions on 2 workflows).
 - **library-utilities** -- 13 items (missing nearly everything
   including developer automation, no workflows directory).
-- **shakenfist** -- needs top-level `permissions` on 15 workflows
-  (15 items remaining). Developer automation, shared action migration,
-  and `export-repo-config.yml`/`pr-re-review.yml` permissions done.
 
 ### Most common missing items across non-excluded projects
 
@@ -631,14 +629,14 @@ None.
 | `release.yml`                      | 5 projects  |
 | `RELEASE-SETUP.md`                 | 5 projects  |
 
-Note: The 7 projects missing workflow permissions account for 35
-individual workflow files that need top-level `permissions` blocks
-added. Shakenfist alone accounts for 17 of these.
+Note: The 6 remaining projects missing workflow permissions account
+for 18 individual workflow files that need top-level `permissions`
+blocks added.
 
 Note: Developer automation includes `pr-fix-tests.yml`,
 `pr-address-comments.yml`, `pr-retest.yml`, and optionally
-`test-drift-fix.yml`. Imago, occystrap, and agent-python
-currently have these workflows.
+`test-drift-fix.yml`. Imago, occystrap, agent-python, and
+shakenfist currently have these workflows.
 
 ### Suggested approach
 

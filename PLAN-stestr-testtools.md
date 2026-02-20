@@ -38,6 +38,7 @@ Any Shaken Fist repository that uses the stestr/testtools test
 stack should apply the same pins. Known affected:
 
 - `imago`
+- `shakenfist`
 
 ## Conditions for removing the pin
 
@@ -67,4 +68,9 @@ pull it in as a transitive dependency).
 ## Timeline
 
 - **2026-02-18**: Pin applied to imago.
+- **2026-02-19**: Pin applied to shakenfist. Also removed
+  redundant `uv pip install -U stestr` from CI workflow
+  (it was overriding the pyproject.toml pins), and fixed
+  one test using `with self.assertRaises()` context manager
+  form (incompatible with testtools <2.7.0).
 - Check upstream stestr monthly for a fix release.
