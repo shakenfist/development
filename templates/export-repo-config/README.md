@@ -28,8 +28,9 @@ with no modifications.
 ## Prerequisites
 
 - The shared workflow in `shakenfist/actions`
-- A `DEPENDENCIES_TOKEN` secret with repository write access
-  (used by the shared workflow to create PRs)
+- The caller workflow must set `permissions: contents: write`
+  and `pull-requests: write` so the default token can push
+  branches and create PRs
 
 ## Projects using this template
 
