@@ -333,6 +333,9 @@ Additionally, we have some rules of our own:
 * Functional testing is always in a GitHub actions workflow called
   "functional-test.yml". This matters because some of the developer
   automations need to know the name of the workflow to function.
+* The functional test workflow **must** include `workflow_dispatch` as
+  a trigger. Without it, the `pr-retest.yml` bot automation cannot
+  re-run functional tests via `gh workflow run`.
 
 ### Piped commands in GitHub Actions must check PIPESTATUS
 
