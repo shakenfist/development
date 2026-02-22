@@ -400,30 +400,46 @@ integration (for rebasing).
 
 Python package with `pyproject.toml`. Has `AGENTS.md`,
 `ARCHITECTURE.md`, `release.yml`, and `RELEASE-SETUP.md`. One of
-the reference projects mentioned in the audit document. Has
-`functional-tests.yml` and `pin-indirect-dependencies.yml` CI
-workflows but no Claude Code review integration.
+the reference projects mentioned in the audit document.
 
 **Needed cleanups:**
 
-- [ ] Add Claude Code automated review to CI workflow
-- [ ] Add `.github/workflows/pr-re-review.yml`
-- [ ] Add `.github/workflows/pr-fix-tests.yml` (developer automation)
-- [ ] Add `.github/workflows/pr-address-comments.yml` (developer automation)
-- [ ] Add `.github/workflows/renovate.yml` and `renovate.json`
-- [ ] Add `.github/workflows/export-repo-config.yml`
-- [ ] Add `.github/workflows/codeql-analysis.yml`
-- [ ] Add `.pre-commit-config.yaml` with `actionlint` and `shellcheck`
-- [ ] Add top-level `permissions` to `functional-tests.yml`
-- [ ] Add top-level `permissions` to `pin-indirect-dependencies.yml`
-- [ ] Add top-level `permissions` to `release.yml`
+- [x] Add Claude Code automated review to CI workflow
+- [x] Add `.github/workflows/pr-re-review.yml`
+- [x] Add `.github/workflows/pr-retest.yml` (developer automation)
+- [x] Add `.github/workflows/pr-address-comments.yml`
+      (developer automation)
+- [x] Add `.github/workflows/renovate.yml` and `renovate.json`
+- [x] Add `.github/workflows/export-repo-config.yml`
+- [x] Add `.github/workflows/codeql-analysis.yml`
+- [x] Add `.pre-commit-config.yaml` with `actionlint` and
+      `shellcheck`
+- [x] Add top-level `permissions` to `functional-tests.yml`
+- [x] Add top-level `permissions` to
+      `pin-indirect-dependencies.yml`
+- [x] Add top-level `permissions` to `release.yml`
+
+**Additional items addressed:**
+
+- [x] Fix `pin-indirect-dependencies.yml` for `pyproject.toml`
+      (was still referencing `requirements.txt`)
+- [x] Add `# END_OF_INDIRECT_DEPS` marker to `pyproject.toml`
+- [x] Add `check-bot-commit` job to `functional-tests.yml`
+- [x] Add `tools/address-comments-with-claude.sh`,
+      `tools/render-review.py`, `tools/review-schema.json`
+- [x] Add `.github/actionlint.yaml` configuration
+- [x] Add devpi pypi cache configuration to CI workflows
+- [x] Fix `setup_console()` logging in
+      `kerbside/utilities/main.py` (basicConfig + propagate)
+- [x] Update action versions to v6 (checkout, upload-artifact,
+      download-artifact)
 
 **Already compliant:** `AGENTS.md`, `ARCHITECTURE.md`,
 `pyproject.toml`, `release.yml`, `RELEASE-SETUP.md`.
 
-**Note:** The audit document references kerbside as an example for
-linting setup, but kerbside itself is currently missing
-`.pre-commit-config.yaml`. This should be addressed.
+**Status:** Fully compliant as of 2026-02-22. Remaining item:
+enable Dependabot and secret scanning in GitHub repo settings
+(UI-only, not tracked here).
 
 ### library-utilities
 
@@ -600,9 +616,7 @@ None.
 - **kerbside-patches** -- needs pr-re-review, developer
   automation, renovate, export-repo-config, CodeQL, plus top-level
   `permissions` on all 5 workflows (11 items).
-- **kerbside** -- needs Claude review, pr-re-review, developer
-  automation, renovate, export-repo-config, CodeQL, pre-commit,
-  plus top-level `permissions` on 3 workflows (11 items).
+- ~~**kerbside**~~ -- fully compliant as of 2026-02-22.
 - **clingwrap** -- 12 items (has AGENTS.md/ARCHITECTURE.md but
   missing most CI/release infrastructure including developer
   automation, plus permissions).
