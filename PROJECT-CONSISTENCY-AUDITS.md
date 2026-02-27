@@ -298,6 +298,27 @@ The `actions: read` permission is required for CodeQL to access workflow run
 information. Without it, you'll see "Resource not accessible by integration"
 errors.
 
+## HTTP response header sanitization
+
+Projects that use `http.server.BaseHTTPRequestHandler` directly (rather
+than a framework like Flask that provides built-in sanitization) must
+override `send_header()` to strip `\r` and `\n` characters from header
+values. This prevents HTTP response splitting (CWE-113), which CodeQL
+flags as `py/http-response-splitting`.
+
+The canonical implementation is `SafeHeaderMixin` in `occystrap/util.py`,
+which overrides `send_header()` to call
+`str(value).replace('\r', '').replace('\n', '')` before delegating to the
+base class. All `BaseHTTPRequestHandler` subclasses must inherit from this
+mixin (listed **first** in the class bases for correct MRO).
+
+Projects using Flask (kerbside, shakenfist, agent-python) are already
+protected by Werkzeug's `Headers` class, which raises `ValueError` on
+header values containing line breaks. When adding new HTTP servers to any
+project, prefer Flask. If `http.server` must be used (e.g. for embedded
+registries without external dependencies), always use the
+`SafeHeaderMixin` pattern.
+
 ## GitHub Action
 
 ### Workflow permissions
