@@ -77,6 +77,13 @@ internal-only tooling or historical archive repositories:
     English sentences with correct capitalization (no kebab case).
     Prefer `self-hosted` runners; Claude Code jobs on `claude` runners;
     small non-mutating jobs on `self-hosted` `static` runners.
+11. **flake8wrap.sh correctness**: Projects with `tools/flake8wrap.sh`
+    must not quote `${filtered_files}` on the diff/flake8 invocation
+    line. Quoting causes the space-separated list to be treated as a
+    single argument, breaking flake8 when multiple files change. Add
+    `shellcheck disable=SC2086` with an explanatory comment. The
+    script should also filter to `.py` files, skip `_pb2` generated
+    files, and handle deleted files.
 
 ---
 
@@ -263,6 +270,9 @@ automation.
 matching the oldest supported distro (Ubuntu 20.04). See
 `ARCHITECTURE.md` for the supported platforms table.
 
+**flake8wrap.sh:** Has script with correct unquoted variable
+expansion. Missing `shellcheck disable=SC2086` directive.
+
 ### client-python
 
 Python package with `pyproject.toml`. Has `functional-tests.yml` and
@@ -286,6 +296,9 @@ integration.
 - [ ] Add `.pre-commit-config.yaml` with `actionlint` and `shellcheck`
 - [ ] Add top-level `permissions` to `code-formatting.yml`
 - [ ] Add top-level `permissions` to `functional-tests.yml`
+
+**flake8wrap.sh:** Has script with correct unquoted variable
+expansion. Missing `shellcheck disable=SC2086` directive.
 
 ### clingwrap
 
@@ -316,6 +329,9 @@ with Claude Code review integration and full developer automation.
 - [x] Add `.github/actionlint.yaml` configuration
 - [x] Add `constraints.python` to `renovate.json` matching
   `requires-python = ">=3.7"` in `pyproject.toml`
+- [x] Fix `tools/flake8wrap.sh` quoting bug (`"${filtered_files}"`
+  was quoted, breaking flake8 with multiple files). Added
+  `shellcheck disable=SC2086` with explanatory comment.
 
 **Already compliant:** `AGENTS.md`, `ARCHITECTURE.md`.
 
@@ -453,6 +469,12 @@ the reference projects mentioned in the audit document.
 **Already compliant:** `AGENTS.md`, `ARCHITECTURE.md`,
 `pyproject.toml`, `release.yml`, `RELEASE-SETUP.md`.
 
+**flake8wrap.sh:** Has script with correct unquoted variable
+expansion. Uses `egrep` (deprecated, should be `grep -E`) and
+`"x$1" = "x-HEAD"` (old sh compatibility, harmless). Missing
+`shellcheck disable=SC2086` directive. Does not filter deleted
+files (no existence check loop).
+
 **Status:** Fully compliant as of 2026-02-22. Remaining item:
 enable Dependabot and secret scanning in GitHub repo settings
 (UI-only, not tracked here).
@@ -477,6 +499,10 @@ directory at all. Has `release.sh` that should be removed.
 - [ ] Add `.github/workflows/export-repo-config.yml`
 - [ ] Add `.github/workflows/codeql-analysis.yml`
 - [ ] Add `.pre-commit-config.yaml` with `actionlint` and `shellcheck`
+
+**flake8wrap.sh:** Has script with correct unquoted variable
+expansion. Uses simpler pattern (`tr '\n' ' '`) without `.py`
+filtering, `_pb2` exclusion, or deleted file handling.
 
 ### occystrap
 
@@ -535,6 +561,10 @@ Claude Code automated review in CI, developer automation (all four
 bot-triggered workflows), renovate, repo config export, CodeQL,
 linting (`.pre-commit-config.yaml` with actionlint, shellcheck,
 check-log-levels), workflow permissions, default branch (`develop`).
+
+**flake8wrap.sh:** Has script with correct unquoted variable
+expansion. Uses simpler pattern (`tr '\n' ' '`) without `.py`
+filtering, `_pb2` exclusion, or deleted file handling.
 
 ### ryll
 
@@ -596,6 +626,11 @@ automated review in `functional-tests.yml`.
 - [x] Add top-level `permissions` to `renovate.yml`
 - [x] Add top-level `permissions` to `scheduled-tests.yml`
 - [x] Add top-level `permissions` to `sync-external-docs.yml`
+
+**flake8wrap.sh:** Has script with correct unquoted variable
+expansion. Uses `egrep` (deprecated, should be `grep -E`) and
+`"x$1" = "x-HEAD"` (old sh compatibility, harmless). Missing
+`shellcheck disable=SC2086` directive.
 
 **DONE** - All items complete.
 

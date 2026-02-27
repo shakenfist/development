@@ -374,6 +374,39 @@ fail (e.g. `echo ... | tee`).
 For projects that have helper shell scripts, we should include a shellcheck
 precommit to ensure they're not bonkers.
 
+### flake8wrap.sh correctness
+
+Several projects have a `tools/flake8wrap.sh` script that runs flake8 on
+only the files changed in the current commit (invoked via `tox -eflake8
+-- -HEAD`). The script builds a space-separated list of filenames in
+`filtered_files` and passes it to `diff` and `flake8`.
+
+**The `${filtered_files}` variable must NOT be quoted** on the `diff` /
+`$FLAKE_COMMAND` invocation line. Quoting it (i.e. `"${filtered_files}"`)
+causes the entire space-separated list to be treated as a single filename
+argument, which breaks when more than one Python file is changed.
+
+Correct:
+
+```sh
+# shellcheck disable=SC2086
+diff -u --from-file /dev/null ${filtered_files} | $FLAKE_COMMAND ${filtered_files}
+```
+
+Incorrect:
+
+```sh
+diff -u --from-file /dev/null "${filtered_files}" | $FLAKE_COMMAND "${filtered_files}"
+```
+
+The `shellcheck disable=SC2086` directive is required because shellcheck
+will otherwise flag the intentional word splitting. Add a comment
+explaining that the word splitting is deliberate.
+
+Projects with this script should also filter to `.py` files only, skip
+`_pb2` generated files, and handle deleted files (files in the diff that
+no longer exist on disk).
+
 ### Developer automation
 
 Projects should include bot-triggered workflows that respond to
