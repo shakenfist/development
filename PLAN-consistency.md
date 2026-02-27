@@ -291,24 +291,40 @@ integration.
 
 Python package with `pyproject.toml`. Has `AGENTS.md` and
 `ARCHITECTURE.md` already. Has `functional-tests.yml` CI workflow
-but no Claude Code review integration.
+with Claude Code review integration and full developer automation.
 
 **Needed cleanups:**
 
-- [ ] Remove `release.sh`
-- [ ] Add `.github/workflows/release.yml` (has `pyproject.toml`)
-- [ ] Add `RELEASE-SETUP.md`
-- [ ] Add Claude Code automated review to CI workflow
-- [ ] Add `.github/workflows/pr-re-review.yml`
-- [ ] Add `.github/workflows/pr-fix-tests.yml` (developer automation)
-- [ ] Add `.github/workflows/pr-address-comments.yml` (developer automation)
-- [ ] Add `.github/workflows/renovate.yml` and `renovate.json`
-- [ ] Add `.github/workflows/export-repo-config.yml`
-- [ ] Add `.github/workflows/codeql-analysis.yml`
-- [ ] Add `.pre-commit-config.yaml` with `actionlint` and `shellcheck`
-- [ ] Add top-level `permissions` to `functional-tests.yml`
+- [x] Remove `release.sh`
+- [x] Add `.github/workflows/release.yml` (has `pyproject.toml`)
+- [x] Add `RELEASE-SETUP.md`
+- [x] Add Claude Code automated review to CI workflow
+- [x] Add `.github/workflows/pr-re-review.yml`
+- [x] Add `.github/workflows/pr-address-comments.yml` (developer automation)
+- [x] Add `.github/workflows/pr-retest.yml` (developer automation)
+- [x] Add `.github/workflows/renovate.yml` and `renovate.json`
+- [x] Add `.github/workflows/export-repo-config.yml`
+- [x] Add `.github/workflows/codeql-analysis.yml`
+- [x] Add `.pre-commit-config.yaml` with `actionlint` and `shellcheck`
+- [x] Add top-level `permissions` to `functional-tests.yml`
+- [x] Update `actions/checkout` from v4 to v6
+- [x] Add `check-bot-commit` job to `functional-tests.yml`
+- [x] Add `tools/address-comments-with-claude.sh`,
+  `tools/render-review.py`, `tools/create-review-issues.py`,
+  `tools/review-schema.json` (supporting tools for developer automation)
+- [x] Fix shellcheck warnings in `tools/flake8wrap.sh`
+- [x] Add `.github/actionlint.yaml` configuration
+- [x] Add `constraints.python` to `renovate.json` matching
+  `requires-python = ">=3.7"` in `pyproject.toml`
 
 **Already compliant:** `AGENTS.md`, `ARCHITECTURE.md`.
+
+**Not applicable:** `pr-fix-tests.yml` / `test-drift-fix.yml`
+(small test suite, not prone to drift).
+
+**Status:** Fully compliant as of 2026-02-27. Remaining item:
+enable Dependabot and secret scanning in GitHub repo settings
+(UI-only, not tracked here).
 
 ### cloudgood
 
@@ -598,6 +614,9 @@ automated review in `functional-tests.yml`.
 - **agent-python** -- 0 items remaining. Complete.
 - **shakenfist** -- fully compliant. Developer automation, shared
   action migration, and workflow permissions all complete.
+- **clingwrap** -- fully compliant as of 2026-02-27. All CI/release
+  infrastructure, developer automation, linting, and workflow
+  permissions complete.
 
 ### Nearly compliant projects (1-3 items)
 
@@ -617,9 +636,7 @@ None.
   automation, renovate, export-repo-config, CodeQL, plus top-level
   `permissions` on all 5 workflows (11 items).
 - ~~**kerbside**~~ -- fully compliant as of 2026-02-22.
-- **clingwrap** -- 12 items (has AGENTS.md/ARCHITECTURE.md but
-  missing most CI/release infrastructure including developer
-  automation, plus permissions).
+- ~~**clingwrap**~~ -- fully compliant as of 2026-02-27.
 - **client-python** -- 15 items (missing nearly everything
   including developer automation, plus permissions on 2 workflows).
 - **library-utilities** -- 13 items (missing nearly everything
