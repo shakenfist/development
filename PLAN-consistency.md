@@ -84,6 +84,15 @@ internal-only tooling or historical archive repositories:
     `shellcheck disable=SC2086` with an explanatory comment. The
     script should also filter to `.py` files, skip `_pb2` generated
     files, and handle deleted files.
+12. **Pin indirect dependencies**: Python projects with `pyproject.toml`
+    need `.github/workflows/pin-indirect-dependencies.yml` and an
+    `# END_OF_INDIRECT_DEPS` marker in their `pyproject.toml`.
+    Application projects (shakenfist, kerbside) put the marker in
+    `[project] dependencies` and use the application template.
+    Library projects (agent-python, client-python, clingwrap,
+    occystrap, library-utilities) put the marker in
+    `[project.optional-dependencies] pinned` and use the library
+    template. See `templates/pin-indirect-dependencies/`.
 
 ---
 
@@ -262,6 +271,10 @@ automation.
 - [x] Add `.github/workflows/codeql-analysis.yml`
 - [x] Add `.pre-commit-config.yaml` with `actionlint` and `shellcheck`
 - [x] Add top-level `permissions` to `functional-tests.yml`
+- [ ] Add `.github/workflows/pin-indirect-dependencies.yml` (library
+      template)
+- [ ] Add `[project.optional-dependencies] pinned` section with
+      `# END_OF_INDIRECT_DEPS` marker to `pyproject.toml`
 
 **Not applicable:** `pr-fix-tests.yml` / `test-drift-fix.yml`
 (small test suite, not prone to drift).
@@ -296,6 +309,10 @@ integration.
 - [ ] Add `.pre-commit-config.yaml` with `actionlint` and `shellcheck`
 - [ ] Add top-level `permissions` to `code-formatting.yml`
 - [ ] Add top-level `permissions` to `functional-tests.yml`
+- [ ] Add `.github/workflows/pin-indirect-dependencies.yml` (library
+      template)
+- [ ] Add `[project.optional-dependencies] pinned` section with
+      `# END_OF_INDIRECT_DEPS` marker to `pyproject.toml`
 
 **flake8wrap.sh:** Has script with correct unquoted variable
 expansion. Missing `shellcheck disable=SC2086` directive.
@@ -333,14 +350,15 @@ with Claude Code review integration and full developer automation.
   was quoted, breaking flake8 with multiple files). Added
   `shellcheck disable=SC2086` with explanatory comment.
 
+- [ ] Add `.github/workflows/pin-indirect-dependencies.yml` (library
+      template)
+- [ ] Add `[project.optional-dependencies] pinned` section with
+      `# END_OF_INDIRECT_DEPS` marker to `pyproject.toml`
+
 **Already compliant:** `AGENTS.md`, `ARCHITECTURE.md`.
 
 **Not applicable:** `pr-fix-tests.yml` / `test-drift-fix.yml`
 (small test suite, not prone to drift).
-
-**Status:** Fully compliant as of 2026-02-27. Remaining item:
-enable Dependabot and secret scanning in GitHub repo settings
-(UI-only, not tracked here).
 
 ### cloudgood
 
@@ -456,6 +474,7 @@ the reference projects mentioned in the audit document.
 - [x] Fix `pin-indirect-dependencies.yml` for `pyproject.toml`
       (was still referencing `requirements.txt`)
 - [x] Add `# END_OF_INDIRECT_DEPS` marker to `pyproject.toml`
+- [x] Pin indirect dependencies workflow and marker (criterion 12)
 - [x] Add `check-bot-commit` job to `functional-tests.yml`
 - [x] Add `tools/address-comments-with-claude.sh`,
       `tools/render-review.py`, `tools/review-schema.json`
@@ -499,6 +518,10 @@ directory at all. Has `release.sh` that should be removed.
 - [ ] Add `.github/workflows/export-repo-config.yml`
 - [ ] Add `.github/workflows/codeql-analysis.yml`
 - [ ] Add `.pre-commit-config.yaml` with `actionlint` and `shellcheck`
+- [ ] Add `.github/workflows/pin-indirect-dependencies.yml` (library
+      template)
+- [ ] Add `[project.optional-dependencies] pinned` section with
+      `# END_OF_INDIRECT_DEPS` marker to `pyproject.toml`
 
 **flake8wrap.sh:** Has script with correct unquoted variable
 expansion. Uses simpler pattern (`tr '\n' ' '`) without `.py`
@@ -554,6 +577,11 @@ Python package with `pyproject.toml`. Has `AGENTS.md`,
 - [x] Add `issues: write` to automated reviewer job permissions
   in `functional-tests.yml` (needed for the shared action's issue
   creation feature)
+
+- [ ] Add `.github/workflows/pin-indirect-dependencies.yml` (library
+      template)
+- [ ] Add `[project.optional-dependencies] pinned` section with
+      `# END_OF_INDIRECT_DEPS` marker to `pyproject.toml`
 
 **Already compliant:** LLM tooling (`AGENTS.md`, `ARCHITECTURE.md`),
 release process (`pyproject.toml`, `release.yml`, `RELEASE-SETUP.md`),
@@ -619,6 +647,7 @@ automated review in `functional-tests.yml`.
 - [x] Add top-level `permissions` to `functional-tests.yml`
 - [x] Add top-level `permissions` to `functional-tests-skip.yml`
 - [x] Add top-level `permissions` to `pin-indirect-dependencies.yml`
+- [x] Pin indirect dependencies workflow and marker (criterion 12)
 - [x] Add top-level `permissions` to `pr-re-review.yml`
 - [x] Add top-level `permissions` to `publish-website.yml`
 - [x] Add top-level `permissions` to `refresh-website.yml`
@@ -642,26 +671,28 @@ expansion. Uses `egrep` (deprecated, should be `grep -E`) and
 
 - **imago** -- fully compliant with all criteria including full
   developer automation (`pr-fix-tests.yml`, `pr-address-comments.yml`,
-  `pr-retest.yml`).
-- **occystrap** -- fully compliant. All items complete including
-  developer automation, workflow template resyncs, Claude skills,
-  and GitHub security settings.
-- **agent-python** -- 0 items remaining. Complete.
+  `pr-retest.yml`). Not a Python project so criterion 12 is N/A.
 - **shakenfist** -- fully compliant. Developer automation, shared
-  action migration, and workflow permissions all complete.
-- **clingwrap** -- fully compliant as of 2026-02-27. All CI/release
-  infrastructure, developer automation, linting, and workflow
-  permissions complete.
+  action migration, workflow permissions, and indirect dependency
+  pinning all complete.
+- **kerbside** -- fully compliant as of 2026-02-22 (criterion 12
+  fixed 2026-02-28). Indirect dependency pinning workflow updated
+  for `pyproject.toml`.
 
 ### Nearly compliant projects (1-3 items)
 
-None.
+- **occystrap** -- needs `pin-indirect-dependencies.yml` (library
+  template) and `pinned` optional extra with marker (2 items).
+- **agent-python** -- needs `pin-indirect-dependencies.yml` (library
+  template) and `pinned` optional extra with marker (2 items).
+- **clingwrap** -- needs `pin-indirect-dependencies.yml` (library
+  template) and `pinned` optional extra with marker (2 items).
 
 ### Partially compliant projects (4-6 items)
 
 - **cloudgood** -- needs export-repo-config, renovate,
-  pr-re-review, and developer automation (5 items). No workflows
-  to add permissions to.
+  pr-re-review, and developer automation (5 items). No Python
+  package so criterion 12 is N/A.
 
 ### Major work needed (7+ items)
 - **ryll** -- needs entire `.github/workflows/` directory, renovate,
@@ -670,12 +701,14 @@ None.
 - **kerbside-patches** -- needs pr-re-review, developer
   automation, renovate, export-repo-config, CodeQL, plus top-level
   `permissions` on all 5 workflows (11 items).
-- ~~**kerbside**~~ -- fully compliant as of 2026-02-22.
-- ~~**clingwrap**~~ -- fully compliant as of 2026-02-27.
-- **client-python** -- 15 items (missing nearly everything
-  including developer automation, plus permissions on 2 workflows).
-- **library-utilities** -- 13 items (missing nearly everything
-  including developer automation, no workflows directory).
+- ~~**kerbside**~~ -- fully compliant as of 2026-02-28.
+- ~~**clingwrap**~~ -- nearly compliant (2 items: criterion 12).
+- **client-python** -- 17 items (missing nearly everything
+  including developer automation, plus permissions on 2 workflows,
+  plus indirect dependency pinning).
+- **library-utilities** -- 15 items (missing nearly everything
+  including developer automation, no workflows directory, plus
+  indirect dependency pinning).
 
 ### Most common missing items across non-excluded projects
 
@@ -694,6 +727,7 @@ None.
 | `release.sh` removal               | 4 projects  |
 | `release.yml`                      | 5 projects  |
 | `RELEASE-SETUP.md`                 | 5 projects  |
+| `pin-indirect-dependencies.yml`    | 5 projects  |
 
 Note: The 6 remaining projects missing workflow permissions account
 for 18 individual workflow files that need top-level `permissions`

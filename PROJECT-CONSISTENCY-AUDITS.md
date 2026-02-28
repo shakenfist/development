@@ -201,6 +201,91 @@ should group them in `renovate.json` so they are bumped together:
 }
 ```
 
+## Pinning indirect dependencies
+
+Renovate handles bumping direct dependencies, but transitive (indirect)
+dependencies can silently change version when a direct dependency is
+updated. If an indirect dependency releases a broken version it can be
+very confusing to debug. To catch this, Python projects with
+`pyproject.toml` should have a `pin-indirect-dependencies.yml` workflow
+that runs daily, installs the project, compares `pip freeze` output
+against `pyproject.toml`, and creates a PR to pin any new indirect
+dependencies.
+
+The workflow uses `sed` to inject new pinned versions into
+`pyproject.toml` before a `# END_OF_INDIRECT_DEPS` marker comment.
+Without the marker the `sed` command silently does nothing.
+
+There are two variants depending on whether the project is an
+**application** (deployed to infrastructure we control) or a
+**library** (installed by end users into their own environments).
+
+### Application projects (shakenfist, kerbside)
+
+Application projects hard-pin indirect dependencies in the main
+`[project] dependencies` list. This is safe because we control the
+runtime environment and want exact reproducibility.
+
+The `# END_OF_INDIRECT_DEPS` marker goes inside the `dependencies`
+list, after the last indirect dependency entry:
+
+```toml
+[project]
+dependencies = [
+    "flask==2.2.5",
+    # Indirect dependencies
+    "markupsafe==3.0.2",
+    # END_OF_INDIRECT_DEPS
+]
+```
+
+**Template:** `pin-indirect-dependencies.yml`
+
+### Library projects (agent-python, client-python, clingwrap, occystrap, library-utilities)
+
+Library projects must not hard-pin transitive dependencies because
+that causes version conflicts in end-user environments. Instead,
+indirect dependencies are recorded in a `pinned` optional extra
+under `[project.optional-dependencies]`. This signals which versions
+we have tested with without constraining normal installs.
+
+Users who want the exact tested dependency set can install with:
+
+```
+pip install package[pinned]
+```
+
+The `# END_OF_INDIRECT_DEPS` marker goes inside the `pinned` list:
+
+```toml
+[project.optional-dependencies]
+pinned = [
+    # Tested indirect dependency versions. Install with:
+    #   pip install package[pinned]
+    "markupsafe==3.0.2",
+    # END_OF_INDIRECT_DEPS
+]
+```
+
+**Template:** `pin-indirect-dependencies-library.yml`
+
+### Common requirements
+
+Both variants need:
+
+1. `pyproject.toml` must contain `# END_OF_INDIRECT_DEPS` in the
+   appropriate section (see above).
+2. `.github/workflows/pin-indirect-dependencies.yml` must exist.
+3. A repository secret called `DEPENDENCIES_TOKEN` with push and PR
+   permissions.
+
+**Templates:** Use the templates in
+[`templates/pin-indirect-dependencies/`](templates/pin-indirect-dependencies/)
+as the canonical starting point. Replace `{{PROJECT_NAME}}` with the
+repository name. Add any project-specific system-level build
+dependencies (e.g. MySQL dev headers for kerbside) as an extra step
+before the venv install.
+
 ## Exporting repo configuration changes
 
 We archive github repo configuration changes using `export-repo-config.yml`.

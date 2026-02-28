@@ -30,6 +30,10 @@ to Shaken Fist projects:
   Daily repository configuration export and drift detection
 - [`templates/codeql/`](templates/codeql/) --
   CodeQL code scanning for public repositories
+- [`templates/pin-indirect-dependencies/`](templates/pin-indirect-dependencies/) --
+  Daily workflow to detect and pin transitive Python dependencies
+  (application variant for hard-pinning, library variant for optional
+  `pinned` extra)
 
 ## Shared GitHub Actions
 
