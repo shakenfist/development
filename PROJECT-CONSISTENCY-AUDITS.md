@@ -319,6 +319,24 @@ project, prefer Flask. If `http.server` must be used (e.g. for embedded
 registries without external dependencies), always use the
 `SafeHeaderMixin` pattern.
 
+## File path sanitization
+
+Projects that construct file paths from user-controlled data (image names,
+tags, digests, layer paths) must validate that the resulting path stays
+within the intended base directory. This prevents path traversal attacks
+(CWE-22), which CodeQL flags as `py/path-injection`.
+
+The canonical implementation is `safe_path_join()` in `occystrap/util.py`,
+which uses `os.path.realpath()` to resolve the joined path and then
+verifies it starts with the base directory. Raises `PathEscapeError` if
+the path would escape. Use this instead of bare `os.path.join()` whenever
+any component comes from external input.
+
+Projects using web frameworks that serve static files should use the
+framework's built-in safe-path utilities (e.g. Flask's `send_from_directory`).
+When constructing paths manually from user input in any project, always
+validate the result stays within the intended directory.
+
 ## GitHub Action
 
 ### Workflow permissions
