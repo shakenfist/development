@@ -18,13 +18,13 @@ with knowledge of the project's architecture and workflows.
 | Project | Status | Issue |
 |---------|--------|-------|
 | agent-python | compliant | - |
-| client-python | non-compliant | |
+| client-python | non-compliant | shakenfist/client-python#316 |
 | clingwrap | compliant | - |
 | cloudgood | compliant | - |
 | imago | compliant | - |
 | kerbside | compliant | - |
 | kerbside-patches | compliant | - |
-| library-utilities | non-compliant | |
+| library-utilities | non-compliant | shakenfist/library-utilities#30 |
 | occystrap | compliant | - |
 | ryll | compliant | - |
 | shakenfist | compliant | - |

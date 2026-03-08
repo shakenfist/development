@@ -30,8 +30,8 @@ git push origin --delete main
 | agent-python | develop | compliant | - |
 | client-python | develop | compliant | - |
 | clingwrap | develop | compliant | - |
-| cloudgood | main | non-compliant | |
-| imago | main | non-compliant | |
+| cloudgood | main | non-compliant | shakenfist/cloudgood#4 |
+| imago | main | non-compliant | shakenfist/imago#47 |
 | kerbside | develop | compliant | - |
 | kerbside-patches | develop | compliant | - |
 | library-utilities | develop | compliant | - |

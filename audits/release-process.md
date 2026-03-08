@@ -20,13 +20,13 @@ Docs: `docs/release-automation.md`
 | Project | Status | Issue |
 |---------|--------|-------|
 | agent-python | compliant | - |
-| client-python | non-compliant | |
+| client-python | non-compliant | shakenfist/client-python#317 |
 | clingwrap | compliant | - |
 | cloudgood | N/A | - |
 | imago | N/A | - |
 | kerbside | compliant | - |
 | kerbside-patches | N/A | - |
-| library-utilities | non-compliant | |
+| library-utilities | non-compliant | shakenfist/library-utilities#31 |
 | occystrap | compliant | - |
 | ryll | N/A | - |
 | shakenfist | compliant | - |

@@ -55,13 +55,13 @@ See: `templates/test-drift-fix/README.md`
 | Project | Review | Re-review | Address | Retest | Fix tests | Issue |
 |---------|--------|-----------|---------|--------|-----------|-------|
 | agent-python | compliant | compliant | compliant | compliant | N/A | - |
-| client-python | non-compliant | non-compliant | non-compliant | non-compliant | non-compliant | |
+| client-python | non-compliant | non-compliant | non-compliant | non-compliant | non-compliant | shakenfist/client-python#318 |
 | clingwrap | compliant | compliant | compliant | compliant | N/A | - |
-| cloudgood | N/A | non-compliant | non-compliant | N/A | N/A | |
+| cloudgood | N/A | non-compliant | non-compliant | N/A | N/A | shakenfist/cloudgood#1 |
 | imago | compliant | compliant | compliant | compliant | compliant | - |
 | kerbside | compliant | compliant | compliant | compliant | N/A | - |
-| kerbside-patches | compliant | non-compliant | non-compliant | N/A | non-compliant | |
-| library-utilities | non-compliant | non-compliant | non-compliant | non-compliant | non-compliant | |
+| kerbside-patches | compliant | non-compliant | non-compliant | N/A | non-compliant | shakenfist/kerbside-patches#949 |
+| library-utilities | non-compliant | non-compliant | non-compliant | non-compliant | non-compliant | shakenfist/library-utilities#32 |
 | occystrap | compliant | compliant | compliant | compliant | compliant | - |
 | ryll | non-compliant | non-compliant | non-compliant | non-compliant | non-compliant | |
 | shakenfist | compliant | compliant | compliant | compliant | N/A | - |

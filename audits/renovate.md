@@ -31,13 +31,13 @@ See: `templates/renovate/README.md`
 | Project | Status | Issue |
 |---------|--------|-------|
 | agent-python | compliant | - |
-| client-python | non-compliant | |
+| client-python | non-compliant | shakenfist/client-python#319 |
 | clingwrap | compliant | - |
-| cloudgood | non-compliant | |
+| cloudgood | non-compliant | shakenfist/cloudgood#2 |
 | imago | compliant | - |
 | kerbside | compliant | - |
-| kerbside-patches | non-compliant | |
-| library-utilities | non-compliant | |
+| kerbside-patches | non-compliant | shakenfist/kerbside-patches#950 |
+| library-utilities | non-compliant | shakenfist/library-utilities#33 |
 | occystrap | compliant | - |
 | ryll | non-compliant | |
 | shakenfist | compliant | - |

@@ -40,15 +40,15 @@ See: `templates/pin-indirect-dependencies/README.md`
 
 | Project | Status | Issue |
 |---------|--------|-------|
-| agent-python | non-compliant | |
-| client-python | non-compliant | |
-| clingwrap | non-compliant | |
+| agent-python | non-compliant | shakenfist/agent-python#80 |
+| client-python | non-compliant | shakenfist/client-python#320 |
+| clingwrap | non-compliant | shakenfist/clingwrap#87 |
 | cloudgood | N/A | - |
 | imago | N/A | - |
 | kerbside | compliant | - |
 | kerbside-patches | N/A | - |
-| library-utilities | non-compliant | |
-| occystrap | non-compliant | |
+| library-utilities | non-compliant | shakenfist/library-utilities#34 |
+| occystrap | non-compliant | shakenfist/occystrap#66 |
 | ryll | N/A | - |
 | shakenfist | compliant | - |
 

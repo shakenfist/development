@@ -66,17 +66,17 @@ of correctly structured workflows.
 
 | Project | Permissions | Linting | flake8wrap | Issue |
 |---------|-------------|---------|------------|-------|
-| agent-python | compliant | compliant | needs SC2086 | |
-| client-python | non-compliant | non-compliant | needs SC2086 | |
+| agent-python | compliant | compliant | needs SC2086 | shakenfist/agent-python#82 |
+| client-python | non-compliant | non-compliant | needs SC2086 | shakenfist/client-python#323 |
 | clingwrap | compliant | compliant | compliant | - |
 | cloudgood | N/A | compliant | N/A | - |
 | imago | compliant | compliant | N/A | - |
-| kerbside | compliant | compliant | needs SC2086 | |
-| kerbside-patches | non-compliant | compliant | N/A | |
-| library-utilities | N/A | non-compliant | needs cleanup | |
-| occystrap | compliant | compliant | needs cleanup | |
+| kerbside | compliant | compliant | needs SC2086 | shakenfist/kerbside#59 |
+| kerbside-patches | non-compliant | compliant | N/A | shakenfist/kerbside-patches#953 |
+| library-utilities | N/A | non-compliant | needs cleanup | shakenfist/library-utilities#37 |
+| occystrap | compliant | compliant | needs cleanup | shakenfist/occystrap#67 |
 | ryll | N/A | compliant | N/A | - |
-| shakenfist | compliant | compliant | needs SC2086 | |
+| shakenfist | compliant | compliant | needs SC2086 | shakenfist/shakenfist#3057 |
 
 N/A for permissions: no workflows directory.
 N/A for flake8wrap: project does not have a flake8wrap.sh script.
