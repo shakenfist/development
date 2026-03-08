@@ -12,6 +12,16 @@ the Shaken Fist project.
 - [Release Automation](docs/release-automation.md) -- Automated PyPI releases
   with Sigstore signing and trusted publishers
 
+## Consistency Audits
+
+The [`audits/`](audits/) directory contains one file per audit
+criterion, each independently checkable. See
+[`audits/README.md`](audits/README.md) for the full index and
+instructions on adding new audit items.
+
+The authoritative specification of all audit criteria is in
+[`PROJECT-CONSISTENCY-AUDITS.md`](PROJECT-CONSISTENCY-AUDITS.md).
+
 ## Templates
 
 Standardised configuration files for rolling out infrastructure
