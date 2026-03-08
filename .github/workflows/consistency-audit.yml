@@ -1,0 +1,90 @@
+name: Consistency audit
+
+on:
+  schedule:
+    # Run daily at 06:00 UTC (after export-repo-config at 00:30)
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  audit:
+    name: Audit ${{ matrix.repo }}
+    runs-on: [self-hosted, static]
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        repo:
+          - agent-python
+          - client-python
+          - clingwrap
+          - cloudgood
+          - imago
+          - kerbside
+          - kerbside-patches
+          - library-utilities
+          - occystrap
+          # ryll excluded: no GitHub repo
+          - shakenfist
+    steps:
+      - name: Checkout development repo
+        uses: actions/checkout@v6
+
+      - name: Clone target repo
+        run: |
+          gh repo clone shakenfist/${{ matrix.repo }} /tmp/audit-target -- --depth 1
+        env:
+          GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
+
+      - name: Run audit checks
+        id: audit
+        run: |
+          python3 scripts/audit-check.py \
+            --repo-path /tmp/audit-target \
+            --repo-name ${{ matrix.repo }} \
+            --github-org shakenfist \
+            > /tmp/audit-result.json
+          cat /tmp/audit-result.json
+        env:
+          GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
+
+      - name: Upload audit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-${{ matrix.repo }}
+          path: /tmp/audit-result.json
+          retention-days: 30
+
+      - name: Clean up
+        if: always()
+        run: rm -rf /tmp/audit-target /tmp/audit-result.json
+
+  manage-issues:
+    name: Manage consistency issues
+    needs: audit
+    runs-on: [self-hosted, static]
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout development repo
+        uses: actions/checkout@v6
+
+      - name: Download all audit results
+        uses: actions/download-artifact@v4
+        with:
+          path: audit-results
+          pattern: audit-*
+          merge-multiple: true
+
+      - name: List results
+        run: ls -la audit-results/
+
+      - name: Manage issues
+        run: |
+          python3 scripts/audit-manage-issues.py \
+            --results-dir audit-results/
+        env:
+          GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
