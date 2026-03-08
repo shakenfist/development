@@ -287,15 +287,19 @@ Rather than a big-bang migration, I'd suggest:
 
 ## Execution
 
-### Phase 1: Modular audit specs
+### Phase 1: Modular audit specs -- DONE
 
-1. Create `audits/` directory with README explaining the structure.
-2. Extract each of the 12 criteria from
-   `PROJECT-CONSISTENCY-AUDITS.md` into individual files.
-3. Ensure each file links to its template and lists per-project
-   status.
-4. Add `consistency` label to all project repos.
-5. Create GitHub issues for all known non-compliant items.
+1. ~~Create `audits/` directory with README explaining the
+   structure.~~
+2. ~~Extract each of the 12 criteria from
+   `PROJECT-CONSISTENCY-AUDITS.md` into individual files.~~ 13
+   audit files created.
+3. ~~Ensure each file links to its template and lists per-project
+   status.~~
+4. ~~Add `consistency` label to all project repos.~~ Added to 10
+   repos (ryll has no GitHub repo).
+5. ~~Create GitHub issues for all known non-compliant items.~~ 35
+   issues created across 10 repos.
 
 ### Phase 2: CI-based audit runner
 
