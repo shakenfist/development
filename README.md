@@ -22,6 +22,13 @@ instructions on adding new audit items.
 The authoritative specification of all audit criteria is in
 [`PROJECT-CONSISTENCY-AUDITS.md`](PROJECT-CONSISTENCY-AUDITS.md).
 
+Audits run automatically via
+[`.github/workflows/consistency-audit.yml`](.github/workflows/consistency-audit.yml),
+which clones each target repo daily and checks it using
+[`scripts/audit-check.py`](scripts/audit-check.py). Results are
+used by [`scripts/audit-manage-issues.py`](scripts/audit-manage-issues.py)
+to create and close GitHub issues on the target repos.
+
 ## Templates
 
 Standardised configuration files for rolling out infrastructure
