@@ -180,10 +180,40 @@ table. When dropping a distribution, update:
 CI should test on the oldest supported Python version to catch any
 dependency bumps that break compatibility.
 
+### Range strategy for client/library projects
+
+Server projects (shakenfist, kerbside) use exact dependency pins
+(`==`) and the default renovate range strategy, which bumps those
+pins on every new release. This is appropriate because the server
+runs on infrastructure we control.
+
+Client and library projects (agent-python, client-python,
+client-python-k3s, clingwrap, occystrap) use relaxed dependency
+ranges (`>=`) so they work across a wide range of distributions
+and Python versions. For these projects, grpc packages should use
+`rangeStrategy: "widen"` so that renovate only creates PRs when a
+new major version falls outside the existing range (e.g. grpcio
+2.x). This avoids unnecessary churn from renovate trying to bump
+the floor of a `>=` constraint on every minor release.
+
+The motivation: distributions like Fedora 43 ship Python 3.14,
+and older grpcio releases lack pre-built wheels for newer Python
+versions. With relaxed `>=` constraints, pip can select whichever
+version has wheels for the target platform. With exact `==` pins,
+pip falls back to building from source and fails if build tools
+(e.g. a C++ compiler) are missing.
+
+The gRPC wire protocol is stable across minor versions, so a
+client on grpcio 1.80 communicates with a server on 1.70 without
+issues. The protobuf serialization format (proto3) is also stable
+within the same major version.
+
 ### Package grouping
 
 Projects with tightly coupled dependencies (e.g. the grpc stack)
-should group them in `renovate.json` so they are bumped together:
+should group them in `renovate.json` so they are bumped together.
+
+For server projects, use the default range strategy:
 
 ```json
 {
@@ -196,6 +226,25 @@ should group them in `renovate.json` so they are bumped together:
         "^protobuf"
       ],
       "groupName": "grpc packages"
+    }
+  ]
+}
+```
+
+For client/library projects, add `rangeStrategy: "widen"`:
+
+```json
+{
+  "packageRules": [
+    {
+      "description": "Group grpc packages together with widen strategy",
+      "matchPackagePatterns": [
+        "^grpcio",
+        "^googleapis-common-protos",
+        "^protobuf"
+      ],
+      "groupName": "grpc packages",
+      "rangeStrategy": "widen"
     }
   ]
 }

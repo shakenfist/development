@@ -21,6 +21,13 @@ Currently required for: agent-python, occystrap.
 Projects with tightly coupled dependencies (e.g. the grpc stack)
 should group them in `renovate.json` so they are bumped together.
 
+### Range strategy
+
+Client/library projects should use `rangeStrategy: "widen"` for
+grpc package groups so renovate only fires on major version
+changes. Server projects use the default (pin-bumping) strategy.
+See `PROJECT-CONSISTENCY-AUDITS.md` for full rationale.
+
 ## Template
 
 Template: `templates/renovate/`
@@ -28,16 +35,17 @@ See: `templates/renovate/README.md`
 
 ## Projects
 
-| Project | Status | Issue |
-|---------|--------|-------|
-| agent-python | compliant | - |
-| client-python | non-compliant | shakenfist/client-python#319 |
-| clingwrap | compliant | - |
-| cloudgood | non-compliant | shakenfist/cloudgood#2 |
-| imago | compliant | - |
-| kerbside | compliant | - |
-| kerbside-patches | non-compliant | shakenfist/kerbside-patches#950 |
-| library-utilities | non-compliant | shakenfist/library-utilities#33 |
-| occystrap | compliant | - |
-| ryll | non-compliant | |
-| shakenfist | compliant | - |
+| Project | Status | Range strategy | Issue |
+|---------|--------|----------------|-------|
+| agent-python | compliant | widen | - |
+| client-python | compliant | widen | - |
+| client-python-k3s | compliant | widen | - |
+| clingwrap | compliant | widen | - |
+| cloudgood | non-compliant | - | shakenfist/cloudgood#2 |
+| imago | compliant | default | - |
+| kerbside | compliant | default | - |
+| kerbside-patches | non-compliant | - | shakenfist/kerbside-patches#950 |
+| library-utilities | non-compliant | - | shakenfist/library-utilities#33 |
+| occystrap | compliant | widen | - |
+| ryll | non-compliant | - | |
+| shakenfist | compliant | default | - |

@@ -63,6 +63,31 @@ so they are bumped together. Common examples:
 See `shakenfist/renovate.json` for a more complex example with
 multiple groups (pydantic, grpc, zope, etc).
 
+### Range strategy for client/library projects
+
+Client and library projects use relaxed dependency ranges (`>=`)
+rather than exact pins so they work across many distributions and
+Python versions. For these projects, grpc packages should use
+`rangeStrategy: "widen"` so renovate only creates PRs when a new
+major version falls outside the existing range:
+
+```json
+{
+  "description": "Group grpc packages together with widen strategy",
+  "matchPackagePatterns": [
+    "^grpcio",
+    "^googleapis-common-protos",
+    "^protobuf"
+  ],
+  "groupName": "grpc packages",
+  "rangeStrategy": "widen"
+}
+```
+
+Server projects (shakenfist, kerbside) use exact pins and the
+default range strategy. See `PROJECT-CONSISTENCY-AUDITS.md` for
+the full rationale.
+
 ## Prerequisites
 
 - A `RENOVATE_TOKEN` secret with repository write access
@@ -70,9 +95,12 @@ multiple groups (pydantic, grpc, zope, etc).
 
 ## Projects using these templates
 
-| Project | Status |
-|---------|--------|
-| [shakenfist](https://github.com/shakenfist/shakenfist) | Live |
-| [occystrap](https://github.com/shakenfist/occystrap) | Live |
-| [imago](https://github.com/shakenfist/imago) | Live |
-| [agent-python](https://github.com/shakenfist/agent-python) | Added |
+| Project | Status | Range strategy |
+|---------|--------|----------------|
+| [shakenfist](https://github.com/shakenfist/shakenfist) | Live | default (pin) |
+| [occystrap](https://github.com/shakenfist/occystrap) | Live | widen |
+| [imago](https://github.com/shakenfist/imago) | Live | default (pin) |
+| [agent-python](https://github.com/shakenfist/agent-python) | Live | widen |
+| [client-python](https://github.com/shakenfist/client-python) | Live | widen |
+| [client-python-k3s](https://github.com/shakenfist/client-python-k3s) | Live | widen |
+| [clingwrap](https://github.com/shakenfist/clingwrap) | Live | widen |
