@@ -44,7 +44,7 @@ See: `templates/renovate/README.md`
 | cloudgood | non-compliant | - | shakenfist/cloudgood#2 |
 | imago | compliant | default | - |
 | kerbside | compliant | default | - |
-| kerbside-patches | non-compliant | - | shakenfist/kerbside-patches#950 |
+| kerbside-patches | compliant | default | - |
 | library-utilities | non-compliant | - | shakenfist/library-utilities#33 |
 | occystrap | compliant | widen | - |
 | ryll | non-compliant | - | |
