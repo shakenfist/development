@@ -50,6 +50,7 @@ The following projects are subject to consistency audits:
 - client-python
 - clingwrap
 - cloudgood
+- divergulent
 - imago
 - kerbside
 - kerbside-patches
@@ -77,4 +78,6 @@ See `PROJECT-CONSISTENCY-AUDITS.md` for the list of excluded projects
 | [workflow-standards.md](workflow-standards.md) | Permissions, naming, linting, PIPESTATUS, flake8wrap |
 | [console-logging.md](console-logging.md) | Console script logging setup |
 | [python-version.md](python-version.md) | Python version targeting and type hints |
+| [pyproject-usage.md](pyproject-usage.md) | Python projects use pyproject.toml |
+| [version-file-gitignore.md](version-file-gitignore.md) | Generated version files are gitignored |
 | [test-coverage.md](test-coverage.md) | Unit and functional test coverage |

@@ -36,6 +36,30 @@ if they would benefit from it. Things that are likely to need a skill
 include remembering to write unit or functional tests, updating documention
 for user visible changes, and so forth.
 
+## Python packaging with pyproject.toml
+
+All Python projects must use `pyproject.toml` for packaging and dependency
+management. Legacy packaging files (`setup.py`, `setup.cfg`) should not
+exist alongside it. Repositories where Python is incidental -- Rust
+projects with helper scripts, docs-only repositories, and the
+`kerbside-patches` patch archive -- are exempt.
+
+### Generated version files
+
+Our `pyproject.toml` files configure `setuptools_scm` to write a generated
+version file (conventionally `<package>/_version.py`, via the `write_to`
+setting) into the source tree at build time. That file must **never** be
+committed to git:
+
+* The configured version file path must be covered by `.gitignore`.
+* No `_version.py` file may be tracked by git. If one has been
+  accidentally committed, remove it with `git rm --cached <path>` and add
+  the `.gitignore` entry.
+
+A tracked copy shadows the build-time version, causing stale or wrong
+version numbers in releases. This has happened in practice on a
+`client-python` pull request.
+
 ## Release process
 
 There is no `release.sh` in the project directory. All Shaken Fist projects

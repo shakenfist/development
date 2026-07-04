@@ -21,6 +21,9 @@ from datetime import datetime, timezone
 REPO_OVERRIDES = {
     'imago': {'is_private': True},
     'cloudgood': {'is_docs_only': True},
+    # kerbside-patches carries Python helper scripts but is a patch
+    # archive, not a Python project.
+    'kerbside-patches': {'not_python': True},
 }
 
 # Map from check ID to the human-readable name used in issue titles.
@@ -37,6 +40,8 @@ CHECK_NAMES = {
     'workflow-permissions': 'Workflow standards',
     'pre-commit-config': 'Workflow standards',
     'flake8wrap': 'Workflow standards (flake8wrap)',
+    'version-file-gitignore': 'Generated version file',
+    'pyproject-usage': 'pyproject.toml usage',
 }
 
 
@@ -59,6 +64,7 @@ def detect_repo_properties(repo_path, repo_name):
         ),
         'is_private': overrides.get('is_private', False),
         'is_docs_only': overrides.get('is_docs_only', False),
+        'not_python': overrides.get('not_python', False),
     }
 
 
@@ -535,6 +541,191 @@ def check_flake8wrap(repo_path, props):
     }
 
 
+def check_pyproject_usage(repo_path, props):
+    """Check Python projects use pyproject.toml for packaging.
+
+    Any project with Python code must have a pyproject.toml, and
+    must not carry legacy packaging files (setup.py, setup.cfg)
+    alongside it.
+    """
+    if props['is_docs_only']:
+        return {
+            'id': 'pyproject-usage',
+            'status': 'not_applicable',
+            'details': 'Docs-only repo',
+        }
+    if props['has_cargo_toml']:
+        return {
+            'id': 'pyproject-usage',
+            'status': 'not_applicable',
+            'details': 'Rust project (any Python is helper scripts)',
+        }
+    if props['not_python']:
+        return {
+            'id': 'pyproject-usage',
+            'status': 'not_applicable',
+            'details': 'Not a Python project (per overrides)',
+        }
+
+    if props['has_pyproject_toml']:
+        legacy = [
+            f for f in ['setup.py', 'setup.cfg']
+            if check_file_exists(repo_path, f)
+        ]
+        if legacy:
+            return {
+                'id': 'pyproject-usage',
+                'status': 'fail',
+                'details': (
+                    f'Legacy packaging files exist alongside '
+                    f'pyproject.toml: {", ".join(legacy)}'
+                ),
+            }
+        return {
+            'id': 'pyproject-usage',
+            'status': 'pass',
+            'details': (
+                'pyproject.toml exists with no legacy '
+                'packaging files'
+            ),
+        }
+
+    # No pyproject.toml: only a problem if there is Python code.
+    try:
+        result = subprocess.run(
+            ['git', '-C', repo_path, 'ls-files', '--', '*.py'],
+            capture_output=True, text=True, timeout=30,
+        )
+        python_files = [
+            line for line in result.stdout.splitlines()
+            if line.strip()
+        ]
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        return {
+            'id': 'pyproject-usage',
+            'status': 'fail',
+            'details': f'Could not run git ls-files: {e}',
+        }
+
+    if python_files:
+        return {
+            'id': 'pyproject-usage',
+            'status': 'fail',
+            'details': (
+                f'{len(python_files)} Python file(s) but no '
+                f'pyproject.toml'
+            ),
+        }
+    return {
+        'id': 'pyproject-usage',
+        'status': 'not_applicable',
+        'details': 'No Python code',
+    }
+
+
+def check_version_file(repo_path, props):
+    """Check generated version files are gitignored and not tracked.
+
+    setuptools_scm writes a version file (usually _version.py) at
+    build time. That file must never be committed: it should be
+    covered by .gitignore and must not be tracked by git.
+    """
+    if not props['has_pyproject_toml']:
+        return {
+            'id': 'version-file-gitignore',
+            'status': 'not_applicable',
+            'details': 'No pyproject.toml (not a Python package)',
+        }
+
+    pyproject = os.path.join(repo_path, 'pyproject.toml')
+    with open(pyproject, 'r', errors='replace') as f:
+        content = f.read()
+
+    match = re.search(
+        r'^\s*(?:write_to|version_file|version-file)\s*=\s*'
+        r'["\']([^"\']+)["\']',
+        content, re.MULTILINE,
+    )
+
+    issues = []
+
+    # A tracked generated version file is always wrong, whether or
+    # not we can work out the configured path.
+    try:
+        result = subprocess.run(
+            [
+                'git', '-C', repo_path,
+                'ls-files', '--', '*_version.py',
+            ],
+            capture_output=True, text=True, timeout=30,
+        )
+        tracked = [
+            line for line in result.stdout.splitlines()
+            if line.strip()
+        ]
+        if tracked:
+            issues.append(
+                f'Generated version file tracked in git '
+                f'(use git rm --cached): {", ".join(sorted(tracked))}'
+            )
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        issues.append(f'Could not run git ls-files: {e}')
+
+    if not match:
+        if issues:
+            return {
+                'id': 'version-file-gitignore',
+                'status': 'fail',
+                'details': '; '.join(issues),
+            }
+        return {
+            'id': 'version-file-gitignore',
+            'status': 'not_applicable',
+            'details': (
+                'No generated version file configured in '
+                'pyproject.toml'
+            ),
+        }
+
+    version_file = match.group(1)
+    try:
+        result = subprocess.run(
+            [
+                'git', '-C', repo_path,
+                # --no-index so a tracked copy doesn't mask the
+                # .gitignore coverage answer.
+                'check-ignore', '-q', '--no-index', version_file,
+            ],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode == 1:
+            issues.append(
+                f'{version_file} is not covered by .gitignore'
+            )
+        elif result.returncode != 0:
+            issues.append(
+                f'Could not check .gitignore coverage: '
+                f'{result.stderr.strip()}'
+            )
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        issues.append(f'Could not run git check-ignore: {e}')
+
+    if issues:
+        return {
+            'id': 'version-file-gitignore',
+            'status': 'fail',
+            'details': '; '.join(issues),
+        }
+    return {
+        'id': 'version-file-gitignore',
+        'status': 'pass',
+        'details': (
+            f'{version_file} is gitignored and no generated '
+            f'version file is tracked'
+        ),
+    }
+
+
 def run_all_checks(repo_path, repo_name, org):
     """Run all checks and return results."""
     props = detect_repo_properties(repo_path, repo_name)
@@ -551,6 +742,8 @@ def run_all_checks(repo_path, repo_name, org):
         check_workflow_permissions(repo_path, props),
         check_pre_commit_config(repo_path, props),
         check_flake8wrap(repo_path, props),
+        check_pyproject_usage(repo_path, props),
+        check_version_file(repo_path, props),
     ]
 
     summary = {
