@@ -47,8 +47,8 @@ jobs:
             --repo-path /tmp/audit-target \
             --repo-name ${{ matrix.repo }} \
             --github-org shakenfist \
-            > /tmp/audit-result.json
-          cat /tmp/audit-result.json
+            > /tmp/audit-result-${{ matrix.repo }}.json
+          cat /tmp/audit-result-${{ matrix.repo }}.json
         env:
           GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
 
@@ -56,12 +56,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: audit-${{ matrix.repo }}
-          path: /tmp/audit-result.json
+          path: /tmp/audit-result-${{ matrix.repo }}.json
           retention-days: 30
 
       - name: Clean up
         if: always()
-        run: rm -rf /tmp/audit-target /tmp/audit-result.json
+        run: rm -rf /tmp/audit-target /tmp/audit-result-*.json
 
   manage-issues:
     name: Manage consistency issues
