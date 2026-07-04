@@ -22,6 +22,7 @@ jobs:
           - client-python
           - clingwrap
           - cloudgood
+          - divergulent
           - imago
           - kerbside
           - kerbside-patches
