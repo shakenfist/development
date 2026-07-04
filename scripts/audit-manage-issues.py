@@ -118,8 +118,33 @@ def gh_search_issues(org, repo, title_prefix, label='consistency'):
         return []
 
 
+def gh_ensure_label(org, repo, label='consistency'):
+    """Ensure the label exists on the target repo.
+
+    gh issue create refuses to create an issue if the requested label
+    does not exist, so create it first. --force makes this idempotent.
+    """
+    result = subprocess.run(
+        [
+            'gh', 'label', 'create', label,
+            '--repo', f'{org}/{repo}',
+            '--description', 'Project consistency audit item',
+            '--color', '0075ca',
+            '--force',
+        ],
+        capture_output=True, text=True, timeout=30,
+    )
+    if result.returncode != 0:
+        print(
+            f'  WARNING: could not ensure label {label} exists: '
+            f'{result.stderr.strip()}',
+            file=sys.stderr,
+        )
+
+
 def gh_create_issue(org, repo, title, body, label='consistency'):
     """Create a new issue on the target repo."""
+    gh_ensure_label(org, repo, label)
     result = subprocess.run(
         [
             'gh', 'issue', 'create',
