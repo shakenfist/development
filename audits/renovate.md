@@ -36,6 +36,31 @@ See: `templates/renovate/README.md`
 ## Projects
 
 <!-- consistency-audit:begin -->
-*(Awaiting the first automated regeneration by the consistency
-audit workflow.)*
+*This table is regenerated daily by the consistency audit
+workflow from `scripts/audit-check.py` results; do not edit
+it by hand.*
+
+Last regenerated: 2026-07-05T01:35:55.433746+00:00
+
+| Project | Status | Issue |
+|---------|--------|--------|
+| agent-python | compliant | - |
+| client-python | compliant | - |
+| clingwrap | compliant | - |
+| cloudgood | non-compliant | shakenfist/cloudgood#2 |
+| divergulent | non-compliant | shakenfist/divergulent#37 |
+| imago | compliant | - |
+| kerbside | non-compliant | shakenfist/kerbside#92 |
+| kerbside-patches | compliant | - |
+| library-utilities | non-compliant | shakenfist/library-utilities#33 |
+| occystrap | compliant | - |
+| ryll | compliant | - |
+| shakenfist | compliant | - |
+
+Details for non-compliant projects:
+
+- **cloudgood** (Status): Missing: .github/workflows/renovate.yml, renovate.json
+- **divergulent** (Status): Missing: .github/workflows/renovate.yml, renovate.json
+- **kerbside** (Status): Missing: .github/workflows/renovate.yml, renovate.json
+- **library-utilities** (Status): Missing: .github/workflows/renovate.yml, renovate.json
 <!-- consistency-audit:end -->

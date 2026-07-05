@@ -53,6 +53,33 @@ See: `templates/test-drift-fix/README.md`
 ## Projects
 
 <!-- consistency-audit:begin -->
-*(Awaiting the first automated regeneration by the consistency
-audit workflow.)*
+*This table is regenerated daily by the consistency audit
+workflow from `scripts/audit-check.py` results; do not edit
+it by hand.*
+
+Last regenerated: 2026-07-05T01:35:55.433746+00:00
+
+| Project | Status | Issue |
+|---------|--------|--------|
+| agent-python | compliant | - |
+| client-python | compliant | - |
+| clingwrap | compliant | - |
+| cloudgood | non-compliant | shakenfist/cloudgood#1 |
+| divergulent | non-compliant | shakenfist/divergulent#36 |
+| imago | compliant | - |
+| kerbside | non-compliant | shakenfist/kerbside#91 |
+| kerbside-patches | non-compliant | shakenfist/kerbside-patches#949 |
+| library-utilities | non-compliant | shakenfist/library-utilities#32 |
+| occystrap | compliant | - |
+| ryll | compliant | - |
+| shakenfist | non-compliant | shakenfist/shakenfist#3314 |
+
+Details for non-compliant projects:
+
+- **cloudgood** (Status): Missing workflows: pr-re-review.yml, pr-address-comments.yml
+- **divergulent** (Status): Missing pr-re-review.yml; Missing pr-address-comments.yml; Missing pr-retest.yml; No workflow uses shared action review-pr-with-claude@main
+- **kerbside** (Status): Missing pr-re-review.yml; Missing pr-address-comments.yml; Missing pr-retest.yml; No workflow uses shared action review-pr-with-claude@main
+- **kerbside-patches** (Status): Missing pr-re-review.yml; Missing pr-address-comments.yml; Missing pr-retest.yml; No workflow uses shared action review-pr-with-claude@main
+- **library-utilities** (Status): Missing pr-re-review.yml; Missing pr-address-comments.yml; Missing pr-retest.yml; No workflow uses shared action review-pr-with-claude@main
+- **shakenfist** (Status): Missing pr-retest.yml
 <!-- consistency-audit:end -->

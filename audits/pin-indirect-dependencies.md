@@ -39,6 +39,33 @@ See: `templates/pin-indirect-dependencies/README.md`
 ## Projects
 
 <!-- consistency-audit:begin -->
-*(Awaiting the first automated regeneration by the consistency
-audit workflow.)*
+*This table is regenerated daily by the consistency audit
+workflow from `scripts/audit-check.py` results; do not edit
+it by hand.*
+
+Last regenerated: 2026-07-05T01:35:55.433746+00:00
+
+| Project | Status | Issue |
+|---------|--------|--------|
+| agent-python | non-compliant | shakenfist/agent-python#80 |
+| client-python | non-compliant | shakenfist/client-python#339 |
+| clingwrap | non-compliant | shakenfist/clingwrap#87 |
+| cloudgood | N/A | - |
+| divergulent | non-compliant | shakenfist/divergulent#38 |
+| imago | N/A | - |
+| kerbside | compliant | - |
+| kerbside-patches | N/A | - |
+| library-utilities | non-compliant | shakenfist/library-utilities#34 |
+| occystrap | non-compliant | shakenfist/occystrap#66 |
+| ryll | N/A | - |
+| shakenfist | compliant | - |
+
+Details for non-compliant projects:
+
+- **agent-python** (Status): Missing .github/workflows/pin-indirect-dependencies.yml; Missing # END_OF_INDIRECT_DEPS marker in pyproject.toml
+- **client-python** (Status): Missing .github/workflows/pin-indirect-dependencies.yml; Missing # END_OF_INDIRECT_DEPS marker in pyproject.toml
+- **clingwrap** (Status): Missing .github/workflows/pin-indirect-dependencies.yml; Missing # END_OF_INDIRECT_DEPS marker in pyproject.toml
+- **divergulent** (Status): Missing .github/workflows/pin-indirect-dependencies.yml; Missing # END_OF_INDIRECT_DEPS marker in pyproject.toml
+- **library-utilities** (Status): Missing .github/workflows/pin-indirect-dependencies.yml; Missing # END_OF_INDIRECT_DEPS marker in pyproject.toml
+- **occystrap** (Status): Missing .github/workflows/pin-indirect-dependencies.yml; Missing # END_OF_INDIRECT_DEPS marker in pyproject.toml
 <!-- consistency-audit:end -->

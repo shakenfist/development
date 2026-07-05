@@ -29,6 +29,24 @@ and `shakenfist` as examples of our implementation style.
 ## Projects
 
 <!-- consistency-audit:begin -->
-*(Awaiting the first automated regeneration by the consistency
-audit workflow.)*
+*This table is regenerated daily by the consistency audit
+workflow from `scripts/audit-check.py` results; do not edit
+it by hand.*
+
+Last regenerated: 2026-07-05T01:35:55.433746+00:00
+
+| Project | Status | Issue |
+|---------|--------|--------|
+| agent-python | compliant | - |
+| client-python | compliant | - |
+| clingwrap | compliant | - |
+| cloudgood | N/A | - |
+| divergulent | compliant | - |
+| imago | N/A | - |
+| kerbside | compliant | - |
+| kerbside-patches | N/A | - |
+| library-utilities | compliant | - |
+| occystrap | compliant | - |
+| ryll | N/A | - |
+| shakenfist | compliant | - |
 <!-- consistency-audit:end -->

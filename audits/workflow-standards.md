@@ -65,6 +65,33 @@ of correctly structured workflows.
 ## Projects
 
 <!-- consistency-audit:begin -->
-*(Awaiting the first automated regeneration by the consistency
-audit workflow.)*
+*This table is regenerated daily by the consistency audit
+workflow from `scripts/audit-check.py` results; do not edit
+it by hand.*
+
+Last regenerated: 2026-07-05T01:35:55.433746+00:00
+
+| Project | Permissions | Linting | flake8wrap | Issue |
+|---------|--------|--------|--------|--------|
+| agent-python | compliant | compliant | non-compliant | shakenfist/agent-python#82 |
+| client-python | compliant | compliant | compliant | - |
+| clingwrap | compliant | compliant | compliant | - |
+| cloudgood | N/A | compliant | N/A | - |
+| divergulent | compliant | compliant | compliant | - |
+| imago | compliant | compliant | N/A | - |
+| kerbside | non-compliant | compliant | non-compliant | shakenfist/kerbside#59, shakenfist/kerbside#94 |
+| kerbside-patches | non-compliant | compliant | N/A | shakenfist/kerbside-patches#953 |
+| library-utilities | compliant | compliant | compliant | - |
+| occystrap | compliant | compliant | non-compliant | shakenfist/occystrap#67 |
+| ryll | compliant | compliant | N/A | - |
+| shakenfist | compliant | compliant | non-compliant | shakenfist/shakenfist#3057 |
+
+Details for non-compliant projects:
+
+- **agent-python** (flake8wrap): Missing shellcheck disable=SC2086 directive
+- **kerbside** (Permissions): 4 workflow(s) missing top-level permissions: direct-qemu-functional.yml, functional-tests.yml, pin-indirect-dependencies.yml, release.yml
+- **kerbside** (flake8wrap): Missing shellcheck disable=SC2086 directive
+- **kerbside-patches** (Permissions): 7 workflow(s) missing top-level permissions: auto-retry-infra-failures.yml, ci-reporting.yml, daily-rebase-checks.yml, functional-tests.yml, local-container-builds.yml, rebase-tests.yml, trigger-downstream.yml
+- **occystrap** (flake8wrap): Missing shellcheck disable=SC2086 directive
+- **shakenfist** (flake8wrap): Missing shellcheck disable=SC2086 directive
 <!-- consistency-audit:end -->

@@ -16,6 +16,32 @@ See: `templates/export-repo-config/README.md`
 ## Projects
 
 <!-- consistency-audit:begin -->
-*(Awaiting the first automated regeneration by the consistency
-audit workflow.)*
+*This table is regenerated daily by the consistency audit
+workflow from `scripts/audit-check.py` results; do not edit
+it by hand.*
+
+Last regenerated: 2026-07-05T01:35:55.433746+00:00
+
+| Project | Status | Issue |
+|---------|--------|--------|
+| agent-python | compliant | - |
+| client-python | compliant | - |
+| clingwrap | compliant | - |
+| cloudgood | non-compliant | shakenfist/cloudgood#3 |
+| divergulent | non-compliant | shakenfist/divergulent#39 |
+| imago | compliant | - |
+| kerbside | non-compliant | shakenfist/kerbside#93 |
+| kerbside-patches | non-compliant | shakenfist/kerbside-patches#951 |
+| library-utilities | non-compliant | shakenfist/library-utilities#35 |
+| occystrap | compliant | - |
+| ryll | compliant | - |
+| shakenfist | compliant | - |
+
+Details for non-compliant projects:
+
+- **cloudgood** (Status): Missing .github/workflows/export-repo-config.yml
+- **divergulent** (Status): Missing .github/workflows/export-repo-config.yml
+- **kerbside** (Status): Missing .github/workflows/export-repo-config.yml
+- **kerbside-patches** (Status): Missing .github/workflows/export-repo-config.yml
+- **library-utilities** (Status): Missing .github/workflows/export-repo-config.yml
 <!-- consistency-audit:end -->

@@ -26,6 +26,28 @@ git push origin --delete main
 ## Projects
 
 <!-- consistency-audit:begin -->
-*(Awaiting the first automated regeneration by the consistency
-audit workflow.)*
+*This table is regenerated daily by the consistency audit
+workflow from `scripts/audit-check.py` results; do not edit
+it by hand.*
+
+Last regenerated: 2026-07-05T01:35:55.433746+00:00
+
+| Project | Status | Issue |
+|---------|--------|--------|
+| agent-python | compliant | - |
+| client-python | compliant | - |
+| clingwrap | compliant | - |
+| cloudgood | N/A | - |
+| divergulent | non-compliant | shakenfist/divergulent#40 |
+| imago | compliant | - |
+| kerbside | compliant | - |
+| kerbside-patches | compliant | - |
+| library-utilities | compliant | - |
+| occystrap | compliant | - |
+| ryll | compliant | - |
+| shakenfist | compliant | - |
+
+Details for non-compliant projects:
+
+- **divergulent** (Status): Default branch is "main", expected "develop"
 <!-- consistency-audit:end -->

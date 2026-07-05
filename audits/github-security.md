@@ -53,6 +53,35 @@ Security settings: UI-only configuration, no template needed.
 ## Projects
 
 <!-- consistency-audit:begin -->
-*(Awaiting the first automated regeneration by the consistency
-audit workflow.)*
+*This table is regenerated daily by the consistency audit
+workflow from `scripts/audit-check.py` results; do not edit
+it by hand.*
+
+Last regenerated: 2026-07-05T01:35:55.433746+00:00
+
+| Project | Status | Issue |
+|---------|--------|--------|
+| agent-python | non-compliant | shakenfist/agent-python#81 |
+| client-python | compliant | - |
+| clingwrap | compliant | - |
+| cloudgood | non-compliant | shakenfist/cloudgood#5 |
+| divergulent | non-compliant | shakenfist/divergulent#41 |
+| imago | non-compliant | - |
+| kerbside | non-compliant | shakenfist/kerbside#58 |
+| kerbside-patches | non-compliant | shakenfist/kerbside-patches#952 |
+| library-utilities | non-compliant | shakenfist/library-utilities#36 |
+| occystrap | compliant | - |
+| ryll | compliant | - |
+| shakenfist | non-compliant | shakenfist/shakenfist#3056 |
+
+Details for non-compliant projects:
+
+- **agent-python** (Status): Secret scanning not enabled; Secret scanning push protection not enabled
+- **cloudgood** (Status): Secret scanning not enabled; Secret scanning push protection not enabled
+- **divergulent** (Status): Missing .github/workflows/codeql-analysis.yml; Secret scanning not enabled; Secret scanning push protection not enabled
+- **imago** (Status): Secret scanning not enabled; Secret scanning push protection not enabled
+- **kerbside** (Status): Missing .github/workflows/codeql-analysis.yml
+- **kerbside-patches** (Status): Missing .github/workflows/codeql-analysis.yml; Secret scanning not enabled; Secret scanning push protection not enabled
+- **library-utilities** (Status): Missing .github/workflows/codeql-analysis.yml; Secret scanning not enabled; Secret scanning push protection not enabled
+- **shakenfist** (Status): Secret scanning not enabled; Secret scanning push protection not enabled
 <!-- consistency-audit:end -->
