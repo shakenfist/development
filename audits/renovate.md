@@ -35,17 +35,7 @@ See: `templates/renovate/README.md`
 
 ## Projects
 
-| Project | Status | Range strategy | Issue |
-|---------|--------|----------------|-------|
-| agent-python | compliant | widen | - |
-| client-python | compliant | widen | - |
-| client-python-k3s | compliant | widen | - |
-| clingwrap | compliant | widen | - |
-| cloudgood | non-compliant | - | shakenfist/cloudgood#2 |
-| imago | compliant | default | - |
-| kerbside | compliant | default | - |
-| kerbside-patches | compliant | default | - |
-| library-utilities | non-compliant | - | shakenfist/library-utilities#33 |
-| occystrap | compliant | widen | - |
-| ryll | non-compliant | - | |
-| shakenfist | compliant | default | - |
+<!-- consistency-audit:begin -->
+*(Awaiting the first automated regeneration by the consistency
+audit workflow.)*
+<!-- consistency-audit:end -->

@@ -15,16 +15,7 @@ See: `templates/export-repo-config/README.md`
 
 ## Projects
 
-| Project | Status | Issue |
-|---------|--------|-------|
-| agent-python | compliant | - |
-| client-python | non-compliant | shakenfist/client-python#321 |
-| clingwrap | compliant | - |
-| cloudgood | non-compliant | shakenfist/cloudgood#3 |
-| imago | compliant | - |
-| kerbside | compliant | - |
-| kerbside-patches | non-compliant | shakenfist/kerbside-patches#951 |
-| library-utilities | non-compliant | shakenfist/library-utilities#35 |
-| occystrap | compliant | - |
-| ryll | non-compliant | |
-| shakenfist | compliant | - |
+<!-- consistency-audit:begin -->
+*(Awaiting the first automated regeneration by the consistency
+audit workflow.)*
+<!-- consistency-audit:end -->

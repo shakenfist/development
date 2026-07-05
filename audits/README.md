@@ -16,9 +16,14 @@ parallel audits.
    below.
 2. Fill in the "What we check" section with the criterion description.
 3. Link to the template directory if one exists.
-4. Populate the projects table with current compliance status.
-5. Create GitHub issues (labelled `consistency`) on non-compliant
-   target projects linking back to the audit spec and template.
+4. Add an empty consistency-audit marker block under "## Projects"
+   (see the file structure below). The compliance table between the
+   markers is regenerated daily by the consistency-audit workflow
+   from `scripts/audit-check.py` results -- never edit it by hand.
+5. Add an automated check to `scripts/audit-check.py` and register it
+   in `scripts/audit_common.py` (`AUDIT_METADATA` and `ISSUE_TITLES`).
+   The workflow then files and closes GitHub issues (labelled
+   `consistency`) on target projects automatically.
 
 ## File structure
 
@@ -35,11 +40,11 @@ Template: `templates/<name>/`
 See: `templates/<name>/README.md`
 
 ## Projects
-| Project | Status | Issue |
-|---------|--------|-------|
-| shakenfist | compliant | - |
-| imago | compliant | - |
-| occystrap | non-compliant | #42 |
+
+<!-- consistency-audit:begin -->
+*(Awaiting the first automated regeneration by the consistency
+audit workflow.)*
+<!-- consistency-audit:end -->
 ```
 
 ## In-scope projects

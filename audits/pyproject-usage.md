@@ -28,20 +28,7 @@ and `shakenfist` as examples of our implementation style.
 
 ## Projects
 
-Status as at 2026-07-04, from local clones. The automated audit will
-refresh this.
-
-| Project | Status | Issue |
-|---------|--------|-------|
-| agent-python | compliant | - |
-| client-python | compliant | - |
-| clingwrap | compliant | - |
-| cloudgood | N/A (docs only) | - |
-| divergulent | compliant | - |
-| imago | N/A (Rust) | - |
-| kerbside | compliant | - |
-| kerbside-patches | N/A (patch archive) | - |
-| library-utilities | compliant | - |
-| occystrap | compliant | - |
-| ryll | N/A (Rust) | - |
-| shakenfist | compliant | - |
+<!-- consistency-audit:begin -->
+*(Awaiting the first automated regeneration by the consistency
+audit workflow.)*
+<!-- consistency-audit:end -->

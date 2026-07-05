@@ -9,8 +9,9 @@ projects consistent. It contains no application code.
   specification of everything we expect from a Shaken Fist project,
   including the list of excluded repositories.
 - `audits/` -- one machine-oriented specification file per audit
-  criterion, each with a per-project compliance table. `audits/README.md`
-  holds the index and the in-scope project list.
+  criterion, each with a per-project compliance table regenerated daily
+  by the audit workflow (between the consistency-audit markers).
+  `audits/README.md` holds the index and the in-scope project list.
 - `scripts/` -- the automation that enforces the audits (see below).
 - `templates/` -- canonical starting points (workflows, configs) for
   rolling infrastructure out to projects.
@@ -33,9 +34,17 @@ repository:
    failing check, and closes issues for checks that now pass or no
    longer apply. Issue titles are `Consistency: <check name>` and are
    used as the idempotency key, so titles must remain stable.
+3. A final job runs `scripts/audit-update-docs.py`, which regenerates
+   the per-project compliance tables between the consistency-audit
+   markers in `audits/*.md` from the same results (linking the open
+   `consistency` issues), then commits and pushes any changes back to
+   `main` via `scripts/commit-audit-docs.sh`. The tables are therefore
+   always a rendering of the latest audit run, never hand-maintained.
 
-Both scripts are stdlib-only Python; the only external dependencies are
-the `git` and `gh` CLIs available on the self-hosted runners.
+The shared check-to-spec-file mapping and issue title conventions live
+in `scripts/audit_common.py`. All the scripts are stdlib-only Python;
+the only external dependencies are the `git` and `gh` CLIs available on
+the self-hosted runners.
 
 Repo properties that cannot be detected from a clone (private repos,
 docs-only repos, repos where Python is incidental) are hardcoded in

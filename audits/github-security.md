@@ -52,19 +52,7 @@ Security settings: UI-only configuration, no template needed.
 
 ## Projects
 
-| Project | Dependabot | Secret scan | CodeQL | Issue |
-|---------|------------|-------------|--------|-------|
-| agent-python | non-compliant | non-compliant | compliant | shakenfist/agent-python#81 |
-| client-python | compliant | non-compliant | non-compliant | shakenfist/client-python#322 |
-| clingwrap | compliant | compliant | compliant | - |
-| cloudgood | N/A | N/A | N/A | - |
-| imago | N/A | N/A | N/A | - |
-| kerbside | non-compliant | non-compliant | compliant | shakenfist/kerbside#58 |
-| kerbside-patches | non-compliant | non-compliant | non-compliant | shakenfist/kerbside-patches#952 |
-| library-utilities | non-compliant | non-compliant | non-compliant | shakenfist/library-utilities#36 |
-| occystrap | compliant | compliant | compliant | - |
-| ryll | non-compliant | non-compliant | non-compliant | |
-| shakenfist | compliant | non-compliant | compliant | shakenfist/shakenfist#3056 |
-
-N/A for imago: private repo, requires GHAS license.
-N/A for cloudgood: no source code to scan.
+<!-- consistency-audit:begin -->
+*(Awaiting the first automated regeneration by the consistency
+audit workflow.)*
+<!-- consistency-audit:end -->

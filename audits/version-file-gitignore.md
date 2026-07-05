@@ -26,20 +26,7 @@ pattern) to `.gitignore` and `git rm --cached` any tracked copy.
 
 ## Projects
 
-Status as at 2026-07-04, from local clones. The automated audit will
-refresh this.
-
-| Project | Status | Issue |
-|---------|--------|-------|
-| agent-python | non-compliant (not in .gitignore) | |
-| client-python | compliant | - |
-| clingwrap | non-compliant (not in .gitignore) | |
-| cloudgood | N/A (docs only) | - |
-| divergulent | compliant | - |
-| imago | N/A (Rust) | - |
-| kerbside | compliant | - |
-| kerbside-patches | N/A | - |
-| library-utilities | compliant | - |
-| occystrap | compliant | - |
-| ryll | N/A (Rust) | - |
-| shakenfist | compliant | - |
+<!-- consistency-audit:begin -->
+*(Awaiting the first automated regeneration by the consistency
+audit workflow.)*
+<!-- consistency-audit:end -->

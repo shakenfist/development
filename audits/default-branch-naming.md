@@ -25,16 +25,7 @@ git push origin --delete main
 
 ## Projects
 
-| Project | Current | Status | Issue |
-|---------|---------|--------|-------|
-| agent-python | develop | compliant | - |
-| client-python | develop | compliant | - |
-| clingwrap | develop | compliant | - |
-| cloudgood | main | non-compliant | shakenfist/cloudgood#4 |
-| imago | main | non-compliant | shakenfist/imago#47 |
-| kerbside | develop | compliant | - |
-| kerbside-patches | develop | compliant | - |
-| library-utilities | develop | compliant | - |
-| occystrap | develop | compliant | - |
-| ryll | develop | compliant | - |
-| shakenfist | develop | compliant | - |
+<!-- consistency-audit:begin -->
+*(Awaiting the first automated regeneration by the consistency
+audit workflow.)*
+<!-- consistency-audit:end -->

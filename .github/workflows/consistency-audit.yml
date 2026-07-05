@@ -28,7 +28,7 @@ jobs:
           - kerbside-patches
           - library-utilities
           - occystrap
-          # ryll excluded: no GitHub repo
+          - ryll
           - shakenfist
     steps:
       - name: Checkout development repo
@@ -89,3 +89,39 @@ jobs:
             --results-dir audit-results/
         env:
           GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
+
+  # Regenerate the per-project compliance tables in audits/*.md from
+  # the JSON results and commit them back, so the docs cannot drift
+  # from what the audit actually measured. Runs after manage-issues
+  # so the issue links in the tables include issues created by this
+  # run.
+  update-docs:
+    name: Update audit compliance tables
+    needs: [audit, manage-issues]
+    runs-on: [self-hosted, static]
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout development repo
+        uses: actions/checkout@v6
+
+      - name: Download all audit results
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/consistency-audit-results
+          pattern: audit-*
+          merge-multiple: true
+
+      - name: Regenerate audit compliance tables
+        run: |
+          python3 scripts/audit-update-docs.py \
+            --results-dir /tmp/consistency-audit-results
+        env:
+          GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
+
+      - name: Commit and push updated tables
+        run: scripts/commit-audit-docs.sh
+
+      - name: Clean up
+        if: always()
+        run: rm -rf /tmp/consistency-audit-results

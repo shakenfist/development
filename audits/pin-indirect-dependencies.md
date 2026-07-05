@@ -38,19 +38,7 @@ See: `templates/pin-indirect-dependencies/README.md`
 
 ## Projects
 
-| Project | Status | Issue |
-|---------|--------|-------|
-| agent-python | non-compliant | shakenfist/agent-python#80 |
-| client-python | non-compliant | shakenfist/client-python#320 |
-| clingwrap | non-compliant | shakenfist/clingwrap#87 |
-| cloudgood | N/A | - |
-| imago | N/A | - |
-| kerbside | compliant | - |
-| kerbside-patches | N/A | - |
-| library-utilities | non-compliant | shakenfist/library-utilities#34 |
-| occystrap | non-compliant | shakenfist/occystrap#66 |
-| ryll | N/A | - |
-| shakenfist | compliant | - |
-
-N/A: Not a Python project with `pyproject.toml`, or not released
-to PyPI.
+<!-- consistency-audit:begin -->
+*(Awaiting the first automated regeneration by the consistency
+audit workflow.)*
+<!-- consistency-audit:end -->
