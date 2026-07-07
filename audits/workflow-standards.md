@@ -69,7 +69,7 @@ of correctly structured workflows.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-06T10:28:13.362387+00:00
+Last regenerated: 2026-07-07T09:46:44.025142+00:00
 
 | Project | Permissions | Linting | flake8wrap | Issue |
 |---------|--------|--------|--------|--------|
@@ -89,9 +89,9 @@ Last regenerated: 2026-07-06T10:28:13.362387+00:00
 Details for non-compliant projects:
 
 - **agent-python** (flake8wrap): Missing shellcheck disable=SC2086 directive
-- **kerbside** (Permissions): 4 workflow(s) missing top-level permissions: direct-qemu-functional.yml, functional-tests.yml, pin-indirect-dependencies.yml, release.yml
+- **kerbside** (Permissions): 5 workflow(s) missing top-level permissions: direct-qemu-functional.yml, functional-tests.yml, pin-indirect-dependencies.yml, release.yml, rust.yml
 - **kerbside** (flake8wrap): Missing shellcheck disable=SC2086 directive
-- **kerbside-patches** (Permissions): 7 workflow(s) missing top-level permissions: auto-retry-infra-failures.yml, ci-reporting.yml, daily-rebase-checks.yml, functional-tests.yml, local-container-builds.yml, rebase-tests.yml, trigger-downstream.yml
+- **kerbside-patches** (Permissions): 8 workflow(s) missing top-level permissions: auto-retry-infra-failures.yml, ci-reporting.yml, daily-rebase-checks.yml, functional-tests.yml, heal-data-prs.yml, local-container-builds.yml, rebase-tests.yml, trigger-downstream.yml
 - **occystrap** (flake8wrap): Missing shellcheck disable=SC2086 directive
 - **shakenfist** (flake8wrap): Missing shellcheck disable=SC2086 directive
 <!-- consistency-audit:end -->
