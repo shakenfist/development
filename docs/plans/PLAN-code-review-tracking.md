@@ -336,12 +336,38 @@ Phases 1 and 2; the tooling itself lands in `development` once solid.
    (adjust `.gitignore` if needed).~~ Done for ryll; every other
    repo needs the same `.gitignore` exception as part of adoption
    (captured in the Phase 4 template).
-2. Adopt the session discipline: clean tree before marking, signed
-   commit of the state file per session.
-3. Document the conventions in `docs/code-review-tracking.md` in this
-   repository (workflow, signing, verification commands).
-4. Confirm branch protection on the target repo prevents history
-   rewrites on the branch carrying review state.
+2. ~~Adopt the session discipline: clean tree before marking,
+   signed commit of the state file per session.~~ Done, and
+   stronger than planned: reviews happen from a dedicated user
+   account on the review machine whose clones never carry
+   development edits, making the clean-tree rule structural. That
+   account signs with gitsign (Sigstore keyless; example: ryll
+   commit 755a3cc "review: glz.rs"), which also records every
+   attestation in the Rekor transparency log. The conventions doc
+   records setup and verification.
+3. ~~Document the conventions in `docs/code-review-tracking.md` in
+   this repository (workflow, signing, verification commands).~~
+   Done.
+4. ~~Confirm branch protection on the target repo prevents history
+   rewrites on the branch carrying review state.~~ Done. It was
+   initially absent (ryll had only a tag ruleset restricting
+   releases); Mikal created the "Protect default branch history"
+   ruleset (`deletion` + `non_fast_forward` on `~DEFAULT_BRANCH`)
+   on 2026-07-09 using the command now recorded in the conventions
+   doc. shakenfist/shakenfist's "Develop branch" ruleset is a
+   stricter superset and also satisfies the requirement; the
+   possible audit item for this is listed under future work.
+
+*Phase 1 note (2026-07-09)*: Phase 0 prototyping happens in a
+dedicated review account on the same host (invisible from the
+development account, and initially mistaken for another machine).
+The `.gitignore` exception and `.vscode/mikal.weaudit` are already
+pushed to ryll's `origin/develop`; the hand-written draft
+`REVIEWS.md` is local to the review account and will be replaced
+by the generated file in Phase 2 (agreed). ryll's pushed exception
+covers `!.vscode/*.weaudit` only -- the sidecar needs an
+additional `!.vscode/*.weaudit-shas.json` line when Phase 2 wires
+the hooks up.
 
 ### Phase 2: Stamp and prune hooks
 
@@ -430,6 +456,17 @@ We will know this plan has been successfully implemented when:
 * Consider whether LLM-assisted pre-review (Claude flagging candidate
   inconsistencies for the human pass) is worth adding once the human
   workflow is established.
+
+* A `default-branch-protection` consistency audit item, surfaced by
+  Phase 1: nothing currently audits branch protection (the
+  github-security audit covers Dependabot, secret scanning, and
+  CodeQL only), and ryll's `develop` turned out to have no branch
+  ruleset at all. Every project's default branch should carry at
+  least the `deletion` and `non_fast_forward` rules, checkable
+  mechanically via `gh api repos/<org>/<repo>/rulesets` in
+  `audit-check.py`'s existing gh-based style. This is general repo
+  hygiene rather than review-specific, so it can proceed
+  independently of this plan.
 
 ### Bugs fixed during this work
 

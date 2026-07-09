@@ -49,3 +49,13 @@ the self-hosted runners.
 Repo properties that cannot be detected from a clone (private repos,
 docs-only repos, repos where Python is incidental) are hardcoded in
 `REPO_OVERRIDES` in `scripts/audit-check.py`.
+
+## Code review tracking (in progress)
+
+This repository is also becoming the home of the whole-codebase
+review tracking system: conventions in
+`docs/code-review-tracking.md`, design in
+`docs/plans/PLAN-code-review-tracking.md`. Later phases add a
+pre-commit hook script here (exposed via `.pre-commit-hooks.yaml`
+so target repos reference it remotely) and, once solid, a
+consistency audit item for adoption.

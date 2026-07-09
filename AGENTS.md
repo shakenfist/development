@@ -49,6 +49,17 @@ rewrites the tables in `audits/*.md` in place; discard the changes with
 repo matrix, so a locally generated table only covers the repos you fed
 it).
 
+## Code review tracking
+
+Conventions for whole-codebase human review (weAudit, signed
+commits, staleness pruning) live in `docs/code-review-tracking.md`;
+the phased design is `docs/plans/PLAN-code-review-tracking.md`.
+When implementing later phases, read the plan's analysis section
+first -- several design constraints (sidecar rather than fields in
+weAudit's JSON, prune locally rather than from CI) exist for
+non-obvious verified reasons, and the plan's "Back brief" section
+applies.
+
 ## Conventions
 
 - Python: single quotes, no external dependencies in the audit scripts
