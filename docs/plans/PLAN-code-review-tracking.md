@@ -143,9 +143,10 @@ mapped), so any extra fields we inject are dropped the next time
 weAudit saves -- which happens on every mark. Losing a stamp is the
 dangerous failure mode: re-stamping an old review at the *current*
 SHA would silently refresh a stale review. A sidecar
-(`.vscode/<user>.weaudit-shas.json`, mapping path to blob SHA) is
-never touched by weAudit and cannot be clobbered. The pre-commit
-hook only ever stamps entries *absent* from the sidecar, and drops
+(`.vscode/<user>.weaudit-shas.json`, mapping path to blob SHA and
+review date) is never touched by weAudit and cannot be clobbered.
+The pre-commit hook only ever stamps entries *absent* from the
+sidecar, and drops
 sidecar entries whose paths have left `auditedFiles` (unmarked
 files).
 
@@ -161,8 +162,11 @@ sidecar entry, compare the stored SHA to `git rev-parse
 HEAD:"<path>"`. On mismatch (or the path no longer existing --
 covers renames, since blob SHAs follow content not paths), remove
 the entry from both `auditedFiles` and the sidecar, and print what
-was pruned. The `pre-commit` framework supports all three hook
-types, and `default_install_hook_types` in
+was pruned. Partially-audited (region) marks are pruned wholesale on
+the same trigger: line ranges shift as files change, so any change
+to a file removes its region marks just like a whole-file mark.
+The `pre-commit` framework supports all three hook types, and
+`default_install_hook_types` in
 `.pre-commit-config.yaml` makes a plain `pre-commit install` set
 them all up.
 
@@ -198,15 +202,66 @@ contain paths), then test `git diff --quiet R HEAD -- <path>` and
 optionally `git verify-commit R`. This is not planned to be built
 unless needed.
 
+### Review scope: direct code only
+
+Reviews cover direct code. Generated artifacts (protobuf output and
+similar), vendored code, and test data are out of scope; whether
+unit tests are in scope is a per-repo call (see open questions).
+Each adopted repo carries a small scope configuration the hooks
+read -- include/exclude globs, e.g. `.vscode/review-scope.toml`.
+The scope config gives coverage reporting a meaningful denominator
+("N of M in-scope files reviewed") and lets the stamp hook warn
+when an out-of-scope file is marked.
+
+### Surfacing reviews: a generated REVIEWS.md
+
+Review marks buried in `.vscode/*.weaudit*` are invisible to anyone
+who does not know to look for them. Each adopted repo therefore
+carries a `REVIEWS.md` at its root -- generated, never hand-edited
+-- built from the weAudit state plus the sidecar.
+
+The file opens with a header for someone encountering it cold: a
+short explanation of what the file is (periodic whole-file human
+review, distinct from PR review), a pointer to this tooling, a note
+that the file is generated and how, and a coverage summary ("N of M
+in-scope files reviewed"). Then the table: one row per reviewed
+file with path, reviewer, review date, and the stamped (short) blob
+SHA; partial reviews listed with their line ranges. Output is
+deterministic (sorted by path) so its diffs read as "these reviews
+were added, these were obsoleted".
+
+Both hooks regenerate it whenever they change the sidecar: the
+stamp hook after adding stamps, so `REVIEWS.md` lands in the same
+signed commit as the marks it describes, and the prune hooks after
+removing stale marks. A `REVIEWS.md` was prototyped by hand for
+ryll during Phase 0; the generated file replaces it.
+
+### Session driver: pick the next file to review
+
+With a scope config in place, the helper can also answer "what
+should I review now": a `next` subcommand picks a random in-scope
+file with no current review mark (never-reviewed and pruned-stale
+files land in the same pool, which is the right behaviour) and
+opens it in VSCode (`code <path>`), printing the path for
+non-editor use. Random choice is deliberate -- it avoids both
+alphabetical ruts and cherry-picking easy files -- and it removes
+the "where do I start today" friction from a session. Combined with
+the automatic prune on pull, a session becomes: pull, `next`,
+review, mark, repeat, commit signed.
+
 ### New code required
 
-One script with two subcommands (`stamp`, invoked by the pre-commit
-hook; `prune`, invoked by the post-merge/checkout/rewrite hooks).
+One script with `stamp` and `prune` subcommands (invoked by the
+pre-commit and post-merge/checkout/rewrite hooks respectively),
+each regenerating `REVIEWS.md` whenever the sidecar changes; a
+standalone `regen` subcommand for bootstrap and repair; and the
+interactive `next` subcommand above.
 Target repos should not carry a copy: the `pre-commit` framework
 supports remote hook repositories, so the script and its
-`.pre-commit-hooks.yaml` live once in a shared Shaken Fist repo
-(this one, or `shakenfist/actions` -- see open questions) and each
-project adds a few lines to its existing `.pre-commit-config.yaml`.
+`.pre-commit-hooks.yaml` live once in this repository
+(`shakenfist/development`, decided -- it is already the home of the
+plan, the audits, and the shared review tooling) and each project
+adds a few lines to its existing `.pre-commit-config.yaml`.
 
 CI drift detection (the previously-planned scheduled workflow
 following the `consistency-audit.yml` pattern) is now an **optional
@@ -219,28 +274,29 @@ mutations with human attestations.
 
 ## Open questions
 
-* **Where should the pre-commit hook repo live?** The `pre-commit`
-  framework clones the hook source repo, which needs a
-  `.pre-commit-hooks.yaml` at its root. Candidates: this repo
-  (keeps review tooling together), `shakenfist/actions` (already the
-  shared-automation home, but is GitHub Actions-focused), or a small
-  dedicated hooks repo.
-* **Is `.vscode/` gitignored in the target repos?** weAudit stores
-  state there; any repo ignoring `.vscode/` needs an exception like
-  `!.vscode/*.weaudit`.
-* **Scope of review**: all files, or exclude vendored/generated/test
-  data? Probably needs a per-repo exclusion list the staleness script
-  understands, so coverage reporting ("N of M files reviewed") is
-  meaningful.
-* **Region-level marks**: weAudit supports partially-audited files
-  with line ranges. Line ranges shift as files change, making
-  staleness on regions much weaker than on whole files. Propose
-  treating them wholesale: any change to the file prunes all of its
-  partial marks too.
+Resolved so far (decisions are recorded in the analysis above): the
+hook script lives in `shakenfist/development`; `.gitignore` gets a
+`!.vscode/*.weaudit*` exception per repo at adoption (already done
+for ryll); scope is direct code only, excluding generated and
+vendored artifacts; region marks are pruned wholesale like file
+marks; reviews are surfaced via a generated `REVIEWS.md` opening
+with an explanatory header and coverage summary; a `next`
+subcommand picks a random unreviewed in-scope file and opens it in
+VSCode.
+
+Still open:
+
+* **Are unit tests in scope?** Direct code is in and generated code
+  is out (decided); unit tests sit in between. Probably a per-repo
+  call recorded in that repo's scope config.
+* **Should REVIEWS.md link to findings?** The header and coverage
+  summary are decided; whether rows should also reference weAudit
+  findings/notes for the file is not.
 * **Multi-reviewer**: weAudit state is per-user
   (`<username>.weaudit`). For now there is one reviewer; the design
   extends naturally (one sidecar per state file) but the hook script
-  should not assume a single state file.
+  should not assume a single state file, and `REVIEWS.md` must merge
+  all reviewers' state.
 
 ## Execution
 
@@ -276,8 +332,10 @@ Phases 1 and 2; the tooling itself lands in `development` once solid.
 
 ### Phase 1: Conventions for signed review state
 
-1. Confirm `.vscode/*.weaudit` is committable in the trial repo
-   (adjust `.gitignore` if needed).
+1. ~~Confirm `.vscode/*.weaudit` is committable in the trial repo
+   (adjust `.gitignore` if needed).~~ Done for ryll; every other
+   repo needs the same `.gitignore` exception as part of adoption
+   (captured in the Phase 4 template).
 2. Adopt the session discipline: clean tree before marking, signed
    commit of the state file per session.
 3. Document the conventions in `docs/code-review-tracking.md` in this
@@ -287,20 +345,27 @@ Phases 1 and 2; the tooling itself lands in `development` once solid.
 
 ### Phase 2: Stamp and prune hooks
 
-1. Write the review-SHA script with `stamp` and `prune` subcommands
-   as described in the analysis, plus tests against a fixture repo.
-2. Add `.pre-commit-hooks.yaml` exposing both as hooks (stamp at the
-   `pre-commit` stage; prune at `post-merge`, `post-checkout`, and
-   `post-rewrite`), hosted in the chosen shared repo.
-3. Wire the trial repo's `.pre-commit-config.yaml` to the hooks,
+1. Write the review script in this repository with `stamp`, `prune`,
+   `regen`, and `next` subcommands as described in the analysis --
+   `stamp` and `prune` regenerate `REVIEWS.md` whenever they change
+   the sidecar -- plus tests against a fixture repo.
+2. Define the per-repo scope config and wire it into the script:
+   out-of-scope warnings at stamp time, the coverage denominator
+   for the `REVIEWS.md` header, and the candidate pool for `next`.
+3. Add `.pre-commit-hooks.yaml` to this repository exposing the
+   hooks (stamp at the `pre-commit` stage; prune at `post-merge`,
+   `post-checkout`, and `post-rewrite`).
+4. Wire the trial repo's `.pre-commit-config.yaml` to the hooks,
    including `default_install_hook_types`, and re-run
    `pre-commit install`.
-4. Bootstrap: stamp the files already marked reviewed during Phase 0
+5. Bootstrap: stamp the files already marked reviewed during Phase 0
    after eyeballing that they are unchanged since review (they were
    only marked recently; with stamps in place this problem never
-   recurs).
-5. Validate the loop end to end: mark, commit (stamp lands), change
-   the file upstream, pull (prune fires), confirm the tick disappears
+   recurs), and replace ryll's hand-maintained `REVIEWS.md` with the
+   generated one.
+6. Validate the loop end to end: mark, commit (stamp lands and
+   `REVIEWS.md` updates), change the file upstream, pull (prune
+   fires and `REVIEWS.md` updates), confirm the tick disappears
    after a weAudit refresh, re-review, re-commit.
 
 ### Phase 3: Optional CI backstop (deferred)
@@ -324,9 +389,9 @@ becomes yet another thing the consistency audits check for:
 2. Add `audits/code-review-tracking.md` following the modular audit
    pattern (what we check, per-project status table), and a
    `templates/code-review-tracking/` directory containing the
-   `.pre-commit-config.yaml` stanza and setup instructions
-   (`default_install_hook_types`, `.gitignore` exception for
-   `.vscode/*.weaudit*` where needed).
+   `.pre-commit-config.yaml` stanza, a starter scope config, and
+   setup instructions (`default_install_hook_types`, the
+   `.gitignore` exception for `.vscode/*.weaudit*`).
 3. Extend `scripts/audit-check.py` with the mechanical check (hook
    config present in `.pre-commit-config.yaml`), so drift is caught
    by the existing daily `consistency-audit.yml` run and issue
@@ -349,6 +414,9 @@ We will know this plan has been successfully implemented when:
   than remembered.
 * The in-editor view (weAudit ticks) never shows a stale review for
   longer than the gap between a pull and the next weAudit refresh.
+* Anyone browsing an adopted repo can see what has been reviewed,
+  by whom, and when, from a generated `REVIEWS.md` that is never
+  out of step with the review state it is committed alongside.
 * The amount of newly-written software is one small script plus
   pre-commit configuration.
 
