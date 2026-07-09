@@ -111,18 +111,29 @@ at the repository root, with tests in
    review account's).
 
 6. Bootstrap existing review marks, if any were made before the
-   hooks were wired up: check the marked files are unchanged since
-   they were reviewed, then run the stamp hook once by hand and
-   commit (signed) what it produces:
+   hooks were wired up -- and do it **in the same commit as the
+   wiring**. The stamp hook is `always_run`: once active, the next
+   commit by *anyone* stamps every unstamped mark at the file's
+   current content, whether or not that content is what was
+   reviewed. A stale pre-existing mark would be silently blessed.
+   So, as part of the wiring commit:
 
-   ```
-   pre-commit run review-stamp --hook-stage pre-commit
-   git add .vscode/*.weaudit-shas.json REVIEWS.md
-   git commit    # signed
-   ```
+   * For each pre-existing mark, check the file is unchanged since
+     its signed review commit; unmark any that changed (they are
+     stale, and will come back around via `next`).
+   * Run the stamp by hand, and correct the recorded dates to the
+     true review dates (a fresh stamp records today):
 
-   Delete any hand-maintained REVIEWS.md first; the generated one
-   replaces it.
+     ```
+     <development-clone>/scripts/review-tracking.py stamp
+     # fix dates in .vscode/<user>.weaudit-shas.json if needed
+     <development-clone>/scripts/review-tracking.py regen
+     ```
+
+   * Delete any hand-maintained REVIEWS.md; the generated file
+     replaces it.
+   * Commit the wiring, corrected weAudit state, sidecar, and
+     REVIEWS.md together (signed).
 
 ## The review account
 

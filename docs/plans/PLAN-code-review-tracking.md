@@ -390,25 +390,29 @@ the hooks up.
    stamp (fails asking for a re-stage, then passes), upstream
    change, prune at post-merge discarding the mark from the
    weAudit state, the sidecar, and `REVIEWS.md`.
-4. Wire the trial repo's `.pre-commit-config.yaml` to the hooks,
+4. ~~Wire the trial repo's `.pre-commit-config.yaml` to the hooks,
    including `default_install_hook_types`, and re-run
-   `pre-commit install`. *Needs this repository pushed first (the
-   `rev:` pin), then a small ryll change -- the exact snippet is in
-   the conventions doc's adoption section, along with the extra
-   `.gitignore` exceptions for the sidecar and scope config.*
-5. Bootstrap: stamp the files already marked reviewed during
+   `pre-commit install`.~~ Prepared and staged in the primary
+   ryll clone (2026-07-09), pinned to development rev `0957d15`;
+   awaiting Mikal's review and commit. Each clone (including the
+   review account's) then needs `pre-commit install` re-run.
+5. ~~Bootstrap: stamp the files already marked reviewed during
    Phase 0 after eyeballing that they are unchanged since review,
    and replace ryll's hand-maintained `REVIEWS.md` with the
-   generated one. *Review-account procedure documented as adoption
-   step 6 in the conventions doc. The eyeball check has been done
-   (2026-07-09): `glz.rs` is unchanged since its review and safe
-   to stamp; `byte_bounded_lru.rs` is NOT -- two "Lint fix."
-   commits changed it after its review (and the review commit
-   itself also modified the file, the exact clean-tree violation
-   the stamp hook now warns about). It must be unmarked (or the
-   f5b9a051..9949d37a diff consciously re-affirmed and the mark
-   refreshed) before the bootstrap stamp, otherwise the stamp
-   would silently bless the post-review content.*
+   generated one.~~ Folded into the same staged ryll change, which
+   is essential: the stamp hook is `always_run`, so once the
+   wiring lands, the next commit by anyone would stamp any
+   unstamped mark at the file's *current* content -- discovered
+   when a scoped pre-commit run during preparation auto-stamped
+   the stale mark. The eyeball check found `glz.rs` unchanged
+   since its signed review (stamped at `6600fc53`, dated
+   2026-07-05, the true review date) and `byte_bounded_lru.rs`
+   changed by two post-review "Lint fix." commits (the review
+   commit itself also modified the file -- the exact clean-tree
+   violation the stamp hook now warns about), so its mark was
+   removed; it returns via `next`. The bootstrap-with-wiring
+   requirement is now documented as adoption step 6 in the
+   conventions doc.
 6. Validate the loop end to end in ryll: mark, commit (stamp lands
    and `REVIEWS.md` updates), change the file upstream, pull
    (prune fires and `REVIEWS.md` updates), confirm the tick
