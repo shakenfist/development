@@ -20,7 +20,7 @@ See: `templates/export-repo-config/README.md`
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-08T08:33:30.675321+00:00
+Last regenerated: 2026-07-09T09:43:56.464901+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
