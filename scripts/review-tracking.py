@@ -319,7 +319,10 @@ def cmd_next(args):
     if not args.no_open:
         code = shutil.which('code')
         if code:
-            subprocess.run([code, choice], check=False)
+            # Pass the repo root as well as the file: the root opens (or
+            # focuses) as the workspace, which weAudit needs -- a bare file
+            # window has no workspace for it to record reviews against.
+            subprocess.run([code, os.getcwd(), os.path.abspath(choice)], check=False)
         else:
             print('review-next: "code" not found on PATH, not opening an editor', file=sys.stderr)
     return 0
