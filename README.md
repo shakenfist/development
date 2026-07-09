@@ -11,10 +11,13 @@ the Shaken Fist project.
   for bot-triggered reviews, retests, test fixing, and comment addressing
 - [Release Automation](docs/release-automation.md) -- Automated PyPI releases
   with Sigstore signing and trusted publishers
-- [Code Review Tracking](docs/code-review-tracking.md) -- Conventions for
-  whole-codebase human review: weAudit for in-editor tracking, signed
-  commits for attestation, and (planned) hooks that prune stale reviews
-  and generate a per-repo REVIEWS.md
+- [Code Review Tracking](docs/code-review-tracking.md) -- Whole-codebase
+  human review: weAudit for in-editor tracking, signed commits for
+  attestation, and pre-commit hooks hosted in this repository
+  ([`.pre-commit-hooks.yaml`](.pre-commit-hooks.yaml) /
+  [`scripts/review-tracking.py`](scripts/review-tracking.py)) that stamp
+  reviews with blob SHAs, prune stale reviews when files change, and
+  generate a per-repo REVIEWS.md
   (plan: [PLAN-code-review-tracking.md](docs/plans/PLAN-code-review-tracking.md))
 
 ## Consistency Audits

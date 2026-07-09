@@ -1,0 +1,24 @@
+# Hooks for the code review tracking system, referenced by target
+# repositories as a remote pre-commit hook repo. See
+# docs/code-review-tracking.md for the system and
+# docs/plans/PLAN-code-review-tracking.md for the design.
+- id: review-stamp
+  name: stamp code reviews with blob SHAs
+  description: >-
+    Record the blob SHA and date of newly reviewed files in the weAudit
+    sidecar and regenerate REVIEWS.md.
+  entry: scripts/review-tracking.py stamp
+  language: script
+  always_run: true
+  pass_filenames: false
+  stages: [pre-commit]
+- id: review-prune
+  name: prune stale code reviews
+  description: >-
+    Discard review marks for files changed since they were reviewed and
+    regenerate REVIEWS.md.
+  entry: scripts/review-tracking.py prune
+  language: script
+  always_run: true
+  pass_filenames: false
+  stages: [post-merge, post-checkout, post-rewrite]

@@ -50,12 +50,15 @@ Repo properties that cannot be detected from a clone (private repos,
 docs-only repos, repos where Python is incidental) are hardcoded in
 `REPO_OVERRIDES` in `scripts/audit-check.py`.
 
-## Code review tracking (in progress)
+## Code review tracking
 
-This repository is also becoming the home of the whole-codebase
-review tracking system: conventions in
-`docs/code-review-tracking.md`, design in
-`docs/plans/PLAN-code-review-tracking.md`. Later phases add a
-pre-commit hook script here (exposed via `.pre-commit-hooks.yaml`
-so target repos reference it remotely) and, once solid, a
-consistency audit item for adoption.
+This repository is also the home of the whole-codebase review
+tracking system: conventions in `docs/code-review-tracking.md`,
+design in `docs/plans/PLAN-code-review-tracking.md`. The
+automation is `scripts/review-tracking.py` (stamp reviews with
+blob SHAs at commit time, prune stale reviews when files change,
+regenerate the per-repo `REVIEWS.md`, pick the next file to
+review), exposed to target repositories as remote pre-commit hooks
+via `.pre-commit-hooks.yaml` at the repository root. Tests are in
+`scripts/test_review_tracking.py`. Once solid, adoption becomes a
+consistency audit item.

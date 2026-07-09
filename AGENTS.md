@@ -32,6 +32,18 @@ To add a repository to the audits, add it to the matrix in
 
 ## Testing changes
 
+The review tracking script has fixture-repo tests -- run them after any
+change to `scripts/review-tracking.py`:
+
+```
+python3 scripts/test_review_tracking.py
+```
+
+The `.pre-commit-hooks.yaml` wiring can be exercised for real with
+`pre-commit try-repo` from a scratch repository, but note try-repo
+clones this repo's HEAD, so hook manifest changes must be committed
+(in a throwaway clone if need be) before try-repo sees them.
+
 The audit scripts have no unit tests. Test by running them against local
 clones:
 

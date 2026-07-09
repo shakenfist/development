@@ -9,9 +9,11 @@ review (which only ever examines deltas) and the consistency audits
 The full design rationale is in
 `docs/plans/PLAN-code-review-tracking.md`.
 
-Status: conventions (this document) are current; the automation
-described in the "Staleness" section is Phase 2 of the plan and not
-yet built. Until it exists the corresponding steps are manual.
+The automation lives in this repository:
+`scripts/review-tracking.py` (subcommands `stamp`, `prune`, `regen`,
+and `next`) exposed as pre-commit hooks by `.pre-commit-hooks.yaml`
+at the repository root, with tests in
+`scripts/test_review_tracking.py`.
 
 ## The pieces
 
@@ -26,19 +28,28 @@ yet built. Until it exists the corresponding steps are manual.
   "who reviewed what, when, at which content version" needs
   nothing beyond git.
 * **A sidecar file** (`.vscode/<username>.weaudit-shas.json`,
-  Phase 2) records the blob SHA and date of each review so
-  staleness is a mechanical check, and **`REVIEWS.md`** (also
-  Phase 2) surfaces the review state to people who do not know to
-  look in `.vscode/`.
+  written by the `review-stamp` hook, never by weAudit) records the
+  blob SHA and date of each review so staleness is a mechanical
+  check, and a generated **`REVIEWS.md`** surfaces the review state
+  to people who do not know to look in `.vscode/`.
+* **A scope config** (`.vscode/review-scope.toml`) defines which
+  files count as reviewable: `include` and `exclude` lists of
+  fnmatch patterns matched against repo-relative paths (`*` matches
+  across directory separators; an empty or absent `include` means
+  all tracked files). The tracking machinery (`.vscode/*`,
+  `REVIEWS.md`) is always excluded. Generated and vendored code
+  should be excluded here; whether unit tests are in scope is a
+  per-repo decision.
 
 ## Adopting a repository
 
-1. Ensure `.vscode/*.weaudit*` files are committable. If
-   `.gitignore` excludes `.vscode/`, add exceptions:
+1. Ensure the review state files are committable. If `.gitignore`
+   excludes `.vscode/`, add exceptions:
 
    ```
    !.vscode/*.weaudit
    !.vscode/*.weaudit-shas.json
+   !.vscode/review-scope.toml
    ```
 
 2. Ensure commit signing is configured for the clone(s) reviews
@@ -69,9 +80,49 @@ yet built. Until it exists the corresponding steps are manual.
    superset -- PRs, merge queue, status checks -- and also
    satisfies this.)
 
-4. Phase 2 will add: wiring the repo's `.pre-commit-config.yaml`
-   to the shared hooks in this repository, and a review scope
-   config.
+4. Write `.vscode/review-scope.toml`, for example:
+
+   ```toml
+   # Which files are subject to whole-file review.
+   include = []                 # empty: all tracked files
+   exclude = ['*_pb2.py', 'vendor/*']
+   ```
+
+5. Wire the repo's `.pre-commit-config.yaml` to the shared hooks
+   and make plain `pre-commit install` set up all the needed hook
+   types:
+
+   ```yaml
+   default_install_hook_types:
+     - pre-commit
+     - post-merge
+     - post-checkout
+     - post-rewrite
+
+   repos:
+     - repo: https://github.com/shakenfist/development
+       rev: <pinned commit or tag>
+       hooks:
+         - id: review-stamp
+         - id: review-prune
+   ```
+
+   Then re-run `pre-commit install` in each clone (including the
+   review account's).
+
+6. Bootstrap existing review marks, if any were made before the
+   hooks were wired up: check the marked files are unchanged since
+   they were reviewed, then run the stamp hook once by hand and
+   commit (signed) what it produces:
+
+   ```
+   pre-commit run review-stamp --hook-stage pre-commit
+   git add .vscode/*.weaudit-shas.json REVIEWS.md
+   git commit    # signed
+   ```
+
+   Delete any hand-maintained REVIEWS.md first; the generated one
+   replaces it.
 
 ## The review account
 
@@ -144,19 +195,37 @@ covers, which imposes three rules:
 
 A session therefore looks like:
 
-1. `git pull` on a clean tree. (Phase 2: the prune hook fires here
-   and removes marks for files changed since their review;
-   `REVIEWS.md` regenerates.)
-2. Pick a file. (Phase 2: `next` picks a random unreviewed
-   in-scope file and opens it in VSCode.)
+1. `git pull` on a clean tree. The prune hook fires, discards
+   marks for files changed since their review, and regenerates
+   `REVIEWS.md`. Anything it pruned is a good candidate work
+   queue for the session. If VSCode was already open, reload the
+   window (or toggle the weAudit tree view) so the ticks refresh
+   -- weAudit does not watch its state file for external changes.
+2. Pick a file:
+
+   ```
+   ~/src/shakenfist/development/scripts/review-tracking.py next
+   ```
+
+   picks a random unreviewed in-scope file and opens it in VSCode
+   (`--no-open` to just print it).
 3. Read it. weAudit's explorer ticks show what is already done;
    Claude Code in the integrated terminal for questions.
 4. Mark it reviewed (`weAudit: Mark File as Reviewed`), attach
    findings or notes as needed.
-5. Repeat from 2; commit (signed) at the end of the session.
-   (Phase 2: the stamp hook records each newly reviewed file's
-   blob SHA in the sidecar and regenerates `REVIEWS.md` as part of
-   the commit.)
+5. Repeat from 2. At the end of the session:
+
+   ```
+   git add .vscode/*.weaudit
+   git commit
+   ```
+
+   The stamp hook records each newly reviewed file's blob SHA and
+   date in the sidecar, regenerates `REVIEWS.md`, and fails this
+   first commit attempt asking you to stage those updates; do the
+   `git add` it suggests and re-run the commit. The (signed)
+   commit that lands contains the marks, the stamps, and the
+   regenerated `REVIEWS.md` together.
 
 ## Staleness
 
@@ -165,11 +234,25 @@ once the file changes, that review is stale and the file should be
 treated as unreviewed. weAudit does not track this -- a stale tick
 looks identical to a fresh one.
 
-Until the Phase 2 hooks exist, staleness is handled manually: be
-suspicious of ticks on files you know have changed, and unmark
-them. Phase 2 makes it automatic: a pre-commit hook stamps each
-reviewed file's blob SHA into the sidecar, and post-merge /
-post-checkout / post-rewrite hooks prune any mark whose stamped
-SHA no longer matches `HEAD` (region marks are pruned wholesale
-with the file). See the plan for the full design, including why
+The hooks make staleness automatic: `review-stamp` records each
+reviewed file's blob SHA in the sidecar at commit time, and
+`review-prune` (at the post-merge, post-checkout, and post-rewrite
+stages) discards any mark -- whole-file or region -- whose stamped
+SHA no longer matches `HEAD`, regenerating `REVIEWS.md` to match.
+Region marks are pruned wholesale with the file: line ranges shift
+as files change, so a partial review of a changed file is not
+trusted either. See the plan for the full design, including why
 the stamps live in a sidecar rather than in weAudit's own JSON.
+
+Two behaviours worth knowing about:
+
+* The prune hook fires on *any* checkout in a clone with the hook
+  types installed -- including switching to an old branch in a
+  development clone, where files legitimately differ from their
+  stamped SHAs. The prune is correct there too (those reviews do
+  not apply to that content), but if it surprises you, `git
+  restore .vscode/ REVIEWS.md` puts the state back.
+* A stamped entry is never re-stamped while it exists: if a
+  reviewed file changes, the only path forward is prune then
+  re-review. This is what prevents a stale review being silently
+  refreshed at the file's current content.

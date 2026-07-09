@@ -371,28 +371,50 @@ the hooks up.
 
 ### Phase 2: Stamp and prune hooks
 
-1. Write the review script in this repository with `stamp`, `prune`,
-   `regen`, and `next` subcommands as described in the analysis --
-   `stamp` and `prune` regenerate `REVIEWS.md` whenever they change
-   the sidecar -- plus tests against a fixture repo.
-2. Define the per-repo scope config and wire it into the script:
+1. ~~Write the review script in this repository with `stamp`,
+   `prune`, `regen`, and `next` subcommands as described in the
+   analysis -- `stamp` and `prune` regenerate `REVIEWS.md` whenever
+   they change the sidecar -- plus tests against a fixture repo.~~
+   Done: `scripts/review-tracking.py`, with ten fixture-repo tests
+   in `scripts/test_review_tracking.py`.
+2. ~~Define the per-repo scope config and wire it into the script:
    out-of-scope warnings at stamp time, the coverage denominator
-   for the `REVIEWS.md` header, and the candidate pool for `next`.
-3. Add `.pre-commit-hooks.yaml` to this repository exposing the
+   for the `REVIEWS.md` header, and the candidate pool for
+   `next`.~~ Done: `.vscode/review-scope.toml`, fnmatch
+   include/exclude lists; the tracking machinery itself
+   (`.vscode/*`, `REVIEWS.md`) is always excluded.
+3. ~~Add `.pre-commit-hooks.yaml` to this repository exposing the
    hooks (stamp at the `pre-commit` stage; prune at `post-merge`,
-   `post-checkout`, and `post-rewrite`).
+   `post-checkout`, and `post-rewrite`).~~ Done, and the whole
+   loop validated through `pre-commit try-repo` against a fixture:
+   stamp (fails asking for a re-stage, then passes), upstream
+   change, prune at post-merge discarding the mark from the
+   weAudit state, the sidecar, and `REVIEWS.md`.
 4. Wire the trial repo's `.pre-commit-config.yaml` to the hooks,
    including `default_install_hook_types`, and re-run
-   `pre-commit install`.
-5. Bootstrap: stamp the files already marked reviewed during Phase 0
-   after eyeballing that they are unchanged since review (they were
-   only marked recently; with stamps in place this problem never
-   recurs), and replace ryll's hand-maintained `REVIEWS.md` with the
-   generated one.
-6. Validate the loop end to end: mark, commit (stamp lands and
-   `REVIEWS.md` updates), change the file upstream, pull (prune
-   fires and `REVIEWS.md` updates), confirm the tick disappears
-   after a weAudit refresh, re-review, re-commit.
+   `pre-commit install`. *Needs this repository pushed first (the
+   `rev:` pin), then a small ryll change -- the exact snippet is in
+   the conventions doc's adoption section, along with the extra
+   `.gitignore` exceptions for the sidecar and scope config.*
+5. Bootstrap: stamp the files already marked reviewed during
+   Phase 0 after eyeballing that they are unchanged since review,
+   and replace ryll's hand-maintained `REVIEWS.md` with the
+   generated one. *Review-account procedure documented as adoption
+   step 6 in the conventions doc. The eyeball check has been done
+   (2026-07-09): `glz.rs` is unchanged since its review and safe
+   to stamp; `byte_bounded_lru.rs` is NOT -- two "Lint fix."
+   commits changed it after its review (and the review commit
+   itself also modified the file, the exact clean-tree violation
+   the stamp hook now warns about). It must be unmarked (or the
+   f5b9a051..9949d37a diff consciously re-affirmed and the mark
+   refreshed) before the bootstrap stamp, otherwise the stamp
+   would silently bless the post-review content.*
+6. Validate the loop end to end in ryll: mark, commit (stamp lands
+   and `REVIEWS.md` updates), change the file upstream, pull
+   (prune fires and `REVIEWS.md` updates), confirm the tick
+   disappears after a weAudit refresh, re-review, re-commit. *The
+   hook-level loop is already validated against the fixture; this
+   is the live confirmation from the review account.*
 
 ### Phase 3: Optional CI backstop (deferred)
 
