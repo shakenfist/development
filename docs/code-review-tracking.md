@@ -267,3 +267,9 @@ Two behaviours worth knowing about:
   reviewed file changes, the only path forward is prune then
   re-review. This is what prevents a stale review being silently
   refreshed at the file's current content.
+* When every file in a directory is reviewed, weAudit adds a
+  derived *directory* entry to `auditedFiles` alongside the
+  per-file entries. The hooks treat these as pure UI state: they
+  are never stamped or listed in `REVIEWS.md`, and prune removes
+  them when a file inside stops being reviewed (mirroring what
+  weAudit itself does when a file is unmarked in its UI).

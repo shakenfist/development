@@ -133,10 +133,23 @@ def marked_paths(state):
     return audited, partial
 
 
+def is_dir_entry(path, tracked_set):
+    """weAudit adds a derived auditedFiles entry for a directory once every
+    file in it is reviewed, alongside (never replacing) the per-file entries.
+    The files carry the review state; directory entries are ignored for
+    stamping and reporting, and dropped by prune when their invariant breaks.
+    """
+    if path in tracked_set:
+        return False
+    prefix = path.rstrip('/') + '/'
+    return any(t.startswith(prefix) for t in tracked_set)
+
+
 def generate_reviews_md():
     """Regenerate REVIEWS.md. Returns True if the file changed."""
     include, exclude = load_scope()
-    scoped = sorted(p for p in tracked_files() if in_scope(p, include, exclude))
+    tracked = set(tracked_files())
+    scoped = sorted(p for p in tracked if in_scope(p, include, exclude))
 
     full_rows = []
     partial_rows = []
@@ -147,6 +160,7 @@ def generate_reviews_md():
         sidecar, _ = load_json(sidecar_path(state_path), {'version': 1, 'files': {}})
         stamps = sidecar.get('files', {})
         audited, partial = marked_paths(state)
+        audited = [p for p in audited if not is_dir_entry(p, tracked)]
         for path in audited:
             stamp = stamps.get(path, {})
             reviewed_paths.add(path)
@@ -207,6 +221,7 @@ def generate_reviews_md():
 
 def cmd_stamp(_args):
     include, exclude = load_scope()
+    tracked = set(tracked_files())
     staged = set(git('diff', '--cached', '--name-only').stdout.splitlines())
     changed = []
     for state_path in state_files():
@@ -215,7 +230,7 @@ def cmd_stamp(_args):
         sidecar, side_nl = load_json(side_path, {'version': 1, 'files': {}})
         stamps = sidecar.setdefault('files', {})
         audited, partial = marked_paths(state)
-        marked = set(audited) | set(partial)
+        marked = set(p for p in set(audited) | set(partial) if not is_dir_entry(p, tracked))
 
         side_changed = False
         for path in sorted(marked - set(stamps)):
@@ -254,6 +269,7 @@ def cmd_stamp(_args):
 
 def cmd_prune(_args):
     pruned = []
+    tracked = set(tracked_files())
     for state_path in state_files():
         state, state_nl = load_json(state_path, {})
         side_path = sidecar_path(state_path)
@@ -279,6 +295,21 @@ def cmd_prune(_args):
         if state.get('partiallyAuditedFiles'):
             state['partiallyAuditedFiles'] = [e for e in state['partiallyAuditedFiles']
                                               if e['path'] not in stale_paths]
+
+        # weAudit adds a derived directory entry once every file in that
+        # directory is reviewed, and removes it itself when a file is
+        # unmarked in its UI; replicate the removal for pruned files.
+        audited_set = set(e['path'] for e in state['auditedFiles'])
+        kept = []
+        for e in state['auditedFiles']:
+            path = e['path']
+            if is_dir_entry(path, tracked):
+                prefix = path.rstrip('/') + '/'
+                if any(t.startswith(prefix) and t not in audited_set for t in tracked):
+                    print('review-prune: removing directory mark %s (no longer fully reviewed)' % path)
+                    continue
+            kept.append(e)
+        state['auditedFiles'] = kept
         write_json(state_path, state, state_nl)
         write_json(side_path, sidecar, side_nl)
         pruned.extend(sorted(stale_paths))

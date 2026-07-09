@@ -187,6 +187,52 @@ class ReviewTrackingTest(unittest.TestCase):
         p = self.run_tool('next', '--no-open')
         self.assertIn('every in-scope file is reviewed', p.stdout)
 
+    def test_stamp_ignores_directory_entries(self):
+        # weAudit adds a derived directory entry to auditedFiles once every
+        # file in the directory is reviewed, alongside the per-file entries.
+        os.mkdir(os.path.join(self.repo, 'src/usb'))
+        self.write('src/usb/mod.rs', 'mod real;\n')
+        self.write('src/usb/real.rs', 'fn real() {}\n')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'usb')
+        self.mark_reviewed(['src/usb/mod.rs', 'src/usb/real.rs', 'src/usb'])
+
+        p = self.run_tool('stamp')
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertNotIn('WARNING', p.stderr)
+        sidecar = self.read_json('.vscode/testuser.weaudit-shas.json')
+        self.assertEqual(sorted(sidecar['files']), ['src/usb/mod.rs', 'src/usb/real.rs'])
+        reviews = self.read('REVIEWS.md')
+        self.assertIn('src/usb/mod.rs', reviews)
+        self.assertNotIn('| src/usb |', reviews)
+
+        # And the directory entry does not make every later run churn.
+        self.git('add', '-A')
+        p = self.run_tool('stamp')
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertNotIn('WARNING', p.stderr)
+
+    def test_prune_removes_directory_entry_when_child_pruned(self):
+        os.mkdir(os.path.join(self.repo, 'src/usb'))
+        self.write('src/usb/mod.rs', 'mod real;\n')
+        self.write('src/usb/real.rs', 'fn real() {}\n')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'usb')
+        self.mark_reviewed(['src/usb/mod.rs', 'src/usb/real.rs', 'src/usb'])
+        self.run_tool('stamp')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'reviews')
+
+        self.write('src/usb/real.rs', 'fn real() { changed() }\n')
+        self.git('add', 'src/usb/real.rs')
+        self.git('commit', '-m', 'change real')
+
+        p = self.run_tool('prune')
+        self.assertIn('src/usb/real.rs changed since its review', p.stdout)
+        self.assertIn('removing directory mark src/usb', p.stdout)
+        state = self.read_json('.vscode/testuser.weaudit')
+        self.assertEqual([e['path'] for e in state['auditedFiles']], ['src/usb/mod.rs'])
+
     def test_regen_deterministic(self):
         self.mark_reviewed(['src/a.py'])
         self.run_tool('stamp')
