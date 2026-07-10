@@ -30,7 +30,7 @@ git push origin --delete main
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-09T09:43:56.464901+00:00
+Last regenerated: 2026-07-10T09:39:52.855355+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
