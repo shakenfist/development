@@ -21,6 +21,7 @@ import time
 from audit_common import (
     AUDIT_METADATA,
     ISSUE_TITLES,
+    gh_canonical_repo,
     gh_search_issues,
 )
 
@@ -149,10 +150,48 @@ def build_issue_body(check_id, check_result):
     return body
 
 
+def close_duplicates(org, repo, check_id, duplicates, original,
+                     dry_run):
+    """Close duplicate issues, pointing at the surviving original."""
+    for dup in duplicates:
+        print(
+            f'  [{check_id}] closing duplicate issue '
+            f'#{dup["number"]} (original is #{original["number"]})'
+        )
+        if not dry_run:
+            gh_close_issue(
+                org, repo, dup['number'],
+                comment=(
+                    f'Duplicate of #{original["number"]}. '
+                    'Closing automatically.'
+                ),
+            )
+            time.sleep(1)
+
+
 def process_results(results, dry_run=False):
-    """Process audit results and manage issues."""
+    """Process audit results and manage issues.
+
+    Returns True if the configured repo name is stale (the repo has
+    been renamed on GitHub) so the caller can fail the run visibly.
+    """
     org = results['org']
     repo = results['repo']
+
+    # A renamed repo must be handled under its canonical name:
+    # issue search silently returns nothing for the old name, while
+    # issue creation follows the rename redirect, so a stale name
+    # files a fresh duplicate on every run.
+    canonical_org, canonical_repo = gh_canonical_repo(org, repo)
+    renamed = (canonical_org, canonical_repo) != (org, repo)
+    if renamed:
+        print(
+            f'WARNING: {org}/{repo} has been renamed to '
+            f'{canonical_org}/{canonical_repo}; update the matrix in '
+            f'.github/workflows/consistency-audit.yml',
+            file=sys.stderr,
+        )
+        org, repo = canonical_org, canonical_repo
 
     print(f'\n=== {repo} ===')
     print(
@@ -174,6 +213,10 @@ def process_results(results, dry_run=False):
                     f'  [{check_id}] FAIL -- issue '
                     f'#{existing[0]["number"]} already open'
                 )
+                close_duplicates(
+                    org, repo, check_id, existing[1:], existing[0],
+                    dry_run,
+                )
             else:
                 print(f'  [{check_id}] FAIL -- creating issue')
                 if not dry_run:
@@ -184,45 +227,50 @@ def process_results(results, dry_run=False):
                     time.sleep(1)  # Rate limiting
 
         elif status == 'pass':
-            # Close any existing open issue
+            # Close any existing open issues (all of them, in case
+            # duplicates have accumulated)
             existing = gh_search_issues(org, repo, title_prefix)
             if existing:
-                print(
-                    f'  [{check_id}] PASS -- closing issue '
-                    f'#{existing[0]["number"]}'
-                )
-                if not dry_run:
-                    gh_close_issue(
-                        org, repo, existing[0]['number'],
-                        comment=(
-                            'This check is now passing in the '
-                            'automated consistency audit. '
-                            'Closing automatically.'
-                        ),
+                for issue in existing:
+                    print(
+                        f'  [{check_id}] PASS -- closing issue '
+                        f'#{issue["number"]}'
                     )
-                    time.sleep(1)
+                    if not dry_run:
+                        gh_close_issue(
+                            org, repo, issue['number'],
+                            comment=(
+                                'This check is now passing in the '
+                                'automated consistency audit. '
+                                'Closing automatically.'
+                            ),
+                        )
+                        time.sleep(1)
             else:
                 print(f'  [{check_id}] PASS')
 
         else:  # not_applicable
-            # Close any existing issue if one was opened
+            # Close any existing issues if any were opened
             existing = gh_search_issues(org, repo, title_prefix)
             if existing:
-                print(
-                    f'  [{check_id}] N/A -- closing issue '
-                    f'#{existing[0]["number"]}'
-                )
-                if not dry_run:
-                    gh_close_issue(
-                        org, repo, existing[0]['number'],
-                        comment=(
-                            'This check is not applicable to '
-                            'this project. Closing automatically.'
-                        ),
+                for issue in existing:
+                    print(
+                        f'  [{check_id}] N/A -- closing issue '
+                        f'#{issue["number"]}'
                     )
-                    time.sleep(1)
+                    if not dry_run:
+                        gh_close_issue(
+                            org, repo, issue['number'],
+                            comment=(
+                                'This check is not applicable to '
+                                'this project. Closing automatically.'
+                            ),
+                        )
+                        time.sleep(1)
             else:
                 print(f'  [{check_id}] N/A')
+
+    return renamed
 
 
 def main():
@@ -256,13 +304,26 @@ def main():
         print('No JSON result files found.')
         sys.exit(0)
 
+    stale_names = False
     for filename in result_files:
         filepath = os.path.join(args.results_dir, filename)
         with open(filepath, 'r') as f:
             results = json.load(f)
-        process_results(results, dry_run=args.dry_run)
+        if process_results(results, dry_run=args.dry_run):
+            stale_names = True
 
     print('\nDone.')
+
+    if stale_names:
+        print(
+            '\nOne or more repos have been renamed on GitHub but the '
+            'audit still uses the old name (see warnings above). '
+            'Issues were managed under the canonical names, but the '
+            'workflow matrix needs updating. Failing so this gets '
+            'fixed.',
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 if __name__ == '__main__':

@@ -33,7 +33,13 @@ repository:
    (labelled `consistency`) on each non-compliant target repo for each
    failing check, and closes issues for checks that now pass or no
    longer apply. Issue titles are `Consistency: <check name>` and are
-   used as the idempotency key, so titles must remain stable.
+   used as the idempotency key, so titles must remain stable. Repo
+   names are resolved to their canonical form first (GitHub issue
+   search does not follow repo renames, while issue creation does, so
+   a stale matrix entry would otherwise file a fresh duplicate on
+   every run); a rename still fails the job so the matrix gets
+   updated. If duplicate issues exist anyway, the oldest is kept and
+   the rest are closed automatically.
 3. A final job runs `scripts/audit-update-docs.py`, which regenerates
    the per-project compliance tables between the consistency-audit
    markers in `audits/*.md` from the same results (linking the open
@@ -46,9 +52,10 @@ in `scripts/audit_common.py`. All the scripts are stdlib-only Python;
 the only external dependencies are the `git` and `gh` CLIs available on
 the self-hosted runners.
 
-Repo properties that cannot be detected from a clone (private repos,
-docs-only repos, repos where Python is incidental) are hardcoded in
-`REPO_OVERRIDES` in `scripts/audit-check.py`.
+Repo properties that cannot be detected from a clone (docs-only repos,
+repos where Python is incidental) are hardcoded in `REPO_OVERRIDES` in
+`scripts/audit-check.py`. Repository visibility is queried live from
+the GitHub API rather than hardcoded, because it changes over time.
 
 ## Code review tracking
 

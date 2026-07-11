@@ -383,7 +383,6 @@ Exceptions are allowed for:
 
 | Repository | Current | Action Needed |
 |------------|---------|---------------|
-| imago | main | Change to `develop` |
 | cloudgood | main | Change to `develop` |
 
 To change the default branch:
@@ -420,7 +419,7 @@ Additionally, these repository settings are recommended:
 |------------|------------|-----------------|-------|
 | shakenfist | Enabled | Disabled | Enable secret scanning |
 | occystrap | Disabled | Disabled | Enable both |
-| imago | N/A | N/A | Enable Advanced Security first |
+| instar (then imago, private) | N/A | N/A | Now public; enable secret scanning |
 | kerbside | Disabled | Disabled | Enable both |
 | client-python | Enabled | Disabled | Enable secret scanning |
 | agent-python | Disabled | Disabled | Enable both |
@@ -439,7 +438,9 @@ point. Update the `branches:` lists if your project doesn't use
 Advanced Security (GHAS) license for private repositories. Without GHAS,
 CodeQL workflows will fail with "Advanced Security must be enabled for this
 repository to use code scanning." Since we don't have GHAS, private repos
-(e.g., `imago`) should **not** include a CodeQL workflow.
+should **not** include a CodeQL workflow. The audit checks repository
+visibility live via the GitHub API rather than a hardcoded list, so repos
+that change visibility are picked up automatically.
 
 **Important:** The CodeQL workflow must have a job-level permissions block:
 

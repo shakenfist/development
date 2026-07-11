@@ -19,7 +19,6 @@ from datetime import datetime, timezone
 # Minimal hardcoded overrides for properties that cannot be detected
 # from a clone alone.
 REPO_OVERRIDES = {
-    'imago': {'is_private': True},
     'cloudgood': {'is_docs_only': True},
     # kerbside-patches carries Python helper scripts but is a patch
     # archive, not a Python project.
@@ -385,8 +384,36 @@ def check_github_security(repo_path, props, repo_name, org):
     """Check GitHub security settings and CodeQL workflow."""
     issues = []
 
+    # Fetch visibility and security settings in one API call.
+    # Visibility is queried live rather than hardcoded because repos
+    # change visibility over time and a stale override would silently
+    # skip the CodeQL check.
+    is_private = props['is_private']
+    security = None
+    try:
+        result = subprocess.run(
+            [
+                'gh', 'api',
+                f'repos/{org}/{repo_name}',
+                '--jq',
+                '{private: .private, security: .security_and_analysis}',
+            ],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            try:
+                repo_info = json.loads(result.stdout.strip())
+                is_private = repo_info.get('private', is_private)
+                security = repo_info.get('security')
+            except json.JSONDecodeError:
+                issues.append(
+                    'Could not parse security settings response'
+                )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        issues.append('Could not query GitHub API for security settings')
+
     # Check CodeQL workflow (file-based, not API)
-    if props['is_private']:
+    if is_private:
         pass  # Private repos can't use CodeQL without GHAS
     elif props['is_docs_only']:
         pass  # No code to scan
@@ -395,40 +422,18 @@ def check_github_security(repo_path, props, repo_name, org):
     ):
         issues.append('Missing .github/workflows/codeql-analysis.yml')
 
-    # Check Dependabot and secret scanning via API
-    try:
-        result = subprocess.run(
-            [
-                'gh', 'api',
-                f'repos/{org}/{repo_name}',
-                '--jq', '.security_and_analysis',
-            ],
-            capture_output=True, text=True, timeout=30,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            try:
-                security = json.loads(result.stdout.strip())
-                if security:
-                    secret_scanning = security.get(
-                        'secret_scanning', {}
-                    )
-                    if secret_scanning.get('status') != 'enabled':
-                        issues.append('Secret scanning not enabled')
+    if security:
+        secret_scanning = security.get('secret_scanning', {})
+        if secret_scanning.get('status') != 'enabled':
+            issues.append('Secret scanning not enabled')
 
-                    push_protection = security.get(
-                        'secret_scanning_push_protection', {}
-                    )
-                    if push_protection.get('status') != 'enabled':
-                        issues.append(
-                            'Secret scanning push protection '
-                            'not enabled'
-                        )
-            except json.JSONDecodeError:
-                issues.append(
-                    'Could not parse security settings response'
-                )
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        issues.append('Could not query GitHub API for security settings')
+        push_protection = security.get(
+            'secret_scanning_push_protection', {}
+        )
+        if push_protection.get('status') != 'enabled':
+            issues.append(
+                'Secret scanning push protection not enabled'
+            )
 
     if issues:
         return {
