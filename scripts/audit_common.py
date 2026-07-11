@@ -55,6 +55,10 @@ AUDIT_METADATA = {
         'spec': 'audits/workflow-standards.md',
         'template': None,
     },
+    'self-hosted-runners': {
+        'spec': 'audits/workflow-standards.md',
+        'template': None,
+    },
     'pyproject-usage': {
         'spec': 'audits/pyproject-usage.md',
         'template': None,
@@ -79,6 +83,7 @@ ISSUE_TITLES = {
     'workflow-permissions': 'Workflow standards',
     'pre-commit-config': 'Workflow standards (linting)',
     'flake8wrap': 'Workflow standards (flake8wrap)',
+    'self-hosted-runners': 'Workflow standards (self-hosted runners)',
     'pyproject-usage': 'pyproject.toml usage',
     'version-file-gitignore': 'Generated version file',
 }

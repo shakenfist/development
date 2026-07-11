@@ -19,6 +19,9 @@ An audit item touches several files, all of which must stay in sync:
    consistency-audit marker block under `## Projects`; the compliance
    table between the markers is regenerated daily by
    `scripts/audit-update-docs.py` and must not be edited by hand.
+   A check may instead join an existing spec file (as the workflow
+   standards checks do); in that case also add a column heading for
+   the check id to `COLUMN_NAMES` in `scripts/audit-update-docs.py`.
 4. `audits/README.md` -- add the new file to the audit index.
 5. `PROJECT-CONSISTENCY-AUDITS.md` -- describe the expectation in prose;
    this is the authoritative human-readable specification.

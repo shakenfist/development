@@ -509,6 +509,29 @@ Workflows where every job only reads should use
 `permissions: contents: read`. Workflows with mixed needs should use
 `permissions: {}` at the top level and declare per-job permissions.
 
+### Self-hosted runners
+
+All workflow jobs must run on `self-hosted` runners except under
+exceptional circumstances. The amount of time we get on GitHub-provided
+runners each month is limited, so jobs that "leak" onto GitHub-provided
+runners consume that allowance for no benefit.
+
+The main legitimate exception is builds that need hardware we don't
+own -- for example the ryll Windows and macOS builds. Each exception
+must be marked with an `audit-ok: github-hosted-runner` comment on the
+offending line (or the line immediately above it), ideally with a
+reason:
+
+```yaml
+    # audit-ok: github-hosted-runner -- no self-hosted macOS hardware
+    runs-on: macos-latest
+```
+
+The audit flags any workflow line referencing a GitHub-hosted runner
+label (`ubuntu-latest`, `windows-2022`, `macos-15`, and so on) that is
+not marked as an exception. This includes matrix values that feed
+`runs-on: ${{ matrix.os }}`.
+
 ### Linting for CI jobs
 
 Please ensure we have `actionslint`, `shellcheck`, and a git precommit
@@ -521,7 +544,8 @@ Additionally, we have some rules of our own:
   correct capitalization. No kebab case! The **id** of the job can be
   something more machine friendly, but we talk English to the humans in
   the GitHub user interface please.
-* We strongly prefer `self-hosted` runners if possible.
+* We use `self-hosted` runners except under exceptional circumstances
+  (see [Self-hosted runners](#self-hosted-runners) above).
 * Claude code automation jobs can only run on `claude` runners, as the
   others are not authenticated with Anthropic.
 * Small jobs which do not change the state of the runner should run on

@@ -35,6 +35,7 @@ COLUMN_NAMES = {
     'workflow-permissions': 'Permissions',
     'pre-commit-config': 'Linting',
     'flake8wrap': 'flake8wrap',
+    'self-hosted-runners': 'Runners',
 }
 
 STATUS_LABELS = {

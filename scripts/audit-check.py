@@ -40,6 +40,7 @@ CHECK_NAMES = {
     'workflow-permissions': 'Workflow standards',
     'pre-commit-config': 'Workflow standards',
     'flake8wrap': 'Workflow standards (flake8wrap)',
+    'self-hosted-runners': 'Workflow standards (self-hosted runners)',
     'version-file-gitignore': 'Generated version file',
     'pyproject-usage': 'pyproject.toml usage',
 }
@@ -541,6 +542,89 @@ def check_flake8wrap(repo_path, props):
     }
 
 
+# GitHub-hosted runner labels (e.g. ubuntu-latest, windows-2022,
+# macos-15, ubuntu-24.04-arm). Self-hosted runner labels never use
+# these names.
+GITHUB_HOSTED_LABEL_RE = re.compile(
+    r'\b(?:ubuntu|windows|macos)-(?:latest|\d+(?:\.\d+)?)'
+    r'(?:-(?:arm|arm64|large|xlarge))?\b'
+)
+
+# Marker acknowledging a deliberate exception, placed on the
+# offending line or the line immediately above it.
+RUNNER_EXCEPTION_RE = re.compile(r'audit-ok:\s*github-hosted-runner')
+
+
+def check_self_hosted_runners(repo_path, props):
+    """Check workflows use self-hosted runners.
+
+    GitHub-provided runner minutes are limited per month, so jobs
+    must run on self-hosted runners except under exceptional
+    circumstances (e.g. Windows or macOS builds needing hardware we
+    don't own). Exceptions are marked with an
+    'audit-ok: github-hosted-runner' comment on the offending line
+    or the line immediately above it.
+
+    We scan every workflow line for GitHub-hosted runner labels
+    rather than just runs-on lines, so matrix values that feed
+    'runs-on: ${{ matrix.os }}' are caught too.
+    """
+    if not props['has_workflows_dir']:
+        return {
+            'id': 'self-hosted-runners',
+            'status': 'not_applicable',
+            'details': 'No .github/workflows/ directory',
+        }
+
+    workflows = list_workflow_files(repo_path)
+    if not workflows:
+        return {
+            'id': 'self-hosted-runners',
+            'status': 'not_applicable',
+            'details': 'No workflow files found',
+        }
+
+    offenders = []
+    for wf in sorted(workflows):
+        filepath = os.path.join(
+            repo_path, '.github', 'workflows', wf
+        )
+        with open(filepath, 'r', errors='replace') as f:
+            lines = f.read().splitlines()
+
+        for i, line in enumerate(lines):
+            match = GITHUB_HOSTED_LABEL_RE.search(line)
+            if not match:
+                continue
+            if 'self-hosted' in line:
+                continue
+            if RUNNER_EXCEPTION_RE.search(line):
+                continue
+            if i > 0 and RUNNER_EXCEPTION_RE.search(lines[i - 1]):
+                continue
+            offenders.append(f'{wf}:{i + 1} ({match.group(0)})')
+
+    if offenders:
+        return {
+            'id': 'self-hosted-runners',
+            'status': 'fail',
+            'details': (
+                f'{len(offenders)} unmarked GitHub-hosted runner '
+                f'reference(s): {", ".join(offenders)}. Move to a '
+                f'self-hosted runner, or mark deliberate exceptions '
+                f'with an "audit-ok: github-hosted-runner" comment'
+            ),
+        }
+    return {
+        'id': 'self-hosted-runners',
+        'status': 'pass',
+        'details': (
+            f'No unmarked GitHub-hosted runner references in '
+            f'{len(workflows)} workflow(s)'
+        ),
+    }
+
+
 def check_pyproject_usage(repo_path, props):
     """Check Python projects use pyproject.toml for packaging.
 
@@ -742,6 +826,7 @@ def run_all_checks(repo_path, repo_name, org):
         check_workflow_permissions(repo_path, props),
         check_pre_commit_config(repo_path, props),
         check_flake8wrap(repo_path, props),
+        check_self_hosted_runners(repo_path, props),
         check_pyproject_usage(repo_path, props),
         check_version_file(repo_path, props),
     ]

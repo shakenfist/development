@@ -20,7 +20,24 @@ by GitHub Advanced Security if missing.
 
 ### Runner preferences
 
-* Strongly prefer `self-hosted` runners.
+* Use `self-hosted` runners except under exceptional circumstances.
+  GitHub-provided runner minutes are limited per month, so jobs must
+  not leak onto GitHub-hosted runners without a documented reason.
+* Legitimate exceptions (e.g. Windows and macOS builds where we own
+  no suitable hardware, as in ryll) must be marked with an
+  `audit-ok: github-hosted-runner` comment on -- or immediately
+  above -- the line referencing the GitHub-hosted label, ideally
+  with a reason:
+
+  ```yaml
+      # audit-ok: github-hosted-runner -- no self-hosted macOS hardware
+      runs-on: macos-latest
+  ```
+
+* The automated check flags any workflow line referencing a
+  GitHub-hosted runner label (`ubuntu-latest`, `windows-2022`,
+  `macos-15`, etc.) without an exception marker, including matrix
+  values that feed `runs-on: ${{ matrix.os }}`.
 * Claude Code automation jobs: `claude` runners only.
 * Small non-mutating jobs: `self-hosted` `static` runners.
 
