@@ -715,6 +715,40 @@ Specific features of modern Python that we like if available to us include:
 * The walrus operator.
 * f-strings.
 
+## Rust unwrap linting
+
+Rust projects must enable clippy's `unwrap_used` lint so that
+`.unwrap()` calls in production code are flagged, while test code is
+exempted. `unwrap()` converts a recoverable error into a panic, and a
+panic on data from outside the process (network input, configuration,
+files, other systems) is an outage waiting to happen. This is the
+failure mode behind the November 2025 Cloudflare outage, where an
+`unwrap()` on a feature file another system had generated too large
+panicked their core proxy fleet-wide.
+
+The root `Cargo.toml` should carry the lint (workspace members inherit
+it via `[lints] workspace = true`):
+
+```toml
+[workspace.lints.clippy]
+unwrap_used = "warn"
+```
+
+And a `clippy.toml` at the repository root should exempt test code,
+where a panic is a test failure and unwrap is fine:
+
+```toml
+allow-unwrap-in-tests = true
+```
+
+`warn` here plus `-D warnings` in the CI clippy run is the preferred
+arrangement; `deny` directly in `Cargo.toml` is also acceptable. We do
+not lint `expect_used` -- replacing a provably-infallible `unwrap()`
+with `expect("why this cannot fail")` is the sanctioned fix. See
+[audits/rust-unwrap-lint.md](audits/rust-unwrap-lint.md) for the full
+criterion, including the fuzz harness exemption and guidance on mutex
+poisoning panics.
+
 ## Unit test coverage
 
 We should have solid unit test coverage. I don't want to put a specific

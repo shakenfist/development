@@ -67,6 +67,10 @@ AUDIT_METADATA = {
         'spec': 'audits/version-file-gitignore.md',
         'template': None,
     },
+    'rust-unwrap-lint': {
+        'spec': 'audits/rust-unwrap-lint.md',
+        'template': None,
+    },
 }
 
 # Map from check ID to issue title suffix. Must match existing
@@ -86,6 +90,7 @@ ISSUE_TITLES = {
     'self-hosted-runners': 'Workflow standards (self-hosted runners)',
     'pyproject-usage': 'pyproject.toml usage',
     'version-file-gitignore': 'Generated version file',
+    'rust-unwrap-lint': 'Rust unwrap lint',
 }
 
 

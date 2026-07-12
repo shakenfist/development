@@ -42,6 +42,7 @@ CHECK_NAMES = {
     'self-hosted-runners': 'Workflow standards (self-hosted runners)',
     'version-file-gitignore': 'Generated version file',
     'pyproject-usage': 'pyproject.toml usage',
+    'rust-unwrap-lint': 'Rust unwrap lint',
 }
 
 
@@ -80,6 +81,24 @@ def check_file_contains(repo_path, path, pattern):
         return False
     with open(filepath, 'r', errors='replace') as f:
         return bool(re.search(pattern, f.read()))
+
+
+def toml_section_has_key(content, section, key_pattern):
+    """Check a TOML section contains a key matching a regex.
+
+    We do a simple line-based scan rather than full TOML parsing to
+    avoid a dependency. A section is a line consisting of the exact
+    header (e.g. '[lints]'); the section ends at the next header.
+    """
+    in_section = False
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped.startswith('['):
+            in_section = (stripped == f'[{section}]')
+            continue
+        if in_section and re.match(key_pattern, stripped):
+            return True
+    return False
 
 
 def list_workflow_files(repo_path):
@@ -815,6 +834,125 @@ def check_version_file(repo_path, props):
     }
 
 
+def check_rust_unwrap_lint(repo_path, props):
+    """Check Rust projects enable clippy's unwrap_used lint.
+
+    The root Cargo.toml must set unwrap_used to warn or deny (under
+    [workspace.lints.clippy], or [lints.clippy] for single-crate
+    repos), a clippy.toml must exempt test code with
+    allow-unwrap-in-tests, and every first-party crate manifest must
+    either inherit the workspace lints or define the lint itself.
+    Fuzz harness crates are exempt.
+    """
+    if not props['has_cargo_toml']:
+        return {
+            'id': 'rust-unwrap-lint',
+            'status': 'not_applicable',
+            'details': 'No Cargo.toml (not a Rust project)',
+        }
+
+    if check_file_exists(repo_path, 'Cargo.toml'):
+        root_manifest = 'Cargo.toml'
+    else:
+        root_manifest = 'src/Cargo.toml'
+    root_dir = os.path.dirname(root_manifest)
+
+    # Accepts unwrap_used = "warn", "deny", or the table form
+    # { level = "warn", priority = -1 }.
+    lint_pattern = r'unwrap_used\s*=\s*.*"(warn|deny)"'
+
+    issues = []
+
+    with open(
+        os.path.join(repo_path, root_manifest), 'r', errors='replace'
+    ) as f:
+        root_content = f.read()
+    if not (
+        toml_section_has_key(
+            root_content, 'workspace.lints.clippy', lint_pattern
+        )
+        or toml_section_has_key(
+            root_content, 'lints.clippy', lint_pattern
+        )
+    ):
+        issues.append(
+            f'clippy unwrap_used lint not set to warn or deny '
+            f'in {root_manifest}'
+        )
+
+    clippy_toml = os.path.join(root_dir, 'clippy.toml')
+    if not check_file_contains(
+        repo_path, clippy_toml,
+        r'(?m)^\s*allow-unwrap-in-tests\s*=\s*true',
+    ):
+        issues.append(
+            f'{clippy_toml} missing allow-unwrap-in-tests = true'
+        )
+
+    # Every other first-party crate manifest must inherit the
+    # workspace lints or define the lint itself.
+    try:
+        result = subprocess.run(
+            ['git', '-C', repo_path, 'ls-files', '--', '*Cargo.toml'],
+            capture_output=True, text=True, timeout=30,
+        )
+        manifests = [
+            line for line in result.stdout.splitlines()
+            if line.strip()
+        ]
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        return {
+            'id': 'rust-unwrap-lint',
+            'status': 'fail',
+            'details': f'Could not run git ls-files: {e}',
+        }
+
+    for manifest in manifests:
+        if manifest == root_manifest:
+            continue
+        if 'fuzz' in manifest.split('/'):
+            continue
+        with open(
+            os.path.join(repo_path, manifest), 'r', errors='replace'
+        ) as f:
+            content = f.read()
+        if '[package]' not in content:
+            continue
+        inherits = (
+            toml_section_has_key(
+                content, 'lints', r'workspace\s*=\s*true'
+            )
+            or re.search(
+                r'^\s*lints\.workspace\s*=\s*true', content,
+                re.MULTILINE,
+            )
+        )
+        defines = toml_section_has_key(
+            content, 'lints.clippy', lint_pattern
+        )
+        if not (inherits or defines):
+            issues.append(
+                f'{manifest} neither inherits workspace lints '
+                f'([lints] workspace = true) nor defines '
+                f'unwrap_used itself'
+            )
+
+    if issues:
+        return {
+            'id': 'rust-unwrap-lint',
+            'status': 'fail',
+            'details': '; '.join(issues),
+        }
+    return {
+        'id': 'rust-unwrap-lint',
+        'status': 'pass',
+        'details': (
+            'clippy unwrap_used lint is enabled with '
+            'allow-unwrap-in-tests'
+        ),
+    }
+
+
 def run_all_checks(repo_path, repo_name, org):
     """Run all checks and return results."""
     props = detect_repo_properties(repo_path, repo_name)
@@ -834,6 +972,7 @@ def run_all_checks(repo_path, repo_name, org):
         check_self_hosted_runners(repo_path, props),
         check_pyproject_usage(repo_path, props),
         check_version_file(repo_path, props),
+        check_rust_unwrap_lint(repo_path, props),
     ]
 
     summary = {
