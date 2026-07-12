@@ -40,7 +40,7 @@ See: `templates/renovate/README.md`
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-11T10:11:07.387047+00:00
+Last regenerated: 2026-07-12T08:21:52.866806+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -49,7 +49,7 @@ Last regenerated: 2026-07-11T10:11:07.387047+00:00
 | clingwrap | compliant | - |
 | cloudgood | non-compliant | shakenfist/cloudgood#2 |
 | divergulent | non-compliant | shakenfist/divergulent#37 |
-| imago | compliant | - |
+| instar | compliant | - |
 | kerbside | non-compliant | shakenfist/kerbside#92 |
 | kerbside-patches | compliant | - |
 | library-utilities | non-compliant | shakenfist/library-utilities#33 |

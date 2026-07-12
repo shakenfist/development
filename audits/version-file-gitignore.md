@@ -31,7 +31,7 @@ pattern) to `.gitignore` and `git rm --cached` any tracked copy.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-11T10:11:07.387047+00:00
+Last regenerated: 2026-07-12T08:21:52.866806+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -40,7 +40,7 @@ Last regenerated: 2026-07-11T10:11:07.387047+00:00
 | clingwrap | non-compliant | shakenfist/clingwrap#106 |
 | cloudgood | N/A | - |
 | divergulent | compliant | - |
-| imago | N/A | - |
+| instar | N/A | - |
 | kerbside | compliant | - |
 | kerbside-patches | N/A | - |
 | library-utilities | compliant | - |

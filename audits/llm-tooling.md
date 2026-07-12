@@ -20,7 +20,7 @@ with knowledge of the project's architecture and workflows.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-11T10:11:07.387047+00:00
+Last regenerated: 2026-07-12T08:21:52.866806+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -29,7 +29,7 @@ Last regenerated: 2026-07-11T10:11:07.387047+00:00
 | clingwrap | compliant | - |
 | cloudgood | compliant | - |
 | divergulent | compliant | - |
-| imago | compliant | - |
+| instar | compliant | - |
 | kerbside | compliant | - |
 | kerbside-patches | compliant | - |
 | library-utilities | non-compliant | shakenfist/library-utilities#30 |
