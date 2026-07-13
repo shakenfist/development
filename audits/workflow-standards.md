@@ -86,7 +86,7 @@ of correctly structured workflows.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-12T08:21:52.866806+00:00
+Last regenerated: 2026-07-13T09:32:24.778377+00:00
 
 | Project | Permissions | Linting | flake8wrap | Runners | Issue |
 |---------|--------|--------|--------|--------|--------|
@@ -115,5 +115,5 @@ Details for non-compliant projects:
 - **occystrap** (flake8wrap): Missing shellcheck disable=SC2086 directive
 - **ryll** (Runners): 22 unmarked GitHub-hosted runner reference(s): ci.yml:36 (ubuntu-latest), ci.yml:74 (ubuntu-latest), ci.yml:125 (ubuntu-latest), ci.yml:129 (ubuntu-24.04-arm), ci.yml:133 (macos-latest), ci.yml:137 (windows-latest), ci.yml:141 (windows-11-arm), manual-build.yml:26 (ubuntu-latest), manual-build.yml:43 (ubuntu-latest), manual-build.yml:49 (ubuntu-24.04-arm), manual-build.yml:55 (macos-latest), manual-build.yml:61 (windows-latest), manual-build.yml:72 (windows-11-arm), release.yml:13 (ubuntu-latest), release.yml:76 (ubuntu-latest), release.yml:80 (ubuntu-24.04-arm), release.yml:84 (macos-latest), release.yml:88 (windows-latest), release.yml:92 (windows-11-arm), release.yml:210 (ubuntu-latest), release.yml:275 (ubuntu-latest), release.yml:303 (ubuntu-latest). Move to a self-hosted runner, or mark deliberate exceptions with an "audit-ok: github-hosted-runner" comment
 - **shakenfist** (flake8wrap): Missing shellcheck disable=SC2086 directive
-- **shakenfist** (Runners): 4 unmarked GitHub-hosted runner reference(s): functional-tests.yml:314 (ubuntu-2404), functional-tests.yml:315 (ubuntu-2404), scheduled-tests.yml:58 (ubuntu-2404), scheduled-tests.yml:59 (ubuntu-2404). Move to a self-hosted runner, or mark deliberate exceptions with an "audit-ok: github-hosted-runner" comment
+- **shakenfist** (Runners): 4 unmarked GitHub-hosted runner reference(s): functional-tests.yml:323 (ubuntu-2404), functional-tests.yml:324 (ubuntu-2404), scheduled-tests.yml:58 (ubuntu-2404), scheduled-tests.yml:59 (ubuntu-2404). Move to a self-hosted runner, or mark deliberate exceptions with an "audit-ok: github-hosted-runner" comment
 <!-- consistency-audit:end -->
