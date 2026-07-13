@@ -5,36 +5,36 @@ the Shaken Fist project.
 
 ## Documentation
 
-- [Automated PR Review with Claude Code](docs/automated-pr-review.md) -- How we use
+- [Automated PR Review with Claude Code](https://github.com/shakenfist/development/blob/main/docs/automated-pr-review.md) -- How we use
   Claude Code to automate code review and address review comments
-- [CI Review Automation](docs/ci-review-automation.md) -- Workflow templates
+- [CI Review Automation](https://github.com/shakenfist/development/blob/main/docs/ci-review-automation.md) -- Workflow templates
   for bot-triggered reviews, retests, test fixing, and comment addressing
-- [Release Automation](docs/release-automation.md) -- Automated PyPI releases
+- [Release Automation](https://github.com/shakenfist/development/blob/main/docs/release-automation.md) -- Automated PyPI releases
   with Sigstore signing and trusted publishers
-- [Code Review Tracking](docs/code-review-tracking.md) -- Whole-codebase
+- [Code Review Tracking](https://github.com/shakenfist/development/blob/main/docs/code-review-tracking.md) -- Whole-codebase
   human review: weAudit for in-editor tracking, signed commits for
   attestation, and pre-commit hooks hosted in this repository
-  ([`.pre-commit-hooks.yaml`](.pre-commit-hooks.yaml) /
-  [`scripts/review-tracking.py`](scripts/review-tracking.py)) that stamp
+  ([`.pre-commit-hooks.yaml`](https://github.com/shakenfist/development/blob/main/.pre-commit-hooks.yaml) /
+  [`scripts/review-tracking.py`](https://github.com/shakenfist/development/blob/main/scripts/review-tracking.py)) that stamp
   reviews with blob SHAs, prune stale reviews when files change, and
   generate a per-repo REVIEWS.md
-  (plan: [PLAN-code-review-tracking.md](docs/plans/PLAN-code-review-tracking.md))
+  (plan: [PLAN-code-review-tracking.md](https://github.com/shakenfist/development/blob/main/docs/plans/PLAN-code-review-tracking.md))
 
 ## Consistency Audits
 
-The [`audits/`](audits/) directory contains one file per audit
+The [`audits/`](https://github.com/shakenfist/development/tree/main/audits) directory contains one file per audit
 criterion, each independently checkable. See
-[`audits/README.md`](audits/README.md) for the full index and
+[`audits/README.md`](https://github.com/shakenfist/development/blob/main/audits/README.md) for the full index and
 instructions on adding new audit items.
 
 The authoritative specification of all audit criteria is in
-[`PROJECT-CONSISTENCY-AUDITS.md`](PROJECT-CONSISTENCY-AUDITS.md).
+[`PROJECT-CONSISTENCY-AUDITS.md`](https://github.com/shakenfist/development/blob/main/PROJECT-CONSISTENCY-AUDITS.md).
 
 Audits run automatically via
-[`.github/workflows/consistency-audit.yml`](.github/workflows/consistency-audit.yml),
+[`.github/workflows/consistency-audit.yml`](https://github.com/shakenfist/development/blob/main/.github/workflows/consistency-audit.yml),
 which clones each target repo daily and checks it using
-[`scripts/audit-check.py`](scripts/audit-check.py). Results are
-used by [`scripts/audit-manage-issues.py`](scripts/audit-manage-issues.py)
+[`scripts/audit-check.py`](https://github.com/shakenfist/development/blob/main/scripts/audit-check.py). Results are
+used by [`scripts/audit-manage-issues.py`](https://github.com/shakenfist/development/blob/main/scripts/audit-manage-issues.py)
 to create and close GitHub issues on the target repos.
 
 ## Templates
@@ -42,20 +42,20 @@ to create and close GitHub issues on the target repos.
 Standardised configuration files for rolling out infrastructure
 to Shaken Fist projects:
 
-- [`templates/release-automation/`](templates/release-automation/) --
+- [`templates/release-automation/`](https://github.com/shakenfist/development/tree/main/templates/release-automation) --
   `release.yml` workflow and `RELEASE-SETUP.md` for PyPI releases
-- [`templates/ci-review-automation/`](templates/ci-review-automation/) --
+- [`templates/ci-review-automation/`](https://github.com/shakenfist/development/tree/main/templates/ci-review-automation) --
   Bot-triggered workflows for PR review, retest, and comment addressing
-- [`templates/test-drift-fix/`](templates/test-drift-fix/) --
+- [`templates/test-drift-fix/`](https://github.com/shakenfist/development/tree/main/templates/test-drift-fix) --
   Automatic test fixing with Claude Code (for projects with large
   test suites)
-- [`templates/renovate/`](templates/renovate/) --
+- [`templates/renovate/`](https://github.com/shakenfist/development/tree/main/templates/renovate) --
   Renovate dependency updater workflow and configuration
-- [`templates/export-repo-config/`](templates/export-repo-config/) --
+- [`templates/export-repo-config/`](https://github.com/shakenfist/development/tree/main/templates/export-repo-config) --
   Daily repository configuration export and drift detection
-- [`templates/codeql/`](templates/codeql/) --
+- [`templates/codeql/`](https://github.com/shakenfist/development/tree/main/templates/codeql) --
   CodeQL code scanning for public repositories
-- [`templates/pin-indirect-dependencies/`](templates/pin-indirect-dependencies/) --
+- [`templates/pin-indirect-dependencies/`](https://github.com/shakenfist/development/tree/main/templates/pin-indirect-dependencies) --
   Daily workflow to detect and pin transitive Python dependencies
   (application variant for hard-pinning, library variant for optional
   `pinned` extra)
