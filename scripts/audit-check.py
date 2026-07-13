@@ -43,6 +43,7 @@ CHECK_NAMES = {
     'version-file-gitignore': 'Generated version file',
     'pyproject-usage': 'pyproject.toml usage',
     'rust-unwrap-lint': 'Rust unwrap lint',
+    'readme-absolute-links': 'README absolute links',
 }
 
 
@@ -953,6 +954,132 @@ def check_rust_unwrap_lint(repo_path, props):
     }
 
 
+# Inline markdown link or image: [text](target) or ![alt](target).
+# The captured group is everything between the parentheses (which may
+# include a "title" and/or <angle brackets> that we strip later).
+MD_LINK_RE = re.compile(r'!?\[[^\]]*\]\(\s*([^)]+?)\s*\)')
+
+# Reference-style link definition at the start of a line:
+# [label]: target "optional title".
+MD_REFDEF_RE = re.compile(r'^\s{0,3}\[[^\]]+\]:\s*(\S+)', re.MULTILINE)
+
+# A URL scheme prefix (http:, https:, mailto:, data:, ...). A link
+# target carrying one is absolute and renders anywhere.
+URL_SCHEME_RE = re.compile(r'^[a-zA-Z][a-zA-Z0-9+.\-]*:')
+
+
+def strip_markdown_code(markdown):
+    """Return markdown with fenced blocks and inline code spans removed.
+
+    A documented command or example may legitimately contain something
+    that looks like a relative link (e.g. `[x](y)` shown as sample
+    text). Markdown does not render links inside code, so we must not
+    audit them either.
+    """
+    out = []
+    fence = None
+    for line in markdown.splitlines():
+        stripped = line.lstrip()
+        marker = None
+        if stripped.startswith('```'):
+            marker = '```'
+        elif stripped.startswith('~~~'):
+            marker = '~~~'
+
+        if fence is None:
+            if marker is not None:
+                fence = marker
+                continue
+            out.append(line)
+        elif marker == fence:
+            fence = None
+
+    text = '\n'.join(out)
+    # Inline code spans (single-line only, which is all CommonMark
+    # allows for the backtick form we care about).
+    return re.sub(r'`+[^`\n]*`+', '', text)
+
+
+def link_target_is_relative(raw):
+    """Decide whether a markdown link target is relative.
+
+    Absolute (returns False): a scheme-qualified URL, a
+    protocol-relative //host URL, or a pure in-page #anchor (which
+    resolves against the rendered page wherever it is shown). Anything
+    else -- docs/x.md, ./x.md, ../x.md, /x, x.md -- is relative and
+    breaks when the README is rendered off the repo landing page
+    (PyPI, crates.io, mirrors).
+    """
+    target = raw.strip()
+    if target.startswith('<'):
+        target = target[1:].split('>', 1)[0].strip()
+    else:
+        # Drop an optional "title" following the URL.
+        parts = target.split()
+        target = parts[0] if parts else ''
+
+    if not target:
+        return False
+    if target.startswith('#'):
+        return False
+    if target.startswith('//'):
+        return False
+    if URL_SCHEME_RE.match(target):
+        return False
+    return True
+
+
+def check_readme_absolute_links(repo_path, props):
+    """Check that every link in the top-level README.md is absolute.
+
+    Only the top-level README.md is audited: it is the file rendered
+    off the repository landing page (PyPI long description, crates.io,
+    mirrors), where relative links -- resolved against the wrong base
+    -- silently break. READMEs in subdirectories are only ever viewed
+    on the GitHub tree, where relative links resolve correctly, so
+    they are intentionally out of scope.
+    """
+    if not check_file_exists(repo_path, 'README.md'):
+        return {
+            'id': 'readme-absolute-links',
+            'status': 'not_applicable',
+            'details': 'No top-level README.md',
+        }
+
+    with open(
+        os.path.join(repo_path, 'README.md'), 'r', errors='replace'
+    ) as f:
+        content = f.read()
+
+    scannable = strip_markdown_code(content)
+    relative = []
+    for match in MD_LINK_RE.finditer(scannable):
+        if link_target_is_relative(match.group(1)):
+            relative.append(match.group(1).strip())
+    for match in MD_REFDEF_RE.finditer(scannable):
+        if link_target_is_relative(match.group(1)):
+            relative.append(match.group(1).strip())
+
+    if relative:
+        uniq = sorted(set(relative))
+        shown = ', '.join(uniq[:10])
+        more = '' if len(uniq) <= 10 else f' (+{len(uniq) - 10} more)'
+        return {
+            'id': 'readme-absolute-links',
+            'status': 'fail',
+            'details': (
+                f'{len(uniq)} relative link target(s) in README.md '
+                f'(use absolute URLs so the README renders off the '
+                f'repo landing page): {shown}{more}'
+            ),
+        }
+    return {
+        'id': 'readme-absolute-links',
+        'status': 'pass',
+        'details': 'All README.md links are absolute',
+    }
+
+
 def run_all_checks(repo_path, repo_name, org):
     """Run all checks and return results."""
     props = detect_repo_properties(repo_path, repo_name)
@@ -973,6 +1100,7 @@ def run_all_checks(repo_path, repo_name, org):
         check_pyproject_usage(repo_path, props),
         check_version_file(repo_path, props),
         check_rust_unwrap_lint(repo_path, props),
+        check_readme_absolute_links(repo_path, props),
     ]
 
     summary = {

@@ -81,6 +81,28 @@ canonical starting point. These contain `release.yml` and
 [docs/release-automation.md](docs/release-automation.md) for full details
 on the release pipeline and setup steps.
 
+## README links must be absolute
+
+Every link in a project's **top-level `README.md`** must be absolute.
+The top-level README is rendered *off* the repository landing page --
+as the PyPI long description, on crates.io, and on README mirrors --
+and in those contexts a relative link (`docs/x.md`, `../x`, `/x`)
+resolves against the wrong base and silently 404s. Acceptable targets
+are scheme-qualified URLs (`https://`, `mailto:`, ...),
+protocol-relative `//host` URLs, and pure in-page `#anchor` links. For
+links to other files in the same repository, use
+`https://github.com/<org>/<repo>/blob/<default-branch>/<path>`, which
+renders correctly off-site and still resolves on GitHub.
+
+Only the top-level `README.md` is in scope: subdirectory READMEs are
+only ever viewed on the GitHub file tree, where relative links work
+fine. Links inside fenced code blocks or inline code spans are ignored
+(a documented command containing `[x](y)` is sample text, not a
+link).
+
+This rule exists because divergulent's first PyPI release rendered
+with every relative link broken.
+
 ## Claude Code for automated review in CI
 
 We run Claude Code for automated review in CI. The automated reviewer

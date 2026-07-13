@@ -86,4 +86,5 @@ See `PROJECT-CONSISTENCY-AUDITS.md` for the list of excluded projects
 | [pyproject-usage.md](pyproject-usage.md) | Python projects use pyproject.toml |
 | [version-file-gitignore.md](version-file-gitignore.md) | Generated version files are gitignored |
 | [rust-unwrap-lint.md](rust-unwrap-lint.md) | Rust projects lint against production unwrap() |
+| [readme-absolute-links.md](readme-absolute-links.md) | Top-level README.md links are absolute |
 | [test-coverage.md](test-coverage.md) | Unit and functional test coverage |
