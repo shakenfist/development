@@ -105,7 +105,7 @@ class ReviewTrackingTest(unittest.TestCase):
         self.git('commit', '-m', 'reviews')
         self.write('src/a.py', 'a = 42\n')
         self.git('add', 'src/a.py')
-        p = self.run_tool('stamp')
+        self.run_tool('stamp')
         after = self.read_json('.vscode/testuser.weaudit-shas.json')
         self.assertEqual(before['files']['src/a.py'], after['files']['src/a.py'])
 

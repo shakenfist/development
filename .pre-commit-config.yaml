@@ -1,0 +1,28 @@
+# Lint this repository's own workflows, shell scripts, and Python.
+# The consistency audits require every audited project to run
+# actionlint, shellcheck, and flake8 via a pre-commit; this repo holds
+# itself to that same standard even though it is exempt from the audits.
+#
+# Note: .pre-commit-hooks.yaml (the review-stamp/review-prune hooks this
+# repo *provides* to other repositories) is a separate concern from this
+# file (the hooks this repo runs on *itself*).
+repos:
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.7
+    hooks:
+      - id: actionlint
+        args: ['-config-file', '.github/actionlint.yaml']
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        files: ^scripts/
+        types_or: [sh, bash, shell]
+        args: ['-x']
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.1.1
+    hooks:
+      - id: flake8
+        files: ^scripts/.*\.py$

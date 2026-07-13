@@ -1,0 +1,3 @@
+[flake8]
+# House style wraps Python at 120 characters.
+max-line-length = 120
