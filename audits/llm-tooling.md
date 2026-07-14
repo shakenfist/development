@@ -20,7 +20,7 @@ with knowledge of the project's architecture and workflows.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-13T09:32:24.778377+00:00
+Last regenerated: 2026-07-14T08:10:31.492156+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|

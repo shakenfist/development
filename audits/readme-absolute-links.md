@@ -41,6 +41,36 @@ For links to other files in the same repository, use
 ## Projects
 
 <!-- consistency-audit:begin -->
-*(Awaiting the first automated regeneration by the consistency
-audit workflow.)*
+*This table is regenerated daily by the consistency audit
+workflow from `scripts/audit-check.py` results; do not edit
+it by hand.*
+
+Last regenerated: 2026-07-14T08:10:31.492156+00:00
+
+| Project | Status | Issue |
+|---------|--------|--------|
+| agent-python | non-compliant | shakenfist/agent-python#107 |
+| client-python | non-compliant | shakenfist/client-python#345 |
+| clingwrap | non-compliant | shakenfist/clingwrap#108 |
+| cloudgood | N/A | - |
+| divergulent | compliant | - |
+| instar | non-compliant | shakenfist/instar#436 |
+| kerbside | non-compliant | shakenfist/kerbside#104 |
+| kerbside-patches | compliant | - |
+| library-utilities | non-compliant | shakenfist/library-utilities#40 |
+| occystrap | non-compliant | shakenfist/occystrap#96 |
+| ryll | non-compliant | shakenfist/ryll#160 |
+| shakenfist | non-compliant | shakenfist/shakenfist#3395 |
+
+Details for non-compliant projects:
+
+- **agent-python** (Status): 5 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): AGENTS.md, ARCHITECTURE.md, docs/developer-guide.md, docs/index.md, docs/protocol.md
+- **client-python** (Status): 3 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): AGENTS.md, ARCHITECTURE.md, RELEASE-SETUP.md
+- **clingwrap** (Status): 5 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): AGENTS.md, ARCHITECTURE.md, RELEASE-SETUP.md, docs/, docs/index.md
+- **instar** (Status): 30 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): CHANGELOG.md, docs/amend.md, docs/bench.md, docs/bitmap.md, docs/commentary/index.md, docs/commit.md, docs/create.md, docs/dd.md, docs/index.md, docs/map.md (+20 more)
+- **kerbside** (Status): 15 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): AGENTS.md, ARCHITECTURE.md, docs/, docs/capabilities.md, docs/channel-protocols.md, docs/compression-protocols.md, docs/configuration.md, docs/console-sources.md, docs/index.md, docs/protocol-overview.md (+5 more)
+- **library-utilities** (Status): 1 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): docs/log-record-fields.md
+- **occystrap** (Status): 8 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): RELEASE-SETUP.md, docs/, docs/command-reference.md, docs/docker-tarball-formats.md, docs/installation.md, docs/performance.md, docs/pipeline.md, docs/use-cases.md
+- **ryll** (Status): 17 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): AGENTS.md, ARCHITECTURE.md, STYLEGUIDE.md, docs/configuration.md, docs/control-socket-protocol.md, docs/development-macos.md, docs/index.md, docs/installation.md, docs/plans/PLAN-crate-extraction.md, docs/plans/PLAN-web-frontend-phase-01-extract.md (+7 more)
+- **shakenfist** (Status): 5 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): docs/operator_guide/database.md, docs/operator_guide/installation.md, docs/operator_guide/logging.md, examples/, shakenfist/deploy/collection/
 <!-- consistency-audit:end -->
