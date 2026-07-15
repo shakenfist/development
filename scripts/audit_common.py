@@ -67,6 +67,10 @@ AUDIT_METADATA = {
         'spec': 'audits/workflow-standards.md',
         'template': None,
     },
+    'devpi-stale-ip': {
+        'spec': 'audits/workflow-standards.md',
+        'template': None,
+    },
     'pyproject-usage': {
         'spec': 'audits/pyproject-usage.md',
         'template': None,
@@ -102,6 +106,7 @@ ISSUE_TITLES = {
     'self-hosted-runners': 'Workflow standards (self-hosted runners)',
     'static-runner-tags': 'Workflow standards (static runner tags)',
     'devpi-fallback': 'Workflow standards (devpi cache fallback)',
+    'devpi-stale-ip': 'Workflow standards (devpi cache address)',
     'pyproject-usage': 'pyproject.toml usage',
     'version-file-gitignore': 'Generated version file',
     'rust-unwrap-lint': 'Rust unwrap lint',

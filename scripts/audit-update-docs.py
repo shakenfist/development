@@ -38,6 +38,7 @@ COLUMN_NAMES = {
     'self-hosted-runners': 'Runners',
     'static-runner-tags': 'Static tags',
     'devpi-fallback': 'devpi fallback',
+    'devpi-stale-ip': 'devpi IP',
 }
 
 STATUS_LABELS = {

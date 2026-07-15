@@ -89,16 +89,16 @@ files, and handle deleted files.
 ### PyPI caching
 
 Self-hosted runners should use the devpi PyPI cache at
-`http://192.168.1.4:3141` to reduce network load.
+`http://192.168.1.15:3141` to reduce network load.
 
 Any job that points pip at the devpi cache with `PIP_INDEX_URL` must
 also set a pypi fallback in the **same** `env` block:
 
 ```yaml
     env:
-      PIP_INDEX_URL: http://192.168.1.4:3141/root/pypi/+simple/
+      PIP_INDEX_URL: http://192.168.1.15:3141/root/pypi/+simple/
       PIP_EXTRA_INDEX_URL: https://pypi.org/simple/
-      PIP_TRUSTED_HOST: 192.168.1.4
+      PIP_TRUSTED_HOST: 192.168.1.15
 ```
 
 devpi's `root/pypi` mirror is lazy: the first request for a package it
@@ -109,6 +109,15 @@ requirement X (from versions: none)` and the job fails. Because
 `PIP_EXTRA_INDEX_URL`; adding it lets pip fall back to pypi for that
 cold-cache miss. The automated check flags any devpi-backed `env`
 block missing `PIP_EXTRA_INDEX_URL`.
+
+### Retired devpi address
+
+The devpi cache used to live at `192.168.1.4` but moved to
+`192.168.1.15` some time ago. The old address no longer resolves to a
+running server, so a job that still points pip at `192.168.1.4` -- in
+`PIP_INDEX_URL`, `PIP_TRUSTED_HOST`, or anywhere else -- fails every
+install. The automated check flags any workflow line referencing the
+retired `192.168.1.4` address; update it to `192.168.1.15`.
 
 ## Template
 

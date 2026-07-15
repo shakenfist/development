@@ -42,6 +42,7 @@ CHECK_NAMES = {
     'self-hosted-runners': 'Workflow standards (self-hosted runners)',
     'static-runner-tags': 'Workflow standards (static runner tags)',
     'devpi-fallback': 'Workflow standards (devpi cache fallback)',
+    'devpi-stale-ip': 'Workflow standards (devpi cache address)',
     'version-file-gitignore': 'Generated version file',
     'pyproject-usage': 'pyproject.toml usage',
     'rust-unwrap-lint': 'Rust unwrap lint',
@@ -776,9 +777,17 @@ def check_static_runner_tags(repo_path, props):
 # miss. Matches both the LAN address and the TLS hostname.
 DEVPI_INDEX_RE = re.compile(
     r'PIP_INDEX_URL\s*:\s*\S*'
-    r'(?:192\.168\.1\.4:3141|devpi\.home\.stillhq\.com)'
+    r'(?:192\.168\.1\.15:3141|devpi\.home\.stillhq\.com)'
 )
 PIP_EXTRA_INDEX_RE = re.compile(r'PIP_EXTRA_INDEX_URL\s*:')
+
+# The devpi PyPI cache moved to 192.168.1.15 some time ago; the old
+# 192.168.1.4 address no longer resolves to a running server, so any
+# workflow still pointing pip at it fails every install. The negative
+# lookahead stops 192.168.1.4 from also matching 192.168.1.40 through
+# 192.168.1.49.
+DEVPI_STALE_IP_RE = re.compile(r'192\.168\.1\.4(?!\d)')
+DEVPI_CURRENT_IP = '192.168.1.15'
 
 
 def env_mapping_has_sibling(lines, idx, pattern):
@@ -881,6 +890,53 @@ def check_devpi_fallback(repo_path, props):
         'details': (
             'All devpi-backed jobs set a PIP_EXTRA_INDEX_URL fallback'
         ),
+    }
+
+
+def check_devpi_stale_ip(repo_path, props):
+    """Check workflows do not reference the retired devpi address.
+
+    The devpi PyPI cache moved to 192.168.1.15; the old 192.168.1.4
+    host no longer exists, so a job still pointing pip at it (via
+    PIP_INDEX_URL, PIP_TRUSTED_HOST, or anywhere else) fails every
+    install. Flag any workflow line referencing the retired address.
+    """
+    if not props['has_workflows_dir']:
+        return {
+            'id': 'devpi-stale-ip',
+            'status': 'not_applicable',
+            'details': 'No .github/workflows/ directory',
+        }
+
+    offenders = []
+    for wf in sorted(list_workflow_files(repo_path)):
+        filepath = os.path.join(
+            repo_path, '.github', 'workflows', wf
+        )
+        with open(filepath, 'r', errors='replace') as f:
+            lines = f.read().splitlines()
+
+        for i, line in enumerate(lines):
+            if DEVPI_STALE_IP_RE.search(line):
+                offenders.append(f'{wf}:{i + 1}')
+
+    if offenders:
+        return {
+            'id': 'devpi-stale-ip',
+            'status': 'fail',
+            'details': (
+                f'{len(offenders)} reference(s) to the retired devpi '
+                f'address 192.168.1.4: {", ".join(offenders)}. The '
+                f'devpi PyPI cache now lives at {DEVPI_CURRENT_IP}; '
+                f'point PIP_INDEX_URL/PIP_TRUSTED_HOST there instead '
+                f'(192.168.1.4 no longer exists, so pip fails every '
+                f'install against it)'
+            ),
+        }
+    return {
+        'id': 'devpi-stale-ip',
+        'status': 'pass',
+        'details': 'No references to the retired devpi address',
     }
 
 
@@ -1333,6 +1389,7 @@ def run_all_checks(repo_path, repo_name, org):
         check_self_hosted_runners(repo_path, props),
         check_static_runner_tags(repo_path, props),
         check_devpi_fallback(repo_path, props),
+        check_devpi_stale_ip(repo_path, props),
         check_pyproject_usage(repo_path, props),
         check_version_file(repo_path, props),
         check_rust_unwrap_lint(repo_path, props),

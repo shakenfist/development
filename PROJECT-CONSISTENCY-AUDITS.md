@@ -693,7 +693,7 @@ for any user-visible changes.
 
 ### pypi caching for self-hosted runners
 
-Self hosted runners should use the devpi pypi cache at http://192.168.1.4:3141
+Self hosted runners should use the devpi pypi cache at http://192.168.1.15:3141
 in order to reduce network load and increase reliability.
 
 Any job that sets `PIP_INDEX_URL` to the devpi cache must also set
@@ -703,6 +703,12 @@ for a package it has not cached, so without a pypi fallback pip fails that
 cold-cache miss with "from versions: none" (as happened for `bindep` and
 `uv` on the kerbside CI). The automated check flags any devpi-backed `env`
 block that is missing the fallback.
+
+The devpi cache used to live at `192.168.1.4` but moved to `192.168.1.15`
+some time ago; the old address no longer exists, so a job still pointing pip
+at `192.168.1.4` fails every install. The automated check flags any workflow
+referencing the retired `192.168.1.4` address so it can be updated to
+`192.168.1.15`.
 
 ## Console script logging setup
 
