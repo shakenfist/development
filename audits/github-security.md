@@ -57,7 +57,7 @@ Security settings: UI-only configuration, no template needed.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-14T08:10:31.492156+00:00
+Last regenerated: 2026-07-15T08:15:40.094463+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|

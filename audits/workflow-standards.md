@@ -104,34 +104,32 @@ of correctly structured workflows.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-14T08:10:31.492156+00:00
+Last regenerated: 2026-07-15T08:15:40.094463+00:00
 
-| Project | Permissions | Linting | flake8wrap | Runners | Issue |
-|---------|--------|--------|--------|--------|--------|
-| agent-python | compliant | compliant | non-compliant | non-compliant | shakenfist/agent-python#105, shakenfist/agent-python#82 |
-| client-python | compliant | compliant | compliant | compliant | - |
-| clingwrap | compliant | compliant | compliant | compliant | - |
-| cloudgood | N/A | compliant | N/A | N/A | - |
-| divergulent | compliant | compliant | compliant | non-compliant | shakenfist/divergulent#46 |
-| instar | compliant | compliant | N/A | compliant | - |
-| kerbside | non-compliant | compliant | non-compliant | compliant | shakenfist/kerbside#59, shakenfist/kerbside#94 |
-| kerbside-patches | non-compliant | compliant | N/A | non-compliant | shakenfist/kerbside-patches#1446, shakenfist/kerbside-patches#953 |
-| library-utilities | compliant | compliant | compliant | compliant | - |
-| occystrap | compliant | compliant | non-compliant | compliant | shakenfist/occystrap#67 |
-| ryll | compliant | compliant | N/A | non-compliant | shakenfist/ryll#155 |
-| shakenfist | compliant | compliant | non-compliant | non-compliant | shakenfist/shakenfist#3057, shakenfist/shakenfist#3376 |
+| Project | Permissions | Linting | flake8wrap | Runners | Static tags | Issue |
+|---------|--------|--------|--------|--------|--------|--------|
+| agent-python | compliant | compliant | non-compliant | non-compliant | compliant | shakenfist/agent-python#105, shakenfist/agent-python#82 |
+| client-python | compliant | compliant | compliant | compliant | compliant | - |
+| clingwrap | compliant | compliant | compliant | compliant | compliant | - |
+| cloudgood | N/A | compliant | N/A | N/A | N/A | - |
+| divergulent | compliant | compliant | compliant | compliant | compliant | - |
+| instar | compliant | compliant | N/A | compliant | compliant | - |
+| kerbside | non-compliant | compliant | non-compliant | compliant | compliant | shakenfist/kerbside#59, shakenfist/kerbside#94 |
+| kerbside-patches | non-compliant | compliant | N/A | non-compliant | compliant | shakenfist/kerbside-patches#1446, shakenfist/kerbside-patches#953 |
+| library-utilities | compliant | compliant | compliant | compliant | compliant | - |
+| occystrap | compliant | compliant | non-compliant | compliant | compliant | shakenfist/occystrap#67 |
+| ryll | compliant | compliant | N/A | compliant | compliant | - |
+| shakenfist | compliant | compliant | non-compliant | non-compliant | compliant | shakenfist/shakenfist#3057, shakenfist/shakenfist#3376 |
 
 Details for non-compliant projects:
 
 - **agent-python** (flake8wrap): Missing shellcheck disable=SC2086 directive
 - **agent-python** (Runners): 3 unmarked GitHub-hosted runner reference(s): functional-tests.yml:153 (ubuntu-latest), functional-tests.yml:188 (ubuntu-latest), functional-tests.yml:199 (ubuntu-latest). Move to a self-hosted runner, or mark deliberate exceptions with an "audit-ok: github-hosted-runner" comment
-- **divergulent** (Runners): 1 unmarked GitHub-hosted runner reference(s): build-classification.yml:34 (ubuntu-latest). Move to a self-hosted runner, or mark deliberate exceptions with an "audit-ok: github-hosted-runner" comment
 - **kerbside** (Permissions): 5 workflow(s) missing top-level permissions: direct-qemu-functional.yml, functional-tests.yml, pin-indirect-dependencies.yml, release.yml, rust.yml
 - **kerbside** (flake8wrap): Missing shellcheck disable=SC2086 directive
 - **kerbside-patches** (Permissions): 8 workflow(s) missing top-level permissions: auto-retry-infra-failures.yml, ci-reporting.yml, daily-rebase-checks.yml, functional-tests.yml, heal-data-prs.yml, local-container-builds.yml, rebase-tests.yml, trigger-downstream.yml
 - **kerbside-patches** (Runners): 2 unmarked GitHub-hosted runner reference(s): auto-retry-infra-failures.yml:18 (ubuntu-latest), heal-data-prs.yml:22 (ubuntu-latest). Move to a self-hosted runner, or mark deliberate exceptions with an "audit-ok: github-hosted-runner" comment
 - **occystrap** (flake8wrap): Missing shellcheck disable=SC2086 directive
-- **ryll** (Runners): 22 unmarked GitHub-hosted runner reference(s): ci.yml:36 (ubuntu-latest), ci.yml:74 (ubuntu-latest), ci.yml:125 (ubuntu-latest), ci.yml:129 (ubuntu-24.04-arm), ci.yml:133 (macos-latest), ci.yml:137 (windows-latest), ci.yml:141 (windows-11-arm), manual-build.yml:26 (ubuntu-latest), manual-build.yml:43 (ubuntu-latest), manual-build.yml:49 (ubuntu-24.04-arm), manual-build.yml:55 (macos-latest), manual-build.yml:61 (windows-latest), manual-build.yml:72 (windows-11-arm), release.yml:13 (ubuntu-latest), release.yml:76 (ubuntu-latest), release.yml:80 (ubuntu-24.04-arm), release.yml:84 (macos-latest), release.yml:88 (windows-latest), release.yml:92 (windows-11-arm), release.yml:210 (ubuntu-latest), release.yml:275 (ubuntu-latest), release.yml:303 (ubuntu-latest). Move to a self-hosted runner, or mark deliberate exceptions with an "audit-ok: github-hosted-runner" comment
 - **shakenfist** (flake8wrap): Missing shellcheck disable=SC2086 directive
-- **shakenfist** (Runners): 4 unmarked GitHub-hosted runner reference(s): functional-tests.yml:323 (ubuntu-2404), functional-tests.yml:324 (ubuntu-2404), scheduled-tests.yml:58 (ubuntu-2404), scheduled-tests.yml:59 (ubuntu-2404). Move to a self-hosted runner, or mark deliberate exceptions with an "audit-ok: github-hosted-runner" comment
+- **shakenfist** (Runners): 4 unmarked GitHub-hosted runner reference(s): functional-tests.yml:333 (ubuntu-2404), functional-tests.yml:334 (ubuntu-2404), scheduled-tests.yml:58 (ubuntu-2404), scheduled-tests.yml:59 (ubuntu-2404). Move to a self-hosted runner, or mark deliberate exceptions with an "audit-ok: github-hosted-runner" comment
 <!-- consistency-audit:end -->
