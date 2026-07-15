@@ -36,6 +36,7 @@ COLUMN_NAMES = {
     'pre-commit-config': 'Linting',
     'flake8wrap': 'flake8wrap',
     'self-hosted-runners': 'Runners',
+    'static-runner-tags': 'Static tags',
 }
 
 STATUS_LABELS = {

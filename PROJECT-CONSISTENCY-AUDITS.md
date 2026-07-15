@@ -574,6 +574,13 @@ Additionally, we have some rules of our own:
 * Small jobs which do not change the state of the runner should run on
   a `self-hosted` `static` runner -- the startup cost of the ephemeral
   runners does not make them a good choice for small jobs like linting.
+* A job that requests a `static` runner must ask for the `self-hosted`
+  and `static` labels **only** -- `runs-on: [self-hosted, static]`.
+  The static pool advertises just those two labels, so combining
+  `static` with an impossible extra label such as a size (`s`, `l`),
+  `vm`, or an operating system (`debian-12`) requests a runner that
+  does not exist and the job will never be scheduled. The audit flags
+  any `runs-on:` that pairs `static` with additional labels.
 * Functional testing is always in a GitHub actions workflow called
   "functional-test.yml". This matters because some of the developer
   automations need to know the name of the workflow to function.

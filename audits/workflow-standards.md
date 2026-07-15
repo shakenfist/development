@@ -39,7 +39,25 @@ by GitHub Advanced Security if missing.
   `macos-15`, etc.) without an exception marker, including matrix
   values that feed `runs-on: ${{ matrix.os }}`.
 * Claude Code automation jobs: `claude` runners only.
-* Small non-mutating jobs: `self-hosted` `static` runners.
+
+### Static runners for small, non-mutating jobs
+
+* Small jobs that do not change the state of the runner -- linting,
+  metadata checks, audits, anything that does not install OS packages
+  or otherwise mutate the machine -- should run on a `static` runner
+  (`runs-on: [self-hosted, static]`). Static runners are a
+  pre-provisioned, long-lived pool, so they are much cheaper to start
+  than a fresh VM runner. Reserve `vm` runners for jobs that genuinely
+  need a throwaway machine (for example because they install packages
+  or need root that would dirty the host).
+* A static runner advertises exactly the `self-hosted` and `static`
+  labels. A job that requests a `static` runner must therefore ask for
+  those two labels **only** -- `runs-on: [self-hosted, static]`.
+  Adding an impossible extra label such as a size (`s`, `l`), `vm`, or
+  an operating system (`debian-12`) asks for a runner that does not
+  exist, so the job is never scheduled and waits forever. The
+  automated check flags any `runs-on:` that combines `static` with
+  additional labels.
 
 ### Functional test workflow naming
 

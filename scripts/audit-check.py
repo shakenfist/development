@@ -40,6 +40,7 @@ CHECK_NAMES = {
     'pre-commit-config': 'Workflow standards',
     'flake8wrap': 'Workflow standards (flake8wrap)',
     'self-hosted-runners': 'Workflow standards (self-hosted runners)',
+    'static-runner-tags': 'Workflow standards (static runner tags)',
     'version-file-gitignore': 'Generated version file',
     'pyproject-usage': 'pyproject.toml usage',
     'rust-unwrap-lint': 'Rust unwrap lint',
@@ -650,6 +651,122 @@ def check_self_hosted_runners(repo_path, props):
     }
 
 
+# The value portion of a `runs-on:` line, e.g. the
+# '[self-hosted, static]' in 'runs-on: [self-hosted, static]'.
+RUNS_ON_RE = re.compile(r'^\s*runs-on:\s*(.+?)\s*$')
+
+# Labels that legitimately accompany 'static' on a static runner.
+# Anything else (a size like 's'/'l', 'vm', or an operating system
+# label like 'debian-12') describes a runner attribute the static
+# pool does not advertise, so the job would never be scheduled.
+STATIC_ALLOWED_LABELS = frozenset({'self-hosted', 'static'})
+
+
+def parse_runner_labels(value):
+    """Parse the labels from the value of a `runs-on:` line.
+
+    Handles the inline-list form ('[self-hosted, static]') and the
+    bare-scalar form ('static'). Returns a list of label strings, or
+    None when the value is a GitHub Actions expression we cannot
+    resolve statically (e.g. '${{ matrix.runner }}').
+    """
+    # Drop a trailing inline comment (runner labels never contain
+    # ' #', so this is safe).
+    value = re.sub(r'\s+#.*$', '', value).strip()
+    if '${{' in value:
+        return None
+    if value.startswith('['):
+        inner = value[1:]
+        if inner.endswith(']'):
+            inner = inner[:-1]
+        parts = inner.split(',')
+    else:
+        parts = [value]
+
+    labels = []
+    for part in parts:
+        label = part.strip().strip('"').strip("'").strip()
+        if label:
+            labels.append(label)
+    return labels
+
+
+def check_static_runner_tags(repo_path, props):
+    """Check that static-runner jobs request only the static labels.
+
+    A static runner advertises exactly the 'self-hosted' and 'static'
+    labels. Adding a size (e.g. 's'), 'vm', or an operating system
+    label (e.g. 'debian-12') alongside 'static' asks for a runner
+    that does not exist, so the job waits forever without being
+    scheduled. Such jobs must use '[self-hosted, static]' exactly.
+
+    We scan every 'runs-on:' line, so both the job-level and
+    matrix-expansion forms are covered; unresolvable '${{ ... }}'
+    expressions are skipped.
+    """
+    if not props['has_workflows_dir']:
+        return {
+            'id': 'static-runner-tags',
+            'status': 'not_applicable',
+            'details': 'No .github/workflows/ directory',
+        }
+
+    workflows = list_workflow_files(repo_path)
+    if not workflows:
+        return {
+            'id': 'static-runner-tags',
+            'status': 'not_applicable',
+            'details': 'No workflow files found',
+        }
+
+    offenders = []
+    for wf in sorted(workflows):
+        filepath = os.path.join(
+            repo_path, '.github', 'workflows', wf
+        )
+        with open(filepath, 'r', errors='replace') as f:
+            lines = f.read().splitlines()
+
+        for i, line in enumerate(lines):
+            match = RUNS_ON_RE.match(line)
+            if not match:
+                continue
+            labels = parse_runner_labels(match.group(1))
+            if labels is None or 'static' not in labels:
+                continue
+            extras = [
+                label for label in labels
+                if label not in STATIC_ALLOWED_LABELS
+            ]
+            if extras:
+                offenders.append(
+                    f'{wf}:{i + 1} ({", ".join(extras)})'
+                )
+
+    if offenders:
+        return {
+            'id': 'static-runner-tags',
+            'status': 'fail',
+            'details': (
+                f'{len(offenders)} static runner job(s) requesting '
+                f'impossible extra label(s): {", ".join(offenders)}. '
+                f'A static runner only advertises the "self-hosted" '
+                f'and "static" labels, so requiring a size, "vm", or '
+                f'an operating system label alongside "static" means '
+                f'the job will never be scheduled. Use '
+                f'"[self-hosted, static]" exactly'
+            ),
+        }
+    return {
+        'id': 'static-runner-tags',
+        'status': 'pass',
+        'details': (
+            f'No static runner jobs request impossible labels in '
+            f'{len(workflows)} workflow(s)'
+        ),
+    }
+
+
 def check_pyproject_usage(repo_path, props):
     """Check Python projects use pyproject.toml for packaging.
 
@@ -1097,6 +1214,7 @@ def run_all_checks(repo_path, repo_name, org):
         check_pre_commit_config(repo_path, props),
         check_flake8wrap(repo_path, props),
         check_self_hosted_runners(repo_path, props),
+        check_static_runner_tags(repo_path, props),
         check_pyproject_usage(repo_path, props),
         check_version_file(repo_path, props),
         check_rust_unwrap_lint(repo_path, props),
