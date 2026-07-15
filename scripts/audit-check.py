@@ -41,6 +41,7 @@ CHECK_NAMES = {
     'flake8wrap': 'Workflow standards (flake8wrap)',
     'self-hosted-runners': 'Workflow standards (self-hosted runners)',
     'static-runner-tags': 'Workflow standards (static runner tags)',
+    'devpi-fallback': 'Workflow standards (devpi cache fallback)',
     'version-file-gitignore': 'Generated version file',
     'pyproject-usage': 'pyproject.toml usage',
     'rust-unwrap-lint': 'Rust unwrap lint',
@@ -767,6 +768,122 @@ def check_static_runner_tags(repo_path, props):
     }
 
 
+# The local devpi PyPI cache. A job that points pip at it via
+# PIP_INDEX_URL must also set PIP_EXTRA_INDEX_URL (pypi) as a fallback:
+# devpi's root/pypi mirror serves an empty index the first time it is
+# asked for a package it has not cached, so without a fallback pip
+# reports "from versions: none" and the job fails on that cold-cache
+# miss. Matches both the LAN address and the TLS hostname.
+DEVPI_INDEX_RE = re.compile(
+    r'PIP_INDEX_URL\s*:\s*\S*'
+    r'(?:192\.168\.1\.4:3141|devpi\.home\.stillhq\.com)'
+)
+PIP_EXTRA_INDEX_RE = re.compile(r'PIP_EXTRA_INDEX_URL\s*:')
+
+
+def env_mapping_has_sibling(lines, idx, pattern):
+    """Whether a sibling key in the same YAML mapping matches pattern.
+
+    `lines[idx]` is a mapping key (e.g. PIP_INDEX_URL). We scan the
+    contiguous run of lines belonging to the same mapping -- those
+    indented at least as far as `lines[idx]`, with blank lines treated
+    as continuation -- and return True if any line at exactly that
+    key's indentation matches `pattern`. Scoping to a single env block
+    means an unrelated job elsewhere in the same workflow file cannot
+    mask a missing fallback.
+    """
+    def indent_of(s):
+        return len(s) - len(s.lstrip())
+
+    indent = indent_of(lines[idx])
+
+    start = idx
+    while start > 0:
+        prev = lines[start - 1]
+        if prev.strip() == '' or indent_of(prev) >= indent:
+            start -= 1
+        else:
+            break
+    end = idx
+    while end + 1 < len(lines):
+        nxt = lines[end + 1]
+        if nxt.strip() == '' or indent_of(nxt) >= indent:
+            end += 1
+        else:
+            break
+
+    for j in range(start, end + 1):
+        line = lines[j]
+        if (line.strip() and indent_of(line) == indent
+                and pattern.search(line)):
+            return True
+    return False
+
+
+def check_devpi_fallback(repo_path, props):
+    """Check devpi-backed jobs set a pypi fallback index.
+
+    A job that points pip at the local devpi cache via PIP_INDEX_URL
+    must also set PIP_EXTRA_INDEX_URL in the same env block so a devpi
+    cold-cache miss (an empty index for a first-touch package) falls
+    back to pypi instead of failing the job with "from versions:
+    none".
+    """
+    if not props['has_workflows_dir']:
+        return {
+            'id': 'devpi-fallback',
+            'status': 'not_applicable',
+            'details': 'No .github/workflows/ directory',
+        }
+
+    devpi_seen = False
+    offenders = []
+    for wf in sorted(list_workflow_files(repo_path)):
+        filepath = os.path.join(
+            repo_path, '.github', 'workflows', wf
+        )
+        with open(filepath, 'r', errors='replace') as f:
+            lines = f.read().splitlines()
+
+        for i, line in enumerate(lines):
+            if not DEVPI_INDEX_RE.search(line):
+                continue
+            devpi_seen = True
+            if not env_mapping_has_sibling(
+                lines, i, PIP_EXTRA_INDEX_RE
+            ):
+                offenders.append(f'{wf}:{i + 1}')
+
+    if not devpi_seen:
+        return {
+            'id': 'devpi-fallback',
+            'status': 'not_applicable',
+            'details': 'No jobs use the local devpi cache',
+        }
+    if offenders:
+        return {
+            'id': 'devpi-fallback',
+            'status': 'fail',
+            'details': (
+                f'{len(offenders)} devpi-backed env block(s) missing '
+                f'a PIP_EXTRA_INDEX_URL pypi fallback: '
+                f'{", ".join(offenders)}. Add '
+                f'"PIP_EXTRA_INDEX_URL: https://pypi.org/simple/" '
+                f'alongside PIP_INDEX_URL so a devpi cold-cache miss '
+                f'(empty index for a first-touch package) falls back '
+                f'to pypi instead of failing with '
+                f'"from versions: none"'
+            ),
+        }
+    return {
+        'id': 'devpi-fallback',
+        'status': 'pass',
+        'details': (
+            'All devpi-backed jobs set a PIP_EXTRA_INDEX_URL fallback'
+        ),
+    }
+
+
 def check_pyproject_usage(repo_path, props):
     """Check Python projects use pyproject.toml for packaging.
 
@@ -1215,6 +1332,7 @@ def run_all_checks(repo_path, repo_name, org):
         check_flake8wrap(repo_path, props),
         check_self_hosted_runners(repo_path, props),
         check_static_runner_tags(repo_path, props),
+        check_devpi_fallback(repo_path, props),
         check_pyproject_usage(repo_path, props),
         check_version_file(repo_path, props),
         check_rust_unwrap_lint(repo_path, props),
