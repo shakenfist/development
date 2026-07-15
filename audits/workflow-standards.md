@@ -91,6 +91,25 @@ files, and handle deleted files.
 Self-hosted runners should use the devpi PyPI cache at
 `http://192.168.1.4:3141` to reduce network load.
 
+Any job that points pip at the devpi cache with `PIP_INDEX_URL` must
+also set a pypi fallback in the **same** `env` block:
+
+```yaml
+    env:
+      PIP_INDEX_URL: http://192.168.1.4:3141/root/pypi/+simple/
+      PIP_EXTRA_INDEX_URL: https://pypi.org/simple/
+      PIP_TRUSTED_HOST: 192.168.1.4
+```
+
+devpi's `root/pypi` mirror is lazy: the first request for a package it
+has never cached returns an empty index if the upstream fetch misses,
+and pip then reports `Could not find a version that satisfies the
+requirement X (from versions: none)` and the job fails. Because
+`PIP_INDEX_URL` replaces pypi entirely, there is no fallback without
+`PIP_EXTRA_INDEX_URL`; adding it lets pip fall back to pypi for that
+cold-cache miss. The automated check flags any devpi-backed `env`
+block missing `PIP_EXTRA_INDEX_URL`.
+
 ## Template
 
 No single template -- these are standards applied across all

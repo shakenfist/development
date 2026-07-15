@@ -696,6 +696,14 @@ for any user-visible changes.
 Self hosted runners should use the devpi pypi cache at http://192.168.1.4:3141
 in order to reduce network load and increase reliability.
 
+Any job that sets `PIP_INDEX_URL` to the devpi cache must also set
+`PIP_EXTRA_INDEX_URL: https://pypi.org/simple/` in the same `env` block.
+devpi's `root/pypi` mirror returns an empty index the first time it is asked
+for a package it has not cached, so without a pypi fallback pip fails that
+cold-cache miss with "from versions: none" (as happened for `bindep` and
+`uv` on the kerbside CI). The automated check flags any devpi-backed `env`
+block that is missing the fallback.
+
 ## Console script logging setup
 
 Projects that use `shakenfist_utilities.logs.setup_console()` in their

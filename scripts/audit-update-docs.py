@@ -37,6 +37,7 @@ COLUMN_NAMES = {
     'flake8wrap': 'flake8wrap',
     'self-hosted-runners': 'Runners',
     'static-runner-tags': 'Static tags',
+    'devpi-fallback': 'devpi fallback',
 }
 
 STATUS_LABELS = {
