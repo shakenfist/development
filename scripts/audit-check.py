@@ -33,6 +33,7 @@ CHECK_NAMES = {
     'ci-review-automation': 'CI review automation',
     'renovate': 'Renovate',
     'pin-indirect-dependencies': 'Pin indirect dependencies',
+    'dependency-name-normalization': 'Dependency name normalization',
     'export-repo-config': 'Export repo config',
     'default-branch-naming': 'Default branch naming',
     'github-security': 'GitHub security settings',
@@ -328,6 +329,128 @@ def check_pin_indirect_deps(repo_path, props):
         'id': 'pin-indirect-dependencies',
         'status': 'pass',
         'details': 'Indirect dependency pinning is configured',
+    }
+
+
+# A pinned dependency entry in a pyproject.toml array, e.g.
+# '    "typing-extensions==4.16.0",' or
+# '    "gunicorn[gevent]==25.3.0",  # mit'. Captures the distribution
+# name, optional [extras], and the leading version specifier.
+DEP_PIN_RE = re.compile(
+    r'''^\s*["']
+        (?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)
+        (?P<extras>\[[^\]]*\])?
+        \s*(?P<spec>(?:[<>=!~]=|===)\s*[^"',;]+)
+    ''',
+    re.VERBOSE,
+)
+
+# An exact pin (== or ===), capturing the version. A floor/ceiling
+# constraint (>=, <=, ~=, !=) is not an exact pin: a direct dependency
+# declared as ">=X" that also carries an exact "==Y" pin (appended by
+# the indirect-dependency workflow) is intentional and resolves fine.
+EXACT_PIN_RE = re.compile(r'^={2,3}\s*(\S+)')
+
+# The start of a TOML array (e.g. 'dependencies = [') or a table
+# header (e.g. '[project.optional-dependencies]'). Either boundary
+# starts a fresh dependency grouping, so a name pinned once in the main
+# dependencies array and once in an optional-dependencies group is not
+# treated as a conflict.
+DEP_ARRAY_OPEN_RE = re.compile(r'=\s*\[')
+TOML_SECTION_RE = re.compile(r'^\s*\[[A-Za-z_]')
+
+
+def canonical_dependency_name(name):
+    """Return the PEP 503 canonical form of a distribution name.
+
+    Lowercase, with any run of '-', '_' and '.' collapsed to a single
+    '-'. This is how pip, uv and Renovate compare names, so
+    'typing_extensions' and 'typing-extensions' are one package.
+    """
+    return re.sub(r'[-_.]+', '-', name).lower()
+
+
+def check_dependency_name_normalization(repo_path, props):
+    """Check pyproject.toml has no duplicate pins under PEP 503 names.
+
+    A distribution pinned twice under different spellings (e.g.
+    'typing-extensions' and 'typing_extensions') is silently fine while
+    both copies carry the same version, but the moment one spelling is
+    bumped -- for instance by a Renovate PR -- the two exact pins
+    diverge and the resolver rejects the project as unsatisfiable.
+    Renovate also treats the two spellings as separate packages and
+    opens duplicate PRs. We flag, within a single dependency array,
+    any canonical name carrying two or more exact (==) pins with no
+    extras, or two or more conflicting exact versions.
+    """
+    if not props['has_pyproject_toml']:
+        return {
+            'id': 'dependency-name-normalization',
+            'status': 'not_applicable',
+            'details': 'No pyproject.toml (not a Python package)',
+        }
+
+    pyproject = os.path.join(repo_path, 'pyproject.toml')
+    with open(pyproject, 'r', errors='replace') as f:
+        lines = f.read().splitlines()
+
+    conflicts = []
+
+    def evaluate(group):
+        for canonical, entries in sorted(group.items()):
+            if len(entries) < 2:
+                continue
+            exact_versions = {e['version'] for e in entries if e['version']}
+            exact_plain = [
+                e for e in entries if e['version'] and not e['has_extras']
+            ]
+            # Two conflicting exact versions are an outright
+            # unsatisfiable pin. Two plain exact pins (differing only
+            # by spelling) are the latent form that breaks the instant
+            # one is bumped -- the shape that produced the duplicate
+            # Renovate PRs. A base+extras pair at one version (e.g.
+            # gunicorn and gunicorn[gevent]) is intentional.
+            if len(exact_versions) > 1 or len(exact_plain) > 1:
+                spellings = sorted({e['raw'] for e in entries})
+                conflicts.append(f'{canonical} ({", ".join(spellings)})')
+
+    group = {}
+    for line in lines:
+        if TOML_SECTION_RE.match(line) or DEP_ARRAY_OPEN_RE.search(line):
+            evaluate(group)
+            group = {}
+        match = DEP_PIN_RE.match(line)
+        if not match:
+            continue
+        exact = EXACT_PIN_RE.match(match.group('spec').strip())
+        group.setdefault(
+            canonical_dependency_name(match.group('name')), []
+        ).append({
+            'raw': match.group('name') + (match.group('extras') or ''),
+            'version': exact.group(1) if exact else None,
+            'has_extras': bool(match.group('extras')),
+        })
+    evaluate(group)
+
+    if conflicts:
+        return {
+            'id': 'dependency-name-normalization',
+            'status': 'fail',
+            'details': (
+                f'{len(conflicts)} distribution(s) pinned under multiple '
+                f'spellings that PEP 503 treats as one package: '
+                f'{"; ".join(conflicts)}. Consolidate to a single '
+                f'canonical pin -- divergent spellings become '
+                f'unsatisfiable when one is bumped and cause duplicate '
+                f'Renovate PRs'
+            ),
+        }
+    return {
+        'id': 'dependency-name-normalization',
+        'status': 'pass',
+        'details': (
+            'No duplicate dependency pins under PEP 503 normalization'
+        ),
     }
 
 
@@ -1380,6 +1503,7 @@ def run_all_checks(repo_path, repo_name, org):
         check_ci_review_automation(repo_path, props),
         check_renovate(repo_path, props),
         check_pin_indirect_deps(repo_path, props),
+        check_dependency_name_normalization(repo_path, props),
         check_export_repo_config(repo_path, props),
         check_default_branch(repo_path, props, repo_name, org),
         check_github_security(repo_path, props, repo_name, org),

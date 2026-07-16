@@ -31,6 +31,10 @@ AUDIT_METADATA = {
         'spec': 'audits/pin-indirect-dependencies.md',
         'template': 'templates/pin-indirect-dependencies/',
     },
+    'dependency-name-normalization': {
+        'spec': 'audits/dependency-name-normalization.md',
+        'template': None,
+    },
     'export-repo-config': {
         'spec': 'audits/export-repo-config.md',
         'template': 'templates/export-repo-config/',
@@ -97,6 +101,7 @@ ISSUE_TITLES = {
     'ci-review-automation': 'CI review automation',
     'renovate': 'Renovate',
     'pin-indirect-dependencies': 'Pin indirect dependencies',
+    'dependency-name-normalization': 'Dependency name normalization',
     'export-repo-config': 'Export repo config',
     'default-branch-naming': 'Default branch naming',
     'github-security': 'GitHub security settings',
