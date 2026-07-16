@@ -132,22 +132,22 @@ of correctly structured workflows.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-15T08:15:40.094463+00:00
+Last regenerated: 2026-07-16T08:20:49.001904+00:00
 
-| Project | Permissions | Linting | flake8wrap | Runners | Static tags | Issue |
-|---------|--------|--------|--------|--------|--------|--------|
-| agent-python | compliant | compliant | non-compliant | non-compliant | compliant | shakenfist/agent-python#105, shakenfist/agent-python#82 |
-| client-python | compliant | compliant | compliant | compliant | compliant | - |
-| clingwrap | compliant | compliant | compliant | compliant | compliant | - |
-| cloudgood | N/A | compliant | N/A | N/A | N/A | - |
-| divergulent | compliant | compliant | compliant | compliant | compliant | - |
-| instar | compliant | compliant | N/A | compliant | compliant | - |
-| kerbside | non-compliant | compliant | non-compliant | compliant | compliant | shakenfist/kerbside#59, shakenfist/kerbside#94 |
-| kerbside-patches | non-compliant | compliant | N/A | non-compliant | compliant | shakenfist/kerbside-patches#1446, shakenfist/kerbside-patches#953 |
-| library-utilities | compliant | compliant | compliant | compliant | compliant | - |
-| occystrap | compliant | compliant | non-compliant | compliant | compliant | shakenfist/occystrap#67 |
-| ryll | compliant | compliant | N/A | compliant | compliant | - |
-| shakenfist | compliant | compliant | non-compliant | non-compliant | compliant | shakenfist/shakenfist#3057, shakenfist/shakenfist#3376 |
+| Project | Permissions | Linting | flake8wrap | Runners | Static tags | devpi fallback | devpi IP | Issue |
+|---------|--------|--------|--------|--------|--------|--------|--------|--------|
+| agent-python | compliant | compliant | non-compliant | non-compliant | compliant | N/A | compliant | shakenfist/agent-python#105, shakenfist/agent-python#82 |
+| client-python | compliant | compliant | compliant | compliant | compliant | N/A | compliant | - |
+| clingwrap | compliant | compliant | compliant | compliant | compliant | N/A | compliant | - |
+| cloudgood | N/A | compliant | N/A | N/A | N/A | N/A | N/A | - |
+| divergulent | compliant | compliant | compliant | compliant | compliant | N/A | compliant | - |
+| instar | compliant | compliant | N/A | compliant | compliant | N/A | compliant | - |
+| kerbside | non-compliant | compliant | non-compliant | compliant | compliant | N/A | compliant | shakenfist/kerbside#59, shakenfist/kerbside#94 |
+| kerbside-patches | non-compliant | compliant | N/A | non-compliant | compliant | N/A | compliant | shakenfist/kerbside-patches#1446, shakenfist/kerbside-patches#953 |
+| library-utilities | compliant | compliant | compliant | compliant | compliant | N/A | compliant | - |
+| occystrap | compliant | compliant | non-compliant | compliant | compliant | N/A | compliant | shakenfist/occystrap#67 |
+| ryll | compliant | compliant | N/A | compliant | compliant | N/A | compliant | - |
+| shakenfist | compliant | compliant | non-compliant | non-compliant | compliant | non-compliant | compliant | shakenfist/shakenfist#3057, shakenfist/shakenfist#3376, shakenfist/shakenfist#3418 |
 
 Details for non-compliant projects:
 
@@ -160,4 +160,5 @@ Details for non-compliant projects:
 - **occystrap** (flake8wrap): Missing shellcheck disable=SC2086 directive
 - **shakenfist** (flake8wrap): Missing shellcheck disable=SC2086 directive
 - **shakenfist** (Runners): 4 unmarked GitHub-hosted runner reference(s): functional-tests.yml:333 (ubuntu-2404), functional-tests.yml:334 (ubuntu-2404), scheduled-tests.yml:58 (ubuntu-2404), scheduled-tests.yml:59 (ubuntu-2404). Move to a self-hosted runner, or mark deliberate exceptions with an "audit-ok: github-hosted-runner" comment
+- **shakenfist** (devpi fallback): 9 devpi-backed env block(s) missing a PIP_EXTRA_INDEX_URL pypi fallback: code-formatting.yml:27, codeql-analysis.yml:20, docs-tests.yml:19, functional-tests.yml:26, pin-indirect-dependencies.yml:29, publish-website.yml:17, release.yml:26, scheduled-tests.yml:24, test-drift-fix.yml:69. Add "PIP_EXTRA_INDEX_URL: https://pypi.org/simple/" alongside PIP_INDEX_URL so a devpi cold-cache miss (empty index for a first-touch package) falls back to pypi instead of failing with "from versions: none"
 <!-- consistency-audit:end -->

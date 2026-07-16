@@ -62,6 +62,29 @@ PEP 503 canonical form.
 ## Projects
 
 <!-- consistency-audit:begin -->
-*(Awaiting the first automated regeneration by the consistency
-audit workflow.)*
+*This table is regenerated daily by the consistency audit
+workflow from `scripts/audit-check.py` results; do not edit
+it by hand.*
+
+Last regenerated: 2026-07-16T08:20:49.001904+00:00
+
+| Project | Status | Issue |
+|---------|--------|--------|
+| agent-python | compliant | - |
+| client-python | compliant | - |
+| clingwrap | compliant | - |
+| cloudgood | N/A | - |
+| divergulent | compliant | - |
+| instar | N/A | - |
+| kerbside | non-compliant | shakenfist/kerbside#113 |
+| kerbside-patches | N/A | - |
+| library-utilities | compliant | - |
+| occystrap | compliant | - |
+| ryll | N/A | - |
+| shakenfist | non-compliant | shakenfist/shakenfist#3417 |
+
+Details for non-compliant projects:
+
+- **kerbside** (Status): 4 distribution(s) pinned under multiple spellings that PEP 503 treats as one package: importlib-metadata (importlib-metadata, importlib_metadata); prometheus-client (prometheus-client, prometheus_client); pydantic-core (pydantic-core, pydantic_core); typing-extensions (typing-extensions, typing_extensions). Consolidate to a single canonical pin -- divergent spellings become unsatisfiable when one is bumped and cause duplicate Renovate PRs
+- **shakenfist** (Status): 3 distribution(s) pinned under multiple spellings that PEP 503 treats as one package: prometheus-client (prometheus-client, prometheus_client); pydantic-core (pydantic-core, pydantic_core); typing-extensions (typing-extensions, typing_extensions). Consolidate to a single canonical pin -- divergent spellings become unsatisfiable when one is bumped and cause duplicate Renovate PRs
 <!-- consistency-audit:end -->
