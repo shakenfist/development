@@ -44,11 +44,9 @@ before committing:
 pre-commit run --all-files
 ```
 
-The hooks are configured in `.pre-commit-config.yaml` (distinct from
-`.pre-commit-hooks.yaml`, which is the review-stamp/review-prune hook
-set this repo *provides* to other repositories). Python is wrapped at
-120 characters, configured in `.flake8`; self-hosted runner labels are
-declared in `.github/actionlint.yaml`.
+The hooks are configured in `.pre-commit-config.yaml`. Python is
+wrapped at 120 characters, configured in `.flake8`; self-hosted runner
+labels are declared in `.github/actionlint.yaml`.
 
 The review tracking script has fixture-repo tests -- run them after any
 change to `scripts/review-tracking.py`:
@@ -57,10 +55,9 @@ change to `scripts/review-tracking.py`:
 python3 scripts/test_review_tracking.py
 ```
 
-The `.pre-commit-hooks.yaml` wiring can be exercised for real with
-`pre-commit try-repo` from a scratch repository, but note try-repo
-clones this repo's HEAD, so hook manifest changes must be committed
-(in a throwaway clone if need be) before try-repo sees them.
+The script is run by hand in target repositories (via a thin wrapper
+like ryll's `tools/review-tracking.sh`), deliberately not from git
+hooks -- see `docs/code-review-tracking.md`.
 
 The audit scripts have no unit tests. Test by running them against local
 clones:

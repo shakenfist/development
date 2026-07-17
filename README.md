@@ -13,11 +13,11 @@ the Shaken Fist project.
   with Sigstore signing and trusted publishers
 - [Code Review Tracking](https://github.com/shakenfist/development/blob/main/docs/code-review-tracking.md) -- Whole-codebase
   human review: weAudit for in-editor tracking, signed commits for
-  attestation, and pre-commit hooks hosted in this repository
-  ([`.pre-commit-hooks.yaml`](https://github.com/shakenfist/development/blob/main/.pre-commit-hooks.yaml) /
-  [`scripts/review-tracking.py`](https://github.com/shakenfist/development/blob/main/scripts/review-tracking.py)) that stamp
-  reviews with blob SHAs, prune stale reviews when files change, and
-  generate a per-repo REVIEWS.md
+  attestation, and a helper script hosted in this repository
+  ([`scripts/review-tracking.py`](https://github.com/shakenfist/development/blob/main/scripts/review-tracking.py), run by hand
+  from target repositories) that stamps reviews with blob SHAs,
+  prunes stale reviews when files change, and generates a per-repo
+  REVIEWS.md
   (plan: [PLAN-code-review-tracking.md](https://github.com/shakenfist/development/blob/main/docs/plans/PLAN-code-review-tracking.md))
 
 ## Consistency Audits
