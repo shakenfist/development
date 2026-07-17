@@ -40,7 +40,7 @@ See: `templates/renovate/README.md`
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-16T08:20:49.001904+00:00
+Last regenerated: 2026-07-17T08:12:52.885660+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -50,7 +50,7 @@ Last regenerated: 2026-07-16T08:20:49.001904+00:00
 | cloudgood | non-compliant | shakenfist/cloudgood#2 |
 | divergulent | non-compliant | shakenfist/divergulent#37 |
 | instar | compliant | - |
-| kerbside | non-compliant | shakenfist/kerbside#92 |
+| kerbside | compliant | - |
 | kerbside-patches | compliant | - |
 | library-utilities | non-compliant | shakenfist/library-utilities#33 |
 | occystrap | compliant | - |
@@ -61,6 +61,5 @@ Details for non-compliant projects:
 
 - **cloudgood** (Status): Missing: .github/workflows/renovate.yml, renovate.json
 - **divergulent** (Status): Missing: .github/workflows/renovate.yml, renovate.json
-- **kerbside** (Status): Missing: .github/workflows/renovate.yml, renovate.json
 - **library-utilities** (Status): Missing: .github/workflows/renovate.yml, renovate.json
 <!-- consistency-audit:end -->

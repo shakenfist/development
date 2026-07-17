@@ -132,7 +132,7 @@ of correctly structured workflows.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-16T08:20:49.001904+00:00
+Last regenerated: 2026-07-17T08:12:52.885660+00:00
 
 | Project | Permissions | Linting | flake8wrap | Runners | Static tags | devpi fallback | devpi IP | Issue |
 |---------|--------|--------|--------|--------|--------|--------|--------|--------|
@@ -142,7 +142,7 @@ Last regenerated: 2026-07-16T08:20:49.001904+00:00
 | cloudgood | N/A | compliant | N/A | N/A | N/A | N/A | N/A | - |
 | divergulent | compliant | compliant | compliant | compliant | compliant | N/A | compliant | - |
 | instar | compliant | compliant | N/A | compliant | compliant | N/A | compliant | - |
-| kerbside | non-compliant | compliant | non-compliant | compliant | compliant | N/A | compliant | shakenfist/kerbside#59, shakenfist/kerbside#94 |
+| kerbside | compliant | compliant | compliant | compliant | compliant | compliant | compliant | - |
 | kerbside-patches | non-compliant | compliant | N/A | non-compliant | compliant | N/A | compliant | shakenfist/kerbside-patches#1446, shakenfist/kerbside-patches#953 |
 | library-utilities | compliant | compliant | compliant | compliant | compliant | N/A | compliant | - |
 | occystrap | compliant | compliant | non-compliant | compliant | compliant | N/A | compliant | shakenfist/occystrap#67 |
@@ -153,8 +153,6 @@ Details for non-compliant projects:
 
 - **agent-python** (flake8wrap): Missing shellcheck disable=SC2086 directive
 - **agent-python** (Runners): 3 unmarked GitHub-hosted runner reference(s): functional-tests.yml:153 (ubuntu-latest), functional-tests.yml:188 (ubuntu-latest), functional-tests.yml:199 (ubuntu-latest). Move to a self-hosted runner, or mark deliberate exceptions with an "audit-ok: github-hosted-runner" comment
-- **kerbside** (Permissions): 5 workflow(s) missing top-level permissions: direct-qemu-functional.yml, functional-tests.yml, pin-indirect-dependencies.yml, release.yml, rust.yml
-- **kerbside** (flake8wrap): Missing shellcheck disable=SC2086 directive
 - **kerbside-patches** (Permissions): 8 workflow(s) missing top-level permissions: auto-retry-infra-failures.yml, ci-reporting.yml, daily-rebase-checks.yml, functional-tests.yml, heal-data-prs.yml, local-container-builds.yml, rebase-tests.yml, trigger-downstream.yml
 - **kerbside-patches** (Runners): 2 unmarked GitHub-hosted runner reference(s): auto-retry-infra-failures.yml:18 (ubuntu-latest), heal-data-prs.yml:22 (ubuntu-latest). Move to a self-hosted runner, or mark deliberate exceptions with an "audit-ok: github-hosted-runner" comment
 - **occystrap** (flake8wrap): Missing shellcheck disable=SC2086 directive
