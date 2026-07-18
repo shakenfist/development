@@ -2,10 +2,6 @@
 # The consistency audits require every audited project to run
 # actionlint, shellcheck, and flake8 via a pre-commit; this repo holds
 # itself to that same standard even though it is exempt from the audits.
-#
-# Note: .pre-commit-hooks.yaml (the review-stamp/review-prune hooks this
-# repo *provides* to other repositories) is a separate concern from this
-# file (the hooks this repo runs on *itself*).
 repos:
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.7

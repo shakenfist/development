@@ -63,9 +63,9 @@ This repository is also the home of the whole-codebase review
 tracking system: conventions in `docs/code-review-tracking.md`,
 design in `docs/plans/PLAN-code-review-tracking.md`. The
 automation is `scripts/review-tracking.py` (stamp reviews with
-blob SHAs at commit time, prune stale reviews when files change,
-regenerate the per-repo `REVIEWS.md`, pick the next file to
-review), exposed to target repositories as remote pre-commit hooks
-via `.pre-commit-hooks.yaml` at the repository root. Tests are in
-`scripts/test_review_tracking.py`. Once solid, adoption becomes a
-consistency audit item.
+blob SHAs, prune stale reviews when files change, regenerate the
+per-repo `REVIEWS.md`, pick the next file to review), run by hand
+in target repositories via a thin wrapper (for example ryll's
+`tools/review-tracking.sh`) -- deliberately not from git hooks.
+Tests are in `scripts/test_review_tracking.py`. Once solid,
+adoption becomes a consistency audit item.
