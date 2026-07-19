@@ -45,7 +45,7 @@ For links to other files in the same repository, use
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-18T07:54:30.329020+00:00
+Last regenerated: 2026-07-19T08:23:16.060743+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
