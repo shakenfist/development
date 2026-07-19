@@ -56,9 +56,9 @@ to Shaken Fist projects:
 - [`templates/codeql/`](https://github.com/shakenfist/development/tree/main/templates/codeql) --
   CodeQL code scanning for public repositories
 - [`templates/pin-indirect-dependencies/`](https://github.com/shakenfist/development/tree/main/templates/pin-indirect-dependencies) --
-  Daily workflow to detect and pin transitive Python dependencies
-  (application variant for hard-pinning, library variant for optional
-  `pinned` extra)
+  Daily workflow to reconcile pinned transitive Python dependencies,
+  adding new pins and removing stale ones (application variant for
+  hard-pinning, library variant for optional `pinned` extra)
 
 ## Shared GitHub Actions
 
