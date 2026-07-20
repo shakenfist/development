@@ -45,7 +45,7 @@ For links to other files in the same repository, use
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-19T08:23:16.060743+00:00
+Last regenerated: 2026-07-20T09:17:47.894467+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -54,7 +54,7 @@ Last regenerated: 2026-07-19T08:23:16.060743+00:00
 | clingwrap | non-compliant | shakenfist/clingwrap#108 |
 | cloudgood | N/A | - |
 | divergulent | compliant | - |
-| instar | compliant | - |
+| instar | non-compliant | shakenfist/instar#452 |
 | kerbside | non-compliant | shakenfist/kerbside#104 |
 | kerbside-patches | compliant | - |
 | library-utilities | non-compliant | shakenfist/library-utilities#40 |
@@ -67,6 +67,7 @@ Details for non-compliant projects:
 - **agent-python** (Status): 5 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): AGENTS.md, ARCHITECTURE.md, docs/developer-guide.md, docs/index.md, docs/protocol.md
 - **client-python** (Status): 3 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): AGENTS.md, ARCHITECTURE.md, RELEASE-SETUP.md
 - **clingwrap** (Status): 5 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): AGENTS.md, ARCHITECTURE.md, RELEASE-SETUP.md, docs/, docs/index.md
+- **instar** (Status): 1 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): docs/format-coverage.md
 - **kerbside** (Status): 16 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): .claude/, AGENTS.md, ARCHITECTURE.md, docs/, docs/capabilities.md, docs/channel-protocols.md, docs/compression-protocols.md, docs/configuration.md, docs/console-sources.md, docs/index.md (+6 more)
 - **library-utilities** (Status): 1 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): docs/log-record-fields.md
 - **occystrap** (Status): 8 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): RELEASE-SETUP.md, docs/, docs/command-reference.md, docs/docker-tarball-formats.md, docs/installation.md, docs/performance.md, docs/pipeline.md, docs/use-cases.md
