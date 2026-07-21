@@ -44,9 +44,11 @@ before committing:
 pre-commit run --all-files
 ```
 
-The hooks are configured in `.pre-commit-config.yaml`. Python is
-wrapped at 120 characters, configured in `.flake8`; self-hosted runner
-labels are declared in `.github/actionlint.yaml`.
+The hooks are configured in `.pre-commit-config.yaml` (distinct from
+`.pre-commit-hooks.yaml`, which is the review-stamp/review-prune hook
+set this repo *provides* to other repositories). Python is wrapped at
+120 characters, configured in `.flake8`; self-hosted runner labels are
+declared in `.github/actionlint.yaml`.
 
 The review tracking script has fixture-repo tests -- run them after any
 change to `scripts/review-tracking.py`:
