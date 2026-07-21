@@ -4,12 +4,17 @@
 
 Python projects with `pyproject.toml` should have:
 
-* `.github/workflows/pin-indirect-dependencies.yml` -- runs daily,
-  installs the project, compares `pip freeze` against
-  `pyproject.toml`, and creates a PR to pin new indirect
-  dependencies.
-* `# END_OF_INDIRECT_DEPS` marker in `pyproject.toml` (without
-  this marker the `sed` command silently does nothing).
+* `.github/workflows/pin-indirect-dependencies.yml` -- runs daily and
+  reconciles the pinned indirect dependency block against what the
+  direct dependencies actually require, creating a PR when the block
+  changed (new transitive dependencies pinned, stale pins removed).
+* `tools/pin-indirect-dependencies.sh` -- the reconciler script,
+  copied unchanged from the template. It demotes existing pins to pip
+  constraints for a fresh resolve; see its header comment for details
+  including the `# never-pin: <name>` escape hatch.
+* `# START_OF_INDIRECT_DEPS` and `# END_OF_INDIRECT_DEPS` markers in
+  `pyproject.toml` delimiting the block the script regenerates
+  (without both markers the script refuses to run).
 
 ### Application projects (shakenfist, kerbside)
 

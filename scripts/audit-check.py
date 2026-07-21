@@ -311,12 +311,19 @@ def check_pin_indirect_deps(repo_path, props):
             'Missing .github/workflows/'
             'pin-indirect-dependencies.yml'
         )
-    if not check_file_contains(
-        repo_path, 'pyproject.toml', r'END_OF_INDIRECT_DEPS'
+    for marker in ['START_OF_INDIRECT_DEPS', 'END_OF_INDIRECT_DEPS']:
+        if not check_file_contains(
+            repo_path, 'pyproject.toml', marker
+        ):
+            issues.append(
+                f'Missing # {marker} marker in pyproject.toml'
+            )
+    if not check_file_exists(
+        repo_path, 'tools/pin-indirect-dependencies.sh'
     ):
         issues.append(
-            'Missing # END_OF_INDIRECT_DEPS marker in '
-            'pyproject.toml'
+            'Missing tools/pin-indirect-dependencies.sh '
+            '(reconciler script from the template)'
         )
 
     if issues:

@@ -85,12 +85,14 @@ internal-only tooling or historical archive repositories:
     script should also filter to `.py` files, skip `_pb2` generated
     files, and handle deleted files.
 12. **Pin indirect dependencies**: Python projects with `pyproject.toml`
-    need `.github/workflows/pin-indirect-dependencies.yml` and an
-    `# END_OF_INDIRECT_DEPS` marker in their `pyproject.toml`.
-    Application projects (shakenfist, kerbside) put the marker in
+    need `.github/workflows/pin-indirect-dependencies.yml`,
+    `tools/pin-indirect-dependencies.sh`, and
+    `# START_OF_INDIRECT_DEPS` / `# END_OF_INDIRECT_DEPS` markers in
+    their `pyproject.toml` delimiting the reconciled block.
+    Application projects (shakenfist, kerbside) put the markers in
     `[project] dependencies` and use the application template.
     Library projects (agent-python, client-python, clingwrap,
-    occystrap, library-utilities) put the marker in
+    occystrap, library-utilities) put the markers in
     `[project.optional-dependencies] pinned` and use the library
     template. See `templates/pin-indirect-dependencies/`.
 
