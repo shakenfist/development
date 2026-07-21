@@ -31,7 +31,7 @@ pattern) to `.gitignore` and `git rm --cached` any tracked copy.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-20T09:17:47.894467+00:00
+Last regenerated: 2026-07-21T08:32:21.932577+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
