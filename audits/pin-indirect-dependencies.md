@@ -48,7 +48,7 @@ See: `templates/pin-indirect-dependencies/README.md`
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-21T08:32:21.932577+00:00
+Last regenerated: 2026-07-22T08:32:11.176163+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -58,19 +58,21 @@ Last regenerated: 2026-07-21T08:32:21.932577+00:00
 | cloudgood | N/A | - |
 | divergulent | non-compliant | shakenfist/divergulent#38 |
 | instar | N/A | - |
-| kerbside | compliant | - |
+| kerbside | non-compliant | shakenfist/kerbside#159 |
 | kerbside-patches | N/A | - |
 | library-utilities | non-compliant | shakenfist/library-utilities#34 |
 | occystrap | non-compliant | shakenfist/occystrap#66 |
 | ryll | N/A | - |
-| shakenfist | compliant | - |
+| shakenfist | non-compliant | shakenfist/shakenfist#3482 |
 
 Details for non-compliant projects:
 
-- **agent-python** (Status): Missing .github/workflows/pin-indirect-dependencies.yml; Missing # END_OF_INDIRECT_DEPS marker in pyproject.toml
-- **client-python** (Status): Missing .github/workflows/pin-indirect-dependencies.yml; Missing # END_OF_INDIRECT_DEPS marker in pyproject.toml
-- **clingwrap** (Status): Missing .github/workflows/pin-indirect-dependencies.yml; Missing # END_OF_INDIRECT_DEPS marker in pyproject.toml
-- **divergulent** (Status): Missing .github/workflows/pin-indirect-dependencies.yml; Missing # END_OF_INDIRECT_DEPS marker in pyproject.toml
-- **library-utilities** (Status): Missing .github/workflows/pin-indirect-dependencies.yml; Missing # END_OF_INDIRECT_DEPS marker in pyproject.toml
-- **occystrap** (Status): Missing .github/workflows/pin-indirect-dependencies.yml; Missing # END_OF_INDIRECT_DEPS marker in pyproject.toml
+- **agent-python** (Status): Missing .github/workflows/pin-indirect-dependencies.yml; Missing # START_OF_INDIRECT_DEPS marker in pyproject.toml; Missing # END_OF_INDIRECT_DEPS marker in pyproject.toml; Missing tools/pin-indirect-dependencies.sh (reconciler script from the template)
+- **client-python** (Status): Missing .github/workflows/pin-indirect-dependencies.yml; Missing # START_OF_INDIRECT_DEPS marker in pyproject.toml; Missing # END_OF_INDIRECT_DEPS marker in pyproject.toml; Missing tools/pin-indirect-dependencies.sh (reconciler script from the template)
+- **clingwrap** (Status): Missing .github/workflows/pin-indirect-dependencies.yml; Missing # START_OF_INDIRECT_DEPS marker in pyproject.toml; Missing # END_OF_INDIRECT_DEPS marker in pyproject.toml; Missing tools/pin-indirect-dependencies.sh (reconciler script from the template)
+- **divergulent** (Status): Missing .github/workflows/pin-indirect-dependencies.yml; Missing # START_OF_INDIRECT_DEPS marker in pyproject.toml; Missing # END_OF_INDIRECT_DEPS marker in pyproject.toml; Missing tools/pin-indirect-dependencies.sh (reconciler script from the template)
+- **kerbside** (Status): Missing # START_OF_INDIRECT_DEPS marker in pyproject.toml; Missing tools/pin-indirect-dependencies.sh (reconciler script from the template)
+- **library-utilities** (Status): Missing .github/workflows/pin-indirect-dependencies.yml; Missing # START_OF_INDIRECT_DEPS marker in pyproject.toml; Missing # END_OF_INDIRECT_DEPS marker in pyproject.toml; Missing tools/pin-indirect-dependencies.sh (reconciler script from the template)
+- **occystrap** (Status): Missing .github/workflows/pin-indirect-dependencies.yml; Missing # START_OF_INDIRECT_DEPS marker in pyproject.toml; Missing # END_OF_INDIRECT_DEPS marker in pyproject.toml; Missing tools/pin-indirect-dependencies.sh (reconciler script from the template)
+- **shakenfist** (Status): Missing # START_OF_INDIRECT_DEPS marker in pyproject.toml; Missing tools/pin-indirect-dependencies.sh (reconciler script from the template)
 <!-- consistency-audit:end -->
