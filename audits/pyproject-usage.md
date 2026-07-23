@@ -33,7 +33,7 @@ and `shakenfist` as examples of our implementation style.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-22T08:32:11.176163+00:00
+Last regenerated: 2026-07-23T09:07:30.659728+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
