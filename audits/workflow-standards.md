@@ -132,7 +132,7 @@ of correctly structured workflows.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-23T09:07:30.659728+00:00
+Last regenerated: 2026-07-24T08:30:28.387058+00:00
 
 | Project | Permissions | Linting | flake8wrap | Runners | Static tags | devpi fallback | devpi IP | Issue |
 |---------|--------|--------|--------|--------|--------|--------|--------|--------|

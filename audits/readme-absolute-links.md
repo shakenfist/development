@@ -45,7 +45,7 @@ For links to other files in the same repository, use
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-23T09:07:30.659728+00:00
+Last regenerated: 2026-07-24T08:30:28.387058+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -71,5 +71,5 @@ Details for non-compliant projects:
 - **kerbside** (Status): 16 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): .claude/, AGENTS.md, ARCHITECTURE.md, docs/, docs/capabilities.md, docs/channel-protocols.md, docs/compression-protocols.md, docs/configuration.md, docs/console-sources.md, docs/index.md (+6 more)
 - **library-utilities** (Status): 1 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): docs/log-record-fields.md
 - **occystrap** (Status): 8 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): RELEASE-SETUP.md, docs/, docs/command-reference.md, docs/docker-tarball-formats.md, docs/installation.md, docs/performance.md, docs/pipeline.md, docs/use-cases.md
-- **shakenfist** (Status): 5 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): docs/operator_guide/database.md, docs/operator_guide/installation.md, docs/operator_guide/logging.md, examples/, shakenfist/deploy/collection/
+- **shakenfist** (Status): 6 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): docs/operator_guide/database.md, docs/operator_guide/installation.md, docs/operator_guide/logging.md, docs/operator_guide/node_health.md, examples/, shakenfist/deploy/collection/
 <!-- consistency-audit:end -->
