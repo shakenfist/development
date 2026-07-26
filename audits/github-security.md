@@ -57,7 +57,7 @@ Security settings: UI-only configuration, no template needed.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-25T08:08:51.457381+00:00
+Last regenerated: 2026-07-26T08:29:06.473733+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -66,7 +66,7 @@ Last regenerated: 2026-07-25T08:08:51.457381+00:00
 | clingwrap | compliant | - |
 | cloudgood | non-compliant | shakenfist/cloudgood#5 |
 | divergulent | non-compliant | shakenfist/divergulent#41 |
-| instar | non-compliant | shakenfist/instar#384 |
+| instar | non-compliant | shakenfist/instar#461 |
 | kerbside | compliant | - |
 | kerbside-patches | non-compliant | shakenfist/kerbside-patches#952 |
 | library-utilities | non-compliant | shakenfist/library-utilities#36 |
@@ -79,7 +79,7 @@ Details for non-compliant projects:
 - **agent-python** (Status): Secret scanning not enabled; Secret scanning push protection not enabled
 - **cloudgood** (Status): Secret scanning not enabled; Secret scanning push protection not enabled
 - **divergulent** (Status): Missing .github/workflows/codeql-analysis.yml; Secret scanning not enabled; Secret scanning push protection not enabled
-- **instar** (Status): Missing .github/workflows/codeql-analysis.yml; Secret scanning not enabled; Secret scanning push protection not enabled
+- **instar** (Status): Missing .github/workflows/codeql-analysis.yml
 - **kerbside-patches** (Status): Missing .github/workflows/codeql-analysis.yml; Secret scanning not enabled; Secret scanning push protection not enabled
 - **library-utilities** (Status): Missing .github/workflows/codeql-analysis.yml; Secret scanning not enabled; Secret scanning push protection not enabled
 - **shakenfist** (Status): Secret scanning not enabled; Secret scanning push protection not enabled

@@ -22,7 +22,7 @@ Docs: `docs/release-automation.md`
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-25T08:08:51.457381+00:00
+Last regenerated: 2026-07-26T08:29:06.473733+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
