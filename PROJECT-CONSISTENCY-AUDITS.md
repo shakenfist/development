@@ -103,6 +103,52 @@ link).
 This rule exists because divergulent's first PyPI release rendered
 with every relative link broken.
 
+## README is a pitch
+
+The top-level `README.md` is a **pitch** aimed at a human landing on
+the repository page: what the project is, who it is for, minimal
+installation instructions, a small number of usage examples, and
+curated links into `docs/`. Feature catalogues, CI workflow tables,
+build internals, architecture descriptions, and dependency lists
+belong in `docs/`, `ARCHITECTURE.md`, or `AGENTS.md` instead.
+
+The automated check enforces measurable proxies: `README.md` is at
+most 150 lines and 1200 words, and links into `docs/` when a `docs/`
+directory exists. The judgment half of the policy is enforced at push
+time by the `readme-discipline` shared block in each repository's
+`PUSH-AUDIT.md` (see below), which sends new feature documentation to
+`docs/` and treats README growth as a finding.
+
+This rule exists because our READMEs accreted a bullet per feature
+per push -- ryll's reached 557 lines -- burying the pitch and
+duplicating content `docs/` already covers.
+
+## Pre-push audit file and shared blocks
+
+Repositories that carry a pre-push audit runbook must name it
+`PUSH-AUDIT.md` (the historical `PUSH-TEMPLATE.md` name is legacy:
+the file is a runbook, not a template, and the `-TEMPLATE` suffix is
+reserved for true templates like `PLAN-TEMPLATE.md`). Repositories
+without a pre-push audit file are exempt.
+
+Canonical wording that must stay identical across repositories --
+currently the `readme-discipline` instructions in the
+documentation-review section of `PUSH-AUDIT.md` -- is embedded as a
+**versioned shared block**:
+
+```markdown
+<!-- shared-block: <name> v<N> -->
+...canonical wording...
+<!-- shared-block-end -->
+```
+
+Canonical copies live in `templates/shared-blocks/` in the
+development repository. The audit verifies each embedded block is
+present where required, carries the current version, and matches the
+canonical wording verbatim. To change shared wording: edit the
+canonical file, bump its version, and let the daily audit file
+issues against every repository still carrying the old version.
+
 ## Claude Code for automated review in CI
 
 We run Claude Code for automated review in CI. The automated reviewer

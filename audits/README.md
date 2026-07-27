@@ -87,4 +87,6 @@ See `PROJECT-CONSISTENCY-AUDITS.md` for the list of excluded projects
 | [version-file-gitignore.md](version-file-gitignore.md) | Generated version files are gitignored |
 | [rust-unwrap-lint.md](rust-unwrap-lint.md) | Rust projects lint against production unwrap() |
 | [readme-absolute-links.md](readme-absolute-links.md) | Top-level README.md links are absolute |
+| [readme-structure.md](readme-structure.md) | Top-level README.md is a pitch, detail lives in docs/ |
+| [push-audit.md](push-audit.md) | PUSH-AUDIT.md naming and versioned shared blocks |
 | [test-coverage.md](test-coverage.md) | Unit and functional test coverage |

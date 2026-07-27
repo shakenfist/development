@@ -62,6 +62,10 @@ to Shaken Fist projects:
   Daily workflow to reconcile pinned transitive Python dependencies,
   adding new pins and removing stale ones (application variant for
   hard-pinning, library variant for optional `pinned` extra)
+- [`templates/shared-blocks/`](https://github.com/shakenfist/development/tree/main/templates/shared-blocks) --
+  Versioned blocks of canonical wording embedded verbatim across
+  repositories (currently the `readme-discipline` instructions for
+  each repository's `PUSH-AUDIT.md`)
 
 ## Shared GitHub Actions
 

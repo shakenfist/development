@@ -135,5 +135,190 @@ class DependencyNameNormalizationTest(unittest.TestCase):
         self.assertEqual(self._check(body)['status'], 'pass')
 
 
+class ReadmeStructureTest(unittest.TestCase):
+    PITCH = (
+        '# Project\n\nA short pitch.\n\n'
+        '[docs](https://github.com/shakenfist/x/blob/develop/'
+        'docs/index.md)\n'
+    )
+
+    def _check(self, readme=None, with_docs_dir=False):
+        with tempfile.TemporaryDirectory() as tmp:
+            if readme is not None:
+                with open(os.path.join(tmp, 'README.md'), 'w') as f:
+                    f.write(readme)
+            if with_docs_dir:
+                os.mkdir(os.path.join(tmp, 'docs'))
+            return audit_check.check_readme_structure(tmp, {})
+
+    def test_not_applicable_without_readme(self):
+        self.assertEqual(self._check()['status'], 'not_applicable')
+
+    def test_short_readme_with_docs_link_passes(self):
+        result = self._check(self.PITCH, with_docs_dir=True)
+        self.assertEqual(result['status'], 'pass')
+
+    def test_too_many_lines_fails(self):
+        readme = self.PITCH + ('filler\n' * 200)
+        result = self._check(readme, with_docs_dir=True)
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('lines', result['details'])
+
+    def test_too_many_words_fails(self):
+        # Few lines, but far over the word cap.
+        readme = self.PITCH + (('word ' * 300) + '\n') * 5
+        result = self._check(readme, with_docs_dir=True)
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('words', result['details'])
+
+    def test_missing_docs_link_fails_when_docs_exist(self):
+        result = self._check(
+            '# Project\n\nA short pitch.\n', with_docs_dir=True
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('no link into docs/', result['details'])
+
+    def test_docs_link_not_required_without_docs_dir(self):
+        result = self._check('# Project\n\nA short pitch.\n')
+        self.assertEqual(result['status'], 'pass')
+
+    def test_docs_link_in_code_block_does_not_count(self):
+        readme = (
+            '# Project\n\nA short pitch.\n\n'
+            '```\n[docs](docs/index.md)\n```\n'
+        )
+        result = self._check(readme, with_docs_dir=True)
+        self.assertEqual(result['status'], 'fail')
+
+
+class PushAuditTest(unittest.TestCase):
+    def setUp(self):
+        # A private canonical blocks directory so the tests do not
+        # depend on the real templates/shared-blocks/ content.
+        self._blocks = tempfile.TemporaryDirectory()
+        self.addCleanup(self._blocks.cleanup)
+        self.canonical = (
+            '<!-- shared-block: readme-discipline v2 -->\n'
+            'Canonical wording.\n'
+            '<!-- shared-block-end -->\n'
+        )
+        with open(
+            os.path.join(self._blocks.name, 'readme-discipline.md'),
+            'w',
+        ) as f:
+            f.write(self.canonical)
+
+    def _check(self, files):
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, content in files.items():
+                with open(os.path.join(tmp, name), 'w') as f:
+                    f.write(content)
+            return audit_check.check_push_audit(
+                tmp, {}, blocks_dir=self._blocks.name
+            )
+
+    def test_not_applicable_without_file(self):
+        self.assertEqual(self._check({})['status'], 'not_applicable')
+
+    def test_current_block_passes(self):
+        result = self._check({
+            'PUSH-AUDIT.md': f'# Audit\n\n{self.canonical}\n',
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_legacy_filename_fails(self):
+        result = self._check({
+            'PUSH-TEMPLATE.md': f'# Audit\n\n{self.canonical}\n',
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('legacy filename', result['details'])
+
+    def test_missing_block_fails(self):
+        result = self._check({'PUSH-AUDIT.md': '# Audit\n'})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn(
+            'missing shared block readme-discipline',
+            result['details'],
+        )
+
+    def test_stale_version_fails(self):
+        stale = self.canonical.replace('v2', 'v1')
+        result = self._check({
+            'PUSH-AUDIT.md': f'# Audit\n\n{stale}\n',
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('stale (v1 embedded, v2 current)',
+                      result['details'])
+
+    def test_drifted_content_fails(self):
+        drifted = self.canonical.replace(
+            'Canonical wording.', 'Mutated wording.'
+        )
+        result = self._check({
+            'PUSH-AUDIT.md': f'# Audit\n\n{drifted}\n',
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('drifted', result['details'])
+
+    def test_trailing_whitespace_is_ignored(self):
+        padded = self.canonical.replace(
+            'Canonical wording.', 'Canonical wording.   '
+        )
+        result = self._check({
+            'PUSH-AUDIT.md': f'# Audit\n\n{padded}\n',
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_unknown_block_fails(self):
+        content = (
+            f'# Audit\n\n{self.canonical}\n'
+            '<!-- shared-block: no-such-block v1 -->\n'
+            'Words.\n'
+            '<!-- shared-block-end -->\n'
+        )
+        result = self._check({'PUSH-AUDIT.md': content})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('unknown shared block no-such-block',
+                      result['details'])
+
+    def test_missing_end_marker_fails(self):
+        content = (
+            '# Audit\n\n'
+            '<!-- shared-block: readme-discipline v2 -->\n'
+            'Canonical wording.\n'
+        )
+        result = self._check({'PUSH-AUDIT.md': content})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('no <!-- shared-block-end -->',
+                      result['details'])
+
+    def test_both_files_fails_even_with_current_block(self):
+        result = self._check({
+            'PUSH-AUDIT.md': f'# Audit\n\n{self.canonical}\n',
+            'PUSH-TEMPLATE.md': '# Old\n',
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('legacy filename', result['details'])
+
+
+class CanonicalSharedBlocksTest(unittest.TestCase):
+    def test_real_canonical_blocks_parse(self):
+        # Every canonical file in templates/shared-blocks/ must
+        # contain a block whose name matches the filename.
+        blocks_dir = audit_check.SHARED_BLOCKS_DIR
+        names = [
+            f[:-3] for f in os.listdir(blocks_dir)
+            if f.endswith('.md') and f != 'README.md'
+        ]
+        self.assertIn('readme-discipline', names)
+        for name in names:
+            canonical = audit_check.load_canonical_block(name)
+            self.assertIsNotNone(
+                canonical,
+                f'templates/shared-blocks/{name}.md has no '
+                f'shared-block marker matching its filename',
+            )
+
+
 if __name__ == '__main__':
     unittest.main()

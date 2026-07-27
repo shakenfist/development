@@ -91,6 +91,14 @@ AUDIT_METADATA = {
         'spec': 'audits/readme-absolute-links.md',
         'template': None,
     },
+    'readme-structure': {
+        'spec': 'audits/readme-structure.md',
+        'template': None,
+    },
+    'push-audit': {
+        'spec': 'audits/push-audit.md',
+        'template': 'templates/shared-blocks/',
+    },
 }
 
 # Map from check ID to issue title suffix. Must match existing
@@ -116,6 +124,8 @@ ISSUE_TITLES = {
     'version-file-gitignore': 'Generated version file',
     'rust-unwrap-lint': 'Rust unwrap lint',
     'readme-absolute-links': 'README absolute links',
+    'readme-structure': 'README structure',
+    'push-audit': 'Pre-push audit file',
 }
 
 
