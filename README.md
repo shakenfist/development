@@ -49,6 +49,9 @@ to Shaken Fist projects:
 - [`templates/test-drift-fix/`](https://github.com/shakenfist/development/tree/main/templates/test-drift-fix) --
   Automatic test fixing with Claude Code (for projects with large
   test suites)
+- [`templates/issue-fix/`](https://github.com/shakenfist/development/tree/main/templates/issue-fix) --
+  Idle bug fixer: triages open GitHub issues and has Claude Code
+  propose a fix for the best candidate as a draft PR
 - [`templates/renovate/`](https://github.com/shakenfist/development/tree/main/templates/renovate) --
   Renovate dependency updater workflow and configuration
 - [`templates/export-repo-config/`](https://github.com/shakenfist/development/tree/main/templates/export-repo-config) --
