@@ -41,6 +41,34 @@ detail survives somewhere before trimming the README.
 ## Projects
 
 <!-- consistency-audit:begin -->
-*(Awaiting the first automated regeneration by the consistency
-audit workflow.)*
+*This table is regenerated daily by the consistency audit
+workflow from `scripts/audit-check.py` results; do not edit
+it by hand.*
+
+Last regenerated: 2026-07-27T09:55:46.685444+00:00
+
+| Project | Status | Issue |
+|---------|--------|--------|
+| agent-python | compliant | - |
+| client-python | non-compliant | shakenfist/client-python#353 |
+| clingwrap | compliant | - |
+| cloudgood | N/A | - |
+| divergulent | non-compliant | shakenfist/divergulent#53 |
+| instar | non-compliant | shakenfist/instar#462 |
+| kerbside | non-compliant | shakenfist/kerbside#178 |
+| kerbside-patches | non-compliant | shakenfist/kerbside-patches#1500 |
+| library-utilities | compliant | - |
+| occystrap | non-compliant | shakenfist/occystrap#99 |
+| ryll | non-compliant | shakenfist/ryll#220 |
+| shakenfist | compliant | - |
+
+Details for non-compliant projects:
+
+- **client-python** (Status): README.md has no link into docs/ despite a docs/ directory existing; add curated links to the detailed documentation
+- **divergulent** (Status): README.md is 321 lines / 2124 words (limits: 150 lines, 1200 words); move detail into docs/, ARCHITECTURE.md, or AGENTS.md and keep the README a pitch
+- **instar** (Status): README.md is 1001 lines / 5225 words (limits: 150 lines, 1200 words); move detail into docs/, ARCHITECTURE.md, or AGENTS.md and keep the README a pitch
+- **kerbside** (Status): README.md is 297 lines / 1706 words (limits: 150 lines, 1200 words); move detail into docs/, ARCHITECTURE.md, or AGENTS.md and keep the README a pitch
+- **kerbside-patches** (Status): README.md is 423 lines / 2941 words (limits: 150 lines, 1200 words); move detail into docs/, ARCHITECTURE.md, or AGENTS.md and keep the README a pitch; README.md has no link into docs/ despite a docs/ directory existing; add curated links to the detailed documentation
+- **occystrap** (Status): README.md is 820 lines / 3177 words (limits: 150 lines, 1200 words); move detail into docs/, ARCHITECTURE.md, or AGENTS.md and keep the README a pitch
+- **ryll** (Status): README.md is 557 lines / 4100 words (limits: 150 lines, 1200 words); move detail into docs/, ARCHITECTURE.md, or AGENTS.md and keep the README a pitch
 <!-- consistency-audit:end -->

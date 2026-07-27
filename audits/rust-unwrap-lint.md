@@ -72,7 +72,7 @@ snippets above.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-26T08:29:06.473733+00:00
+Last regenerated: 2026-07-27T09:55:46.685444+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -81,15 +81,11 @@ Last regenerated: 2026-07-26T08:29:06.473733+00:00
 | clingwrap | N/A | - |
 | cloudgood | N/A | - |
 | divergulent | N/A | - |
-| instar | non-compliant | shakenfist/instar#445 |
+| instar | compliant | - |
 | kerbside | N/A | - |
 | kerbside-patches | N/A | - |
 | library-utilities | N/A | - |
 | occystrap | N/A | - |
 | ryll | compliant | - |
 | shakenfist | N/A | - |
-
-Details for non-compliant projects:
-
-- **instar** (Status): crates/guest-protocol/Cargo.toml neither inherits workspace lints ([lints] workspace = true) nor defines unwrap_used itself
 <!-- consistency-audit:end -->

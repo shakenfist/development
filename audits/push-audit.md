@@ -63,6 +63,33 @@ contradicts.
 ## Projects
 
 <!-- consistency-audit:begin -->
-*(Awaiting the first automated regeneration by the consistency
-audit workflow.)*
+*This table is regenerated daily by the consistency audit
+workflow from `scripts/audit-check.py` results; do not edit
+it by hand.*
+
+Last regenerated: 2026-07-27T09:55:46.685444+00:00
+
+| Project | Status | Issue |
+|---------|--------|--------|
+| agent-python | N/A | - |
+| client-python | N/A | - |
+| clingwrap | N/A | - |
+| cloudgood | N/A | - |
+| divergulent | non-compliant | shakenfist/divergulent#54 |
+| instar | non-compliant | shakenfist/instar#463 |
+| kerbside | non-compliant | shakenfist/kerbside#179 |
+| kerbside-patches | N/A | - |
+| library-utilities | N/A | - |
+| occystrap | non-compliant | shakenfist/occystrap#100 |
+| ryll | non-compliant | shakenfist/ryll#221 |
+| shakenfist | non-compliant | shakenfist/shakenfist#3530 |
+
+Details for non-compliant projects:
+
+- **divergulent** (Status): legacy filename PUSH-TEMPLATE.md (rename to PUSH-AUDIT.md and update references); missing shared block readme-discipline (copy it verbatim from templates/shared-blocks/readme-discipline.md in the development repository)
+- **instar** (Status): legacy filename PUSH-TEMPLATE.md (rename to PUSH-AUDIT.md and update references); missing shared block readme-discipline (copy it verbatim from templates/shared-blocks/readme-discipline.md in the development repository)
+- **kerbside** (Status): legacy filename PUSH-TEMPLATE.md (rename to PUSH-AUDIT.md and update references); missing shared block readme-discipline (copy it verbatim from templates/shared-blocks/readme-discipline.md in the development repository)
+- **occystrap** (Status): legacy filename PUSH-TEMPLATE.md (rename to PUSH-AUDIT.md and update references); missing shared block readme-discipline (copy it verbatim from templates/shared-blocks/readme-discipline.md in the development repository)
+- **ryll** (Status): legacy filename PUSH-TEMPLATE.md (rename to PUSH-AUDIT.md and update references); missing shared block readme-discipline (copy it verbatim from templates/shared-blocks/readme-discipline.md in the development repository)
+- **shakenfist** (Status): legacy filename PUSH-TEMPLATE.md (rename to PUSH-AUDIT.md and update references); missing shared block readme-discipline (copy it verbatim from templates/shared-blocks/readme-discipline.md in the development repository)
 <!-- consistency-audit:end -->
