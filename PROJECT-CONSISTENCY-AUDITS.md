@@ -564,6 +564,63 @@ framework's built-in safe-path utilities (e.g. Flask's `send_from_directory`).
 When constructing paths manually from user input in any project, always
 validate the result stays within the intended directory.
 
+## Credential handling and leak detection
+
+Every project with CI should run a repository secret scanner on pull
+requests and on pushes to the default branch. `gitleaks` is what we use;
+`trufflehog` and `detect-secrets` are fine equivalents. This is not the
+same thing as the GitHub-hosted secret scanning above: that one knows
+about third-party credential formats and wants GitHub Advanced Security
+before it will learn a custom pattern, while gitleaks runs locally,
+costs nothing, and can be taught our own formats. `ryll`'s
+`.github/workflows/supply-chain.yml` is the working example, and it
+encodes two things worth not rediscovering: `gitleaks-action@v2`
+refuses to run on organization repos without a paid licence, so we
+invoke the binary directly, and gitleaks is only packaged from Debian
+13 onward.
+
+Separately, and not something a scanner can check for us: credentials
+must not be written into logs, audit events, exception messages or
+metrics labels. Those all have a wider audience than the credential
+does, and they usually leave the machine -- Shaken Fist events go to
+syslog *and* Loki, so a token in an event is a token in log
+aggregation. That covers bearer tokens (including ones we just minted
+and ones we were handed), passwords, stored hashes, and revocation
+handles like a token nonce. Log the key name or the account instead,
+which is the part that makes an audit trail useful.
+
+The one people miss is generic request tracing that logs whole HTTP
+request and response bodies. It gets added for debugging long before
+anyone writes a route that carries a credential, and then quietly
+records plaintext keys forever. Redact those by route rather than by
+field name: a field called `key` is a metadata key name on most
+endpoints and a secret on a few, so field matching has to know the
+route anyway, and starts leaking the day somebody adds a route it has
+not heard of.
+
+Where the language offers a wrapper type that renders as asterisks
+instead of its contents, secret fields should use it, so that not
+logging the thing is a property of the type rather than something
+everyone has to remember. In Python that is `pydantic.SecretStr`; in
+Rust it is the `secrecy` crate or a hand-written `Debug`
+implementation, because deriving `Debug` on a struct with a secret
+field is how this bug is spelled there.
+
+Finally, where we generate a credential rather than accepting one the
+user chose, the generated form should carry a short prefix and a
+checksum, the way `ghp_`, `glpat-`, `sk_live_` and `xoxb-` do. The
+prefix makes it greppable in logs and repositories; the checksum lets
+a scanner reject lookalikes without calling an API, which is what
+makes scanning at volume tolerable instead of alert spam. This costs
+nothing cryptographically -- a bearer token is a random identifier
+rather than ciphertext, so a fixed prefix sits beside the random part
+without revealing any of it.
+
+See [audits/secret-handling.md](audits/secret-handling.md) for the full
+criterion. Only the scanner half is checked automatically; the rest are
+review criteria, so a passing check means a scanner is running, not
+that a project keeps credentials out of its logs.
+
 ## GitHub Action
 
 ### Workflow permissions

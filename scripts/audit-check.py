@@ -50,6 +50,7 @@ CHECK_NAMES = {
     'readme-absolute-links': 'README absolute links',
     'readme-structure': 'README structure',
     'push-audit': 'Pre-push audit file',
+    'secret-scanning-ci': 'Secret scanning in CI',
 }
 
 
@@ -1728,6 +1729,83 @@ def check_push_audit(repo_path, props, blocks_dir=None):
     }
 
 
+# Scanners we accept, by the name they are invoked under. gitleaks
+# is the reference implementation; the others are equivalent enough
+# that requiring a specific one would be churn for no gain.
+SECRET_SCANNERS = ['gitleaks', 'trufflehog', 'detect-secrets']
+
+
+def check_secret_scanning_ci(repo_path, props):
+    """Check a repository secret scanner runs in CI.
+
+    Any of the scanners in SECRET_SCANNERS, invoked from any
+    workflow, satisfies this. We deliberately do not check how it
+    is invoked or on which triggers -- a scanner running at all is
+    the step change, and pinning the invocation would make the
+    check brittle against reasonable variation.
+
+    Note this covers only the scanner. The credential handling
+    patterns in audits/secret-handling.md are review criteria; a
+    pass here does not mean a project keeps credentials out of its
+    logs.
+    """
+    if props['is_docs_only']:
+        return {
+            'id': 'secret-scanning-ci',
+            'status': 'not_applicable',
+            'details': 'Documentation-only repository',
+        }
+
+    if not props['has_workflows_dir']:
+        return {
+            'id': 'secret-scanning-ci',
+            'status': 'not_applicable',
+            'details': 'No .github/workflows/ directory',
+        }
+
+    workflows = list_workflow_files(repo_path)
+    if not workflows:
+        return {
+            'id': 'secret-scanning-ci',
+            'status': 'not_applicable',
+            'details': 'No workflow files found',
+        }
+
+    for workflow in workflows:
+        path = os.path.join(repo_path, '.github', 'workflows', workflow)
+        try:
+            with open(path, 'r', errors='replace') as f:
+                content = f.read()
+        except OSError:
+            continue
+
+        # Full-line comments do not count. Workflows routinely mention
+        # a scanner in a header comment explaining that some other
+        # workflow runs it, and matching those would report a project
+        # as compliant for describing the thing it does not do.
+        content = '\n'.join(
+            line for line in content.splitlines()
+            if not line.lstrip().startswith('#')
+        )
+
+        for scanner in SECRET_SCANNERS:
+            if scanner in content:
+                return {
+                    'id': 'secret-scanning-ci',
+                    'status': 'pass',
+                    'details': f'{scanner} runs in {workflow}',
+                }
+
+    return {
+        'id': 'secret-scanning-ci',
+        'status': 'fail',
+        'details': (
+            f'No secret scanner in CI; expected one of '
+            f'{", ".join(SECRET_SCANNERS)} in a workflow'
+        ),
+    }
+
+
 def run_all_checks(repo_path, repo_name, org):
     """Run all checks and return results."""
     props = detect_repo_properties(repo_path, repo_name)
@@ -1755,6 +1833,7 @@ def run_all_checks(repo_path, repo_name, org):
         check_readme_absolute_links(repo_path, props),
         check_readme_structure(repo_path, props),
         check_push_audit(repo_path, props),
+        check_secret_scanning_ci(repo_path, props),
     ]
 
     summary = {

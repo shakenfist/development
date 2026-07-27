@@ -90,3 +90,4 @@ See `PROJECT-CONSISTENCY-AUDITS.md` for the list of excluded projects
 | [readme-structure.md](readme-structure.md) | Top-level README.md is a pitch, detail lives in docs/ |
 | [push-audit.md](push-audit.md) | PUSH-AUDIT.md naming and versioned shared blocks |
 | [test-coverage.md](test-coverage.md) | Unit and functional test coverage |
+| [secret-handling.md](secret-handling.md) | Secret scanner in CI, credentials kept out of logs |
