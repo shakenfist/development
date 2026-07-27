@@ -99,6 +99,10 @@ AUDIT_METADATA = {
         'spec': 'audits/push-audit.md',
         'template': 'templates/shared-blocks/',
     },
+    'secret-scanning-ci': {
+        'spec': 'audits/secret-handling.md',
+        'template': None,
+    },
 }
 
 # Map from check ID to issue title suffix. Must match existing
@@ -126,6 +130,7 @@ ISSUE_TITLES = {
     'readme-absolute-links': 'README absolute links',
     'readme-structure': 'README structure',
     'push-audit': 'Pre-push audit file',
+    'secret-scanning-ci': 'Secret scanning in CI',
 }
 
 
