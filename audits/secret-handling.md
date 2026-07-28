@@ -136,6 +136,37 @@ rest are code-level patterns.
 ## Projects
 
 <!-- consistency-audit:begin -->
-*(Awaiting the first automated regeneration by the consistency
-audit workflow.)*
+*This table is regenerated daily by the consistency audit
+workflow from `scripts/audit-check.py` results; do not edit
+it by hand.*
+
+Last regenerated: 2026-07-28T08:37:11.500643+00:00
+
+| Project | Status | Issue |
+|---------|--------|--------|
+| agent-python | non-compliant | shakenfist/agent-python#113 |
+| client-python | non-compliant | shakenfist/client-python#354 |
+| clingwrap | non-compliant | shakenfist/clingwrap#111 |
+| cloudgood | N/A | - |
+| divergulent | non-compliant | shakenfist/divergulent#57 |
+| instar | non-compliant | shakenfist/instar#464 |
+| kerbside | non-compliant | shakenfist/kerbside#185 |
+| kerbside-patches | non-compliant | shakenfist/kerbside-patches#1504 |
+| library-utilities | non-compliant | shakenfist/library-utilities#41 |
+| occystrap | non-compliant | shakenfist/occystrap#101 |
+| ryll | compliant | - |
+| shakenfist | non-compliant | shakenfist/shakenfist#3546 |
+
+Details for non-compliant projects:
+
+- **agent-python** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
+- **client-python** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
+- **clingwrap** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
+- **divergulent** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
+- **instar** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
+- **kerbside** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
+- **kerbside-patches** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
+- **library-utilities** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
+- **occystrap** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
+- **shakenfist** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
 <!-- consistency-audit:end -->
