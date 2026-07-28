@@ -332,6 +332,9 @@ jobs:
 
       # {{INSTALL_DEPENDENCIES}}
       # Add project-specific dependency installation steps here.
+      # NOTE: the claude-code runners have no passwordless sudo, so
+      # "sudo apt-get install" will fail. System packages belong in
+      # the runner image (mach33labs/33fl), not in this workflow.
       # For Python projects this typically looks like:
       #
       # - name: Install dependencies
