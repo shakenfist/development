@@ -53,6 +53,12 @@ optionally naming a specific issue.
 - **Output is always a draft PR** (or an issue comment). The
   workflow has no path to merging code; a human reviews and merges
   every proposed fix.
+- **The draft PR does not start CI by itself.** GitHub deliberately
+  does not run workflows on pull requests created with the default
+  workflow token (this prevents recursive triggering). The human
+  reviewer needs to nudge the PR -- push to it, or close and reopen
+  it -- to run the full CI suite. Switching to a PAT or GitHub App
+  token would remove this friction if it becomes annoying.
 
 ## Conductor integration
 
