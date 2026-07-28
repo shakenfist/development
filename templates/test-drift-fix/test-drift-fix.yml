@@ -24,6 +24,11 @@
 #
 # See: https://securitylab.github.com/research/github-actions-preventing-pwn-requests/
 #
+# - Scratch files (prompts, logs, captured output) live in
+#   runner.temp, never the workspace: the workspace is the repo
+#   checkout, and anything written there is swept into the commit by
+#   "git add -A" and counted against the size cap.
+#
 # Template source: shakenfist/development/templates/ci-review-automation/
 #
 # CUSTOMISATION REQUIRED:
@@ -126,7 +131,7 @@ jobs:
           #   . ~/project-venv/bin/activate && tox -epy3
           set +e
           echo "REPLACE_ME: add test command" \
-            2>&1 | tee ${{ github.workspace }}/test-output.txt
+            2>&1 | tee ${{ runner.temp }}/test-output.txt
           test_exit_code=${PIPESTATUS[0]}
           set -e
 
@@ -160,7 +165,7 @@ jobs:
           # - Reference to AGENTS.md and ARCHITECTURE.md
           # - Project-specific test commands
           # - The COMMIT_SUMMARY format (keep as-is)
-          cat > ${{ github.workspace }}/claude-prompt.txt << 'PROMPT_EOF'
+          cat > ${{ runner.temp }}/claude-prompt.txt << 'PROMPT_EOF'
           The test suite has failures. Please analyze and fix them.
 
           ## Context
@@ -171,10 +176,10 @@ jobs:
 
           PROMPT_EOF
 
-          cat ${{ github.workspace }}/test-output.txt \
-            >> ${{ github.workspace }}/claude-prompt.txt
+          cat ${{ runner.temp }}/test-output.txt \
+            >> ${{ runner.temp }}/claude-prompt.txt
 
-          cat >> ${{ github.workspace }}/claude-prompt.txt << 'PROMPT_EOF'
+          cat >> ${{ runner.temp }}/claude-prompt.txt << 'PROMPT_EOF'
 
           ## Your Task
 
@@ -206,7 +211,7 @@ jobs:
           PROMPT_EOF
 
           echo "Prompt prepared:"
-          cat ${{ github.workspace }}/claude-prompt.txt
+          cat ${{ runner.temp }}/claude-prompt.txt
 
       - name: Run Claude Code to fix issues
         id: claude_fix
@@ -223,48 +228,48 @@ jobs:
 
           start_time=$(date +%s)
 
-          claude -p "$(cat ${{ github.workspace }}/claude-prompt.txt)" \
+          claude -p "$(cat ${{ runner.temp }}/claude-prompt.txt)" \
             --dangerously-skip-permissions \
             --max-turns ${{ inputs.max_turns || '50' }} \
             --output-format text \
-            2>&1 | tee ${{ github.workspace }}/claude-output.txt \
+            2>&1 | tee ${{ runner.temp }}/claude-output.txt \
             || true
 
-          mkdir -p ${{ github.workspace }}/claude-logs
+          mkdir -p ${{ runner.temp }}/claude-logs
           find ~/.claude/projects -name "*.jsonl" \
             -newermt "@${start_time}" \
-            -exec cp {} ${{ github.workspace }}/claude-logs/ \; \
+            -exec cp {} ${{ runner.temp }}/claude-logs/ \; \
             2>/dev/null || true
 
           echo "=== Git Status ===" \
-            > ${{ github.workspace }}/claude-changes.txt
+            > ${{ runner.temp }}/claude-changes.txt
           git status \
-            >> ${{ github.workspace }}/claude-changes.txt 2>&1
-          echo "" >> ${{ github.workspace }}/claude-changes.txt
+            >> ${{ runner.temp }}/claude-changes.txt 2>&1
+          echo "" >> ${{ runner.temp }}/claude-changes.txt
           echo "=== Staged Changes ===" \
-            >> ${{ github.workspace }}/claude-changes.txt
+            >> ${{ runner.temp }}/claude-changes.txt
           git diff --cached \
-            >> ${{ github.workspace }}/claude-changes.txt 2>&1
+            >> ${{ runner.temp }}/claude-changes.txt 2>&1
 
       - name: Extract commit summary
         id: extract_summary
         if: steps.claude_fix.outputs.claude_available == 'true'
         run: |
           if grep -q "COMMIT_SUMMARY_START" \
-              ${{ github.workspace }}/claude-output.txt
+              ${{ runner.temp }}/claude-output.txt
           then
             sed -n '/COMMIT_SUMMARY_START/,/COMMIT_SUMMARY_END/p' \
-              ${{ github.workspace }}/claude-output.txt | \
+              ${{ runner.temp }}/claude-output.txt | \
               grep -v "COMMIT_SUMMARY_START" | \
               grep -v "COMMIT_SUMMARY_END" | \
               sed 's/^```$//' | \
               sed '/^$/N;/^\n$/d' \
-              > ${{ github.workspace }}/commit-summary.txt
+              > ${{ runner.temp }}/commit-summary.txt
 
-            if [ -s ${{ github.workspace }}/commit-summary.txt ]; then
+            if [ -s ${{ runner.temp }}/commit-summary.txt ]; then
               echo "summary_found=true" >> $GITHUB_OUTPUT
               echo "Extracted commit summary:"
-              cat ${{ github.workspace }}/commit-summary.txt
+              cat ${{ runner.temp }}/commit-summary.txt
             else
               echo "summary_found=false" >> $GITHUB_OUTPUT
             fi
@@ -281,7 +286,7 @@ jobs:
           # Same test command as the initial test step
           set +e
           echo "REPLACE_ME: add test command" \
-            2>&1 | tee ${{ github.workspace }}/verify-output.txt
+            2>&1 | tee ${{ runner.temp }}/verify-output.txt
           verify_exit_code=${PIPESTATUS[0]}
           set -e
 
@@ -302,9 +307,9 @@ jobs:
             git add -A
 
             if [ "${{ steps.extract_summary.outputs.summary_found }}" == "true" ] && \
-               [ -s ${{ github.workspace }}/commit-summary.txt ]; then
+               [ -s ${{ runner.temp }}/commit-summary.txt ]; then
               {
-                cat ${{ github.workspace }}/commit-summary.txt
+                cat ${{ runner.temp }}/commit-summary.txt
                 echo ""
                 if [ "${IS_PR_RUN}" == "true" ]; then
                   echo "Triggered-By: @shakenfist-bot please attempt to fix on PR #${PR_NUMBER}"
@@ -313,9 +318,9 @@ jobs:
                 echo "Signed-off-by: Michael Still <mikal@stillhq.com>"
                 echo "Assisted-By: Claude Code"
                 echo "Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
-              } > ${{ github.workspace }}/commit-message.txt
+              } > ${{ runner.temp }}/commit-message.txt
 
-              git commit -F ${{ github.workspace }}/commit-message.txt
+              git commit -F ${{ runner.temp }}/commit-message.txt
             else
               if [ "${IS_PR_RUN}" == "true" ]; then
                 git commit -m "$(cat <<EOF
@@ -372,12 +377,12 @@ jobs:
           sleep 5
 
           if [ "${{ steps.extract_summary.outputs.summary_found }}" == "true" ] && \
-             [ -s ${{ github.workspace }}/commit-summary.txt ]; then
+             [ -s ${{ runner.temp }}/commit-summary.txt ]; then
             PR_TITLE=$(head -1 \
-              ${{ github.workspace }}/commit-summary.txt | \
+              ${{ runner.temp }}/commit-summary.txt | \
               sed 's/\.$//')
             COMMIT_BODY=$(tail -n +3 \
-              ${{ github.workspace }}/commit-summary.txt)
+              ${{ runner.temp }}/commit-summary.txt)
           else
             PR_TITLE="Fix test suite drift (${DATESTAMP})"
             COMMIT_BODY="Claude Code automatically fixed test failures."
@@ -416,7 +421,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TEST_OUTPUT=$(tail -c 2000 \
-            ${{ github.workspace }}/test-output.txt \
+            ${{ runner.temp }}/test-output.txt \
             2>/dev/null || echo "See workflow logs for details.")
 
           gh pr comment ${PR_NUMBER} \
@@ -436,12 +441,12 @@ jobs:
         with:
           name: ${{ inputs.pr_number != '' && format('pr-fix-logs-{0}', inputs.pr_number) || format('test-drift-fix-logs-{0}', github.run_id) }}
           path: |
-            ${{ github.workspace }}/test-output.txt
-            ${{ github.workspace }}/verify-output.txt
-            ${{ github.workspace }}/claude-output.txt
-            ${{ github.workspace }}/claude-prompt.txt
-            ${{ github.workspace }}/claude-changes.txt
-            ${{ github.workspace }}/commit-summary.txt
-            ${{ github.workspace }}/commit-message.txt
-            ${{ github.workspace }}/claude-logs/
+            ${{ runner.temp }}/test-output.txt
+            ${{ runner.temp }}/verify-output.txt
+            ${{ runner.temp }}/claude-output.txt
+            ${{ runner.temp }}/claude-prompt.txt
+            ${{ runner.temp }}/claude-changes.txt
+            ${{ runner.temp }}/commit-summary.txt
+            ${{ runner.temp }}/commit-message.txt
+            ${{ runner.temp }}/claude-logs/
           retention-days: 14
