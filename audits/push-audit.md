@@ -67,7 +67,7 @@ contradicts.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-28T08:37:11.500643+00:00
+Last regenerated: 2026-07-29T08:43:42.897373+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -75,7 +75,7 @@ Last regenerated: 2026-07-28T08:37:11.500643+00:00
 | client-python | N/A | - |
 | clingwrap | N/A | - |
 | cloudgood | N/A | - |
-| divergulent | non-compliant | shakenfist/divergulent#54 |
+| divergulent | compliant | - |
 | instar | non-compliant | shakenfist/instar#463 |
 | kerbside | compliant | - |
 | kerbside-patches | N/A | - |
@@ -86,7 +86,6 @@ Last regenerated: 2026-07-28T08:37:11.500643+00:00
 
 Details for non-compliant projects:
 
-- **divergulent** (Status): legacy filename PUSH-TEMPLATE.md (rename to PUSH-AUDIT.md and update references); missing shared block readme-discipline (copy it verbatim from templates/shared-blocks/readme-discipline.md in the development repository)
 - **instar** (Status): legacy filename PUSH-TEMPLATE.md (rename to PUSH-AUDIT.md and update references); missing shared block readme-discipline (copy it verbatim from templates/shared-blocks/readme-discipline.md in the development repository)
 - **occystrap** (Status): legacy filename PUSH-TEMPLATE.md (rename to PUSH-AUDIT.md and update references); missing shared block readme-discipline (copy it verbatim from templates/shared-blocks/readme-discipline.md in the development repository)
 <!-- consistency-audit:end -->

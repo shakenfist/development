@@ -132,7 +132,7 @@ of correctly structured workflows.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-28T08:37:11.500643+00:00
+Last regenerated: 2026-07-29T08:43:42.897373+00:00
 
 | Project | Permissions | Linting | flake8wrap | Runners | Static tags | devpi fallback | devpi IP | Issue |
 |---------|--------|--------|--------|--------|--------|--------|--------|--------|
@@ -158,5 +158,5 @@ Details for non-compliant projects:
 - **ryll** (Runners): 2 unmarked GitHub-hosted runner reference(s): release.yml:274 (ubuntu-24.04-arm), release.yml:300 (ubuntu-latest). Move to a self-hosted runner, or mark deliberate exceptions with an "audit-ok: github-hosted-runner" comment
 - **shakenfist** (flake8wrap): Missing shellcheck disable=SC2086 directive
 - **shakenfist** (Runners): 4 unmarked GitHub-hosted runner reference(s): functional-tests.yml:333 (ubuntu-2404), functional-tests.yml:334 (ubuntu-2404), scheduled-tests.yml:58 (ubuntu-2404), scheduled-tests.yml:59 (ubuntu-2404). Move to a self-hosted runner, or mark deliberate exceptions with an "audit-ok: github-hosted-runner" comment
-- **shakenfist** (devpi fallback): 10 devpi-backed env block(s) missing a PIP_EXTRA_INDEX_URL pypi fallback: code-formatting.yml:27, codeql-analysis.yml:20, docs-tests.yml:19, functional-tests.yml:26, issue-fix.yml:86, pin-indirect-dependencies.yml:29, publish-website.yml:17, release.yml:26, scheduled-tests.yml:24, test-drift-fix.yml:69. Add "PIP_EXTRA_INDEX_URL: https://pypi.org/simple/" alongside PIP_INDEX_URL so a devpi cold-cache miss (empty index for a first-touch package) falls back to pypi instead of failing with "from versions: none"
+- **shakenfist** (devpi fallback): 10 devpi-backed env block(s) missing a PIP_EXTRA_INDEX_URL pypi fallback: code-formatting.yml:27, codeql-analysis.yml:20, docs-tests.yml:19, functional-tests.yml:26, issue-fix.yml:90, pin-indirect-dependencies.yml:29, publish-website.yml:17, release.yml:26, scheduled-tests.yml:24, test-drift-fix.yml:74. Add "PIP_EXTRA_INDEX_URL: https://pypi.org/simple/" alongside PIP_INDEX_URL so a devpi cold-cache miss (empty index for a first-touch package) falls back to pypi instead of failing with "from versions: none"
 <!-- consistency-audit:end -->
