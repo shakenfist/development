@@ -78,6 +78,13 @@ fi
 Completion can be watched with
 `gh run list --workflow=issue-fix.yml`.
 
+The Shaken Fist deployment of this trigger lives in the private-ci
+conductor (`conductor/bugfixer.py`): it dispatches when the sfcbr
+cluster has been continuously idle for five minutes, rate limited
+to one dispatch an hour and five per trailing day (durable across
+conductor restarts), and skips dispatch while an `automated-fix`
+PR is open or a fixer run is already in flight.
+
 ## Customisation required
 
 Search for `{{PLACEHOLDER}}` markers and comments explaining what
