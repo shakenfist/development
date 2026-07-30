@@ -47,6 +47,10 @@ AUDIT_METADATA = {
         'spec': 'audits/github-security.md',
         'template': 'templates/codeql/',
     },
+    'delete-branch-on-merge': {
+        'spec': 'audits/delete-branch-on-merge.md',
+        'template': None,
+    },
     'workflow-permissions': {
         'spec': 'audits/workflow-standards.md',
         'template': None,
@@ -117,6 +121,7 @@ ISSUE_TITLES = {
     'export-repo-config': 'Export repo config',
     'default-branch-naming': 'Default branch naming',
     'github-security': 'GitHub security settings',
+    'delete-branch-on-merge': 'Delete branch on merge',
     'workflow-permissions': 'Workflow standards',
     'pre-commit-config': 'Workflow standards (linting)',
     'flake8wrap': 'Workflow standards (flake8wrap)',

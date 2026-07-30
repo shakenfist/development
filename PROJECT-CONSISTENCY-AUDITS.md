@@ -478,8 +478,11 @@ Additionally, these repository settings are recommended:
 
 | Setting | Recommended | Notes |
 |---------|-------------|-------|
-| Delete branch on merge | Enabled | Keeps repo clean |
 | Allow auto-merge | Enabled | Useful with required checks |
+
+(Delete branch on merge used to be listed here as recommended; it is
+now a required setting with its own audit -- see "Delete branch on
+merge" below.)
 
 ### Current security state (2026-02-08)
 
@@ -491,6 +494,19 @@ Additionally, these repository settings are recommended:
 | kerbside | Disabled | Disabled | Enable both |
 | client-python | Enabled | Disabled | Enable secret scanning |
 | agent-python | Disabled | Disabled | Enable both |
+
+## Delete branch on merge
+
+**Standard:** All active repositories should have "Automatically
+delete head branches" enabled (Settings > General > Pull Requests),
+so that a pull request's source branch is deleted automatically when
+the PR merges. This keeps repositories free of stale merged branches.
+
+To enable via the CLI:
+
+```bash
+gh api -X PATCH repos/shakenfist/<repo> -F delete_branch_on_merge=true
+```
 
 ## GitHub CodeQL advanced security
 

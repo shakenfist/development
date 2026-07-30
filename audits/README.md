@@ -79,6 +79,7 @@ See `PROJECT-CONSISTENCY-AUDITS.md` for the list of excluded projects
 | [export-repo-config.md](export-repo-config.md) | Repo configuration export |
 | [default-branch-naming.md](default-branch-naming.md) | Default branch conventions |
 | [github-security.md](github-security.md) | Dependabot, secret scanning, CodeQL |
+| [delete-branch-on-merge.md](delete-branch-on-merge.md) | Branches are deleted automatically when a PR merges |
 | [security-sanitization.md](security-sanitization.md) | HTTP header and file path sanitization |
 | [workflow-standards.md](workflow-standards.md) | Permissions, naming, self-hosted runners, static runner tags, devpi cache fallback, devpi cache address, linting, PIPESTATUS, flake8wrap |
 | [console-logging.md](console-logging.md) | Console script logging setup |

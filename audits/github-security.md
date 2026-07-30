@@ -17,8 +17,11 @@ Additionally recommended:
 
 | Setting | Recommended |
 |---------|-------------|
-| Delete branch on merge | Enabled |
 | Allow auto-merge | Enabled |
+
+Delete branch on merge is required rather than recommended, and is
+checked by its own audit: see
+[delete-branch-on-merge.md](delete-branch-on-merge.md).
 
 ### GitHub CodeQL
 

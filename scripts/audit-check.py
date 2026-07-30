@@ -37,6 +37,7 @@ CHECK_NAMES = {
     'export-repo-config': 'Export repo config',
     'default-branch-naming': 'Default branch naming',
     'github-security': 'GitHub security settings',
+    'delete-branch-on-merge': 'Delete branch on merge',
     'workflow-permissions': 'Workflow standards',
     'pre-commit-config': 'Workflow standards',
     'flake8wrap': 'Workflow standards (flake8wrap)',
@@ -602,6 +603,59 @@ def check_github_security(repo_path, props, repo_name, org):
         'status': 'pass',
         'details': 'Security settings and CodeQL are compliant',
     }
+
+
+def check_delete_branch_on_merge(repo_path, props, repo_name, org):
+    """Check head branches are deleted automatically when a PR merges."""
+    try:
+        result = subprocess.run(
+            [
+                'gh', 'api',
+                f'repos/{org}/{repo_name}',
+                '--jq', '.delete_branch_on_merge',
+            ],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            return {
+                'id': 'delete-branch-on-merge',
+                'status': 'fail',
+                'details': (
+                    f'Could not query GitHub API: '
+                    f'{result.stderr.strip()}'
+                ),
+            }
+        setting = result.stdout.strip()
+
+        if setting == 'true':
+            return {
+                'id': 'delete-branch-on-merge',
+                'status': 'pass',
+                'details': 'Delete branch on merge is enabled',
+            }
+        if setting == 'false':
+            return {
+                'id': 'delete-branch-on-merge',
+                'status': 'fail',
+                'details': 'Delete branch on merge is not enabled',
+            }
+        # The API omits this field (returns null) when the token
+        # lacks push access to the repository.
+        return {
+            'id': 'delete-branch-on-merge',
+            'status': 'fail',
+            'details': (
+                f'Could not determine delete branch on merge setting '
+                f'(API returned "{setting or "null"}"; the token may '
+                f'lack push access)'
+            ),
+        }
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        return {
+            'id': 'delete-branch-on-merge',
+            'status': 'fail',
+            'details': f'Error checking delete branch on merge: {e}',
+        }
 
 
 def check_workflow_permissions(repo_path, props):
@@ -1820,6 +1874,7 @@ def run_all_checks(repo_path, repo_name, org):
         check_export_repo_config(repo_path, props),
         check_default_branch(repo_path, props, repo_name, org),
         check_github_security(repo_path, props, repo_name, org),
+        check_delete_branch_on_merge(repo_path, props, repo_name, org),
         check_workflow_permissions(repo_path, props),
         check_pre_commit_config(repo_path, props),
         check_flake8wrap(repo_path, props),
