@@ -45,7 +45,7 @@ For links to other files in the same repository, use
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-30T08:29:44.045321+00:00
+Last regenerated: 2026-07-31T08:52:23.944956+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -58,7 +58,7 @@ Last regenerated: 2026-07-30T08:29:44.045321+00:00
 | kerbside | compliant | - |
 | kerbside-patches | compliant | - |
 | library-utilities | non-compliant | shakenfist/library-utilities#40 |
-| occystrap | non-compliant | shakenfist/occystrap#96 |
+| occystrap | compliant | - |
 | ryll | compliant | - |
 | shakenfist | compliant | - |
 
@@ -68,5 +68,4 @@ Details for non-compliant projects:
 - **client-python** (Status): 3 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): AGENTS.md, ARCHITECTURE.md, RELEASE-SETUP.md
 - **clingwrap** (Status): 5 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): AGENTS.md, ARCHITECTURE.md, RELEASE-SETUP.md, docs/, docs/index.md
 - **library-utilities** (Status): 1 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): docs/log-record-fields.md
-- **occystrap** (Status): 8 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): RELEASE-SETUP.md, docs/, docs/command-reference.md, docs/docker-tarball-formats.md, docs/installation.md, docs/performance.md, docs/pipeline.md, docs/use-cases.md
 <!-- consistency-audit:end -->

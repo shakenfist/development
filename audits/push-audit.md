@@ -67,7 +67,7 @@ contradicts.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-30T08:29:44.045321+00:00
+Last regenerated: 2026-07-31T08:52:23.944956+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -76,16 +76,11 @@ Last regenerated: 2026-07-30T08:29:44.045321+00:00
 | clingwrap | N/A | - |
 | cloudgood | N/A | - |
 | divergulent | compliant | - |
-| instar | non-compliant | shakenfist/instar#463 |
+| instar | compliant | - |
 | kerbside | compliant | - |
 | kerbside-patches | N/A | - |
 | library-utilities | N/A | - |
-| occystrap | non-compliant | shakenfist/occystrap#100 |
+| occystrap | compliant | - |
 | ryll | compliant | - |
 | shakenfist | compliant | - |
-
-Details for non-compliant projects:
-
-- **instar** (Status): legacy filename PUSH-TEMPLATE.md (rename to PUSH-AUDIT.md and update references); missing shared block readme-discipline (copy it verbatim from templates/shared-blocks/readme-discipline.md in the development repository)
-- **occystrap** (Status): legacy filename PUSH-TEMPLATE.md (rename to PUSH-AUDIT.md and update references); missing shared block readme-discipline (copy it verbatim from templates/shared-blocks/readme-discipline.md in the development repository)
 <!-- consistency-audit:end -->

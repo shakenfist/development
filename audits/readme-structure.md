@@ -45,7 +45,7 @@ detail survives somewhere before trimming the README.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-07-30T08:29:44.045321+00:00
+Last regenerated: 2026-07-31T08:52:23.944956+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -54,18 +54,15 @@ Last regenerated: 2026-07-30T08:29:44.045321+00:00
 | clingwrap | compliant | - |
 | cloudgood | N/A | - |
 | divergulent | compliant | - |
-| instar | non-compliant | shakenfist/instar#462 |
+| instar | compliant | - |
 | kerbside | compliant | - |
-| kerbside-patches | non-compliant | shakenfist/kerbside-patches#1500 |
+| kerbside-patches | compliant | - |
 | library-utilities | compliant | - |
-| occystrap | non-compliant | shakenfist/occystrap#99 |
+| occystrap | compliant | - |
 | ryll | compliant | - |
 | shakenfist | compliant | - |
 
 Details for non-compliant projects:
 
 - **client-python** (Status): README.md has no link into docs/ despite a docs/ directory existing; add curated links to the detailed documentation
-- **instar** (Status): README.md is 1001 lines / 5225 words (limits: 150 lines, 1200 words); move detail into docs/, ARCHITECTURE.md, or AGENTS.md and keep the README a pitch
-- **kerbside-patches** (Status): README.md is 423 lines / 2941 words (limits: 150 lines, 1200 words); move detail into docs/, ARCHITECTURE.md, or AGENTS.md and keep the README a pitch; README.md has no link into docs/ despite a docs/ directory existing; add curated links to the detailed documentation
-- **occystrap** (Status): README.md is 820 lines / 3177 words (limits: 150 lines, 1200 words); move detail into docs/, ARCHITECTURE.md, or AGENTS.md and keep the README a pitch
 <!-- consistency-audit:end -->

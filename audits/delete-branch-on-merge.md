@@ -27,6 +27,24 @@ Or in the GitHub UI: Settings > General > Pull Requests > check
 ## Projects
 
 <!-- consistency-audit:begin -->
-*(Awaiting the first automated regeneration by the consistency
-audit workflow.)*
+*This table is regenerated daily by the consistency audit
+workflow from `scripts/audit-check.py` results; do not edit
+it by hand.*
+
+Last regenerated: 2026-07-31T08:52:23.944956+00:00
+
+| Project | Status | Issue |
+|---------|--------|--------|
+| agent-python | compliant | - |
+| client-python | compliant | - |
+| clingwrap | compliant | - |
+| cloudgood | compliant | - |
+| divergulent | compliant | - |
+| instar | compliant | - |
+| kerbside | compliant | - |
+| kerbside-patches | compliant | - |
+| library-utilities | compliant | - |
+| occystrap | compliant | - |
+| ryll | compliant | - |
+| shakenfist | compliant | - |
 <!-- consistency-audit:end -->
