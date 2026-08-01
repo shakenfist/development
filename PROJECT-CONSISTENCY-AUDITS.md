@@ -930,6 +930,19 @@ or via an API. This is still a journey for `shakenfist`, but for the
 smaller projects we should be there now and any gap is a bug to be
 closed.
 
+## Human review coverage
+
+Repositories that have adopted the whole-file human review tracking
+system (see [docs/code-review-tracking.md](docs/code-review-tracking.md),
+detected by the presence of `.vscode/review-scope.toml`; currently only
+ryll) should keep the review backlog small: fewer than 5 in-scope files
+needing review, where a file needs review if it has never been reviewed
+or has changed since its last review. The backlog is recomputed against
+HEAD by `scripts/review-tracking.py status` rather than trusted from the
+committed `REVIEWS.md`, so a missed prune cannot inflate coverage. See
+[audits/review-coverage.md](audits/review-coverage.md) for the full
+criterion.
+
 ## Pride in our work
 
 Finally, we should be proud of our shared work. A regular holistic review

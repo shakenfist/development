@@ -6,7 +6,10 @@ Run with: python3 scripts/test_audit_check.py
 """
 
 import importlib.util
+import json
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -299,6 +302,101 @@ class PushAuditTest(unittest.TestCase):
         })
         self.assertEqual(result['status'], 'fail')
         self.assertIn('legacy filename', result['details'])
+
+
+class ReviewCoverageTest(unittest.TestCase):
+    """Tests check_review_coverage against fixture git repositories.
+
+    The check shells out to review-tracking.py status, which needs a
+    real repository: committed files so blob SHAs resolve, weAudit
+    state, and a stamped sidecar.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = self.tmp.name
+        self.git('init', '-b', 'main')
+        self.git('config', 'user.email', 'test@example.com')
+        self.git('config', 'user.name', 'Test User')
+        self.git('config', 'commit.gpgsign', 'false')
+        os.mkdir(os.path.join(self.repo, '.vscode'))
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def git(self, *args):
+        return subprocess.run(['git'] + list(args), cwd=self.repo, check=True,
+                              capture_output=True, text=True)
+
+    def write(self, path, content):
+        with open(os.path.join(self.repo, path), 'w') as f:
+            f.write(content)
+
+    def review_tracking(self, *args):
+        script = os.path.join(os.path.dirname(SCRIPT), 'review-tracking.py')
+        return subprocess.run([sys.executable, script] + list(args),
+                              cwd=self.repo, capture_output=True, text=True)
+
+    def make_reviewed_repo(self, files, reviewed):
+        """Create and commit files, mark some reviewed, stamp, commit."""
+        self.write('.vscode/review-scope.toml', 'include = ["*.py"]\n')
+        for path in files:
+            self.write(path, f'# {path}\n')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'initial')
+        if reviewed:
+            self.write('.vscode/testuser.weaudit', json.dumps({
+                'auditedFiles': [{'path': p, 'author': 'testuser'} for p in reviewed],
+                'partiallyAuditedFiles': [],
+            }))
+            self.review_tracking('stamp')
+            self.git('add', '-A')
+            self.git('commit', '-m', 'reviews')
+
+    def make_stale(self, files):
+        for path in files:
+            self.write(path, f'# {path} changed\n')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'changes')
+
+    def check(self):
+        return audit_check.check_review_coverage(self.repo, {})
+
+    def test_not_applicable_without_scope_config(self):
+        self.write('a.py', 'a = 1\n')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'initial')
+        result = self.check()
+        self.assertEqual(result['status'], 'not_applicable')
+        self.assertIn('review-scope.toml', result['details'])
+
+    def test_backlog_under_threshold_passes(self):
+        files = [f'f{i}.py' for i in range(6)]
+        self.make_reviewed_repo(files, reviewed=files)
+        self.make_stale(files[:4])
+        result = self.check()
+        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assertIn('4 need review (threshold 5)', result['details'])
+        self.assertNotIn('missing', result)
+
+    def test_backlog_at_threshold_fails_with_work_queue(self):
+        files = [f'f{i}.py' for i in range(6)]
+        self.make_reviewed_repo(files, reviewed=files)
+        self.make_stale(files[:5])
+        result = self.check()
+        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assertIn('5 need review (threshold 5)', result['details'])
+        self.assertEqual(result['missing'],
+                         [f'stale: f{i}.py' for i in range(5)])
+
+    def test_never_reviewed_files_count(self):
+        files = [f'f{i}.py' for i in range(5)]
+        self.make_reviewed_repo(files, reviewed=[])
+        result = self.check()
+        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assertIn('0 of 5 in-scope files reviewed', result['details'])
+        self.assertEqual(result['missing'],
+                         [f'never reviewed: f{i}.py' for i in range(5)])
 
 
 class CanonicalSharedBlocksTest(unittest.TestCase):
