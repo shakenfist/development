@@ -241,6 +241,72 @@ class ReviewTrackingTest(unittest.TestCase):
         self.assertIn('already up to date', p.stdout)
         self.assertEqual(first, self.read('REVIEWS.md'))
 
+    def test_status_categorises_files(self):
+        # src/a.py reviewed and unchanged, src/b.py reviewed then
+        # changed (stale), src/c.py added later (never reviewed), and
+        # src/gen_pb2.py excluded by the scope config throughout.
+        self.mark_reviewed(['src/a.py', 'src/b.py'])
+        self.run_tool('stamp')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'reviews')
+        self.write('src/b.py', 'b = 3\n')
+        self.write('src/c.py', 'c = 1\n')
+        self.git('add', 'src/b.py', 'src/c.py')
+        self.git('commit', '-m', 'change b, add c')
+
+        p = self.run_tool('status', '--json')
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(json.loads(p.stdout), {
+            'in_scope': 3,
+            'reviewed': 1,
+            'needing_review': 2,
+            'stale': ['src/b.py'],
+            'never_reviewed': ['src/c.py'],
+        })
+
+    def test_status_unstamped_mark_needs_review(self):
+        # A mark with no stamp cannot be verified against any content,
+        # so it is conservatively treated as needing review.
+        self.mark_reviewed(['src/a.py'])
+        self.git('commit', '-m', 'marks', '-a')
+        p = self.run_tool('status', '--json')
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        status = json.loads(p.stdout)
+        self.assertEqual(status['reviewed'], 0)
+        self.assertEqual(status['stale'], ['src/a.py'])
+        self.assertEqual(status['never_reviewed'], ['src/b.py'])
+
+    def test_status_partial_marks_do_not_count(self):
+        self.mark_reviewed([], partial=[('src/a.py', 1, 1)])
+        self.run_tool('stamp')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'partial')
+        p = self.run_tool('status', '--json')
+        status = json.loads(p.stdout)
+        self.assertEqual(status['reviewed'], 0)
+        self.assertEqual(status['never_reviewed'], ['src/a.py', 'src/b.py'])
+
+    def test_status_mutates_nothing(self):
+        self.mark_reviewed(['src/a.py'])
+        self.run_tool('stamp')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'reviews')
+        self.write('src/a.py', 'a = 2\n')
+        self.git('add', 'src/a.py')
+        self.git('commit', '-m', 'change a')
+
+        state_paths = ['.vscode/testuser.weaudit',
+                       '.vscode/testuser.weaudit-shas.json', 'REVIEWS.md']
+        before = {path: self.read(path) for path in state_paths}
+        p = self.run_tool('status')
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn('0 of 2 in-scope files carry a valid review at HEAD; 2 need review', p.stdout)
+        self.assertIn('stale: src/a.py', p.stdout)
+        self.assertIn('never reviewed: src/b.py', p.stdout)
+        # status reports; it never prunes, stamps, or regenerates.
+        for path in state_paths:
+            self.assertEqual(self.read(path), before[path])
+
 
 if __name__ == '__main__':
     unittest.main()
