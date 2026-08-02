@@ -7,7 +7,7 @@ Repositories that have the human review tracking tooling deployed
 should keep the review backlog small: fewer than 5 in-scope files
 needing review. Repositories without a `.vscode/review-scope.toml`
 scope config do not have the tooling deployed and are reported as
-not applicable; currently only ryll does.
+not applicable; currently ryll and kerbside do.
 
 The check runs `scripts/review-tracking.py status` against the
 clone. A file needs review if it has never received a whole-file

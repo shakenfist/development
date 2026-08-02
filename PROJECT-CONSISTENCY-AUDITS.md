@@ -934,8 +934,8 @@ closed.
 
 Repositories that have adopted the whole-file human review tracking
 system (see [docs/code-review-tracking.md](docs/code-review-tracking.md),
-detected by the presence of `.vscode/review-scope.toml`; currently only
-ryll) should keep the review backlog small: fewer than 5 in-scope files
+detected by the presence of `.vscode/review-scope.toml`; currently ryll
+and kerbside) should keep the review backlog small: fewer than 5 in-scope files
 needing review, where a file needs review if it has never been reviewed
 or has changed since its last review. The backlog is recomputed against
 HEAD by `scripts/review-tracking.py status` rather than trusted from the

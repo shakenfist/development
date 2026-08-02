@@ -150,6 +150,28 @@ this repository and passes through to the script.
    check needs no per-repo setup -- it notices the scope config
    and starts checking the repo automatically.
 
+8. Teach the repository's build and analysis workflows to ignore
+   review-only changes, so a review session (or a bot prune) does
+   not burn a CI run on files no build reads:
+
+   ```yaml
+   on:
+     pull_request:
+       branches: [develop]
+       paths-ignore:
+         - 'REVIEWS.md'
+         - '.vscode/*.weaudit'
+         - '.vscode/*.weaudit-shas.json'
+         - '.vscode/review-scope.toml'
+   ```
+
+   Apply it to the code-shaped workflows (unit tests, lint, CodeQL,
+   functional lanes) but *not* to content scanners like gitleaks or
+   the bidi/zero-width check: review notes are prose, and prose is a
+   place secrets or Unicode smuggling could land. This is only safe
+   while no skipped workflow is a required status check -- a skipped
+   required check sits "expected" forever and blocks the merge.
+
 ## The review account
 
 Reviews are performed from a dedicated user account on the review
