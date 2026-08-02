@@ -45,7 +45,7 @@ detail survives somewhere before trimming the README.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-01T08:23:48.112390+00:00
+Last regenerated: 2026-08-02T08:26:45.327789+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -56,7 +56,7 @@ Last regenerated: 2026-08-01T08:23:48.112390+00:00
 | divergulent | compliant | - |
 | instar | compliant | - |
 | kerbside | compliant | - |
-| kerbside-patches | compliant | - |
+| kerbside-patches | non-compliant | shakenfist/kerbside-patches#1525 |
 | library-utilities | compliant | - |
 | occystrap | compliant | - |
 | ryll | compliant | - |
@@ -65,4 +65,5 @@ Last regenerated: 2026-08-01T08:23:48.112390+00:00
 Details for non-compliant projects:
 
 - **client-python** (Status): README.md has no link into docs/ despite a docs/ directory existing; add curated links to the detailed documentation
+- **kerbside-patches** (Status): README.md is 423 lines / 2941 words (limits: 150 lines, 1200 words); move detail into docs/, ARCHITECTURE.md, or AGENTS.md and keep the README a pitch; README.md has no link into docs/ despite a docs/ directory existing; add curated links to the detailed documentation
 <!-- consistency-audit:end -->
