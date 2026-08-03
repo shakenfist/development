@@ -304,6 +304,101 @@ class PushAuditTest(unittest.TestCase):
         self.assertIn('legacy filename', result['details'])
 
 
+class PinIndirectDepsScopeTest(unittest.TestCase):
+    """Tests that indirect pinning only applies to projects which pin.
+
+    A project that exactly pins its own direct dependencies is declaring
+    it controls its runtime environment, which is the condition under
+    which pinning transitive versions is safe. A library that constrains
+    loosely is deliberately leaving resolution to its consumers, and
+    pinning on their behalf takes that away.
+    """
+
+    def _check(self, dependencies, files=None):
+        with tempfile.TemporaryDirectory() as tmp:
+            body = 'dependencies = [\n'
+            for dependency in dependencies:
+                body += f'    "{dependency}",\n'
+            body += ']\n'
+            with open(os.path.join(tmp, 'pyproject.toml'), 'w') as f:
+                f.write('[project]\nname = "example"\n' + body)
+            for path in files or []:
+                full = os.path.join(tmp, path)
+                os.makedirs(os.path.dirname(full), exist_ok=True)
+                with open(full, 'w') as f:
+                    f.write('')
+            return audit_check.check_pin_indirect_deps(
+                tmp, {'has_pyproject_toml': True}
+            )
+
+    def test_not_applicable_without_pyproject(self):
+        result = audit_check.check_pin_indirect_deps(
+            '/nonexistent', {'has_pyproject_toml': False}
+        )
+        self.assertEqual(result['status'], 'not_applicable')
+
+    def test_library_with_loose_constraints_is_out_of_scope(self):
+        result = self._check([
+            'click>=8.0.0', 'distro', 'psutil>5.9.0', 'grpcio>=1.70.0',
+        ])
+        self.assertEqual(result['status'], 'not_applicable')
+        self.assertIn('library', result['details'])
+
+    def test_bare_name_is_not_a_pin(self):
+        result = self._check(['python-debian'])
+        self.assertEqual(result['status'], 'not_applicable')
+
+    def test_application_with_exact_pins_is_in_scope(self):
+        # In scope, and missing the tooling, so it fails rather than
+        # dropping out as not applicable.
+        result = self._check(['click==8.4.2', 'requests==2.34.2'])
+        self.assertEqual(result['status'], 'fail')
+
+    def test_extras_on_an_exact_pin_still_count(self):
+        result = self._check(['gunicorn[gevent]==26.0.0'])
+        self.assertEqual(result['status'], 'fail')
+
+    def test_a_few_loose_pins_do_not_exempt_an_application(self):
+        # shakenfist and kerbside each leave a couple of dependencies
+        # loose on purpose; that must not read as a library.
+        result = self._check([
+            'psutil>=5.9.4', 'uv>=0.8.0', 'click==8.4.2',
+            'requests==2.34.2', 'PyYAML==6.0.3',
+        ])
+        self.assertEqual(result['status'], 'fail')
+
+    def test_in_scope_project_with_the_tooling_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, '.github', 'workflows'))
+            os.makedirs(os.path.join(tmp, 'tools'))
+            open(os.path.join(
+                tmp, '.github', 'workflows',
+                'pin-indirect-dependencies.yml'), 'w').close()
+            open(os.path.join(
+                tmp, 'tools', 'pin-indirect-dependencies.sh'), 'w').close()
+            with open(os.path.join(tmp, 'pyproject.toml'), 'w') as f:
+                f.write(
+                    '[project]\nname = "example"\ndependencies = [\n'
+                    '    "click==8.4.2",\n'
+                    '    # START_OF_INDIRECT_DEPS\n'
+                    '    # END_OF_INDIRECT_DEPS\n'
+                    ']\n'
+                )
+            result = audit_check.check_pin_indirect_deps(
+                tmp, {'has_pyproject_toml': True}
+            )
+        self.assertEqual(result['status'], 'pass')
+
+    def test_unparseable_pyproject_is_out_of_scope(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, 'pyproject.toml'), 'w') as f:
+                f.write('this is not = valid toml [\n')
+            result = audit_check.check_pin_indirect_deps(
+                tmp, {'has_pyproject_toml': True}
+            )
+        self.assertEqual(result['status'], 'not_applicable')
+
+
 class ReviewCoverageTest(unittest.TestCase):
     """Tests check_review_coverage against fixture git repositories.
 

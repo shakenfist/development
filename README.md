@@ -60,8 +60,8 @@ to Shaken Fist projects:
   CodeQL code scanning for public repositories
 - [`templates/pin-indirect-dependencies/`](https://github.com/shakenfist/development/tree/main/templates/pin-indirect-dependencies) --
   Daily workflow to reconcile pinned transitive Python dependencies,
-  adding new pins and removing stale ones (application variant for
-  hard-pinning, library variant for optional `pinned` extra)
+  adding new pins and removing stale ones (applications only --
+  libraries deliberately leave resolution to their consumers)
 - [`templates/shared-blocks/`](https://github.com/shakenfist/development/tree/main/templates/shared-blocks) --
   Versioned blocks of canonical wording embedded verbatim across
   repositories (currently the `readme-discipline` instructions for

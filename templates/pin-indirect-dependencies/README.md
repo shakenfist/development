@@ -36,31 +36,34 @@ tolerance) and the `# never-pin: <name>` escape hatch for packages
 that must never be pinned (e.g. pydantic-core, which pydantic pins
 exactly, so an explicit pin can only agree or break resolution).
 
-## Variants
+## Applications only
 
-* `pin-indirect-dependencies.yml` -- application variant. The pinned
-  block lives in the main `[project] dependencies` list. Safe because
-  we control the runtime environment. Used by shakenfist and kerbside.
-* `pin-indirect-dependencies-library.yml` -- library variant. The
-  pinned block lives in a `pinned` extra under
-  `[project.optional-dependencies]` so end users are not forced into
-  specific transitive versions; users wanting the exact tested set
-  install with `pip install package[pinned]`. Because library projects
-  do not exactly pin their direct dependencies, the reconciled block
-  also records exact versions of the direct dependencies.
+This belongs in projects which already exactly pin their own direct
+dependencies -- currently shakenfist and kerbside. Pinning a
+transitive dependency decides on a consumer's behalf which version
+they get, which is the whole point in an application whose runtime
+environment we control, and an imposition in a library someone else
+has to package or install alongside their own dependency graph. Our
+libraries constrain loosely (`>=`) on purpose.
 
-Both variants use the same `pin-indirect-dependencies.sh` unchanged.
+There was briefly a library variant which kept the block in a `pinned`
+extra so the base install stayed unconstrained. It was withdrawn: the
+pins still shipped in the published metadata, and Renovate's pep621
+manager tracks `optional-dependencies`, so each recorded version
+became another stream of bump pull requests. The
+[audit spec](../../audits/pin-indirect-dependencies.md) describes how
+the applies-to test is now made.
 
 ## Rollout
 
-1. Copy the appropriate workflow variant to
+1. Copy `pin-indirect-dependencies.yml` to
    `.github/workflows/pin-indirect-dependencies.yml`, replacing the
    `{{PROJECT_NAME}}` placeholder.
 2. Copy `pin-indirect-dependencies.sh` to
    `tools/pin-indirect-dependencies.sh`, keeping it executable.
 3. Add `# START_OF_INDIRECT_DEPS` and `# END_OF_INDIRECT_DEPS` marker
    comments to `pyproject.toml` delimiting the pinned block (which may
-   initially be empty), in the location the chosen variant expects.
+   initially be empty) inside the `[project] dependencies` list.
 4. Create a `DEPENDENCIES_TOKEN` repository secret with push and PR
    permissions. Without it the job runs to completion and prints its
    diff but never opens a PR, so a missing secret looks like "there

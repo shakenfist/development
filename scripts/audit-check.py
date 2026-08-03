@@ -13,6 +13,7 @@ import os
 import re
 import subprocess
 import sys
+import tomllib
 from datetime import datetime, timezone
 
 
@@ -298,6 +299,50 @@ def check_renovate(repo_path, props):
     }
 
 
+# A project is in scope for indirect dependency pinning when it already
+# exactly pins its own direct dependencies. That is the project declaring
+# it controls its runtime environment, which is exactly the condition
+# under which pinning transitive dependencies is safe. Libraries we
+# publish deliberately constrain loosely (">=") so that downstream
+# consumers -- distribution packagers especially -- are free to resolve
+# against whatever they already ship, and pinning transitive versions on
+# their behalf takes that freedom away. The split is unambiguous in
+# practice: our applications pin ~97% of their direct dependencies, our
+# libraries pin none of theirs.
+PIN_INTENT_THRESHOLD = 0.5
+
+
+def pins_direct_dependencies(repo_path):
+    """Report whether a project exactly pins its own direct dependencies.
+
+    Returns (in_scope, exact, total). Only the [project] dependencies
+    array is considered: optional-dependencies groups are extras, and a
+    pinned test extra says nothing about how the project wants its
+    runtime resolved.
+    """
+    pyproject = os.path.join(repo_path, 'pyproject.toml')
+    try:
+        with open(pyproject, 'rb') as f:
+            parsed = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return False, 0, 0
+
+    dependencies = parsed.get('project', {}).get('dependencies', [])
+    if not dependencies:
+        return False, 0, 0
+
+    exact = 0
+    for dependency in dependencies:
+        match = DEP_SPEC_RE.match(dependency)
+        # A bare name with no specifier at all ("python-debian") has no
+        # spec group to test, and is as unpinned as a dependency gets.
+        spec = match.group('spec') if match else None
+        if spec and EXACT_PIN_RE.match(spec.strip()):
+            exact += 1
+    ratio = exact / len(dependencies)
+    return ratio >= PIN_INTENT_THRESHOLD, exact, len(dependencies)
+
+
 def check_pin_indirect_deps(repo_path, props):
     """Check for indirect dependency pinning."""
     if not props['has_pyproject_toml']:
@@ -305,6 +350,20 @@ def check_pin_indirect_deps(repo_path, props):
             'id': 'pin-indirect-dependencies',
             'status': 'not_applicable',
             'details': 'No pyproject.toml (not a Python package)',
+        }
+
+    in_scope, exact, total = pins_direct_dependencies(repo_path)
+    if not in_scope:
+        return {
+            'id': 'pin-indirect-dependencies',
+            'status': 'not_applicable',
+            'details': (
+                f'Direct dependencies are not exactly pinned '
+                f'({exact} of {total}), so this is a library rather than '
+                f'an application we control the environment of. Pinning '
+                f'transitive versions here would constrain downstream '
+                f'consumers and distribution packagers'
+            ),
         }
 
     issues = []
@@ -353,6 +412,20 @@ DEP_PIN_RE = re.compile(
         (?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)
         (?P<extras>\[[^\]]*\])?
         \s*(?P<spec>(?:[<>=!~]=|===)\s*[^"',;]+)
+    ''',
+    re.VERBOSE,
+)
+
+# A PEP 508 requirement string as it appears once TOML parsing has
+# already stripped the quoting, e.g. 'click>=8.0.0' or
+# 'gunicorn[gevent]==26.0.0'. Unlike DEP_PIN_RE this matches the value
+# rather than the source line, so it does not need to tolerate quotes,
+# indentation or trailing comments.
+DEP_SPEC_RE = re.compile(
+    r'''^\s*
+        (?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)
+        (?P<extras>\[[^\]]*\])?
+        \s*(?P<spec>(?:[<>=!~]=|===)\s*[^,;]+)?
     ''',
     re.VERBOSE,
 )
