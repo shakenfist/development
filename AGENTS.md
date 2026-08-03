@@ -59,7 +59,10 @@ python3 scripts/test_review_tracking.py
 
 The script is run by hand in target repositories (via a thin wrapper
 like ryll's `tools/review-tracking.sh`), deliberately not from git
-hooks -- see `docs/code-review-tracking.md`.
+hooks. Two subcommands also run from CI in steady state: `prune`
+from an adopting repo's `prune-reviews` workflow on pushes to main,
+and `status` from the consistency audit's `review-coverage` check --
+see `docs/code-review-tracking.md`.
 
 The audit scripts have no unit tests. Test by running them against local
 clones:
@@ -82,12 +85,16 @@ it).
 
 Conventions for whole-codebase human review (weAudit, signed
 commits, staleness pruning) live in `docs/code-review-tracking.md`;
-the phased design is `docs/plans/PLAN-code-review-tracking.md`.
+the phased design is `docs/plans/PLAN-code-review-tracking.md`, and
+the steady-state automation (CI pruning on main, the
+`review-coverage` audit) is planned in `PLAN-review-coverage.md`.
 When implementing later phases, read the plan's analysis section
 first -- several design constraints (sidecar rather than fields in
-weAudit's JSON, prune locally rather than from CI) exist for
-non-obvious verified reasons, and the plan's "Back brief" section
-applies.
+weAudit's JSON, no stamping from CI) exist for non-obvious verified
+reasons, and the plan's "Back brief" section applies. Note the
+original "prune locally rather than from CI" constraint was about
+developer clones and git hooks; CI pruning of a repo's own main
+branch is the steady-state design, not a violation of it.
 
 ## Conventions
 

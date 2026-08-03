@@ -61,11 +61,16 @@ the GitHub API rather than hardcoded, because it changes over time.
 
 This repository is also the home of the whole-codebase review
 tracking system: conventions in `docs/code-review-tracking.md`,
-design in `docs/plans/PLAN-code-review-tracking.md`. The
-automation is `scripts/review-tracking.py` (stamp reviews with
-blob SHAs, prune stale reviews when files change, regenerate the
-per-repo `REVIEWS.md`, pick the next file to review), run by hand
-in target repositories via a thin wrapper (for example ryll's
-`tools/review-tracking.sh`) -- deliberately not from git hooks.
-Tests are in `scripts/test_review_tracking.py`. Once solid,
-adoption becomes a consistency audit item.
+design in `docs/plans/PLAN-code-review-tracking.md`, steady state
+in `PLAN-review-coverage.md`. The automation is
+`scripts/review-tracking.py` (stamp reviews with blob SHAs, prune
+stale reviews when files change, regenerate the per-repo
+`REVIEWS.md`, pick the next file to review, report effective
+coverage against HEAD), run by hand in target repositories via a
+thin wrapper (for example ryll's `tools/review-tracking.sh`) --
+deliberately not from git hooks. In steady state two subcommands
+also run from CI: adopting repos prune stale marks on every push
+to main via a `prune-reviews` workflow, and the daily consistency
+audit's `review-coverage` check alerts (via a GitHub issue) when
+five or more in-scope files need review. Tests are in
+`scripts/test_review_tracking.py`.

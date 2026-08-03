@@ -107,6 +107,10 @@ AUDIT_METADATA = {
         'spec': 'audits/secret-handling.md',
         'template': None,
     },
+    'review-coverage': {
+        'spec': 'audits/review-coverage.md',
+        'template': None,
+    },
 }
 
 # Map from check ID to issue title suffix. Must match existing
@@ -136,6 +140,7 @@ ISSUE_TITLES = {
     'readme-structure': 'README structure',
     'push-audit': 'Pre-push audit file',
     'secret-scanning-ci': 'Secret scanning in CI',
+    'review-coverage': 'Human review coverage',
 }
 
 

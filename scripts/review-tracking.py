@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 
-"""Code review tracking helpers: stamp, prune, regen, and next.
+"""Code review tracking helpers: stamp, prune, regen, next, and status.
 
 This script implements the automation described in
 docs/code-review-tracking.md. It runs in the repository under review,
 invoked by hand -- deliberately not from git hooks, which proved
 confusing when they fired in the middle of other git operations.
+(Two subcommands also run from CI: prune from an adopting repo's
+prune-reviews workflow, and status from the consistency audit's
+review-coverage check; see the steady state section of the doc.)
 Target repositories typically carry a thin wrapper (for example
 ryll's tools/review-tracking.sh) that locates a clone of the
 development repository and passes through to this script:
@@ -20,6 +23,10 @@ development repository and passes through to this script:
 - regen: regenerate REVIEWS.md from the current state.
 - next: pick a random in-scope file with no current review mark and
   open it in VSCode.
+- status: report effective review coverage against HEAD -- which
+  in-scope files carry a currently-valid review mark and which need
+  review -- without modifying any state. --json emits a machine
+  readable form for the consistency audit's review-coverage check.
 
 State read and written:
 
@@ -335,6 +342,64 @@ def cmd_regen(_args):
     return 0
 
 
+def review_status():
+    """Compute effective review coverage against HEAD.
+
+    A file counts as reviewed only if it carries a full-file mark whose
+    stamped blob SHA still matches HEAD. This deliberately differs from
+    the REVIEWS.md header count, which trusts marks without checking
+    them against HEAD and is therefore only accurate immediately after
+    a prune. Recomputing here means a missed prune cannot inflate the
+    coverage the consistency audit sees.
+    """
+    include, exclude = load_scope()
+    tracked = set(tracked_files())
+    scoped = sorted(p for p in tracked if in_scope(p, include, exclude))
+
+    valid = set()
+    marked = set()
+    for state_path in state_files():
+        state, _ = load_json(state_path, {})
+        sidecar, _ = load_json(sidecar_path(state_path), {'version': 1, 'files': {}})
+        stamps = sidecar.get('files', {})
+        audited, _partial = marked_paths(state)
+        for path in audited:
+            if is_dir_entry(path, tracked):
+                continue
+            marked.add(path)
+            stamp = stamps.get(path)
+            # A mark without a stamp cannot be verified against any
+            # content, so it is conservatively treated as needing
+            # review. Partial (region) marks never count as reviewed.
+            if stamp is not None and blob_sha('HEAD:%s' % path) == stamp['sha']:
+                valid.add(path)
+
+    scoped_set = set(scoped)
+    stale = sorted((marked - valid) & scoped_set)
+    never = sorted(p for p in scoped if p not in valid and p not in marked)
+    return {
+        'in_scope': len(scoped),
+        'reviewed': len(valid & scoped_set),
+        'needing_review': len(stale) + len(never),
+        'stale': stale,
+        'never_reviewed': never,
+    }
+
+
+def cmd_status(args):
+    status = review_status()
+    if args.json:
+        print(json.dumps(status, indent=2))
+        return 0
+    print('review-status: %d of %d in-scope files carry a valid review at HEAD; %d need review'
+          % (status['reviewed'], status['in_scope'], status['needing_review']))
+    for path in status['stale']:
+        print('review-status: stale: %s' % path)
+    for path in status['never_reviewed']:
+        print('review-status: never reviewed: %s' % path)
+    return 0
+
+
 def cmd_next(args):
     include, exclude = load_scope()
     reviewed = set()
@@ -369,13 +434,15 @@ def main():
     sub.add_parser('regen', help='regenerate REVIEWS.md')
     p_next = sub.add_parser('next', help='pick a random unreviewed in-scope file')
     p_next.add_argument('--no-open', action='store_true', help='print the path only, do not open VSCode')
+    p_status = sub.add_parser('status', help='report effective review coverage against HEAD')
+    p_status.add_argument('--json', action='store_true', help='emit machine-readable JSON')
     args = parser.parse_args()
 
     top = git('rev-parse', '--show-toplevel').stdout.strip()
     os.chdir(top)
 
-    return {'stamp': cmd_stamp, 'prune': cmd_prune,
-            'regen': cmd_regen, 'next': cmd_next}[args.command](args)
+    return {'stamp': cmd_stamp, 'prune': cmd_prune, 'regen': cmd_regen,
+            'next': cmd_next, 'status': cmd_status}[args.command](args)
 
 
 if __name__ == '__main__':

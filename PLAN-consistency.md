@@ -95,6 +95,12 @@ internal-only tooling or historical archive repositories:
     occystrap, library-utilities) put the markers in
     `[project.optional-dependencies] pinned` and use the library
     template. See `templates/pin-indirect-dependencies/`.
+13. **Human review coverage**: Projects with the whole-file human
+    review tracking system deployed (`.vscode/review-scope.toml`
+    present; currently only ryll) must have fewer than 5 in-scope
+    files needing review, recomputed against HEAD by
+    `scripts/review-tracking.py status`. See
+    `audits/review-coverage.md`.
 
 ---
 

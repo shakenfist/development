@@ -52,6 +52,7 @@ CHECK_NAMES = {
     'readme-structure': 'README structure',
     'push-audit': 'Pre-push audit file',
     'secret-scanning-ci': 'Secret scanning in CI',
+    'review-coverage': 'Human review coverage',
 }
 
 
@@ -1860,6 +1861,95 @@ def check_secret_scanning_ci(repo_path, props):
     }
 
 
+# Repos with human review tracking deployed should keep the review
+# backlog small enough that a session clears it. The value is a
+# tuning knob: an absolute count rather than a percentage (agreed
+# 2026-08-02), because "how much review work has piled up" does not
+# scale with repository size.
+REVIEW_BACKLOG_THRESHOLD = 5
+
+REVIEW_TRACKING_SCRIPT = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), 'review-tracking.py'
+)
+
+
+def check_review_coverage(repo_path, props):
+    """Check the human review backlog in repos with review tracking.
+
+    Applies only to repositories with the review tracking tooling
+    deployed, detected by the presence of the scope config. Coverage
+    is recomputed against HEAD by review-tracking.py status rather
+    than trusted from the committed REVIEWS.md, so a missed prune
+    cannot inflate it. We invoke our sibling copy of the script
+    directly rather than the target repo's tools/ wrapper, which
+    searches for a development clone the runner does not have.
+    """
+    if not check_file_exists(repo_path, '.vscode/review-scope.toml'):
+        return {
+            'id': 'review-coverage',
+            'status': 'not_applicable',
+            'details': (
+                'Human review tracking not deployed '
+                '(no .vscode/review-scope.toml)'
+            ),
+        }
+
+    try:
+        result = subprocess.run(
+            [sys.executable, REVIEW_TRACKING_SCRIPT, 'status', '--json'],
+            cwd=repo_path, capture_output=True, text=True, timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        return {
+            'id': 'review-coverage',
+            'status': 'fail',
+            'details': 'review-tracking.py status timed out',
+        }
+    if result.returncode != 0:
+        return {
+            'id': 'review-coverage',
+            'status': 'fail',
+            'details': (
+                f'review-tracking.py status failed: '
+                f'{result.stderr.strip()}'
+            ),
+        }
+    try:
+        status = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return {
+            'id': 'review-coverage',
+            'status': 'fail',
+            'details': (
+                'review-tracking.py status emitted unparseable JSON'
+            ),
+        }
+
+    details = (
+        f'{status["reviewed"]} of {status["in_scope"]} in-scope '
+        f'files reviewed at HEAD; {status["needing_review"]} need '
+        f'review (threshold {REVIEW_BACKLOG_THRESHOLD})'
+    )
+    if status['needing_review'] >= REVIEW_BACKLOG_THRESHOLD:
+        # The issue machinery renders 'missing' as a bullet list, so
+        # this becomes the review session's work queue.
+        missing = (
+            [f'stale: {p}' for p in status['stale']]
+            + [f'never reviewed: {p}' for p in status['never_reviewed']]
+        )
+        return {
+            'id': 'review-coverage',
+            'status': 'fail',
+            'details': details,
+            'missing': missing,
+        }
+    return {
+        'id': 'review-coverage',
+        'status': 'pass',
+        'details': details,
+    }
+
+
 def run_all_checks(repo_path, repo_name, org):
     """Run all checks and return results."""
     props = detect_repo_properties(repo_path, repo_name)
@@ -1889,6 +1979,7 @@ def run_all_checks(repo_path, repo_name, org):
         check_readme_structure(repo_path, props),
         check_push_audit(repo_path, props),
         check_secret_scanning_ci(repo_path, props),
+        check_review_coverage(repo_path, props),
     ]
 
     summary = {
