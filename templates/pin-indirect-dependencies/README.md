@@ -25,6 +25,10 @@ every run:
 * The resolve uses an isolated venv (no `--system-site-packages`), so
   `pip freeze` sees the complete dependency closure and packages the
   runner's system python happens to provide are not wrongly dropped.
+  uv itself is installed into a separate venv and drives the target
+  venv from outside it, because a uv installed *into* the target venv
+  shows up in the freeze and gets recorded as a dependency of projects
+  which do not require one.
 
 See the script's header comment for full details, including the
 duplicate-pin protections (PEP 503 canonical name comparison, extras
@@ -58,7 +62,20 @@ Both variants use the same `pin-indirect-dependencies.sh` unchanged.
    comments to `pyproject.toml` delimiting the pinned block (which may
    initially be empty), in the location the chosen variant expects.
 4. Create a `DEPENDENCIES_TOKEN` repository secret with push and PR
-   permissions.
+   permissions. Without it the job runs to completion and prints its
+   diff but never opens a PR, so a missing secret looks like "there
+   was nothing to do".
+5. If anything in the dependency closure compiles at install time, add
+   its build dependencies to the commented placeholder step in the
+   workflow. The isolated venv means a package can no longer fall back
+   to a distro build of itself (kerbside needs
+   `default-libmysqlclient-dev` for mysqlclient).
+6. Generate the first reconciled block by running the script by hand
+   and committing the result, so the adoption PR proves CI passes with
+   the reconciled set. Run it in a `debian:12` container rather than
+   on a workstation: the resolved closure is python-version specific,
+   so a resolve on a newer python records a set the first CI run would
+   immediately undo.
 
 The first run after converting an append-only deployment sorts the
 block case-insensitively, removes accumulated stale pins, and may add

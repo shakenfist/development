@@ -78,24 +78,30 @@ sed '/# START_OF_INDIRECT_DEPS/,/# END_OF_INDIRECT_DEPS/{/_OF_INDIRECT_DEPS/!d}'
 sed -n 's/^ *# never-pin: *//p' pyproject.toml \
     | sed -E 's/[-_.]+/-/g' | tr '[:upper:]' '[:lower:]' > "${workdir}/never_pin.txt"
 
-# The venv is deliberately isolated (no --system-site-packages): if system
-# packages could satisfy requirements then pip freeze would not see the
-# complete dependency closure, and anything the system happened to provide
-# would be wrongly dropped from the pinned block as stale.
+# uv lives in a venv of its own and installs into the target venv from
+# outside it. Installing uv into the target venv would put uv itself into
+# the freeze output, which pins uv as a dependency of projects that do not
+# require it -- and at whatever version pip chose, since a constraint on a
+# package nothing requires does not apply.
+python3 -m venv "${workdir}/uv"
+"${workdir}/uv/bin/pip3" install uv
+
+# The target venv is deliberately isolated (no --system-site-packages): if
+# system packages could satisfy requirements then pip freeze would not see
+# the complete dependency closure, and anything the system happened to
+# provide would be wrongly dropped from the pinned block as stale.
 python3 -m venv "${workdir}/venv"
-# shellcheck disable=SC1091
-. "${workdir}/venv/bin/activate"
-pip3 install uv
-uv pip install -r "${workdir}/pyproject.toml" -c "${workdir}/constraints.txt"
+"${workdir}/uv/bin/uv" pip install --python "${workdir}/venv/bin/python" \
+    -r "${workdir}/pyproject.toml" -c "${workdir}/constraints.txt"
 
 echo
 echo 'Resolved dependencies:'
-pip3 freeze --local
+"${workdir}/venv/bin/pip3" freeze --local
 echo
 
 # Rebuild the pinned block from what was actually installed.
 touch "${workdir}/pins.txt"
-pip3 freeze --local | while read -r depver; do
+"${workdir}/venv/bin/pip3" freeze --local | while read -r depver; do
     case ${depver} in
         *==*) ;;
         *) continue ;;    # editable or direct-URL entries cannot be pinned
@@ -129,9 +135,17 @@ awk -v pins="${workdir}/pins_sorted.txt" '
 ' pyproject.toml > "${workdir}/pyproject_updated.toml"
 cp "${workdir}/pyproject_updated.toml" pyproject.toml
 
-if [ "$(git diff | wc -l)" -lt 1 ]; then
+# Distinguish "no change" from "git could not tell us". Piping git diff into
+# wc conflates the two, because the pipeline exits with wc's status: a git
+# failure then reads as a clean tree and the reconcile is silently dropped.
+rc=0
+git diff --quiet || rc=$?
+if [ "${rc}" = '0' ]; then
     echo 'Pinned indirect dependencies are already up to date.'
     exit 0
+elif [ "${rc}" != '1' ]; then
+    echo 'git diff failed, so whether the pins changed is unknown.' >&2
+    exit 1
 fi
 
 echo 'Pinned indirect dependencies changed:'

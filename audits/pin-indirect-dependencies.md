@@ -23,7 +23,7 @@ because we control the runtime environment.
 
 Template: `pin-indirect-dependencies.yml`
 
-### Library projects (agent-python, client-python, clingwrap, occystrap, library-utilities)
+### Library projects (agent-python, client-python, clingwrap, divergulent, occystrap, library-utilities)
 
 Record indirect dependencies in `[project.optional-dependencies]
 pinned` section. Users can install with `pip install package[pinned]`
@@ -34,7 +34,9 @@ Template: `pin-indirect-dependencies-library.yml`
 ### Common requirements
 
 Both variants need a `DEPENDENCIES_TOKEN` repository secret with
-push and PR permissions.
+push and PR permissions. Without it the reconcile still runs and
+prints its diff, but the job exits without opening a PR, so the
+absence is silent -- check the secret exists when adopting.
 
 ## Template
 
