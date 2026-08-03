@@ -32,9 +32,18 @@ every run:
 
 See the script's header comment for full details, including the
 duplicate-pin protections (PEP 503 canonical name comparison, extras
-tolerance) and the `# never-pin: <name>` escape hatch for packages
-that must never be pinned (e.g. pydantic-core, which pydantic pins
-exactly, so an explicit pin can only agree or break resolution).
+tolerance, and recognising any version operator rather than only `==`
+so a direct dependency declared as a range is not re-emitted into the
+block as a second exact entry) and the `# never-pin: <name>` escape
+hatch for packages that must never be pinned (e.g. pydantic-core,
+which pydantic pins exactly, so an explicit pin can only agree or
+break resolution).
+
+The resolve runs once, in the environment which invoked it, so the
+block reflects the lowest supported python on Linux and is complete
+for that environment only. Packaging machinery (`pip`, `setuptools`,
+`wheel`, `distribute`) is skipped unconditionally rather than relying
+on `pip freeze` to keep omitting it.
 
 ## Applications only
 
@@ -67,7 +76,13 @@ the applies-to test is now made.
 4. Create a `DEPENDENCIES_TOKEN` repository secret with push and PR
    permissions. Without it the job runs to completion and prints its
    diff but never opens a PR, so a missing secret looks like "there
-   was nothing to do".
+   was nothing to do". The template passes that token to the
+   `actions/checkout` step as well as to the reconcile step, and both
+   are required: a plain `git push` authenticates with the credential
+   checkout persists into `http.https://github.com/.extraheader`, not
+   with `GITHUB_TOKEN` from the environment, so a job which only sets
+   the environment variable resolves and commits and then fails on
+   push with a 403.
 5. If anything in the dependency closure compiles at install time, add
    its build dependencies to the commented placeholder step in the
    workflow. The isolated venv means a package can no longer fall back
@@ -82,5 +97,7 @@ the applies-to test is now made.
 
 The first run after converting an append-only deployment sorts the
 block case-insensitively, removes accumulated stale pins, and may add
-pins for packages the old system-site-packages venv masked (for
-example setuptools), so expect a larger one-time diff in that PR.
+pins for packages the old system-site-packages venv masked, so expect
+a larger one-time diff in that PR. It also drops any direct
+dependency which was declared as a range and had been duplicated into
+the block as an exact pin.
