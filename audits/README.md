@@ -51,6 +51,7 @@ audit workflow.)*
 
 The following projects are subject to consistency audits:
 
+- actions
 - agent-python
 - client-python
 - clingwrap

@@ -24,6 +24,12 @@ REPO_OVERRIDES = {
     # kerbside-patches carries Python helper scripts but is a patch
     # archive, not a Python project.
     'kerbside-patches': {'not_python': True},
+    # actions is a library of composite actions, reusable workflows and
+    # their helper scripts. Those helpers include Python, but there is
+    # nothing to package, so the Python packaging checks do not apply.
+    # It also keeps "main" as its default branch: every consumer pins
+    # to @main, so renaming it would break the whole fleet at once.
+    'actions': {'not_python': True, 'is_actions_repo': True},
 }
 
 # Map from check ID to the human-readable name used in issue titles.
@@ -77,6 +83,7 @@ def detect_repo_properties(repo_path, repo_name):
         'is_private': overrides.get('is_private', False),
         'is_docs_only': overrides.get('is_docs_only', False),
         'not_python': overrides.get('not_python', False),
+        'is_actions_repo': overrides.get('is_actions_repo', False),
     }
 
 
@@ -585,6 +592,16 @@ def check_default_branch(repo_path, props, repo_name, org):
                 'status': 'not_applicable',
                 'details': (
                     f'Docs-only repo (current: {branch}, '
+                    f'exception allowed)'
+                ),
+            }
+
+        if props['is_actions_repo']:
+            return {
+                'id': 'default-branch-naming',
+                'status': 'not_applicable',
+                'details': (
+                    f'Actions repo (current: {branch}, '
                     f'exception allowed)'
                 ),
             }

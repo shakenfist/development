@@ -5,7 +5,6 @@
 The following projects are **excluded** from these rules due to being
 **internal only tooling** or **historical archive repositories**:
 
-* actions
 * ansible-modules
 * client-js
 * client-go
@@ -28,6 +27,12 @@ The following projects are **excluded** from these rules due to being
 * uefi-latency-guest
 * website
 
+The `actions` repository used to be on that list. It is now audited: the
+whole fleet depends on it for its composite actions and reusable
+workflows, so it should be held to the same standards as anything else.
+Two rules do not apply to it -- it has no Python to package, and it keeps
+`main` as its default branch because every consumer pins to `@main`.
+
 ## LLM tooling
 
 Every project should have an `AGENTS.md`, and `ARCHITECTURE.md`. Operations
@@ -41,7 +46,8 @@ for user visible changes, and so forth.
 All Python projects must use `pyproject.toml` for packaging and dependency
 management. Legacy packaging files (`setup.py`, `setup.cfg`) should not
 exist alongside it. Repositories where Python is incidental -- Rust
-projects with helper scripts, docs-only repositories, and the
+projects with helper scripts, docs-only repositories, the `actions`
+library of composite actions and reusable workflows, and the
 `kerbside-patches` patch archive -- are exempt.
 
 ### Generated version files

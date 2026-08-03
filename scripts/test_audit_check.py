@@ -539,5 +539,23 @@ class CanonicalSharedBlocksTest(unittest.TestCase):
             )
 
 
+class RepoOverridesTest(unittest.TestCase):
+    def test_actions_repo_properties(self):
+        # The actions repository carries Python helper scripts but has
+        # nothing to package, and keeps "main" because every consumer
+        # pins to @main.
+        props = audit_check.detect_repo_properties(
+            tempfile.mkdtemp(), 'actions'
+        )
+        self.assertTrue(props['not_python'])
+        self.assertTrue(props['is_actions_repo'])
+
+    def test_ordinary_repo_is_not_an_actions_repo(self):
+        props = audit_check.detect_repo_properties(
+            tempfile.mkdtemp(), 'occystrap'
+        )
+        self.assertFalse(props['is_actions_repo'])
+
+
 if __name__ == '__main__':
     unittest.main()
