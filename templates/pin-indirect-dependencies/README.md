@@ -104,3 +104,11 @@ pins for packages the old system-site-packages venv masked, so expect
 a larger one-time diff in that PR. It also drops any direct
 dependency which was declared as a range and had been duplicated into
 the block as an exact pin.
+
+Such a dependency then genuinely floats: the block no longer pins it,
+so Renovate has no pin to bump and upgrades land silently rather than
+as a reviewable PR. That is usually what a range was asking for --
+shakenfist declares `psutil` and `uv` as ranges precisely so the
+system package satisfies them -- but it is a real change from the
+append-only behaviour, so record the intent in a comment beside the
+declaration, or pin it exactly if reproducibility matters more.
