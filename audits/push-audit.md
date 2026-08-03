@@ -84,7 +84,7 @@ brief for the code-quality review agent.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-02T08:26:45.327789+00:00
+Last regenerated: 2026-08-03T09:51:13.600453+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -92,12 +92,21 @@ Last regenerated: 2026-08-02T08:26:45.327789+00:00
 | client-python | N/A | - |
 | clingwrap | N/A | - |
 | cloudgood | N/A | - |
-| divergulent | compliant | - |
-| instar | compliant | - |
-| kerbside | compliant | - |
+| divergulent | non-compliant | shakenfist/divergulent#63 |
+| instar | non-compliant | shakenfist/instar#477 |
+| kerbside | non-compliant | shakenfist/kerbside#226 |
 | kerbside-patches | N/A | - |
 | library-utilities | N/A | - |
-| occystrap | compliant | - |
-| ryll | compliant | - |
-| shakenfist | compliant | - |
+| occystrap | non-compliant | shakenfist/occystrap#107 |
+| ryll | non-compliant | shakenfist/ryll#241 |
+| shakenfist | non-compliant | shakenfist/shakenfist#3619 |
+
+Details for non-compliant projects:
+
+- **divergulent** (Status): missing shared block comment-proportion (copy it verbatim from templates/shared-blocks/comment-proportion.md in the development repository)
+- **instar** (Status): missing shared block comment-proportion (copy it verbatim from templates/shared-blocks/comment-proportion.md in the development repository)
+- **kerbside** (Status): missing shared block comment-proportion (copy it verbatim from templates/shared-blocks/comment-proportion.md in the development repository)
+- **occystrap** (Status): missing shared block comment-proportion (copy it verbatim from templates/shared-blocks/comment-proportion.md in the development repository)
+- **ryll** (Status): missing shared block comment-proportion (copy it verbatim from templates/shared-blocks/comment-proportion.md in the development repository)
+- **shakenfist** (Status): missing shared block comment-proportion (copy it verbatim from templates/shared-blocks/comment-proportion.md in the development repository)
 <!-- consistency-audit:end -->
