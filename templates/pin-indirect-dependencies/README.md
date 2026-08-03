@@ -82,7 +82,10 @@ the applies-to test is now made.
    checkout persists into `http.https://github.com/.extraheader`, not
    with `GITHUB_TOKEN` from the environment, so a job which only sets
    the environment variable resolves and commits and then fails on
-   push with a 403.
+   push with a 403. Both are conditional on the event: the
+   `pull_request` self-test runs the pull request's own copy of the
+   script, so it gets the job's default token, persists no credentials
+   and is skipped entirely for forks.
 5. If anything in the dependency closure compiles at install time, add
    its build dependencies to the commented placeholder step in the
    workflow. The isolated venv means a package can no longer fall back
