@@ -10,7 +10,9 @@ Repositories that carry a pre-push audit runbook must:
   and the `-TEMPLATE` suffix is reserved for true templates like
   `PLAN-TEMPLATE.md`);
 * embed the current **`readme-discipline` shared block** in its
-  documentation-review section; and
+  documentation-review section;
+* embed the current **`comment-proportion` shared block** in its
+  code-quality review section; and
 * keep every embedded shared block verbatim and at the current
   version.
 
@@ -47,6 +49,19 @@ which is the exact feedback loop that bloats READMEs (see the
 `readme-structure` audit for the policy those instructions now
 enforce instead).
 
+### Why comment proportion is a judgment check
+
+Comment volume has no honest mechanical threshold: the same
+twenty-line docstring is right on a lock-ordering contract and
+wrong on a three-line accessor. What can be mechanised is finding
+the *candidates* -- runs of added comment lines, and comment blocks
+larger than the body they precede -- which a repository may add to
+its wave-1 sweep as a report-only grep. The proportionality call
+itself belongs to the code-quality judgment agent, which is why
+`comment-proportion` is shared wording for a sub-agent brief rather
+than a check in `audit-check.py`. The audit verifies the wording is
+present and current; it does not try to score comments.
+
 ## Template
 
 Template: `templates/shared-blocks/`
@@ -54,11 +69,13 @@ See: `templates/shared-blocks/README.md`
 
 To fix a non-compliant repository: rename `PUSH-TEMPLATE.md` to
 `PUSH-AUDIT.md` (updating references in `AGENTS.md`,
-`MERGE-TEMPLATE.md`, `tools/audit/`, and plan documents), and paste
+`MERGE-TEMPLATE.md`, `tools/audit/`, and plan documents), paste
 the current contents of
 `templates/shared-blocks/readme-discipline.md` verbatim into the
 documentation-review section, replacing any older README guidance it
-contradicts.
+contradicts, and paste
+`templates/shared-blocks/comment-proportion.md` verbatim into the
+brief for the code-quality review agent.
 
 ## Projects
 

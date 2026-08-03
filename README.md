@@ -64,8 +64,9 @@ to Shaken Fist projects:
   libraries deliberately leave resolution to their consumers)
 - [`templates/shared-blocks/`](https://github.com/shakenfist/development/tree/main/templates/shared-blocks) --
   Versioned blocks of canonical wording embedded verbatim across
-  repositories (currently the `readme-discipline` instructions for
-  each repository's `PUSH-AUDIT.md`)
+  repositories (currently the `readme-discipline` and
+  `comment-proportion` instructions for each repository's
+  `PUSH-AUDIT.md`)
 
 ## Shared GitHub Actions
 

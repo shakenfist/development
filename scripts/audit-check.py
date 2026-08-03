@@ -1813,9 +1813,10 @@ def check_push_audit(repo_path, props, blocks_dir=None):
 
     The pre-push audit runbook must be named PUSH-AUDIT.md (the
     historical PUSH-TEMPLATE.md name is flagged as legacy) and must
-    embed the current readme-discipline shared block. Repositories
-    with no pre-push audit file at all are N/A -- whether every
-    project should have one is a separate decision.
+    embed the current readme-discipline and comment-proportion
+    shared blocks. Repositories with no pre-push audit file at all
+    are N/A -- whether every project should have one is a separate
+    decision.
     """
     has_new = check_file_exists(repo_path, 'PUSH-AUDIT.md')
     has_legacy = check_file_exists(repo_path, 'PUSH-TEMPLATE.md')
@@ -1839,7 +1840,9 @@ def check_push_audit(repo_path, props, blocks_dir=None):
     ) as f:
         content = f.read()
     problems += validate_shared_blocks(
-        content, required=['readme-discipline'], blocks_dir=blocks_dir
+        content,
+        required=['readme-discipline', 'comment-proportion'],
+        blocks_dir=blocks_dir,
     )
 
     if problems:

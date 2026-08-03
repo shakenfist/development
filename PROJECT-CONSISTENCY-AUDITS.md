@@ -133,8 +133,9 @@ without a pre-push audit file are exempt.
 
 Canonical wording that must stay identical across repositories --
 currently the `readme-discipline` instructions in the
-documentation-review section of `PUSH-AUDIT.md` -- is embedded as a
-**versioned shared block**:
+documentation-review section of `PUSH-AUDIT.md`, and the
+`comment-proportion` instructions in its code-quality section -- is
+embedded as a **versioned shared block**:
 
 ```markdown
 <!-- shared-block: <name> v<N> -->
@@ -148,6 +149,18 @@ present where required, carries the current version, and matches the
 canonical wording verbatim. To change shared wording: edit the
 canonical file, bump its version, and let the daily audit file
 issues against every repository still carrying the old version.
+
+`comment-proportion` covers comments and docstrings that are out of
+proportion to the code they document -- the multi-paragraph
+explanation on a three-line method. There is no honest mechanical
+threshold for this (the same docstring is right on a concurrency
+contract and wrong on an accessor), so the shared block briefs the
+code-quality judgment agent instead: comment blocks longer than the
+code they describe are candidates, the finding is advisory, and the
+fix is to cut the restatement rather than to delete the comment.
+Repositories that want a mechanical prefilter can add a report-only
+grep for long runs of added comment lines to their wave-1 sweep and
+feed the output to the same agent.
 
 ## Claude Code for automated review in CI
 

@@ -200,16 +200,27 @@ class PushAuditTest(unittest.TestCase):
         # depend on the real templates/shared-blocks/ content.
         self._blocks = tempfile.TemporaryDirectory()
         self.addCleanup(self._blocks.cleanup)
-        self.canonical = (
+        self.readme_block = (
             '<!-- shared-block: readme-discipline v2 -->\n'
             'Canonical wording.\n'
             '<!-- shared-block-end -->\n'
         )
-        with open(
-            os.path.join(self._blocks.name, 'readme-discipline.md'),
-            'w',
-        ) as f:
-            f.write(self.canonical)
+        # A different version number, so the tests prove versions are
+        # tracked per block rather than globally.
+        self.comment_block = (
+            '<!-- shared-block: comment-proportion v3 -->\n'
+            'Comment wording.\n'
+            '<!-- shared-block-end -->\n'
+        )
+        for name, block in (
+            ('readme-discipline', self.readme_block),
+            ('comment-proportion', self.comment_block),
+        ):
+            with open(
+                os.path.join(self._blocks.name, f'{name}.md'), 'w'
+            ) as f:
+                f.write(block)
+        self.canonical = f'{self.readme_block}\n{self.comment_block}'
 
     def _check(self, files):
         with tempfile.TemporaryDirectory() as tmp:
@@ -241,6 +252,20 @@ class PushAuditTest(unittest.TestCase):
         self.assertEqual(result['status'], 'fail')
         self.assertIn(
             'missing shared block readme-discipline',
+            result['details'],
+        )
+        self.assertIn(
+            'missing shared block comment-proportion',
+            result['details'],
+        )
+
+    def test_missing_comment_proportion_fails(self):
+        result = self._check({
+            'PUSH-AUDIT.md': f'# Audit\n\n{self.readme_block}\n',
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn(
+            'missing shared block comment-proportion',
             result['details'],
         )
 
@@ -504,6 +529,7 @@ class CanonicalSharedBlocksTest(unittest.TestCase):
             if f.endswith('.md') and f != 'README.md'
         ]
         self.assertIn('readme-discipline', names)
+        self.assertIn('comment-proportion', names)
         for name in names:
             canonical = audit_check.load_canonical_block(name)
             self.assertIsNotNone(
