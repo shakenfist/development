@@ -6,11 +6,30 @@
 
 * Claude Code automated review runs in the CI workflow, only after
   all other tests pass.
-* Must use the shared action
+* The reviewer job must be a call to the shared reusable workflow
+  `shakenfist/actions/.github/workflows/pr-auto-review.yml@main`,
+  with the project's own test jobs in its `needs:` list. Writing the
+  reviewer job out in full in the project's CI workflow is
+  superseded: projects still carrying a hand-written
+  `automated_reviewer` job should migrate to the reusable workflow
+  and delete their `check-bot-commit` job, which the reusable
+  workflow replaces with an API call.
+* The reviewer must reach Claude Code through the shared action
   `shakenfist/actions/review-pr-with-claude@main` (not per-project
-  scripts).
-* The reviewer job needs `pull-requests: write` and `issues: write`
-  permissions.
+  scripts). The reusable workflow does this for its callers.
+* The calling job needs `pull-requests: write` and `issues: write`
+  permissions, because a cross-repository reusable workflow cannot
+  grant itself more token scope than its caller has.
+* The automatic review must not pass `force` to the review action,
+  so that a PR the bot has already reviewed is left alone.
+  `pr-re-review.yml` is the only workflow which sets `force`, making
+  an explicit human request the sole way to override an existing
+  review.
+* The reviewer runs Claude Code with
+  `--dangerously-skip-permissions` while holding a write-capable
+  token, and the PR diff is untrusted input, so the automatic review
+  must be restricted to same-repository pull requests. Fork PRs are
+  reviewed only on explicit human request.
 
 ### Developer automation
 

@@ -59,6 +59,30 @@ by GitHub Advanced Security if missing.
   automated check flags any `runs-on:` that combines `static` with
   additional labels.
 
+### Job timeouts
+
+Every job must set `timeout-minutes`. GitHub's default is 360
+minutes (six hours), which is never the right answer on a
+self-hosted pool: a wedged job holds a runner that nothing else can
+use until it expires. This matters most for jobs on the
+`claude-code` pool, where the runners are few and an unattended
+Claude Code run has no natural upper bound of its own --
+`--max-turns` caps turns, not wall clock.
+
+Rules of thumb, matching the values used in the templates:
+
+* Trigger / dispatch jobs that only make a few `gh` API calls
+  (`pr-retest.yml`, and the `trigger-*` jobs in
+  `pr-address-comments.yml` and `pr-fix-tests.yml`): 10 minutes.
+* Claude Code triage runs (`issue-fix.yml`'s `triage` job): 30
+  minutes.
+* Claude Code review runs (`pr-re-review.yml`): 60 minutes. Real
+  re-reviews finish in three to six minutes, so this is ten times
+  headroom.
+* Claude Code fix runs that build and test (`issue-fix.yml`'s `fix`
+  job, `test-drift-fix.yml`, `pr-address-comments.yml`'s
+  `address-comments` job): 120 minutes.
+
 ### Functional test workflow naming
 
 * Functional testing must be in `functional-test.yml`.

@@ -16,78 +16,86 @@ suites), see the separate
 | `pr-retest.yml` | `.github/workflows/pr-retest.yml` | Manual functional test re-run |
 | `pr-address-comments.yml` | `.github/workflows/pr-address-comments.yml` | Address review comments |
 
-## Additional CI changes
+## Setting up the automatic review
 
-Beyond adding these workflow files, you also need to modify the
-project's main CI workflow (e.g. `functional-tests.yml`) to add:
-
-1. **Top-level `permissions` block** -- restrict default token scope
-2. **`check-bot-commit` job** -- prevent infinite loops from bot commits
-3. **`automated_reviewer` job** -- run Claude Code review after tests pass
-
-See the `automated-reviewer-job-snippet.md` section below for the
-exact YAML to add.
-
-### Automated reviewer job snippet
-
-Add this to your main CI workflow after the test jobs:
+The automatic review is not a file in this directory. Its body lives
+once, as a reusable workflow in the actions repository at
+`shakenfist/actions/.github/workflows/pr-auto-review.yml`, because the
+gate "review only after the tests pass" has to be expressed in terms
+of each project's own test jobs. Projects add a small calling job to
+their CI workflow (`functional-tests.yml`, or `ci.yml` for ryll):
 
 ```yaml
-permissions:
-  contents: read
-  pull-requests: write
-
-jobs:
-  check-bot-commit:
-    name: "Check bot commit"
-    if: github.event_name == 'pull_request'
-    runs-on: [self-hosted, static]
-    outputs:
-      is_bot: ${{ steps.check.outputs.is_bot }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-
-      - name: Check if last commit was from bot
-        id: check
-        run: |
-          LAST_AUTHOR_EMAIL=$(git log -1 --format='%ae')
-          echo "Last commit author: $LAST_AUTHOR_EMAIL"
-          if [ "$LAST_AUTHOR_EMAIL" = "bot@shakenfist.com" ]; then
-            echo "is_bot=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_bot=false" >> $GITHUB_OUTPUT
-          fi
-
   automated_reviewer:
     name: "Automated reviewer"
+    needs: [sanity_checks, smoke_collection]
     permissions:
       contents: read
       pull-requests: write
-    runs-on: [self-hosted, claude-code]
-    needs: [your-test-job, check-bot-commit]
-    if: |
-      github.event_name == 'pull_request' &&
-      needs.check-bot-commit.outputs.is_bot != 'true'
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-reviewer
-      cancel-in-progress: true
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Run automated reviewer
-        uses: shakenfist/actions/review-pr-with-claude@main
-        with:
-          pr-number: ${{ github.event.pull_request.number }}
+      issues: write
+    uses: shakenfist/actions/.github/workflows/pr-auto-review.yml@main
+    secrets: inherit
 ```
 
-Replace `your-test-job` with the name of your test job(s).
+Replace the `needs:` list with the project's own test jobs -- that
+list is the CI-passed gate, since a job skipped because a dependency
+failed never starts the reusable workflow. It is also the only part
+which differs between projects; everything else (runner, timeout,
+fork restriction, bot-commit check, concurrency) is centralised.
+
+Two details specific to reusable workflows:
+
+* The `permissions:` block goes on the **calling** job. A
+  cross-repository reusable workflow cannot grant itself more token
+  scope than its caller has, so omitting this leaves the reviewer
+  unable to post.
+* The calling job cannot set `runs-on:` or `timeout-minutes:`; both
+  are defined inside the reusable workflow.
+
+This is the same pattern as
+`shakenfist/actions/.github/workflows/smoke-cluster.yml`, which
+several projects already call from their CI workflows.
+
+### Migrating from the in-CI reviewer job
+
+Projects which predate this arrangement have a full `automated_reviewer`
+job, and a `check-bot-commit` job it depends on, written out inside
+`functional-tests.yml` (or `ci.yml`). To migrate:
+
+1. Replace the `automated_reviewer` job body with the calling job
+   above, keeping the existing `needs:` list.
+2. Delete the `check-bot-commit` job, unless another job uses its
+   `is_bot` output. The reusable workflow does that check itself, over
+   the API, which saves a job and a runner.
+3. Keep the CI workflow's top-level `permissions` block.
+
+### How a review is gated
+
+Three independent gates, in order:
+
+1. **CI passed** -- the calling job's `needs:` list.
+2. **Last commit is not the bot's** -- prevents a bot commit
+   triggering a review which triggers another bot commit.
+3. **The bot has not already reviewed this PR** -- this one lives
+   inside `review-pr-with-claude` itself, which skips when it finds an
+   existing `shakenfist-bot` review unless its `force` input is set.
+   The automatic review deliberately does not set `force`, and
+   `pr-re-review.yml` does. So a human commenting
+   `@shakenfist-bot please re-review` is the only way to get a second
+   review on a PR.
+
+### Fork pull requests are not reviewed
+
+The reusable workflow requires the PR to come from a branch in the
+same repository. The reviewer runs Claude Code with
+`--dangerously-skip-permissions` on a runner holding a token with
+`pull-requests: write` and `issues: write`, and it is fed the PR diff,
+which is untrusted input. Reviewing a fork PR would put an attacker's
+text in front of a write-capable token. Lifting this restriction means
+sandboxing the reviewer or giving it a read-only token first.
+
+The restriction lives in the reusable workflow rather than in each
+caller, so it cannot be lost when a project edits its CI workflow.
 
 ## Prerequisites
 
@@ -100,6 +108,8 @@ These workflows require:
   [shakenfist/actions](https://github.com/shakenfist/actions):
   - `pr-bot-trigger` -- handles bot command parsing and authorisation
   - `review-pr-with-claude` -- runs automated code reviews
+  - `.github/workflows/pr-auto-review.yml` -- the reusable workflow
+    wrapping `review-pr-with-claude` for the automatic review
 
 ## Bot commands
 
@@ -117,8 +127,21 @@ separate [`templates/test-drift-fix/`](../test-drift-fix/) templates.
 
 ## Projects using these templates
 
-| Project | Status |
-|---------|--------|
-| [imago](https://github.com/shakenfist/imago) | Live (original) |
-| [occystrap](https://github.com/shakenfist/occystrap) | Live |
-| [agent-python](https://github.com/shakenfist/agent-python) | Added |
+The bot-triggered workflows (`pr-re-review.yml`, `pr-retest.yml`,
+`pr-address-comments.yml`) are live in agent-python, client-python,
+clingwrap, imago, instar, kerbside, occystrap, ryll and shakenfist.
+
+The standalone `pr-auto-review.yml` is new. Every one of those
+projects still runs the automatic review as an in-CI
+`automated_reviewer` job and needs the migration described above:
+
+| Project | Automatic review |
+|---------|------------------|
+| [agent-python](https://github.com/shakenfist/agent-python) | In-CI job, to migrate |
+| [client-python](https://github.com/shakenfist/client-python) | In-CI job, to migrate |
+| [clingwrap](https://github.com/shakenfist/clingwrap) | In-CI job, to migrate |
+| [instar](https://github.com/shakenfist/instar) | In-CI job, to migrate |
+| [kerbside](https://github.com/shakenfist/kerbside) | In-CI job, to migrate |
+| [occystrap](https://github.com/shakenfist/occystrap) | In-CI job, to migrate |
+| [ryll](https://github.com/shakenfist/ryll) | In-CI job, to migrate |
+| [shakenfist](https://github.com/shakenfist/shakenfist) | In-CI job, to migrate |
