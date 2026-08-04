@@ -34,16 +34,21 @@ See the script's header comment for full details, including the
 duplicate-pin protections (PEP 503 canonical name comparison, extras
 tolerance, and recognising any version operator rather than only `==`
 so a direct dependency declared as a range is not re-emitted into the
-block as a second exact entry) and the `# never-pin: <name>` escape
-hatch for packages that must never be pinned (e.g. pydantic-core,
-which pydantic pins exactly, so an explicit pin can only agree or
-break resolution).
+block as a second exact entry -- which extends to a wholly unversioned
+declaration such as `"cryptography"`, the loosest bound there is) and
+the `# never-pin: <name>` escape hatch for packages that must never be
+pinned (e.g. pydantic-core, which pydantic pins exactly, so an explicit
+pin can only agree or break resolution).
 
 The resolve runs once, in the environment which invoked it, so the
 block reflects the lowest supported python on Linux and is complete
-for that environment only. Packaging machinery (`pip`, `setuptools`,
-`wheel`, `distribute`) is skipped unconditionally rather than relying
-on `pip freeze` to keep omitting it.
+for that environment only. Only `[project] dependencies` are resolved:
+optional-dependency extras are never installed, so their transitive
+requirements are neither pinned nor reaped, and an upstream release
+reachable only through an extra can still move under CI. Packaging
+machinery (`pip`, `setuptools`, `wheel`, `distribute`) is skipped
+unconditionally rather than relying on `pip freeze` to keep omitting
+it.
 
 ## Applications only
 
@@ -102,8 +107,8 @@ The first run after converting an append-only deployment sorts the
 block case-insensitively, removes accumulated stale pins, and may add
 pins for packages the old system-site-packages venv masked, so expect
 a larger one-time diff in that PR. It also drops any direct
-dependency which was declared as a range and had been duplicated into
-the block as an exact pin.
+dependency which was declared as a range, or with no version at all,
+and had been duplicated into the block as an exact pin.
 
 Such a dependency then genuinely floats: the block no longer pins it,
 so Renovate has no pin to bump and upgrades land silently rather than
@@ -112,3 +117,8 @@ shakenfist declares `psutil` and `uv` as ranges precisely so the
 system package satisfies them -- but it is a real change from the
 append-only behaviour, so record the intent in a comment beside the
 declaration, or pin it exactly if reproducibility matters more.
+
+An unversioned declaration is more often an oversight than intent. If
+the project pins every other direct dependency, prefer moving the
+resolved version up onto the declaration, where Renovate manages it
+alongside the rest, over leaving it to float.
