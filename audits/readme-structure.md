@@ -45,10 +45,11 @@ detail survives somewhere before trimming the README.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-03T09:51:13.600453+00:00
+Last regenerated: 2026-08-04T08:39:38.572872+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
+| actions | non-compliant | shakenfist/actions#13 |
 | agent-python | compliant | - |
 | client-python | non-compliant | shakenfist/client-python#353 |
 | clingwrap | compliant | - |
@@ -64,6 +65,7 @@ Last regenerated: 2026-08-03T09:51:13.600453+00:00
 
 Details for non-compliant projects:
 
+- **actions** (Status): README.md is 304 lines / 1397 words (limits: 150 lines, 1200 words); move detail into docs/, ARCHITECTURE.md, or AGENTS.md and keep the README a pitch
 - **client-python** (Status): README.md has no link into docs/ despite a docs/ directory existing; add curated links to the detailed documentation
 - **kerbside-patches** (Status): README.md is 423 lines / 2941 words (limits: 150 lines, 1200 words); move detail into docs/, ARCHITECTURE.md, or AGENTS.md and keep the README a pitch; README.md has no link into docs/ despite a docs/ directory existing; add curated links to the detailed documentation
 <!-- consistency-audit:end -->

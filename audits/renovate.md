@@ -40,10 +40,11 @@ See: `templates/renovate/README.md`
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-03T09:51:13.600453+00:00
+Last regenerated: 2026-08-04T08:39:38.572872+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
+| actions | non-compliant | shakenfist/actions#6 |
 | agent-python | compliant | - |
 | client-python | compliant | - |
 | clingwrap | compliant | - |
@@ -59,6 +60,7 @@ Last regenerated: 2026-08-03T09:51:13.600453+00:00
 
 Details for non-compliant projects:
 
+- **actions** (Status): Missing: .github/workflows/renovate.yml, renovate.json
 - **cloudgood** (Status): Missing: .github/workflows/renovate.yml, renovate.json
 - **divergulent** (Status): Missing: .github/workflows/renovate.yml, renovate.json
 - **library-utilities** (Status): Missing: .github/workflows/renovate.yml, renovate.json

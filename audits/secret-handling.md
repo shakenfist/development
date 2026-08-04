@@ -140,10 +140,11 @@ rest are code-level patterns.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-03T09:51:13.600453+00:00
+Last regenerated: 2026-08-04T08:39:38.572872+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
+| actions | non-compliant | shakenfist/actions#14 |
 | agent-python | non-compliant | shakenfist/agent-python#113 |
 | client-python | non-compliant | shakenfist/client-python#354 |
 | clingwrap | non-compliant | shakenfist/clingwrap#111 |
@@ -159,6 +160,7 @@ Last regenerated: 2026-08-03T09:51:13.600453+00:00
 
 Details for non-compliant projects:
 
+- **actions** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
 - **agent-python** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
 - **client-python** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
 - **clingwrap** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
