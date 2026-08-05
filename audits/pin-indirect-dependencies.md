@@ -70,7 +70,7 @@ See: `templates/pin-indirect-dependencies/README.md`
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-04T08:39:38.572872+00:00
+Last regenerated: 2026-08-05T08:38:58.034115+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -81,14 +81,10 @@ Last regenerated: 2026-08-04T08:39:38.572872+00:00
 | cloudgood | N/A | - |
 | divergulent | N/A | - |
 | instar | N/A | - |
-| kerbside | non-compliant | shakenfist/kerbside#159 |
+| kerbside | compliant | - |
 | kerbside-patches | N/A | - |
 | library-utilities | N/A | - |
 | occystrap | N/A | - |
 | ryll | N/A | - |
 | shakenfist | compliant | - |
-
-Details for non-compliant projects:
-
-- **kerbside** (Status): Missing # START_OF_INDIRECT_DEPS marker in pyproject.toml; Missing tools/pin-indirect-dependencies.sh (reconciler script from the template)
 <!-- consistency-audit:end -->
