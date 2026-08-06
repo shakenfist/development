@@ -40,7 +40,7 @@ See: `templates/renovate/README.md`
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-05T08:38:58.034115+00:00
+Last regenerated: 2026-08-06T08:39:00.557898+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
