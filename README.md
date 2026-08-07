@@ -76,6 +76,9 @@ This repository carries project-level Claude Code skills in
 - **standards-alignment** -- the workflow for bringing a repository up
   to the consistency standards, one update per commit, and adding it
   to the daily audit fleet
+- **review-tracking-adoption** -- deploying the human code review
+  tracking tooling to a repository and verifying the deployment,
+  including that expensive CI skips review-only pull requests
 
 ## Shared GitHub Actions
 

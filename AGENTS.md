@@ -96,6 +96,13 @@ original "prune locally rather than from CI" constraint was about
 developer clones and git hooks; CI pruning of a repo's own main
 branch is the steady-state design, not a violation of it.
 
+Deploying the tooling to a repository (and verifying a deployment,
+including that expensive CI skips review-only PRs) is covered by the
+`review-tracking-adoption` skill in `.claude/skills/` -- the CI-skip
+check is deliberately skill-based rather than part of
+`audit-check.py`, because classifying workflows as build CI versus
+content scanner differs per project and takes judgment.
+
 ## Conventions
 
 - Python: single quotes, no external dependencies in the audit scripts
