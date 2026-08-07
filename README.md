@@ -68,6 +68,15 @@ to Shaken Fist projects:
   `comment-proportion` instructions for each repository's
   `PUSH-AUDIT.md`)
 
+## Claude Code Skills
+
+This repository carries project-level Claude Code skills in
+[`.claude/skills/`](https://github.com/shakenfist/development/tree/main/.claude/skills):
+
+- **standards-alignment** -- the workflow for bringing a repository up
+  to the consistency standards, one update per commit, and adding it
+  to the daily audit fleet
+
 ## Shared GitHub Actions
 
 The [shakenfist/actions](https://github.com/shakenfist/actions) repository
