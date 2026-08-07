@@ -21,6 +21,7 @@ jobs:
           - actions
           - agent-python
           - client-python
+          - client-python-k3s
           - clingwrap
           - cloudgood
           - divergulent

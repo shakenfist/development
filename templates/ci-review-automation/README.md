@@ -2,7 +2,16 @@
 
 These templates set up Claude Code-powered PR review automation and
 bot-triggered workflows for Shaken Fist projects. All files can be
-copied directly with no modifications.
+copied directly with no modifications, but note that
+`pr-address-comments.yml` also requires a helper script that is NOT
+in this directory: it runs `tools/address-comments-with-claude.sh`
+from the target repository (read from the default branch via a
+trusted checkout, so the script must have merged before the bot
+trigger works). Copy that script from an existing deployment such as
+clingwrap's `tools/` directory and update the project name mentioned
+in its Claude prompt. Forgetting the script leaves the bot reacting
+to trigger comments and then failing with "No such file or
+directory" -- this has happened in practice on client-python-k3s.
 
 For automatic test fixing (suited to projects with large test
 suites), see the separate
