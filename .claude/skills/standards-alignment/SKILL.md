@@ -132,6 +132,13 @@ gh api -X PUT repos/shakenfist/<repo>/automated-security-fixes
   same env block.
 - A repo with no `.gitignore` at all has happened; check rather than
   assume.
+- None of the `@shakenfist-bot` triggers work on the PR that
+  introduces them: `issue_comment`-triggered workflows run from the
+  **default branch**, so pr-re-review, pr-retest and
+  pr-address-comments only go live once the PR merges. Do not burn
+  time posting trigger comments at the alignment PR itself, and
+  expect the automated reviewer's findings on that PR to need manual
+  addressing.
 
 ## What the audit does not check
 
