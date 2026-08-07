@@ -45,13 +45,14 @@ For links to other files in the same repository, use
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-06T08:39:00.557898+00:00
+Last regenerated: 2026-08-07T07:19:07.518953+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
 | actions | compliant | - |
 | agent-python | non-compliant | shakenfist/agent-python#107 |
 | client-python | non-compliant | shakenfist/client-python#345 |
+| client-python-k3s | compliant | - |
 | clingwrap | non-compliant | shakenfist/clingwrap#108 |
 | cloudgood | N/A | - |
 | divergulent | compliant | - |

@@ -60,13 +60,14 @@ Security settings: UI-only configuration, no template needed.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-06T08:39:00.557898+00:00
+Last regenerated: 2026-08-07T07:19:07.518953+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
 | actions | non-compliant | shakenfist/actions#7 |
 | agent-python | non-compliant | shakenfist/agent-python#81 |
 | client-python | compliant | - |
+| client-python-k3s | compliant | - |
 | clingwrap | compliant | - |
 | cloudgood | non-compliant | shakenfist/cloudgood#5 |
 | divergulent | non-compliant | shakenfist/divergulent#41 |

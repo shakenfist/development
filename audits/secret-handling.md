@@ -140,13 +140,14 @@ rest are code-level patterns.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-06T08:39:00.557898+00:00
+Last regenerated: 2026-08-07T07:19:07.518953+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
 | actions | non-compliant | shakenfist/actions#14 |
 | agent-python | non-compliant | shakenfist/agent-python#113 |
 | client-python | non-compliant | shakenfist/client-python#354 |
+| client-python-k3s | compliant | - |
 | clingwrap | non-compliant | shakenfist/clingwrap#111 |
 | cloudgood | N/A | - |
 | divergulent | non-compliant | shakenfist/divergulent#57 |

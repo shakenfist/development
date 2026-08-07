@@ -156,13 +156,14 @@ of correctly structured workflows.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-06T08:39:00.557898+00:00
+Last regenerated: 2026-08-07T07:19:07.518953+00:00
 
 | Project | Permissions | Linting | flake8wrap | Runners | Static tags | devpi fallback | devpi IP | Issue |
 |---------|--------|--------|--------|--------|--------|--------|--------|--------|
 | actions | non-compliant | non-compliant | non-compliant | non-compliant | compliant | N/A | compliant | shakenfist/actions#10, shakenfist/actions#11, shakenfist/actions#12, shakenfist/actions#9 |
 | agent-python | compliant | compliant | non-compliant | non-compliant | compliant | N/A | compliant | shakenfist/agent-python#105, shakenfist/agent-python#82 |
 | client-python | compliant | compliant | compliant | compliant | compliant | N/A | compliant | - |
+| client-python-k3s | compliant | compliant | compliant | compliant | compliant | N/A | compliant | - |
 | clingwrap | compliant | compliant | compliant | compliant | compliant | N/A | compliant | - |
 | cloudgood | N/A | compliant | N/A | N/A | N/A | N/A | N/A | - |
 | divergulent | compliant | compliant | compliant | compliant | compliant | N/A | compliant | - |

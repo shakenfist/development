@@ -31,13 +31,14 @@ Or in the GitHub UI: Settings > General > Pull Requests > check
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-06T08:39:00.557898+00:00
+Last regenerated: 2026-08-07T07:19:07.518953+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
 | actions | non-compliant | shakenfist/actions#8 |
 | agent-python | compliant | - |
 | client-python | compliant | - |
+| client-python-k3s | compliant | - |
 | clingwrap | compliant | - |
 | cloudgood | compliant | - |
 | divergulent | compliant | - |

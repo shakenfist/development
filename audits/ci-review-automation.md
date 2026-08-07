@@ -76,13 +76,14 @@ See: `templates/test-drift-fix/README.md`
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-06T08:39:00.557898+00:00
+Last regenerated: 2026-08-07T07:19:07.518953+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
 | actions | non-compliant | shakenfist/actions#5 |
 | agent-python | compliant | - |
 | client-python | compliant | - |
+| client-python-k3s | compliant | - |
 | clingwrap | compliant | - |
 | cloudgood | non-compliant | shakenfist/cloudgood#1 |
 | divergulent | non-compliant | shakenfist/divergulent#36 |
