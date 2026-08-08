@@ -94,3 +94,4 @@ See `PROJECT-CONSISTENCY-AUDITS.md` for the list of excluded projects
 | [test-coverage.md](test-coverage.md) | Unit and functional test coverage |
 | [secret-handling.md](secret-handling.md) | Secret scanner in CI, credentials kept out of logs |
 | [review-coverage.md](review-coverage.md) | Human review backlog stays under threshold in repos with review tracking |
+| [sfui-vendor.md](sfui-vendor.md) | Vendored sfui copies are verbatim and current |

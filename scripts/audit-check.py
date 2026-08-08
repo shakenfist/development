@@ -13,6 +13,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import tomllib
 from datetime import datetime, timezone
 
@@ -60,6 +61,7 @@ CHECK_NAMES = {
     'push-audit': 'Pre-push audit file',
     'secret-scanning-ci': 'Secret scanning in CI',
     'review-coverage': 'Human review coverage',
+    'sfui-vendor': 'sfui vendored copy',
 }
 
 
@@ -2043,6 +2045,165 @@ def check_review_coverage(repo_path, props):
     }
 
 
+# sfui (the Shaken Fist web UI design system) is vendored into
+# consumers by its tools/vendor.sh, which stamps .sfui-commit in the
+# vendored directory with the canonical commit the copy came from.
+SFUI_CANONICAL_URL = 'https://github.com/shakenfist/sfui'
+
+
+def find_sfui_vendored_dirs(repo_path):
+    """Find directories holding a vendored sfui copy.
+
+    A vendored copy is identified by its .sfui-commit provenance
+    stamp. Hidden directories are pruned: as well as .git, local
+    build state like .tox and .venv can hold site-packages copies
+    of a consumer's static assets, which are installation artifacts
+    rather than vendored copies. Returns repo-relative directory
+    paths.
+    """
+    found = []
+    for root, dirs, files in os.walk(repo_path):
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
+        if '.sfui-commit' in files:
+            found.append(os.path.relpath(root, repo_path))
+    return sorted(found)
+
+
+def check_sfui_vendor(repo_path, props, canonical_url=None):
+    """Check vendored sfui copies are verbatim and current.
+
+    Two failure modes, mirroring the shared-blocks rules: a copy
+    that differs from its recorded canonical commit was edited in
+    place (lost work -- the next sync silently discards it), and a
+    copy behind canonical HEAD is stale (improvements have not
+    propagated). The verbatim comparison runs the canonical
+    repository's own tools/vendor.sh --check at the recorded
+    commit, so the distributable file list always matches the
+    commit the copy claims to be. Repositories with no vendored
+    copy are N/A.
+    """
+    vendored = find_sfui_vendored_dirs(repo_path)
+    if not vendored:
+        return {
+            'id': 'sfui-vendor',
+            'status': 'not_applicable',
+            'details': 'No vendored sfui copy (no .sfui-commit file)',
+        }
+
+    problems = []
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            canonical = os.path.join(tmp, 'sfui')
+            clone = subprocess.run(
+                [
+                    'git', 'clone', '--quiet',
+                    canonical_url or SFUI_CANONICAL_URL, canonical,
+                ],
+                capture_output=True, text=True, timeout=120,
+            )
+            if clone.returncode != 0:
+                return {
+                    'id': 'sfui-vendor',
+                    'status': 'fail',
+                    'details': (
+                        f'Could not clone canonical sfui: '
+                        f'{clone.stderr.strip()}'
+                    ),
+                }
+
+            for rel in vendored:
+                directory = os.path.join(repo_path, rel)
+                with open(
+                    os.path.join(directory, '.sfui-commit'), 'r',
+                    errors='replace',
+                ) as f:
+                    sha = f.read().strip()
+                if not re.fullmatch(r'[0-9a-f]{40}', sha):
+                    problems.append(
+                        f'{rel}: .sfui-commit does not contain a '
+                        f'commit sha'
+                    )
+                    continue
+
+                exists = subprocess.run(
+                    [
+                        'git', '-C', canonical, 'cat-file', '-e',
+                        f'{sha}^{{commit}}',
+                    ],
+                    capture_output=True, text=True, timeout=30,
+                )
+                if exists.returncode != 0:
+                    problems.append(
+                        f'{rel}: recorded commit {sha[:9]} is not in '
+                        f'the canonical repository (vendored from a '
+                        f'dirty or unpushed tree?)'
+                    )
+                    continue
+
+                subprocess.run(
+                    [
+                        'git', '-C', canonical, 'checkout', '--quiet',
+                        sha,
+                    ],
+                    capture_output=True, text=True, timeout=30,
+                    check=True,
+                )
+                verbatim = subprocess.run(
+                    [
+                        'bash',
+                        os.path.join(canonical, 'tools', 'vendor.sh'),
+                        '--check', os.path.abspath(directory),
+                    ],
+                    capture_output=True, text=True, timeout=60,
+                )
+                if verbatim.returncode != 0:
+                    problems.append(
+                        f'{rel}: differs from recorded commit '
+                        f'{sha[:9]} -- a vendored copy was edited in '
+                        f'place; move the change to the canonical '
+                        f'repository and re-vendor'
+                    )
+
+                behind = subprocess.run(
+                    [
+                        'git', '-C', canonical, 'rev-list', '--count',
+                        f'{sha}..origin/HEAD',
+                    ],
+                    capture_output=True, text=True, timeout=30,
+                )
+                if (behind.returncode == 0
+                        and int(behind.stdout.strip()) > 0):
+                    count = int(behind.stdout.strip())
+                    problems.append(
+                        f'{rel}: {count} commit(s) behind canonical; '
+                        f're-run tools/vendor.sh from an up to date '
+                        f'sfui checkout'
+                    )
+    except (subprocess.TimeoutExpired, FileNotFoundError,
+            subprocess.CalledProcessError) as e:
+        return {
+            'id': 'sfui-vendor',
+            'status': 'fail',
+            'details': f'Error checking vendored sfui: {e}',
+        }
+
+    if problems:
+        return {
+            'id': 'sfui-vendor',
+            'status': 'fail',
+            'details': '; '.join(problems),
+        }
+    return {
+        'id': 'sfui-vendor',
+        'status': 'pass',
+        'details': (
+            f'{len(vendored)} vendored sfui '
+            f'{"copy" if len(vendored) == 1 else "copies"} verbatim '
+            f'at canonical HEAD'
+        ),
+    }
+
+
 def run_all_checks(repo_path, repo_name, org):
     """Run all checks and return results."""
     props = detect_repo_properties(repo_path, repo_name)
@@ -2073,6 +2234,7 @@ def run_all_checks(repo_path, repo_name, org):
         check_push_audit(repo_path, props),
         check_secret_scanning_ci(repo_path, props),
         check_review_coverage(repo_path, props),
+        check_sfui_vendor(repo_path, props),
     ]
 
     summary = {

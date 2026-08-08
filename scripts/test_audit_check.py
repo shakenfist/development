@@ -557,5 +557,129 @@ class RepoOverridesTest(unittest.TestCase):
         self.assertFalse(props['is_actions_repo'])
 
 
+class SfuiVendorTest(unittest.TestCase):
+    """Exercise check_sfui_vendor against fixture repositories.
+
+    The canonical fixture is a tiny git repo carrying a stand-in
+    tools/vendor.sh that honours the real script's --check contract
+    (diff the distributable files, exit non-zero on difference); the
+    real script lives in shakenfist/sfui and is not vendored here.
+    """
+
+    TOKENS = ':root { --sf-bg: #000; }\n'
+
+    def _git(self, repo, *args):
+        subprocess.run(
+            [
+                'git', '-C', repo,
+                '-c', 'user.name=test',
+                '-c', 'user.email=test@example.com',
+            ] + list(args),
+            check=True, capture_output=True,
+        )
+
+    def _head(self, repo):
+        return subprocess.run(
+            ['git', '-C', repo, 'rev-parse', 'HEAD'],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+
+    def _make_canonical(self, tmp):
+        repo = os.path.join(tmp, 'canonical')
+        os.makedirs(os.path.join(repo, 'tools'))
+        with open(os.path.join(repo, 'tokens.css'), 'w') as f:
+            f.write(self.TOKENS)
+        with open(os.path.join(repo, 'tools', 'vendor.sh'), 'w') as f:
+            f.write(
+                '#!/bin/bash\n'
+                'src="$(cd "$(dirname "$0")/.." && pwd)"\n'
+                '[ "$1" = "--check" ] || exit 2\n'
+                'diff -u "$2/tokens.css" "$src/tokens.css"\n'
+            )
+        self._git(repo, 'init', '--quiet')
+        self._git(repo, 'add', '-A')
+        self._git(repo, 'commit', '--quiet', '-m', 'initial')
+        return repo
+
+    def _make_consumer(self, tmp, sha, tokens=None):
+        consumer = os.path.join(tmp, 'consumer')
+        vendored = os.path.join(consumer, 'static', 'sfui')
+        os.makedirs(vendored)
+        with open(os.path.join(vendored, 'tokens.css'), 'w') as f:
+            f.write(tokens if tokens is not None else self.TOKENS)
+        with open(os.path.join(vendored, '.sfui-commit'), 'w') as f:
+            f.write(sha + '\n')
+        return consumer
+
+    def test_not_applicable_without_sfui_commit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            consumer = os.path.join(tmp, 'consumer')
+            os.makedirs(consumer)
+            result = audit_check.check_sfui_vendor(consumer, {})
+            self.assertEqual(result['status'], 'not_applicable')
+
+    def test_verbatim_copy_at_head_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            canonical = self._make_canonical(tmp)
+            consumer = self._make_consumer(tmp, self._head(canonical))
+            result = audit_check.check_sfui_vendor(
+                consumer, {}, canonical_url=canonical
+            )
+            self.assertEqual(result['status'], 'pass')
+            self.assertIn('verbatim', result['details'])
+
+    def test_edited_copy_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            canonical = self._make_canonical(tmp)
+            consumer = self._make_consumer(
+                tmp, self._head(canonical),
+                tokens=':root { --sf-bg: #fff; }\n',
+            )
+            result = audit_check.check_sfui_vendor(
+                consumer, {}, canonical_url=canonical
+            )
+            self.assertEqual(result['status'], 'fail')
+            self.assertIn('edited in place', result['details'])
+
+    def test_copy_behind_canonical_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            canonical = self._make_canonical(tmp)
+            consumer = self._make_consumer(tmp, self._head(canonical))
+            with open(
+                os.path.join(canonical, 'tokens.css'), 'a'
+            ) as f:
+                f.write('/* a change the consumer lacks */\n')
+            self._git(canonical, 'commit', '--quiet', '-am', 'more')
+            result = audit_check.check_sfui_vendor(
+                consumer, {}, canonical_url=canonical
+            )
+            self.assertEqual(result['status'], 'fail')
+            self.assertIn('behind canonical', result['details'])
+
+    def test_unknown_commit_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            canonical = self._make_canonical(tmp)
+            consumer = self._make_consumer(tmp, '0' * 40)
+            result = audit_check.check_sfui_vendor(
+                consumer, {}, canonical_url=canonical
+            )
+            self.assertEqual(result['status'], 'fail')
+            self.assertIn(
+                'not in the canonical repository', result['details']
+            )
+
+    def test_malformed_stamp_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            canonical = self._make_canonical(tmp)
+            consumer = self._make_consumer(tmp, 'not-a-sha')
+            result = audit_check.check_sfui_vendor(
+                consumer, {}, canonical_url=canonical
+            )
+            self.assertEqual(result['status'], 'fail')
+            self.assertIn(
+                'does not contain a commit sha', result['details']
+            )
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -111,6 +111,10 @@ AUDIT_METADATA = {
         'spec': 'audits/review-coverage.md',
         'template': None,
     },
+    'sfui-vendor': {
+        'spec': 'audits/sfui-vendor.md',
+        'template': None,
+    },
 }
 
 # Map from check ID to issue title suffix. Must match existing
@@ -141,6 +145,7 @@ ISSUE_TITLES = {
     'push-audit': 'Pre-push audit file',
     'secret-scanning-ci': 'Secret scanning in CI',
     'review-coverage': 'Human review coverage',
+    'sfui-vendor': 'sfui vendored copy',
 }
 
 
