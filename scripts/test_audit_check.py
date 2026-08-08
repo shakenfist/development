@@ -681,5 +681,47 @@ class SfuiVendorTest(unittest.TestCase):
             )
 
 
+class MergeQueueConfigTest(unittest.TestCase):
+    def _rule(self, **params):
+        return {'type': 'merge_queue', 'parameters': params}
+
+    def test_no_merge_queue_rule_returns_none(self):
+        self.assertIsNone(audit_check.evaluate_merge_queue_rules([]))
+        self.assertIsNone(audit_check.evaluate_merge_queue_rules(
+            [{'type': 'deletion'}, {'type': 'non_fast_forward'}]
+        ))
+
+    def test_serialized_queue_passes(self):
+        problems = audit_check.evaluate_merge_queue_rules([
+            {'type': 'pull_request'},
+            self._rule(
+                max_entries_to_build=1, min_entries_to_merge=1,
+                max_entries_to_merge=5,
+                min_entries_to_merge_wait_minutes=5,
+            ),
+        ])
+        self.assertEqual(problems, [])
+
+    def test_speculative_stacking_fails(self):
+        problems = audit_check.evaluate_merge_queue_rules([
+            self._rule(max_entries_to_build=2, min_entries_to_merge=1),
+        ])
+        self.assertEqual(len(problems), 1)
+        self.assertIn('max_entries_to_build is 2', problems[0])
+
+    def test_batched_merging_fails(self):
+        problems = audit_check.evaluate_merge_queue_rules([
+            self._rule(max_entries_to_build=1, min_entries_to_merge=2),
+        ])
+        self.assertEqual(len(problems), 1)
+        self.assertIn('min_entries_to_merge is 2', problems[0])
+
+    def test_missing_parameters_flags_both(self):
+        problems = audit_check.evaluate_merge_queue_rules([
+            {'type': 'merge_queue'},
+        ])
+        self.assertEqual(len(problems), 2)
+
+
 if __name__ == '__main__':
     unittest.main()

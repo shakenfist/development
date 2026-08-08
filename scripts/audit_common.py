@@ -51,6 +51,10 @@ AUDIT_METADATA = {
         'spec': 'audits/delete-branch-on-merge.md',
         'template': None,
     },
+    'merge-queue-config': {
+        'spec': 'audits/merge-queue-config.md',
+        'template': None,
+    },
     'workflow-permissions': {
         'spec': 'audits/workflow-standards.md',
         'template': None,
@@ -130,6 +134,7 @@ ISSUE_TITLES = {
     'default-branch-naming': 'Default branch naming',
     'github-security': 'GitHub security settings',
     'delete-branch-on-merge': 'Delete branch on merge',
+    'merge-queue-config': 'Merge queue reasonability',
     'workflow-permissions': 'Workflow standards',
     'pre-commit-config': 'Workflow standards (linting)',
     'flake8wrap': 'Workflow standards (flake8wrap)',

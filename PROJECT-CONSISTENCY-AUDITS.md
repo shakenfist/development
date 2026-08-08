@@ -507,6 +507,26 @@ To enable via the CLI:
 gh api -X PATCH repos/shakenfist/<repo> -F delete_branch_on_merge=true
 ```
 
+## Merge queue reasonability
+
+**Standard:** Repositories that enable a GitHub merge queue on
+their default branch must configure it to process entries serially
+and merge them individually: `max_entries_to_build: 1` and
+`min_entries_to_merge: 1`. Repositories without a merge queue are
+out of scope — adopting two-stage CI is a per-project decision.
+
+The rationale (learned on shakenfist/shakenfist, August 2026): with
+build concurrency above 1, speculative stacked merge groups are
+ejected and rebuilt whenever an entry ahead of them fails, wasting
+CI runs and adding cluster load — and load is our dominant merge CI
+failure mode, so stacking amplifies the failures that trigger the
+rebuilds. Merge batching (`min_entries_to_merge` above 1) idles the
+queue for up to the configured wait time while saving no CI, since
+the queue runs CI once per entry regardless of how merges land.
+See [`audits/merge-queue-config.md`](audits/merge-queue-config.md)
+for the full mechanics and the CLI recipe to inspect and fix a
+ruleset.
+
 ## GitHub CodeQL advanced security
 
 All **public** projects should have a GitHub Advanced Security CodeQL actions

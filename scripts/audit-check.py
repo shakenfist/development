@@ -46,6 +46,7 @@ CHECK_NAMES = {
     'default-branch-naming': 'Default branch naming',
     'github-security': 'GitHub security settings',
     'delete-branch-on-merge': 'Delete branch on merge',
+    'merge-queue-config': 'Merge queue reasonability',
     'workflow-permissions': 'Workflow standards',
     'pre-commit-config': 'Workflow standards',
     'flake8wrap': 'Workflow standards (flake8wrap)',
@@ -748,6 +749,136 @@ def check_delete_branch_on_merge(repo_path, props, repo_name, org):
             'id': 'delete-branch-on-merge',
             'status': 'fail',
             'details': f'Error checking delete branch on merge: {e}',
+        }
+
+
+def evaluate_merge_queue_rules(rules):
+    """Evaluate effective branch rules for merge queue reasonability.
+
+    Takes the rule list returned by the
+    /repos/{org}/{repo}/rules/branches/{branch} endpoint. Returns a
+    list of problem strings (empty when compliant), or None when no
+    merge queue rule is present.
+
+    The expectations encode two mechanics that are easy to get wrong
+    (learned on shakenfist/shakenfist, August 2026):
+
+    * max_entries_to_build > 1 enables speculative stacking: entry
+      N+1 builds on top of entry N, so any failure ahead of it
+      ejects that work and rebuilds the group on a new SHA. On CI
+      that fails under cluster load, the speculative builds both
+      waste runs (entries observed rebuilding five times in a day)
+      and add the load that causes the failures.
+    * min_entries_to_merge > 1 makes the queue idle for up to
+      min_entries_to_merge_wait_minutes hoping to batch merges, but
+      batching saves no CI (the queue builds one merge group and one
+      CI run per entry regardless of how merges are batched), so it
+      is pure latency. With min_entries_to_merge = 1 the wait timer
+      never engages.
+    """
+    merge_queue = [r for r in rules if r.get('type') == 'merge_queue']
+    if not merge_queue:
+        return None
+
+    problems = []
+    for rule in merge_queue:
+        params = rule.get('parameters') or {}
+
+        build = params.get('max_entries_to_build')
+        if build != 1:
+            problems.append(
+                f'max_entries_to_build is {build}, expected 1: '
+                f'speculative stacked builds are ejected and rebuilt '
+                f'whenever an entry ahead of them fails, wasting CI '
+                f'and adding load'
+            )
+
+        min_merge = params.get('min_entries_to_merge')
+        if min_merge != 1:
+            problems.append(
+                f'min_entries_to_merge is {min_merge}, expected 1: '
+                f'waiting to batch merges adds up to the configured '
+                f'wait time to every merge and saves no CI, which '
+                f'runs once per queue entry regardless'
+            )
+    return problems
+
+
+def check_merge_queue_config(repo_path, props, repo_name, org):
+    """Check any merge queue on the default branch is serialized."""
+    try:
+        result = subprocess.run(
+            [
+                'gh', 'api',
+                f'repos/{org}/{repo_name}',
+                '--jq', '.default_branch',
+            ],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            return {
+                'id': 'merge-queue-config',
+                'status': 'fail',
+                'details': (
+                    f'Could not query GitHub API for the default '
+                    f'branch: {result.stderr.strip()}'
+                ),
+            }
+        branch = result.stdout.strip()
+
+        result = subprocess.run(
+            [
+                'gh', 'api',
+                f'repos/{org}/{repo_name}/rules/branches/{branch}',
+            ],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            return {
+                'id': 'merge-queue-config',
+                'status': 'fail',
+                'details': (
+                    f'Could not query GitHub API for branch rules: '
+                    f'{result.stderr.strip()}'
+                ),
+            }
+        try:
+            rules = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            return {
+                'id': 'merge-queue-config',
+                'status': 'fail',
+                'details': 'Could not parse branch rules response',
+            }
+
+        problems = evaluate_merge_queue_rules(rules)
+        if problems is None:
+            return {
+                'id': 'merge-queue-config',
+                'status': 'not_applicable',
+                'details': (
+                    f'No merge queue on default branch "{branch}"'
+                ),
+            }
+        if problems:
+            return {
+                'id': 'merge-queue-config',
+                'status': 'fail',
+                'details': '; '.join(problems),
+            }
+        return {
+            'id': 'merge-queue-config',
+            'status': 'pass',
+            'details': (
+                f'Merge queue on "{branch}" is serialized '
+                f'(max_entries_to_build 1, min_entries_to_merge 1)'
+            ),
+        }
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        return {
+            'id': 'merge-queue-config',
+            'status': 'fail',
+            'details': f'Error checking merge queue config: {e}',
         }
 
 
@@ -2219,6 +2350,7 @@ def run_all_checks(repo_path, repo_name, org):
         check_default_branch(repo_path, props, repo_name, org),
         check_github_security(repo_path, props, repo_name, org),
         check_delete_branch_on_merge(repo_path, props, repo_name, org),
+        check_merge_queue_config(repo_path, props, repo_name, org),
         check_workflow_permissions(repo_path, props),
         check_pre_commit_config(repo_path, props),
         check_flake8wrap(repo_path, props),
