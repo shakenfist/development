@@ -86,6 +86,26 @@ so the change is captured in `.github/exported-config/`.
 ## Projects
 
 <!-- consistency-audit:begin -->
-*(Awaiting the first automated regeneration by the consistency
-audit workflow.)*
+*This table is regenerated daily by the consistency audit
+workflow from `scripts/audit-check.py` results; do not edit
+it by hand.*
+
+Last regenerated: 2026-08-08T22:48:19.415074+00:00
+
+| Project | Status | Issue |
+|---------|--------|--------|
+| actions | N/A | - |
+| agent-python | N/A | - |
+| client-python | N/A | - |
+| client-python-k3s | N/A | - |
+| clingwrap | N/A | - |
+| cloudgood | N/A | - |
+| divergulent | N/A | - |
+| instar | N/A | - |
+| kerbside | N/A | - |
+| kerbside-patches | N/A | - |
+| library-utilities | N/A | - |
+| occystrap | N/A | - |
+| ryll | N/A | - |
+| shakenfist | compliant | - |
 <!-- consistency-audit:end -->
