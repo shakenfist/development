@@ -90,19 +90,19 @@ so the change is captured in `.github/exported-config/`.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-08T22:48:19.415074+00:00
+Last regenerated: 2026-08-09T06:59:35.389507+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
 | actions | N/A | - |
 | agent-python | N/A | - |
 | client-python | N/A | - |
-| client-python-k3s | N/A | - |
+| client-python-k3s | compliant | - |
 | clingwrap | N/A | - |
 | cloudgood | N/A | - |
 | divergulent | N/A | - |
 | instar | N/A | - |
-| kerbside | N/A | - |
+| kerbside | compliant | - |
 | kerbside-patches | N/A | - |
 | library-utilities | N/A | - |
 | occystrap | N/A | - |
