@@ -17,6 +17,7 @@ optionally naming a specific issue.
 | File | Destination | Description |
 |------|-------------|-------------|
 | `issue-fix.yml` | `.github/workflows/issue-fix.yml` | Triage and fix workflow |
+| `claude-model-fallback.sh` | `tools/claude-model-fallback.sh` | Model fallback wrapper (needs `chmod +x`) |
 
 ## How it works
 
@@ -50,6 +51,19 @@ optionally naming a specific issue.
   body, and comment filtering closes it via the thread. Dispatching
   with an explicit `issue_number` bypasses the author check --
   doing so asserts a human has read and trusts the issue text.
+- **The fix attempt falls back between models when credit runs
+  out.** Pinning a single model means the fixer stops working
+  entirely once that model's subscription allowance is exhausted.
+  The claude CLI's own `--fallback-model` flag does not cover this:
+  it handles overloaded or unavailable models, not an exhausted
+  allowance, which arrives as an HTTP 429 carried in the
+  `--output-format json` payload as `api_error_status`.
+  `claude-model-fallback.sh` detects that and moves to the next
+  model in the `models` input. A refused request is free -- no
+  tokens, `total_cost_usd` of 0 -- so the wrapper attempts the real
+  job rather than paying for a pre-flight probe on every run where
+  the preferred model is in fact available. Triage stays pinned to
+  Haiku, which is cheap enough not to need this.
 - **Output is always a draft PR** (or an issue comment). The
   workflow has no path to merging code; a human reviews and merges
   every proposed fix.
@@ -108,7 +122,17 @@ to replace:
 - Self-hosted runners with the `claude-code` label
 - Claude Code CLI installed and authenticated on `claude-code`
   runners
+- `jq` on the `claude-code` runners, used by
+  `claude-model-fallback.sh` to read the claude CLI's JSON output
 - The dispatching user (or conductor token) needs write access
+
+## Upgrading an existing deployment
+
+The `model` input was replaced by `models` (a comma-separated
+preference list). GitHub rejects a `workflow_dispatch` carrying an
+input the workflow does not declare, so a conductor that passes
+`-f model=...` will fail outright rather than degrade -- update the
+conductor in the same window as the workflow.
 
 ## Projects using these templates
 
