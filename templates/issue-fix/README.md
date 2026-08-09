@@ -130,9 +130,15 @@ to replace:
 
 The `model` input was replaced by `models` (a comma-separated
 preference list). GitHub rejects a `workflow_dispatch` carrying an
-input the workflow does not declare, so a conductor that passes
-`-f model=...` will fail outright rather than degrade -- update the
-conductor in the same window as the workflow.
+input the workflow does not declare, so any dispatcher that names
+the old input fails outright rather than degrading -- check yours
+before deploying, and update both in the same window.
+
+The Shaken Fist conductor described above is unaffected: it
+dispatches with no inputs at all, so the workflow's own defaults
+apply and the rename is invisible to it. A conductor which pins the
+model explicitly, or a human running `gh workflow run ... -f
+model=...`, needs to switch to `-f models=...`.
 
 ## Projects using these templates
 
