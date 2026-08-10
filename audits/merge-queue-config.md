@@ -90,7 +90,7 @@ so the change is captured in `.github/exported-config/`.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-09T06:59:35.389507+00:00
+Last regenerated: 2026-08-10T07:44:55.375809+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
