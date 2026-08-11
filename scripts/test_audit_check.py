@@ -540,18 +540,40 @@ class ReviewMarksPreCommitTest(unittest.TestCase):
     def check(self):
         return audit_check.check_review_marks_pre_commit(self.repo, {})
 
+    def config(self, body, hooks='end-of-file-fixer'):
+        """Write a config running `hooks`, prefixed by `body`."""
+        hook_lines = ''.join(
+            f'      - id: {h}\n' for h in hooks.split() if h
+        )
+        self.write(
+            '.pre-commit-config.yaml',
+            f'{body}repos:\n  - repo: local\n    hooks:\n{hook_lines}'
+        )
+
     def test_not_applicable_without_scope_config(self):
-        self.write('.pre-commit-config.yaml', 'repos: []\n')
+        self.config('')
         self.assertEqual(self.check()['status'], 'not_applicable')
 
     def test_not_applicable_without_pre_commit_config(self):
         self.adopt()
         self.assertEqual(self.check()['status'], 'not_applicable')
 
+    def test_not_applicable_without_a_rewriting_hook(self):
+        """ryll's shape: scanners and linters, but no formatter.
+
+        Nothing rewrites the marks, so there is nothing to exclude --
+        and demanding a blanket exclude here would hide review prose
+        from gitleaks and the bidi scanner.
+        """
+        self.adopt()
+        self.config('', hooks='gitleaks bidi-check shellcheck')
+        result = self.check()
+        self.assertEqual(result['status'], 'not_applicable')
+        self.assertIn('No file-rewriting', result['details'])
+
     def test_top_level_exclude_passes(self):
         self.adopt()
-        self.write('.pre-commit-config.yaml',
-                   'exclude: ^\\.vscode/.*\\.weaudit\n\nrepos: []\n')
+        self.config('exclude: ^\\.vscode/.*\\.weaudit\n\n')
         self.assertEqual(self.check()['status'], 'pass')
 
     def test_per_hook_exclude_passes(self):
@@ -567,13 +589,19 @@ class ReviewMarksPreCommitTest(unittest.TestCase):
 
     def test_quoted_exclude_passes(self):
         self.adopt()
-        self.write('.pre-commit-config.yaml',
-                   "exclude: '^\\.vscode/.*\\.weaudit'\n\nrepos: []\n")
+        self.config("exclude: '^\\.vscode/.*\\.weaudit'\n\n")
         self.assertEqual(self.check()['status'], 'pass')
+
+    def test_trailing_whitespace_hook_also_counts(self):
+        self.adopt()
+        self.config('', hooks='trailing-whitespace')
+        result = self.check()
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('trailing-whitespace', result['details'])
 
     def test_no_exclude_fails(self):
         self.adopt()
-        self.write('.pre-commit-config.yaml', 'repos: []\n')
+        self.config('')
         result = self.check()
         self.assertEqual(result['status'], 'fail')
         self.assertIn('weaudit', result['details'])
@@ -581,20 +609,17 @@ class ReviewMarksPreCommitTest(unittest.TestCase):
     def test_exclude_missing_the_sidecar_fails(self):
         """An anchored pattern catches the weaudit file but not its json."""
         self.adopt()
-        self.write('.pre-commit-config.yaml',
-                   'exclude: ^\\.vscode/.*\\.weaudit$\n\nrepos: []\n')
+        self.config('exclude: ^\\.vscode/.*\\.weaudit$\n\n')
         self.assertEqual(self.check()['status'], 'fail')
 
     def test_unrelated_exclude_fails(self):
         self.adopt()
-        self.write('.pre-commit-config.yaml',
-                   'exclude: ^kerbside/api/static/\n\nrepos: []\n')
+        self.config('exclude: ^kerbside/api/static/\n\n')
         self.assertEqual(self.check()['status'], 'fail')
 
     def test_uncompilable_exclude_is_skipped_not_raised(self):
         self.adopt()
-        self.write('.pre-commit-config.yaml',
-                   'exclude: ^[unclosed\n\nrepos: []\n')
+        self.config('exclude: ^[unclosed\n\n')
         self.assertEqual(self.check()['status'], 'fail')
 
 
