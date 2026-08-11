@@ -110,6 +110,32 @@ files, and handle deleted files.
   runs them.
 * Helper shell scripts should have shellcheck pre-commit hooks.
 
+### Review marks excluded from pre-commit
+
+Repositories with human review tracking deployed (those carrying
+`.vscode/review-scope.toml` -- see
+[docs/code-review-tracking.md](../docs/code-review-tracking.md))
+must exempt the weAudit state files from pre-commit:
+
+```yaml
+exclude: ^\.vscode/.*\.weaudit
+```
+
+Those files are generated, and the generator emits no trailing
+newline, so `end-of-file-fixer` rewrites them on every
+`pre-commit run --all-files`. That reports a failure nobody can fix:
+committing the newline only means the next regen drops it again, so
+the hook warns over and over until people learn to ignore it, which
+is the opposite of what a lint gate is for.
+
+The check tries each `exclude:` value in the file as the regex
+pre-commit would apply, and passes if any one of them matches both
+`.vscode/<user>.weaudit` and `.vscode/<user>.weaudit-shas.json`. A
+top-level exclude and a per-hook exclude therefore both satisfy it,
+though the top-level form is recommended: it covers hooks added
+later. Repositories without the review tracking tooling, or without
+a `.pre-commit-config.yaml`, are not applicable.
+
 ### PyPI caching
 
 Self-hosted runners should use the devpi PyPI cache at

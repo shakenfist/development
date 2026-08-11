@@ -519,6 +519,85 @@ class ReviewCoverageTest(unittest.TestCase):
                          [f'never reviewed: f{i}.py' for i in range(5)])
 
 
+class ReviewMarksPreCommitTest(unittest.TestCase):
+    """Tests check_review_marks_pre_commit against config fixtures."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = self.tmp.name
+        os.mkdir(os.path.join(self.repo, '.vscode'))
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def write(self, path, content):
+        with open(os.path.join(self.repo, path), 'w') as f:
+            f.write(content)
+
+    def adopt(self):
+        self.write('.vscode/review-scope.toml', 'include = ["*.py"]\n')
+
+    def check(self):
+        return audit_check.check_review_marks_pre_commit(self.repo, {})
+
+    def test_not_applicable_without_scope_config(self):
+        self.write('.pre-commit-config.yaml', 'repos: []\n')
+        self.assertEqual(self.check()['status'], 'not_applicable')
+
+    def test_not_applicable_without_pre_commit_config(self):
+        self.adopt()
+        self.assertEqual(self.check()['status'], 'not_applicable')
+
+    def test_top_level_exclude_passes(self):
+        self.adopt()
+        self.write('.pre-commit-config.yaml',
+                   'exclude: ^\\.vscode/.*\\.weaudit\n\nrepos: []\n')
+        self.assertEqual(self.check()['status'], 'pass')
+
+    def test_per_hook_exclude_passes(self):
+        """A hook-level exclude protects the files just as well."""
+        self.adopt()
+        self.write('.pre-commit-config.yaml',
+                   'repos:\n'
+                   '  - repo: local\n'
+                   '    hooks:\n'
+                   '      - id: end-of-file-fixer\n'
+                   '        exclude: ^\\.vscode/.*\\.weaudit\n')
+        self.assertEqual(self.check()['status'], 'pass')
+
+    def test_quoted_exclude_passes(self):
+        self.adopt()
+        self.write('.pre-commit-config.yaml',
+                   "exclude: '^\\.vscode/.*\\.weaudit'\n\nrepos: []\n")
+        self.assertEqual(self.check()['status'], 'pass')
+
+    def test_no_exclude_fails(self):
+        self.adopt()
+        self.write('.pre-commit-config.yaml', 'repos: []\n')
+        result = self.check()
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('weaudit', result['details'])
+
+    def test_exclude_missing_the_sidecar_fails(self):
+        """An anchored pattern catches the weaudit file but not its json."""
+        self.adopt()
+        self.write('.pre-commit-config.yaml',
+                   'exclude: ^\\.vscode/.*\\.weaudit$\n\nrepos: []\n')
+        self.assertEqual(self.check()['status'], 'fail')
+
+    def test_unrelated_exclude_fails(self):
+        self.adopt()
+        self.write('.pre-commit-config.yaml',
+                   'exclude: ^kerbside/api/static/\n\nrepos: []\n')
+        self.assertEqual(self.check()['status'], 'fail')
+
+    def test_uncompilable_exclude_is_skipped_not_raised(self):
+        self.adopt()
+        self.write('.pre-commit-config.yaml',
+                   'exclude: ^[unclosed\n\nrepos: []\n')
+        self.assertEqual(self.check()['status'], 'fail')
+
+
 class CanonicalSharedBlocksTest(unittest.TestCase):
     def test_real_canonical_blocks_parse(self):
         # Every canonical file in templates/shared-blocks/ must
