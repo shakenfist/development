@@ -49,6 +49,7 @@ CHECK_NAMES = {
     'merge-queue-config': 'Merge queue reasonability',
     'workflow-permissions': 'Workflow standards',
     'pre-commit-config': 'Workflow standards',
+    'review-marks-pre-commit': 'Workflow standards',
     'flake8wrap': 'Workflow standards (flake8wrap)',
     'self-hosted-runners': 'Workflow standards (self-hosted runners)',
     'static-runner-tags': 'Workflow standards (static runner tags)',
@@ -936,6 +937,84 @@ def check_pre_commit_config(repo_path, props):
         'id': 'pre-commit-config',
         'status': 'pass',
         'details': '.pre-commit-config.yaml exists',
+    }
+
+
+# Paths a review session rewrites, used to test candidate pre-commit
+# exclude patterns. The weAudit file and its sidecar are named for the
+# reviewing account, so the leading component varies per repository.
+REVIEW_MARK_SAMPLE_PATHS = (
+    '.vscode/reviewer.weaudit',
+    '.vscode/reviewer.weaudit-shas.json',
+)
+
+
+def pre_commit_excludes_review_marks(repo_path):
+    """Does .pre-commit-config.yaml exempt the weAudit review marks?
+
+    Line-based rather than YAML-parsed, matching the rest of this
+    file, which avoids a PyYAML dependency. Every `exclude:` value is
+    tried as the regex pre-commit would apply, and the check passes if
+    any one of them matches both sample paths -- so a top-level
+    exclude and a per-hook exclude both count. A value we cannot
+    compile is skipped rather than raising: an unrelated malformed
+    pattern is pre-commit's problem to report, not this audit's.
+    """
+    filepath = os.path.join(repo_path, '.pre-commit-config.yaml')
+    with open(filepath, 'r', errors='replace') as f:
+        for line in f:
+            match = re.match(r'\s*exclude:\s*(\S.*?)\s*$', line)
+            if not match:
+                continue
+            pattern = match.group(1).strip('\'"')
+            try:
+                compiled = re.compile(pattern)
+            except re.error:
+                continue
+            if all(compiled.search(p) for p in REVIEW_MARK_SAMPLE_PATHS):
+                return True
+    return False
+
+
+def check_review_marks_pre_commit(repo_path, props):
+    """Check review marks are exempt from pre-commit hooks.
+
+    Applies only to repositories with review tracking deployed,
+    detected the same way check_review_coverage does. The weAudit
+    state files are generated, and the generator emits no trailing
+    newline, so end-of-file-fixer rewrites them on every
+    `pre-commit run --all-files`. That reports a failure nobody can
+    fix: committing the newline only means the next regen drops it
+    again.
+    """
+    if not check_file_exists(repo_path, '.vscode/review-scope.toml'):
+        return {
+            'id': 'review-marks-pre-commit',
+            'status': 'not_applicable',
+            'details': (
+                'Human review tracking not deployed '
+                '(no .vscode/review-scope.toml)'
+            ),
+        }
+    if not check_file_exists(repo_path, '.pre-commit-config.yaml'):
+        return {
+            'id': 'review-marks-pre-commit',
+            'status': 'not_applicable',
+            'details': 'No .pre-commit-config.yaml',
+        }
+    if not pre_commit_excludes_review_marks(repo_path):
+        return {
+            'id': 'review-marks-pre-commit',
+            'status': 'fail',
+            'details': (
+                'Review marks not excluded from pre-commit; add '
+                r'exclude: ^\.vscode/.*\.weaudit'
+            ),
+        }
+    return {
+        'id': 'review-marks-pre-commit',
+        'status': 'pass',
+        'details': 'Review marks excluded from pre-commit hooks',
     }
 
 
@@ -2353,6 +2432,7 @@ def run_all_checks(repo_path, repo_name, org):
         check_merge_queue_config(repo_path, props, repo_name, org),
         check_workflow_permissions(repo_path, props),
         check_pre_commit_config(repo_path, props),
+        check_review_marks_pre_commit(repo_path, props),
         check_flake8wrap(repo_path, props),
         check_self_hosted_runners(repo_path, props),
         check_static_runner_tags(repo_path, props),

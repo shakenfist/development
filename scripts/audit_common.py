@@ -63,6 +63,10 @@ AUDIT_METADATA = {
         'spec': 'audits/workflow-standards.md',
         'template': None,
     },
+    'review-marks-pre-commit': {
+        'spec': 'audits/workflow-standards.md',
+        'template': None,
+    },
     'flake8wrap': {
         'spec': 'audits/workflow-standards.md',
         'template': None,
@@ -137,6 +141,7 @@ ISSUE_TITLES = {
     'merge-queue-config': 'Merge queue reasonability',
     'workflow-permissions': 'Workflow standards',
     'pre-commit-config': 'Workflow standards (linting)',
+    'review-marks-pre-commit': 'Workflow standards (review marks)',
     'flake8wrap': 'Workflow standards (flake8wrap)',
     'self-hosted-runners': 'Workflow standards (self-hosted runners)',
     'static-runner-tags': 'Workflow standards (static runner tags)',

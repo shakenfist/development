@@ -75,6 +75,25 @@ this repository and passes through to the script.
    !.vscode/review-scope.toml
    ```
 
+   Then exempt them from pre-commit, which otherwise fights the
+   generator over files no hook has an opinion worth having about:
+
+   ```yaml
+   exclude: ^\.vscode/.*\.weaudit
+   ```
+
+   Put that at the top level of `.pre-commit-config.yaml`, alongside
+   `repos:`, so it covers every hook and does not need revisiting when
+   one is added. Without it, `end-of-file-fixer` rewrites the weAudit
+   file on every `pre-commit run --all-files`, because the generator
+   emits no trailing newline -- and reports a failure that cannot
+   usefully be fixed, since committing the newline only means the next
+   regen drops it again. The pattern deliberately covers the
+   `.weaudit-shas.json` sidecar as well as the weAudit file itself.
+
+   The consistency audit's `review-marks-pre-commit` check enforces
+   this in adopted repositories.
+
 2. Ensure commit signing is configured for the clone(s) reviews
    will be made from (see below).
 
