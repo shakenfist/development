@@ -90,7 +90,7 @@ so the change is captured in `.github/exported-config/`.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-10T07:44:55.375809+00:00
+Last regenerated: 2026-08-11T07:10:44.685631+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -106,6 +106,6 @@ Last regenerated: 2026-08-10T07:44:55.375809+00:00
 | kerbside-patches | N/A | - |
 | library-utilities | N/A | - |
 | occystrap | N/A | - |
-| ryll | N/A | - |
+| ryll | compliant | - |
 | shakenfist | compliant | - |
 <!-- consistency-audit:end -->

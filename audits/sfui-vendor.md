@@ -43,7 +43,7 @@ the template.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-10T07:44:55.375809+00:00
+Last regenerated: 2026-08-11T07:10:44.685631+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -55,10 +55,14 @@ Last regenerated: 2026-08-10T07:44:55.375809+00:00
 | cloudgood | N/A | - |
 | divergulent | N/A | - |
 | instar | N/A | - |
-| kerbside | N/A | - |
+| kerbside | non-compliant | shakenfist/kerbside#285 |
 | kerbside-patches | N/A | - |
 | library-utilities | N/A | - |
 | occystrap | N/A | - |
 | ryll | N/A | - |
 | shakenfist | N/A | - |
+
+Details for non-compliant projects:
+
+- **kerbside** (Status): kerbside/api/static/sfui: 6 commit(s) behind canonical; re-run tools/vendor.sh from an up to date sfui checkout
 <!-- consistency-audit:end -->
