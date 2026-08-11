@@ -948,6 +948,38 @@ REVIEW_MARK_SAMPLE_PATHS = (
     '.vscode/reviewer.weaudit-shas.json',
 )
 
+# Hooks that rewrite the files they are handed. Only these fight the
+# weAudit generator, so only these need the exclude -- and a repo that
+# runs none of them needs no exclude at all.
+#
+# Read-only hooks deliberately do not appear here, and must keep seeing
+# the review marks. gitleaks and the bidi/zero-width scanners are the
+# reason step 8 of the adoption procedure refuses to let content
+# scanners skip review-only changes: review notes are human prose, and
+# prose is where a secret or a smuggled character would land.
+FILE_REWRITING_HOOK_IDS = (
+    'end-of-file-fixer',
+    'trailing-whitespace',
+    'mixed-line-ending',
+    'pretty-format-json',
+    'file-contents-sorter',
+)
+
+
+def pre_commit_rewriting_hooks(repo_path):
+    """Which file-rewriting hooks does .pre-commit-config.yaml run?"""
+    filepath = os.path.join(repo_path, '.pre-commit-config.yaml')
+    found = set()
+    with open(filepath, 'r', errors='replace') as f:
+        for line in f:
+            match = re.match(r'\s*-\s*id:\s*(\S+)', line)
+            if not match:
+                continue
+            hook_id = match.group(1).strip('\'"')
+            if hook_id in FILE_REWRITING_HOOK_IDS:
+                found.add(hook_id)
+    return sorted(found)
+
 
 def pre_commit_excludes_review_marks(repo_path):
     """Does .pre-commit-config.yaml exempt the weAudit review marks?
@@ -977,15 +1009,21 @@ def pre_commit_excludes_review_marks(repo_path):
 
 
 def check_review_marks_pre_commit(repo_path, props):
-    """Check review marks are exempt from pre-commit hooks.
+    """Check review marks are exempt from file-rewriting pre-commit hooks.
 
     Applies only to repositories with review tracking deployed,
-    detected the same way check_review_coverage does. The weAudit
-    state files are generated, and the generator emits no trailing
-    newline, so end-of-file-fixer rewrites them on every
-    `pre-commit run --all-files`. That reports a failure nobody can
-    fix: committing the newline only means the next regen drops it
-    again.
+    detected the same way check_review_coverage does, and then only
+    where a rewriting hook is actually configured. The weAudit state
+    files are generated, and the generator emits no trailing newline,
+    so end-of-file-fixer rewrites them on every `pre-commit run
+    --all-files`. That reports a failure nobody can fix: committing
+    the newline only means the next regen drops it again.
+
+    A repo that runs no rewriting hook has nothing to exclude, and
+    telling it to add one would be actively harmful: a blanket exclude
+    also hides the marks from whatever read-only scanners it does run.
+    ryll is exactly that shape -- gitleaks and a bidi scanner, no
+    formatter -- so it reports not applicable rather than failing.
     """
     if not check_file_exists(repo_path, '.vscode/review-scope.toml'):
         return {
@@ -1002,19 +1040,31 @@ def check_review_marks_pre_commit(repo_path, props):
             'status': 'not_applicable',
             'details': 'No .pre-commit-config.yaml',
         }
+    rewriting = pre_commit_rewriting_hooks(repo_path)
+    if not rewriting:
+        return {
+            'id': 'review-marks-pre-commit',
+            'status': 'not_applicable',
+            'details': (
+                'No file-rewriting pre-commit hooks, so nothing '
+                'rewrites the review marks'
+            ),
+        }
     if not pre_commit_excludes_review_marks(repo_path):
         return {
             'id': 'review-marks-pre-commit',
             'status': 'fail',
             'details': (
-                'Review marks not excluded from pre-commit; add '
-                r'exclude: ^\.vscode/.*\.weaudit'
+                f'{", ".join(rewriting)} rewrite(s) the review marks; '
+                r'add exclude: ^\.vscode/.*\.weaudit to those hooks'
             ),
         }
     return {
         'id': 'review-marks-pre-commit',
         'status': 'pass',
-        'details': 'Review marks excluded from pre-commit hooks',
+        'details': (
+            f'Review marks excluded from {", ".join(rewriting)}'
+        ),
     }
 
 

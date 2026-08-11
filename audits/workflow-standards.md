@@ -115,10 +115,12 @@ files, and handle deleted files.
 Repositories with human review tracking deployed (those carrying
 `.vscode/review-scope.toml` -- see
 [docs/code-review-tracking.md](../docs/code-review-tracking.md))
-must exempt the weAudit state files from pre-commit:
+must exempt the weAudit state files from any pre-commit hook that
+rewrites the files it is given:
 
 ```yaml
-exclude: ^\.vscode/.*\.weaudit
+- id: end-of-file-fixer
+  exclude: ^\.vscode/.*\.weaudit
 ```
 
 Those files are generated, and the generator emits no trailing
@@ -128,13 +130,22 @@ committing the newline only means the next regen drops it again, so
 the hook warns over and over until people learn to ignore it, which
 is the opposite of what a lint gate is for.
 
-The check tries each `exclude:` value in the file as the regex
-pre-commit would apply, and passes if any one of them matches both
-`.vscode/<user>.weaudit` and `.vscode/<user>.weaudit-shas.json`. A
-top-level exclude and a per-hook exclude therefore both satisfy it,
-though the top-level form is recommended: it covers hooks added
-later. Repositories without the review tracking tooling, or without
-a `.pre-commit-config.yaml`, are not applicable.
+Scope the exclude to the rewriting hooks. A top-level exclude also
+hides the marks from read-only hooks, and review notes are prose --
+so it would stop gitleaks and the bidi/zero-width scanners reading
+exactly the kind of human-written text a secret or a smuggled
+character would land in. That is the same reasoning that keeps
+content scanners out of `paths-ignore` in the adoption procedure.
+
+The check therefore applies only where a rewriting hook
+(`end-of-file-fixer`, `trailing-whitespace`, `mixed-line-ending`,
+`pretty-format-json`, `file-contents-sorter`) is configured. It
+tries each `exclude:` value as the regex pre-commit would apply and
+passes if any one matches both `.vscode/<user>.weaudit` and
+`.vscode/<user>.weaudit-shas.json`, so a top-level exclude still
+counts where a repo has one. Repositories without the tooling,
+without a `.pre-commit-config.yaml`, or running no rewriting hook
+at all are not applicable.
 
 ### PyPI caching
 
