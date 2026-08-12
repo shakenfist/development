@@ -193,24 +193,25 @@ of correctly structured workflows.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-11T07:10:44.685631+00:00
+Last regenerated: 2026-08-12T08:44:21.622440+00:00
 
-| Project | Permissions | Linting | flake8wrap | Runners | Static tags | devpi fallback | devpi IP | Issue |
-|---------|--------|--------|--------|--------|--------|--------|--------|--------|
-| actions | non-compliant | non-compliant | non-compliant | non-compliant | compliant | N/A | compliant | shakenfist/actions#10, shakenfist/actions#11, shakenfist/actions#12, shakenfist/actions#9 |
-| agent-python | compliant | compliant | non-compliant | non-compliant | compliant | N/A | compliant | shakenfist/agent-python#105, shakenfist/agent-python#82 |
-| client-python | compliant | compliant | compliant | compliant | compliant | N/A | compliant | - |
-| client-python-k3s | compliant | compliant | compliant | compliant | compliant | N/A | compliant | - |
-| clingwrap | compliant | compliant | compliant | compliant | compliant | N/A | compliant | - |
-| cloudgood | N/A | compliant | N/A | N/A | N/A | N/A | N/A | - |
-| divergulent | compliant | compliant | compliant | compliant | compliant | N/A | compliant | - |
-| instar | compliant | compliant | N/A | compliant | compliant | N/A | compliant | - |
-| kerbside | compliant | compliant | compliant | compliant | compliant | compliant | compliant | - |
-| kerbside-patches | non-compliant | compliant | N/A | compliant | compliant | N/A | compliant | shakenfist/kerbside-patches#953 |
-| library-utilities | compliant | compliant | compliant | compliant | compliant | N/A | compliant | - |
-| occystrap | compliant | compliant | non-compliant | compliant | compliant | N/A | compliant | shakenfist/occystrap#67 |
-| ryll | compliant | compliant | N/A | non-compliant | compliant | N/A | compliant | shakenfist/ryll#201 |
-| shakenfist | compliant | compliant | non-compliant | non-compliant | compliant | non-compliant | compliant | shakenfist/shakenfist#3057, shakenfist/shakenfist#3376, shakenfist/shakenfist#3418 |
+| Project | Permissions | Linting | Review marks | flake8wrap | Runners | Static tags | devpi fallback | devpi IP | Issue |
+|---------|--------|--------|--------|--------|--------|--------|--------|--------|--------|
+| actions | non-compliant | non-compliant | N/A | non-compliant | non-compliant | compliant | N/A | compliant | shakenfist/actions#10, shakenfist/actions#11, shakenfist/actions#12, shakenfist/actions#9 |
+| agent-python | compliant | compliant | N/A | non-compliant | non-compliant | compliant | N/A | compliant | shakenfist/agent-python#105, shakenfist/agent-python#82 |
+| client-python | compliant | compliant | N/A | compliant | compliant | compliant | N/A | compliant | - |
+| client-python-k3s | compliant | compliant | N/A | compliant | compliant | compliant | N/A | compliant | - |
+| clingwrap | compliant | compliant | N/A | compliant | compliant | compliant | N/A | compliant | - |
+| cloudgood | N/A | compliant | N/A | N/A | N/A | N/A | N/A | N/A | - |
+| divergulent | compliant | compliant | N/A | compliant | compliant | compliant | N/A | compliant | - |
+| instar | compliant | compliant | N/A | N/A | compliant | compliant | N/A | compliant | - |
+| kerbside | compliant | compliant | compliant | compliant | compliant | compliant | compliant | compliant | - |
+| kerbside-patches | non-compliant | compliant | N/A | N/A | compliant | compliant | N/A | compliant | shakenfist/kerbside-patches#953 |
+| library-utilities | compliant | compliant | N/A | compliant | compliant | compliant | N/A | compliant | - |
+| occystrap | compliant | compliant | N/A | non-compliant | compliant | compliant | N/A | compliant | shakenfist/occystrap#67 |
+| private-ci | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | - |
+| ryll | compliant | compliant | N/A | N/A | non-compliant | compliant | N/A | compliant | shakenfist/ryll#201 |
+| shakenfist | compliant | compliant | N/A | non-compliant | non-compliant | compliant | non-compliant | compliant | shakenfist/shakenfist#3057, shakenfist/shakenfist#3376, shakenfist/shakenfist#3418 |
 
 Details for non-compliant projects:
 

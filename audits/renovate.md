@@ -40,7 +40,7 @@ See: `templates/renovate/README.md`
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-11T07:10:44.685631+00:00
+Last regenerated: 2026-08-12T08:44:21.622440+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -56,6 +56,7 @@ Last regenerated: 2026-08-11T07:10:44.685631+00:00
 | kerbside-patches | compliant | - |
 | library-utilities | non-compliant | shakenfist/library-utilities#33 |
 | occystrap | compliant | - |
+| private-ci | N/A | - |
 | ryll | compliant | - |
 | shakenfist | compliant | - |
 
