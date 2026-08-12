@@ -54,16 +54,18 @@ The following projects are subject to consistency audits:
 - actions
 - agent-python
 - client-python
+- client-python-k3s
 - clingwrap
 - cloudgood
 - divergulent
-- imago
+- instar
 - kerbside
 - kerbside-patches
 - library-utilities
 - occystrap
 - ryll
 - shakenfist
+- sfui
 
 One project is in scope for part of the audit only:
 

@@ -40,6 +40,11 @@ REPO_OVERRIDES = {
     # applies. only_checks scopes a repository to a subset of the
     # audit rather than excluding it wholesale.
     'private-ci': {'only_checks': ['sfui-vendor']},
+    # sfui is a CSS/JavaScript design system with no build step. Its
+    # only Python is incidental test tooling (pytest and the
+    # consistency checker), so there is nothing to package and the
+    # Python packaging checks do not apply.
+    'sfui': {'not_python': True},
 }
 
 # Map from check ID to the human-readable name used in issue titles.

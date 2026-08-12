@@ -18,6 +18,15 @@ SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), 'audit-check.py'
 )
 
+# These tests drive fixture git repositories, and the pre-commit hook
+# runs them during `git commit`, when git exports GIT_INDEX_FILE and
+# friends to hooks. Inherited by the fixture git subprocesses, those
+# variables point git at the outer repository's index, so the tests
+# wreck the real index instead of exercising their fixtures. Scrub
+# them from this process so every child starts clean.
+for _variable in [name for name in os.environ if name.startswith('GIT_')]:
+    del os.environ[_variable]
+
 # audit-check.py is not importable by name (the hyphen is not a valid
 # module identifier), so load it from its path.
 _spec = importlib.util.spec_from_file_location('audit_check', SCRIPT)
