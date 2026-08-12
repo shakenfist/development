@@ -34,6 +34,7 @@ END_MARKER = '<!-- consistency-audit:end -->'
 COLUMN_NAMES = {
     'workflow-permissions': 'Permissions',
     'pre-commit-config': 'Linting',
+    'review-marks-pre-commit': 'Review marks',
     'flake8wrap': 'flake8wrap',
     'self-hosted-runners': 'Runners',
     'static-runner-tags': 'Static tags',
@@ -79,11 +80,34 @@ def issue_cell(org, repo, check_ids, no_issues):
     return ', '.join(sorted(links)) if links else '-'
 
 
+def column_name(check_id):
+    """Column heading for a check in a multi-check spec.
+
+    A check whose id is missing from COLUMN_NAMES falls back to the id
+    itself, loudly. Adding a check to a multi-check spec means adding
+    its heading here, and forgetting once already cost the fleet a
+    day of tables: the KeyError this replaces was raised after every
+    audits/*.md had been rewritten but before any of them was
+    committed, so one missing label stopped every project's table
+    from publishing. A run that prints an ugly heading and a warning
+    is a better failure than a run that silently publishes nothing.
+    test_audit_update_docs.py fails on the omission, so the fallback
+    should never be reached in a run from a tested tree.
+    """
+    if check_id not in COLUMN_NAMES:
+        print(
+            f'warning: no COLUMN_NAMES heading for {check_id}; '
+            f'using the check id',
+            file=sys.stderr,
+        )
+    return COLUMN_NAMES.get(check_id, check_id)
+
+
 def render_section(spec, check_ids, results, no_issues):
     """Render the generated block for one audit spec file."""
     columns = (
         ['Status'] if len(check_ids) == 1
-        else [COLUMN_NAMES[c] for c in check_ids]
+        else [column_name(c) for c in check_ids]
     )
 
     lines = [
@@ -116,7 +140,7 @@ def render_section(spec, check_ids, results, no_issues):
             if check['status'] == 'fail':
                 column = (
                     'Status' if len(check_ids) == 1
-                    else COLUMN_NAMES[check_id]
+                    else column_name(check_id)
                 )
                 failures.append(
                     f'- **{repo}** ({column}): {check["details"]}'

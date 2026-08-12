@@ -83,8 +83,25 @@ from an adopting repo's `prune-reviews` workflow on pushes to main,
 and `status` from the consistency audit's `review-coverage` check --
 see `docs/code-review-tracking.md`.
 
-The audit scripts have no unit tests. Test by running them against local
-clones:
+The audit scripts have unit tests. Nothing runs them for you -- there is
+no CI workflow in this repository other than the audit itself, and they
+are not pre-commit hooks -- so run both after changing either script:
+
+```
+python3 scripts/test_audit_check.py
+python3 scripts/test_audit_update_docs.py
+```
+
+They cover the invariants that span files, which are the ones that
+break: that every check id scheduled in `check_calls()` is a real
+check, and that every check sharing a spec file has a `COLUMN_NAMES`
+heading. The second exists because its absence broke the 2026-08-12
+run -- `review-marks-pre-commit` joined the workflow-standards spec
+without a heading, and the rendering crashed after rewriting every
+`audits/*.md` but before committing any, so the whole fleet's tables
+silently stayed a day stale.
+
+Also test by running the scripts against local clones:
 
 ```
 python3 scripts/audit-check.py --repo-path ~/src/shakenfist/<repo> \
