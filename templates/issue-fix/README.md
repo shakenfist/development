@@ -33,6 +33,22 @@ optionally naming a specific issue.
 
 ## Design decisions
 
+- **The fixer reads the project's plans before it writes code.** In
+  a project which plans work in advance, a one-off fix can easily
+  cut across a partially implemented plan: either ignoring the
+  pattern the plan's landed phases established, or hand-rolling a
+  workaround for a defect class an outstanding phase is designed to
+  fix properly. Both have to be unpicked before the plan can
+  proceed, which makes them worse than no fix at all. Triage
+  therefore skims the plan index and deprioritises issues an
+  unlanded plan already owns, and the fix job reads the relevant
+  plan files in full before diagnosis, declining with `NO_FIX` when
+  the fix belongs to a plan rather than to it. Note that the plans
+  are *read from the checkout at run time* rather than summarised
+  into the prompt: plans change constantly, and a summary baked
+  into a workflow file would be describing a state of the world
+  that no longer holds. Delete both sections in a project which
+  does not plan this way.
 - **The attempt label is applied at the start of the attempt**, not
   the end, so crashes and timeouts still mark the issue as
   attempted and the workflow never grinds on the same issue every
@@ -111,6 +127,13 @@ to replace:
 - **`{{INSTALL_DEPENDENCIES}}`** -- project dependency installation
 - **`{{PROJECT_CONTEXT}}`** -- project description for the Claude
   prompt
+- **`{{PLANS_LOCATION}}` / `{{PLANS_INDEX}}`** -- the directory
+  holding the project's plan documents and its index file (for
+  Shaken Fist, `docs/plans/` and `docs/plans/index.md`). Both
+  appear in the triage prompt and the fix prompt. If the project
+  has no plans, delete the "Not already owned by a plan" triage
+  criterion and the "Before you start: check the design intent"
+  section instead of substituting them.
 - **`{{TEST_COMMAND}}`** -- the test runner, in two places: the
   Claude prompt and the verify step
 - **`{{MAINTAINER}}`** -- GitHub username for PR assignee/reviewer
