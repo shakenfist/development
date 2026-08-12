@@ -35,8 +35,18 @@ reason for the exception is that vendored drift produces no symptom:
 private-ci kept working perfectly for five days with a copy two
 canonical merges behind, and only a hand-run of
 `tools/vendor.sh --check` -- which nobody is scheduled to do -- would
-have said so. The expected in-scope consumer is kerbside, once its
-admin UI converts to sfui.
+have said so.
+
+kerbside is the second consumer and is audited normally. Its admin UI
+began converting to sfui on 2026-08-11, when phase 4 of the conversion
+put a second base template and the login page on the design system;
+the remaining pages convert a phase at a time, so `.sfui-commit` is
+already there and already checked while most of the UI is still
+Bootstrap. This audit does not care how much of a consumer's UI has
+converted, only that whatever it vendors is verbatim and current --
+which is the useful property during a long conversion, because the
+copy is re-vendored on almost every phase and each of those is a
+chance to land one merge behind.
 
 ## Template
 
