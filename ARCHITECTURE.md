@@ -83,3 +83,18 @@ to main via a `prune-reviews` workflow, and the daily consistency
 audit's `review-coverage` check alerts (via a GitHub issue) when
 five or more in-scope files need review. Tests are in
 `scripts/test_review_tracking.py`.
+
+## Testing the automation
+
+The automation here has no CI of its own: the consistency audit is the
+only workflow in the repository, and it audits other projects rather
+than testing this one. The unit tests
+(`scripts/test_audit_check.py`, `scripts/test_audit_update_docs.py`,
+`scripts/test_review_tracking.py`) therefore run as `local` pre-commit
+hooks, which is the only gate between an edit and the 06:00 UTC run.
+They concentrate on invariants that span files -- a check id
+scheduled somewhere it is not defined, a check sharing a spec file
+without a column heading -- because those are the failures a single
+file review does not catch, and because the audit's own failure mode
+is unattended: it rewrites every table before it discovers it cannot
+render one, so a small omission publishes nothing at all.

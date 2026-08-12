@@ -54,9 +54,10 @@ measure".
 
 ## Testing changes
 
-This repo lints itself with pre-commit, holding to the same
+This repo lints *and tests* itself with pre-commit, holding to the same
 actionlint/shellcheck/flake8 standard the audits require of audited
-projects (even though `development` is exempt from the audits). Run it
+projects (even though `development` is exempt from the audits). One
+command covers everything, and is the only gate there is -- run it
 before committing:
 
 ```
@@ -69,39 +70,49 @@ set this repo *provides* to other repositories). Python is wrapped at
 120 characters, configured in `.flake8`; self-hosted runner labels are
 declared in `.github/actionlint.yaml`.
 
-The review tracking script has fixture-repo tests -- run them after any
-change to `scripts/review-tracking.py`:
+`git commit` only runs the hooks in a clone where they are installed,
+which is per clone and not carried in the repository:
 
 ```
+pre-commit install
+```
+
+Worth doing rather than relying on remembering, because these hooks
+are the only thing standing between an edit and the daily audit run.
+
+All three test suites run as `local` pre-commit hooks, so any change
+under `scripts/` runs them. They can also be run directly, which is
+quicker while iterating:
+
+```
+python3 scripts/test_audit_check.py
+python3 scripts/test_audit_update_docs.py
 python3 scripts/test_review_tracking.py
 ```
 
-The script is run by hand in target repositories (via a thin wrapper
+The review tracking script has fixture-repo tests; the audit script
+tests cover the invariants that span files, which are the ones that
+break. Those are that every check id scheduled in `check_calls()` is a
+real check, and that every check sharing a spec file has a
+`COLUMN_NAMES` heading. The second exists because its absence broke
+the 2026-08-12 audit run: `review-marks-pre-commit` joined the
+workflow-standards spec without a heading, and rendering crashed after
+rewriting every `audits/*.md` but before committing any, so the whole
+fleet's tables silently stayed a day stale. Nothing but this hook
+would have caught it before 06:00 UTC -- the consistency audit is the
+only workflow in this repository, so the automation has no CI of its
+own.
+
+`review-tracking.py` is run by hand in target repositories (via a thin wrapper
 like ryll's `tools/review-tracking.sh`), deliberately not from git
 hooks. Two subcommands also run from CI in steady state: `prune`
 from an adopting repo's `prune-reviews` workflow on pushes to main,
 and `status` from the consistency audit's `review-coverage` check --
 see `docs/code-review-tracking.md`.
 
-The audit scripts have unit tests. Nothing runs them for you -- there is
-no CI workflow in this repository other than the audit itself, and they
-are not pre-commit hooks -- so run both after changing either script:
-
-```
-python3 scripts/test_audit_check.py
-python3 scripts/test_audit_update_docs.py
-```
-
-They cover the invariants that span files, which are the ones that
-break: that every check id scheduled in `check_calls()` is a real
-check, and that every check sharing a spec file has a `COLUMN_NAMES`
-heading. The second exists because its absence broke the 2026-08-12
-run -- `review-marks-pre-commit` joined the workflow-standards spec
-without a heading, and the rendering crashed after rewriting every
-`audits/*.md` but before committing any, so the whole fleet's tables
-silently stayed a day stale.
-
-Also test by running the scripts against local clones:
+The tests do not cover what a check *decides* about a repository, only
+that the machinery around it holds together. Test that part by running
+the scripts against local clones:
 
 ```
 python3 scripts/audit-check.py --repo-path ~/src/shakenfist/<repo> \
