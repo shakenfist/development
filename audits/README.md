@@ -65,6 +65,14 @@ The following projects are subject to consistency audits:
 - ryll
 - shakenfist
 
+One project is in scope for part of the audit only:
+
+- private-ci -- the `sfui-vendor` check, and nothing else. It is
+  internal tooling and excluded from the conventions, but it vendors
+  sfui and a vendored copy drifts silently. The scoping lives in
+  `REPO_OVERRIDES` in `scripts/audit-check.py`; every other check
+  reports N/A for it.
+
 See `PROJECT-CONSISTENCY-AUDITS.md` for the list of excluded projects
 (internal tooling and historical archives).
 

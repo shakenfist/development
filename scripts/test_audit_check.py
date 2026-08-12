@@ -660,6 +660,77 @@ class RepoOverridesTest(unittest.TestCase):
         )
         self.assertFalse(props['is_actions_repo'])
 
+    def test_ordinary_repo_is_scoped_to_no_checks(self):
+        # An empty only_checks means the whole audit applies, so the
+        # override cannot narrow a repository by accident.
+        props = audit_check.detect_repo_properties(
+            tempfile.mkdtemp(), 'occystrap'
+        )
+        self.assertEqual(props['only_checks'], [])
+
+    def test_private_ci_is_scoped_to_the_sfui_check(self):
+        props = audit_check.detect_repo_properties(
+            tempfile.mkdtemp(), 'private-ci'
+        )
+        self.assertEqual(props['only_checks'], ['sfui-vendor'])
+
+
+class CheckScopeTest(unittest.TestCase):
+    """The only_checks scoping in run_all_checks."""
+
+    def _ids(self):
+        return [
+            check_id for check_id, _ in audit_check.check_calls(
+                tempfile.mkdtemp(), {}, 'occystrap', 'shakenfist'
+            )
+        ]
+
+    def test_every_scheduled_id_is_a_known_check(self):
+        # A typo in the id table would make a check unschedulable
+        # while still reporting a plausible looking result, so the
+        # table has to agree with the issue title map.
+        ids = self._ids()
+        self.assertEqual(sorted(ids), sorted(set(ids)))
+        self.assertEqual(
+            sorted(ids), sorted(audit_check.CHECK_NAMES.keys())
+        )
+
+    def test_scoped_repo_runs_only_its_check(self):
+        # private-ci is scoped to sfui-vendor. Every other check must
+        # be reported not_applicable with the scoping reason, and must
+        # not have run: a check that ran would have written its own
+        # details, and several of them would reach for the network.
+        with tempfile.TemporaryDirectory() as tmp:
+            results = audit_check.run_all_checks(
+                tmp, 'private-ci', 'shakenfist'
+            )
+
+        reason = 'private-ci is audited for sfui-vendor only'
+        by_id = {c['id']: c for c in results['checks']}
+        self.assertEqual(len(by_id), len(audit_check.CHECK_NAMES))
+
+        for check_id, check in by_id.items():
+            if check_id == 'sfui-vendor':
+                self.assertNotEqual(check['details'], reason)
+                continue
+            self.assertEqual(check['status'], 'not_applicable')
+            self.assertEqual(check['details'], reason)
+
+        # Nothing is dropped from the results, because a check missing
+        # from the JSON renders as "unknown" in the audits/ tables.
+        self.assertEqual(
+            results['summary']['total'], len(audit_check.CHECK_NAMES)
+        )
+        self.assertEqual(results['summary']['fail'], 0)
+
+    def test_unscoped_repo_schedules_everything(self):
+        # The scoping is opt in: with no override, no check is
+        # replaced by the not_applicable stand-in.
+        props = audit_check.detect_repo_properties(
+            tempfile.mkdtemp(), 'occystrap'
+        )
+        self.assertFalse(props['only_checks'])
+
 
 class SfuiVendorTest(unittest.TestCase):
     """Exercise check_sfui_vendor against fixture repositories.

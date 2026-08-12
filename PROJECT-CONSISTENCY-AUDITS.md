@@ -33,6 +33,16 @@ workflows, so it should be held to the same standards as anything else.
 Two rules do not apply to it -- it has no Python to package, and it keeps
 `main` as its default branch because every consumer pins to `@main`.
 
+`private-ci` stays on that list, but is audited for one thing. It
+vendors sfui, and a vendored copy is the one kind of problem an
+exclusion cannot make safe: nothing in the consumer fails when the copy
+falls behind, or when someone edits it in place and the next sync
+discards the edit. So the `sfui-vendor` check runs against it and every
+other check reports N/A, via the `only_checks` scoping in
+`REPO_OVERRIDES`. Exclusion still means what it says for the rest --
+`private-ci` is not expected to grow a `pyproject.toml`, a renovate
+config, release workflows, or a `develop` branch.
+
 ## LLM tooling
 
 Every project should have an `AGENTS.md`, and `ARCHITECTURE.md`. Operations

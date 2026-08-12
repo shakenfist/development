@@ -10,7 +10,11 @@ An audit item touches several files, all of which must stay in sync:
 
 1. `scripts/audit-check.py` -- add a `check_*()` function returning a
    dict with `id`, `status` (`pass` / `fail` / `not_applicable`) and
-   `details`; register it in `run_all_checks()` and `CHECK_NAMES`.
+   `details`; register it in `check_calls()` and `CHECK_NAMES`. The id
+   written in `check_calls()` must be the id the function returns, and
+   a test asserts it: the calls are deferred so a scoped repository can
+   skip a check without running it, which means the table is what
+   schedules the check, not the function itself.
 2. `scripts/audit_common.py` -- add the check id to `AUDIT_METADATA`
    (spec file, optional template) and `ISSUE_TITLES`. This module is
    shared by `audit-manage-issues.py` and `audit-update-docs.py`.
@@ -31,7 +35,22 @@ repos) live in `REPO_OVERRIDES` in `scripts/audit-check.py`.
 
 To add a repository to the audits, add it to the matrix in
 `.github/workflows/consistency-audit.yml` and to the in-scope list in
-`audits/README.md`.
+`audits/README.md`. Adding it subjects it to every check, and every
+failure becomes an issue on the next run, so check first what it
+would file:
+
+```
+python3 scripts/audit-check.py --repo-path ~/src/shakenfist/<repo> \
+    --repo-name <repo> --github-org shakenfist
+```
+
+A repository that should be audited for some checks but not others
+takes an `only_checks` list in `REPO_OVERRIDES` (private-ci is the
+example: it is excluded from the conventions but does vendor sfui).
+Checks outside the list are reported `not_applicable` with the reason,
+never omitted -- `audit-update-docs.py` renders a check it cannot find
+as `unknown`, and "we decided not to" should not read as "we did not
+measure".
 
 ## Testing changes
 

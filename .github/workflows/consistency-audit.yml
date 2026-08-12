@@ -30,6 +30,9 @@ jobs:
           - kerbside-patches
           - library-utilities
           - occystrap
+          # Scoped to the sfui-vendor check by REPO_OVERRIDES; see
+          # audits/sfui-vendor.md for why it is in the matrix at all.
+          - private-ci
           - ryll
           - shakenfist
     steps:

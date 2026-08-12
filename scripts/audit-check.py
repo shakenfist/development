@@ -31,6 +31,15 @@ REPO_OVERRIDES = {
     # It also keeps "main" as its default branch: every consumer pins
     # to @main, so renaming it would break the whole fleet at once.
     'actions': {'not_python': True, 'is_actions_repo': True},
+    # private-ci is internal tooling and stays outside the conventions
+    # audits: it is a legacy setup.py project with no workflows of its
+    # own, and holding it to the fleet's release, renovate and README
+    # rules would only manufacture issues nobody intends to fix. It
+    # does vendor sfui, though, and drift in a vendored copy is
+    # invisible until somebody thinks to look, so that one check
+    # applies. only_checks scopes a repository to a subset of the
+    # audit rather than excluding it wholesale.
+    'private-ci': {'only_checks': ['sfui-vendor']},
 }
 
 # Map from check ID to the human-readable name used in issue titles.
@@ -88,6 +97,7 @@ def detect_repo_properties(repo_path, repo_name):
         'is_docs_only': overrides.get('is_docs_only', False),
         'not_python': overrides.get('not_python', False),
         'is_actions_repo': overrides.get('is_actions_repo', False),
+        'only_checks': overrides.get('only_checks', []),
     }
 
 
@@ -2464,40 +2474,105 @@ def check_sfui_vendor(repo_path, props, canonical_url=None):
     }
 
 
-def run_all_checks(repo_path, repo_name, org):
-    """Run all checks and return results."""
-    props = detect_repo_properties(repo_path, repo_name)
+def check_calls(repo_path, props, repo_name, org):
+    """Pair every check id with the call that produces it.
 
-    checks = [
-        check_llm_tooling(repo_path, props),
-        check_release_process(repo_path, props),
-        check_ci_review_automation(repo_path, props),
-        check_renovate(repo_path, props),
-        check_pin_indirect_deps(repo_path, props),
-        check_dependency_name_normalization(repo_path, props),
-        check_export_repo_config(repo_path, props),
-        check_default_branch(repo_path, props, repo_name, org),
-        check_github_security(repo_path, props, repo_name, org),
-        check_delete_branch_on_merge(repo_path, props, repo_name, org),
-        check_merge_queue_config(repo_path, props, repo_name, org),
-        check_workflow_permissions(repo_path, props),
-        check_pre_commit_config(repo_path, props),
-        check_review_marks_pre_commit(repo_path, props),
-        check_flake8wrap(repo_path, props),
-        check_self_hosted_runners(repo_path, props),
-        check_static_runner_tags(repo_path, props),
-        check_devpi_fallback(repo_path, props),
-        check_devpi_stale_ip(repo_path, props),
-        check_pyproject_usage(repo_path, props),
-        check_version_file(repo_path, props),
-        check_rust_unwrap_lint(repo_path, props),
-        check_readme_absolute_links(repo_path, props),
-        check_readme_structure(repo_path, props),
-        check_push_audit(repo_path, props),
-        check_secret_scanning_ci(repo_path, props),
-        check_review_coverage(repo_path, props),
-        check_sfui_vendor(repo_path, props),
+    The calls are deferred so that a repository scoped with
+    only_checks can skip a check without paying for it first: several
+    checks query the GitHub API, and on a private repository some of
+    those queries fail for reasons that have nothing to do with the
+    repository's compliance.
+
+    The id written here must be the id the check returns.
+    test_audit_check.py asserts that for every entry, so a check that
+    renames its id cannot silently become unschedulable.
+    """
+    return [
+        ('llm-tooling',
+         lambda: check_llm_tooling(repo_path, props)),
+        ('release-process',
+         lambda: check_release_process(repo_path, props)),
+        ('ci-review-automation',
+         lambda: check_ci_review_automation(repo_path, props)),
+        ('renovate',
+         lambda: check_renovate(repo_path, props)),
+        ('pin-indirect-dependencies',
+         lambda: check_pin_indirect_deps(repo_path, props)),
+        ('dependency-name-normalization',
+         lambda: check_dependency_name_normalization(repo_path, props)),
+        ('export-repo-config',
+         lambda: check_export_repo_config(repo_path, props)),
+        ('default-branch-naming',
+         lambda: check_default_branch(repo_path, props, repo_name, org)),
+        ('github-security',
+         lambda: check_github_security(repo_path, props, repo_name, org)),
+        ('delete-branch-on-merge',
+         lambda: check_delete_branch_on_merge(
+             repo_path, props, repo_name, org)),
+        ('merge-queue-config',
+         lambda: check_merge_queue_config(repo_path, props, repo_name, org)),
+        ('workflow-permissions',
+         lambda: check_workflow_permissions(repo_path, props)),
+        ('pre-commit-config',
+         lambda: check_pre_commit_config(repo_path, props)),
+        ('review-marks-pre-commit',
+         lambda: check_review_marks_pre_commit(repo_path, props)),
+        ('flake8wrap',
+         lambda: check_flake8wrap(repo_path, props)),
+        ('self-hosted-runners',
+         lambda: check_self_hosted_runners(repo_path, props)),
+        ('static-runner-tags',
+         lambda: check_static_runner_tags(repo_path, props)),
+        ('devpi-fallback',
+         lambda: check_devpi_fallback(repo_path, props)),
+        ('devpi-stale-ip',
+         lambda: check_devpi_stale_ip(repo_path, props)),
+        ('pyproject-usage',
+         lambda: check_pyproject_usage(repo_path, props)),
+        ('version-file-gitignore',
+         lambda: check_version_file(repo_path, props)),
+        ('rust-unwrap-lint',
+         lambda: check_rust_unwrap_lint(repo_path, props)),
+        ('readme-absolute-links',
+         lambda: check_readme_absolute_links(repo_path, props)),
+        ('readme-structure',
+         lambda: check_readme_structure(repo_path, props)),
+        ('push-audit',
+         lambda: check_push_audit(repo_path, props)),
+        ('secret-scanning-ci',
+         lambda: check_secret_scanning_ci(repo_path, props)),
+        ('review-coverage',
+         lambda: check_review_coverage(repo_path, props)),
+        ('sfui-vendor',
+         lambda: check_sfui_vendor(repo_path, props)),
     ]
+
+
+def run_all_checks(repo_path, repo_name, org):
+    """Run all checks and return results.
+
+    A repository scoped with an only_checks override runs just those
+    checks. The rest are reported not_applicable rather than left out
+    of the results: audit-update-docs.py renders a check it cannot
+    find as "unknown", and out of scope is a decision we have made,
+    not something we failed to measure.
+    """
+    props = detect_repo_properties(repo_path, repo_name)
+    only = props['only_checks']
+
+    checks = []
+    for check_id, run_check in check_calls(repo_path, props, repo_name, org):
+        if only and check_id not in only:
+            checks.append({
+                'id': check_id,
+                'status': 'not_applicable',
+                'details': (
+                    f'{repo_name} is audited for '
+                    f'{", ".join(sorted(only))} only'
+                ),
+            })
+            continue
+        checks.append(run_check())
 
     summary = {
         'total': len(checks),

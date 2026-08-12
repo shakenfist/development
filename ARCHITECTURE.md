@@ -57,6 +57,15 @@ repos where Python is incidental) are hardcoded in `REPO_OVERRIDES` in
 `scripts/audit-check.py`. Repository visibility is queried live from
 the GitHub API rather than hardcoded, because it changes over time.
 
+Audit scope is otherwise all-or-nothing per repository -- in the
+matrix means every check applies -- except where a repository carries
+an `only_checks` override, which narrows it to the listed check ids.
+The remaining checks are not run at all and are reported
+`not_applicable`, which matters because several checks query the
+GitHub API and some of those queries fail on a private repository for
+reasons unrelated to compliance. `private-ci` uses this to be audited
+for its vendored sfui copy and nothing else.
+
 ## Code review tracking
 
 This repository is also the home of the whole-codebase review

@@ -24,11 +24,19 @@ For every `.sfui-commit` found in a repository, the check verifies:
   propagated; the fix is to re-run `tools/vendor.sh` from an up to
   date sfui checkout.
 
-Repositories with no `.sfui-commit` are not applicable. Note that
-private-ci, the first sfui consumer, is outside consistency-audit
-scope (internal tooling); its vendored copy is checked by hand with
-`tools/vendor.sh --check` rather than by this audit. The expected
-in-scope consumer is kerbside, once its admin UI converts to sfui.
+Repositories with no `.sfui-commit` are not applicable.
+
+private-ci, the first sfui consumer, is internal tooling and is
+excluded from the conventions audits, but this check is the exception
+that runs against it anyway. It is in the workflow matrix scoped by
+`only_checks` in `REPO_OVERRIDES` to this check alone, so it collects
+no issues about packaging, release workflows or branch naming. The
+reason for the exception is that vendored drift produces no symptom:
+private-ci kept working perfectly for five days with a copy two
+canonical merges behind, and only a hand-run of
+`tools/vendor.sh --check` -- which nobody is scheduled to do -- would
+have said so. The expected in-scope consumer is kerbside, once its
+admin UI converts to sfui.
 
 ## Template
 
