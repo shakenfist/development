@@ -35,6 +35,7 @@ jobs:
           - private-ci
           - ryll
           - shakenfist
+          - sfui
     steps:
       - name: Checkout development repo
         uses: actions/checkout@v6
