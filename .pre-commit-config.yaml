@@ -6,15 +6,21 @@
 # Note: .pre-commit-hooks.yaml (the review-stamp/review-prune hooks this
 # repo *provides* to other repositories) is a separate concern from this
 # file (the hooks this repo runs on *itself*).
+#
+# The renovate audit now requires audited projects to enable renovate's
+# opt-in pre-commit manager so these revisions stop drifting. This repo
+# is excluded from the audits and runs no renovate, so the same rule
+# cannot apply to it: bump the three revisions below by hand when you
+# notice them aging, as happened here when the audit rule was written.
 repos:
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.7
+    rev: v1.7.12
     hooks:
       - id: actionlint
         args: ['-config-file', '.github/actionlint.yaml']
 
   - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.10.0.1
+    rev: v0.11.0.1
     hooks:
       - id: shellcheck
         files: ^scripts/
@@ -22,7 +28,7 @@ repos:
         args: ['-x']
 
   - repo: https://github.com/pycqa/flake8
-    rev: 7.1.1
+    rev: 7.3.0
     hooks:
       - id: flake8
         files: ^scripts/.*\.py$

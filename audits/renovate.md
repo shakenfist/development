@@ -7,6 +7,40 @@
 * `renovate.json` exists -- with package grouping rules and
   scheduling.
 * Only the `RENOVATE_AUTODISCOVER_FILTER` value changes per repo.
+* `renovate.json` enables the `pre-commit` manager, when the
+  repository has remote pre-commit hooks to manage.
+
+### The pre-commit manager
+
+Renovate's `pre-commit` manager is opt-in: cargo, dockerfile,
+github-actions and the Python managers are on by default, but
+`.pre-commit-config.yaml` is not read at all unless the config says
+so. A repository can therefore look fully renovate-managed while its
+hook revisions age untouched, because nothing reports on a file the
+bot was never told to look at.
+
+That matters more than the usual stale-dependency case. Pre-commit
+hooks are the linters gating every commit, so an unwatched hook pin
+means the thing judging everything else is itself unjudged. `instar`
+was four months behind on `actionlint` while its cargo, dockerfile and
+github-actions dependencies were current, and the drift was only found
+by looking for a trivially small pull request.
+
+Any of renovate's three enabling forms passes:
+
+```json
+{"pre-commit": {"enabled": true}}
+{"enabledManagers": ["pre-commit", "..."]}
+{"extends": [":enablePreCommit"]}
+```
+
+The check only applies when there is something to bump. A repository
+with no `.pre-commit-config.yaml`, or one whose hooks are all
+`repo: local` (a script from the tree, carrying no revision), passes
+without the manager.
+
+`sfui` already enables it, and its `"pre-commit": {"enabled": true}`
+block is the form the template now carries.
 
 ### Python version constraints
 

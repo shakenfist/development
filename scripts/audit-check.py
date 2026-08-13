@@ -309,6 +309,55 @@ def check_ci_review_automation(repo_path, props):
     }
 
 
+def uses_remote_pre_commit_hooks(repo_path):
+    """True when .pre-commit-config.yaml pins at least one remote hook.
+
+    Remote hooks are the only kind that carry a version to bump: a
+    `repo: local` entry runs a script from the tree itself. Every remote
+    entry pins a `rev:`, so the presence of one is the signal that there
+    is something for renovate to manage.
+    """
+    return check_file_contains(
+        repo_path, '.pre-commit-config.yaml', r'(?m)^\s*rev:'
+    )
+
+
+def renovate_manages_pre_commit(repo_path):
+    """True when renovate.json enables the pre-commit manager.
+
+    Renovate ships the pre-commit manager disabled, so it has to be
+    turned on deliberately. There are three supported ways to do that
+    and all of them count.
+    """
+    filepath = os.path.join(repo_path, 'renovate.json')
+    if not os.path.exists(filepath):
+        return False
+    try:
+        with open(filepath, 'r', errors='replace') as f:
+            config = json.load(f)
+    except ValueError:
+        return False
+    if not isinstance(config, dict):
+        return False
+
+    manager = config.get('pre-commit')
+    if isinstance(manager, dict) and manager.get('enabled') is True:
+        return True
+
+    enabled = config.get('enabledManagers')
+    if isinstance(enabled, list) and 'pre-commit' in enabled:
+        return True
+
+    extends = config.get('extends')
+    if isinstance(extends, list):
+        for preset in extends:
+            if isinstance(preset, str) and preset.endswith(
+                ':enablePreCommit'
+            ):
+                return True
+    return False
+
+
 def check_renovate(repo_path, props):
     """Check for renovate workflow and config."""
     missing = []
@@ -326,6 +375,20 @@ def check_renovate(repo_path, props):
             'details': f'Missing: {", ".join(missing)}',
             'missing': missing,
         }
+
+    if uses_remote_pre_commit_hooks(repo_path) and not (
+        renovate_manages_pre_commit(repo_path)
+    ):
+        return {
+            'id': 'renovate',
+            'status': 'fail',
+            'details': (
+                'renovate.json does not enable the pre-commit manager, '
+                'so the hook revisions in .pre-commit-config.yaml are '
+                'unmanaged and drift silently'
+            ),
+        }
+
     return {
         'id': 'renovate',
         'status': 'pass',
