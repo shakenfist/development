@@ -90,7 +90,7 @@ so the change is captured in `.github/exported-config/`.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-12T08:44:21.622440+00:00
+Last regenerated: 2026-08-13T07:38:50.220604+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -101,12 +101,13 @@ Last regenerated: 2026-08-12T08:44:21.622440+00:00
 | clingwrap | N/A | - |
 | cloudgood | N/A | - |
 | divergulent | N/A | - |
-| instar | N/A | - |
+| instar | compliant | - |
 | kerbside | compliant | - |
 | kerbside-patches | N/A | - |
 | library-utilities | N/A | - |
 | occystrap | N/A | - |
 | private-ci | N/A | - |
 | ryll | compliant | - |
+| sfui | N/A | - |
 | shakenfist | compliant | - |
 <!-- consistency-audit:end -->

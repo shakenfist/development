@@ -66,7 +66,7 @@ PEP 503 canonical form.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-12T08:44:21.622440+00:00
+Last regenerated: 2026-08-13T07:38:50.220604+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -84,5 +84,6 @@ Last regenerated: 2026-08-12T08:44:21.622440+00:00
 | occystrap | compliant | - |
 | private-ci | N/A | - |
 | ryll | N/A | - |
+| sfui | N/A | - |
 | shakenfist | compliant | - |
 <!-- consistency-audit:end -->

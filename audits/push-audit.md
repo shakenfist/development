@@ -89,23 +89,34 @@ documentation-review section.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-12T08:44:21.622440+00:00
+Last regenerated: 2026-08-13T07:38:50.220604+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
 | actions | N/A | - |
 | agent-python | N/A | - |
 | client-python | N/A | - |
-| client-python-k3s | compliant | - |
+| client-python-k3s | non-compliant | shakenfist/client-python-k3s#26 |
 | clingwrap | N/A | - |
 | cloudgood | N/A | - |
-| divergulent | compliant | - |
-| instar | compliant | - |
-| kerbside | compliant | - |
+| divergulent | non-compliant | shakenfist/divergulent#65 |
+| instar | non-compliant | shakenfist/instar#491 |
+| kerbside | non-compliant | shakenfist/kerbside#295 |
 | kerbside-patches | N/A | - |
 | library-utilities | N/A | - |
-| occystrap | compliant | - |
+| occystrap | non-compliant | shakenfist/occystrap#110 |
 | private-ci | N/A | - |
-| ryll | compliant | - |
-| shakenfist | compliant | - |
+| ryll | non-compliant | shakenfist/ryll#269 |
+| sfui | N/A | - |
+| shakenfist | non-compliant | shakenfist/shakenfist#3733 |
+
+Details for non-compliant projects:
+
+- **client-python-k3s** (Status): missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
+- **divergulent** (Status): missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
+- **instar** (Status): missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
+- **kerbside** (Status): missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
+- **occystrap** (Status): missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
+- **ryll** (Status): missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
+- **shakenfist** (Status): missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
 <!-- consistency-audit:end -->

@@ -76,7 +76,7 @@ See: `templates/test-drift-fix/README.md`
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-12T08:44:21.622440+00:00
+Last regenerated: 2026-08-13T07:38:50.220604+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -94,6 +94,7 @@ Last regenerated: 2026-08-12T08:44:21.622440+00:00
 | occystrap | compliant | - |
 | private-ci | N/A | - |
 | ryll | compliant | - |
+| sfui | non-compliant | shakenfist/sfui#7 |
 | shakenfist | non-compliant | shakenfist/shakenfist#3314 |
 
 Details for non-compliant projects:
@@ -103,5 +104,6 @@ Details for non-compliant projects:
 - **divergulent** (Status): Missing pr-re-review.yml; Missing pr-address-comments.yml; Missing pr-retest.yml; No workflow uses shared action review-pr-with-claude@main
 - **kerbside-patches** (Status): Missing pr-re-review.yml; Missing pr-address-comments.yml; Missing pr-retest.yml; No workflow uses shared action review-pr-with-claude@main
 - **library-utilities** (Status): Missing pr-re-review.yml; Missing pr-address-comments.yml; Missing pr-retest.yml; No workflow uses shared action review-pr-with-claude@main
+- **sfui** (Status): Missing pr-re-review.yml; Missing pr-address-comments.yml; Missing pr-retest.yml; No workflow uses shared action review-pr-with-claude@main
 - **shakenfist** (Status): Missing pr-retest.yml
 <!-- consistency-audit:end -->
