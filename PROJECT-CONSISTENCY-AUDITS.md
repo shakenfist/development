@@ -261,6 +261,29 @@ We use renovate for dependency bumps. Each project needs:
   `RENOVATE_AUTODISCOVER_FILTER` value changes per repo.
 - `renovate.json` -- renovate configuration with package grouping
   rules and scheduling.
+- The `pre-commit` manager enabled in `renovate.json`, for any project
+  with remote pre-commit hooks.
+
+### The pre-commit manager
+
+Renovate reads cargo, dockerfile, github-actions and the Python
+managers by default, but its `pre-commit` manager is opt-in. A project
+that never enables it leaves `.pre-commit-config.yaml` outside
+renovate's view completely: the hook revisions never reach the
+dependency dashboard, and there is no symptom to notice, because the
+absence of a bump looks exactly like being up to date.
+
+The consequence is worse than for an ordinary dependency. Pre-commit
+hooks are the linters gating every commit, so the one file nobody is
+watching is the one deciding whether everything else is acceptable.
+`instar` was four months behind on `actionlint` while its cargo,
+dockerfile and github-actions dependencies were all current.
+
+Enable it with any of the three forms renovate supports -- a
+`"pre-commit": {"enabled": true}` block, `enabledManagers`, or the
+`:enablePreCommit` preset. Projects with no `.pre-commit-config.yaml`,
+or whose hooks are all `repo: local` and therefore carry no revision
+to bump, are not expected to enable it.
 
 **Templates:** Use the templates in
 [`templates/renovate/`](templates/renovate/) as the canonical

@@ -1060,5 +1060,99 @@ class MergeQueueConfigTest(unittest.TestCase):
         self.assertEqual(len(problems), 2)
 
 
+class RenovatePreCommitManagerTest(unittest.TestCase):
+    """The pre-commit manager is opt-in, so its absence is a finding."""
+
+    REMOTE_HOOKS = (
+        'repos:\n'
+        '  - repo: https://github.com/rhysd/actionlint\n'
+        '    rev: v1.7.12\n'
+        '    hooks:\n'
+        '      - id: actionlint\n'
+    )
+
+    LOCAL_HOOKS = (
+        'repos:\n'
+        '  - repo: local\n'
+        '    hooks:\n'
+        '      - id: rust-check\n'
+        '        entry: ./scripts/check-rust.sh\n'
+        '        language: script\n'
+    )
+
+    def _repo(self, tmp, renovate, pre_commit=None):
+        os.makedirs(os.path.join(tmp, '.github', 'workflows'))
+        open(
+            os.path.join(tmp, '.github', 'workflows', 'renovate.yml'), 'w'
+        ).close()
+        with open(os.path.join(tmp, 'renovate.json'), 'w') as f:
+            f.write(json.dumps(renovate))
+        if pre_commit is not None:
+            with open(
+                os.path.join(tmp, '.pre-commit-config.yaml'), 'w'
+            ) as f:
+                f.write(pre_commit)
+        return audit_check.check_renovate(tmp, {})
+
+    def test_remote_hooks_without_the_manager_fail(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {}, self.REMOTE_HOOKS)
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('pre-commit manager', result['details'])
+
+    def test_explicit_manager_block_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(
+                tmp, {'pre-commit': {'enabled': True}}, self.REMOTE_HOOKS
+            )
+        self.assertEqual(result['status'], 'pass')
+
+    def test_enabled_managers_list_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(
+                tmp,
+                {'enabledManagers': ['cargo', 'pre-commit']},
+                self.REMOTE_HOOKS,
+            )
+        self.assertEqual(result['status'], 'pass')
+
+    def test_preset_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(
+                tmp, {'extends': [':enablePreCommit']}, self.REMOTE_HOOKS
+            )
+        self.assertEqual(result['status'], 'pass')
+
+    def test_manager_disabled_explicitly_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(
+                tmp, {'pre-commit': {'enabled': False}}, self.REMOTE_HOOKS
+            )
+        self.assertEqual(result['status'], 'fail')
+
+    def test_no_pre_commit_config_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {})
+        self.assertEqual(result['status'], 'pass')
+
+    def test_local_only_hooks_pass(self):
+        # A repo: local hook runs a script from the tree and carries no
+        # revision, so there is nothing for renovate to bump.
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {}, self.LOCAL_HOOKS)
+        self.assertEqual(result['status'], 'pass')
+
+    def test_missing_files_still_reported_first(self):
+        # The manager check must not mask the more basic finding.
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(
+                os.path.join(tmp, '.pre-commit-config.yaml'), 'w'
+            ) as f:
+                f.write(self.REMOTE_HOOKS)
+            result = audit_check.check_renovate(tmp, {})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('renovate.json', result['missing'])
+
+
 if __name__ == '__main__':
     unittest.main()

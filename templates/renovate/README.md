@@ -22,6 +22,31 @@ Only `renovate.yml` has a placeholder (the autodiscover filter).
 `renovate.json` can be copied directly, then customised with
 project-specific package grouping rules.
 
+## The pre-commit manager
+
+`renovate.json` enables renovate's `pre-commit` manager. That manager
+ships disabled, so a repository that copies an older config keeps
+`.pre-commit-config.yaml` outside renovate's view entirely -- the hook
+revisions never appear on the dependency dashboard, and nothing about
+the repository looks wrong while they age.
+
+This is worth being deliberate about because of what those hooks are.
+They are the linters that gate every commit, so the file nobody is
+watching is the one deciding whether everything else is acceptable.
+It was found in `instar`, where `actionlint` sat four months behind
+while cargo, dockerfile and github-actions dependencies stayed current.
+
+Any of the three supported forms satisfies the audit:
+
+```json
+{"pre-commit": {"enabled": true}}
+{"enabledManagers": ["pre-commit", "..."]}
+{"extends": [":enablePreCommit"]}
+```
+
+Repositories with no `.pre-commit-config.yaml`, or whose config only
+declares `repo: local` hooks, have nothing to bump and are not checked.
+
 ## Customisation
 
 ### Python version constraints
