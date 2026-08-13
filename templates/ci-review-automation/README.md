@@ -1,17 +1,19 @@
 # CI Review Automation Templates
 
 These templates set up Claude Code-powered PR review automation and
-bot-triggered workflows for Shaken Fist projects. All files can be
-copied directly with no modifications, but note that
-`pr-address-comments.yml` also requires a helper script that is NOT
-in this directory: it runs `tools/address-comments-with-claude.sh`
-from the target repository (read from the default branch via a
-trusted checkout, so the script must have merged before the bot
-trigger works). Copy that script from an existing deployment such as
-clingwrap's `tools/` directory and update the project name mentioned
-in its Claude prompt. Forgetting the script leaves the bot reacting
-to trigger comments and then failing with "No such file or
-directory" -- this has happened in practice on client-python-k3s.
+bot-triggered workflows for Shaken Fist projects. The workflow files
+can be copied directly with no modifications. The two helper scripts
+copy into the target repository's `tools/` directory, and
+`address-comments-with-claude.sh` needs one edit: replace
+`PROJECT_NAME` in its Claude prompt with the project's name (and a
+one-line description if that helps the model). Both scripts must have
+merged to the default branch before the bot trigger works, because
+`pr-address-comments.yml` reads them from a trusted checkout of that
+branch. Forgetting the scripts leaves the bot reacting to trigger
+comments and then failing with "No such file or directory" -- this
+has happened in practice on client-python-k3s, and again on sfui
+where `render-review.py` alone was missed (this directory not
+carrying the scripts is how both happened; it does now).
 
 For automatic test fixing (suited to projects with large test
 suites), see the separate
@@ -24,6 +26,38 @@ suites), see the separate
 | `pr-re-review.yml` | `.github/workflows/pr-re-review.yml` | Manual re-review trigger |
 | `pr-retest.yml` | `.github/workflows/pr-retest.yml` | Manual functional test re-run |
 | `pr-address-comments.yml` | `.github/workflows/pr-address-comments.yml` | Address review comments |
+| `address-comments-with-claude.sh` | `tools/address-comments-with-claude.sh` | Addresses review items with Claude Code (edit `PROJECT_NAME`) |
+| `render-review.py` | `tools/render-review.py` | Validates review JSON and renders it to markdown |
+
+## Syncing deployed copies of the scripts
+
+The deployed copies of `address-comments-with-claude.sh` predate this
+directory becoming their source of truth, and drifted: fixes landed
+in one repository without reaching the others. The canonical script
+here carries all of them, and every deployment listed at the bottom
+of this file lacks at least one:
+
+- The Claude prompt no longer instructs running `pre-commit` inside
+  the untrusted PR checkout, and prohibits running any script from
+  it. The workflow's own security model documents why: a PR author
+  controls `.pre-commit-config.yaml` and the local hooks it points
+  at, so this was arbitrary code execution under a write-scoped
+  token. Every deployed copy has this problem; treat syncing this
+  fix as a security update, not housekeeping.
+- The git index is reset between review items (kerbside had this),
+  so an abandoned item's staged changes cannot leak into the next
+  item's commit.
+- The claude binary is located via `CLAUDE_BIN`, then PATH, then
+  `~/.local/bin/claude` (shakenfist had this).
+- `--help` prints the whole header comment block instead of a
+  hardcoded line range that had already drifted, and reads the
+  script through its saved absolute path -- the script changes
+  directory before parsing arguments, so a relative `$0` no longer
+  resolves. `sanitize_input` escapes pipes so item titles cannot
+  break the markdown summary table.
+
+When syncing, preserve the deployment's project name line in the
+Claude prompt.
 
 ## Setting up the automatic review
 
