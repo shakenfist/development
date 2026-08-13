@@ -27,8 +27,9 @@ embed the whole block -- markers and all -- verbatim.
 `scripts/audit-check.py` (the `push-audit` check) verifies that an
 embedded block:
 
-- exists where it is required (`readme-discipline` and
-  `comment-proportion` in `PUSH-AUDIT.md`);
+- exists where it is required (`readme-discipline`,
+  `comment-proportion` and `plan-phase-references` in
+  `PUSH-AUDIT.md`);
 - carries the current version number; and
 - matches the canonical wording exactly (modulo trailing
   whitespace).

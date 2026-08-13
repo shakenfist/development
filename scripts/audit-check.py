@@ -45,6 +45,12 @@ REPO_OVERRIDES = {
     # consistency checker), so there is nothing to package and the
     # Python packaging checks do not apply.
     'sfui': {'not_python': True},
+    # shakenfist's docs/components/ is an automated import of the
+    # other repositories' documentation directories. Documentation
+    # content checks skip it: the canonical copies are audited in
+    # their source repositories, and flagging the import would
+    # double-report findings that must be fixed at the source.
+    'shakenfist': {'doc_content_excludes': ['docs/components/']},
 }
 
 # Map from check ID to the human-readable name used in issue titles.
@@ -74,6 +80,7 @@ CHECK_NAMES = {
     'rust-unwrap-lint': 'Rust unwrap lint',
     'readme-absolute-links': 'README absolute links',
     'readme-structure': 'README structure',
+    'plan-phase-references': 'Plan phase references',
     'push-audit': 'Pre-push audit file',
     'secret-scanning-ci': 'Secret scanning in CI',
     'review-coverage': 'Human review coverage',
@@ -103,6 +110,7 @@ def detect_repo_properties(repo_path, repo_name):
         'not_python': overrides.get('not_python', False),
         'is_actions_repo': overrides.get('is_actions_repo', False),
         'only_checks': overrides.get('only_checks', []),
+        'doc_content_excludes': overrides.get('doc_content_excludes', []),
     }
 
 
@@ -1989,6 +1997,117 @@ def check_readme_structure(repo_path, props):
     }
 
 
+# Plan phase references: documentation outside plans directories
+# describes current behaviour, not the phase of the plan that built
+# it. See audits/plan-phase-references.md.
+PHASE_REFERENCE_RE = re.compile(r'\bphases?\s+\d+\b', re.IGNORECASE)
+PHASE_REFERENCE_OK = '<!-- audit-ok: phase-reference -->'
+
+
+def iter_doc_content_files(repo_path, props):
+    """Yield repo-relative paths of documentation content to audit.
+
+    The scope is the top-level README.md plus every .md file under
+    docs/, minus any file under a plans/ directory at any depth
+    (plan documents legitimately discuss their own phases) and minus
+    the repository's doc_content_excludes prefixes (imported copies
+    of other repositories' documentation, audited at their source).
+    """
+    if os.path.exists(os.path.join(repo_path, 'README.md')):
+        yield 'README.md'
+
+    excludes = [
+        e.strip('/') + '/'
+        for e in props.get('doc_content_excludes', [])
+    ]
+    for dirpath, dirnames, filenames in os.walk(
+        os.path.join(repo_path, 'docs')
+    ):
+        rel_dir = os.path.relpath(dirpath, repo_path).replace(
+            os.sep, '/'
+        )
+        dirnames[:] = sorted(
+            d for d in dirnames
+            if d != 'plans'
+            and not any(
+                f'{rel_dir}/{d}/'.startswith(e) for e in excludes
+            )
+        )
+        for filename in sorted(filenames):
+            if filename.endswith('.md'):
+                yield f'{rel_dir}/{filename}'
+
+
+def check_plan_phase_references(repo_path, props):
+    """Check documentation does not cite implementation plan phases.
+
+    Docs describe the current state of the software; "implemented in
+    phase 5" describes the history of how it was built, usually
+    without even naming the plan. The word "phase" is reserved for
+    plan documents (procedural docs use "step" or "stage"), so any
+    "phase <number>" outside a plans/ directory is flagged. Fenced
+    code, inline code spans, and lines carrying the
+    audit-ok: phase-reference marker are skipped.
+    """
+    files = list(iter_doc_content_files(repo_path, props))
+    if not files:
+        return {
+            'id': 'plan-phase-references',
+            'status': 'not_applicable',
+            'details': 'No top-level README.md or docs/ directory',
+        }
+
+    hits = []
+    for rel in files:
+        with open(
+            os.path.join(repo_path, rel), 'r', errors='replace'
+        ) as f:
+            content = f.read()
+
+        fence = None
+        for lineno, line in enumerate(content.splitlines(), 1):
+            stripped = line.lstrip()
+            marker = None
+            if stripped.startswith('```'):
+                marker = '```'
+            elif stripped.startswith('~~~'):
+                marker = '~~~'
+
+            if fence is not None:
+                if marker == fence:
+                    fence = None
+                continue
+            if marker is not None:
+                fence = marker
+                continue
+            if PHASE_REFERENCE_OK in line:
+                continue
+            scannable = re.sub(r'`+[^`\n]*`+', '', line)
+            if PHASE_REFERENCE_RE.search(scannable):
+                hits.append(f'{rel}:{lineno}')
+
+    if hits:
+        shown = ', '.join(hits[:10])
+        more = '' if len(hits) <= 10 else f' (+{len(hits) - 10} more)'
+        return {
+            'id': 'plan-phase-references',
+            'status': 'fail',
+            'details': (
+                f'{len(hits)} plan phase reference(s) in '
+                f'documentation (describe the current behaviour, or '
+                f'link the master plan in docs/plans/ instead of '
+                f'citing a phase number): {shown}{more}'
+            ),
+        }
+    return {
+        'id': 'plan-phase-references',
+        'status': 'pass',
+        'details': (
+            'No plan phase references in README.md or docs/'
+        ),
+    }
+
+
 # --- Shared blocks ---
 # Canonical wording embedded verbatim across repositories, delimited
 # by versioned markers. Canonical copies live in
@@ -2107,10 +2226,10 @@ def check_push_audit(repo_path, props, blocks_dir=None):
 
     The pre-push audit runbook must be named PUSH-AUDIT.md (the
     historical PUSH-TEMPLATE.md name is flagged as legacy) and must
-    embed the current readme-discipline and comment-proportion
-    shared blocks. Repositories with no pre-push audit file at all
-    are N/A -- whether every project should have one is a separate
-    decision.
+    embed the current readme-discipline, comment-proportion and
+    plan-phase-references shared blocks. Repositories with no
+    pre-push audit file at all are N/A -- whether every project
+    should have one is a separate decision.
     """
     has_new = check_file_exists(repo_path, 'PUSH-AUDIT.md')
     has_legacy = check_file_exists(repo_path, 'PUSH-TEMPLATE.md')
@@ -2135,7 +2254,10 @@ def check_push_audit(repo_path, props, blocks_dir=None):
         content = f.read()
     problems += validate_shared_blocks(
         content,
-        required=['readme-discipline', 'comment-proportion'],
+        required=[
+            'readme-discipline', 'comment-proportion',
+            'plan-phase-references',
+        ],
         blocks_dir=blocks_dir,
     )
 
@@ -2542,6 +2664,8 @@ def check_calls(repo_path, props, repo_name, org):
          lambda: check_readme_absolute_links(repo_path, props)),
         ('readme-structure',
          lambda: check_readme_structure(repo_path, props)),
+        ('plan-phase-references',
+         lambda: check_plan_phase_references(repo_path, props)),
         ('push-audit',
          lambda: check_push_audit(repo_path, props)),
         ('secret-scanning-ci',

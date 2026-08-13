@@ -101,6 +101,7 @@ See `PROJECT-CONSISTENCY-AUDITS.md` for the list of excluded projects
 | [rust-unwrap-lint.md](rust-unwrap-lint.md) | Rust projects lint against production unwrap() |
 | [readme-absolute-links.md](readme-absolute-links.md) | Top-level README.md links are absolute |
 | [readme-structure.md](readme-structure.md) | Top-level README.md is a pitch, detail lives in docs/ |
+| [plan-phase-references.md](plan-phase-references.md) | Docs describe current behaviour, not plan phase history |
 | [push-audit.md](push-audit.md) | PUSH-AUDIT.md naming and versioned shared blocks |
 | [test-coverage.md](test-coverage.md) | Unit and functional test coverage |
 | [secret-handling.md](secret-handling.md) | Secret scanner in CI, credentials kept out of logs |

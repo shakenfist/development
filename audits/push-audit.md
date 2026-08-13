@@ -12,7 +12,10 @@ Repositories that carry a pre-push audit runbook must:
 * embed the current **`readme-discipline` shared block** in its
   documentation-review section;
 * embed the current **`comment-proportion` shared block** in its
-  code-quality review section; and
+  code-quality review section;
+* embed the current **`plan-phase-references` shared block** in its
+  documentation-review section (see the `plan-phase-references`
+  audit for the policy it enforces); and
 * keep every embedded shared block verbatim and at the current
   version.
 
@@ -73,9 +76,11 @@ To fix a non-compliant repository: rename `PUSH-TEMPLATE.md` to
 the current contents of
 `templates/shared-blocks/readme-discipline.md` verbatim into the
 documentation-review section, replacing any older README guidance it
-contradicts, and paste
+contradicts, paste
 `templates/shared-blocks/comment-proportion.md` verbatim into the
-brief for the code-quality review agent.
+brief for the code-quality review agent, and paste
+`templates/shared-blocks/plan-phase-references.md` verbatim into the
+documentation-review section.
 
 ## Projects
 

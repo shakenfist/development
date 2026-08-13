@@ -203,6 +203,121 @@ class ReadmeStructureTest(unittest.TestCase):
         self.assertEqual(result['status'], 'fail')
 
 
+class PlanPhaseReferencesTest(unittest.TestCase):
+    def _check(self, files, props=None):
+        """files maps repo-relative paths to content."""
+        with tempfile.TemporaryDirectory() as tmp:
+            for rel, content in files.items():
+                path = os.path.join(tmp, rel)
+                os.makedirs(os.path.dirname(path) or tmp,
+                            exist_ok=True)
+                with open(path, 'w') as f:
+                    f.write(content)
+            return audit_check.check_plan_phase_references(
+                tmp, props or {}
+            )
+
+    def test_not_applicable_without_readme_or_docs(self):
+        self.assertEqual(
+            self._check({})['status'], 'not_applicable'
+        )
+
+    def test_clean_docs_pass(self):
+        result = self._check({
+            'README.md': '# Project\n\nA pitch.\n',
+            'docs/usage.md': 'The frobnicator frobs on demand.\n',
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_phase_reference_in_docs_fails_with_location(self):
+        result = self._check({
+            'docs/usage.md': (
+                'Frobbing.\n\n'
+                'Frobnication was implemented in phase 5.\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('docs/usage.md:3', result['details'])
+
+    def test_phase_reference_in_readme_fails(self):
+        result = self._check({
+            'README.md': 'Since Phase 3, frobbing is default.\n',
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('README.md:1', result['details'])
+
+    def test_plural_phases_fails(self):
+        result = self._check({
+            'docs/usage.md': 'Delivered across phases 2 and 3.\n',
+        })
+        self.assertEqual(result['status'], 'fail')
+
+    def test_plans_directory_is_ignored(self):
+        result = self._check({
+            'docs/plans/PLAN-frob.md': '## Phase 1: frob\n',
+            'docs/usage.md': 'Frobbing.\n',
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_nested_plans_directory_is_ignored(self):
+        result = self._check({
+            'docs/parts/plans/PLAN-frob.md': '## Phase 2: frob\n',
+            'docs/usage.md': 'Frobbing.\n',
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_doc_content_excludes_are_skipped(self):
+        # shakenfist's docs/components/ is an automated import of
+        # other repositories' documentation; findings there must be
+        # fixed at the source, not double-reported.
+        files = {
+            'docs/components/ryll/notes.md': 'As of phase 2.\n',
+            'docs/usage.md': 'Frobbing.\n',
+        }
+        result = self._check(
+            files,
+            props={'doc_content_excludes': ['docs/components/']},
+        )
+        self.assertEqual(result['status'], 'pass')
+        # Without the override the same tree fails, so the exclude
+        # is doing the work.
+        self.assertEqual(self._check(files)['status'], 'fail')
+
+    def test_code_blocks_do_not_count(self):
+        result = self._check({
+            'docs/usage.md': (
+                'Frobbing.\n\n'
+                '```\nlog line: entering phase 3\n```\n\n'
+                'A `phase 3` inline span does not count either.\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_audit_ok_marker_suppresses_the_line(self):
+        result = self._check({
+            'docs/electrics.md': (
+                'A phase 3 supply feeds the rack. '
+                '<!-- audit-ok: phase-reference -->\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_phase_without_a_number_passes(self):
+        result = self._check({
+            'docs/usage.md': (
+                'Two-phase commit is used for the frob step.\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_non_markdown_files_are_ignored(self):
+        result = self._check({
+            'docs/notes.txt': 'Implemented in phase 4.\n',
+            'docs/usage.md': 'Frobbing.\n',
+        })
+        self.assertEqual(result['status'], 'pass')
+
+
 class PushAuditTest(unittest.TestCase):
     def setUp(self):
         # A private canonical blocks directory so the tests do not
@@ -221,15 +336,24 @@ class PushAuditTest(unittest.TestCase):
             'Comment wording.\n'
             '<!-- shared-block-end -->\n'
         )
+        self.phase_block = (
+            '<!-- shared-block: plan-phase-references v1 -->\n'
+            'Phase wording.\n'
+            '<!-- shared-block-end -->\n'
+        )
         for name, block in (
             ('readme-discipline', self.readme_block),
             ('comment-proportion', self.comment_block),
+            ('plan-phase-references', self.phase_block),
         ):
             with open(
                 os.path.join(self._blocks.name, f'{name}.md'), 'w'
             ) as f:
                 f.write(block)
-        self.canonical = f'{self.readme_block}\n{self.comment_block}'
+        self.canonical = (
+            f'{self.readme_block}\n{self.comment_block}\n'
+            f'{self.phase_block}'
+        )
 
     def _check(self, files):
         with tempfile.TemporaryDirectory() as tmp:
@@ -275,6 +399,19 @@ class PushAuditTest(unittest.TestCase):
         self.assertEqual(result['status'], 'fail')
         self.assertIn(
             'missing shared block comment-proportion',
+            result['details'],
+        )
+
+    def test_missing_plan_phase_references_fails(self):
+        result = self._check({
+            'PUSH-AUDIT.md': (
+                f'# Audit\n\n{self.readme_block}\n'
+                f'{self.comment_block}\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn(
+            'missing shared block plan-phase-references',
             result['details'],
         )
 
@@ -668,6 +805,22 @@ class RepoOverridesTest(unittest.TestCase):
             tempfile.mkdtemp(), 'occystrap'
         )
         self.assertFalse(props['is_actions_repo'])
+
+    def test_shakenfist_excludes_imported_docs(self):
+        # docs/components/ is an automated import of the other
+        # repositories' documentation directories.
+        props = audit_check.detect_repo_properties(
+            tempfile.mkdtemp(), 'shakenfist'
+        )
+        self.assertEqual(
+            props['doc_content_excludes'], ['docs/components/']
+        )
+
+    def test_ordinary_repo_has_no_doc_content_excludes(self):
+        props = audit_check.detect_repo_properties(
+            tempfile.mkdtemp(), 'occystrap'
+        )
+        self.assertEqual(props['doc_content_excludes'], [])
 
     def test_ordinary_repo_is_scoped_to_no_checks(self):
         # An empty only_checks means the whole audit applies, so the

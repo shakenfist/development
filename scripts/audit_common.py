@@ -107,6 +107,10 @@ AUDIT_METADATA = {
         'spec': 'audits/readme-structure.md',
         'template': None,
     },
+    'plan-phase-references': {
+        'spec': 'audits/plan-phase-references.md',
+        'template': None,
+    },
     'push-audit': {
         'spec': 'audits/push-audit.md',
         'template': 'templates/shared-blocks/',
@@ -152,6 +156,7 @@ ISSUE_TITLES = {
     'rust-unwrap-lint': 'Rust unwrap lint',
     'readme-absolute-links': 'README absolute links',
     'readme-structure': 'README structure',
+    'plan-phase-references': 'Plan phase references',
     'push-audit': 'Pre-push audit file',
     'secret-scanning-ci': 'Secret scanning in CI',
     'review-coverage': 'Human review coverage',
