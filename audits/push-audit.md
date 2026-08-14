@@ -11,6 +11,9 @@ Repositories that carry a pre-push audit runbook must:
   `PLAN-TEMPLATE.md`);
 * embed the current **`readme-discipline` shared block** in its
   documentation-review section;
+* embed the current **`llm-doc-discipline` shared block** in its
+  documentation-review section (see the `llm-doc-structure` audit
+  for the policy it enforces);
 * embed the current **`comment-proportion` shared block** in its
   code-quality review section;
 * embed the current **`plan-phase-references` shared block** in its

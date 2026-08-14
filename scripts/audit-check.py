@@ -57,6 +57,7 @@ REPO_OVERRIDES = {
 # Must match the titles used in the manually created issues from phase 1.
 CHECK_NAMES = {
     'llm-tooling': 'LLM tooling',
+    'llm-doc-structure': 'AGENTS.md / ARCHITECTURE.md structure',
     'release-process': 'Release process',
     'ci-review-automation': 'CI review automation',
     'renovate': 'Renovate',
@@ -2223,8 +2224,7 @@ def check_readme_structure(repo_path, props):
         problems.append(
             f'README.md is {lines} lines / {words} words (limits: '
             f'{README_MAX_LINES} lines, {README_MAX_WORDS} words); '
-            f'move detail into docs/, ARCHITECTURE.md, or AGENTS.md '
-            f'and keep the README a pitch'
+            f'move detail into docs/ and keep the README a pitch'
         )
 
     if os.path.isdir(os.path.join(repo_path, 'docs')):
@@ -2254,6 +2254,196 @@ def check_readme_structure(repo_path, props):
     }
 
 
+# AGENTS.md / ARCHITECTURE.md structure limits: both files are a
+# summary and an index into docs/, not reference manuals. AGENTS.md
+# is loaded into every session, so it gets the tighter cap.
+# See audits/llm-doc-structure.md.
+LLM_DOC_LIMITS = {
+    'AGENTS.md': (300, 2500),
+    'ARCHITECTURE.md': (500, 4000),
+}
+LLM_DOC_STRUCTURE_OK = '<!-- audit-ok: llm-doc-structure -->'
+
+# A reference to a documentation page under docs/, in any form: a
+# markdown link target, an inline-code path, or bare prose. Unlike
+# README.md -- which is rendered off the repository landing page and
+# so needs real absolute links (see readme-absolute-links) -- these
+# two files are read on GitHub and by agents, where a backticked
+# `docs/design-tokens.md` points just as well as a link does.
+# docs/plans/ is excluded: a plan is a design record, not the
+# documentation these files should be delegating to.
+DOCS_PAGE_REFERENCE_RE = re.compile(r'\bdocs/(?!plans/)[\w./-]+\.md\b')
+
+
+def iter_markdown_headings(content, levels=(2, 3)):
+    """Yield (level, text, line) for ATX headings outside code fences.
+
+    A `## foo` inside a fenced block is sample text, not a heading, so
+    fenced regions are skipped the same way strip_markdown_code skips
+    them. The raw line comes back too, so callers can look for an
+    audit-ok marker on it.
+    """
+    fence = None
+    for line in content.splitlines():
+        stripped = line.lstrip()
+        marker = None
+        if stripped.startswith('```'):
+            marker = '```'
+        elif stripped.startswith('~~~'):
+            marker = '~~~'
+
+        if fence is not None:
+            if marker == fence:
+                fence = None
+            continue
+        if marker is not None:
+            fence = marker
+            continue
+
+        match = re.match(r'(#{1,6})\s+(.*)', stripped)
+        if match and len(match.group(1)) in levels:
+            text = match.group(2).strip().rstrip('#').strip()
+            if text:
+                yield len(match.group(1)), text, line
+
+
+def normalise_heading(text):
+    """Fold a heading (or a docs/ filename stem) to a comparison key.
+
+    Case and hyphen-versus-space are presentation, not meaning:
+    `## Code Organisation`, `## code organisation` and
+    `docs/code-organisation.md` are all the same subject.
+    """
+    return re.sub(r'\s+', ' ', text.replace('-', ' ')).strip().lower()
+
+
+def check_llm_doc_structure(repo_path, props):
+    """Check AGENTS.md and ARCHITECTURE.md are a summary and an index.
+
+    The llm-tooling check covers whether these files exist; this one
+    covers their shape. "Is this a good summary" is a judgment call
+    enforced at push time by the llm-doc-discipline shared block (see
+    check_push_audit); this check enforces the measurable proxies: a
+    length cap per file, a pointer to a docs/ page when docs/ holds
+    any, and two duplication signals -- a heading shared between the
+    two files, and a heading naming a page that docs/ already has.
+    """
+    present = {
+        name: os.path.join(repo_path, name)
+        for name in LLM_DOC_LIMITS
+        if check_file_exists(repo_path, name)
+    }
+    if not present:
+        return {
+            'id': 'llm-doc-structure',
+            'status': 'not_applicable',
+            'details': 'No AGENTS.md or ARCHITECTURE.md',
+        }
+
+    contents = {}
+    for name, path in present.items():
+        with open(path, 'r', errors='replace') as f:
+            contents[name] = f.read()
+
+    # docs/ pages the two files could be delegating to, keyed by
+    # normalised filename stem. A docs/ directory holding nothing but
+    # plans/ has no documentation to point at, so an empty mapping
+    # switches both docs/-aware proxies off rather than demanding a
+    # pointer to something that does not exist.
+    docs_pages = {}
+    docs_dir = os.path.join(repo_path, 'docs')
+    if os.path.isdir(docs_dir):
+        for entry in sorted(os.listdir(docs_dir)):
+            if entry.endswith('.md') and entry != 'index.md':
+                docs_pages[normalise_heading(entry[:-3])] = f'docs/{entry}'
+    has_docs = bool(docs_pages) or os.path.exists(
+        os.path.join(docs_dir, 'index.md')
+    )
+    problems = []
+
+    for name in sorted(contents):
+        content = contents[name]
+        max_lines, max_words = LLM_DOC_LIMITS[name]
+        lines = len(content.splitlines())
+        words = len(content.split())
+        if lines > max_lines or words > max_words:
+            problems.append(
+                f'{name} is {lines} lines / {words} words (limits: '
+                f'{max_lines} lines, {max_words} words); move detail '
+                f'into docs/ and leave a summary and a link'
+            )
+
+        if has_docs and not DOCS_PAGE_REFERENCE_RE.search(content):
+            problems.append(
+                f'{name} references no page under docs/ despite a '
+                f'docs/ directory existing; it should point at the '
+                f'detailed documentation rather than restate it'
+            )
+
+    # Duplication signal one: the same subject documented in both
+    # files. Only ## headings, because ### headings are subdivisions
+    # whose names collide innocently ("Overview", "Example").
+    headings = {}
+    for name, content in contents.items():
+        headings[name] = {
+            normalise_heading(text): line
+            for _, text, line in iter_markdown_headings(
+                content, levels=(2,)
+            )
+        }
+    if len(headings) == 2:
+        agents, architecture = (
+            headings['AGENTS.md'], headings['ARCHITECTURE.md']
+        )
+        shared = sorted(
+            key for key in agents.keys() & architecture.keys()
+            if LLM_DOC_STRUCTURE_OK not in agents[key]
+            and LLM_DOC_STRUCTURE_OK not in architecture[key]
+        )
+        if shared:
+            problems.append(
+                'AGENTS.md and ARCHITECTURE.md share the headings '
+                + ', '.join(f'"{key}"' for key in shared)
+                + '; give each fact one home and link to it from the '
+                'other file'
+            )
+
+    # Duplication signal two: a heading naming a docs/ page. index.md
+    # is excluded from docs_pages because a "## Index" style heading
+    # pointing at it is exactly the behaviour we want.
+    if docs_pages:
+        for name in sorted(contents):
+            hits = sorted({
+                f'"{text}" ({docs_pages[normalise_heading(text)]})'
+                for _, text, line in iter_markdown_headings(
+                    contents[name]
+                )
+                if normalise_heading(text) in docs_pages
+                and LLM_DOC_STRUCTURE_OK not in line
+            })
+            if hits:
+                problems.append(
+                    f'{name} has headings restating a docs/ page: '
+                    + ', '.join(hits)
+                    + '; summarise and link instead'
+                )
+
+    if problems:
+        return {
+            'id': 'llm-doc-structure',
+            'status': 'fail',
+            'details': '; '.join(problems),
+        }
+    return {
+        'id': 'llm-doc-structure',
+        'status': 'pass',
+        'details': (
+            'AGENTS.md and ARCHITECTURE.md are summary-sized and do '
+            'not restate docs/'
+        ),
+    }
+
+
 # Plan phase references: documentation outside plans directories
 # describes current behaviour, not the phase of the plan that built
 # it. See audits/plan-phase-references.md.
@@ -2264,14 +2454,21 @@ PHASE_REFERENCE_OK = '<!-- audit-ok: phase-reference -->'
 def iter_doc_content_files(repo_path, props):
     """Yield repo-relative paths of documentation content to audit.
 
-    The scope is the top-level README.md plus every .md file under
-    docs/, minus any file under a plans/ directory at any depth
-    (plan documents legitimately discuss their own phases) and minus
-    the repository's doc_content_excludes prefixes (imported copies
-    of other repositories' documentation, audited at their source).
+    The scope is the top-level README.md, AGENTS.md and
+    ARCHITECTURE.md plus every .md file under docs/, minus any file
+    under a plans/ directory at any depth (plan documents
+    legitimately discuss their own phases) and minus the repository's
+    doc_content_excludes prefixes (imported copies of other
+    repositories' documentation, audited at their source).
+
+    AGENTS.md and ARCHITECTURE.md are in scope for the same reason
+    README.md is: they describe the current state of the software to
+    a reader who was not present for its construction, so "wired up
+    in phase 6" is noise there too.
     """
-    if os.path.exists(os.path.join(repo_path, 'README.md')):
-        yield 'README.md'
+    for name in ('README.md', 'AGENTS.md', 'ARCHITECTURE.md'):
+        if os.path.exists(os.path.join(repo_path, name)):
+            yield name
 
     excludes = [
         e.strip('/') + '/'
@@ -2311,7 +2508,7 @@ def check_plan_phase_references(repo_path, props):
         return {
             'id': 'plan-phase-references',
             'status': 'not_applicable',
-            'details': 'No top-level README.md or docs/ directory',
+            'details': 'No documentation content to audit',
         }
 
     hits = []
@@ -2483,10 +2680,10 @@ def check_push_audit(repo_path, props, blocks_dir=None):
 
     The pre-push audit runbook must be named PUSH-AUDIT.md (the
     historical PUSH-TEMPLATE.md name is flagged as legacy) and must
-    embed the current readme-discipline, comment-proportion and
-    plan-phase-references shared blocks. Repositories with no
-    pre-push audit file at all are N/A -- whether every project
-    should have one is a separate decision.
+    embed the current readme-discipline, llm-doc-discipline,
+    comment-proportion and plan-phase-references shared blocks.
+    Repositories with no pre-push audit file at all are N/A --
+    whether every project should have one is a separate decision.
     """
     has_new = check_file_exists(repo_path, 'PUSH-AUDIT.md')
     has_legacy = check_file_exists(repo_path, 'PUSH-TEMPLATE.md')
@@ -2512,8 +2709,8 @@ def check_push_audit(repo_path, props, blocks_dir=None):
     problems += validate_shared_blocks(
         content,
         required=[
-            'readme-discipline', 'comment-proportion',
-            'plan-phase-references',
+            'readme-discipline', 'llm-doc-discipline',
+            'comment-proportion', 'plan-phase-references',
         ],
         blocks_dir=blocks_dir,
     )
@@ -2874,6 +3071,8 @@ def check_calls(repo_path, props, repo_name, org):
     return [
         ('llm-tooling',
          lambda: check_llm_tooling(repo_path, props)),
+        ('llm-doc-structure',
+         lambda: check_llm_doc_structure(repo_path, props)),
         ('release-process',
          lambda: check_release_process(repo_path, props)),
         ('ci-review-automation',

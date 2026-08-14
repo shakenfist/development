@@ -28,8 +28,8 @@ embed the whole block -- markers and all -- verbatim.
 embedded block:
 
 - exists where it is required (`readme-discipline`,
-  `comment-proportion` and `plan-phase-references` in
-  `PUSH-AUDIT.md`);
+  `llm-doc-discipline`, `comment-proportion` and
+  `plan-phase-references` in `PUSH-AUDIT.md`);
 - carries the current version number; and
 - matches the canonical wording exactly (modulo trailing
   whitespace).

@@ -203,6 +203,161 @@ class ReadmeStructureTest(unittest.TestCase):
         self.assertEqual(result['status'], 'fail')
 
 
+class LlmDocStructureTest(unittest.TestCase):
+    AGENTS = (
+        '# AGENTS.md\n\n## Conventions\n\nSingle quotes everywhere.\n\n'
+        'Usage is documented in `docs/usage.md`.\n'
+    )
+    ARCHITECTURE = (
+        '# Architecture\n\n## Overview\n\nA daemon and a client.\n\n'
+        '[the docs](https://github.com/shakenfist/x/blob/develop/'
+        'docs/usage.md)\n'
+    )
+
+    def _check(self, agents=None, architecture=None, docs=None):
+        """docs maps docs/-relative filenames to content."""
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, content in (('AGENTS.md', agents),
+                                  ('ARCHITECTURE.md', architecture)):
+                if content is not None:
+                    with open(os.path.join(tmp, name), 'w') as f:
+                        f.write(content)
+            if docs is not None:
+                os.mkdir(os.path.join(tmp, 'docs'))
+                for name, content in docs.items():
+                    with open(os.path.join(tmp, 'docs', name), 'w') as f:
+                        f.write(content)
+            return audit_check.check_llm_doc_structure(tmp, {})
+
+    def test_not_applicable_without_either_file(self):
+        self.assertEqual(self._check()['status'], 'not_applicable')
+
+    def test_summary_sized_files_pass(self):
+        result = self._check(
+            self.AGENTS, self.ARCHITECTURE, docs={'usage.md': 'Frob.\n'}
+        )
+        self.assertEqual(result['status'], 'pass')
+
+    def test_one_file_alone_is_still_checked(self):
+        result = self._check(agents=self.AGENTS + ('filler\n' * 400))
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('AGENTS.md is', result['details'])
+
+    def test_agents_line_cap_is_tighter_than_architecture(self):
+        # 400 lines: over the AGENTS.md cap, under the
+        # ARCHITECTURE.md one. AGENTS.md is loaded into every
+        # session, so it pays for its length on every task.
+        body = '\n'.join(f'line {n}' for n in range(400)) + '\n'
+        self.assertEqual(
+            self._check(agents=self.AGENTS + body)['status'], 'fail'
+        )
+        self.assertEqual(
+            self._check(architecture=self.ARCHITECTURE + body)['status'],
+            'pass',
+        )
+
+    def test_word_cap_fails_on_few_lines(self):
+        result = self._check(agents=self.AGENTS + ('word ' * 3000))
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('words', result['details'])
+
+    def test_missing_docs_reference_fails_when_docs_exist(self):
+        result = self._check(
+            agents='# AGENTS.md\n\nNo pointers here.\n',
+            docs={'usage.md': 'Frob.\n'},
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('references no page under docs/', result['details'])
+
+    def test_backticked_docs_path_counts_as_a_reference(self):
+        # These files are read on GitHub and by agents, not rendered
+        # off-site, so a backticked path points as well as a link.
+        result = self._check(
+            agents='# AGENTS.md\n\nSee `docs/usage.md`.\n',
+            docs={'usage.md': 'Frob.\n'},
+        )
+        self.assertEqual(result['status'], 'pass')
+
+    def test_plan_reference_alone_does_not_count(self):
+        # A plan is a design record, not the documentation these
+        # files should be delegating to.
+        result = self._check(
+            agents='# AGENTS.md\n\nSee `docs/plans/PLAN-frob.md`.\n',
+            docs={'usage.md': 'Frob.\n'},
+        )
+        self.assertEqual(result['status'], 'fail')
+
+    def test_docs_reference_not_required_without_docs_dir(self):
+        result = self._check(agents='# AGENTS.md\n\nNo pointers here.\n')
+        self.assertEqual(result['status'], 'pass')
+
+    def test_docs_holding_only_plans_is_not_a_docs_dir(self):
+        # client-python's docs/ contains nothing but plans/, so there
+        # is no documentation page to delegate to.
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, 'docs', 'plans'))
+            with open(
+                os.path.join(tmp, 'docs', 'plans', 'PLAN-frob.md'), 'w'
+            ) as f:
+                f.write('# Plan\n')
+            with open(os.path.join(tmp, 'AGENTS.md'), 'w') as f:
+                f.write('# AGENTS.md\n\nNo pointers here.\n')
+            result = audit_check.check_llm_doc_structure(tmp, {})
+        self.assertEqual(result['status'], 'pass')
+
+    def test_shared_heading_between_files_fails(self):
+        result = self._check(
+            self.AGENTS + '\n## Code Organisation\n\nCrates.\n',
+            self.ARCHITECTURE + '\n## code organisation\n\nCrates.\n',
+            docs={'usage.md': 'Frob.\n'},
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('share the headings', result['details'])
+        self.assertIn('code organisation', result['details'])
+
+    def test_shared_heading_can_be_suppressed(self):
+        marker = audit_check.LLM_DOC_STRUCTURE_OK
+        result = self._check(
+            self.AGENTS + f'\n## Testing {marker}\n\nHow to run.\n',
+            self.ARCHITECTURE + '\n## Testing\n\nWhere they live.\n',
+            docs={'usage.md': 'Frob.\n'},
+        )
+        self.assertEqual(result['status'], 'pass')
+
+    def test_heading_restating_a_docs_page_fails(self):
+        result = self._check(
+            architecture=self.ARCHITECTURE + '\n## Configuration\n\n.vv.\n',
+            docs={'configuration.md': 'Every flag.\n'},
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('docs/configuration.md', result['details'])
+
+    def test_docs_page_heading_match_ignores_hyphens_and_case(self):
+        result = self._check(
+            agents=self.AGENTS + '\n## Control Socket\n\nVerbs.\n',
+            docs={'control-socket.md': 'The wire protocol.\n'},
+        )
+        self.assertEqual(result['status'], 'fail')
+
+    def test_docs_index_heading_is_allowed(self):
+        # "## Index" pointing at docs/index.md is the behaviour the
+        # audit wants, not a duplication finding.
+        result = self._check(
+            agents=self.AGENTS + '\n## Index\n\nStart here.\n',
+            docs={'index.md': 'Contents.\n'},
+        )
+        self.assertEqual(result['status'], 'pass')
+
+    def test_headings_in_code_blocks_are_ignored(self):
+        fenced = '\n```markdown\n## Configuration\n```\n'
+        result = self._check(
+            agents=self.AGENTS + fenced,
+            architecture=self.ARCHITECTURE + fenced,
+            docs={'configuration.md': 'Every flag.\n'},
+        )
+        self.assertEqual(result['status'], 'pass')
+
+
 class PlanPhaseReferencesTest(unittest.TestCase):
     def _check(self, files, props=None):
         """files maps repo-relative paths to content."""
@@ -341,8 +496,14 @@ class PushAuditTest(unittest.TestCase):
             'Phase wording.\n'
             '<!-- shared-block-end -->\n'
         )
+        self.llm_doc_block = (
+            '<!-- shared-block: llm-doc-discipline v1 -->\n'
+            'Agent doc wording.\n'
+            '<!-- shared-block-end -->\n'
+        )
         for name, block in (
             ('readme-discipline', self.readme_block),
+            ('llm-doc-discipline', self.llm_doc_block),
             ('comment-proportion', self.comment_block),
             ('plan-phase-references', self.phase_block),
         ):
@@ -351,8 +512,8 @@ class PushAuditTest(unittest.TestCase):
             ) as f:
                 f.write(block)
         self.canonical = (
-            f'{self.readme_block}\n{self.comment_block}\n'
-            f'{self.phase_block}'
+            f'{self.readme_block}\n{self.llm_doc_block}\n'
+            f'{self.comment_block}\n{self.phase_block}'
         )
 
     def _check(self, files):
@@ -399,6 +560,19 @@ class PushAuditTest(unittest.TestCase):
         self.assertEqual(result['status'], 'fail')
         self.assertIn(
             'missing shared block comment-proportion',
+            result['details'],
+        )
+
+    def test_missing_llm_doc_discipline_fails(self):
+        result = self._check({
+            'PUSH-AUDIT.md': (
+                f'# Audit\n\n{self.readme_block}\n'
+                f'{self.comment_block}\n{self.phase_block}\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn(
+            'missing shared block llm-doc-discipline',
             result['details'],
         )
 

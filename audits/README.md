@@ -83,6 +83,7 @@ See `PROJECT-CONSISTENCY-AUDITS.md` for the list of excluded projects
 | File | Criterion |
 |------|-----------|
 | [llm-tooling.md](llm-tooling.md) | AGENTS.md, ARCHITECTURE.md, Claude skills |
+| [llm-doc-structure.md](llm-doc-structure.md) | AGENTS.md and ARCHITECTURE.md are a summary and an index, detail lives in docs/ |
 | [release-process.md](release-process.md) | pyproject.toml, release.yml, RELEASE-SETUP.md |
 | [ci-review-automation.md](ci-review-automation.md) | Automated review, developer automation workflows |
 | [renovate.md](renovate.md) | Renovate for dependency bumps |

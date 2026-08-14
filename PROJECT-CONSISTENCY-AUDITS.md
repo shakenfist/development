@@ -51,6 +51,37 @@ if they would benefit from it. Things that are likely to need a skill
 include remembering to write unit or functional tests, updating documention
 for user visible changes, and so forth.
 
+## AGENTS.md and ARCHITECTURE.md are a summary and an index
+
+Those two files are a **summary and an index into `docs/`**, not reference
+manuals. `AGENTS.md` is a working guide: the conventions, invariants and
+gotchas an agent cannot infer by reading the code. `ARCHITECTURE.md` is a
+map: the component inventory, how data moves between components, and why
+the shape is the way it is. Anything longer than that -- a deep dive on one
+subsystem, a configuration reference, a runbook, a wire-protocol spec --
+belongs in `docs/`, where humans benefit from it as well.
+
+One canonical home per fact. If `docs/` covers something, point at it
+rather than restating it, and the same rule applies between the two files.
+
+The automated check enforces measurable proxies: `AGENTS.md` is at most 300
+lines and 2500 words, `ARCHITECTURE.md` at most 500 lines and 4000 words,
+each file points at a page under `docs/` when `docs/` holds any (a link or
+a backticked path both count -- these files are read on GitHub and by
+agents, not rendered off-site), no `##` heading appears in both files, and
+no heading names a page `docs/` already has. The judgment half is enforced at push time by the `llm-doc-discipline`
+shared block in each repository's `PUSH-AUDIT.md` (see below).
+
+`AGENTS.md` gets the tighter cap because it is loaded into every session:
+its whole length is a fixed tax on every task, whether or not the task
+touches the subject.
+
+This rule exists because these two files accreted the same way the READMEs
+did -- ryll's reached 1015 and 2262 lines, around 21,000 words, while
+restating `docs/configuration.md`, restating `docs/control-socket-protocol.md`
+in a section that names that file as the canonical source, and duplicating a
+`## Code Organisation` section between the two files.
+
 ## Python packaging with pyproject.toml
 
 All Python projects must use `pyproject.toml` for packaging and dependency
@@ -126,7 +157,8 @@ the repository page: what the project is, who it is for, minimal
 installation instructions, a small number of usage examples, and
 curated links into `docs/`. Feature catalogues, CI workflow tables,
 build internals, architecture descriptions, and dependency lists
-belong in `docs/`, `ARCHITECTURE.md`, or `AGENTS.md` instead.
+belong in `docs/` instead -- not in `ARCHITECTURE.md` or `AGENTS.md`,
+which are held to their own summary-and-index rule above.
 
 The automated check enforces measurable proxies: `README.md` is at
 most 150 lines and 1200 words, and links into `docs/` when a `docs/`
@@ -148,10 +180,11 @@ reserved for true templates like `PLAN-TEMPLATE.md`). Repositories
 without a pre-push audit file are exempt.
 
 Canonical wording that must stay identical across repositories --
-currently the `readme-discipline` instructions in the
-documentation-review section of `PUSH-AUDIT.md`, and the
-`comment-proportion` instructions in its code-quality section -- is
-embedded as a **versioned shared block**:
+currently the `readme-discipline`, `llm-doc-discipline` and
+`plan-phase-references` instructions in the documentation-review
+section of `PUSH-AUDIT.md`, and the `comment-proportion`
+instructions in its code-quality section -- is embedded as a
+**versioned shared block**:
 
 ```markdown
 <!-- shared-block: <name> v<N> -->
