@@ -87,6 +87,10 @@ AUDIT_METADATA = {
         'spec': 'audits/workflow-standards.md',
         'template': None,
     },
+    'expensive-lane-path-filter': {
+        'spec': 'audits/expensive-lane-path-filter.md',
+        'template': None,
+    },
     'pyproject-usage': {
         'spec': 'audits/pyproject-usage.md',
         'template': None,
@@ -151,6 +155,7 @@ ISSUE_TITLES = {
     'static-runner-tags': 'Workflow standards (static runner tags)',
     'devpi-fallback': 'Workflow standards (devpi cache fallback)',
     'devpi-stale-ip': 'Workflow standards (devpi cache address)',
+    'expensive-lane-path-filter': 'Expensive lane path filtering',
     'pyproject-usage': 'pyproject.toml usage',
     'version-file-gitignore': 'Generated version file',
     'rust-unwrap-lint': 'Rust unwrap lint',

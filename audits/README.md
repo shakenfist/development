@@ -94,6 +94,7 @@ See `PROJECT-CONSISTENCY-AUDITS.md` for the list of excluded projects
 | [merge-queue-config.md](merge-queue-config.md) | Merge queues process entries serially, without speculative stacking or merge batching |
 | [security-sanitization.md](security-sanitization.md) | HTTP header and file path sanitization |
 | [workflow-standards.md](workflow-standards.md) | Permissions, naming, self-hosted runners, static runner tags, devpi cache fallback, devpi cache address, linting, PIPESTATUS, flake8wrap |
+| [expensive-lane-path-filter.md](expensive-lane-path-filter.md) | Expensive PR lanes skip docs-only and review-marks-only changes |
 | [console-logging.md](console-logging.md) | Console script logging setup |
 | [python-version.md](python-version.md) | Python version targeting and type hints |
 | [pyproject-usage.md](pyproject-usage.md) | Python projects use pyproject.toml |
