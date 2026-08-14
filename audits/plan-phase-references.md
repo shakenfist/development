@@ -3,17 +3,24 @@
 ## What we check
 
 Documentation describes the current state of the software, not the
-history of how it was built. `README.md` and the files under `docs/`
-must not refer to the phase numbers of implementation plans: wording
-like "feature YYY, implemented in phase ZZZ" tells a reader nothing
-they need -- often without even naming the plan the phase belongs
-to. Either the feature is implemented, in which case the docs should
-describe it plainly, or it is not, in which case the docs should
-link to the master plan in `docs/plans/` rather than citing a phase.
+history of how it was built. `README.md`, `AGENTS.md`,
+`ARCHITECTURE.md` and the files under `docs/` must not refer to the
+phase numbers of implementation plans: wording like "feature YYY,
+implemented in phase ZZZ" tells a reader nothing they need -- often
+without even naming the plan the phase belongs to. Either the feature
+is implemented, in which case the docs should describe it plainly, or
+it is not, in which case the docs should link to the master plan in
+`docs/plans/` rather than citing a phase.
 
-The automated check greps the top-level `README.md` and every `.md`
-file under `docs/` for `phase <number>` (case-insensitive),
-skipping:
+`AGENTS.md` and `ARCHITECTURE.md` are in scope for the same reason
+`README.md` is: they describe current behaviour to a reader who was
+not present for the construction, so an `## Phase 6: Bridge
+Lifecycle` section heading is as unhelpful there as it would be in
+`docs/`. Their *shape* is a separate audit (`llm-doc-structure`).
+
+The automated check greps the top-level `README.md`, `AGENTS.md` and
+`ARCHITECTURE.md`, and every `.md` file under `docs/`, for
+`phase <number>` (case-insensitive), skipping:
 
 * any file under a `plans/` directory at any depth -- plan
   documents legitimately discuss their own phases;
@@ -32,8 +39,8 @@ say) should call its stages "steps" or "stages"; the suppression
 marker exists for the rare line where "phase <number>" is genuinely
 not a plan reference.
 
-Repositories with neither a top-level `README.md` nor a `docs/`
-directory are reported as N/A.
+Repositories with none of those files and no `docs/` directory are
+reported as N/A.
 
 The judgment half of the policy is enforced at the point where the
 references are written: each repository's pre-push audit file

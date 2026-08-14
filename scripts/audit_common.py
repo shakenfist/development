@@ -15,6 +15,10 @@ AUDIT_METADATA = {
         'spec': 'audits/llm-tooling.md',
         'template': None,
     },
+    'llm-doc-structure': {
+        'spec': 'audits/llm-doc-structure.md',
+        'template': None,
+    },
     'release-process': {
         'spec': 'audits/release-process.md',
         'template': 'templates/release-automation/',
@@ -137,6 +141,7 @@ AUDIT_METADATA = {
 # manually created issues where possible.
 ISSUE_TITLES = {
     'llm-tooling': 'LLM tooling',
+    'llm-doc-structure': 'AGENTS.md / ARCHITECTURE.md structure',
     'release-process': 'Release process',
     'ci-review-automation': 'CI review automation',
     'renovate': 'Renovate',
