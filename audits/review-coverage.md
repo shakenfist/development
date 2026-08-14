@@ -41,7 +41,7 @@ when the backlog has grown regardless.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-13T07:38:50.220604+00:00
+Last regenerated: 2026-08-14T07:28:36.672476+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -58,11 +58,12 @@ Last regenerated: 2026-08-13T07:38:50.220604+00:00
 | library-utilities | N/A | - |
 | occystrap | N/A | - |
 | private-ci | N/A | - |
-| ryll | compliant | - |
+| ryll | non-compliant | shakenfist/ryll#275 |
 | sfui | N/A | - |
 | shakenfist | N/A | - |
 
 Details for non-compliant projects:
 
-- **kerbside** (Status): 124 of 164 in-scope files reviewed at HEAD; 40 need review (threshold 5)
+- **kerbside** (Status): 68 of 164 in-scope files reviewed at HEAD; 96 need review (threshold 5)
+- **ryll** (Status): 153 of 161 in-scope files reviewed at HEAD; 8 need review (threshold 5)
 <!-- consistency-audit:end -->

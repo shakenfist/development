@@ -140,7 +140,7 @@ rest are code-level patterns.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-13T07:38:50.220604+00:00
+Last regenerated: 2026-08-14T07:28:36.672476+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -158,7 +158,7 @@ Last regenerated: 2026-08-13T07:38:50.220604+00:00
 | occystrap | non-compliant | shakenfist/occystrap#101 |
 | private-ci | N/A | - |
 | ryll | compliant | - |
-| sfui | N/A | - |
+| sfui | compliant | - |
 | shakenfist | non-compliant | shakenfist/shakenfist#3546 |
 
 Details for non-compliant projects:

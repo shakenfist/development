@@ -89,7 +89,7 @@ documentation-review section.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-13T07:38:50.220604+00:00
+Last regenerated: 2026-08-14T07:28:36.672476+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -107,7 +107,7 @@ Last regenerated: 2026-08-13T07:38:50.220604+00:00
 | occystrap | non-compliant | shakenfist/occystrap#110 |
 | private-ci | N/A | - |
 | ryll | non-compliant | shakenfist/ryll#269 |
-| sfui | N/A | - |
+| sfui | non-compliant | shakenfist/sfui#15 |
 | shakenfist | non-compliant | shakenfist/shakenfist#3733 |
 
 Details for non-compliant projects:
@@ -118,5 +118,6 @@ Details for non-compliant projects:
 - **kerbside** (Status): missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
 - **occystrap** (Status): missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
 - **ryll** (Status): missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
+- **sfui** (Status): missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
 - **shakenfist** (Status): missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
 <!-- consistency-audit:end -->

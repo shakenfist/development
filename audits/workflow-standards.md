@@ -193,7 +193,7 @@ of correctly structured workflows.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-13T07:38:50.220604+00:00
+Last regenerated: 2026-08-14T07:28:36.672476+00:00
 
 | Project | Permissions | Linting | Review marks | flake8wrap | Runners | Static tags | devpi fallback | devpi IP | Issue |
 |---------|--------|--------|--------|--------|--------|--------|--------|--------|--------|
@@ -211,7 +211,7 @@ Last regenerated: 2026-08-13T07:38:50.220604+00:00
 | occystrap | compliant | compliant | N/A | non-compliant | compliant | compliant | N/A | compliant | shakenfist/occystrap#67 |
 | private-ci | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | - |
 | ryll | compliant | compliant | N/A | N/A | non-compliant | compliant | N/A | compliant | shakenfist/ryll#201 |
-| sfui | N/A | compliant | N/A | N/A | N/A | N/A | N/A | N/A | - |
+| sfui | compliant | compliant | N/A | N/A | compliant | compliant | compliant | compliant | - |
 | shakenfist | compliant | compliant | N/A | non-compliant | non-compliant | compliant | non-compliant | compliant | shakenfist/shakenfist#3057, shakenfist/shakenfist#3376, shakenfist/shakenfist#3418 |
 
 Details for non-compliant projects:

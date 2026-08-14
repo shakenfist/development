@@ -45,7 +45,7 @@ detail survives somewhere before trimming the README.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-13T07:38:50.220604+00:00
+Last regenerated: 2026-08-14T07:28:36.672476+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -63,7 +63,7 @@ Last regenerated: 2026-08-13T07:38:50.220604+00:00
 | occystrap | compliant | - |
 | private-ci | N/A | - |
 | ryll | compliant | - |
-| sfui | non-compliant | shakenfist/sfui#11 |
+| sfui | compliant | - |
 | shakenfist | compliant | - |
 
 Details for non-compliant projects:
@@ -72,5 +72,4 @@ Details for non-compliant projects:
 - **client-python** (Status): README.md has no link into docs/ despite a docs/ directory existing; add curated links to the detailed documentation
 - **client-python-k3s** (Status): README.md has no link into docs/ despite a docs/ directory existing; add curated links to the detailed documentation
 - **kerbside-patches** (Status): README.md is 423 lines / 2941 words (limits: 150 lines, 1200 words); move detail into docs/, ARCHITECTURE.md, or AGENTS.md and keep the README a pitch; README.md has no link into docs/ despite a docs/ directory existing; add curated links to the detailed documentation
-- **sfui** (Status): README.md is 403 lines / 2838 words (limits: 150 lines, 1200 words); move detail into docs/, ARCHITECTURE.md, or AGENTS.md and keep the README a pitch; README.md has no link into docs/ despite a docs/ directory existing; add curated links to the detailed documentation
 <!-- consistency-audit:end -->
