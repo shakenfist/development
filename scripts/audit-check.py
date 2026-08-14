@@ -75,6 +75,7 @@ CHECK_NAMES = {
     'static-runner-tags': 'Workflow standards (static runner tags)',
     'devpi-fallback': 'Workflow standards (devpi cache fallback)',
     'devpi-stale-ip': 'Workflow standards (devpi cache address)',
+    'expensive-lane-path-filter': 'Expensive lane path filtering',
     'version-file-gitignore': 'Generated version file',
     'pyproject-usage': 'pyproject.toml usage',
     'rust-unwrap-lint': 'Rust unwrap lint',
@@ -1391,6 +1392,199 @@ def check_static_runner_tags(repo_path, props):
         'details': (
             f'No static runner jobs request impossible labels in '
             f'{len(workflows)} workflow(s)'
+        ),
+    }
+
+
+# The trigger events that run a workflow on proposed changes:
+# pull_request on the PR itself and merge_group in the merge queue.
+# Anchored to line start so expression contexts like
+# "github.event_name == 'pull_request'" do not match, and the colon
+# requirement keeps pull_request_target (a different event with
+# different security properties) out of scope. The flow form catches
+# "on: [push, pull_request]" style triggers.
+PR_TRIGGER_RE = re.compile(
+    r'^\s*(pull_request|merge_group):', re.MULTILINE
+)
+PR_TRIGGER_FLOW_RE = re.compile(
+    r'^on:\s*\[[^\]]*\b(pull_request|merge_group)\b', re.MULTILINE
+)
+
+# Marks a deliberate exception to the expensive-lane path filter
+# check: a lane that must run even when only docs or review marks
+# changed. Anywhere in the workflow file, ideally with a reason.
+PATH_FILTER_EXCEPTION_RE = re.compile(r'audit-ok:\s*no-path-filter')
+
+
+def check_expensive_lane_path_filter(repo_path, props):
+    """Check expensive PR lanes are path-filtered.
+
+    Ephemeral VM runners (the 'vm' label) are the expensive pool:
+    the lanes on them build clouds or boot guests, and a run costs
+    tens of minutes to hours. A pull request or merge queue entry
+    touching only content no lane exercises -- docs/ and the
+    review-tracking state -- should not pay for them, so every
+    workflow running vm jobs on pull_request or merge_group must be
+    path-filtered, and the filter must exclude the repository's
+    non-code content: docs/** where a docs/ directory exists, and
+    REVIEWS.md where review tracking is deployed.
+
+    Two mechanisms count. A workflow backing no required status
+    check may use trigger-level paths/paths-ignore. A workflow
+    backing a required check must use a filter job instead (e.g.
+    dorny/paths-filter feeding job-level ifs, as kerbside's
+    check_paths jobs do): a required check in a paths-ignore'd
+    workflow never reports on a filtered PR, and a required check
+    that never reports blocks the merge forever, while a skipped
+    one satisfies it. An inclusion-style trigger filter (paths:
+    listing what the lane exercises, as rust workflows do) excludes
+    everything else by construction, so it passes without pattern
+    checks. Deliberate exceptions are marked with an
+    'audit-ok: no-path-filter' comment in the workflow file.
+
+    Dedicated content-scanner workflows -- detected as an
+    unfiltered workflow invoking a SECRET_SCANNERS tool -- are
+    exempt: their whole point is to read the human-written text a
+    filter would skip, since a secret lands in docs or review marks
+    as easily as in code. That is the same reasoning that keeps
+    content scanners out of paths-ignore in the review-tracking
+    adoption procedure (see workflow-standards.md). A workflow that
+    mixes scanner jobs with expensive lanes and already carries a
+    filter is still held to the exclusion requirements; its scanner
+    jobs should simply not consume the filter's output.
+
+    Repositories with neither a docs/ directory nor review tracking
+    have nothing for a filter to exclude and are not applicable.
+    """
+    if not props['has_workflows_dir']:
+        return {
+            'id': 'expensive-lane-path-filter',
+            'status': 'not_applicable',
+            'details': 'No .github/workflows/ directory',
+        }
+
+    workflows = list_workflow_files(repo_path)
+    if not workflows:
+        return {
+            'id': 'expensive-lane-path-filter',
+            'status': 'not_applicable',
+            'details': 'No workflow files found',
+        }
+
+    excludables = []
+    if os.path.isdir(os.path.join(repo_path, 'docs')):
+        excludables.append(('docs/', 'docs/**'))
+    if check_file_exists(repo_path, '.vscode/review-scope.toml'):
+        excludables.append(('review marks', 'REVIEWS.md'))
+    if not excludables:
+        return {
+            'id': 'expensive-lane-path-filter',
+            'status': 'not_applicable',
+            'details': (
+                'No docs/ directory and no review tracking, so '
+                'there is no non-code content for a filter to '
+                'exclude'
+            ),
+        }
+
+    offenders = []
+    expensive = 0
+    for wf in sorted(workflows):
+        filepath = os.path.join(
+            repo_path, '.github', 'workflows', wf
+        )
+        with open(filepath, 'r', errors='replace') as f:
+            content = f.read()
+
+        if not (PR_TRIGGER_RE.search(content)
+                or PR_TRIGGER_FLOW_RE.search(content)):
+            continue
+
+        has_vm = False
+        for line in content.splitlines():
+            match = RUNS_ON_RE.match(line)
+            if not match:
+                continue
+            labels = parse_runner_labels(match.group(1))
+            if labels and 'vm' in labels:
+                has_vm = True
+                break
+        if not has_vm:
+            continue
+        expensive += 1
+
+        if PATH_FILTER_EXCEPTION_RE.search(content):
+            continue
+
+        has_ignore = bool(
+            re.search(r'^\s*paths-ignore:', content, re.MULTILINE)
+        )
+        has_include = bool(
+            re.search(r'^\s*paths:', content, re.MULTILINE)
+        )
+        has_filter_job = 'paths-filter' in content
+
+        if not (has_ignore or has_include or has_filter_job):
+            # An unfiltered workflow invoking a content scanner is
+            # (in this fleet) a dedicated scanner workflow, exempt
+            # by design. The exemption deliberately does not extend
+            # to workflows that carry a filter: a monolithic
+            # workflow mixing scanner jobs with expensive lanes
+            # (ryll's ci.yml) is still held to the exclusion
+            # requirements below -- its scanner jobs should simply
+            # not consume the filter's output.
+            if any(s in content for s in SECRET_SCANNERS):
+                continue
+            offenders.append(f'{wf} (no path filtering)')
+            continue
+
+        if has_include and not (has_ignore or has_filter_job):
+            # An inclusion list runs the lane only when the listed
+            # paths change, so docs and review marks are excluded
+            # by construction.
+            continue
+
+        missing = [
+            name for name, pattern in excludables
+            if pattern not in content
+        ]
+        if missing:
+            offenders.append(
+                f'{wf} (filter does not exclude '
+                f'{", ".join(missing)})'
+            )
+
+    if offenders:
+        return {
+            'id': 'expensive-lane-path-filter',
+            'status': 'fail',
+            'details': (
+                f'{len(offenders)} expensive lane(s) triggered by '
+                f'pull_request or merge_group without adequate path '
+                f'filtering: {", ".join(offenders)}. Add a '
+                f'check_paths filter job (see kerbside '
+                f'functional-tests.yml) or, only for workflows '
+                f'backing no required status check, trigger-level '
+                f'paths-ignore, excluding docs/** and the '
+                f'review-tracking files; mark deliberate exceptions '
+                f'with an "audit-ok: no-path-filter" comment'
+            ),
+        }
+    if expensive == 0:
+        return {
+            'id': 'expensive-lane-path-filter',
+            'status': 'pass',
+            'details': (
+                f'No pull_request or merge_group workflow runs '
+                f'vm-runner jobs in {len(workflows)} workflow(s)'
+            ),
+        }
+    return {
+        'id': 'expensive-lane-path-filter',
+        'status': 'pass',
+        'details': (
+            f'{expensive} expensive PR lane(s) are path-filtered '
+            f'or exempt (content scanners, marked exceptions)'
         ),
     }
 
@@ -2717,6 +2911,8 @@ def check_calls(repo_path, props, repo_name, org):
          lambda: check_devpi_fallback(repo_path, props)),
         ('devpi-stale-ip',
          lambda: check_devpi_stale_ip(repo_path, props)),
+        ('expensive-lane-path-filter',
+         lambda: check_expensive_lane_path_filter(repo_path, props)),
         ('pyproject-usage',
          lambda: check_pyproject_usage(repo_path, props)),
         ('version-file-gitignore',

@@ -726,6 +726,43 @@ label (`ubuntu-latest`, `windows-2022`, `macos-15`, and so on) that is
 not marked as an exception. This includes matrix values that feed
 `runs-on: ${{ matrix.os }}`.
 
+### Path filtering for expensive lanes
+
+Ephemeral VM runners (the `vm` label) are the expensive pool: the
+lanes that run on them build entire clouds or boot guests. A pull
+request or merge queue entry that touches only content no lane
+exercises -- the `docs/` directory and the review-tracking state
+(`REVIEWS.md`, the `.vscode` weaudit files) -- should not pay for
+them. Every workflow that runs `vm`-runner jobs on `pull_request`
+or `merge_group` must be path-filtered, and the filter must exclude
+`docs/**` where the repository has a `docs/` directory and
+`REVIEWS.md` where review tracking is deployed.
+
+The mechanism depends on whether the workflow backs a required
+status check. A workflow backing no required check may use
+trigger-level `paths:` / `paths-ignore:`; an inclusion-style
+`paths:` list excludes everything unlisted by construction. A
+workflow backing a required check must use a filter job instead
+(`dorny/paths-filter` feeding job-level `if:` conditions, as
+kerbside's `check_paths` jobs do), because a required check in a
+`paths-ignore`'d workflow never reports on a filtered PR, and a
+required check that never reports blocks the merge forever, while
+a skipped one satisfies it. Mind dorny/paths-filter's
+`predicate-quantifier: 'every'` trap: with the default ANY-match
+semantics a `'**'` pattern silently defeats every exclusion.
+
+Dedicated content-scanner workflows (gitleaks, trufflehog,
+detect-secrets) are exempt: they exist to read exactly the
+human-written text a filter would skip. A workflow mixing scanner
+jobs with expensive lanes still needs its filter -- the scanner
+jobs just should not consume the filter's output. Other
+deliberate exceptions -- a lane that must
+run even for docs-only changes -- are marked with an
+`audit-ok: no-path-filter` comment in the workflow file, ideally
+with a reason. See
+[audits/expensive-lane-path-filter.md](audits/expensive-lane-path-filter.md)
+for the full criterion.
+
 ### Linting for CI jobs
 
 Please ensure we have `actionslint`, `shellcheck`, and a git precommit
