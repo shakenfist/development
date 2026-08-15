@@ -193,7 +193,7 @@ of correctly structured workflows.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-14T07:28:36.672476+00:00
+Last regenerated: 2026-08-15T06:42:58.958930+00:00
 
 | Project | Permissions | Linting | Review marks | flake8wrap | Runners | Static tags | devpi fallback | devpi IP | Issue |
 |---------|--------|--------|--------|--------|--------|--------|--------|--------|--------|

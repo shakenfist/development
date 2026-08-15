@@ -78,7 +78,7 @@ kerbside's smoke workflows for gating lanes, or add trigger-level
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-14T07:28:36.672476+00:00
+Last regenerated: 2026-08-15T06:42:58.958930+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
