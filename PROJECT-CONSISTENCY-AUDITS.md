@@ -150,6 +150,37 @@ link).
 This rule exists because divergulent's first PyPI release rendered
 with every relative link broken.
 
+## Links out of docs/ must be absolute
+
+Every relative link in a project's `docs/` tree must resolve to a file
+that exists **inside** `docs/`. Anything pointing outside it --
+`../README.md`, `../tools/x.sh`, `../../src/app.rs` -- must be an
+absolute `https://github.com/<org>/<repo>/blob/<default-branch>/<path>`
+URL.
+
+`docs/` is not only rendered on the GitHub file tree. It is
+synchronised into `shakenfist/shakenfist` under
+`docs/components/<repo>/` and published on shakenfist.com, where the
+tree above `docs/` does not exist, so a link that escapes `docs/`
+resolves against the wrong base and 404s there while rendering
+perfectly on GitHub. Links that stay inside `docs/` should stay
+relative: they move with the tree and work in both renderings.
+
+`docs/plans/` is in scope -- plans are published along with the rest
+of `docs/`, so a broken link there is broken for a reader whether or
+not anyone still maintains the file. Site-root-absolute targets
+(`/operator_guide/locks/`) are left alone: they are the mkdocs
+convention for another page of the same site.
+
+The automated check also reports relative targets that stay under
+`docs/` but resolve to nothing. In practice those are links out of
+`docs/` written against the repository root (`src/app.rs` rather than
+`../../src/app.rs`) -- the same defect wearing a different spelling,
+and dead on GitHub too.
+
+See [audits/docs-external-links.md](audits/docs-external-links.md) for
+the full criterion.
+
 ## README is a pitch
 
 The top-level `README.md` is a **pitch** aimed at a human landing on

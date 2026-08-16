@@ -147,6 +147,146 @@ class DependencyNameNormalizationTest(unittest.TestCase):
         self.assertEqual(self._check(body)['status'], 'pass')
 
 
+class StripMarkdownCodeTest(unittest.TestCase):
+    def test_strips_fenced_blocks(self):
+        stripped = audit_check.strip_markdown_code(
+            'before\n```\n[x](y)\n```\nafter\n'
+        )
+        self.assertNotIn('[x](y)', stripped)
+        self.assertIn('before', stripped)
+        self.assertIn('after', stripped)
+
+    def test_strips_inline_span(self):
+        self.assertNotIn(
+            '[x](y)', audit_check.strip_markdown_code('see `[x](y)` here')
+        )
+
+    def test_strips_span_wrapped_across_lines(self):
+        # Prose wrapped at 65 columns splits code spans all the time.
+        stripped = audit_check.strip_markdown_code(
+            'the guard read `if a.shared and requestor not in\n'
+            "[a.namespace, 'system']: 404`, which is inverted\n"
+        )
+        self.assertNotIn('[a.namespace', stripped)
+        self.assertIn('which is inverted', stripped)
+
+    def test_unpaired_backtick_does_not_swallow_later_paragraphs(self):
+        stripped = audit_check.strip_markdown_code(
+            'a stray ` backtick\n\n[real](../README.md)\n'
+        )
+        self.assertIn('[real](../README.md)', stripped)
+
+
+class DocsExternalLinksTest(unittest.TestCase):
+    def _check(self, files=None, props=None):
+        """Run the check over a docs/ tree built from {path: content}.
+
+        Paths are repo-relative. A None content creates an empty file,
+        which is enough for link resolution.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            for path, content in (files or {}).items():
+                full = os.path.join(tmp, path)
+                os.makedirs(os.path.dirname(full), exist_ok=True)
+                with open(full, 'w') as f:
+                    f.write(content or '')
+            return audit_check.check_docs_external_links(tmp, props or {})
+
+    def test_not_applicable_without_docs(self):
+        self.assertEqual(self._check()['status'], 'not_applicable')
+
+    def test_internal_relative_link_passes(self):
+        result = self._check({
+            'docs/index.md': '[guide](guide.md) and [up](../docs/guide.md)\n',
+            'docs/guide.md': None,
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_absolute_and_anchor_links_pass(self):
+        result = self._check({
+            'docs/index.md': (
+                '[ci](https://github.com/shakenfist/x/blob/develop/'
+                '.github/workflows/ci.yml)\n'
+                '[top](#overview)\n'
+                '[cdn](//example.com/x)\n'
+                '[mail](mailto:someone@example.com)\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_escaping_link_fails(self):
+        result = self._check({
+            'docs/releasing.md': '[wf](../.github/workflows/release.yml)\n',
+            '.github/workflows/release.yml': None,
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('../.github/workflows/release.yml', result['details'])
+
+    def test_escaping_link_from_subdirectory_fails(self):
+        result = self._check({
+            'docs/plans/PLAN-x.md': '[app](../../src/app.rs)\n',
+            'src/app.rs': None,
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('docs/plans/PLAN-x.md', result['details'])
+
+    def test_repo_root_relative_link_fails(self):
+        # Written as if from the repository root, so it resolves to
+        # docs/plans/src/app.rs, which does not exist. Dead on GitHub
+        # too, and the fix is the same absolute URL.
+        result = self._check({
+            'docs/plans/PLAN-x.md': '[app](src/app.rs)\n',
+            'src/app.rs': None,
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('src/app.rs', result['details'])
+
+    def test_site_root_absolute_link_passes(self):
+        # The mkdocs convention for another page of the same site.
+        result = self._check({
+            'docs/index.md': '[locks](/operator_guide/locks/)\n',
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_fragment_is_not_part_of_the_path(self):
+        result = self._check({
+            'docs/index.md': '[guide](guide.md#setup)\n',
+            'docs/guide.md': None,
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_escaping_link_in_code_block_is_ignored(self):
+        result = self._check({
+            'docs/index.md': '```\n[wf](../.github/workflows/ci.yml)\n```\n',
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_percent_encoded_target_resolves(self):
+        result = self._check({
+            'docs/index.md': '[note](my%20note.md)\n',
+            'docs/my note.md': None,
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_reference_definition_is_checked(self):
+        result = self._check({
+            'docs/index.md': 'See [wf].\n\n[wf]: ../.github/workflows/ci.yml\n',
+        })
+        self.assertEqual(result['status'], 'fail')
+
+    def test_doc_content_excludes_are_skipped(self):
+        files = {
+            'docs/components/ryll/index.md': '[app](../../../ryll/src/app.rs)\n',
+        }
+        self.assertEqual(self._check(files)['status'], 'fail')
+        self.assertEqual(
+            self._check(
+                files, props={'doc_content_excludes': ['docs/components/']}
+            )['status'],
+            'pass',
+        )
+
+
 class ReadmeStructureTest(unittest.TestCase):
     PITCH = (
         '# Project\n\nA short pitch.\n\n'

@@ -111,6 +111,10 @@ AUDIT_METADATA = {
         'spec': 'audits/readme-absolute-links.md',
         'template': None,
     },
+    'docs-external-links': {
+        'spec': 'audits/docs-external-links.md',
+        'template': None,
+    },
     'readme-structure': {
         'spec': 'audits/readme-structure.md',
         'template': None,
@@ -169,6 +173,7 @@ ISSUE_TITLES = {
     'version-file-gitignore': 'Generated version file',
     'rust-unwrap-lint': 'Rust unwrap lint',
     'readme-absolute-links': 'README absolute links',
+    'docs-external-links': 'Links out of docs/ are absolute',
     'readme-structure': 'README structure',
     'plan-phase-references': 'Plan phase references',
     'push-audit': 'Pre-push audit file',

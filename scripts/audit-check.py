@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+import urllib.parse
 from datetime import datetime, timezone
 
 
@@ -81,6 +82,7 @@ CHECK_NAMES = {
     'pyproject-usage': 'pyproject.toml usage',
     'rust-unwrap-lint': 'Rust unwrap lint',
     'readme-absolute-links': 'README absolute links',
+    'docs-external-links': 'Links out of docs/ are absolute',
     'readme-structure': 'README structure',
     'plan-phase-references': 'Plan phase references',
     'push-audit': 'Pre-push audit file',
@@ -2079,6 +2081,11 @@ MD_REFDEF_RE = re.compile(r'^\s{0,3}\[[^\]]+\]:\s*(\S+)', re.MULTILINE)
 # target carrying one is absolute and renders anywhere.
 URL_SCHEME_RE = re.compile(r'^[a-zA-Z][a-zA-Z0-9+.\-]*:')
 
+# An inline code span: a run of backticks, then anything that is not
+# that same run, then the matching run. Applied per paragraph, so the
+# content may cross lines but not a blank line.
+INLINE_CODE_RE = re.compile(r'(`+)(?:(?!\1)[\s\S])*?\1')
+
 
 def strip_markdown_code(markdown):
     """Return markdown with fenced blocks and inline code spans removed.
@@ -2106,10 +2113,29 @@ def strip_markdown_code(markdown):
         elif marker == fence:
             fence = None
 
-    text = '\n'.join(out)
-    # Inline code spans (single-line only, which is all CommonMark
-    # allows for the backtick form we care about).
-    return re.sub(r'`+[^`\n]*`+', '', text)
+    # Inline code spans. A span may wrap across lines -- prose wrapped
+    # at 65 columns does it constantly -- but it cannot contain a
+    # blank line, so strip one paragraph at a time. That bound matters:
+    # without it an unpaired backtick would swallow the rest of the
+    # document and hide every link after it.
+    return '\n\n'.join(
+        INLINE_CODE_RE.sub('', paragraph)
+        for paragraph in re.split(r'\n[ \t]*\n', '\n'.join(out))
+    )
+
+
+def link_target(raw):
+    """Return the bare target from the inside of a markdown link.
+
+    Unwraps the <angle bracket> form and drops an optional "title"
+    following the URL, so callers see just the destination.
+    """
+    target = raw.strip()
+    if target.startswith('<'):
+        return target[1:].split('>', 1)[0].strip()
+    # Drop an optional "title" following the URL.
+    parts = target.split()
+    return parts[0] if parts else ''
 
 
 def link_target_is_relative(raw):
@@ -2122,13 +2148,7 @@ def link_target_is_relative(raw):
     breaks when the README is rendered off the repo landing page
     (PyPI, crates.io, mirrors).
     """
-    target = raw.strip()
-    if target.startswith('<'):
-        target = target[1:].split('>', 1)[0].strip()
-    else:
-        # Drop an optional "title" following the URL.
-        parts = target.split()
-        target = parts[0] if parts else ''
+    target = link_target(raw)
 
     if not target:
         return False
@@ -2189,6 +2209,118 @@ def check_readme_absolute_links(repo_path, props):
         'id': 'readme-absolute-links',
         'status': 'pass',
         'details': 'All README.md links are absolute',
+    }
+
+
+def iter_docs_markdown_files(repo_path, props):
+    """Yield repo-relative paths of every .md file under docs/.
+
+    Unlike iter_doc_content_files, plan documents are in scope. Plans
+    are synchronised to the documentation site along with the rest of
+    docs/, so a link that breaks there breaks for a reader whether or
+    not anyone still maintains the file.
+
+    A repository's doc_content_excludes prefixes are skipped for the
+    usual reason: they are imported copies of another repository's
+    documentation, audited at their source.
+    """
+    excludes = [
+        e.strip('/') + '/'
+        for e in props.get('doc_content_excludes', [])
+    ]
+    for dirpath, dirnames, filenames in os.walk(
+        os.path.join(repo_path, 'docs')
+    ):
+        rel_dir = os.path.relpath(dirpath, repo_path).replace(os.sep, '/')
+        dirnames[:] = sorted(
+            d for d in dirnames
+            if not any(f'{rel_dir}/{d}/'.startswith(e) for e in excludes)
+        )
+        for filename in sorted(filenames):
+            if filename.endswith('.md'):
+                yield f'{rel_dir}/{filename}'
+
+
+def check_docs_external_links(repo_path, props):
+    """Check docs/ links resolve inside docs/, or else are absolute.
+
+    docs/ is not only rendered on the GitHub file tree. It is
+    synchronised into shakenfist/shakenfist under docs/components/
+    and published on shakenfist.com, where the tree above docs/ does
+    not exist. A relative link out of docs/ -- ../tools/x.sh,
+    ../README.md -- resolves against the wrong base there and 404s,
+    while the same link looks fine on GitHub, so nothing catches it.
+
+    Links whose target stays inside docs/ are fine and stay relative:
+    they move with the tree and resolve in both renderings. Anything
+    pointing outside docs/ must be an absolute
+    https://github.com/<org>/<repo>/blob/<branch>/... URL.
+
+    A relative target that resolves inside docs/ but names no file
+    that exists is reported too. It is nearly always a link out of
+    docs/ written against the repository root (ryll/src/app.rs rather
+    than ../../ryll/src/app.rs), which is the same defect wearing a
+    different spelling, and it is dead on GitHub as well.
+
+    Site-root-absolute targets (/operator_guide/locks/) are left
+    alone. They are the mkdocs convention for addressing another page
+    of the same site and resolve on the published site, which is the
+    rendering this audit exists to protect.
+    """
+    if not os.path.isdir(os.path.join(repo_path, 'docs')):
+        return {
+            'id': 'docs-external-links',
+            'status': 'not_applicable',
+            'details': 'No docs/ directory',
+        }
+
+    offenders = []
+    for rel_path in iter_docs_markdown_files(repo_path, props):
+        with open(
+            os.path.join(repo_path, rel_path), 'r', errors='replace'
+        ) as f:
+            scannable = strip_markdown_code(f.read())
+
+        rel_dir = os.path.dirname(rel_path)
+        raw_targets = [m.group(1) for m in MD_LINK_RE.finditer(scannable)]
+        raw_targets += [m.group(1) for m in MD_REFDEF_RE.finditer(scannable)]
+        for raw in raw_targets:
+            if not link_target_is_relative(raw):
+                continue
+            target = link_target(raw)
+            if target.startswith('/'):
+                continue
+            # Drop the fragment: it addresses a heading in the target
+            # document, not a path component.
+            path = target.split('#', 1)[0]
+            if not path:
+                continue
+            resolved = os.path.normpath(
+                os.path.join(rel_dir, urllib.parse.unquote(path))
+            )
+            if resolved == 'docs' or resolved.startswith('docs/'):
+                if os.path.exists(os.path.join(repo_path, resolved)):
+                    continue
+            offenders.append(f'{rel_path} -> {target}')
+
+    if offenders:
+        uniq = sorted(set(offenders))
+        shown = ', '.join(uniq[:10])
+        more = '' if len(uniq) <= 10 else f' (+{len(uniq) - 10} more)'
+        return {
+            'id': 'docs-external-links',
+            'status': 'fail',
+            'details': (
+                f'{len(uniq)} relative link(s) in docs/ that do not '
+                f'resolve to a file inside docs/ (use absolute '
+                f'https://github.com/... URLs, which survive the docs '
+                f'site import): {shown}{more}'
+            ),
+        }
+    return {
+        'id': 'docs-external-links',
+        'status': 'pass',
+        'details': 'All links out of docs/ are absolute',
     }
 
 
@@ -3180,6 +3312,8 @@ def check_calls(repo_path, props, repo_name, org):
          lambda: check_rust_unwrap_lint(repo_path, props)),
         ('readme-absolute-links',
          lambda: check_readme_absolute_links(repo_path, props)),
+        ('docs-external-links',
+         lambda: check_docs_external_links(repo_path, props)),
         ('readme-structure',
          lambda: check_readme_structure(repo_path, props)),
         ('plan-phase-references',
