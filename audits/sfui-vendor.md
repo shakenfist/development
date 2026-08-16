@@ -61,7 +61,7 @@ the template.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-15T06:42:58.958930+00:00
+Last regenerated: 2026-08-16T06:44:14.061955+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -84,6 +84,6 @@ Last regenerated: 2026-08-15T06:42:58.958930+00:00
 
 Details for non-compliant projects:
 
-- **kerbside** (Status): kerbside/api/static/sfui: 24 commit(s) behind canonical; re-run tools/vendor.sh from an up to date sfui checkout
-- **private-ci** (Status): conductor/static/sfui: 8 commit(s) behind canonical; re-run tools/vendor.sh from an up to date sfui checkout
+- **kerbside** (Status): kerbside/api/static/sfui: 33 commit(s) behind canonical; re-run tools/vendor.sh from an up to date sfui checkout
+- **private-ci** (Status): conductor/static/sfui: 6 commit(s) behind canonical; re-run tools/vendor.sh from an up to date sfui checkout
 <!-- consistency-audit:end -->

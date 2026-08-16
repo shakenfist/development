@@ -122,4 +122,28 @@ matching section of the repository's `PLAN-TEMPLATE.md`.
 ## Projects
 
 <!-- consistency-audit:begin -->
+*This table is regenerated daily by the consistency audit
+workflow from `scripts/audit-check.py` results; do not edit
+it by hand.*
+
+Last regenerated: 2026-08-16T06:44:14.061955+00:00
+
+| Project | Status | Issue |
+|---------|--------|--------|
+| actions | N/A | - |
+| agent-python | N/A | - |
+| client-python | N/A | - |
+| client-python-k3s | compliant | - |
+| clingwrap | N/A | - |
+| cloudgood | N/A | - |
+| divergulent | compliant | - |
+| instar | compliant | - |
+| kerbside | compliant | - |
+| kerbside-patches | N/A | - |
+| library-utilities | N/A | - |
+| occystrap | compliant | - |
+| private-ci | N/A | - |
+| ryll | compliant | - |
+| sfui | N/A | - |
+| shakenfist | compliant | - |
 <!-- consistency-audit:end -->

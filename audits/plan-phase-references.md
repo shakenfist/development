@@ -70,7 +70,7 @@ it.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-15T06:42:58.958930+00:00
+Last regenerated: 2026-08-16T06:44:14.061955+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -87,12 +87,11 @@ Last regenerated: 2026-08-15T06:42:58.958930+00:00
 | library-utilities | compliant | - |
 | occystrap | compliant | - |
 | private-ci | N/A | - |
-| ryll | non-compliant | shakenfist/ryll#268 |
+| ryll | compliant | - |
 | sfui | compliant | - |
 | shakenfist | non-compliant | shakenfist/shakenfist#3732 |
 
 Details for non-compliant projects:
 
-- **ryll** (Status): 95 plan phase reference(s) in documentation (describe the current behaviour, or link the master plan in docs/plans/ instead of citing a phase number): AGENTS.md:274, AGENTS.md:281, AGENTS.md:326, AGENTS.md:479, AGENTS.md:480, AGENTS.md:486, AGENTS.md:533, AGENTS.md:543, AGENTS.md:706, AGENTS.md:726 (+85 more)
-- **shakenfist** (Status): 59 plan phase reference(s) in documentation (describe the current behaviour, or link the master plan in docs/plans/ instead of citing a phase number): AGENTS.md:453, AGENTS.md:457, AGENTS.md:468, AGENTS.md:484, AGENTS.md:494, ARCHITECTURE.md:248, ARCHITECTURE.md:387, ARCHITECTURE.md:396, ARCHITECTURE.md:655, ARCHITECTURE.md:658 (+49 more)
+- **shakenfist** (Status): 11 plan phase reference(s) in documentation (describe the current behaviour, or link the master plan in docs/plans/ instead of citing a phase number): ARCHITECTURE.md:199, docs/developer_guide/database_internals.md:266, docs/developer_guide/subsystem_internals.md:50, docs/developer_guide/subsystem_internals.md:118, docs/developer_guide/subsystem_internals.md:120, docs/developer_guide/subsystem_internals.md:314, docs/operator_guide/database.md:557, docs/operator_guide/database.md:569, docs/operator_guide/database.md:624, docs/operator_guide/database.md:819 (+1 more)
 <!-- consistency-audit:end -->

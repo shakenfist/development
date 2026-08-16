@@ -81,7 +81,7 @@ somewhere before trimming.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-15T06:42:58.958930+00:00
+Last regenerated: 2026-08-16T06:44:14.061955+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -93,18 +93,12 @@ Last regenerated: 2026-08-15T06:42:58.958930+00:00
 | cloudgood | compliant | - |
 | divergulent | compliant | - |
 | instar | compliant | - |
-| kerbside | non-compliant | shakenfist/kerbside#321 |
+| kerbside | compliant | - |
 | kerbside-patches | compliant | - |
 | library-utilities | N/A | - |
 | occystrap | compliant | - |
 | private-ci | N/A | - |
-| ryll | non-compliant | shakenfist/ryll#279 |
+| ryll | compliant | - |
 | sfui | compliant | - |
-| shakenfist | non-compliant | shakenfist/shakenfist#3774 |
-
-Details for non-compliant projects:
-
-- **kerbside** (Status): AGENTS.md is 541 lines / 3632 words (limits: 300 lines, 2500 words); move detail into docs/ and leave a summary and a link; ARCHITECTURE.md is 507 lines / 3112 words (limits: 500 lines, 4000 words); move detail into docs/ and leave a summary and a link; AGENTS.md and ARCHITECTURE.md share the headings "configuration"; give each fact one home and link to it from the other file; AGENTS.md has headings restating a docs/ page: "Configuration" (docs/configuration.md), "Testing" (docs/testing.md); summarise and link instead; ARCHITECTURE.md has headings restating a docs/ page: "Configuration" (docs/configuration.md); summarise and link instead
-- **ryll** (Status): AGENTS.md is 1015 lines / 7020 words (limits: 300 lines, 2500 words); move detail into docs/ and leave a summary and a link; ARCHITECTURE.md is 2262 lines / 13772 words (limits: 500 lines, 4000 words); move detail into docs/ and leave a summary and a link; AGENTS.md and ARCHITECTURE.md share the headings "code organisation"; give each fact one home and link to it from the other file; ARCHITECTURE.md has headings restating a docs/ page: "Configuration" (docs/configuration.md); summarise and link instead
-- **shakenfist** (Status): AGENTS.md is 912 lines / 7141 words (limits: 300 lines, 2500 words); move detail into docs/ and leave a summary and a link; ARCHITECTURE.md is 1309 lines / 9127 words (limits: 500 lines, 4000 words); move detail into docs/ and leave a summary and a link
+| shakenfist | compliant | - |
 <!-- consistency-audit:end -->
