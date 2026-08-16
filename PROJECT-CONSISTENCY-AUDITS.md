@@ -211,6 +211,53 @@ Repositories that want a mechanical prefilter can add a report-only
 grep for long runs of added comment lines to their wave-1 sweep and
 feed the output to the same agent.
 
+## Plan template and the sub-agent model roster
+
+`PLAN-TEMPLATE.md` is mostly not project-specific. How phase files
+are named, that sub-agents do the implementation work, what the
+effort levels mean, which models exist and when to reach for each --
+all of that was copied between repositories by hand and drifted.
+Repositories that carry a `PLAN-TEMPLATE.md` must embed the current
+`plan-file-conventions`, `subagent-execution-model`,
+`plan-planning-effort`, `subagent-step-guidance`,
+`subagent-model-roster`, `plan-review-checklist` and
+`plan-closeout-sections` shared blocks, using the same versioned
+markers as `PUSH-AUDIT.md`. Repositories without a plan template are
+exempt.
+
+The organising rule is that a section of the template is either
+wholly shared or wholly project-specific; a generic rule and a local
+example are not interleaved within one section. Where a section is
+both, the rule is the shared block and the example follows it in an
+`!!! note "In this project"` admonition. What stays
+project-specific is the `## Prompt` preamble, `### Success
+criteria`, the worked examples under planning effort and step-level
+guidance, the project's own pre-merge checks, and `### Documentation
+index maintenance`.
+
+The admonition is chosen over a repeated heading because master
+plans written from the template live in `docs/plans/` and are
+published through mkdocs-material, where it renders as a proper
+callout -- and a lot of this material does survive into published
+plans (85 of shakenfist's 125 plans carry a Back brief, 44 carry
+Step-level guidance). A repeated heading would instead mint
+duplicate anchors and duplicate table-of-contents entries in each of
+them. Only the short runs trailing a shared block are marked;
+whole project-specific sections already announce themselves by their
+headings, and the `...` placeholders are per-plan rather than
+per-project.
+
+`subagent-model-roster` is deliberately a block of its own rather
+than part of the step guidance, because it churns on a different
+cadence: models ship and retire while the effort ladder sits still.
+This is how we manage which models planning sessions may use. To
+change the roster fleet-wide -- add a model, retire one, or rewrite
+when each should be chosen -- edit
+`templates/shared-blocks/subagent-model-roster.md`, bump its
+version, and commit. The next daily audit run marks every repository
+still carrying the old roster non-compliant and files the issues,
+and the issue names the roster rather than the surrounding prose.
+
 ## Claude Code for automated review in CI
 
 We run Claude Code for automated review in CI. The automated reviewer

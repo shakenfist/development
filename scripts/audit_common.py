@@ -123,6 +123,10 @@ AUDIT_METADATA = {
         'spec': 'audits/push-audit.md',
         'template': 'templates/shared-blocks/',
     },
+    'plan-template': {
+        'spec': 'audits/plan-template.md',
+        'template': 'templates/shared-blocks/',
+    },
     'secret-scanning-ci': {
         'spec': 'audits/secret-handling.md',
         'template': None,
@@ -168,6 +172,7 @@ ISSUE_TITLES = {
     'readme-structure': 'README structure',
     'plan-phase-references': 'Plan phase references',
     'push-audit': 'Pre-push audit file',
+    'plan-template': 'Plan template',
     'secret-scanning-ci': 'Secret scanning in CI',
     'review-coverage': 'Human review coverage',
     'sfui-vendor': 'sfui vendored copy',

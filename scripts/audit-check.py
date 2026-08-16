@@ -84,6 +84,7 @@ CHECK_NAMES = {
     'readme-structure': 'README structure',
     'plan-phase-references': 'Plan phase references',
     'push-audit': 'Pre-push audit file',
+    'plan-template': 'Plan template',
     'secret-scanning-ci': 'Secret scanning in CI',
     'review-coverage': 'Human review coverage',
     'sfui-vendor': 'sfui vendored copy',
@@ -2730,6 +2731,65 @@ def check_push_audit(repo_path, props, blocks_dir=None):
     }
 
 
+# Shared blocks every PLAN-TEMPLATE.md must carry. The model roster
+# is deliberately separate from the rest of the step guidance: it
+# churns whenever a model ships or retires, and keeping it apart
+# means the issue filed against a lagging repository names the
+# roster rather than the surrounding prose.
+PLAN_TEMPLATE_BLOCKS = [
+    'plan-file-conventions',
+    'subagent-execution-model',
+    'plan-planning-effort',
+    'subagent-step-guidance',
+    'subagent-model-roster',
+    'plan-review-checklist',
+    'plan-closeout-sections',
+]
+
+
+def check_plan_template(repo_path, props, blocks_dir=None):
+    """Check PLAN-TEMPLATE.md carries the current shared blocks.
+
+    The generic half of a plan template -- phase file naming, the
+    sub-agent execution model, the effort ladder, the model roster,
+    the review checklist and the close-out sections -- is shared
+    fleet-wide; only the project-specific half (what to read before
+    planning, the success criteria) is written per repository.
+
+    Repositories with no PLAN-TEMPLATE.md at all are N/A: whether
+    every project should have one is a separate decision.
+    """
+    if not check_file_exists(repo_path, 'PLAN-TEMPLATE.md'):
+        return {
+            'id': 'plan-template',
+            'status': 'not_applicable',
+            'details': 'No PLAN-TEMPLATE.md',
+        }
+
+    with open(
+        os.path.join(repo_path, 'PLAN-TEMPLATE.md'), 'r',
+        errors='replace',
+    ) as f:
+        content = f.read()
+    problems = validate_shared_blocks(
+        content,
+        required=PLAN_TEMPLATE_BLOCKS,
+        blocks_dir=blocks_dir,
+    )
+
+    if problems:
+        return {
+            'id': 'plan-template',
+            'status': 'fail',
+            'details': '; '.join(problems),
+        }
+    return {
+        'id': 'plan-template',
+        'status': 'pass',
+        'details': 'PLAN-TEMPLATE.md carries current shared blocks',
+    }
+
+
 # Scanners we accept, by the name they are invoked under. gitleaks
 # is the reference implementation; the others are equivalent enough
 # that requiring a specific one would be churn for no gain.
@@ -3126,6 +3186,8 @@ def check_calls(repo_path, props, repo_name, org):
          lambda: check_plan_phase_references(repo_path, props)),
         ('push-audit',
          lambda: check_push_audit(repo_path, props)),
+        ('plan-template',
+         lambda: check_plan_template(repo_path, props)),
         ('secret-scanning-ci',
          lambda: check_secret_scanning_ci(repo_path, props)),
         ('review-coverage',

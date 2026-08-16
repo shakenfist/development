@@ -24,12 +24,16 @@ embed the whole block -- markers and all -- verbatim.
 
 ## How the audit uses these
 
-`scripts/audit-check.py` (the `push-audit` check) verifies that an
-embedded block:
+`scripts/audit-check.py` (the `push-audit` and `plan-template`
+checks) verify that an embedded block:
 
-- exists where it is required (`readme-discipline`,
+- exists where it is required -- `readme-discipline`,
   `llm-doc-discipline`, `comment-proportion` and
-  `plan-phase-references` in `PUSH-AUDIT.md`);
+  `plan-phase-references` in `PUSH-AUDIT.md`;
+  `plan-file-conventions`, `subagent-execution-model`,
+  `plan-planning-effort`, `subagent-step-guidance`,
+  `subagent-model-roster`, `plan-review-checklist` and
+  `plan-closeout-sections` in `PLAN-TEMPLATE.md`;
 - carries the current version number; and
 - matches the canonical wording exactly (modulo trailing
   whitespace).

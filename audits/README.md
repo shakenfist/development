@@ -105,6 +105,7 @@ See `PROJECT-CONSISTENCY-AUDITS.md` for the list of excluded projects
 | [readme-structure.md](readme-structure.md) | Top-level README.md is a pitch, detail lives in docs/ |
 | [plan-phase-references.md](plan-phase-references.md) | Docs describe current behaviour, not plan phase history |
 | [push-audit.md](push-audit.md) | PUSH-AUDIT.md naming and versioned shared blocks |
+| [plan-template.md](plan-template.md) | PLAN-TEMPLATE.md shared blocks, including the sub-agent model roster |
 | [test-coverage.md](test-coverage.md) | Unit and functional test coverage |
 | [secret-handling.md](secret-handling.md) | Secret scanner in CI, credentials kept out of logs |
 | [review-coverage.md](review-coverage.md) | Human review backlog stays under threshold in repos with review tracking |
