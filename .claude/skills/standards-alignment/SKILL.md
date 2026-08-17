@@ -80,8 +80,8 @@ Packaging first, because several checks key off the presence of
    pins.
 7. **export-repo-config** and **CodeQL** -- verbatim template copies
    (CodeQL only for public repos; check visibility, not a hunch).
-8. **Secret scanning** -- a `supply-chain.yml` with a gitleaks job,
-   following ryll's (see gotchas below).
+8. **Secret scanning** -- a gitleaks job, following ryll's
+   `ci.yml` (see gotchas below).
 9. **README as a pitch** -- <= 150 lines / 1200 words, absolute links
    only, links into `docs/` if that directory exists. Verify any
    command examples against the actual CLI option names.
@@ -122,6 +122,10 @@ gh api -X PUT repos/shakenfist/<repo>/automated-security-fixes
   organization repos without a paid licence) and run on `debian-13`
   (bookworm does not package gitleaks). Add `debian-13` to
   `.github/actionlint.yaml`'s runner labels or actionlint fails.
+  Pass `--log-opts="HEAD"`: the default scans every ref, including a
+  `gh-pages` copy of the project's own documentation, and 8.16
+  misattributes those findings to unrelated merge commits. Do not let
+  the job consume a docs-only path filter.
 - Static runners advertise exactly `[self-hosted, static]`; adding a
   size, `vm`, or an OS label to a `static` job means it never
   schedules.

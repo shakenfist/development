@@ -19,8 +19,7 @@ pull requests and on pushes to the default branch. `gitleaks` is
 the reference implementation; `trufflehog` and `detect-secrets`
 are accepted equivalents.
 
-The reference invocation is in ryll's
-`.github/workflows/supply-chain.yml`:
+The reference invocation:
 
 ```yaml
   gitleaks:
@@ -35,20 +34,94 @@ The reference invocation is in ryll's
         run: sudo apt-get update && sudo apt-get install -y gitleaks
 
       - name: Run gitleaks
-        run: gitleaks detect --source . --redact --verbose --no-banner
+        run: >-
+          gitleaks detect --source . --log-opts="HEAD" --redact
+          --verbose --no-banner
 ```
 
-Two things in there are not obvious and cost time to rediscover:
+Four things in there are not obvious and cost time to rediscover:
 
 * `gitleaks-action@v2` refuses to run on organization repositories
   without a paid licence, so the upstream binary is invoked
   directly instead.
 * `gitleaks` is only packaged from Debian 13 (trixie) onward --
   bookworm has no package -- so the job needs a `debian-13`
-  runner.
+  runner. Where the runner pool has no passwordless sudo, download
+  the release tarball with a pinned version and sha256 instead;
+  pinning is worth doing anyway, because the configuration file
+  schema changes between releases.
+* `fetch-depth: 0` matters: a secret committed and then reverted is
+  still in the history, and still needs rotating. A shallow clone
+  makes the job report a clean history it never looked at, which is
+  worse than not running it.
+* `--log-opts="HEAD"` matters just as much, and is easy to leave
+  off. Without it gitleaks scans *every ref*, which is not what
+  anyone means by "scan this project's history".
 
-`fetch-depth: 0` matters: a secret committed and then reverted is
-still in the history, and still needs rotating.
+The all-refs default is a real problem, not a tidiness point. On
+Shaken Fist it turned a three second job into five minutes and 13
+findings into 163, because `gh-pages` carries the built
+documentation site whose search index quotes every code sample in
+the docs -- so every finding in a documented example reappears
+there once per deploy commit. Worse, gitleaks 8.16 *misattributes*
+those findings, reporting them against unrelated merge commits on
+the default branch which do not contain the file at all, so they
+cannot be triaged by commit either. Any project that publishes a
+site from a branch, or keeps long-lived branches, has some version
+of this.
+
+Scoping to `HEAD` is not a narrower claim. On a pull request `HEAD`
+reaches the branch under test *and* all of the default branch, so
+it is the same history, scanned correctly.
+
+Do not gate the job on a docs-only path filter. Every other job
+can skip when only documentation changed; this one cannot, because
+a credential pasted into a code sample is a credential. Shaken
+Fist's own history contains exactly one leaked cluster-minted key
+secret, and it was published in the user guide.
+
+### The scan needs a positive control
+
+A scan that finds nothing is indistinguishable from a scan that
+cannot find anything -- a broken regex, a shallow clone, an
+allowlist that has grown to swallow everything. Plant a credential
+in a scratch directory, scan it, and fail the build if the scanner
+does not report it. `shakenfist/tools/gitleaks-scan.sh` is the
+reference: it plants a key secret and an SSH private key and
+refuses to run the real scan until both come back.
+
+### Accepting a finding
+
+Some findings are real and cannot be removed. History cannot be
+rewritten to unpublish anything from a public repository -- the
+objects survive in every fork and in GitHub's own reflog -- so an
+accepted finding is a claim that the credential has been dealt with
+*where it was trusted*, not that it has been tidied out of sight.
+Never suppress a finding for a credential that still authorises
+something.
+
+There are two mechanisms and they are not interchangeable:
+
+* **Content that recurs** -- documentation placeholders, test
+  fixtures, an upstream default -- belongs in the `[allowlist]`
+  `regexes` list in `.gitleaks.toml`, keyed on the text. Editing
+  the paragraph around a placeholder produces a new finding in a
+  new commit, so anything keyed on a commit would need replacing
+  every time. Avoid `paths` for this: blinding a whole file also
+  blinds a real credential added to it later.
+* **A specific historical event** belongs in `.gitleaksignore` as a
+  `commit:path:rule-id:line` fingerprint, which forgives one
+  occurrence and nothing else -- the same secret in a new commit
+  fails the scan again. Require a comment on each entry saying what
+  the credential was and what was done about it; an undocumented
+  entry is indistinguishable from a mistake.
+
+Two gitleaks 8.16 details worth knowing before writing a config:
+per-rule allowlists are a single `[rules.allowlist]` table rather
+than the repeatable `[[rules.allowlists]]` array the current
+upstream documentation describes, and global allowlist regexes are
+matched against the whole match rather than the secret alone, so
+anchoring one with `^...$` silently stops it matching.
 
 This is distinct from the GitHub-hosted secret scanning covered by
 [github-security.md](github-security.md). That one detects known
@@ -130,8 +203,15 @@ one would be a breaking API change for no benefit.
 
 No template -- the scanner job is a workflow snippet (see the
 reference invocation above, and ryll's
-`.github/workflows/supply-chain.yml` for it in context), and the
-rest are code-level patterns.
+`.github/workflows/ci.yml` for it in context), and the rest are
+code-level patterns.
+
+For a scan that has grown beyond a single `run:` line -- a positive
+control, an allowlist, a shallow-clone guard -- put it in a script
+in the repository rather than in the workflow, as
+`shakenfist/tools/gitleaks-scan.sh` does. It then runs the same way
+locally as in CI, which is the only way anyone will check a change
+to it before pushing.
 
 ## Projects
 

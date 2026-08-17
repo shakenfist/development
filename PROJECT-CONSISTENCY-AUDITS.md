@@ -752,11 +752,24 @@ same thing as the GitHub-hosted secret scanning above: that one knows
 about third-party credential formats and wants GitHub Advanced Security
 before it will learn a custom pattern, while gitleaks runs locally,
 costs nothing, and can be taught our own formats. `ryll`'s
-`.github/workflows/supply-chain.yml` is the working example, and it
+`.github/workflows/ci.yml` is the working example, and it
 encodes two things worth not rediscovering: `gitleaks-action@v2`
 refuses to run on organization repos without a paid licence, so we
 invoke the binary directly, and gitleaks is only packaged from Debian
 13 onward.
+
+Scope the scan with `--log-opts="HEAD"`. The default is every ref,
+which on any project that publishes a site from a branch means
+scanning the built copy of its own documentation -- on Shaken Fist
+that was five minutes and 163 findings instead of three seconds and
+13, and gitleaks 8.16 attributed the extra findings to unrelated
+merge commits, so they could not even be triaged by commit. `HEAD`
+still reaches all of the default branch, so nothing is given up.
+Pair it with a positive control, and never let the job skip for
+docs-only changes: the only leaked key secret in Shaken Fist's
+history was published in the user guide. See
+[audits/secret-handling.md](audits/secret-handling.md) for the
+invocation and for how to accept a finding that cannot be removed.
 
 Separately, and not something a scanner can check for us: credentials
 must not be written into logs, audit events, exception messages or
