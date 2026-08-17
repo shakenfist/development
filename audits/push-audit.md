@@ -92,7 +92,7 @@ documentation-review section.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-16T06:44:14.061955+00:00
+Last regenerated: 2026-08-17T07:00:38.431001+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
