@@ -81,7 +81,7 @@ somewhere before trimming.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-18T06:47:31.254284+00:00
+Last regenerated: 2026-08-18T22:33:51.257852+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -93,7 +93,7 @@ Last regenerated: 2026-08-18T06:47:31.254284+00:00
 | cloudgood | compliant | - |
 | divergulent | compliant | - |
 | instar | compliant | - |
-| kerbside | non-compliant | shakenfist/kerbside#333 |
+| kerbside | compliant | - |
 | kerbside-patches | compliant | - |
 | library-utilities | N/A | - |
 | occystrap | compliant | - |
@@ -101,8 +101,4 @@ Last regenerated: 2026-08-18T06:47:31.254284+00:00
 | ryll | compliant | - |
 | sfui | compliant | - |
 | shakenfist | compliant | - |
-
-Details for non-compliant projects:
-
-- **kerbside** (Status): ARCHITECTURE.md is 501 lines / 3114 words (limits: 500 lines, 4000 words); move detail into docs/ and leave a summary and a link
 <!-- consistency-audit:end -->

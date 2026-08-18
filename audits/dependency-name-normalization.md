@@ -66,7 +66,7 @@ PEP 503 canonical form.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-18T06:47:31.254284+00:00
+Last regenerated: 2026-08-18T22:33:51.257852+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|

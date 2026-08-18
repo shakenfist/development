@@ -220,7 +220,7 @@ to it before pushing.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-18T06:47:31.254284+00:00
+Last regenerated: 2026-08-18T22:33:51.257852+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -239,7 +239,7 @@ Last regenerated: 2026-08-18T06:47:31.254284+00:00
 | private-ci | N/A | - |
 | ryll | compliant | - |
 | sfui | compliant | - |
-| shakenfist | non-compliant | shakenfist/shakenfist#3546 |
+| shakenfist | compliant | - |
 
 Details for non-compliant projects:
 
@@ -252,5 +252,4 @@ Details for non-compliant projects:
 - **kerbside-patches** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
 - **library-utilities** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
 - **occystrap** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
-- **shakenfist** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
 <!-- consistency-audit:end -->
