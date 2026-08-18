@@ -31,7 +31,7 @@ Or in the GitHub UI: Settings > General > Pull Requests > check
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-17T07:00:38.431001+00:00
+Last regenerated: 2026-08-18T06:47:31.254284+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
