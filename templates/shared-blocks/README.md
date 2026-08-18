@@ -30,10 +30,11 @@ checks) verify that an embedded block:
 - exists where it is required -- `readme-discipline`,
   `llm-doc-discipline`, `comment-proportion` and
   `plan-phase-references` in `PUSH-AUDIT.md`;
-  `plan-file-conventions`, `subagent-execution-model`,
-  `plan-planning-effort`, `subagent-step-guidance`,
-  `subagent-model-roster`, `plan-review-checklist` and
-  `plan-closeout-sections` in `PLAN-TEMPLATE.md`;
+  `plan-file-conventions`, `plan-status-vocabulary`,
+  `subagent-execution-model`, `plan-planning-effort`,
+  `subagent-step-guidance`, `subagent-model-roster`,
+  `plan-review-checklist` and `plan-closeout-sections` in
+  `PLAN-TEMPLATE.md`;
 - carries the current version number; and
 - matches the canonical wording exactly (modulo trailing
   whitespace).

@@ -8,6 +8,7 @@ Run with: python3 scripts/test_audit_check.py
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -1466,6 +1467,268 @@ class RenovatePreCommitManagerTest(unittest.TestCase):
             result = audit_check.check_renovate(tmp, {})
         self.assertEqual(result['status'], 'fail')
         self.assertIn('renovate.json', result['missing'])
+
+
+class PlanIndexTest(unittest.TestCase):
+    """docs/plans/index.md layout, ordering, statuses and coverage."""
+
+    HEADER = (
+        '| Date | Plan | Intent | Status |\n'
+        '|------|------|--------|--------|\n'
+    )
+
+    def _check(self, plans=None, index=None):
+        """Run the check over a docs/plans/ built from the arguments.
+
+        plans is a list of file names to create; index is the content
+        of index.md, or None to leave it out entirely.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            plans_dir = os.path.join(tmp, 'docs', 'plans')
+            os.makedirs(plans_dir)
+            for name in plans or []:
+                with open(os.path.join(plans_dir, name), 'w') as f:
+                    f.write('# A plan\n')
+            if index is not None:
+                with open(os.path.join(plans_dir, 'index.md'), 'w') as f:
+                    f.write(index)
+            return audit_check.check_plan_index(tmp, {})
+
+    def test_not_applicable_without_plans_directory(self):
+        result = audit_check.check_plan_index('/nonexistent', {})
+        self.assertEqual(result['status'], 'not_applicable')
+
+    def test_not_applicable_with_no_plans_and_no_index(self):
+        self.assertEqual(self._check()['status'], 'not_applicable')
+
+    def test_missing_index_with_plans_fails(self):
+        result = self._check(plans=['PLAN-thing.md'], index=None)
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('index.md is missing', result['details'])
+
+    def test_well_formed_index_passes(self):
+        result = self._check(
+            plans=['PLAN-one.md', 'PLAN-two.md'],
+            index=(
+                '# Plans index\n\n' + self.HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one | Complete |\n'
+                '| 2026-02-01 | [Two](PLAN-two.md) | Do two | In progress |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_phase_plans_need_no_index_row(self):
+        # Phase files are named after their master plan and tracked in
+        # it, so the index carries the master plan alone.
+        result = self._check(
+            plans=['PLAN-one.md', 'PLAN-one-phase-01-start.md'],
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one | Complete |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_plan_first_columns_fail(self):
+        result = self._check(
+            plans=['PLAN-one.md'],
+            index=(
+                '| Plan | Phase | Status |\n'
+                '|------|-------|--------|\n'
+                '| [One](PLAN-one.md) | 1. Start | Complete |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('not led by Date then Plan', result['details'])
+
+    def test_wrong_columns_suppress_date_and_status_findings(self):
+        # Reading a date out of a column that holds something else
+        # would bury the finding that actually needs fixing.
+        result = self._check(
+            plans=['PLAN-one.md'],
+            index=(
+                '| Plan | Phase | Status |\n'
+                '|------|-------|--------|\n'
+                '| [One](PLAN-one.md) | 1. Start | Whenever |\n'
+            ),
+        )
+        self.assertNotIn('date', result['details'])
+        self.assertNotIn('vocabulary', result['details'])
+
+    def test_rows_out_of_date_order_fail(self):
+        result = self._check(
+            plans=['PLAN-one.md', 'PLAN-two.md'],
+            index=(
+                self.HEADER +
+                '| 2026-02-01 | [Two](PLAN-two.md) | Do two | Complete |\n'
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one | Complete |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('out of date order', result['details'])
+        self.assertIn('One', result['details'])
+
+    def test_dates_are_not_compared_across_tables(self):
+        # Each table is its own chronological run, so a second table
+        # starting earlier than the first ended is not a finding.
+        result = self._check(
+            plans=['PLAN-one.md', 'PLAN-two.md'],
+            index=(
+                '## Master plans\n\n' + self.HEADER +
+                '| 2026-02-01 | [Two](PLAN-two.md) | Do two | Complete |\n'
+                '\n## Standalone plans\n\n' + self.HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one | Complete |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_malformed_date_fails(self):
+        result = self._check(
+            plans=['PLAN-one.md'],
+            index=(
+                self.HEADER +
+                '| April 2026 | [One](PLAN-one.md) | Do one | Complete |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('YYYY-MM-DD', result['details'])
+
+    def test_status_outside_the_vocabulary_fails(self):
+        result = self._check(
+            plans=['PLAN-one.md'],
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one | '
+                'Code landed; awaiting verification |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('vocabulary', result['details'])
+
+    def test_qualified_status_fails(self):
+        # The whole point of the vocabulary: "Complete (phases 1-5,
+        # 2026-08-15): every merge to develop..." is how a status
+        # column turns into prose.
+        result = self._check(
+            plans=['PLAN-one.md'],
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one | '
+                'Complete (phases 1-5) |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('vocabulary', result['details'])
+
+    def test_status_matching_is_case_insensitive(self):
+        result = self._check(
+            plans=['PLAN-one.md'],
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one | '
+                'In Progress |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_decorated_status_passes(self):
+        result = self._check(
+            plans=['PLAN-one.md'],
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one | '
+                '**Complete** |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_table_without_a_status_column_is_fine(self):
+        # Standalone plan listings carry no status, and that is not a
+        # defect: they are registered, just not tracked.
+        result = self._check(
+            plans=['PLAN-one.md'],
+            index=(
+                '| Date | Plan | Intent |\n'
+                '|------|------|--------|\n'
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_unregistered_master_plan_fails(self):
+        result = self._check(
+            plans=['PLAN-one.md', 'PLAN-orphan.md'],
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one | Complete |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('PLAN-orphan.md', result['details'])
+
+    def test_bullet_list_index_fails(self):
+        result = self._check(
+            plans=['PLAN-one.md'],
+            index='# Plans\n\n* [One](PLAN-one.md).\n',
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('no plan table', result['details'])
+        # Linked plans still count as registered, so the only finding
+        # is the missing table.
+        self.assertNotIn('not listed in the index', result['details'])
+
+    def test_table_without_plan_rows_is_ignored(self):
+        # An index may explain itself with a table that lists no
+        # plans. Judging its columns would be a finding nobody could
+        # act on.
+        result = self._check(
+            plans=['PLAN-one.md'],
+            index=(
+                '| Term | Meaning |\n'
+                '|------|---------|\n'
+                '| Blocked | Waiting on something else |\n'
+                '\n' + self.HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one | Complete |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_link_free_row_is_not_read_as_a_header(self):
+        # A header is the row the separator underlines. A data row
+        # with no link must not reset the column mapping, or the rows
+        # after it go unchecked.
+        result = self._check(
+            plans=['PLAN-one.md'],
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | Not yet written up | Do it | Complete |\n'
+                '| 2026-02-01 | [One](PLAN-one.md) | Do one | Whenever |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('vocabulary', result['details'])
+        self.assertNotIn('not led by Date then Plan', result['details'])
+
+
+class PlanStatusVocabularyBlockTest(unittest.TestCase):
+    def test_canonical_block_lists_exactly_the_enforced_statuses(self):
+        # The block is the wording repositories are handed and
+        # PLAN_STATUSES is what the audit enforces. If they drift,
+        # projects get told one thing and measured against another.
+        canonical = audit_check.load_canonical_block(
+            'plan-status-vocabulary'
+        )
+        self.assertIsNotNone(canonical)
+        _, text = canonical
+        documented = re.findall(r'^- `([^`]+)`', text, re.MULTILINE)
+        self.assertEqual(
+            sorted(documented), sorted(audit_check.PLAN_STATUSES)
+        )
+
+    def test_plan_templates_must_carry_the_block(self):
+        self.assertIn(
+            'plan-status-vocabulary', audit_check.PLAN_TEMPLATE_BLOCKS
+        )
 
 
 if __name__ == '__main__':

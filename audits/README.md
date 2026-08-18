@@ -105,6 +105,7 @@ See `PROJECT-CONSISTENCY-AUDITS.md` for the list of excluded projects
 | [docs-external-links.md](docs-external-links.md) | Links out of docs/ resolve inside docs/, or else are absolute |
 | [readme-structure.md](readme-structure.md) | Top-level README.md is a pitch, detail lives in docs/ |
 | [plan-phase-references.md](plan-phase-references.md) | Docs describe current behaviour, not plan phase history |
+| [plan-index.md](plan-index.md) | docs/plans/index.md layout, date ordering, plan coverage and the status vocabulary |
 | [push-audit.md](push-audit.md) | PUSH-AUDIT.md naming and versioned shared blocks |
 | [plan-template.md](plan-template.md) | PLAN-TEMPLATE.md shared blocks, including the sub-agent model roster |
 | [test-coverage.md](test-coverage.md) | Unit and functional test coverage |

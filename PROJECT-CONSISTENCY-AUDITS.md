@@ -289,6 +289,54 @@ version, and commit. The next daily audit run marks every repository
 still carrying the old roster non-compliant and files the issues,
 and the issue names the roster rather than the surrounding prose.
 
+## Plan index
+
+Every repository that plans in `docs/plans/` carries an
+`index.md` there, and it is the one page that answers what the
+repository has planned and what still wants attention. Three
+different layouts had grown across the fleet -- a date-first table
+of plans, a plan-first table of plans, and a plan-first table of
+*phases* -- so anything reading an index had to work out which shape
+it was before it could find the status column. Local tooling that
+did not silently returned "every plan here is unstarted".
+
+The canonical shape is one table row per plan, led by a `Date`
+column and then a `Plan` column, with rows oldest first. Later
+columns are the repository's own business; `Intent`, `Status` and
+`Phases` are the usual ones, and a table with no `Status` column at
+all is fine for standalone plans that are registered but not
+tracked. Ordering is per table, so separate master, standalone and
+consolidation tables may each start over. Plans must be listed in a
+table rather than as prose or a bullet list, and every master plan
+file in `docs/plans/` must appear -- a plan the index never links
+was drafted and then forgotten. Phase plans are exempt: they are
+named after their master plan and tracked inside it.
+
+### The status vocabulary
+
+A status cell holds exactly one of `Proposed`, `Not started`,
+`In progress`, `Blocked`, `Complete`, `Abandoned` or `Superseded`,
+and nothing else. Matching is case-insensitive; the spelling here is
+the one to write.
+
+The "nothing else" is the part that matters, because it is the part
+that decayed. Status cells had grown into paragraphs -- `Complete
+(phases 1-5 and 2b, 2026-08-15): every merge to develop installs a
+freshly built .deb/.rpm on...` -- which is useful writing in the
+wrong column. A status is read to decide whether a plan still wants
+attention, and when the answer is buried in prose neither a person
+scanning the table nor a script can extract it. Dates, phase
+arithmetic and accounts of what happened belong in the plan file; a
+one-line summary belongs in the `Intent` column.
+
+The vocabulary is the versioned `plan-status-vocabulary` shared
+block, required in every `PLAN-TEMPLATE.md`, so plans are written to
+it rather than corrected afterwards. It governs the master plan's
+own Execution phase table as well as the index row. To change the
+vocabulary fleet-wide, edit
+`templates/shared-blocks/plan-status-vocabulary.md`, bump its
+version, and let the daily audit file the issues.
+
 ## Claude Code for automated review in CI
 
 We run Claude Code for automated review in CI. The automated reviewer

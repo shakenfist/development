@@ -18,6 +18,10 @@ version of each of these shared blocks:
 * **`plan-file-conventions`** -- where plans live, how phase files
   are named, how phases are tracked, and the one-commit-per-logical
   -change rule;
+* **`plan-status-vocabulary`** -- the fixed set of terms a status
+  cell may hold, in the plan's own phase table and in
+  `docs/plans/index.md` (the `plan-index` audit enforces the index
+  half);
 * **`subagent-execution-model`** -- implementation happens in
   sub-agents, the plan/spawn/review/retry/commit loop, and when to
   use worktree isolation;

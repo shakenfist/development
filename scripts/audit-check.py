@@ -85,6 +85,7 @@ CHECK_NAMES = {
     'docs-external-links': 'Links out of docs/ are absolute',
     'readme-structure': 'README structure',
     'plan-phase-references': 'Plan phase references',
+    'plan-index': 'Plan index',
     'push-audit': 'Pre-push audit file',
     'plan-template': 'Plan template',
     'secret-scanning-ci': 'Secret scanning in CI',
@@ -2863,6 +2864,250 @@ def check_push_audit(repo_path, props, blocks_dir=None):
     }
 
 
+# The controlled vocabulary a plan status cell may use, canonically
+# documented in templates/shared-blocks/plan-status-vocabulary.md. A
+# test asserts the two agree, so the wording repositories are handed
+# and the wording we enforce cannot drift apart.
+PLAN_STATUSES = (
+    'Proposed',
+    'Not started',
+    'In progress',
+    'Blocked',
+    'Complete',
+    'Abandoned',
+    'Superseded',
+)
+
+# The leading columns every docs/plans/index.md table must carry, in
+# this order. Chronological order is the reading order for a plan
+# index, and a fixed column order is what lets tooling find the status
+# without guessing.
+PLAN_INDEX_LEAD_COLUMNS = ('date', 'plan')
+
+PLAN_INDEX_DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
+# A phase plan is named after its master plan, so it is not itself an
+# entry the index has to carry.
+PLAN_PHASE_FILE_RE = re.compile(r'-phase-\d')
+
+# Markdown decoration ignored when reading a table cell.
+PLAN_CELL_DECORATION_RE = re.compile(r'[`*_~]')
+
+PLAN_LINK_RE = re.compile(r'\[([^\]]*)\]\(([^)]+)\)')
+
+PLAN_TABLE_SEPARATOR_RE = re.compile(r'^[\s|:-]+$')
+
+# How many offending items to name before summarising.
+PLAN_INDEX_MAX_SHOWN = 5
+
+
+def plan_index_cells(line):
+    """The cells of a markdown table row, outer empties trimmed."""
+    return [c.strip() for c in line.strip().strip('|').split('|')]
+
+
+def plan_cell_text(cell):
+    """A cell's text, with any markdown link collapsed to its label."""
+    return PLAN_CELL_DECORATION_RE.sub(
+        '', PLAN_LINK_RE.sub(r'\1', cell)
+    ).strip()
+
+
+def plan_index_summarise(label, items):
+    """One problem string naming at most PLAN_INDEX_MAX_SHOWN items."""
+    shown = ', '.join(items[:PLAN_INDEX_MAX_SHOWN])
+    more = (
+        '' if len(items) <= PLAN_INDEX_MAX_SHOWN
+        else f' (+{len(items) - PLAN_INDEX_MAX_SHOWN} more)'
+    )
+    return f'{label}: {shown}{more}'
+
+
+def check_plan_index(repo_path, props):
+    """Check docs/plans/index.md layout, ordering and statuses.
+
+    The index is the one place that answers "what has this repository
+    planned, and what still wants attention". That only works if it is
+    mechanically readable, so every table in it leads with a Date
+    column and a Plan column, rows run in date order, every master
+    plan is listed, and status cells are drawn from the shared
+    vocabulary rather than written as prose.
+
+    Repositories with no docs/plans/ directory are N/A. Whether every
+    project should plan this way is a separate decision.
+    """
+    plans_dir = os.path.join(repo_path, 'docs', 'plans')
+    if not os.path.isdir(plans_dir):
+        return {
+            'id': 'plan-index',
+            'status': 'not_applicable',
+            'details': 'No docs/plans/ directory',
+        }
+
+    masters = sorted(
+        name for name in os.listdir(plans_dir)
+        if name.endswith('.md')
+        and name != 'index.md'
+        and not PLAN_PHASE_FILE_RE.search(name)
+        and os.path.isfile(os.path.join(plans_dir, name))
+    )
+    index_path = os.path.join(plans_dir, 'index.md')
+    if not os.path.exists(index_path):
+        if not masters:
+            return {
+                'id': 'plan-index',
+                'status': 'not_applicable',
+                'details': 'No plans in docs/plans/',
+            }
+        return {
+            'id': 'plan-index',
+            'status': 'fail',
+            'details': (
+                f'docs/plans/index.md is missing, so none of the '
+                f'{len(masters)} plan(s) in docs/plans/ are registered'
+            ),
+        }
+
+    with open(index_path, 'r', errors='replace') as f:
+        content = f.read()
+
+    linked = set()
+    statuses = {s.lower() for s in PLAN_STATUSES}
+
+    # Findings are gathered per table and only reported for tables that
+    # turn out to list plans. An index may hold a table that is not a
+    # plan listing at all, and holding a legend to the plan layout
+    # would be a finding nobody could act on.
+    tables = []
+    current = None
+    lines = content.splitlines()
+    for offset, line in enumerate(lines):
+        lineno = offset + 1
+        for _, target in PLAN_LINK_RE.findall(line):
+            name = target.split('#')[0].strip()
+            if name.endswith('.md'):
+                linked.add(os.path.basename(name))
+
+        stripped = line.strip()
+        if not stripped.startswith('|'):
+            # Prose between tables ends the run of rows, so two
+            # adjacent tables never compare dates across the boundary.
+            current = None
+            continue
+        if PLAN_TABLE_SEPARATOR_RE.match(stripped):
+            continue
+
+        cells = plan_index_cells(stripped)
+
+        # A header is the row the separator underlines. Recognising it
+        # by its position rather than by "has no links" means a data
+        # row that happens to carry no link cannot be mistaken for the
+        # start of a new table.
+        following = (
+            lines[offset + 1].strip() if offset + 1 < len(lines) else ''
+        )
+        if (following.startswith('|')
+                and PLAN_TABLE_SEPARATOR_RE.match(following)):
+            columns = [plan_cell_text(c).lower() for c in cells]
+            current = {
+                'columns': columns,
+                'lead_ok': (tuple(columns[:len(PLAN_INDEX_LEAD_COLUMNS)])
+                            == PLAN_INDEX_LEAD_COLUMNS),
+                'header': f'line {lineno} starts "{" | ".join(cells[:2])}"',
+                'has_plans': False,
+                'previous_date': None,
+                'bad_dates': [],
+                'unsorted': [],
+                'bad_statuses': [],
+            }
+            tables.append(current)
+            continue
+
+        if current is None or len(current['columns']) < 2 or len(cells) < 2:
+            continue
+        if PLAN_LINK_RE.search(stripped):
+            current['has_plans'] = True
+        if not current['lead_ok']:
+            # The column order is already reported; reading dates and
+            # statuses out of the wrong columns would only add noise.
+            continue
+
+        plan = plan_cell_text(cells[1]) or f'line {lineno}'
+
+        date = plan_cell_text(cells[0])
+        if not PLAN_INDEX_DATE_RE.match(date):
+            current['bad_dates'].append(f'{plan} ("{date}")')
+        else:
+            previous = current['previous_date']
+            if previous is not None and date < previous:
+                current['unsorted'].append(f'{plan} ({date} after {previous})')
+            current['previous_date'] = date
+
+        if 'status' in current['columns']:
+            index = current['columns'].index('status')
+            if index < len(cells):
+                status = plan_cell_text(cells[index])
+                if status.lower() not in statuses:
+                    excerpt = (
+                        status if len(status) <= 40 else status[:37] + '...'
+                    )
+                    current['bad_statuses'].append(f'{plan} ("{excerpt}")')
+
+    plan_tables = [t for t in tables if t['has_plans']]
+
+    problems = []
+    if not plan_tables:
+        problems.append(
+            'index has no plan table (it must list plans in a table '
+            'led by Date and Plan columns, not as prose or a bullet '
+            'list)'
+        )
+
+    bad_columns = [t['header'] for t in plan_tables if not t['lead_ok']]
+    if bad_columns:
+        problems.append(plan_index_summarise(
+            f'{len(bad_columns)} table(s) not led by Date then Plan '
+            f'columns', bad_columns))
+
+    bad_dates = [item for t in plan_tables for item in t['bad_dates']]
+    if bad_dates:
+        problems.append(plan_index_summarise(
+            f'{len(bad_dates)} row(s) without a YYYY-MM-DD date',
+            bad_dates))
+
+    unsorted = [item for t in plan_tables for item in t['unsorted']]
+    if unsorted:
+        problems.append(plan_index_summarise(
+            f'{len(unsorted)} row(s) out of date order', unsorted))
+
+    bad_statuses = [item for t in plan_tables for item in t['bad_statuses']]
+    if bad_statuses:
+        problems.append(plan_index_summarise(
+            f'{len(bad_statuses)} status cell(s) outside the shared '
+            f'vocabulary ({", ".join(PLAN_STATUSES)})', bad_statuses))
+
+    unregistered = [name for name in masters if name not in linked]
+    if unregistered:
+        problems.append(plan_index_summarise(
+            f'{len(unregistered)} master plan(s) not listed in the '
+            f'index', unregistered))
+
+    if problems:
+        return {
+            'id': 'plan-index',
+            'status': 'fail',
+            'details': '; '.join(problems),
+        }
+    return {
+        'id': 'plan-index',
+        'status': 'pass',
+        'details': (
+            f'docs/plans/index.md lists {len(masters)} plan(s) in date '
+            f'order with statuses from the shared vocabulary'
+        ),
+    }
+
+
 # Shared blocks every PLAN-TEMPLATE.md must carry. The model roster
 # is deliberately separate from the rest of the step guidance: it
 # churns whenever a model ships or retires, and keeping it apart
@@ -2870,6 +3115,7 @@ def check_push_audit(repo_path, props, blocks_dir=None):
 # roster rather than the surrounding prose.
 PLAN_TEMPLATE_BLOCKS = [
     'plan-file-conventions',
+    'plan-status-vocabulary',
     'subagent-execution-model',
     'plan-planning-effort',
     'subagent-step-guidance',
@@ -3318,6 +3564,8 @@ def check_calls(repo_path, props, repo_name, org):
          lambda: check_readme_structure(repo_path, props)),
         ('plan-phase-references',
          lambda: check_plan_phase_references(repo_path, props)),
+        ('plan-index',
+         lambda: check_plan_index(repo_path, props)),
         ('push-audit',
          lambda: check_push_audit(repo_path, props)),
         ('plan-template',
