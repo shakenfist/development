@@ -72,7 +72,7 @@ For links to other files in the same repository, use
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-18T22:33:51.257852+00:00
+Last regenerated: 2026-08-19T06:48:15.436847+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
