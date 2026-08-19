@@ -1731,5 +1731,157 @@ class PlanStatusVocabularyBlockTest(unittest.TestCase):
         )
 
 
+class OrphanSkillMarkdownTest(unittest.TestCase):
+    """Markdown in a skills directory that will never load."""
+
+    def _repo(self, tmp, files):
+        for relative, content in files.items():
+            path = os.path.join(tmp, relative)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, 'w') as f:
+                f.write(content)
+        return tmp
+
+    def test_loose_markdown_is_an_orphan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, {'.claude/skills/debug-ci.md': '# Debug\n'})
+            self.assertEqual(
+                audit_check.orphan_skill_markdown(tmp),
+                ['.claude/skills/debug-ci.md'],
+            )
+
+    def test_a_real_skill_is_not_an_orphan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, {
+                '.claude/skills/debug-ci/SKILL.md': '---\nname: x\n---\n',
+            })
+            self.assertEqual(audit_check.orphan_skill_markdown(tmp), [])
+
+    def test_directory_without_skill_md_is_an_orphan(self):
+        # A directory of markdown with no SKILL.md loads nothing, and
+        # skillsaw never sees it either, so only this check can report it.
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, {'.claude/skills/debug-ci/notes.md': '# n\n'})
+            self.assertEqual(
+                audit_check.orphan_skill_markdown(tmp),
+                ['.claude/skills/debug-ci/ (no SKILL.md)'],
+            )
+
+    def test_readme_beside_the_skills_is_allowed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, {
+                '.claude/skills/README.md': '# Skills\n',
+                '.claude/skills/debug-ci/SKILL.md': '---\nname: x\n---\n',
+            })
+            self.assertEqual(audit_check.orphan_skill_markdown(tmp), [])
+
+    def test_repo_without_skills_is_not_applicable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = audit_check.check_llm_context_lint(tmp, {})
+            self.assertEqual(result['status'], 'not_applicable')
+
+    def test_orphans_fail_the_check(self):
+        # Guards the reason this check exists in Python: skillsaw
+        # cannot see these files, so a clean skillsaw run must not be
+        # enough to pass.
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, {'.claude/skills/debug-ci.md': '# Debug\n'})
+            original = audit_check.skillsaw_errors
+            audit_check.skillsaw_errors = lambda path: []
+            try:
+                result = audit_check.check_llm_context_lint(tmp, {})
+            finally:
+                audit_check.skillsaw_errors = original
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('debug-ci.md', result['details'])
+
+    def test_missing_skillsaw_is_not_applicable(self):
+        # A missing binary is the harness's problem. Failing would file
+        # an issue against every repository for something none of them
+        # can fix.
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, {'CLAUDE.md': '# Context\n'})
+            original = audit_check.skillsaw_errors
+            audit_check.skillsaw_errors = lambda path: None
+            try:
+                result = audit_check.check_llm_context_lint(tmp, {})
+            finally:
+                audit_check.skillsaw_errors = original
+        self.assertEqual(result['status'], 'not_applicable')
+
+
+class LlmContextLintCiTest(unittest.TestCase):
+    """skillsaw runs per commit, not only in the daily audit."""
+
+    def _repo(self, tmp, files):
+        for relative, content in files.items():
+            path = os.path.join(tmp, relative)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, 'w') as f:
+                f.write(content)
+        return tmp
+
+    PRE_COMMIT = (
+        'repos:\n'
+        '  - repo: https://github.com/stbenjam/skillsaw\n'
+        '    rev: v0.18.0\n'
+        '    hooks:\n'
+        '      - id: skillsaw\n'
+    )
+    WORKFLOW = 'jobs:\n  lint:\n    steps:\n      - uses: stbenjam/skillsaw@v0\n'
+
+    def test_both_present_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, {
+                'CLAUDE.md': '# Context\n',
+                '.pre-commit-config.yaml': self.PRE_COMMIT,
+                '.github/workflows/lint.yml': self.WORKFLOW,
+            })
+            result = audit_check.check_llm_context_lint_ci(tmp, {})
+        self.assertEqual(result['status'], 'pass')
+
+    def test_pre_commit_alone_fails(self):
+        # Pre-commit is advisory: --no-verify skips it, and a clone
+        # that never ran `pre-commit install` never had it.
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, {
+                'CLAUDE.md': '# Context\n',
+                '.pre-commit-config.yaml': self.PRE_COMMIT,
+            })
+            result = audit_check.check_llm_context_lint_ci(tmp, {})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('CI workflow', result['details'])
+
+    def test_ci_alone_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, {
+                'CLAUDE.md': '# Context\n',
+                '.github/workflows/lint.yml': self.WORKFLOW,
+            })
+            result = audit_check.check_llm_context_lint_ci(tmp, {})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('.pre-commit-config.yaml', result['details'])
+
+    def test_a_comment_does_not_count(self):
+        # A workflow that only mentions skillsaw in a header comment
+        # describes a thing it does not do.
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, {
+                'CLAUDE.md': '# Context\n',
+                '.pre-commit-config.yaml': self.PRE_COMMIT,
+                '.github/workflows/lint.yml': (
+                    '# stbenjam/skillsaw runs in the other lane\n'
+                    'jobs:\n  lint:\n    steps: []\n'
+                ),
+            })
+            result = audit_check.check_llm_context_lint_ci(tmp, {})
+        self.assertEqual(result['status'], 'fail')
+
+    def test_repo_without_context_is_not_applicable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = audit_check.check_llm_context_lint_ci(tmp, {})
+        self.assertEqual(result['status'], 'not_applicable')
+
+
 if __name__ == '__main__':
     unittest.main()

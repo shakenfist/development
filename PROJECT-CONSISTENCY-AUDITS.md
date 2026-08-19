@@ -82,6 +82,38 @@ restating `docs/configuration.md`, restating `docs/control-socket-protocol.md`
 in a section that names that file as the canonical source, and duplicating a
 `## Code Organisation` section between the two files.
 
+## Agent context is linted
+
+`AGENTS.md`, `CLAUDE.md`, skills, plugins, hooks and MCP configuration
+are code an agent executes against, and until now nothing checked them.
+Every repository with agent context runs [skillsaw](https://skillsaw.org/),
+and the audit reports its error-severity findings. See
+[audits/llm-context-lint.md](audits/llm-context-lint.md).
+
+Only the error tier counts. skillsaw's warning and info tiers carry style
+opinions -- unlinked path references alone run to dozens per repository --
+so reporting them would cost more time than it saves. The error tier is
+structural and security: malformed frontmatter and manifests, credentials
+in instruction files, Trojan Source unicode, hooks and settings that
+execute arbitrary commands.
+
+The audit also reports markdown that will never load as a skill. A skill
+is `<skills dir>/<name>/SKILL.md`; a bare markdown file in
+`.claude/skills/`, or a subdirectory with no `SKILL.md`, is inert. Worse,
+skillsaw cannot report it either, because such a file is never discovered
+as a skill -- the repository lints clean while its skills do nothing.
+Twelve local checkouts were in that state when this was written, several
+of them with an `AGENTS.md` asserting that their skills cover the
+repetitive work.
+
+The daily audit is a backstop, not a feedback loop. Each repository must
+also run skillsaw in its own pre-commit **and** in CI, alongside
+actionlint and shellcheck, so a bad skill is caught by the commit that
+introduces it. Pre-commit alone is advisory -- `--no-verify` skips it, and
+a fresh clone never ran `pre-commit install`. CI alone is slow. See
+[audits/llm-context-lint-ci.md](audits/llm-context-lint-ci.md) for the
+config to copy.
+
 ## Python packaging with pyproject.toml
 
 All Python projects must use `pyproject.toml` for packaging and dependency

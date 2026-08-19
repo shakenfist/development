@@ -59,6 +59,8 @@ REPO_OVERRIDES = {
 CHECK_NAMES = {
     'llm-tooling': 'LLM tooling',
     'llm-doc-structure': 'AGENTS.md / ARCHITECTURE.md structure',
+    'llm-context-lint': 'LLM context linting',
+    'llm-context-lint-ci': 'LLM context linting in pre-commit and CI',
     'release-process': 'Release process',
     'ci-review-automation': 'CI review automation',
     'renovate': 'Renovate',
@@ -132,6 +134,25 @@ def check_file_contains(repo_path, path, pattern):
         return False
     with open(filepath, 'r', errors='replace') as f:
         return bool(re.search(pattern, f.read()))
+
+
+def file_mentions(filepath, needle):
+    """Does a file name something, outside of its comments?
+
+    Full-line comments do not count. A config or workflow routinely
+    mentions a tool in a header comment explaining that something else
+    runs it, and matching those would report a project as compliant
+    for describing the thing it does not do.
+    """
+    if not os.path.exists(filepath):
+        return False
+    with open(filepath, 'r', errors='replace') as f:
+        for line in f:
+            if line.lstrip().startswith('#'):
+                continue
+            if needle in line:
+                return True
+    return False
 
 
 def toml_section_has_key(content, section, key_pattern):
@@ -3245,6 +3266,229 @@ def check_secret_scanning_ci(repo_path, props):
     }
 
 
+# Directories whose markdown is loaded as agent context. A skill is a
+# directory holding SKILL.md; a bare markdown file alongside them is
+# inert, which is the failure this audit exists to catch.
+SKILL_ROOTS = ('.claude/skills', '.codex/skills')
+
+# Markdown that legitimately sits beside skill directories rather than
+# being a skill itself.
+ALLOWED_LOOSE_SKILL_FILES = ('readme.md', 'index.md')
+
+# Files whose presence means a repository has agent context worth
+# linting. A repository with none of these has nothing for skillsaw to
+# look at, and reporting it either way would be noise.
+AGENT_CONTEXT_MARKERS = (
+    '.claude', '.codex', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md',
+)
+
+# How a repository is expected to invoke skillsaw. The pre-commit hook
+# and the action both live in the upstream repository, so one string
+# identifies either.
+SKILLSAW_SOURCE = 'stbenjam/skillsaw'
+
+
+def has_agent_context(repo_path):
+    """Does this repository carry agent context files at all?"""
+    return any(
+        check_file_exists(repo_path, marker)
+        for marker in AGENT_CONTEXT_MARKERS
+    )
+
+
+def orphan_skill_markdown(repo_path):
+    """Markdown in a skills directory that will never load as a skill.
+
+    A skill is ``<skills dir>/<name>/SKILL.md``. Markdown directly in
+    the skills directory, or in a subdirectory with no SKILL.md, is
+    read by nobody: the agent does not load it, and skillsaw does not
+    lint it either, because it is never discovered as a skill. That
+    combination is why this is checked here in Python rather than left
+    to skillsaw -- a linter cannot report a file it cannot see, and
+    the resulting clean run reads as a pass.
+    """
+    orphans = []
+    for relative in SKILL_ROOTS:
+        skills_dir = os.path.join(repo_path, relative)
+        if not os.path.isdir(skills_dir):
+            continue
+
+        for entry in sorted(os.listdir(skills_dir)):
+            path = os.path.join(skills_dir, entry)
+
+            if os.path.isfile(path) and entry.lower().endswith('.md'):
+                if entry.lower() in ALLOWED_LOOSE_SKILL_FILES:
+                    continue
+                orphans.append(f'{relative}/{entry}')
+                continue
+
+            if not os.path.isdir(path):
+                continue
+            if os.path.exists(os.path.join(path, 'SKILL.md')):
+                continue
+            stray = sorted(
+                name for name in os.listdir(path)
+                if name.lower().endswith('.md')
+            )
+            if stray:
+                orphans.append(f'{relative}/{entry}/ (no SKILL.md)')
+
+    return orphans
+
+
+def skillsaw_errors(repo_path):
+    """Error-severity skillsaw violations, or None if it cannot run.
+
+    Only error severity is collected. skillsaw's warning and info
+    tiers carry style opinions -- unlinked path references alone run
+    to dozens per repository -- and an audit that reports them would
+    spend more of our time than it saves. The error tier is the
+    structural subset: invalid frontmatter, malformed manifests,
+    embedded secrets, smuggled unicode.
+    """
+    try:
+        result = subprocess.run(
+            [
+                'skillsaw', 'lint',
+                '--no-progress', '--no-custom-rules',
+                '--format', 'json',
+                repo_path,
+            ],
+            capture_output=True, text=True, timeout=120,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+
+    try:
+        report = json.loads(result.stdout)
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+    return [
+        violation for violation in report.get('violations', [])
+        if violation.get('severity') == 'error'
+    ]
+
+
+def check_llm_context_lint(repo_path, props):
+    """Check the repository's agent context passes skillsaw cleanly.
+
+    Two findings are combined because they answer the same question
+    from opposite ends: skillsaw validates the context it can see, and
+    orphan_skill_markdown() finds the context it cannot.
+
+    A missing skillsaw reports not_applicable rather than fail. The
+    binary is the audit harness's responsibility, not the audited
+    repository's, and failing would file an issue against every
+    project in the fleet for a problem none of them can fix. The
+    consistency-audit workflow installs a pinned skillsaw, so this
+    state should not arise; when it does, every row flipping to N/A at
+    once is the signal that it has.
+    """
+    if not has_agent_context(repo_path):
+        return {
+            'id': 'llm-context-lint',
+            'status': 'not_applicable',
+            'details': 'No agent context files to lint',
+        }
+
+    problems = []
+
+    orphans = orphan_skill_markdown(repo_path)
+    if orphans:
+        problems.append(
+            f'Markdown that will never load as a skill: '
+            f'{", ".join(orphans)}'
+        )
+
+    errors = skillsaw_errors(repo_path)
+    if errors is None:
+        return {
+            'id': 'llm-context-lint',
+            'status': 'not_applicable',
+            'details': (
+                'skillsaw is not available in the audit environment'
+            ),
+        }
+
+    if errors:
+        described = ', '.join(
+            sorted({
+                f'{violation.get("rule_id", "unknown")} '
+                f'({violation.get("file_path", "?")})'
+                for violation in errors
+            })
+        )
+        problems.append(f'skillsaw errors: {described}')
+
+    if problems:
+        return {
+            'id': 'llm-context-lint',
+            'status': 'fail',
+            'details': '; '.join(problems),
+        }
+
+    return {
+        'id': 'llm-context-lint',
+        'status': 'pass',
+        'details': 'Agent context lints clean at error severity',
+    }
+
+
+def check_llm_context_lint_ci(repo_path, props):
+    """Check skillsaw runs in pre-commit and in CI.
+
+    The daily audit is a backstop, not the feedback loop. A malformed
+    skill or a smuggled instruction should be caught by the commit
+    that introduces it, so the audit checks that each repository runs
+    the linter itself rather than waiting to be told once a day.
+
+    As with the secret scanner check, how skillsaw is invoked is
+    deliberately not pinned. Naming the upstream repository in a
+    pre-commit config and in a workflow is the step change; requiring
+    a particular rev or argument list would make the check brittle
+    against reasonable variation.
+    """
+    if not has_agent_context(repo_path):
+        return {
+            'id': 'llm-context-lint-ci',
+            'status': 'not_applicable',
+            'details': 'No agent context files to lint',
+        }
+
+    missing = []
+
+    if not file_mentions(
+        os.path.join(repo_path, '.pre-commit-config.yaml'),
+        SKILLSAW_SOURCE,
+    ):
+        missing.append('.pre-commit-config.yaml')
+
+    if not any(
+        file_mentions(
+            os.path.join(repo_path, '.github', 'workflows', workflow),
+            SKILLSAW_SOURCE,
+        )
+        for workflow in list_workflow_files(repo_path)
+    ):
+        missing.append('a CI workflow')
+
+    if missing:
+        return {
+            'id': 'llm-context-lint-ci',
+            'status': 'fail',
+            'details': (
+                f'skillsaw does not run from {" or ".join(missing)}'
+            ),
+        }
+
+    return {
+        'id': 'llm-context-lint-ci',
+        'status': 'pass',
+        'details': 'skillsaw runs in pre-commit and in CI',
+    }
+
+
 # Repos with human review tracking deployed should keep the review
 # backlog small enough that a session clears it. The value is a
 # tuning knob: an absolute count rather than a percentage (agreed
@@ -3511,6 +3755,10 @@ def check_calls(repo_path, props, repo_name, org):
          lambda: check_llm_tooling(repo_path, props)),
         ('llm-doc-structure',
          lambda: check_llm_doc_structure(repo_path, props)),
+        ('llm-context-lint',
+         lambda: check_llm_context_lint(repo_path, props)),
+        ('llm-context-lint-ci',
+         lambda: check_llm_context_lint_ci(repo_path, props)),
         ('release-process',
          lambda: check_release_process(repo_path, props)),
         ('ci-review-automation',

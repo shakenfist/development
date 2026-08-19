@@ -84,6 +84,8 @@ See `PROJECT-CONSISTENCY-AUDITS.md` for the list of excluded projects
 |------|-----------|
 | [llm-tooling.md](llm-tooling.md) | AGENTS.md, ARCHITECTURE.md, Claude skills |
 | [llm-doc-structure.md](llm-doc-structure.md) | AGENTS.md and ARCHITECTURE.md are a summary and an index, detail lives in docs/ |
+| [llm-context-lint.md](llm-context-lint.md) | Agent context passes skillsaw at error severity, and every skill actually loads |
+| [llm-context-lint-ci.md](llm-context-lint-ci.md) | skillsaw runs in pre-commit and CI, not just in the daily audit |
 | [release-process.md](release-process.md) | pyproject.toml, release.yml, RELEASE-SETUP.md |
 | [ci-review-automation.md](ci-review-automation.md) | Automated review, developer automation workflows |
 | [renovate.md](renovate.md) | Renovate for dependency bumps |

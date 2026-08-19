@@ -19,6 +19,14 @@ AUDIT_METADATA = {
         'spec': 'audits/llm-doc-structure.md',
         'template': None,
     },
+    'llm-context-lint': {
+        'spec': 'audits/llm-context-lint.md',
+        'template': None,
+    },
+    'llm-context-lint-ci': {
+        'spec': 'audits/llm-context-lint-ci.md',
+        'template': None,
+    },
     'release-process': {
         'spec': 'audits/release-process.md',
         'template': 'templates/release-automation/',
@@ -154,6 +162,8 @@ AUDIT_METADATA = {
 ISSUE_TITLES = {
     'llm-tooling': 'LLM tooling',
     'llm-doc-structure': 'AGENTS.md / ARCHITECTURE.md structure',
+    'llm-context-lint': 'LLM context linting',
+    'llm-context-lint-ci': 'LLM context linting in pre-commit and CI',
     'release-process': 'Release process',
     'ci-review-automation': 'CI review automation',
     'renovate': 'Renovate',

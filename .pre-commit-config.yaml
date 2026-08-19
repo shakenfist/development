@@ -33,6 +33,16 @@ repos:
       - id: flake8
         files: ^scripts/.*\.py$
 
+  # The llm-context-lint-ci audit requires every audited project with
+  # agent context to run skillsaw here and in CI. This repo is exempt
+  # from the audits but carries .claude/skills/ and AGENTS.md, so it
+  # holds itself to the rule it writes. The rev is bumped by hand for
+  # the same reason as the three above.
+  - repo: https://github.com/stbenjam/skillsaw
+    rev: v0.18.0
+    hooks:
+      - id: skillsaw
+
   # The automation's own unit tests. They run here because there is
   # nowhere else for them to run: the only workflow in this repository
   # is the consistency audit, so until this hook existed a broken audit

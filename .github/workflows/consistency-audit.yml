@@ -46,6 +46,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
 
+      # Pinned deliberately. The llm-context-lint check reports what
+      # skillsaw calls an error, and skillsaw's rule set moves between
+      # releases, so an unpinned upgrade would make the compliance
+      # table change for reasons nobody chose. Bump this on purpose.
+      - name: Install skillsaw
+        run: pip install --disable-pip-version-check skillsaw==0.18.0
+
       - name: Run audit checks
         id: audit
         run: |
