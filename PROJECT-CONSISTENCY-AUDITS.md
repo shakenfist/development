@@ -369,6 +369,41 @@ vocabulary fleet-wide, edit
 `templates/shared-blocks/plan-status-vocabulary.md`, bump its
 version, and let the daily audit file the issues.
 
+## Plan references in source still resolve
+
+Every reference to a plan file written into source code or
+configuration -- `docs/plans/PLAN-session-001-feedback.md` in a Rust
+comment, a plan path in a workflow's rationale comment -- must
+resolve in the repository it is written in, or else be an absolute
+`https://github.com/<org>/<repo>/blob/<default-branch>/docs/plans/PLAN-foo.md`
+URL.
+
+These pointers are the trail from a piece of code to the reasoning
+behind it, and they are what a reader follows when they want to
+change that code. Unlike a markdown link in `docs/`, nothing renders
+them: a path inside a `//` comment or a YAML key is inert text. So
+when a plan is renamed, or archived into `docs/plans/completed/`,
+the pointer rots silently and stays rotten, and the first person to
+notice is someone who went looking for the record and did not find
+it. A comment that asserts a record exists is worse than no comment
+when the record cannot be reached.
+
+Markdown files are out of scope here -- they are covered by
+`docs-external-links`, which sees them as rendered links. A bare
+`PLAN-foo.md` with no directory resolves against every plan file at
+any depth under `docs/plans/`, so archiving a plan does not break
+references that never named a directory. A plan in another
+repository has to be an absolute URL, for the same reason a link out
+of `docs/` does: a reference read somewhere other than where it
+lives cannot be relative.
+
+The remedy is to make the pointer land, not to delete it. If a
+reference cannot be made to resolve, replace it with the reasoning
+it was standing in for.
+
+See [audits/plan-source-references.md](audits/plan-source-references.md)
+for the full criterion.
+
 ## Claude Code for automated review in CI
 
 We run Claude Code for automated review in CI. The automated reviewer

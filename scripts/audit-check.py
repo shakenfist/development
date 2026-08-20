@@ -87,6 +87,7 @@ CHECK_NAMES = {
     'docs-external-links': 'Links out of docs/ are absolute',
     'readme-structure': 'README structure',
     'plan-phase-references': 'Plan phase references',
+    'plan-source-references': 'Plan references in source',
     'plan-index': 'Plan index',
     'push-audit': 'Pre-push audit file',
     'plan-template': 'Plan template',
@@ -2717,6 +2718,125 @@ def check_plan_phase_references(repo_path, props):
     }
 
 
+# Plan source references: a plan pointer written into source or
+# configuration must resolve in this repository, or else be an
+# absolute URL. See audits/plan-source-references.md.
+PLAN_SOURCE_REF_RE = re.compile(r'[\w./-]*PLAN-[\w.-]*\.md')
+PLAN_SOURCE_URL_RE = re.compile(r'[a-z][a-z0-9+.-]*://\S*', re.IGNORECASE)
+PLAN_SOURCE_REF_OK = 'audit-ok: plan-reference'
+PLAN_SOURCE_MAX_BYTES = 2 * 1024 * 1024
+
+
+def plan_file_names(repo_path):
+    """Basenames of every markdown file under docs/plans/, any depth.
+
+    Archived plans live in docs/plans/completed/, so the index is
+    built recursively: a bare `PLAN-foo.md` in a comment names no
+    directory and should resolve wherever the file actually sits.
+    """
+    names = set()
+    for _dirpath, _dirnames, filenames in os.walk(
+        os.path.join(repo_path, 'docs', 'plans')
+    ):
+        for filename in filenames:
+            if filename.endswith('.md'):
+                names.add(filename)
+    return names
+
+
+def plan_reference_resolves(repo_path, token, names):
+    """Whether a plan reference names a file this repository has.
+
+    A path-qualified reference (docs/plans/PLAN-foo.md) is resolved
+    as written, from the repository root and then from docs/ -- the
+    latter because mkdocs navigation addresses pages relative to the
+    documentation root. A bare filename is matched against every
+    plan file in the repository.
+    """
+    if os.path.exists(os.path.join(repo_path, token)):
+        return True
+    if os.path.exists(os.path.join(repo_path, 'docs', token)):
+        return True
+    return '/' not in token and token in names
+
+
+def check_plan_source_references(repo_path, props):
+    """Check plan references in source and configuration resolve.
+
+    Comments and configuration point at docs/plans/PLAN-*.md to say
+    where a decision is recorded. Nothing renders those pointers, so
+    when a plan is renamed or archived into docs/plans/completed/
+    they rot silently. Every reference must resolve in this
+    repository or be an absolute URL; markdown files are out of
+    scope, being covered by docs-external-links.
+    """
+    try:
+        result = subprocess.run(
+            ['git', '-C', repo_path, 'ls-files'],
+            capture_output=True, text=True, timeout=60,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        return {
+            'id': 'plan-source-references',
+            'status': 'fail',
+            'details': f'Could not run git ls-files: {e}',
+        }
+
+    names = plan_file_names(repo_path)
+    hits = []
+    total = 0
+    for rel in result.stdout.splitlines():
+        rel = rel.strip()
+        if not rel or rel.endswith('.md'):
+            continue
+        path = os.path.join(repo_path, rel)
+        if not os.path.isfile(path):
+            continue
+        if os.path.getsize(path) > PLAN_SOURCE_MAX_BYTES:
+            continue
+        with open(path, 'r', errors='replace') as f:
+            content = f.read()
+        if 'PLAN-' not in content:
+            continue
+        for lineno, line in enumerate(content.splitlines(), 1):
+            if PLAN_SOURCE_REF_OK in line:
+                continue
+            scannable = PLAN_SOURCE_URL_RE.sub('', line)
+            for match in PLAN_SOURCE_REF_RE.finditer(scannable):
+                token = match.group(0)
+                total += 1
+                if not plan_reference_resolves(repo_path, token, names):
+                    hits.append(f'{rel}:{lineno} -> {token}')
+
+    if not total:
+        return {
+            'id': 'plan-source-references',
+            'status': 'not_applicable',
+            'details': 'No plan references outside markdown files',
+        }
+
+    if hits:
+        shown = ', '.join(hits[:10])
+        more = '' if len(hits) <= 10 else f' (+{len(hits) - 10} more)'
+        return {
+            'id': 'plan-source-references',
+            'status': 'fail',
+            'details': (
+                f'{len(hits)} of {total} plan reference(s) in source '
+                f'or configuration do not resolve (update the path, '
+                f'or use an absolute https://github.com/... URL for a '
+                f'plan in another repository): {shown}{more}'
+            ),
+        }
+    return {
+        'id': 'plan-source-references',
+        'status': 'pass',
+        'details': (
+            f'All {total} plan reference(s) outside markdown resolve'
+        ),
+    }
+
+
 # --- Shared blocks ---
 # Canonical wording embedded verbatim across repositories, delimited
 # by versioned markers. Canonical copies live in
@@ -3812,6 +3932,8 @@ def check_calls(repo_path, props, repo_name, org):
          lambda: check_readme_structure(repo_path, props)),
         ('plan-phase-references',
          lambda: check_plan_phase_references(repo_path, props)),
+        ('plan-source-references',
+         lambda: check_plan_source_references(repo_path, props)),
         ('plan-index',
          lambda: check_plan_index(repo_path, props)),
         ('push-audit',

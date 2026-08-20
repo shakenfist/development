@@ -131,6 +131,10 @@ AUDIT_METADATA = {
         'spec': 'audits/plan-phase-references.md',
         'template': None,
     },
+    'plan-source-references': {
+        'spec': 'audits/plan-source-references.md',
+        'template': None,
+    },
     'plan-index': {
         'spec': 'audits/plan-index.md',
         'template': 'templates/shared-blocks/',
@@ -190,6 +194,7 @@ ISSUE_TITLES = {
     'docs-external-links': 'Links out of docs/ are absolute',
     'readme-structure': 'README structure',
     'plan-phase-references': 'Plan phase references',
+    'plan-source-references': 'Plan references in source',
     'plan-index': 'Plan index',
     'push-audit': 'Pre-push audit file',
     'plan-template': 'Plan template',
