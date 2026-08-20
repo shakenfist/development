@@ -1236,6 +1236,60 @@ GITHUB_HOSTED_LABEL_RE = re.compile(
 # offending line or the line immediately above it.
 RUNNER_EXCEPTION_RE = re.compile(r'audit-ok:\s*github-hosted-runner')
 
+# A GitHub-hosted label only names a runner when it sits where YAML
+# puts a value: after "runs-on:", as an element of a "[...]" list, or
+# as a "- " item in a matrix. The same text inside a shell command is
+# not a runner reference -- shakenfist/actions ships a step which
+# uploads an image artifact named "ubuntu-2004", and reporting that
+# asked someone to mark a deliberate exception on a line which never
+# described a runner at all.
+RUNNER_VALUE_PREFIXES = frozenset({':', '-', '[', ','})
+RUNNER_VALUE_SUFFIXES = frozenset({',', ']', '#'})
+
+
+def is_runner_label_value(line, start, end):
+    """Does a matched label sit where a YAML value could?
+
+    Scanning every line, rather than only "runs-on:" lines, is
+    deliberate -- matrix values feeding "runs-on: ${{ matrix.os }}"
+    have to be caught too -- so the position test replaces the
+    context a "runs-on:" anchor would have given.
+
+    The test is about token boundaries, not just neighbouring
+    characters. A label glued to preceding text is part of a longer
+    name ("build-ubuntu-latest"), and only a sequence opener can
+    legitimately abut one; a label separated by whitespace is a value
+    when what precedes it opens one.
+    """
+    before = line[:start]
+    after = line[end:]
+
+    # Treat 'ubuntu-latest' the same as ubuntu-latest.
+    if before.endswith(('"', "'")):
+        before = before[:-1]
+    if after.startswith(('"', "'")):
+        after = after[1:]
+
+    if before and not before.endswith((' ', '\t')):
+        # Glued to what comes before, so this is the tail of a longer
+        # name unless a list or flow-sequence opener abuts it.
+        if not before.endswith(('[', ',')):
+            return False
+    else:
+        stripped = before.rstrip()
+        if stripped and stripped[-1] not in RUNNER_VALUE_PREFIXES:
+            return False
+
+    if after and not after.startswith((' ', '\t')):
+        if not after.startswith((',', ']')):
+            return False
+    else:
+        stripped = after.lstrip()
+        if stripped and stripped[0] not in RUNNER_VALUE_SUFFIXES:
+            return False
+
+    return True
+
 
 def check_self_hosted_runners(repo_path, props):
     """Check workflows use self-hosted runners.
@@ -1279,6 +1333,8 @@ def check_self_hosted_runners(repo_path, props):
             if not match:
                 continue
             if 'self-hosted' in line:
+                continue
+            if not is_runner_label_value(line, match.start(), match.end()):
                 continue
             if RUNNER_EXCEPTION_RE.search(line):
                 continue
@@ -3407,6 +3463,32 @@ AGENT_CONTEXT_MARKERS = (
 # identifies either.
 SKILLSAW_SOURCE = 'stbenjam/skillsaw'
 
+# A CI job which runs pre-commit over the tree runs every hook the
+# pre-commit config declares, skillsaw included. Requiring the linter
+# to be named in a workflow as well would report those repositories as
+# non-compliant for a wiring that does run it -- and would fail the
+# reference invocation in this repository's own consistency-audit.yml,
+# which installs skillsaw from PyPI and so never names the upstream
+# repository either.
+PRE_COMMIT_RUN_RE = re.compile(r'pre-commit\s+run\b')
+
+
+def file_matches(filepath, pattern):
+    """Does a file match a regex, outside of its comments?
+
+    The comment handling matches file_mentions: a header comment
+    describing what something else does must not count as doing it.
+    """
+    if not os.path.exists(filepath):
+        return False
+    with open(filepath, 'r', errors='replace') as f:
+        for line in f:
+            if line.lstrip().startswith('#'):
+                continue
+            if pattern.search(line):
+                return True
+    return False
+
 
 def has_agent_context(repo_path):
     """Does this repository carry agent context files at all?"""
@@ -3578,19 +3660,24 @@ def check_llm_context_lint_ci(repo_path, props):
 
     missing = []
 
-    if not file_mentions(
-        os.path.join(repo_path, '.pre-commit-config.yaml'),
-        SKILLSAW_SOURCE,
-    ):
+    pre_commit_config = os.path.join(repo_path, '.pre-commit-config.yaml')
+    in_pre_commit = file_mentions(pre_commit_config, SKILLSAW_SOURCE)
+    if not in_pre_commit:
         missing.append('.pre-commit-config.yaml')
 
-    if not any(
-        file_mentions(
-            os.path.join(repo_path, '.github', 'workflows', workflow),
-            SKILLSAW_SOURCE,
-        )
+    workflows = [
+        os.path.join(repo_path, '.github', 'workflows', workflow)
         for workflow in list_workflow_files(repo_path)
-    ):
+    ]
+    named_in_ci = any(
+        file_mentions(workflow, SKILLSAW_SOURCE) for workflow in workflows
+    )
+    # A workflow which runs pre-commit runs the skillsaw hook with it,
+    # so the linter reaches CI without the workflow naming it.
+    via_pre_commit = in_pre_commit and any(
+        file_matches(workflow, PRE_COMMIT_RUN_RE) for workflow in workflows
+    )
+    if not named_in_ci and not via_pre_commit:
         missing.append('a CI workflow')
 
     if missing:

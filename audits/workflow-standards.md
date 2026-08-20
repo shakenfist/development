@@ -38,6 +38,16 @@ by GitHub Advanced Security if missing.
   GitHub-hosted runner label (`ubuntu-latest`, `windows-2022`,
   `macos-15`, etc.) without an exception marker, including matrix
   values that feed `runs-on: ${{ matrix.os }}`.
+* The label must sit where a runner can actually be named: after
+  `runs-on:`, as an element of a `[...]` list, or as a `- ` matrix
+  item. The same text elsewhere is not a runner reference, and used
+  to be reported as one -- a Shaken Fist image label
+  (`sf://label/ci-images/ubuntu-2404`), a job name
+  (`ubuntu-2404-slim-primary`) and an artifact name passed inside an
+  ssh command all matched. Those findings could not be actioned: the
+  only remedy the message offers is an `audit-ok` marker, which would
+  have been a false statement about a line that never described a
+  runner.
 * Claude Code automation jobs: `claude` runners only.
 
 ### Static runners for small, non-mutating jobs

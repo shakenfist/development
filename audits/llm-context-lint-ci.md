@@ -18,6 +18,16 @@ linters run:
 
 Both are required. Pre-commit alone is advisory; CI alone is slow.
 
+A CI job which runs `pre-commit run` satisfies the second half
+without naming skillsaw itself, because it runs every hook the
+pre-commit config declares. Requiring the linter to be named in a
+workflow as well would report a repository as non-compliant for a
+wiring that does run it -- and would fail this repository's own
+`consistency-audit.yml`, which installs skillsaw from PyPI and so
+never names the upstream repository either. The pre-commit half is
+still checked independently, so a workflow running pre-commit
+against a config with no skillsaw hook does not pass.
+
 As with the secret scanner check, *how* skillsaw is invoked is
 deliberately not pinned. Naming the upstream repository in a
 pre-commit config and in a workflow is the step change; requiring a
