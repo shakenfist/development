@@ -1852,6 +1852,58 @@ class LlmContextLintCiTest(unittest.TestCase):
         self.assertEqual(result['status'], 'fail')
         self.assertIn('CI workflow', result['details'])
 
+    def test_ci_running_pre_commit_counts(self):
+        # A workflow which runs pre-commit runs every hook the config
+        # declares, skillsaw included, so the linter reaches CI without
+        # the workflow naming the upstream repository.
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, {
+                'CLAUDE.md': '# Context\n',
+                '.pre-commit-config.yaml': self.PRE_COMMIT,
+                '.github/workflows/ci.yml': (
+                    'jobs:\n'
+                    '  lint:\n'
+                    '    steps:\n'
+                    '      - run: pre-commit run --all-files\n'
+                ),
+            })
+            result = audit_check.check_llm_context_lint_ci(tmp, {})
+        self.assertEqual(result['status'], 'pass')
+
+    def test_ci_running_pre_commit_without_the_hook_still_fails(self):
+        # The indirection only counts when the hook is actually
+        # declared; otherwise pre-commit runs everything except
+        # skillsaw and the repository has no linting at all.
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, {
+                'CLAUDE.md': '# Context\n',
+                '.pre-commit-config.yaml': 'repos: []\n',
+                '.github/workflows/ci.yml': (
+                    'jobs:\n'
+                    '  lint:\n'
+                    '    steps:\n'
+                    '      - run: pre-commit run --all-files\n'
+                ),
+            })
+            result = audit_check.check_llm_context_lint_ci(tmp, {})
+        self.assertEqual(result['status'], 'fail')
+
+    def test_a_commented_pre_commit_run_does_not_count(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, {
+                'CLAUDE.md': '# Context\n',
+                '.pre-commit-config.yaml': self.PRE_COMMIT,
+                '.github/workflows/ci.yml': (
+                    'jobs:\n'
+                    '  lint:\n'
+                    '    steps:\n'
+                    '      # we should pre-commit run --all-files here\n'
+                    '      - run: true\n'
+                ),
+            })
+            result = audit_check.check_llm_context_lint_ci(tmp, {})
+        self.assertEqual(result['status'], 'fail')
+
     def test_ci_alone_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             self._repo(tmp, {
@@ -1880,6 +1932,113 @@ class LlmContextLintCiTest(unittest.TestCase):
     def test_repo_without_context_is_not_applicable(self):
         with tempfile.TemporaryDirectory() as tmp:
             result = audit_check.check_llm_context_lint_ci(tmp, {})
+        self.assertEqual(result['status'], 'not_applicable')
+
+
+class SelfHostedRunnerLabelPositionTest(unittest.TestCase):
+    """A GitHub-hosted label only counts where a runner can be named.
+
+    The check scans every line rather than only 'runs-on:' lines, so
+    that matrix values feeding 'runs-on: ${{ matrix.os }}' are caught.
+    That breadth is what made it read image names, artifact names and
+    job names as runner references.
+    """
+
+    def _check(self, workflow):
+        with tempfile.TemporaryDirectory() as tmp:
+            workflows = os.path.join(tmp, '.github', 'workflows')
+            os.makedirs(workflows)
+            with open(os.path.join(workflows, 'ci.yml'), 'w') as f:
+                f.write(workflow)
+            return audit_check.check_self_hosted_runners(
+                tmp, {'has_workflows_dir': True}
+            )
+
+    def test_a_bare_runs_on_is_reported(self):
+        result = self._check('jobs:\n  a:\n    runs-on: ubuntu-latest\n')
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('ubuntu-latest', result['details'])
+
+    def test_a_list_element_is_reported(self):
+        result = self._check(
+            'jobs:\n  a:\n    runs-on: [foo, windows-latest]\n')
+        self.assertEqual(result['status'], 'fail')
+
+    def test_a_matrix_item_is_reported(self):
+        # The reason the check scans every line: this feeds
+        # runs-on: ${{ matrix.os }} somewhere else in the file.
+        result = self._check(
+            'jobs:\n  a:\n    strategy:\n      matrix:\n'
+            '        os:\n          - ubuntu-24.04\n'
+            '          - macos-latest\n')
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('ubuntu-24.04', result['details'])
+
+    def test_a_quoted_matrix_item_is_reported(self):
+        result = self._check(
+            'jobs:\n  a:\n    strategy:\n      matrix:\n'
+            "        os:\n          - 'windows-11-arm'\n")
+        self.assertEqual(result['status'], 'fail')
+
+    def test_a_matrix_include_mapping_is_reported(self):
+        result = self._check(
+            'jobs:\n  a:\n    strategy:\n      matrix:\n'
+            '        include:\n          - os: ubuntu-24.04-arm\n')
+        self.assertEqual(result['status'], 'fail')
+
+    def test_self_hosted_on_the_same_line_is_not_reported(self):
+        result = self._check(
+            'jobs:\n  a:\n    runs-on: [self-hosted, ubuntu-24.04]\n')
+        self.assertEqual(result['status'], 'pass')
+
+    def test_a_marked_exception_is_not_reported(self):
+        result = self._check(
+            'jobs:\n  a:\n'
+            '    # audit-ok: github-hosted-runner\n'
+            '    runs-on: macos-latest\n')
+        self.assertEqual(result['status'], 'pass')
+
+    def test_an_image_path_is_not_a_runner(self):
+        # shakenfist's functional-tests.yml names Shaken Fist image
+        # labels this way. The trailing path separator before the label
+        # is what distinguishes it from a value position.
+        result = self._check(
+            'jobs:\n  a:\n    steps:\n'
+            "      - run: echo 'sf://label/ci-images/ubuntu-2404'\n")
+        self.assertEqual(result['status'], 'pass')
+
+    def test_a_job_name_containing_a_label_is_not_a_runner(self):
+        result = self._check(
+            'jobs:\n  a:\n    steps:\n'
+            "      - run: echo 'ubuntu-2404-slim-primary'\n")
+        self.assertEqual(result['status'], 'pass')
+
+    def test_a_label_inside_a_shell_command_is_not_a_runner(self):
+        # shakenfist/actions uploads an artifact named ubuntu-2004 from
+        # inside an ssh command. Reporting it asked for an audit-ok
+        # marker on a line which never described a runner.
+        result = self._check(
+            'jobs:\n  a:\n    steps:\n'
+            '      - run: |\n'
+            '          ssh host "${setup} ubuntu-2004 /srv/ci/ubuntu:20.04"\n')
+        self.assertEqual(result['status'], 'pass')
+
+    def test_a_name_ending_in_a_label_is_not_a_runner(self):
+        result = self._check(
+            'jobs:\n  a:\n    steps:\n'
+            '      - uses: actions/upload-artifact@v7\n'
+            '        with:\n          name: build-ubuntu-latest\n')
+        self.assertEqual(result['status'], 'pass')
+
+    def test_a_trailing_comment_does_not_hide_a_real_runner(self):
+        result = self._check(
+            'jobs:\n  a:\n    runs-on: ubuntu-latest  # why not\n')
+        self.assertEqual(result['status'], 'fail')
+
+    def test_no_workflows_directory_is_not_applicable(self):
+        result = audit_check.check_self_hosted_runners(
+            '/nonexistent', {'has_workflows_dir': False}
+        )
         self.assertEqual(result['status'], 'not_applicable')
 
 
