@@ -57,8 +57,8 @@ measure".
 This repo lints *and tests* itself with pre-commit, holding to the same
 actionlint/shellcheck/flake8 standard the audits require of audited
 projects (even though `development` is exempt from the audits). One
-command covers everything, and is the only gate there is -- run it
-before committing:
+command covers everything, and `ci.yml` runs the same command on every
+pull request -- run it before committing:
 
 ```
 pre-commit run --all-files
@@ -77,10 +77,10 @@ which is per clone and not carried in the repository:
 pre-commit install
 ```
 
-Worth doing rather than relying on remembering, because these hooks
-are the only thing standing between an edit and the daily audit run.
+Worth doing rather than relying on remembering: CI will catch it on
+the pull request, but the local run is faster and quieter.
 
-All three test suites run as `local` pre-commit hooks, so any change
+All four test suites run as `local` pre-commit hooks, so any change
 under `scripts/` runs them. They can also be run directly, which is
 quicker while iterating:
 
@@ -88,6 +88,7 @@ quicker while iterating:
 python3 scripts/test_audit_check.py
 python3 scripts/test_audit_update_docs.py
 python3 scripts/test_review_tracking.py
+python3 scripts/test_check_audit_smoke.py
 ```
 
 The review tracking script has fixture-repo tests; the audit script
@@ -98,10 +99,18 @@ real check, and that every check sharing a spec file has a
 the 2026-08-12 audit run: `review-marks-pre-commit` joined the
 workflow-standards spec without a heading, and rendering crashed after
 rewriting every `audits/*.md` but before committing any, so the whole
-fleet's tables silently stayed a day stale. Nothing but this hook
-would have caught it before 06:00 UTC -- the consistency audit is the
-only workflow in this repository, so the automation has no CI of its
-own.
+fleet's tables silently stayed a day stale.
+
+`ci.yml` is what makes those hooks enforced rather than merely
+available. It also runs the audit against this repository as a smoke
+test, because linting cannot reach the scheduled workflow's runtime
+assumptions: the 2026-08-20 outage was a bare `pip install` meeting a
+runner that enforces PEP 668, which failed every leg of the matrix and
+stopped the fleet's audits for a day. The smoke job asserts the audit
+*measured* rather than that it approved -- `llm-context-lint` degrades
+to `not_applicable` when skillsaw is missing, which reads in the
+compliance table as a considered exemption rather than a broken
+tool.
 
 `review-tracking.py` is run by hand in target repositories (via a thin wrapper
 like ryll's `tools/review-tracking.sh`), deliberately not from git

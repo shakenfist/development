@@ -50,8 +50,37 @@ jobs:
       # skillsaw calls an error, and skillsaw's rule set moves between
       # releases, so an unpinned upgrade would make the compliance
       # table change for reasons nobody chose. Bump this on purpose.
+      #
+      # Into a venv, not the system python. The runners enforce PEP 668,
+      # so a bare `pip install` is refused with
+      # "error: externally-managed-environment" -- which is how every
+      # leg of this matrix started failing on 2026-08-20, taking the
+      # compliance tables and issue filing with it.
       - name: Install skillsaw
-        run: pip install --disable-pip-version-check skillsaw==0.18.0
+        run: |
+          python3 -m venv /tmp/audit-venv
+          /tmp/audit-venv/bin/pip install --disable-pip-version-check \
+              skillsaw==0.18.0
+
+      # audit-check.py invokes skillsaw by name, so the venv has to be
+      # on PATH by the time the audit step runs.
+      - name: Put skillsaw on PATH
+        run: echo "/tmp/audit-venv/bin" >> "${GITHUB_PATH}"
+
+      # A skillsaw that cannot run does not fail the audit:
+      # skillsaw_errors() catches FileNotFoundError and returns None,
+      # and check_llm_context_lint turns that into not_applicable -- so a
+      # broken install quietly stops measuring one check across every
+      # repository in the matrix, and the table says so in a way that
+      # looks deliberate. Assert it here instead, where the failure is
+      # unambiguous, and assert the pinned version rather than just that
+      # something answers: the whole point of the pin above is that the
+      # rule set does not move underneath the compliance table.
+      - name: Check skillsaw runs, at the pinned version
+        run: |
+          set -e
+          echo "skillsaw reports: $(skillsaw --version)"
+          skillsaw --version | grep -qx 'skillsaw 0.18.0'
 
       - name: Run audit checks
         id: audit
@@ -74,7 +103,8 @@ jobs:
 
       - name: Clean up
         if: always()
-        run: rm -rf /tmp/audit-target /tmp/audit-result-*.json
+        run: |
+          rm -rf /tmp/audit-target /tmp/audit-result-*.json /tmp/audit-venv
 
   manage-issues:
     name: Manage consistency issues
@@ -138,3 +168,71 @@ jobs:
       - name: Clean up
         if: always()
         run: rm -rf /tmp/consistency-audit-results
+
+  # A scheduled workflow that fails emails whoever last pushed, which
+  # is nobody's inbox in particular and is easy to miss for a workflow
+  # that runs at 06:00 UTC. The August 2026 PEP 668 breakage went a full
+  # day that way, with the compliance tables and issue filing stopped
+  # the whole time and the tables still showing the previous run's
+  # verdicts -- so the audit looked like it was working. This puts a
+  # failure somewhere it will be seen, and updates one issue rather than
+  # filing a fresh one every morning an outage continues.
+  report-failure:
+    name: Report audit failure
+    needs: [audit, manage-issues, update-docs]
+    if: failure()
+    runs-on: [self-hosted, static]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      # gh issue create fails outright if the label does not exist, so
+      # the report would be lost at exactly the moment it is wanted.
+      # --force makes this idempotent.
+      - name: Ensure the audit-failure label exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create audit-failure \
+              --repo "${GITHUB_REPOSITORY}" \
+              --description "The scheduled consistency audit failed" \
+              --color d73a4a --force
+
+      - name: File or update the audit failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -e
+          existing=$(gh issue list --repo "${GITHUB_REPOSITORY}" \
+              --label audit-failure --state open --limit 1 --json number \
+              --jq '.[0].number // empty')
+
+          # printf rather than a multi-line quoted string: the latter
+          # carries this file's indentation into every continuation
+          # line, and four leading spaces make GitHub-flavoured Markdown
+          # render the whole body as a code block.
+          body=$(printf '%s\n' \
+              "The scheduled consistency audit failed." \
+              "" \
+              "Run: ${RUN_URL}" \
+              "" \
+              "While this is failing no compliance tables are being" \
+              "regenerated and no consistency issues are being filed or" \
+              "closed, across every audited repository. The tables still" \
+              "show the previous run's verdicts, so the audit looks" \
+              "healthy from the outside -- check the run before trusting" \
+              "anything in audits/.")
+
+          if [ -n "${existing}" ]; then
+              echo "Commenting on existing audit failure issue #${existing}."
+              gh issue comment "${existing}" \
+                  --repo "${GITHUB_REPOSITORY}" --body "${body}"
+          else
+              echo "Filing a new audit failure issue."
+              gh issue create --repo "${GITHUB_REPOSITORY}" \
+                  --title "Scheduled consistency audit is failing" \
+                  --label audit-failure \
+                  --body "${body}"
+          fi

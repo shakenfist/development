@@ -1,0 +1,114 @@
+# CI for shakenfist/development itself.
+#
+# This repository holds the consistency audits and the automation that
+# enforces them, and until this workflow it had no CI of its own: the
+# only workflow here was consistency-audit.yml, which runs on a
+# schedule against other people's repositories. So a change to the
+# audit machinery was first exercised at 06:00 UTC the next morning,
+# against the whole fleet at once, with issue filing and the compliance
+# tables downstream of it.
+#
+# That is how the audit came to be broken fleet-wide for a day in
+# August 2026: a bare `pip install` in consistency-audit.yml met a
+# runner enforcing PEP 668, every matrix leg failed at the same step,
+# and nothing measured anything until somebody happened to look. The
+# .pre-commit-config.yaml header records the same shape of problem
+# reaching production once before.
+#
+# Two jobs, because the two failures are different. Lint and tests
+# cover the scripts; the audit smoke run covers the workflow's own
+# runtime assumptions, which no amount of linting reaches.
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-test:
+    name: Lint and test
+    runs-on: [self-hosted, static]
+    timeout-minutes: 15
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-lint-and-test
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v6
+
+      # A venv for the same reason consistency-audit.yml uses one: the
+      # runners enforce PEP 668 and refuse a bare install.
+      - name: Install pre-commit
+        run: |
+          python3 -m venv /tmp/venv-lint
+          /tmp/venv-lint/bin/pip install --quiet --disable-pip-version-check \
+              pre-commit
+
+      # This is the whole gate, and it was already the whole gate --
+      # actionlint, shellcheck, flake8, skillsaw, and the three test
+      # suites are all hooks. The difference is that something now runs
+      # it other than whoever remembers to.
+      - name: Run pre-commit hooks
+        run: |
+          /tmp/venv-lint/bin/pre-commit run --all-files \
+              --show-diff-on-failure
+
+      - name: Clean up
+        if: always()
+        run: rm -rf /tmp/venv-lint
+
+  audit-smoke:
+    name: Audit smoke run
+    runs-on: [self-hosted, static]
+    timeout-minutes: 15
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-audit-smoke
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v6
+
+      # Deliberately the same install as consistency-audit.yml, on the
+      # same runner class. The point of this job is that the scheduled
+      # workflow's environment assumptions are exercised on a pull
+      # request rather than at 06:00 UTC across sixteen repositories.
+      - name: Install skillsaw
+        run: |
+          python3 -m venv /tmp/audit-venv
+          /tmp/audit-venv/bin/pip install --disable-pip-version-check \
+              skillsaw==0.18.0
+
+      - name: Put skillsaw on PATH
+        run: echo "/tmp/audit-venv/bin" >> "${GITHUB_PATH}"
+
+      # Audits this repository against itself. The verdicts are not the
+      # point and are not asserted -- development is exempt from the
+      # audits and several checks fail here by design. What is asserted
+      # is that the machinery ran: it exits zero, it emits parseable
+      # JSON, and every check returned a status.
+      #
+      # No GH_TOKEN. The checks that would use one degrade to
+      # not_applicable, which is fine here and keeps this job off the
+      # audit credentials.
+      - name: Run the audit against this repository
+        run: |
+          python3 scripts/audit-check.py \
+            --repo-path . \
+            --repo-name development \
+            --github-org shakenfist \
+            > /tmp/audit-smoke.json
+
+      # The load-bearing assertion. skillsaw_errors() returns None when
+      # skillsaw cannot run, and check_llm_context_lint turns that into
+      # not_applicable -- a result that looks like a decision rather
+      # than a broken tool. So a skillsaw that silently went missing
+      # would leave every other step here green. Asserting the check
+      # reached a verdict is what makes this job a detector rather than
+      # a smoke test that happens to pass.
+      - name: Check the audit actually measured
+        run: python3 scripts/check-audit-smoke.py /tmp/audit-smoke.json
+
+      - name: Clean up
+        if: always()
+        run: rm -rf /tmp/audit-venv /tmp/audit-smoke.json
