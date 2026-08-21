@@ -2,15 +2,18 @@
 # does not flag them as unknown.
 #
 # The list covers templates/ as well as .github/workflows/. This
-# repository runs only on `static`, but the workflow templates it ships
-# to the fleet name the labels their target projects run on, and those
-# templates are linted here -- they are the fleet's source of truth for
-# files nothing else checks before they are copied into ten repositories.
+# repository runs on `static` apart from the gitleaks job, which needs
+# `debian-13` because that is the first Debian to package gitleaks. The
+# rest of the labels belong to the workflow templates it ships to the
+# fleet, which name the runners their target projects use and are linted
+# here -- this is the fleet's source of truth for files nothing else
+# checks before they are copied into ten repositories.
 self-hosted-runner:
   labels:
     - static
     - claude-code
     - vm
     - debian-12
+    - debian-13
     - s
     - m

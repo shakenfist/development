@@ -137,20 +137,20 @@ rewrites the tables in `audits/*.md` in place; discard the changes with
 repo matrix, so a locally generated table only covers the repos you fed
 it).
 
-## Code review tracking
+## Working on review tracking
 
-Conventions for whole-codebase human review (weAudit, signed
-commits, staleness pruning) live in `docs/code-review-tracking.md`;
-the phased design is `docs/plans/PLAN-code-review-tracking.md`, and
-the steady-state automation (CI pruning on main, the
-`review-coverage` audit) is planned in `PLAN-review-coverage.md`.
-When implementing later phases, read the plan's analysis section
-first -- several design constraints (sidecar rather than fields in
-weAudit's JSON, no stamping from CI) exist for non-obvious verified
-reasons, and the plan's "Back brief" section applies. Note the
-original "prune locally rather than from CI" constraint was about
-developer clones and git hooks; CI pruning of a repo's own main
-branch is the steady-state design, not a violation of it.
+`ARCHITECTURE.md` describes the shape of the review tracking system
+and where its pieces live; the conventions it enforces are in
+`docs/code-review-tracking.md`. When implementing later phases of
+`docs/plans/PLAN-code-review-tracking.md` or its steady-state
+follow-on `docs/plans/PLAN-review-coverage.md`, read the plan's
+analysis section first -- several design constraints
+(sidecar rather than fields in weAudit's JSON, no stamping from CI)
+exist for non-obvious verified reasons, and the plan's "Back brief"
+section applies. Note the original "prune locally rather than from
+CI" constraint was about developer clones and git hooks; CI pruning
+of a repo's own main branch is the steady-state design, not a
+violation of it.
 
 Deploying the tooling to a repository (and verifying a deployment,
 including that expensive CI skips review-only PRs) is covered by the
@@ -163,6 +163,7 @@ content scanner differs per project and takes judgment.
 
 - Python: single quotes, no external dependencies in the audit scripts
   (stdlib plus the `git` and `gh` CLIs only).
-- This repository is itself excluded from the consistency audits (it is
-  internal tooling, listed in the exceptional cases in
-  `PROJECT-CONSISTENCY-AUDITS.md`).
+- This repository is audited by its own consistency audits. Two checks
+  are N/A for stated reasons in `REPO_OVERRIDES` (its Python is never
+  packaged, and it keeps `main` because it publishes no releases); see
+  the exceptional cases in `PROJECT-CONSISTENCY-AUDITS.md`.

@@ -15,9 +15,10 @@
 # .pre-commit-config.yaml header records the same shape of problem
 # reaching production once before.
 #
-# Two jobs, because the two failures are different. Lint and tests
+# Two gate jobs, because the two failures are different. Lint and tests
 # cover the scripts; the audit smoke run covers the workflow's own
-# runtime assumptions, which no amount of linting reaches.
+# runtime assumptions, which no amount of linting reaches. The
+# automated reviewer at the bottom is gated on both.
 name: CI
 
 on:
@@ -26,9 +27,11 @@ on:
     # no job here reads any of it: the lint and test jobs cover the
     # scripts, and the smoke job exercises the audit workflow's
     # runtime assumptions. Nothing in this workflow scans content, so
-    # nothing is lost by skipping -- revisit this list when the
-    # secret-scanning-ci finding is fixed, because a secret scanner
-    # must keep reading review notes, which are prose.
+    # nothing is lost by skipping. That last point is now settled
+    # rather than pending: the secret scanner lives in its own
+    # secret-scan.yml with no path filter, precisely so it keeps
+    # reading review notes and the rest of the prose, so this list can
+    # stay as it is.
     paths-ignore:
       - 'REVIEWS.md'
       - '.vscode/*.weaudit'
@@ -95,10 +98,12 @@ jobs:
         run: echo "/tmp/audit-venv/bin" >> "${GITHUB_PATH}"
 
       # Audits this repository against itself. The verdicts are not the
-      # point and are not asserted -- development is exempt from the
-      # audits and several checks fail here by design. What is asserted
-      # is that the machinery ran: it exits zero, it emits parseable
-      # JSON, and every check returned a status.
+      # point and are not asserted here. development is audited for
+      # real, but by the scheduled workflow with a token and against the
+      # default branch; this job runs without one, on a pull request, so
+      # its verdicts are not the ones that count. What is asserted is
+      # that the machinery ran: it exits zero, it emits parseable JSON,
+      # and every check returned a status.
       #
       # No GH_TOKEN. The checks that would use one degrade to
       # not_applicable, which is fine here and keeps this job off the
@@ -124,3 +129,28 @@ jobs:
       - name: Clean up
         if: always()
         run: rm -rf /tmp/audit-venv /tmp/audit-smoke.json
+
+  # The automatic review, gated on both jobs above passing: a job that
+  # is skipped because a dependency failed never starts the reusable
+  # workflow, so the needs list *is* the CI-passed gate.
+  #
+  # No event guard is needed even though this workflow also triggers on
+  # workflow_dispatch (which is how pr-retest.yml re-runs it). The
+  # reusable workflow's own job carries
+  # `if: github.event_name == 'pull_request' && ...`, so a dispatch run
+  # skips it cleanly rather than failing on a null pull request.
+  #
+  # The body lives once, in shakenfist/actions. The permissions block
+  # has to be here rather than there -- a cross-repository reusable
+  # workflow cannot grant itself more token scope than its caller has --
+  # and for the same reason this job cannot set runs-on or
+  # timeout-minutes, which the reusable workflow defines.
+  automated_reviewer:
+    name: "Automated reviewer"
+    needs: [lint-and-test, audit-smoke]
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    uses: shakenfist/actions/.github/workflows/pr-auto-review.yml@main
+    secrets: inherit

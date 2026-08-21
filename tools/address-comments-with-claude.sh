@@ -571,7 +571,7 @@ for i in $(seq 1 "${item_count}"); do
 
     # Build Claude prompt for this specific item
     cat > "${output_dir}/claude-prompt-${i}.txt" << PROMPT_EOF
-You are addressing a specific review comment on PR #${pr_number} for the Shaken Fist PROJECT_NAME project.
+You are addressing a specific review comment on PR #${pr_number} for the Shaken Fist development project, which holds the consistency audit specifications, the automation that enforces them across the fleet, and the workflow and configuration templates the other projects are rolled out from.
 
 ## Context
 

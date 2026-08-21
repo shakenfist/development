@@ -100,6 +100,7 @@ The following projects have Claude Code-powered automation:
 | [imago](https://github.com/shakenfist/imago) | Yes | Yes | Yes | Yes |
 | [occystrap](https://github.com/shakenfist/occystrap) | Yes | Yes | Yes | Yes |
 | [agent-python](https://github.com/shakenfist/agent-python) | Yes | No | Yes | Yes |
+| [development](https://github.com/shakenfist/development) | Yes | No | Yes | Yes |
 
 ## About Shaken Fist
 

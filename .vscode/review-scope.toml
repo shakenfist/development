@@ -13,8 +13,12 @@
 # they will become.
 include = ['*.py', '*.sh', '*.md', '*.yml', '*.yaml']
 
-# docs/plans/ and the root PLAN-*.md files are point-in-time records
-# of intended work, not living artifacts, and would swamp the queue.
+# docs/plans/ holds point-in-time records of intended work, not living
+# artifacts, and would swamp the queue. Every plan lives there now --
+# the five that used to sit at the repository root were moved in
+# 2026-08. The PLAN-*.md pattern is kept as a guard against them
+# reappearing at the root rather than because it currently matches
+# anything.
 #
 # audits/*.md are excluded for a different and more specific reason.
 # Each one carries a machine-regenerated compliance table between

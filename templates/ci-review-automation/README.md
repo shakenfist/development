@@ -39,7 +39,7 @@ suites), see the separate
 | File | Destination | Description |
 |------|-------------|-------------|
 | `pr-re-review.yml` | `.github/workflows/pr-re-review.yml` | Manual re-review trigger |
-| `pr-retest.yml` | `.github/workflows/pr-retest.yml` | Manual functional test re-run |
+| `pr-retest.yml` | `.github/workflows/pr-retest.yml` | Manual functional test re-run (dispatches `functional-tests.yml`; substitute the project's own test workflow name if it differs, as development does for `ci.yml`) |
 | `pr-address-comments.yml` | `.github/workflows/pr-address-comments.yml` | Address review comments |
 | `address-comments-with-claude.sh` | `tools/address-comments-with-claude.sh` | Addresses review items with Claude Code (edit `PROJECT_NAME`) |
 | `render-review.py` | `tools/render-review.py` | Validates review JSON and renders it to markdown |
@@ -90,6 +90,44 @@ the bottom of this file is running the pre-fix versions.**
 * **The `addressed` and `skipped` counts are used.** They were extracted
   into `$GITHUB_OUTPUT` and never read by anything.
 * `actions/upload-artifact` moved from `@v6` to `@v7`.
+
+### Hardening from CodeQL (2026-08-22)
+
+Enabling CodeQL on the development repository put an Actions scanner in
+front of these files for the first time, and it raised
+`actions/untrusted-checkout/high` against both workflows that check out
+a pull request: "checkout of untrusted code in a privileged workflow
+with later potential execution". Every repository running these
+workflows already carries the same open alert.
+
+The finding is right about the shape and cannot see the mitigation: the
+fork guard lives in `pr-bot-trigger`, a composite action in another
+repository, so from the scanner's position the checkout is unguarded.
+Two changes came out of triaging it, and both are worth having on their
+own merits:
+
+* **`persist-credentials: false` on `pr-re-review.yml`'s checkout.**
+  This was a real gap rather than a scanner artefact.
+  `pr-address-comments.yml` has always set it; this file did not, so the
+  default left a write-scoped token in the `.git/config` of a working
+  tree holding the pull request's own code -- the tree Claude Code is
+  then pointed at with `--dangerously-skip-permissions`.
+  `review-pr-with-claude` authenticates `gh` from `GH_TOKEN` and never
+  pushes, so nothing needed the credential helper.
+* **Both workflows now check `same_repo` explicitly** in the job `if:`,
+  alongside `authorized`. It is redundant -- `pr-bot-trigger` folds the
+  fork check into `authorized` -- and that is the point: the guard is
+  the one restriction in these files worth stating twice, so a
+  regression in the shared action cannot quietly widen what runs, and
+  the restriction is visible without leaving the file.
+
+The residual risk the alert points at is real and accepted: refusing
+forks reduces the exposure to accounts with push access, which under
+branch protection is not the same set as accounts that can merge. The
+reviewer still runs a write-capable agent over content those accounts
+control, including the `AGENTS.md` it reads for context. Closing that
+properly means sandboxing the reviewer or dropping its token to
+read-only, which is a larger piece of work than this section.
 
 ### The fork guard
 
@@ -275,14 +313,20 @@ separate [`templates/test-drift-fix/`](../test-drift-fix/) templates.
 
 The bot-triggered workflows (`pr-re-review.yml`, `pr-retest.yml`,
 `pr-address-comments.yml`) are live in agent-python, client-python,
-clingwrap, imago, instar, kerbside, occystrap, ryll and shakenfist.
+clingwrap, development, imago, instar, kerbside, occystrap, ryll and
+shakenfist.
 
-The standalone `pr-auto-review.yml` is new. Every one of those
-projects still runs the automatic review as an in-CI
-`automated_reviewer` job and needs the migration described above:
+The standalone `pr-auto-review.yml` has one caller. development called
+it from the start rather than migrating to it, so its `ci.yml` is the
+worked example of the calling job described above -- including the
+`needs:` list doing duty as the CI-passed gate, and the absence of an
+event guard for the `workflow_dispatch` trigger. Everyone else still
+runs the automatic review as an in-CI `automated_reviewer` job and
+needs the migration:
 
 | Project | Automatic review |
 |---------|------------------|
+| [development](https://github.com/shakenfist/development) | Calls the reusable workflow (reference) |
 | [agent-python](https://github.com/shakenfist/agent-python) | In-CI job, to migrate |
 | [client-python](https://github.com/shakenfist/client-python) | In-CI job, to migrate |
 | [clingwrap](https://github.com/shakenfist/clingwrap) | In-CI job, to migrate |
