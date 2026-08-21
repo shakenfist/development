@@ -168,3 +168,71 @@ jobs:
       - name: Clean up
         if: always()
         run: rm -rf /tmp/consistency-audit-results
+
+  # A scheduled workflow that fails emails whoever last pushed, which
+  # is nobody's inbox in particular and is easy to miss for a workflow
+  # that runs at 06:00 UTC. The August 2026 PEP 668 breakage went a full
+  # day that way, with the compliance tables and issue filing stopped
+  # the whole time and the tables still showing the previous run's
+  # verdicts -- so the audit looked like it was working. This puts a
+  # failure somewhere it will be seen, and updates one issue rather than
+  # filing a fresh one every morning an outage continues.
+  report-failure:
+    name: Report audit failure
+    needs: [audit, manage-issues, update-docs]
+    if: failure()
+    runs-on: [self-hosted, static]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      # gh issue create fails outright if the label does not exist, so
+      # the report would be lost at exactly the moment it is wanted.
+      # --force makes this idempotent.
+      - name: Ensure the audit-failure label exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create audit-failure \
+              --repo "${GITHUB_REPOSITORY}" \
+              --description "The scheduled consistency audit failed" \
+              --color d73a4a --force
+
+      - name: File or update the audit failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -e
+          existing=$(gh issue list --repo "${GITHUB_REPOSITORY}" \
+              --label audit-failure --state open --limit 1 --json number \
+              --jq '.[0].number // empty')
+
+          # printf rather than a multi-line quoted string: the latter
+          # carries this file's indentation into every continuation
+          # line, and four leading spaces make GitHub-flavoured Markdown
+          # render the whole body as a code block.
+          body=$(printf '%s\n' \
+              "The scheduled consistency audit failed." \
+              "" \
+              "Run: ${RUN_URL}" \
+              "" \
+              "While this is failing no compliance tables are being" \
+              "regenerated and no consistency issues are being filed or" \
+              "closed, across every audited repository. The tables still" \
+              "show the previous run's verdicts, so the audit looks" \
+              "healthy from the outside -- check the run before trusting" \
+              "anything in audits/.")
+
+          if [ -n "${existing}" ]; then
+              echo "Commenting on existing audit failure issue #${existing}."
+              gh issue comment "${existing}" \
+                  --repo "${GITHUB_REPOSITORY}" --body "${body}"
+          else
+              echo "Filing a new audit failure issue."
+              gh issue create --repo "${GITHUB_REPOSITORY}" \
+                  --title "Scheduled consistency audit is failing" \
+                  --label audit-failure \
+                  --body "${body}"
+          fi

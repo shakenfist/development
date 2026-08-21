@@ -43,12 +43,17 @@ repos:
     hooks:
       - id: skillsaw
 
-  # The automation's own unit tests. They run here because there is
-  # nowhere else for them to run: the only workflow in this repository
-  # is the consistency audit, so until this hook existed a broken audit
-  # script was first noticed by the audit failing at 06:00 UTC. That is
-  # how review-marks-pre-commit reached production without a
-  # COLUMN_NAMES heading and cost the fleet a day of compliance tables.
+  # The automation's own unit tests. They used to run only here,
+  # because there was nowhere else for them to run: the only workflow in
+  # this repository was the consistency audit, so until this hook
+  # existed a broken audit script was first noticed by the audit failing
+  # at 06:00 UTC. That is how review-marks-pre-commit reached production
+  # without a COLUMN_NAMES heading and cost the fleet a day of
+  # compliance tables.
+  #
+  # ci.yml now runs `pre-commit run --all-files` on every pull request,
+  # so these are enforced rather than merely available. Keep them here
+  # too: the local run is what makes the CI run boring.
   #
   # language: system rather than a managed environment because all
   # three suites are stdlib-only, which is also why the audit scripts
@@ -75,6 +80,13 @@ repos:
       - id: review-tracking-tests
         name: review tracking tests
         entry: python3 scripts/test_review_tracking.py
+        language: system
+        pass_filenames: false
+        files: ^scripts/.*\.py$
+
+      - id: check-audit-smoke-tests
+        name: audit smoke checker tests
+        entry: python3 scripts/test_check_audit_smoke.py
         language: system
         pass_filenames: false
         files: ^scripts/.*\.py$

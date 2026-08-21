@@ -17,6 +17,8 @@ projects consistent. It contains no application code.
   rolling infrastructure out to projects.
 - `docs/` -- longer-form documentation of the automation systems.
 - `.github/workflows/consistency-audit.yml` -- the daily audit workflow.
+- `.github/workflows/ci.yml` -- this repository's own pull request
+  checks: the pre-commit gate, and a smoke run of the audit.
 
 ## The consistency audit pipeline
 
@@ -86,12 +88,24 @@ five or more in-scope files need review. Tests are in
 
 ## Testing the automation
 
-The automation here has no CI of its own: the consistency audit is the
-only workflow in the repository, and it audits other projects rather
-than testing this one. The unit tests
-(`scripts/test_audit_check.py`, `scripts/test_audit_update_docs.py`,
-`scripts/test_review_tracking.py`) therefore run as `local` pre-commit
-hooks, which is the only gate between an edit and the 06:00 UTC run.
+The unit tests (`scripts/test_audit_check.py`,
+`scripts/test_audit_update_docs.py`, `scripts/test_review_tracking.py`
+and `scripts/test_check_audit_smoke.py`) run as `local` pre-commit
+hooks, and `ci.yml` runs the same `pre-commit run --all-files` on every
+pull request. Until `ci.yml` existed the hooks were the only gate
+between an edit and the 06:00 UTC run, and only in a clone where
+somebody had installed them.
+
+`ci.yml` also runs `audit-check.py` against this repository, which is
+the part linting cannot do: the scheduled workflow's runtime
+assumptions -- that skillsaw installs, and that it lands somewhere
+`audit-check.py` can invoke it -- are only exercised by running it. A
+bare `pip install` meeting PEP 668 stopped the fleet's audits for a day
+in August 2026 without any file in the repository being wrong. The
+smoke job asserts the audit measured rather than that it approved,
+because `llm-context-lint` renders a missing skillsaw as
+`not_applicable`, which is the same word the audit uses for a
+deliberate exemption.
 They concentrate on invariants that span files -- a check id
 scheduled somewhere it is not defined, a check sharing a spec file
 without a column heading -- because those are the failures a single
