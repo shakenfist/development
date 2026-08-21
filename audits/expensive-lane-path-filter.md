@@ -44,16 +44,30 @@ default ANY-match semantics make a `'**'` pattern defeat every
 exclusion.
 
 Dedicated content-scanner workflows (gitleaks, trufflehog,
-detect-secrets) are exempt — detected as an unfiltered workflow
-invoking a scanner. Their whole point is to read the human-written
-text a filter would skip: a secret lands in docs or review marks
-as easily as in code. This is the same reasoning that keeps
-content scanners out of `paths-ignore` in the review-tracking
+detect-secrets) are exempt. Their whole point is to read the
+human-written text a filter would skip: a secret lands in docs or
+review marks as easily as in code. This is the same reasoning that
+keeps content scanners out of `paths-ignore` in the review-tracking
 adoption procedure (see
-[workflow-standards.md](workflow-standards.md)). A workflow that
-mixes scanner jobs with expensive lanes and already carries a
-filter is still held to the exclusion requirements; its scanner
-jobs should simply not consume the filter's output.
+[workflow-standards.md](workflow-standards.md)).
+
+*Dedicated* is measured per job: every job in the workflow must
+invoke a scanner, outside of comments. The argument for the
+exemption is about the scanner job, not about the file it happens to
+live in, so it only carries a whole workflow when the whole workflow
+is the scanner. Asking merely whether a scanner appeared anywhere in
+the file gave `shakenfist/actions` a pass for a `ci.yml` that ran
+lint, unit tests and the LLM reviewer on ephemeral VMs for every
+documentation typo, on the strength of the gitleaks job sitting
+beside them.
+
+A mixed workflow is therefore held to the exclusion requirements
+whether or not it already carries a filter, and its scanner jobs
+should simply not consume the filter's output. Ryll's `ci.yml` is
+the worked example of the shape, and currently of the mistake too:
+its gitleaks job carries the same `check_paths` condition as the
+expensive lanes, so ryll's secret scan skips documentation-only
+pull requests.
 
 Other deliberate exceptions — a lane that must run even for
 docs-only changes — are marked with an `audit-ok: no-path-filter`

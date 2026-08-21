@@ -1608,6 +1608,77 @@ PR_TRIGGER_FLOW_RE = re.compile(
 PATH_FILTER_EXCEPTION_RE = re.compile(r'audit-ok:\s*no-path-filter')
 
 
+WORKFLOW_JOB_RE = re.compile(r'^  ([A-Za-z_][A-Za-z0-9_-]*):\s*$')
+
+
+def workflow_job_blocks(content):
+    """Split a workflow into (job name, job text) pairs.
+
+    Line-based rather than YAML-parsed, to avoid a PyYAML
+    dependency, and matching how the rest of this module reads
+    workflows. A job is a two-space-indented key under a top-level
+    "jobs:"; the block runs to the next such key or to the end of
+    the file.
+    """
+    lines = content.splitlines()
+    in_jobs = False
+    blocks = []
+    for line in lines:
+        if line and not line[0].isspace():
+            in_jobs = line.startswith('jobs:')
+            continue
+        if not in_jobs:
+            continue
+        match = WORKFLOW_JOB_RE.match(line)
+        if match:
+            blocks.append([match.group(1), []])
+        elif blocks:
+            blocks[-1][1].append(line)
+    return [(name, '\n'.join(body)) for name, body in blocks]
+
+
+def is_dedicated_scanner_workflow(content):
+    """Does this workflow do nothing but scan content?
+
+    The exemption from path filtering exists because a scanner has
+    to read the human-written text a filter would skip -- a secret
+    lands in docs or review notes as easily as in code. That is an
+    argument about the scanner job, not about the file it happens
+    to live in, so it only carries the whole workflow when the
+    whole workflow is the scanner.
+
+    Asking merely whether a scanner is mentioned anywhere gave
+    shakenfist/actions a pass for a ci.yml that ran lint, unit
+    tests and the LLM reviewer on ephemeral VMs for every
+    documentation typo, on the strength of the gitleaks job sitting
+    beside them.
+    """
+    jobs = workflow_job_blocks(content)
+    if not jobs:
+        return False
+    return all(
+        job_runs_a_scanner(body) for _name, body in jobs
+    )
+
+
+def job_runs_a_scanner(body):
+    """Does a job body invoke a secret scanner, outside comments?
+
+    Full-line comments do not count, for the reason file_mentions()
+    gives: a job routinely names a tool in a header comment
+    explaining that something else runs it, and matching those would
+    let one such comment in an unrelated lane make a whole workflow
+    look like a dedicated scanner. actions/ci.yml has exactly that
+    shape -- a comment in its lint job mentioning gitleaks-scan.sh.
+    """
+    for line in body.splitlines():
+        if line.lstrip().startswith('#'):
+            continue
+        if any(scanner in line for scanner in SECRET_SCANNERS):
+            return True
+    return False
+
+
 def check_expensive_lane_path_filter(repo_path, props):
     """Check expensive PR lanes are path-filtered.
 
@@ -1717,15 +1788,25 @@ def check_expensive_lane_path_filter(repo_path, props):
         has_filter_job = 'paths-filter' in content
 
         if not (has_ignore or has_include or has_filter_job):
-            # An unfiltered workflow invoking a content scanner is
-            # (in this fleet) a dedicated scanner workflow, exempt
-            # by design. The exemption deliberately does not extend
-            # to workflows that carry a filter: a monolithic
-            # workflow mixing scanner jobs with expensive lanes
-            # (ryll's ci.yml) is still held to the exclusion
-            # requirements below -- its scanner jobs should simply
-            # not consume the filter's output.
+            # A workflow that is nothing but content scanning is
+            # exempt by design: scanning the text a filter would
+            # skip is the whole job. A workflow that merely
+            # contains a scanner is not -- see
+            # is_dedicated_scanner_workflow. The exemption does not
+            # extend to workflows that carry a filter either: a
+            # monolithic workflow mixing scanner jobs with
+            # expensive lanes (ryll's ci.yml) is held to the
+            # exclusion requirements below, and its scanner jobs
+            # should simply not consume the filter's output.
+            if is_dedicated_scanner_workflow(content):
+                continue
             if any(s in content for s in SECRET_SCANNERS):
+                offenders.append(
+                    f'{wf} (no path filtering; a scanner job does '
+                    f'not exempt the expensive jobs beside it -- '
+                    f'filter the workflow and leave the scanner job '
+                    f'off the filter)'
+                )
                 continue
             offenders.append(f'{wf} (no path filtering)')
             continue
