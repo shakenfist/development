@@ -464,6 +464,15 @@ workflows for common developer tasks:
 These are available as templates in
 [`templates/ci-review-automation/`](templates/ci-review-automation/).
 
+`pr-re-review.yml` must use
+`shakenfist/actions/pr-bot-trigger@main` rather than hand-rolling the
+trigger handling. The shared action refuses pull requests from forks,
+and a local copy of that logic does not inherit the guard: the `pr-ref`
+it produces is a branch name in the *head* repository, which callers
+then check out and push to in their own, so a fork pull request opened
+from the fork's default branch would name `main`. Older deployments
+open-code this and need replacing, not editing.
+
 When copying `render-review.py` out of that directory, copy
 `review-schema.json` with it and into the same directory. The script
 finds its schema next to itself, and a copy without one silently stops

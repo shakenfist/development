@@ -2063,6 +2063,12 @@ class RenderReviewSchemaTest(unittest.TestCase):
             with open(os.path.join(workflows, wf), 'w') as f:
                 f.write('uses: shakenfist/actions/'
                         'review-pr-with-claude@main\n')
+                # pr-re-review.yml must reach pr-bot-trigger, or the
+                # fork-guard check fires and this fixture fails for a
+                # reason that has nothing to do with the schema.
+                if wf == 'pr-re-review.yml':
+                    f.write('uses: shakenfist/actions/'
+                            'pr-bot-trigger@main\n')
         for directory in script_dirs:
             os.makedirs(os.path.join(tmp, directory), exist_ok=True)
             with open(
@@ -2134,6 +2140,91 @@ class RenderReviewSchemaTest(unittest.TestCase):
             result = audit_check.check_ci_review_automation(
                 tmp, {'is_docs_only': False}
             )
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+
+class PrReReviewTriggerTest(unittest.TestCase):
+    """pr-re-review.yml must use pr-bot-trigger, not hand-rolled shell.
+
+    The shared action refuses fork pull requests. Its pr-ref output is
+    .head.ref -- a branch name in the head repository, with nothing to
+    say which repository that is -- and callers check that name out and
+    push to it in their own. A fork pull request opened from the fork's
+    default branch names "main". A hand-rolled copy of the trigger
+    handling does not get that guard, and did not get any of the other
+    fixes made to the action either.
+    """
+
+    INLINE = (
+        'name: PR Re-review\n'
+        'on:\n  issue_comment:\n    types: [created]\n'
+        'jobs:\n  check_and_review:\n'
+        '    runs-on: [self-hosted, claude-code]\n'
+        '    steps:\n'
+        '      - name: Check commenter permissions\n'
+        '        run: gh api repos/x/collaborators/y/permission\n'
+    )
+    USES_ACTION = (
+        'name: PR Re-review\n'
+        'on:\n  issue_comment:\n    types: [created]\n'
+        'jobs:\n  trigger-re-review:\n'
+        '    runs-on: [self-hosted, static]\n'
+        '    steps:\n'
+        '      - uses: shakenfist/actions/pr-bot-trigger@main\n'
+    )
+
+    def _repo(self, tmp, re_review_body=None):
+        workflows = os.path.join(tmp, '.github', 'workflows')
+        os.makedirs(workflows)
+        for wf in ('pr-address-comments.yml', 'pr-retest.yml'):
+            with open(os.path.join(workflows, wf), 'w') as f:
+                f.write('uses: shakenfist/actions/'
+                        'review-pr-with-claude@main\n')
+        if re_review_body is not None:
+            with open(os.path.join(workflows, 'pr-re-review.yml'), 'w') as f:
+                f.write(re_review_body)
+        # Keep the render-review.py check quiet.
+        os.makedirs(os.path.join(tmp, 'tools'))
+        for name in ('render-review.py', 'review-schema.json'):
+            with open(os.path.join(tmp, 'tools', name), 'w') as f:
+                f.write('x\n')
+        return tmp
+
+    def _check(self, re_review_body=None, docs_only=False):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, re_review_body)
+            return audit_check.check_ci_review_automation(
+                tmp, {'is_docs_only': docs_only}
+            )
+
+    def test_using_the_shared_action_passes(self):
+        result = self._check(self.USES_ACTION)
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_hand_rolled_trigger_handling_fails(self):
+        result = self._check(self.INLINE)
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('pr-bot-trigger@main', result['details'])
+        self.assertIn('fork', result['details'])
+
+    def test_an_absent_workflow_is_reported_once_not_twice(self):
+        # Its absence is already a finding. Saying "missing" and "does
+        # not use the action" about the same missing file is two
+        # findings for one problem.
+        result = self._check(None)
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('Missing pr-re-review.yml', result['details'])
+        self.assertNotIn('pr-bot-trigger@main', result['details'])
+
+    def test_the_docs_only_path_checks_it_too(self):
+        # cloudgood takes a different branch through this check, and a
+        # guard that only covers one branch is a guard with a hole.
+        result = self._check(self.INLINE, docs_only=True)
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('pr-bot-trigger@main', result['details'])
+
+    def test_the_docs_only_path_passes_when_the_action_is_used(self):
+        result = self._check(self.USES_ACTION, docs_only=True)
         self.assertEqual(result['status'], 'pass', result['details'])
 
 

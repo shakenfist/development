@@ -301,6 +301,38 @@ def render_review_copies_missing_schema(repo_path):
     return sorted(broken)
 
 
+def pr_re_review_open_codes_the_trigger(repo_path):
+    """True when pr-re-review.yml hand-rolls what pr-bot-trigger does.
+
+    An earlier version of the template open-coded the trigger handling --
+    the phrase match, the permission lookup, the reaction and the
+    refusal reply -- in about thirty lines of inline shell. That copy
+    then missed every fix made to the shared action, and the one that
+    matters is a security fix.
+
+    pr-bot-trigger refuses pull requests from forks. Its pr-ref output is
+    .head.ref, the branch name in the *head* repository, with nothing to
+    say which repository that is; callers check that name out and push to
+    it in their own repository. A fork pull request opened from the
+    fork's default branch names "main", so the checkout succeeds against
+    the target's main and the push lands unreviewed bot commits there. No
+    malice is needed -- a maintainer typing the trigger phrase on a fork
+    pull request is enough.
+
+    pr-retest.yml and pr-address-comments.yml use the action and inherit
+    that guard at @main without changing. A hand-rolled pr-re-review.yml
+    does not, and cannot, until it is replaced.
+
+    Returns False when the workflow is absent: its absence is already
+    reported separately, and saying both would be two findings for one
+    missing file.
+    """
+    path = '.github/workflows/pr-re-review.yml'
+    if not check_file_exists(repo_path, path):
+        return False
+    return not check_file_contains(repo_path, path, r'pr-bot-trigger@main')
+
+
 def check_ci_review_automation(repo_path, props):
     """Check for automated review and developer automation workflows."""
     if props['is_docs_only']:
@@ -314,6 +346,17 @@ def check_ci_review_automation(repo_path, props):
             repo_path, '.github/workflows/pr-address-comments.yml'
         ):
             missing.append('pr-address-comments.yml')
+        if pr_re_review_open_codes_the_trigger(repo_path):
+            return {
+                'id': 'ci-review-automation',
+                'status': 'fail',
+                'details': (
+                    'pr-re-review.yml does not use '
+                    'shakenfist/actions/pr-bot-trigger@main, so it '
+                    'hand-rolls the trigger handling and does not inherit '
+                    "the action's fork pull request guard"
+                ),
+            }
         if missing:
             return {
                 'id': 'ci-review-automation',
@@ -346,6 +389,16 @@ def check_ci_review_automation(repo_path, props):
         issues.append(
             'No workflow uses shared action '
             'review-pr-with-claude@main'
+        )
+
+    # A hand-rolled pr-re-review.yml misses the shared action's fork
+    # guard. See the helper's docstring.
+    if pr_re_review_open_codes_the_trigger(repo_path):
+        issues.append(
+            'pr-re-review.yml does not use '
+            'shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the '
+            "trigger handling and does not inherit the action's fork pull "
+            'request guard'
         )
 
     # A copy of render-review.py without review-schema.json beside it
