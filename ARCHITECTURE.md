@@ -68,7 +68,7 @@ GitHub API and some of those queries fail on a private repository for
 reasons unrelated to compliance. `private-ci` uses this to be audited
 for its vendored sfui copy and nothing else.
 
-## Code review tracking
+## Review tracking automation
 
 This repository is also the home of the whole-codebase review
 tracking system: conventions in `docs/code-review-tracking.md`,
