@@ -130,7 +130,7 @@ matching section of the repository's `PLAN-TEMPLATE.md`.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-19T06:48:15.436847+00:00
+Last regenerated: 2026-08-21T06:54:10.992868+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -140,8 +140,9 @@ Last regenerated: 2026-08-19T06:48:15.436847+00:00
 | client-python-k3s | non-compliant | shakenfist/client-python-k3s#33 |
 | clingwrap | N/A | - |
 | cloudgood | N/A | - |
+| development | N/A | - |
 | divergulent | non-compliant | shakenfist/divergulent#70 |
-| instar | non-compliant | shakenfist/instar#507 |
+| instar | compliant | - |
 | kerbside | non-compliant | shakenfist/kerbside#342 |
 | kerbside-patches | N/A | - |
 | library-utilities | N/A | - |
@@ -155,7 +156,6 @@ Details for non-compliant projects:
 
 - **client-python-k3s** (Status): missing shared block plan-status-vocabulary (copy it verbatim from templates/shared-blocks/plan-status-vocabulary.md in the development repository)
 - **divergulent** (Status): missing shared block plan-status-vocabulary (copy it verbatim from templates/shared-blocks/plan-status-vocabulary.md in the development repository)
-- **instar** (Status): missing shared block plan-status-vocabulary (copy it verbatim from templates/shared-blocks/plan-status-vocabulary.md in the development repository)
 - **kerbside** (Status): missing shared block plan-status-vocabulary (copy it verbatim from templates/shared-blocks/plan-status-vocabulary.md in the development repository)
 - **occystrap** (Status): missing shared block plan-status-vocabulary (copy it verbatim from templates/shared-blocks/plan-status-vocabulary.md in the development repository)
 - **ryll** (Status): missing shared block plan-status-vocabulary (copy it verbatim from templates/shared-blocks/plan-status-vocabulary.md in the development repository)

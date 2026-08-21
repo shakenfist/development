@@ -1284,6 +1284,127 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
         )
 
 
+class ExpensiveLanePathFilterTest(unittest.TestCase):
+    """Which expensive lanes are allowed to skip a path filter."""
+
+    LINT_JOB = """  lint:
+    runs-on: [self-hosted, vm, debian-12, s]
+    steps:
+      - run: tox -e pep8
+"""
+    SCAN_JOB = """  gitleaks:
+    runs-on: [self-hosted, vm, debian-13, s]
+    steps:
+      - run: gitleaks detect
+"""
+
+    def _repo(self, tmp, workflows, docs=True):
+        wdir = os.path.join(tmp, '.github', 'workflows')
+        os.makedirs(wdir)
+        if docs:
+            os.makedirs(os.path.join(tmp, 'docs'))
+            with open(os.path.join(tmp, 'docs', 'index.md'), 'w') as f:
+                f.write('# Docs\n')
+        for name, content in workflows.items():
+            with open(os.path.join(wdir, name), 'w') as f:
+                f.write(content)
+        return audit_check.check_expensive_lane_path_filter(
+            tmp, {'has_workflows_dir': True}
+        )
+
+    def test_dedicated_scanner_workflow_needs_no_filter(self):
+        # Reading the text a filter would skip is the whole job.
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {'gitleaks.yml': (
+                'on:\n  pull_request:\njobs:\n' + self.SCAN_JOB
+            )})
+        self.assertEqual(result['status'], 'pass')
+
+    def test_a_scanner_does_not_exempt_the_lanes_beside_it(self):
+        # shakenfist/actions ran lint, unit tests and the LLM
+        # reviewer on ephemeral VMs for every documentation typo,
+        # and passed this check, because a gitleaks job sat beside
+        # them in the same unfiltered workflow.
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {'ci.yml': (
+                'on:\n  pull_request:\njobs:\n'
+                + self.SCAN_JOB + self.LINT_JOB
+            )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('ci.yml', result['details'])
+        self.assertIn('beside it', result['details'])
+
+    def test_a_scanner_named_only_in_a_comment_does_not_count(self):
+        # Otherwise one comment in an unrelated lane makes a whole
+        # workflow look like a dedicated scanner.
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {'ci.yml': (
+                'on:\n  pull_request:\njobs:\n'
+                + """  lint:
+    # gitleaks-scan.sh is a separate workflow's business.
+    runs-on: [self-hosted, vm, debian-12, s]
+    steps:
+      - run: tox -e pep8
+"""
+            )})
+        self.assertEqual(result['status'], 'fail')
+
+    def test_a_filtered_mixed_workflow_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {'ci.yml': (
+                'on:\n  pull_request:\n    paths-ignore:\n'
+                "      - 'docs/**'\njobs:\n"
+                + self.SCAN_JOB + self.LINT_JOB
+            )})
+        self.assertEqual(result['status'], 'pass')
+
+    def test_an_unfiltered_lane_with_no_scanner_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {'functional-tests.yml': (
+                'on:\n  pull_request:\njobs:\n' + self.LINT_JOB
+            )})
+        self.assertEqual(result['status'], 'fail')
+
+    def test_static_runner_lanes_are_not_expensive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {'ci.yml': (
+                'on:\n  pull_request:\njobs:\n'
+                '  lint:\n'
+                '    runs-on: [self-hosted, static]\n'
+                '    steps:\n      - run: tox -e pep8\n'
+            )})
+        self.assertEqual(result['status'], 'pass')
+
+
+class WorkflowJobBlocksTest(unittest.TestCase):
+    def test_jobs_are_split_at_top_level_keys(self):
+        blocks = audit_check.workflow_job_blocks(
+            'name: CI\n'
+            'on:\n  pull_request:\n'
+            'jobs:\n'
+            '  lint:\n    runs-on: a\n'
+            '  test:\n    runs-on: b\n'
+        )
+        self.assertEqual([name for name, _ in blocks], ['lint', 'test'])
+        self.assertIn('runs-on: a', blocks[0][1])
+        self.assertIn('runs-on: b', blocks[1][1])
+
+    def test_keys_outside_jobs_are_not_jobs(self):
+        # 'pull_request:' under 'on:' is indented exactly like a job
+        # key, so a naive split would invent a job called
+        # pull_request and decide the workflow is not all scanners.
+        blocks = audit_check.workflow_job_blocks(
+            'on:\n  pull_request:\n'
+            'jobs:\n  lint:\n    runs-on: a\n'
+        )
+        self.assertEqual([name for name, _ in blocks], ['lint'])
+
+    def test_a_workflow_with_no_jobs_is_not_a_scanner(self):
+        self.assertFalse(
+            audit_check.is_dedicated_scanner_workflow('on:\n  push:\n')
+        )
+
+
 class RepoOverridesTest(unittest.TestCase):
     def test_actions_repo_properties(self):
         # The actions repository carries Python helper scripts but has

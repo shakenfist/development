@@ -23,6 +23,18 @@ name: CI
 
 on:
   pull_request:
+    # A review session or a bot prune changes only review state, and
+    # no job here reads any of it: the lint and test jobs cover the
+    # scripts, and the smoke job exercises the audit workflow's
+    # runtime assumptions. Nothing in this workflow scans content, so
+    # nothing is lost by skipping -- revisit this list when the
+    # secret-scanning-ci finding is fixed, because a secret scanner
+    # must keep reading review notes, which are prose.
+    paths-ignore:
+      - 'REVIEWS.md'
+      - '.vscode/*.weaudit'
+      - '.vscode/*.weaudit-shas.json'
+      - '.vscode/review-scope.toml'
   workflow_dispatch:
 
 permissions:

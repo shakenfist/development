@@ -31,16 +31,17 @@ Or in the GitHub UI: Settings > General > Pull Requests > check
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-19T06:48:15.436847+00:00
+Last regenerated: 2026-08-21T06:54:10.992868+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
-| actions | non-compliant | shakenfist/actions#8 |
+| actions | compliant | - |
 | agent-python | compliant | - |
 | client-python | compliant | - |
 | client-python-k3s | compliant | - |
 | clingwrap | compliant | - |
 | cloudgood | compliant | - |
+| development | compliant | - |
 | divergulent | compliant | - |
 | instar | compliant | - |
 | kerbside | compliant | - |
@@ -51,8 +52,4 @@ Last regenerated: 2026-08-19T06:48:15.436847+00:00
 | ryll | compliant | - |
 | sfui | compliant | - |
 | shakenfist | compliant | - |
-
-Details for non-compliant projects:
-
-- **actions** (Status): Delete branch on merge is not enabled
 <!-- consistency-audit:end -->

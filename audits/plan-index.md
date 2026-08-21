@@ -92,7 +92,7 @@ out its real status rather than guessing from the file's existence.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-19T06:48:15.436847+00:00
+Last regenerated: 2026-08-21T06:54:10.992868+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -102,6 +102,7 @@ Last regenerated: 2026-08-19T06:48:15.436847+00:00
 | client-python-k3s | non-compliant | shakenfist/client-python-k3s#32 |
 | clingwrap | N/A | - |
 | cloudgood | N/A | - |
+| development | non-compliant | shakenfist/development#34 |
 | divergulent | non-compliant | shakenfist/divergulent#69 |
 | instar | non-compliant | shakenfist/instar#506 |
 | kerbside | non-compliant | shakenfist/kerbside#341 |
@@ -109,7 +110,7 @@ Last regenerated: 2026-08-19T06:48:15.436847+00:00
 | library-utilities | non-compliant | shakenfist/library-utilities#42 |
 | occystrap | non-compliant | shakenfist/occystrap#116 |
 | private-ci | N/A | - |
-| ryll | non-compliant | shakenfist/ryll#295 |
+| ryll | compliant | - |
 | sfui | non-compliant | shakenfist/sfui#24 |
 | shakenfist | non-compliant | shakenfist/shakenfist#3810 |
 
@@ -117,12 +118,12 @@ Details for non-compliant projects:
 
 - **client-python** (Status): docs/plans/index.md is missing, so none of the 1 plan(s) in docs/plans/ are registered
 - **client-python-k3s** (Status): docs/plans/index.md is missing, so none of the 2 plan(s) in docs/plans/ are registered
+- **development** (Status): docs/plans/index.md is missing, so none of the 2 plan(s) in docs/plans/ are registered
 - **divergulent** (Status): 1 table(s) not led by Date then Plan columns: line 10 starts "Plan | Phases"
-- **instar** (Status): 1 row(s) out of date order: resize followup-01: targeted refcount pre-pass (2026-05-25 after 2026-05-30); 24 status cell(s) outside the shared vocabulary (Proposed, Not started, In progress, Blocked, Complete, Abandoned, Superseded): Distro matrix CI ("Complete (phases 1-5 and 2b, 2026-08-..."), Release v0.2.0 ("Complete (tagged 2026-05-09)"), First public release of instar ("In progress (phases 1-4 complete thro..."), Security audit ("In progress (phases 1a-5 done; phase ..."), Coverage-guided fuzzing ("In progress (steps 1-5 infrastructure...") (+19 more); 1 master plan(s) not listed in the index: PLAN-375-guest-idt.md
+- **instar** (Status): 1 status cell(s) outside the shared vocabulary (Proposed, Not started, In progress, Blocked, Complete, Abandoned, Superseded): instar amend subcommand ("1.1 (qcow2 v2⇔v3 version transition, ...")
 - **kerbside** (Status): 2 status cell(s) outside the shared vocabulary (Proposed, Not started, In progress, Blocked, Complete, Abandoned, Superseded): Rolling kerbside-proxy dev releases ("In progress — all in-repo work merged..."), Use case documentation ("In progress — oVirt page landed 2026-...")
 - **library-utilities** (Status): docs/plans/index.md is missing, so none of the 1 plan(s) in docs/plans/ are registered
 - **occystrap** (Status): index has no plan table (it must list plans in a table led by Date and Plan columns, not as prose or a bullet list); 4 master plan(s) not listed in the index: PLAN-make-the-speed.md, PLAN-post-write-verification.md, PLAN-registry-proxy.md, PLAN-structured-logging.md
-- **ryll** (Status): 2 row(s) out of date order: Stream caps and flap diagnostics (2026-05-17 after 2026-05-21), Opus decoder (2026-04-11 after 2026-04-23); 3 status cell(s) outside the shared vocabulary (Proposed, Not started, In progress, Blocked, Complete, Abandoned, Superseded): Idle CPU and latency ("Code landed; awaiting user verification"), Android APK port ("Proposed (concept)"), Streaming test automation ("Proposed (concept)"); 1 master plan(s) not listed in the index: PLAN-egui-0.34-followups.md
 - **sfui** (Status): docs/plans/index.md is missing, so none of the 3 plan(s) in docs/plans/ are registered
 - **shakenfist** (Status): 1 table(s) not led by Date then Plan columns: line 36 starts "Plan | Phase"; 5 master plan(s) not listed in the index: PLAN-artifact-fetch-retry-with-backoff.md, PLAN-attribute-field-masks.md, PLAN-ci-node-exec-assertions.md, PLAN-netserv.md, PLAN-qemu-futures.md
 <!-- consistency-audit:end -->

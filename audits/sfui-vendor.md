@@ -61,7 +61,7 @@ the template.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-19T06:48:15.436847+00:00
+Last regenerated: 2026-08-21T06:54:10.992868+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -71,13 +71,14 @@ Last regenerated: 2026-08-19T06:48:15.436847+00:00
 | client-python-k3s | N/A | - |
 | clingwrap | N/A | - |
 | cloudgood | N/A | - |
+| development | N/A | - |
 | divergulent | N/A | - |
 | instar | N/A | - |
 | kerbside | non-compliant | shakenfist/kerbside#296 |
 | kerbside-patches | N/A | - |
 | library-utilities | N/A | - |
 | occystrap | N/A | - |
-| private-ci | non-compliant | shakenfist/private-ci#8 |
+| private-ci | compliant | - |
 | ryll | N/A | - |
 | sfui | N/A | - |
 | shakenfist | N/A | - |
@@ -85,5 +86,4 @@ Last regenerated: 2026-08-19T06:48:15.436847+00:00
 Details for non-compliant projects:
 
 - **kerbside** (Status): kerbside/api/static/sfui: 35 commit(s) behind canonical; re-run tools/vendor.sh from an up to date sfui checkout
-- **private-ci** (Status): conductor/static/sfui: 8 commit(s) behind canonical; re-run tools/vendor.sh from an up to date sfui checkout
 <!-- consistency-audit:end -->

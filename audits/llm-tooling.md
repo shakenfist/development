@@ -20,16 +20,17 @@ with knowledge of the project's architecture and workflows.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-19T06:48:15.436847+00:00
+Last regenerated: 2026-08-21T06:54:10.992868+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
-| actions | non-compliant | shakenfist/actions#4 |
+| actions | compliant | - |
 | agent-python | compliant | - |
 | client-python | compliant | - |
 | client-python-k3s | compliant | - |
 | clingwrap | compliant | - |
 | cloudgood | compliant | - |
+| development | compliant | - |
 | divergulent | compliant | - |
 | instar | compliant | - |
 | kerbside | compliant | - |
@@ -43,6 +44,5 @@ Last regenerated: 2026-08-19T06:48:15.436847+00:00
 
 Details for non-compliant projects:
 
-- **actions** (Status): Missing: AGENTS.md, ARCHITECTURE.md
 - **library-utilities** (Status): Missing: AGENTS.md, ARCHITECTURE.md
 <!-- consistency-audit:end -->

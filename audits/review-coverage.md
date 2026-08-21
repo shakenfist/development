@@ -41,7 +41,7 @@ when the backlog has grown regardless.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-19T06:48:15.436847+00:00
+Last regenerated: 2026-08-21T06:54:10.992868+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -51,6 +51,7 @@ Last regenerated: 2026-08-19T06:48:15.436847+00:00
 | client-python-k3s | N/A | - |
 | clingwrap | N/A | - |
 | cloudgood | N/A | - |
+| development | N/A | - |
 | divergulent | N/A | - |
 | instar | N/A | - |
 | kerbside | non-compliant | shakenfist/kerbside#227 |
@@ -58,11 +59,12 @@ Last regenerated: 2026-08-19T06:48:15.436847+00:00
 | library-utilities | N/A | - |
 | occystrap | N/A | - |
 | private-ci | N/A | - |
-| ryll | compliant | - |
+| ryll | non-compliant | shakenfist/ryll#304 |
 | sfui | N/A | - |
 | shakenfist | N/A | - |
 
 Details for non-compliant projects:
 
-- **kerbside** (Status): 135 of 185 in-scope files reviewed at HEAD; 50 need review (threshold 5)
+- **kerbside** (Status): 130 of 192 in-scope files reviewed at HEAD; 62 need review (threshold 5)
+- **ryll** (Status): 110 of 173 in-scope files reviewed at HEAD; 63 need review (threshold 5)
 <!-- consistency-audit:end -->

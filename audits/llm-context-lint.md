@@ -75,6 +75,36 @@ same linter per commit rather than once a day.
 ## Projects
 
 <!-- consistency-audit:begin -->
-*(Awaiting the first automated regeneration by the consistency
-audit workflow.)*
+*This table is regenerated daily by the consistency audit
+workflow from `scripts/audit-check.py` results; do not edit
+it by hand.*
+
+Last regenerated: 2026-08-21T06:54:10.992868+00:00
+
+| Project | Status | Issue |
+|---------|--------|--------|
+| actions | compliant | - |
+| agent-python | compliant | - |
+| client-python | compliant | - |
+| client-python-k3s | compliant | - |
+| clingwrap | compliant | - |
+| cloudgood | compliant | - |
+| development | compliant | - |
+| divergulent | compliant | - |
+| instar | non-compliant | shakenfist/instar#513 |
+| kerbside | non-compliant | shakenfist/kerbside#346 |
+| kerbside-patches | compliant | - |
+| library-utilities | N/A | - |
+| occystrap | non-compliant | shakenfist/occystrap#118 |
+| private-ci | N/A | - |
+| ryll | compliant | - |
+| sfui | compliant | - |
+| shakenfist | non-compliant | shakenfist/shakenfist#3831 |
+
+Details for non-compliant projects:
+
+- **instar** (Status): Markdown that will never load as a skill: .claude/skills/build-and-test.md, .claude/skills/correct-fixes.md, .claude/skills/documentation-updates.md, .claude/skills/error-handling.md, .claude/skills/instar-add-test-image.md, .claude/skills/instar-calltable.md, .claude/skills/instar-debug.md, .claude/skills/instar-format.md, .claude/skills/instar-new-op.md, .claude/skills/pr-preparation.md, .claude/skills/testing-discipline.md, .claude/skills/verbose-print.md
+- **kerbside** (Status): Markdown that will never load as a skill: .claude/skills/add-database-migration.md, .claude/skills/add-source-type.md
+- **occystrap** (Status): Markdown that will never load as a skill: .claude/skills/documentation-updates.md, .claude/skills/pr-preparation.md, .claude/skills/testing-discipline.md
+- **shakenfist** (Status): Markdown that will never load as a skill: .claude/skills/add-grpc-service.md, .claude/skills/add-mypy-coverage.md
 <!-- consistency-audit:end -->

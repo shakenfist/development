@@ -45,7 +45,7 @@ detail survives somewhere before trimming the README.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-19T06:48:15.436847+00:00
+Last regenerated: 2026-08-21T06:54:10.992868+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -55,6 +55,7 @@ Last regenerated: 2026-08-19T06:48:15.436847+00:00
 | client-python-k3s | non-compliant | shakenfist/client-python-k3s#22 |
 | clingwrap | compliant | - |
 | cloudgood | N/A | - |
+| development | compliant | - |
 | divergulent | compliant | - |
 | instar | compliant | - |
 | kerbside | compliant | - |
@@ -68,8 +69,8 @@ Last regenerated: 2026-08-19T06:48:15.436847+00:00
 
 Details for non-compliant projects:
 
-- **actions** (Status): README.md is 304 lines / 1397 words (limits: 150 lines, 1200 words); move detail into docs/ and keep the README a pitch
+- **actions** (Status): README.md is 333 lines / 1640 words (limits: 150 lines, 1200 words); move detail into docs/ and keep the README a pitch
 - **client-python** (Status): README.md has no link into docs/ despite a docs/ directory existing; add curated links to the detailed documentation
 - **client-python-k3s** (Status): README.md has no link into docs/ despite a docs/ directory existing; add curated links to the detailed documentation
-- **kerbside-patches** (Status): README.md is 423 lines / 2941 words (limits: 150 lines, 1200 words); move detail into docs/ and keep the README a pitch; README.md has no link into docs/ despite a docs/ directory existing; add curated links to the detailed documentation
+- **kerbside-patches** (Status): README.md is 435 lines / 3077 words (limits: 150 lines, 1200 words); move detail into docs/ and keep the README a pitch; README.md has no link into docs/ despite a docs/ directory existing; add curated links to the detailed documentation
 <!-- consistency-audit:end -->

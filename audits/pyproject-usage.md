@@ -33,7 +33,7 @@ and `shakenfist` as examples of our implementation style.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-19T06:48:15.436847+00:00
+Last regenerated: 2026-08-21T06:54:10.992868+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -43,6 +43,7 @@ Last regenerated: 2026-08-19T06:48:15.436847+00:00
 | client-python-k3s | compliant | - |
 | clingwrap | compliant | - |
 | cloudgood | N/A | - |
+| development | N/A | - |
 | divergulent | compliant | - |
 | instar | N/A | - |
 | kerbside | compliant | - |
