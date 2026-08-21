@@ -39,7 +39,7 @@ suites), see the separate
 | File | Destination | Description |
 |------|-------------|-------------|
 | `pr-re-review.yml` | `.github/workflows/pr-re-review.yml` | Manual re-review trigger |
-| `pr-retest.yml` | `.github/workflows/pr-retest.yml` | Manual functional test re-run |
+| `pr-retest.yml` | `.github/workflows/pr-retest.yml` | Manual functional test re-run (dispatches `functional-tests.yml`; substitute the project's own test workflow name if it differs, as development does for `ci.yml`) |
 | `pr-address-comments.yml` | `.github/workflows/pr-address-comments.yml` | Address review comments |
 | `address-comments-with-claude.sh` | `tools/address-comments-with-claude.sh` | Addresses review items with Claude Code (edit `PROJECT_NAME`) |
 | `render-review.py` | `tools/render-review.py` | Validates review JSON and renders it to markdown |
@@ -313,14 +313,20 @@ separate [`templates/test-drift-fix/`](../test-drift-fix/) templates.
 
 The bot-triggered workflows (`pr-re-review.yml`, `pr-retest.yml`,
 `pr-address-comments.yml`) are live in agent-python, client-python,
-clingwrap, imago, instar, kerbside, occystrap, ryll and shakenfist.
+clingwrap, development, imago, instar, kerbside, occystrap, ryll and
+shakenfist.
 
-The standalone `pr-auto-review.yml` is new. Every one of those
-projects still runs the automatic review as an in-CI
-`automated_reviewer` job and needs the migration described above:
+The standalone `pr-auto-review.yml` has one caller. development called
+it from the start rather than migrating to it, so its `ci.yml` is the
+worked example of the calling job described above -- including the
+`needs:` list doing duty as the CI-passed gate, and the absence of an
+event guard for the `workflow_dispatch` trigger. Everyone else still
+runs the automatic review as an in-CI `automated_reviewer` job and
+needs the migration:
 
 | Project | Automatic review |
 |---------|------------------|
+| [development](https://github.com/shakenfist/development) | Calls the reusable workflow (reference) |
 | [agent-python](https://github.com/shakenfist/agent-python) | In-CI job, to migrate |
 | [client-python](https://github.com/shakenfist/client-python) | In-CI job, to migrate |
 | [clingwrap](https://github.com/shakenfist/clingwrap) | In-CI job, to migrate |

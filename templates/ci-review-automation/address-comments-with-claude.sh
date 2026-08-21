@@ -177,9 +177,34 @@ sanitize_input() {
 # tree in both supported configurations: ${{ github.workspace }}/
 # address-output in CI, and mktemp -d locally. The argument parser
 # refuses an --output-dir inside work_dir so that stays true.
+#
+# Never called in --dry-run mode. "Don't make commits, just show what
+# would be done" cannot begin by destroying the tree, and the dry-run
+# branch in the item loop sits above the call for that reason.
 reset_worktree() {
     git reset --hard HEAD >/dev/null 2>&1 || true
     git clean -fd >/dev/null 2>&1 || true
+}
+
+# A dirty work tree is refused before any of this starts. reset_worktree
+# hard-resets and `git clean -fd`s between items, so running over
+# uncommitted work destroys it -- and in CI the checkout is always
+# clean, which is precisely why the loss only ever lands on a person
+# running this locally. There is no --force: the script cannot do its
+# job without resetting, so "proceed anyway" has no safe meaning.
+require_clean_worktree() {
+    local dirty
+    dirty=$(git status --porcelain 2>/dev/null)
+    if [ -n "${dirty}" ]; then
+        echo -e "${RED}Refusing to run: ${work_dir} has uncommitted changes.${NC}" >&2
+        echo >&2
+        echo "${dirty}" >&2
+        echo >&2
+        echo "This script resets the work tree between review items" >&2
+        echo "(git reset --hard and git clean -fd), so anything above" >&2
+        echo "would be destroyed. Commit or stash it first." >&2
+        exit 1
+    fi
 }
 
 # Sanitize for use in commit message first line (stricter: single line, short)
@@ -396,6 +421,13 @@ actionable_items=$(jq -c "${jq_filter}" "${output_dir}/review.json")
 item_count=$(echo "${actionable_items}" | jq 'length')
 
 echo -e "${GREEN}Found ${item_count} actionable items${NC}"
+
+# Checked here rather than at startup so --help and a review with no
+# actionable items still work in a dirty checkout, neither of which
+# touches the tree.
+if [ "${item_count}" -gt 0 ] && [ "${dry_run}" != true ]; then
+    require_clean_worktree
+fi
 ci_output "items_found" "${item_count}"
 echo
 
@@ -437,7 +469,13 @@ for i in $(seq 1 "${item_count}"); do
     # Belt and braces: the continue paths below each reset the worktree,
     # but resetting here as well means a path added later cannot leak a
     # previous item's staged changes into this item's commit.
-    reset_worktree
+    #
+    # Not in dry-run mode. The dry-run branch used to sit *below* this
+    # call, so --dry-run hard-reset the tree and cleaned untracked files
+    # before printing what it "would" do.
+    if [ "${dry_run}" != true ]; then
+        reset_worktree
+    fi
 
     # Extract and sanitize values from review JSON
     # These values come from the automated review which is derived from PR data

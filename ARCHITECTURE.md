@@ -16,10 +16,12 @@ projects consistent. It contains no application code.
 - `templates/` -- canonical starting points (workflows, configs) for
   rolling infrastructure out to projects.
 - `docs/` -- longer-form documentation of the automation systems.
-- `tools/` -- the trusted-checkout helpers the pull request automation
-  runs (`address-comments-with-claude.sh`, `render-review.py` and the
-  schema it validates against), copied from
-  `templates/ci-review-automation/`.
+- `tools/` -- two groups of helpers. The trusted-checkout helpers the
+  pull request automation runs (`address-comments-with-claude.sh`,
+  `render-review.py` and the schema it validates against), copied from
+  `templates/ci-review-automation/`; and the review tracking wrappers
+  (`review-tracking.sh` for local use, `ci-prune-reviews.sh` which
+  `prune-reviews.yml` runs on every push to main).
 - `.github/workflows/consistency-audit.yml` -- the daily audit workflow.
 - `.github/workflows/ci.yml` -- this repository's own pull request
   checks: the pre-commit gate, a smoke run of the audit, and the

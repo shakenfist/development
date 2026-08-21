@@ -27,9 +27,11 @@ on:
     # no job here reads any of it: the lint and test jobs cover the
     # scripts, and the smoke job exercises the audit workflow's
     # runtime assumptions. Nothing in this workflow scans content, so
-    # nothing is lost by skipping -- revisit this list when the
-    # secret-scanning-ci finding is fixed, because a secret scanner
-    # must keep reading review notes, which are prose.
+    # nothing is lost by skipping. That last point is now settled
+    # rather than pending: the secret scanner lives in its own
+    # secret-scan.yml with no path filter, precisely so it keeps
+    # reading review notes and the rest of the prose, so this list can
+    # stay as it is.
     paths-ignore:
       - 'REVIEWS.md'
       - '.vscode/*.weaudit'
@@ -131,6 +133,12 @@ jobs:
   # The automatic review, gated on both jobs above passing: a job that
   # is skipped because a dependency failed never starts the reusable
   # workflow, so the needs list *is* the CI-passed gate.
+  #
+  # No event guard is needed even though this workflow also triggers on
+  # workflow_dispatch (which is how pr-retest.yml re-runs it). The
+  # reusable workflow's own job carries
+  # `if: github.event_name == 'pull_request' && ...`, so a dispatch run
+  # skips it cleanly rather than failing on a null pull request.
   #
   # The body lives once, in shakenfist/actions. The permissions block
   # has to be here rather than there -- a cross-repository reusable
