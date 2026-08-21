@@ -1032,9 +1032,11 @@ semantics a `'**'` pattern silently defeats every exclusion.
 
 Dedicated content-scanner workflows (gitleaks, trufflehog,
 detect-secrets) are exempt: they exist to read exactly the
-human-written text a filter would skip. A workflow mixing scanner
-jobs with expensive lanes still needs its filter -- the scanner
-jobs just should not consume the filter's output. Other
+human-written text a filter would skip. *Dedicated* means every
+job in the workflow invokes a scanner. A scanner job does not
+exempt the expensive lanes sitting beside it in the same file:
+that workflow needs its filter whether or not it has one today,
+and the scanner jobs just should not consume the filter's output. Other
 deliberate exceptions -- a lane that must
 run even for docs-only changes -- are marked with an
 `audit-ok: no-path-filter` comment in the workflow file, ideally
