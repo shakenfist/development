@@ -56,6 +56,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       authorized: ${{ steps.trigger.outputs.authorized }}
+      same_repo: ${{ steps.trigger.outputs.same-repo }}
       pr_ref: ${{ steps.trigger.outputs.pr-ref }}
       pr_number: ${{ github.event.issue.number }}
 
@@ -73,7 +74,15 @@ jobs:
 
   address-comments:
     needs: trigger-address
-    if: needs.trigger-address.outputs.authorized == 'true'
+    # same_repo is redundant -- pr-bot-trigger already folds it into
+    # authorized -- and it is here anyway, for the same reason
+    # pr-re-review.yml states it twice. This job checks out a pull
+    # request's code and pushes commits to its branch by name, so a
+    # regression in the shared action's fork guard is the failure that
+    # matters most here.
+    if: >-
+      needs.trigger-address.outputs.authorized == 'true' &&
+      needs.trigger-address.outputs.same_repo == 'true'
     runs-on: [self-hosted, claude-code]
     timeout-minutes: 120
     concurrency:

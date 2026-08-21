@@ -91,6 +91,44 @@ the bottom of this file is running the pre-fix versions.**
   into `$GITHUB_OUTPUT` and never read by anything.
 * `actions/upload-artifact` moved from `@v6` to `@v7`.
 
+### Hardening from CodeQL (2026-08-22)
+
+Enabling CodeQL on the development repository put an Actions scanner in
+front of these files for the first time, and it raised
+`actions/untrusted-checkout/high` against both workflows that check out
+a pull request: "checkout of untrusted code in a privileged workflow
+with later potential execution". Every repository running these
+workflows already carries the same open alert.
+
+The finding is right about the shape and cannot see the mitigation: the
+fork guard lives in `pr-bot-trigger`, a composite action in another
+repository, so from the scanner's position the checkout is unguarded.
+Two changes came out of triaging it, and both are worth having on their
+own merits:
+
+* **`persist-credentials: false` on `pr-re-review.yml`'s checkout.**
+  This was a real gap rather than a scanner artefact.
+  `pr-address-comments.yml` has always set it; this file did not, so the
+  default left a write-scoped token in the `.git/config` of a working
+  tree holding the pull request's own code -- the tree Claude Code is
+  then pointed at with `--dangerously-skip-permissions`.
+  `review-pr-with-claude` authenticates `gh` from `GH_TOKEN` and never
+  pushes, so nothing needed the credential helper.
+* **Both workflows now check `same_repo` explicitly** in the job `if:`,
+  alongside `authorized`. It is redundant -- `pr-bot-trigger` folds the
+  fork check into `authorized` -- and that is the point: the guard is
+  the one restriction in these files worth stating twice, so a
+  regression in the shared action cannot quietly widen what runs, and
+  the restriction is visible without leaving the file.
+
+The residual risk the alert points at is real and accepted: refusing
+forks reduces the exposure to accounts with push access, which under
+branch protection is not the same set as accounts that can merge. The
+reviewer still runs a write-capable agent over content those accounts
+control, including the `AGENTS.md` it reads for context. Closing that
+properly means sandboxing the reviewer or dropping its token to
+read-only, which is a larger piece of work than this section.
+
 ### The fork guard
 
 `pr-bot-trigger`'s `pr-ref` output is `.head.ref`: the branch name in the

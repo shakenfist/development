@@ -44,6 +44,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       authorized: ${{ steps.trigger.outputs.authorized }}
+      same_repo: ${{ steps.trigger.outputs.same-repo }}
       pr_number: ${{ github.event.issue.number }}
 
     steps:
@@ -59,7 +60,16 @@ jobs:
   re-review:
     name: "Re-review PR"
     needs: trigger-re-review
-    if: needs.trigger-re-review.outputs.authorized == 'true'
+    # same_repo is redundant -- pr-bot-trigger already folds it into
+    # authorized -- and it is here anyway. This job puts a pull
+    # request's code on a runner holding a write-scoped token, so the
+    # fork guard is the one thing in this file worth stating twice: a
+    # regression in the shared action cannot quietly widen what runs
+    # here, and a reader (or a scanner) can see the restriction without
+    # leaving the file.
+    if: >-
+      needs.trigger-re-review.outputs.authorized == 'true' &&
+      needs.trigger-re-review.outputs.same_repo == 'true'
     runs-on: [self-hosted, claude-code]
     # A review normally finishes in three to six minutes. Without this
     # the job inherits the six hour GitHub default, so a wedged Claude
@@ -86,11 +96,20 @@ jobs:
       # This puts the pull request's code on the runner, which is
       # exactly why pr-bot-trigger refusing fork pull requests above is
       # load bearing rather than tidiness.
+      #
+      # persist-credentials: false because this working tree holds the
+      # pull request's code and the next step runs Claude Code over it
+      # with --dangerously-skip-permissions. The default leaves a
+      # write-scoped token in .git/config of exactly that tree.
+      # review-pr-with-claude authenticates gh from GH_TOKEN and never
+      # pushes, so it does not need the git credential helper.
+      # pr-address-comments.yml has always done this; this file did not.
       - name: Checkout the pull request
         uses: actions/checkout@v6
         with:
           ref: refs/pull/${{ needs.trigger-re-review.outputs.pr_number }}/merge
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Run automated reviewer
         uses: shakenfist/actions/review-pr-with-claude@main
