@@ -24,6 +24,10 @@ jobs:
           - client-python-k3s
           - clingwrap
           - cloudgood
+          # The repository this workflow lives in. It holds the audit
+          # specifications and the tooling, so an exemption here is an
+          # exemption written by the people the standard is for.
+          - development
           - divergulent
           - instar
           - kerbside

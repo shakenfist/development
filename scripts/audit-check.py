@@ -29,9 +29,27 @@ REPO_OVERRIDES = {
     # actions is a library of composite actions, reusable workflows and
     # their helper scripts. Those helpers include Python, but there is
     # nothing to package, so the Python packaging checks do not apply.
-    # It also keeps "main" as its default branch: every consumer pins
-    # to @main, so renaming it would break the whole fleet at once.
-    'actions': {'not_python': True, 'is_actions_repo': True},
+    'actions': {
+        'not_python': True,
+        'default_branch_exception': (
+            'every consumer pins to @main, so renaming the default '
+            'branch would break the whole fleet at once'
+        ),
+    },
+    # development holds the audit specifications and the tooling that
+    # enforces them, and is audited by that tooling like everything
+    # else: a standard we exempt ourselves from is a standard we stop
+    # noticing the cost of. Its Python is the audit scripts, run from
+    # a checkout and never packaged. It publishes no releases, so it
+    # has no release branch for "develop" to be the integration branch
+    # against.
+    'development': {
+        'not_python': True,
+        'default_branch_exception': (
+            'publishes no releases, so there is no release branch for '
+            '"develop" to be distinct from'
+        ),
+    },
     # private-ci is internal tooling and stays outside the conventions
     # audits: it is a legacy setup.py project with no workflows of its
     # own, and holding it to the fleet's release, renovate and README
@@ -117,7 +135,9 @@ def detect_repo_properties(repo_path, repo_name):
         'is_private': overrides.get('is_private', False),
         'is_docs_only': overrides.get('is_docs_only', False),
         'not_python': overrides.get('not_python', False),
-        'is_actions_repo': overrides.get('is_actions_repo', False),
+        'default_branch_exception': overrides.get(
+            'default_branch_exception', ''
+        ),
         'only_checks': overrides.get('only_checks', []),
         'doc_content_excludes': overrides.get('doc_content_excludes', []),
     }
@@ -791,7 +811,8 @@ def check_default_branch(repo_path, props, repo_name, org):
             }
         branch = result.stdout.strip()
 
-        # Exceptions: docs-only repos and actions repos may use main
+        # Exceptions: docs-only repos, and repositories carrying a
+        # documented reason in REPO_OVERRIDES, may use main
         if props['is_docs_only']:
             return {
                 'id': 'default-branch-naming',
@@ -802,13 +823,13 @@ def check_default_branch(repo_path, props, repo_name, org):
                 ),
             }
 
-        if props['is_actions_repo']:
+        if props['default_branch_exception']:
             return {
                 'id': 'default-branch-naming',
                 'status': 'not_applicable',
                 'details': (
-                    f'Actions repo (current: {branch}, '
-                    f'exception allowed)'
+                    f'Exempt: {props["default_branch_exception"]} '
+                    f'(current: {branch})'
                 ),
             }
 
@@ -2868,14 +2889,33 @@ def check_plan_phase_references(repo_path, props):
 PLAN_SOURCE_REF_RE = re.compile(r'[\w./-]*PLAN-[\w.-]*\.md')
 PLAN_SOURCE_URL_RE = re.compile(r'[a-z][a-z0-9+.-]*://\S*', re.IGNORECASE)
 PLAN_SOURCE_REF_OK = 'audit-ok: plan-reference'
+
+# The file-scope form of the marker above, for a file that is made of
+# plan paths rather than merely containing one -- a suite exercising
+# this check has to build both references that resolve and references
+# that deliberately do not, and neither kind is a pointer a reader
+# follows. It exempts the whole file, so it is the blunter instrument
+# of the two: a file carrying it stops being audited for plan
+# references entirely, including for prose that really has rotted.
+# Prefer the line marker, and say in the file why the exemption is
+# right.
+PLAN_SOURCE_FILE_OK = 'audit-ok: plan-reference-file'
+
 PLAN_SOURCE_MAX_BYTES = 2 * 1024 * 1024
+
+# PLAN-TEMPLATE.md is not a plan. It is the template plans are written
+# from, it sits at the repository root rather than in docs/plans/, and
+# the plan-template audit is what holds it there. Naming it in a script
+# or a config is therefore not a pointer into docs/plans/ that can rot
+# out from under a reader, so it is not this audit's business.
+PLAN_SOURCE_TEMPLATE_NAME = 'PLAN-TEMPLATE.md'
 
 
 def plan_file_names(repo_path):
     """Basenames of every markdown file under docs/plans/, any depth.
 
     Archived plans live in docs/plans/completed/, so the index is
-    built recursively: a bare `PLAN-foo.md` in a comment names no
+    built recursively: a bare `PLAN-<name>.md` in a comment names no
     directory and should resolve wherever the file actually sits.
     """
     names = set()
@@ -2891,7 +2931,7 @@ def plan_file_names(repo_path):
 def plan_reference_resolves(repo_path, token, names):
     """Whether a plan reference names a file this repository has.
 
-    A path-qualified reference (docs/plans/PLAN-foo.md) is resolved
+    A path-qualified reference (docs/plans/PLAN-<name>.md) is resolved
     as written, from the repository root and then from docs/ -- the
     latter because mkdocs navigation addresses pages relative to the
     documentation root. A bare filename is matched against every
@@ -2913,6 +2953,13 @@ def check_plan_source_references(repo_path, props):
     they rot silently. Every reference must resolve in this
     repository or be an absolute URL; markdown files are out of
     scope, being covered by docs-external-links.
+
+    A test suite is deliberately not out of scope. Test files carry
+    rotted pointers like anything else -- instar's
+    tests/test_adversarial.py cites a plan that no longer exists in
+    its module docstring -- so a suite that genuinely is all fixture
+    paths marks itself with PLAN_SOURCE_FILE_OK rather than being
+    skipped by its name.
     """
     try:
         result = subprocess.run(
@@ -2942,12 +2989,16 @@ def check_plan_source_references(repo_path, props):
             content = f.read()
         if 'PLAN-' not in content:
             continue
+        if PLAN_SOURCE_FILE_OK in content:
+            continue
         for lineno, line in enumerate(content.splitlines(), 1):
             if PLAN_SOURCE_REF_OK in line:
                 continue
             scannable = PLAN_SOURCE_URL_RE.sub('', line)
             for match in PLAN_SOURCE_REF_RE.finditer(scannable):
                 token = match.group(0)
+                if os.path.basename(token) == PLAN_SOURCE_TEMPLATE_NAME:
+                    continue
                 total += 1
                 if not plan_reference_resolves(repo_path, token, names):
                     hits.append(f'{rel}:{lineno} -> {token}')

@@ -56,10 +56,11 @@ class CheckAuditSmokeTest(unittest.TestCase):
         self.assertEqual(code, 0, output)
 
     def test_failing_verdicts_are_not_this_script_s_business(self):
-        # development is exempt from the audits and fails several checks
-        # by design. Asserting on verdicts would make this job a
-        # compliance gate on a repository that is deliberately
-        # non-compliant.
+        # This job exists to prove the audit measured, not that it
+        # approved. Asserting on verdicts would duplicate the daily
+        # run, which is what turns a failing check into an issue, and
+        # would block every pull request in a repository that has
+        # open findings -- which this one does.
         code, output = self.run_on(report([
             MEASURED,
             {'id': 'renovate', 'status': 'fail', 'details': 'Missing'},
