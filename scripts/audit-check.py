@@ -279,11 +279,15 @@ def render_review_copies_missing_schema(repo_path):
 
     render-review.py resolves its schema as
     Path(__file__).parent / 'review-schema.json'. When that file is not
-    there, load_schema() returns None and validate_review() falls back to
-    structural checks -- so it accepts a review with an invented category
-    or action, which is exactly what the schema exists to reject. The
-    fallback is silent and exits zero, so a repository in this state
-    looks like one that is validating.
+    there, load_schema() returns None and validate_review() returns
+    success without checking anything at all -- so it accepts a review
+    with an invented category or action, which is exactly what the schema
+    exists to reject. (Its structural fallback is a different branch,
+    taken only when jsonschema is not importable, and it runs whether or
+    not the schema file is present. On a runner with jsonschema
+    installed, which is the normal case, a missing schema means no
+    validation whatsoever.) The result is silent and exits zero, so a
+    repository in this state looks like one that is validating.
 
     Returns the directories holding a script without its schema.
     """

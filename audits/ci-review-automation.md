@@ -47,10 +47,13 @@ Projects should include bot-triggered workflows responding to
 `render-review.py` resolves its schema as
 `Path(__file__).parent / 'review-schema.json'`. A deployed copy of the
 script must therefore keep `review-schema.json` in the same
-directory. Without it `load_schema()` returns `None`,
-`validate_review()` falls back to structural checks, and `--validate`
-accepts a review carrying an invented `category` or `action` while
-still exiting zero.
+directory. Without it `load_schema()` returns `None` and
+`validate_review()` returns success without checking anything, so
+`--validate` accepts a review carrying an invented `category` or
+`action` while still exiting zero. The structural fallback in that
+function is a separate branch, reached only when `jsonschema` cannot be
+imported; on a runner where it can, a missing schema file means no
+validation at all.
 
 That matters because `address-comments-with-claude.sh` runs
 `render-review.py --validate` as its gate before letting Claude Code

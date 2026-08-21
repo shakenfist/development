@@ -11,9 +11,12 @@ one-line description if that helps the model).
 **`review-schema.json` must land in the same directory as
 `render-review.py`.** The script resolves it as
 `Path(__file__).parent / 'review-schema.json'`, and when it is not
-there `load_schema()` returns `None` and `validate_review()` falls
-back to structural checks -- so `--validate` starts accepting reviews
-with invented categories and actions, and still exits zero. Nothing
+there `load_schema()` returns `None` and `validate_review()` returns
+success **without checking anything** -- so `--validate` starts
+accepting reviews with invented categories and actions, and still exits
+zero. (The structural fallback in that function is a different branch,
+reached only when `jsonschema` is not importable at all; with
+`jsonschema` installed and no schema file, nothing is checked.) Nothing
 reports the downgrade, so a repository in that state is
 indistinguishable from one that is validating. This directory shipped
 the script without the schema until now, and ryll was deployed from it
