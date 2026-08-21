@@ -50,8 +50,37 @@ jobs:
       # skillsaw calls an error, and skillsaw's rule set moves between
       # releases, so an unpinned upgrade would make the compliance
       # table change for reasons nobody chose. Bump this on purpose.
+      #
+      # Into a venv, not the system python. The runners enforce PEP 668,
+      # so a bare `pip install` is refused with
+      # "error: externally-managed-environment" -- which is how every
+      # leg of this matrix started failing on 2026-08-20, taking the
+      # compliance tables and issue filing with it.
       - name: Install skillsaw
-        run: pip install --disable-pip-version-check skillsaw==0.18.0
+        run: |
+          python3 -m venv /tmp/audit-venv
+          /tmp/audit-venv/bin/pip install --disable-pip-version-check \
+              skillsaw==0.18.0
+
+      # audit-check.py invokes skillsaw by name, so the venv has to be
+      # on PATH by the time the audit step runs.
+      - name: Put skillsaw on PATH
+        run: echo "/tmp/audit-venv/bin" >> "${GITHUB_PATH}"
+
+      # A skillsaw that cannot run does not fail the audit:
+      # skillsaw_errors() catches FileNotFoundError and returns None,
+      # and check_llm_context_lint turns that into not_applicable -- so a
+      # broken install quietly stops measuring one check across every
+      # repository in the matrix, and the table says so in a way that
+      # looks deliberate. Assert it here instead, where the failure is
+      # unambiguous, and assert the pinned version rather than just that
+      # something answers: the whole point of the pin above is that the
+      # rule set does not move underneath the compliance table.
+      - name: Check skillsaw runs, at the pinned version
+        run: |
+          set -e
+          echo "skillsaw reports: $(skillsaw --version)"
+          skillsaw --version | grep -qx 'skillsaw 0.18.0'
 
       - name: Run audit checks
         id: audit
@@ -74,7 +103,8 @@ jobs:
 
       - name: Clean up
         if: always()
-        run: rm -rf /tmp/audit-target /tmp/audit-result-*.json
+        run: |
+          rm -rf /tmp/audit-target /tmp/audit-result-*.json /tmp/audit-venv
 
   manage-issues:
     name: Manage consistency issues
