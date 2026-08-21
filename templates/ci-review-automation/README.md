@@ -6,7 +6,19 @@ can be copied directly with no modifications. The two helper scripts
 copy into the target repository's `tools/` directory, and
 `address-comments-with-claude.sh` needs one edit: replace
 `PROJECT_NAME` in its Claude prompt with the project's name (and a
-one-line description if that helps the model). Both scripts must have
+one-line description if that helps the model).
+
+**`review-schema.json` must land in the same directory as
+`render-review.py`.** The script resolves it as
+`Path(__file__).parent / 'review-schema.json'`, and when it is not
+there `load_schema()` returns `None` and `validate_review()` falls
+back to structural checks -- so `--validate` starts accepting reviews
+with invented categories and actions, and still exits zero. Nothing
+reports the downgrade, so a repository in that state is
+indistinguishable from one that is validating. This directory shipped
+the script without the schema until now, and ryll was deployed from it
+in exactly that state; the `ci-review-automation` audit now checks for
+a `render-review.py` with no schema beside it. Both scripts must have
 merged to the default branch before the bot trigger works, because
 `pr-address-comments.yml` reads them from a trusted checkout of that
 branch. Forgetting the scripts leaves the bot reacting to trigger
@@ -28,6 +40,7 @@ suites), see the separate
 | `pr-address-comments.yml` | `.github/workflows/pr-address-comments.yml` | Address review comments |
 | `address-comments-with-claude.sh` | `tools/address-comments-with-claude.sh` | Addresses review items with Claude Code (edit `PROJECT_NAME`) |
 | `render-review.py` | `tools/render-review.py` | Validates review JSON and renders it to markdown |
+| `review-schema.json` | `tools/review-schema.json` | The schema `render-review.py` validates against |
 
 ## Syncing deployed copies of the scripts
 

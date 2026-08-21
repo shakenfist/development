@@ -464,6 +464,14 @@ workflows for common developer tasks:
 These are available as templates in
 [`templates/ci-review-automation/`](templates/ci-review-automation/).
 
+When copying `render-review.py` out of that directory, copy
+`review-schema.json` with it and into the same directory. The script
+finds its schema next to itself, and a copy without one silently stops
+validating: `--validate` accepts a review with an invented category or
+action and exits zero, so the repository looks compliant and the gate
+in `address-comments-with-claude.sh` passes anything through to Claude
+Code. The `ci-review-automation` audit checks for this.
+
 ### Test drift fixing (optional)
 
 Projects with large test suites that are prone to drift (e.g. imago,

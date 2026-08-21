@@ -2042,5 +2042,100 @@ class SelfHostedRunnerLabelPositionTest(unittest.TestCase):
         self.assertEqual(result['status'], 'not_applicable')
 
 
+class RenderReviewSchemaTest(unittest.TestCase):
+    """A deployed render-review.py must keep review-schema.json beside it.
+
+    render-review.py resolves SCHEMA_PATH as
+    Path(__file__).parent / 'review-schema.json'. Separate the two and
+    load_schema() returns None, validate_review() drops to structural
+    checks, and --validate starts accepting reviews with invented
+    categories and actions while still exiting zero. ryll was in that
+    state when this check was written, and the template directory shipped
+    the script without the schema, which is how ryll got there.
+    """
+
+    def _repo(self, tmp, script_dirs, schema_dirs):
+        """Build a fixture repo that otherwise passes the audit."""
+        workflows = os.path.join(tmp, '.github', 'workflows')
+        os.makedirs(workflows)
+        for wf in ('pr-re-review.yml', 'pr-address-comments.yml',
+                   'pr-retest.yml'):
+            with open(os.path.join(workflows, wf), 'w') as f:
+                f.write('uses: shakenfist/actions/'
+                        'review-pr-with-claude@main\n')
+        for directory in script_dirs:
+            os.makedirs(os.path.join(tmp, directory), exist_ok=True)
+            with open(
+                os.path.join(tmp, directory, 'render-review.py'), 'w'
+            ) as f:
+                f.write('# render-review.py\n')
+        for directory in schema_dirs:
+            os.makedirs(os.path.join(tmp, directory), exist_ok=True)
+            with open(
+                os.path.join(tmp, directory, 'review-schema.json'), 'w'
+            ) as f:
+                f.write('{}\n')
+        return tmp
+
+    def _check(self, script_dirs, schema_dirs):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, script_dirs, schema_dirs)
+            return audit_check.check_ci_review_automation(
+                tmp, {'is_docs_only': False}
+            )
+
+    def test_script_beside_its_schema_passes(self):
+        result = self._check(['tools'], ['tools'])
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_script_without_its_schema_fails(self):
+        result = self._check(['tools'], [])
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('tools/render-review.py', result['details'])
+        self.assertIn('review-schema.json', result['details'])
+
+    def test_a_schema_in_a_different_directory_does_not_count(self):
+        # The lookup is relative to the script, not to the repository, so
+        # a schema filed somewhere tidier does not help it.
+        result = self._check(['tools'], ['schemas'])
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('tools/render-review.py', result['details'])
+
+    def test_every_broken_copy_is_reported_not_just_the_first(self):
+        # Both copies are broken, so reporting one of them is a partial
+        # answer that reads like a complete one. An earlier version of
+        # this test left the second copy's schema in place, which meant
+        # it passed against a check that stopped at the first finding.
+        result = self._check(['tools', 'contrib'], [])
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('tools/render-review.py', result['details'])
+        self.assertIn('contrib/render-review.py', result['details'])
+
+    def test_a_good_copy_alongside_a_broken_one_is_not_reported(self):
+        result = self._check(['tools', 'contrib'], ['contrib'])
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('tools/render-review.py', result['details'])
+        self.assertNotIn('contrib/render-review.py', result['details'])
+
+    def test_a_repository_with_no_copy_at_all_is_unaffected(self):
+        result = self._check([], [])
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_the_git_directory_is_not_walked(self):
+        # .git can hold anything, including checked-out worktree state
+        # from another branch. Findings from in there are not actionable.
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, [], [])
+            os.makedirs(os.path.join(tmp, '.git', 'stash'))
+            with open(
+                os.path.join(tmp, '.git', 'stash', 'render-review.py'), 'w'
+            ) as f:
+                f.write('# stale\n')
+            result = audit_check.check_ci_review_automation(
+                tmp, {'is_docs_only': False}
+            )
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+
 if __name__ == '__main__':
     unittest.main()
