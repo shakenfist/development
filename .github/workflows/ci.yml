@@ -15,9 +15,10 @@
 # .pre-commit-config.yaml header records the same shape of problem
 # reaching production once before.
 #
-# Two jobs, because the two failures are different. Lint and tests
+# Two gate jobs, because the two failures are different. Lint and tests
 # cover the scripts; the audit smoke run covers the workflow's own
-# runtime assumptions, which no amount of linting reaches.
+# runtime assumptions, which no amount of linting reaches. The
+# automated reviewer at the bottom is gated on both.
 name: CI
 
 on:
@@ -83,10 +84,12 @@ jobs:
         run: echo "/tmp/audit-venv/bin" >> "${GITHUB_PATH}"
 
       # Audits this repository against itself. The verdicts are not the
-      # point and are not asserted -- development is exempt from the
-      # audits and several checks fail here by design. What is asserted
-      # is that the machinery ran: it exits zero, it emits parseable
-      # JSON, and every check returned a status.
+      # point and are not asserted here. development is audited for
+      # real, but by the scheduled workflow with a token and against the
+      # default branch; this job runs without one, on a pull request, so
+      # its verdicts are not the ones that count. What is asserted is
+      # that the machinery ran: it exits zero, it emits parseable JSON,
+      # and every check returned a status.
       #
       # No GH_TOKEN. The checks that would use one degrade to
       # not_applicable, which is fine here and keeps this job off the
