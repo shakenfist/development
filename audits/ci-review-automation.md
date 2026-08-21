@@ -42,6 +42,26 @@ Projects should include bot-triggered workflows responding to
   review comments.
 * `pr-retest.yml` -- re-runs functional tests.
 
+### Review JSON validation
+
+`render-review.py` resolves its schema as
+`Path(__file__).parent / 'review-schema.json'`. A deployed copy of the
+script must therefore keep `review-schema.json` in the same
+directory. Without it `load_schema()` returns `None` and
+`validate_review()` returns success without checking anything, so
+`--validate` accepts a review carrying an invented `category` or
+`action` while still exiting zero. The structural fallback in that
+function is a separate branch, reached only when `jsonschema` cannot be
+imported; on a runner where it can, a missing schema file means no
+validation at all.
+
+That matters because `address-comments-with-claude.sh` runs
+`render-review.py --validate` as its gate before letting Claude Code
+loose on the review's items: a review the schema would have rejected
+gets acted on instead. The failure is silent in both directions -- the
+script reports success and the audit saw nothing -- so the check looks
+for a `render-review.py` with no `review-schema.json` beside it.
+
 ### Test drift fixing (optional)
 
 Projects with large test suites prone to drift should also add:

@@ -274,6 +274,33 @@ def check_release_process(repo_path, props):
     }
 
 
+def render_review_copies_missing_schema(repo_path):
+    """Find deployed render-review.py copies with no schema beside them.
+
+    render-review.py resolves its schema as
+    Path(__file__).parent / 'review-schema.json'. When that file is not
+    there, load_schema() returns None and validate_review() returns
+    success without checking anything at all -- so it accepts a review
+    with an invented category or action, which is exactly what the schema
+    exists to reject. (Its structural fallback is a different branch,
+    taken only when jsonschema is not importable, and it runs whether or
+    not the schema file is present. On a runner with jsonschema
+    installed, which is the normal case, a missing schema means no
+    validation whatsoever.) The result is silent and exits zero, so a
+    repository in this state looks like one that is validating.
+
+    Returns the directories holding a script without its schema.
+    """
+    broken = []
+    for dirpath, dirnames, filenames in os.walk(repo_path):
+        dirnames[:] = [d for d in dirnames if d != '.git']
+        if 'render-review.py' not in filenames:
+            continue
+        if 'review-schema.json' not in filenames:
+            broken.append(os.path.relpath(dirpath, repo_path))
+    return sorted(broken)
+
+
 def check_ci_review_automation(repo_path, props):
     """Check for automated review and developer automation workflows."""
     if props['is_docs_only']:
@@ -319,6 +346,14 @@ def check_ci_review_automation(repo_path, props):
         issues.append(
             'No workflow uses shared action '
             'review-pr-with-claude@main'
+        )
+
+    # A copy of render-review.py without review-schema.json beside it
+    # validates nothing, silently. See the helper's docstring.
+    for directory in render_review_copies_missing_schema(repo_path):
+        issues.append(
+            f'{directory}/render-review.py has no review-schema.json '
+            f'beside it, so its --validate accepts any review'
         )
 
     if issues:
