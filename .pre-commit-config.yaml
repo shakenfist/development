@@ -19,6 +19,46 @@ repos:
       - id: actionlint
         args: ['-config-file', '.github/actionlint.yaml']
 
+      # The workflow templates too. The stock hook only looks at
+      # .github/workflows/, so until now nothing checked the files this
+      # repository ships to the rest of the fleet -- a broken template
+      # would have been found by whoever copied it into their project.
+      # They are ordinary workflow files, so actionlint reads them
+      # happily when given the paths.
+      #
+      # The workflow-call resolution check is ignored, and only for
+      # these files. A template's `uses: ./.github/workflows/x.yml` is
+      # relative to the repository it gets copied *into*, so it cannot
+      # resolve here, where the file sits under templates/. That is the
+      # one thing about a template actionlint cannot judge from where it
+      # is stored; everything else it checks is checked.
+      #
+      # Five templates carry {{PLACEHOLDER}} substitutions that are not
+      # valid YAML until an adopting project fills them in -- a bare
+      # {{PROJECT_NAME}} parses as a mapping, not a string -- so they
+      # cannot be linted where they are stored. They are excluded by
+      # name rather than by a pattern, so adding a sixth is a decision
+      # somebody makes rather than one that happens quietly. The six
+      # copy-directly templates, which are the ones the fleet actually
+      # runs unmodified, are all checked.
+      - id: actionlint
+        alias: actionlint-templates
+        name: Lint the workflow templates
+        files: ^templates/.*\.ya?ml$
+        exclude: |
+          (?x)^templates/(
+            issue-fix/issue-fix\.yml|
+            pin-indirect-dependencies/pin-indirect-dependencies\.yml|
+            release-automation/release\.yml|
+            renovate/renovate\.yml|
+            test-drift-fix/test-drift-fix\.yml
+          )$
+        args:
+          - '-config-file'
+          - '.github/actionlint.yaml'
+          - '-ignore'
+          - 'could not read reusable workflow file'
+
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.11.0.1
     hooks:

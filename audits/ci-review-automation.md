@@ -42,6 +42,42 @@ Projects should include bot-triggered workflows responding to
   review comments.
 * `pr-retest.yml` -- re-runs functional tests.
 
+### The trigger handling must be the shared action
+
+`pr-re-review.yml` must reach `shakenfist/actions/pr-bot-trigger@main`
+rather than hand-rolling the phrase match, permission lookup, reaction
+and refusal reply in inline shell. `pr-retest.yml` and
+`pr-address-comments.yml` already do.
+
+This is a security requirement, not a tidiness one. `pr-bot-trigger`
+refuses pull requests from forks, and a hand-rolled copy does not
+inherit that. The action's `pr-ref` output is `.head.ref` -- the branch
+name in the *head* repository, carrying nothing to say which repository
+that is -- and callers hand it to `actions/checkout` and to
+`git push origin HEAD:refs/heads/<ref>` against **their own**
+repository. Fork pull requests are commonly opened from the fork's
+default branch, so `.head.ref` is literally `main`: the checkout
+succeeds against the target's `main`, the bot commits to it, and the
+push lands unreviewed commits there. No malice is required -- a
+maintainer typing the trigger phrase on a fork pull request is enough.
+
+Because the guard lives in the action, every workflow that uses it
+picked the fix up at `@main` with no change on its side. That is the
+whole argument for the requirement: a shared action is how a fix
+reaches ten repositories at once, and a local copy is how one of them
+misses it.
+
+An earlier version of the template open-coded this, which is why every
+deployment needs replacing rather than editing. The template copy had
+also drifted in ways that matter less but point the same way: it
+reacted with `+1` instead of `rocket`, worded its refusal differently,
+and never checked the trigger phrase itself, so it could not distinguish
+"phrase not matched" from "not authorized".
+
+The check reports nothing when `pr-re-review.yml` is absent -- that is
+already a finding on its own, and reporting both would be two findings
+for one missing file.
+
 ### Review JSON validation
 
 `render-review.py` resolves its schema as

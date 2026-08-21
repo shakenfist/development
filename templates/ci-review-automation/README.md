@@ -45,7 +45,94 @@ suites), see the separate
 | `render-review.py` | `tools/render-review.py` | Validates review JSON and renders it to markdown |
 | `review-schema.json` | `tools/review-schema.json` | The schema `render-review.py` validates against |
 
-## Syncing deployed copies of the scripts
+## Syncing deployed copies
+
+Everything in this directory is now ahead of every deployment. The
+2026-08-21 round of fixes came out of the automated review of
+shakenfist/actions#22, which was the first time these files were read
+adversarially rather than copied, and it found defects in the templates
+themselves rather than in that deployment. **Every repository listed at
+the bottom of this file is running the pre-fix versions.**
+
+### Workflow fixes (2026-08-21)
+
+* **`pr-re-review.yml` is rewritten.** It used to run the permission
+  check, the reaction and the refusal reply on a `claude-code` runner --
+  holding a scarce runner for every comment containing the phrase,
+  including comments from people with no write access. It now splits
+  trigger from review, matching the other two files.
+* **`pr-re-review.yml` uses `pr-bot-trigger`.** It open-coded the same
+  three steps in about thirty lines of inline shell, and the copy had
+  drifted: `+1` instead of `rocket`, a differently worded refusal, and
+  no trigger-phrase check of its own so it could not tell "phrase not
+  matched" from "not authorized". **Treat this one as a security
+  update**: `pr-bot-trigger` gained a fork-pull-request guard, and the
+  inline copy does not have it. See below.
+* **`pr-re-review.yml` checks out the pull request's merge ref.** It had
+  no `ref:`, so for an `issue_comment` event it checked out the default
+  branch -- and `review-pr-with-claude.sh` reads `AGENTS.md`,
+  `ARCHITECTURE.md` and `README.md` from the working directory. A
+  re-review therefore judged a change against the conventions as they
+  were *before* it. The diff comes from the API and is unaffected, which
+  makes the symptom subtle: a real review, calibrated wrongly.
+* **`pr-re-review.yml` has a concurrency group.** Two requests in quick
+  succession ran concurrently and posted two reviews.
+* **All three ignore comments authored by a bot.** The success and
+  no-changes comments embed `${summary}`, which is model-generated text.
+  A per-item rationale that quotes a trigger phrase re-fires the
+  workflow, and `contains()` does not care that it is inside a quote.
+* **A failed `pr-address-comments.yml` run says so on the pull
+  request.** Both reporting steps were gated on the commit count, so any
+  failure before the push left the requester with `pr-bot-trigger`'s
+  "Starting to address automated review comments..." and nothing else.
+  The likeliest failure is the likeliest user error: asking for comments
+  to be addressed on a pull request that was never reviewed.
+* **The `addressed` and `skipped` counts are used.** They were extracted
+  into `$GITHUB_OUTPUT` and never read by anything.
+* `actions/upload-artifact` moved from `@v6` to `@v7`.
+
+### The fork guard
+
+`pr-bot-trigger`'s `pr-ref` output is `.head.ref`: the branch name in the
+*head* repository, carrying nothing to say which repository that is.
+Callers hand it to `actions/checkout` and to
+`git push origin HEAD:refs/heads/<ref>` against **their own**
+repository. Fork pull requests are commonly opened from the fork's
+default branch, so `.head.ref` is literally `main` -- and then the
+checkout succeeds against the target repository's `main`, the bot
+commits to it, and the push lands unreviewed commits there. No malice
+is required; a maintainer typing the trigger phrase on a fork pull
+request is enough.
+
+That is fixed in `shakenfist/actions/pr-bot-trigger`, folded into the
+existing `authorized` output, so **every deployment inherits it at
+`@main` with no change on their side** -- provided the workflow actually
+uses the action. `pr-retest.yml` and `pr-address-comments.yml` do. The
+old inline `pr-re-review.yml` does not, which is why replacing it is the
+one item here that cannot wait for a convenient moment.
+
+### Script fixes (2026-08-21)
+
+* **`reset_worktree` runs `git clean -fd`.** `git reset --hard` leaves
+  untracked files alone, so a Claude run that wrote a new file and then
+  errored, declined, or hit `--max-turns` before `git add` left it in
+  the tree -- and a later item reaching for `git add -A` committed it
+  under the wrong item's title. That is precisely what the function was
+  written to prevent.
+* **`--output-dir` inside the work tree is refused**, so the new
+  `git clean` cannot delete the script's own state files.
+* **`location` is sanitized, and `category` and `severity` are validated
+  against their enums.** All three are model output derived from an
+  untrusted diff, reaching a prompt for a Claude run holding `GH_TOKEN`
+  with `--dangerously-skip-permissions`. `action` was already validated;
+  these were not, and the schema is only enforced when `jsonschema` is
+  importable on the runner.
+* **Malformed items get a summary row and a skipped count.** The id and
+  action guards used to `continue` without either, so `items_found` no
+  longer equalled `addressed + skipped` and the item vanished from the
+  summary table -- silence in the one case where the input was bad.
+
+### Earlier drift
 
 The deployed copies of `address-comments-with-claude.sh` predate this
 directory becoming their source of truth, and drifted: fixes landed
