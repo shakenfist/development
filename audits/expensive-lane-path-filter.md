@@ -78,16 +78,17 @@ kerbside's smoke workflows for gating lanes, or add trigger-level
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-19T06:48:15.436847+00:00
+Last regenerated: 2026-08-21T06:54:10.992868+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
-| actions | N/A | - |
+| actions | compliant | - |
 | agent-python | non-compliant | shakenfist/agent-python#123 |
 | client-python | compliant | - |
 | client-python-k3s | non-compliant | shakenfist/client-python-k3s#29 |
 | clingwrap | non-compliant | shakenfist/clingwrap#118 |
 | cloudgood | N/A | - |
+| development | compliant | - |
 | divergulent | compliant | - |
 | instar | compliant | - |
 | kerbside | compliant | - |

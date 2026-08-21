@@ -132,33 +132,43 @@ See: `templates/test-drift-fix/README.md`
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-19T06:48:15.436847+00:00
+Last regenerated: 2026-08-21T06:54:10.992868+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
-| actions | non-compliant | shakenfist/actions#5 |
-| agent-python | compliant | - |
-| client-python | compliant | - |
-| client-python-k3s | compliant | - |
-| clingwrap | compliant | - |
+| actions | compliant | - |
+| agent-python | non-compliant | shakenfist/agent-python#126 |
+| client-python | non-compliant | shakenfist/client-python#367 |
+| client-python-k3s | non-compliant | shakenfist/client-python-k3s#36 |
+| clingwrap | non-compliant | shakenfist/clingwrap#121 |
 | cloudgood | non-compliant | shakenfist/cloudgood#1 |
+| development | non-compliant | shakenfist/development#30 |
 | divergulent | non-compliant | shakenfist/divergulent#36 |
-| instar | compliant | - |
-| kerbside | compliant | - |
+| instar | non-compliant | shakenfist/instar#515 |
+| kerbside | non-compliant | shakenfist/kerbside#348 |
 | kerbside-patches | non-compliant | shakenfist/kerbside-patches#949 |
 | library-utilities | non-compliant | shakenfist/library-utilities#32 |
-| occystrap | compliant | - |
+| occystrap | non-compliant | shakenfist/occystrap#120 |
 | private-ci | N/A | - |
-| ryll | compliant | - |
-| sfui | compliant | - |
+| ryll | non-compliant | shakenfist/ryll#303 |
+| sfui | non-compliant | shakenfist/sfui#26 |
 | shakenfist | non-compliant | shakenfist/shakenfist#3314 |
 
 Details for non-compliant projects:
 
-- **actions** (Status): Missing pr-re-review.yml; Missing pr-address-comments.yml; Missing pr-retest.yml
+- **agent-python** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard
+- **client-python** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard
+- **client-python-k3s** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard
+- **clingwrap** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard
 - **cloudgood** (Status): Missing workflows: pr-re-review.yml, pr-address-comments.yml
+- **development** (Status): Missing pr-re-review.yml; Missing pr-address-comments.yml; Missing pr-retest.yml; No workflow uses shared action review-pr-with-claude@main
 - **divergulent** (Status): Missing pr-re-review.yml; Missing pr-address-comments.yml; Missing pr-retest.yml; No workflow uses shared action review-pr-with-claude@main
+- **instar** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard
+- **kerbside** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard
 - **kerbside-patches** (Status): Missing pr-re-review.yml; Missing pr-address-comments.yml; Missing pr-retest.yml; No workflow uses shared action review-pr-with-claude@main
 - **library-utilities** (Status): Missing pr-re-review.yml; Missing pr-address-comments.yml; Missing pr-retest.yml; No workflow uses shared action review-pr-with-claude@main
-- **shakenfist** (Status): Missing pr-retest.yml
+- **occystrap** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard
+- **ryll** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard; tools/render-review.py has no review-schema.json beside it, so its --validate accepts any review
+- **sfui** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard; tools/render-review.py has no review-schema.json beside it, so its --validate accepts any review
+- **shakenfist** (Status): Missing pr-retest.yml; pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard
 <!-- consistency-audit:end -->

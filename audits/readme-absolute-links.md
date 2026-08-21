@@ -45,16 +45,17 @@ For links to other files in the same repository, use
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-19T06:48:15.436847+00:00
+Last regenerated: 2026-08-21T06:54:10.992868+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
-| actions | compliant | - |
+| actions | non-compliant | shakenfist/actions#23 |
 | agent-python | non-compliant | shakenfist/agent-python#107 |
 | client-python | non-compliant | shakenfist/client-python#345 |
 | client-python-k3s | compliant | - |
 | clingwrap | non-compliant | shakenfist/clingwrap#108 |
 | cloudgood | N/A | - |
+| development | compliant | - |
 | divergulent | compliant | - |
 | instar | compliant | - |
 | kerbside | compliant | - |
@@ -68,6 +69,7 @@ Last regenerated: 2026-08-19T06:48:15.436847+00:00
 
 Details for non-compliant projects:
 
+- **actions** (Status): 1 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): docs/ci.md
 - **agent-python** (Status): 5 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): AGENTS.md, ARCHITECTURE.md, docs/developer-guide.md, docs/index.md, docs/protocol.md
 - **client-python** (Status): 3 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): AGENTS.md, ARCHITECTURE.md, RELEASE-SETUP.md
 - **clingwrap** (Status): 5 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): AGENTS.md, ARCHITECTURE.md, RELEASE-SETUP.md, docs/, docs/index.md

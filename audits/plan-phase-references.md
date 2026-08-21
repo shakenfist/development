@@ -70,7 +70,7 @@ it.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-19T06:48:15.436847+00:00
+Last regenerated: 2026-08-21T06:54:10.992868+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -80,6 +80,7 @@ Last regenerated: 2026-08-19T06:48:15.436847+00:00
 | client-python-k3s | compliant | - |
 | clingwrap | compliant | - |
 | cloudgood | compliant | - |
+| development | compliant | - |
 | divergulent | compliant | - |
 | instar | compliant | - |
 | kerbside | compliant | - |
@@ -87,12 +88,11 @@ Last regenerated: 2026-08-19T06:48:15.436847+00:00
 | library-utilities | compliant | - |
 | occystrap | compliant | - |
 | private-ci | N/A | - |
-| ryll | non-compliant | shakenfist/ryll#286 |
+| ryll | compliant | - |
 | sfui | compliant | - |
 | shakenfist | non-compliant | shakenfist/shakenfist#3732 |
 
 Details for non-compliant projects:
 
-- **ryll** (Status): 1 plan phase reference(s) in documentation (describe the current behaviour, or link the master plan in docs/plans/ instead of citing a phase number): docs/web-mode-internals.md:249
 - **shakenfist** (Status): 17 plan phase reference(s) in documentation (describe the current behaviour, or link the master plan in docs/plans/ instead of citing a phase number): ARCHITECTURE.md:199, docs/developer_guide/database_internals.md:315, docs/developer_guide/database_internals.md:319, docs/developer_guide/subsystem_internals.md:51, docs/developer_guide/subsystem_internals.md:119, docs/developer_guide/subsystem_internals.md:121, docs/developer_guide/subsystem_internals.md:140, docs/developer_guide/subsystem_internals.md:194, docs/developer_guide/subsystem_internals.md:211, docs/developer_guide/subsystem_internals.md:415 (+7 more)
 <!-- consistency-audit:end -->

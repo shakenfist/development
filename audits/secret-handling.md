@@ -220,16 +220,17 @@ to it before pushing.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-19T06:48:15.436847+00:00
+Last regenerated: 2026-08-21T06:54:10.992868+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
-| actions | non-compliant | shakenfist/actions#14 |
+| actions | compliant | - |
 | agent-python | non-compliant | shakenfist/agent-python#113 |
 | client-python | non-compliant | shakenfist/client-python#354 |
 | client-python-k3s | compliant | - |
 | clingwrap | non-compliant | shakenfist/clingwrap#111 |
 | cloudgood | N/A | - |
+| development | non-compliant | shakenfist/development#35 |
 | divergulent | non-compliant | shakenfist/divergulent#57 |
 | instar | compliant | - |
 | kerbside | non-compliant | shakenfist/kerbside#185 |
@@ -243,10 +244,10 @@ Last regenerated: 2026-08-19T06:48:15.436847+00:00
 
 Details for non-compliant projects:
 
-- **actions** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
 - **agent-python** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
 - **client-python** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
 - **clingwrap** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
+- **development** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
 - **divergulent** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
 - **kerbside** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
 - **kerbside-patches** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
