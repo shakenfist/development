@@ -112,3 +112,22 @@ jobs:
       - name: Clean up
         if: always()
         run: rm -rf /tmp/audit-venv /tmp/audit-smoke.json
+
+  # The automatic review, gated on both jobs above passing: a job that
+  # is skipped because a dependency failed never starts the reusable
+  # workflow, so the needs list *is* the CI-passed gate.
+  #
+  # The body lives once, in shakenfist/actions. The permissions block
+  # has to be here rather than there -- a cross-repository reusable
+  # workflow cannot grant itself more token scope than its caller has --
+  # and for the same reason this job cannot set runs-on or
+  # timeout-minutes, which the reusable workflow defines.
+  automated_reviewer:
+    name: "Automated reviewer"
+    needs: [lint-and-test, audit-smoke]
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    uses: shakenfist/actions/.github/workflows/pr-auto-review.yml@main
+    secrets: inherit

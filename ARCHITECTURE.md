@@ -16,9 +16,17 @@ projects consistent. It contains no application code.
 - `templates/` -- canonical starting points (workflows, configs) for
   rolling infrastructure out to projects.
 - `docs/` -- longer-form documentation of the automation systems.
+- `tools/` -- the trusted-checkout helpers the pull request automation
+  runs (`address-comments-with-claude.sh`, `render-review.py` and the
+  schema it validates against), copied from
+  `templates/ci-review-automation/`.
 - `.github/workflows/consistency-audit.yml` -- the daily audit workflow.
 - `.github/workflows/ci.yml` -- this repository's own pull request
-  checks: the pre-commit gate, and a smoke run of the audit.
+  checks: the pre-commit gate, a smoke run of the audit, and the
+  automated reviewer gated on both.
+- `.github/workflows/` also carries the fleet-standard supporting
+  workflows: the three `pr-*.yml` bot triggers, `secret-scan.yml`,
+  `codeql-analysis.yml`, `renovate.yml` and `export-repo-config.yml`.
 
 ## The consistency audit pipeline
 
