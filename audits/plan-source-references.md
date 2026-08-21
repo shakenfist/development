@@ -35,7 +35,7 @@ are `docs-external-links`' scope) and files over 2 MB, and looks for
   into `docs/plans/completed/` still resolves. A bare filename names
   no directory, so there is no path for it to be wrong about.
 
-Two shapes are not flagged:
+Three shapes are not flagged:
 
 * **Absolute URLs.** Text matching a `scheme://` URL is removed
   before scanning. A plan in another repository cannot resolve
@@ -44,10 +44,27 @@ Two shapes are not flagged:
   -- the same rule `docs-external-links` and `readme-absolute-links`
   apply for the same underlying reason: a reference that is read
   somewhere other than where it lives has to be absolute.
+* **`PLAN-TEMPLATE.md`.** Not a plan but the template plans are
+  written from, living at the repository root rather than in
+  `docs/plans/`, and held there by the `plan-template` audit. Naming
+  it in a script or a config is not a pointer into `docs/plans/`
+  that can rot.
 * **Lines carrying `audit-ok: plan-reference`.** For the rare line
   where a `PLAN-*.md` string is not a pointer at all -- a filename
-  pattern in a linter config, a test fixture naming a plan that
-  deliberately does not exist.
+  pattern in a linter config, a single test fixture naming a plan
+  that deliberately does not exist.
+
+Test suites are otherwise scanned like any other source. A test file
+carries prose pointers too, and they rot the same way -- instar's
+`tests/test_adversarial.py` cites a plan that no longer exists, in
+its module docstring -- so skipping a file for having "test" in its
+name would hide exactly the finding this audit is for. A suite whose
+plan paths genuinely are all fixtures instead carries
+`audit-ok: plan-reference-file` once, near the top, with a sentence
+saying why. That marker exempts the whole file, prose included, so
+it is the blunter of the two: prefer the per-line form, and reach
+for the file form only when the file is made of fixtures rather than
+merely containing one.
 
 A repository with no plan references outside markdown is reported as
 N/A.
@@ -67,7 +84,9 @@ No template. Fix each reference at its source:
 * the plan lives in another repository -- rewrite the reference as an
   absolute `https://github.com/...` URL;
 * the plan never existed, or the reference is not a pointer -- delete
-  it, or mark the line `audit-ok: plan-reference`.
+  it, or mark the line `audit-ok: plan-reference`;
+* the whole file is fixtures rather than pointers -- mark it once
+  with `audit-ok: plan-reference-file`, and say why.
 
 Rewording is not a fix on its own: the point of the pointer is that a
 reader can reach the reasoning, so a reference that cannot be made to

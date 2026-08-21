@@ -5,6 +5,15 @@
 Run with: python3 scripts/test_audit_check.py
 """
 
+# audit-ok: plan-reference-file
+#
+# Every plan path in this file is a fixture, not a pointer. The plan
+# checks are tested by writing plans into a temporary directory and
+# naming them, and their failing cases exist precisely to name plans
+# that do not resolve. None of it is a trail a reader would follow
+# into docs/plans/, and marking fifty individual lines would bury the
+# lines the per-line marker is actually meant for.
+
 import importlib.util
 import json
 import os
@@ -1104,6 +1113,177 @@ class CanonicalSharedBlocksTest(unittest.TestCase):
             )
 
 
+class PlanSourceReferenceTest(unittest.TestCase):
+    """Plan pointers written into source and configuration."""
+
+    def _repo(self, tmp, files):
+        for relative, content in files.items():
+            path = os.path.join(tmp, relative)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, 'w') as f:
+                f.write(content)
+        subprocess.run(['git', 'init', '--quiet', '-b', 'main'], cwd=tmp,
+                       check=True)
+        subprocess.run(['git', 'add', '-A'], cwd=tmp, check=True)
+        return audit_check.check_plan_source_references(tmp, {})
+
+    def test_a_resolving_reference_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {
+                'docs/plans/PLAN-frob.md': '# Frob\n',
+                'src/frob.py': '# See docs/plans/PLAN-frob.md.\n',
+            })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_a_rotted_reference_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {
+                'docs/plans/PLAN-frob.md': '# Frob\n',
+                'src/frob.py': '# See docs/plans/PLAN-gone.md.\n',
+            })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('PLAN-gone.md', result['details'])
+
+    def test_a_rotted_reference_in_a_test_still_fails(self):
+        # Test files carry prose pointers like any other source, and
+        # they rot the same way -- instar's tests/test_adversarial.py
+        # cites a plan that no longer exists in its module docstring.
+        # Skipping a file because its name looks like a test would
+        # hide exactly that.
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {
+                'tests/test_frob.py': '"""See PLAN-gone.md."""\n',
+            })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('PLAN-gone.md', result['details'])
+
+    def test_the_file_marker_exempts_a_whole_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {
+                'tests/test_frob.py': (
+                    '# audit-ok: plan-reference-file\n'
+                    '"""See PLAN-gone.md and PLAN-also-gone.md."""\n'
+                ),
+            })
+        self.assertEqual(result['status'], 'not_applicable')
+
+    def test_the_line_marker_exempts_one_line(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {
+                'docs/plans/PLAN-frob.md': '# Frob\n',
+                'src/frob.py': (
+                    "PATTERN = 'PLAN-*.md'  # audit-ok: plan-reference\n"
+                    '# See docs/plans/PLAN-gone.md.\n'
+                ),
+            })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('PLAN-gone.md', result['details'])
+        self.assertNotIn('PATTERN', result['details'])
+
+    def test_plan_template_is_not_a_plan_reference(self):
+        # PLAN-TEMPLATE.md lives at the repository root, not in
+        # docs/plans/, and the plan-template audit is what holds it
+        # there. Naming it is not a pointer that can rot.
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {
+                'tools/check.sh': 'grep x PLAN-TEMPLATE.md\n',
+            })
+        self.assertEqual(result['status'], 'not_applicable')
+
+    def test_an_absolute_url_is_not_flagged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {
+                'src/frob.py': (
+                    '# See https://github.com/shakenfist/ryll/blob/'
+                    'develop/docs/plans/PLAN-gone.md.\n'
+                ),
+            })
+        self.assertEqual(result['status'], 'not_applicable')
+
+
+class AuditScopeIsStatedOnceTest(unittest.TestCase):
+    """The three places that say who is audited must agree.
+
+    Scope is written down three times: the matrix in
+    .github/workflows/consistency-audit.yml is what actually runs, the
+    in-scope list in audits/README.md is what a reader is told, and
+    the excluded list in PROJECT-CONSISTENCY-AUDITS.md is what the
+    standard claims. Nothing else ties them together, so a repository
+    added to the matrix alone is audited while the documentation says
+    it is not -- and one dropped from the matrix alone silently stops
+    being measured while both documents say it is.
+    """
+
+    root = os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__))
+    )
+
+    def read(self, relative):
+        with open(os.path.join(self.root, relative)) as f:
+            return f.read()
+
+    def matrix_repos(self):
+        text = self.read('.github/workflows/consistency-audit.yml')
+        block = text.split('        repo:\n', 1)[1]
+        repos = []
+        for line in block.splitlines():
+            if line.startswith('          - '):
+                repos.append(line[len('          - '):].strip())
+            elif line.strip() and not line.lstrip().startswith('#'):
+                break
+        return repos
+
+    def documented_in_scope(self):
+        text = self.read('audits/README.md')
+        block = text.split('## In-scope projects', 1)[1]
+        block = block.split('One project is in scope', 1)[0]
+        return [
+            line[2:].strip() for line in block.splitlines()
+            if line.startswith('- ')
+        ]
+
+    def documented_excluded(self):
+        text = self.read('PROJECT-CONSISTENCY-AUDITS.md')
+        block = text.split('are **excluded**', 1)[1]
+        block = block.split('The `actions` repository', 1)[0]
+        return [
+            line[2:].strip() for line in block.splitlines()
+            if line.startswith('* ')
+        ]
+
+    def partially_scoped(self):
+        return {
+            name for name, overrides
+            in audit_check.REPO_OVERRIDES.items()
+            if overrides.get('only_checks')
+        }
+
+    def test_matrix_matches_the_documented_scope(self):
+        matrix = set(self.matrix_repos())
+        self.assertIn('development', matrix)
+        self.assertEqual(
+            matrix - self.partially_scoped(),
+            set(self.documented_in_scope()),
+            'the audit matrix and the in-scope list in '
+            'audits/README.md disagree',
+        )
+
+    def test_no_audited_repo_is_also_documented_as_excluded(self):
+        # A repository scoped to a subset of the checks is the one
+        # exception: private-ci is excluded from the conventions but
+        # audited for sfui-vendor, and both statements are true.
+        overlap = (
+            set(self.matrix_repos())
+            & set(self.documented_excluded())
+            - self.partially_scoped()
+        )
+        self.assertEqual(
+            overlap, set(),
+            'PROJECT-CONSISTENCY-AUDITS.md lists these as excluded '
+            'but the audit matrix runs every check against them',
+        )
+
+
 class RepoOverridesTest(unittest.TestCase):
     def test_actions_repo_properties(self):
         # The actions repository carries Python helper scripts but has
@@ -1113,13 +1293,25 @@ class RepoOverridesTest(unittest.TestCase):
             tempfile.mkdtemp(), 'actions'
         )
         self.assertTrue(props['not_python'])
-        self.assertTrue(props['is_actions_repo'])
+        self.assertIn('@main', props['default_branch_exception'])
 
-    def test_ordinary_repo_is_not_an_actions_repo(self):
+    def test_development_audits_itself(self):
+        # development holds the audit tooling and is audited by it.
+        # Its Python is never packaged, and it publishes no releases,
+        # so it has no release branch for "develop" to be distinct
+        # from -- but the exemption has to be a stated reason, not an
+        # absence from the matrix.
+        props = audit_check.detect_repo_properties(
+            tempfile.mkdtemp(), 'development'
+        )
+        self.assertTrue(props['not_python'])
+        self.assertIn('releases', props['default_branch_exception'])
+
+    def test_ordinary_repo_has_no_default_branch_exception(self):
         props = audit_check.detect_repo_properties(
             tempfile.mkdtemp(), 'occystrap'
         )
-        self.assertFalse(props['is_actions_repo'])
+        self.assertEqual(props['default_branch_exception'], '')
 
     def test_shakenfist_excludes_imported_docs(self):
         # docs/components/ is an automated import of the other

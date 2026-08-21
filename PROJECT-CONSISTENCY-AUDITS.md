@@ -10,7 +10,6 @@ The following projects are **excluded** from these rules due to being
 * client-go
 * client-python-ova
 * deploy
-* development
 * images
 * imago-testdata
 * imago-testdata-quarantine
@@ -32,6 +31,17 @@ whole fleet depends on it for its composite actions and reusable
 workflows, so it should be held to the same standards as anything else.
 Two rules do not apply to it -- it has no Python to package, and it keeps
 `main` as its default branch because every consumer pins to `@main`.
+
+`development` used to be on that list too, and is now audited for the
+same reason turned around: it is where these rules and the tooling that
+enforces them are written, so an exemption for it is an exemption the
+authors of the standard wrote for themselves. The same two rules do not
+apply -- its Python is the audit scripts, which are run from a checkout
+and never packaged, and it keeps `main` because it publishes no releases
+and so has no release branch for `develop` to be the integration branch
+against. Both exemptions are stated reasons in `REPO_OVERRIDES`, which
+means they are reported as N/A with the reason attached rather than
+disappearing from the table.
 
 `private-ci` stays on that list, but is audited for one thing. It
 vendors sfui, and a vendored copy is the one kind of problem an
@@ -396,6 +406,19 @@ references that never named a directory. A plan in another
 repository has to be an absolute URL, for the same reason a link out
 of `docs/` does: a reference read somewhere other than where it
 lives cannot be relative.
+
+`PLAN-TEMPLATE.md` is also out of scope. It is not a plan but the
+template plans are written from, it sits at the repository root
+rather than in `docs/plans/`, and the `plan-template` audit is what
+holds it there, so naming it in a script or a config is not a
+pointer into `docs/plans/` that can rot.
+
+Test suites are deliberately *in* scope. A test file carries prose
+pointers like any other source and they rot the same way, so a suite
+whose plan paths really are all fixtures -- a test for the failing
+case has to name a plan that does not resolve -- marks itself once
+with `audit-ok: plan-reference-file` and says why, rather than being
+skipped for having "test" in its name.
 
 The remedy is to make the pointer land, not to delete it. If a
 reference cannot be made to resolve, replace it with the reasoning

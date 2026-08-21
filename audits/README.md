@@ -57,6 +57,7 @@ The following projects are subject to consistency audits:
 - client-python-k3s
 - clingwrap
 - cloudgood
+- development
 - divergulent
 - instar
 - kerbside

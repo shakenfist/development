@@ -34,10 +34,11 @@ Repo-specific exceptions (private repos, docs-only repos, non-Python
 repos) live in `REPO_OVERRIDES` in `scripts/audit-check.py`.
 
 To add a repository to the audits, add it to the matrix in
-`.github/workflows/consistency-audit.yml` and to the in-scope list in
-`audits/README.md`. Adding it subjects it to every check, and every
-failure becomes an issue on the next run, so check first what it
-would file:
+`.github/workflows/consistency-audit.yml`, to the in-scope list in
+`audits/README.md`, and remove it from the excluded list in
+`PROJECT-CONSISTENCY-AUDITS.md`. Adding it subjects it to every check,
+and every failure becomes an issue on the next run, so check first what
+it would file:
 
 ```
 python3 scripts/audit-check.py --repo-path ~/src/shakenfist/<repo> \
@@ -56,8 +57,8 @@ measure".
 
 This repo lints *and tests* itself with pre-commit, holding to the same
 actionlint/shellcheck/flake8 standard the audits require of audited
-projects (even though `development` is exempt from the audits). One
-command covers everything, and `ci.yml` runs the same command on every
+projects -- and, since it is in the audit matrix, is measured against
+every other standard here too. One command covers everything, and `ci.yml` runs the same command on every
 pull request -- run it before committing:
 
 ```
