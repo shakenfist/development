@@ -81,7 +81,7 @@ for its vendored sfui copy and nothing else.
 This repository is also the home of the whole-codebase review
 tracking system: conventions in `docs/code-review-tracking.md`,
 design in `docs/plans/PLAN-code-review-tracking.md`, steady state
-in `PLAN-review-coverage.md`. The automation is
+in `docs/plans/PLAN-review-coverage.md`. The automation is
 `scripts/review-tracking.py` (stamp reviews with blob SHAs, prune
 stale reviews when files change, regenerate the per-repo
 `REVIEWS.md`, pick the next file to review, report effective

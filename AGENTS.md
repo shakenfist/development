@@ -142,8 +142,9 @@ it).
 `ARCHITECTURE.md` describes the shape of the review tracking system
 and where its pieces live; the conventions it enforces are in
 `docs/code-review-tracking.md`. When implementing later phases of
-`docs/plans/PLAN-code-review-tracking.md` or `PLAN-review-coverage.md`,
-read the plan's analysis section first -- several design constraints
+`docs/plans/PLAN-code-review-tracking.md` or its steady-state
+follow-on `docs/plans/PLAN-review-coverage.md`, read the plan's
+analysis section first -- several design constraints
 (sidecar rather than fields in weAudit's JSON, no stamping from CI)
 exist for non-obvious verified reasons, and the plan's "Back brief"
 section applies. Note the original "prune locally rather than from
