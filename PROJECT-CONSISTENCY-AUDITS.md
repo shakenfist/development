@@ -526,13 +526,13 @@ repository carrying any of `.github/workflows/pr-address-comments.yml`,
 `tools/address-comments-with-claude.sh`, `tools/render-review.py` or
 `tools/review-schema.json`. Remove everything the finding names in one
 commit; deleting the workflow while keeping the scripts leaves behind
-the copy that propagates. The reviewer is unaffected -- it reaches
-`render-review.py` through
+the copy that propagates. The reviewer is otherwise unaffected -- it
+reaches `render-review.py` through
 `shakenfist/actions/review-pr-with-claude@main`, which carries its own
 copy and schema. Those copies are exempt from the check: a directory
-holding an `action.yml` is an action's own source, not a deployed
-leftover, and telling `shakenfist/actions` to delete them would break
-review everywhere.
+holding an `action.yml` or `action.yaml` is an action's own source, not
+a deployed leftover, and telling `shakenfist/actions` to delete them
+would break review everywhere.
 
 ### Test drift fixing (optional)
 

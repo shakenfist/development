@@ -2492,6 +2492,17 @@ class RetiredCommentAddresserTest(unittest.TestCase):
         ])
         self.assertEqual(result['status'], 'pass', result['details'])
 
+    def test_the_yaml_spelling_of_the_manifest_counts(self):
+        # Actions accepts action.yaml as readily as action.yml. Missing
+        # the spelling produces the exact false finding the exemption
+        # exists to prevent, and the finding says to delete everything
+        # it names.
+        result = self._check([
+            'vendored-action/action.yaml',
+            'vendored-action/render-review.py',
+        ])
+        self.assertEqual(result['status'], 'pass', result['details'])
+
     def test_the_exemption_is_the_directory_not_the_name(self):
         # An action.yml exempts the directory it sits in and nothing
         # below it, so a leftover parked one level down is still found.

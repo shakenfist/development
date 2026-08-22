@@ -74,10 +74,17 @@ next project copies. The check therefore looks for the whole chain:
 
 `tools/` is the canonical home for the three scripts, but they are
 searched for by name anywhere in the tree: deployments put them
-elsewhere, and a dead script is dead wherever it sits.
+elsewhere, and a dead script is dead wherever it sits. The workflow is
+the deliberate exception, checked only at
+`.github/workflows/pr-address-comments.yml`: a workflow only runs from
+there, so a copy anywhere else is inert and the `contents: write`
+argument does not apply to it. A template copy still gets reaped,
+because the three scripts sit beside it and they are searched for
+everywhere.
 
-One exemption. A directory holding an `action.yml` is a composite
-action's own source rather than a deployed copy, and is skipped.
+One exemption. A directory holding an `action.yml` or `action.yaml` is
+a composite action's own source rather than a deployed copy, and is
+skipped.
 `shakenfist/actions` is in the matrix and is where
 `review-pr-with-claude/render-review.py` and its schema actually live
 -- the copies every project's reviewer runs, and the ones this
@@ -91,9 +98,9 @@ genuinely carries elsewhere in its tree.
 
 Everything the finding names goes in one commit. Deleting the workflow
 and keeping the scripts leaves the copy that gets propagated. The
-reviewer is unaffected: it reaches `render-review.py` through
-`shakenfist/actions/review-pr-with-claude@main`, which carries its own
-copy and its own schema.
+reviewer is otherwise unaffected: it reaches `render-review.py`
+through `shakenfist/actions/review-pr-with-claude@main`, which carries
+its own copy and its own schema.
 
 ### The trigger handling must be the shared action
 

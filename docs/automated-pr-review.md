@@ -302,17 +302,16 @@ render-review.py review.json
 
 ## Projects Using This System
 
-The following Shaken Fist projects have implemented this automation:
+Most of them, and the list moves: see the compliance table in
+[`ci-review-automation.md`](https://github.com/shakenfist/development/blob/main/audits/ci-review-automation.md).
+imago was the original implementation and occystrap the first
+adaptation of it, which is why both turn up in the history above.
 
-- **[imago](https://github.com/shakenfist/imago)** - Disk image management tool
-  (Rust). The original implementation, with sophisticated structured review
-  output and issue creation.
-- **[occystrap](https://github.com/shakenfist/occystrap)** - Container image
-  tools (Python). Adapted from imago with Python-specific test commands.
-
-Each project has its own `tools/` directory with the scripts, customized for
-the project's build system and test framework. The shared action handles the
-common trigger logic.
+A project does **not** carry its own copy of the scripts. They live in
+the `review-pr-with-claude` action in shakenfist/actions and are shared
+from there; only the trigger workflows are per-project. A project with
+its own `render-review.py` is a leftover of the retired comment
+addresser, and the consistency audit reports it.
 
 ## Future Improvements
 
@@ -321,5 +320,10 @@ Potential enhancements to consider:
 - **Confidence scores** - Add confidence field to review items
 - **Learning from feedback** - Track which suggestions are accepted/rejected
 - **Custom review focus** - Allow PR authors to request focus areas
-- **Integration with issue tracker** - Auto-create issues for deferred items
 - **Metrics dashboard** - Track review quality and fix rates over time
+
+Automatic issue creation for deferred items was on this list and is
+done: `create-review-issues.py` in the shared action files every `fix`
+and `document` item. Having the reviewer also apply its own fixes was
+tried, as the comment addresser, and retired -- see
+[`ci-review-automation.md`](ci-review-automation.md).

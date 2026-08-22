@@ -153,6 +153,14 @@ propagated.
 The reviewer does not depend on any of it: `render-review.py` and its
 schema ship inside `shakenfist/actions/review-pr-with-claude`.
 
+One thing does change. `render-review.py` in the shared action
+still ends every review it posts with a line telling the reader to
+use the addresser's trigger phrase. Once the chain is reaped that
+invites a command nothing answers -- no workflow, no reply, no
+failure -- which is the outcome the retired workflow's own failure
+reporting existed to avoid. Dropping those lines is a change to
+shakenfist/actions and cannot land here.
+
 ## Shared Actions
 
 The trigger and review logic lives in the
@@ -166,9 +174,9 @@ repository:
 
 ## Projects Using This Automation
 
-| Project | Automated Review | Test Fixer | Comment Addresser | Retest |
-|---------|------------------|------------|-------------------|--------|
-| [imago](https://github.com/shakenfist/imago) | Yes | Yes | Yes | Yes |
-| [occystrap](https://github.com/shakenfist/occystrap) | Yes | Yes | Yes | Yes |
-| [agent-python](https://github.com/shakenfist/agent-python) | Yes | No | Yes | Yes |
-| [development](https://github.com/shakenfist/development) | Yes | No | Yes | Yes |
+Which projects have which of these is measured every morning rather
+than listed here, because a hand-maintained table of fleet state goes
+stale silently: see the compliance table in
+[`ci-review-automation.md`](https://github.com/shakenfist/development/blob/main/audits/ci-review-automation.md).
+Note that imago is not in the audit matrix, so it is the one project
+carrying this automation which the audit will never report on.

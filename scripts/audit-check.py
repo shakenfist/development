@@ -325,9 +325,11 @@ RETIRED_ADDRESSER_SCRIPTS = (
 # those from a deployed leftover, and the finding tells the maintainer to
 # remove the whole chain in one commit, so acting on it would delete the
 # renderer out from under the reviewer in every repository at once. An
-# action.yml beside the file is what distinguishes the two: it means the
-# directory is the action, not a copy of somebody else's.
-COMPOSITE_ACTION_MANIFEST = 'action.yml'
+# action manifest beside the file is what distinguishes the two: it means
+# the directory is the action, not a copy of somebody else's. Both
+# spellings, because Actions accepts both and the cost of missing one is
+# the false finding this exists to prevent.
+COMPOSITE_ACTION_MANIFESTS = ('action.yml', 'action.yaml')
 
 ADDRESSER_RETIRED_DETAIL = (
     'the retired comment addresser is still deployed (%s); it is '
@@ -351,9 +353,9 @@ def carries_retired_comment_addresser(repo_path):
         # .git holds whatever another branch left behind, which is not
         # something this repository can act on.
         dirnames[:] = [d for d in dirnames if d != '.git']
-        # See COMPOSITE_ACTION_MANIFEST: the action's own source is not
+        # See COMPOSITE_ACTION_MANIFESTS: the action's own source is not
         # a deployed copy of the retired chain.
-        if COMPOSITE_ACTION_MANIFEST in filenames:
+        if any(m in filenames for m in COMPOSITE_ACTION_MANIFESTS):
             continue
         for name in RETIRED_ADDRESSER_SCRIPTS:
             if name in filenames:

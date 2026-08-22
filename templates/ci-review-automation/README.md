@@ -82,8 +82,9 @@ own merits:
   This was a real gap rather than a scanner artefact.
   The retired `pr-address-comments.yml` had always set it; this file
   did not, so the default left a write-scoped token in the
-  `.git/config` of a working tree holding the pull request's own code -- the tree Claude Code is
-  then pointed at with `--dangerously-skip-permissions`.
+  `.git/config` of a working tree holding the pull request's own code
+  -- the tree Claude Code is then pointed at with
+  `--dangerously-skip-permissions`.
   `review-pr-with-claude` authenticates `gh` from `GH_TOKEN` and never
   pushes, so nothing needed the credential helper.
 * **`pr-re-review.yml` now checks `same_repo` explicitly** in the job `if:`,
@@ -270,9 +271,17 @@ the four files, and they should be removed in a single commit: deleting
 the workflow but keeping the scripts leaves behind exactly the copy
 that gets propagated.
 
-The reviewer is unaffected. It reaches `render-review.py` through
-`shakenfist/actions/review-pr-with-claude@main`, which carries its own
-copy of the script and its own schema.
+One thing does change. `render-review.py` in the shared action
+still ends every review it posts with a line telling the reader to
+use the addresser's trigger phrase. Once the chain is reaped that
+invites a command nothing answers -- no workflow, no reply, no
+failure -- which is the outcome the retired workflow's own failure
+reporting existed to avoid. Dropping those lines is a change to
+shakenfist/actions and cannot land here.
+
+The reviewer is otherwise unaffected. It reaches `render-review.py`
+through `shakenfist/actions/review-pr-with-claude@main`, which carries
+its own copy of the script and its own schema.
 
 ## Projects using these templates
 
