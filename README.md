@@ -5,6 +5,9 @@ the Shaken Fist project.
 
 ## Documentation
 
+- [Consistency Audits](https://github.com/shakenfist/development/blob/main/docs/consistency-audits.md) -- How the daily
+  audit runs, files and closes issues, and how to add a criterion or
+  bring a repository into scope
 - [Automated PR Review with Claude Code](https://github.com/shakenfist/development/blob/main/docs/automated-pr-review.md) -- How we use
   Claude Code to automate code review
 - [CI Review Automation](https://github.com/shakenfist/development/blob/main/docs/ci-review-automation.md) -- Workflow templates
@@ -24,8 +27,9 @@ the Shaken Fist project.
 
 The [`audits/`](https://github.com/shakenfist/development/tree/main/audits) directory contains one file per audit
 criterion, each independently checkable. See
-[`audits/README.md`](https://github.com/shakenfist/development/blob/main/audits/README.md) for the full index and
-instructions on adding new audit items.
+[`audits/README.md`](https://github.com/shakenfist/development/blob/main/audits/README.md) for the full index, and
+[`docs/consistency-audits.md`](https://github.com/shakenfist/development/blob/main/docs/consistency-audits.md) for how
+the system works and how to add an audit item.
 
 The authoritative specification of all audit criteria is in
 [`PROJECT-CONSISTENCY-AUDITS.md`](https://github.com/shakenfist/development/blob/main/PROJECT-CONSISTENCY-AUDITS.md).
