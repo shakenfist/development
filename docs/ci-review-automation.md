@@ -120,17 +120,17 @@ Your self-hosted runners need these labels:
 - `static` -- small runners for non-mutating jobs (bot trigger
   parsing, permission checks)
 
-## Preventing Infinite Loops
+## Not Reviewing The Bot's Own Commits
 
 The `check-bot-commit` job detects if the last commit was authored
 by `bot@shakenfist.com`. If so, the automated reviewer is skipped.
-This prevents loops where:
 
-1. Bot makes a commit (from test fixing)
-2. CI runs on the new commit
-3. Automated reviewer reviews the bot's commit
-4. A bot workflow makes another commit
-5. Repeat forever
+A bot push -- from the test fixer -- triggers CI like any other push,
+so without the guard the reviewer would spend a claude-code run
+reviewing commits no human wrote, on a branch whose human-authored
+changes it has already reviewed. That waste is what the guard is for.
+It is not a loop any more: the comment addresser was the only thing
+that turned a review back into a commit, and it is retired.
 
 ## The retired comment addresser
 

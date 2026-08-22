@@ -260,24 +260,22 @@ The automation requires self-hosted runners with:
 - `jq` for JSON processing
 - Python 3 with `jsonschema` package for validation
 
-## Preventing Infinite Loops
+## Not Reviewing The Bot's Own Commits
 
 The sanity-checks workflow includes a `check-bot-commit` job that detects if the
-last commit was made by the bot. If so, the automated reviewer is skipped to
-prevent infinite loops where:
+last commit was made by the bot. If so, the automated reviewer is skipped.
 
-1. Bot makes a commit
-2. CI runs
-3. Reviewer reviews the bot's commit
-4. A bot workflow makes another commit
-5. Repeat...
+A bot push -- from the test fixer -- triggers CI like any other push, so without
+the guard the reviewer would spend a claude-code run reviewing commits no human
+wrote, on a branch whose human-authored changes it has already reviewed. That
+waste is what the guard is for. It is not a loop any more: the comment addresser
+was the only thing that turned a review back into a commit, and it is retired.
 
 The check looks for commits with author email `bot@shakenfist.com`.
 
 ## Cost and Rate Limiting
 
-Each review and comment-addressing session uses Claude Code API calls. To manage
-costs:
+Each review session uses Claude Code API calls. To manage costs:
 
 - Reviews only run after CI passes (not on every push)
 - Reviews skip bot-authored commits

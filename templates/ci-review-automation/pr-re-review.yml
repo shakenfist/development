@@ -7,7 +7,7 @@
 # runner is scarce, and doing the permission check, the reaction and the
 # refusal reply on one would hold a claude-code runner for every comment
 # containing the phrase -- including comments from people with no write
-# access at all. pr-retest.yml splits for the same reason.
+# access at all.
 #
 # The trigger handling is pr-bot-trigger rather than inline shell. An
 # earlier version of this file open-coded it, and the copy drifted: it

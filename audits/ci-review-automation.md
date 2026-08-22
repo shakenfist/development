@@ -72,15 +72,21 @@ next project copies. The check therefore looks for the whole chain:
 * `render-review.py`
 * `review-schema.json`
 
-`tools/` is the canonical home for the three scripts, but they are
-searched for by name anywhere in the tree: deployments put them
-elsewhere, and a dead script is dead wherever it sits. The workflow is
-the deliberate exception, checked only at
-`.github/workflows/pr-address-comments.yml`: a workflow only runs from
-there, so a copy anywhere else is inert and the `contents: write`
-argument does not apply to it. A template copy still gets reaped,
-because the three scripts sit beside it and they are searched for
-everywhere.
+All four are searched for by basename anywhere in the tree. `tools/`
+and `.github/workflows/` are the canonical homes, but deployments put
+them elsewhere -- the check this replaced found a `contrib/` copy, and
+a template directory carries the copy of the workflow the next project
+installs -- and a dead file is dead wherever it sits. Naming only the
+installed workflow would mean a maintainer who removes everything the
+finding names deletes the scripts, leaves the template copy behind, and
+passes the audit from then on while still handing the chain to the next
+project.
+
+Only a copy at `.github/workflows/pr-address-comments.yml` actually
+runs, so only that one holds `contents: write` on the pull request
+branch. The finding says so when it is present and calls the rest dead
+weight when it is not, rather than asserting a privileged workflow the
+maintainer would then go looking for and not find.
 
 One exemption. A directory holding an `action.yml` or `action.yaml` is
 a composite action's own source rather than a deployed copy, and is

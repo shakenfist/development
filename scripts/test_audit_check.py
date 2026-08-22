@@ -2503,6 +2503,61 @@ class RetiredCommentAddresserTest(unittest.TestCase):
         ])
         self.assertEqual(result['status'], 'pass', result['details'])
 
+    def test_a_template_copy_of_the_workflow_is_named(self):
+        # The workflow is matched by name anywhere, not only at
+        # .github/workflows/. A template directory's copy does not run,
+        # but it is the one the next project installs, and the
+        # remediation is "remove everything the finding names in one
+        # commit" -- so a finding which skipped it would have the
+        # maintainer delete the scripts, leave the template, and pass
+        # the audit from then on while still propagating the chain.
+        result = self._check(
+            ['templates/ci-review-automation/pr-address-comments.yml']
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn(
+            'templates/ci-review-automation/pr-address-comments.yml',
+            result['details'])
+
+    def test_only_the_installed_workflow_claims_contents_write(self):
+        # The finding is the whole content of an auto-filed issue on
+        # another repository. Only .github/workflows/ actually runs, so
+        # asserting a privileged workflow for a template copy sends the
+        # maintainer hunting for one that is not there.
+        installed = self._check(
+            ['.github/workflows/pr-address-comments.yml']
+        )
+        self.assertIn('contents: write', installed['details'])
+        template = self._check(
+            ['templates/ci-review-automation/pr-address-comments.yml']
+        )
+        self.assertNotIn('contents: write', template['details'])
+        self.assertIn('dead weight', template['details'])
+
+    def test_leftover_scripts_alone_do_not_claim_contents_write(self):
+        # The normal state after a partial cleanup: the workflow is
+        # gone, the scripts are not.
+        result = self._check(['tools/render-review.py'])
+        self.assertEqual(result['status'], 'fail')
+        self.assertNotIn('contents: write', result['details'])
+
+    def test_the_schema_alone_is_found(self):
+        # review-schema.json is only ever exercised beside
+        # render-review.py elsewhere in this suite, so a regression
+        # which matched only the .py suffix would pass. It is dead on
+        # its own too: nothing else in a project reads it.
+        result = self._check(['tools/review-schema.json'])
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('review-schema.json', result['details'])
+
+    def test_a_docs_only_project_is_checked_for_scripts_too(self):
+        # The docs-only branch returns early on the addresser finding.
+        # The workflow leftover pins that branch elsewhere; a script
+        # leftover takes the same return and had nothing holding it.
+        result = self._check(['tools/render-review.py'], docs_only=True)
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('render-review.py', result['details'])
+
     def test_the_exemption_is_the_directory_not_the_name(self):
         # An action.yml exempts the directory it sits in and nothing
         # below it, so a leftover parked one level down is still found.

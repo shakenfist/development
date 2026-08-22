@@ -522,11 +522,16 @@ inert. The workflow triggers on `issue_comment`, so it holds
 wants, and it is the last thing in a project that calls
 `render-review.py`, which makes that script and its schema dead weight
 for the next project to copy. The `ci-review-automation` audit fails a
-repository carrying any of `.github/workflows/pr-address-comments.yml`,
-`tools/address-comments-with-claude.sh`, `tools/render-review.py` or
-`tools/review-schema.json`. Remove everything the finding names in one
-commit; deleting the workflow while keeping the scripts leaves behind
-the copy that propagates. The reviewer is otherwise unaffected -- it
+repository carrying any of `pr-address-comments.yml`,
+`address-comments-with-claude.sh`, `render-review.py` or
+`review-schema.json`, matched by name anywhere in the tree rather than
+only in their canonical `.github/workflows/` and `tools/` homes -- a
+template directory's copy of the workflow is the one the next project
+installs. Remove everything the finding names in one commit; deleting
+the workflow while keeping the scripts leaves behind the copy that
+propagates. Only the `.github/workflows/` copy actually runs, so the
+finding cites `contents: write` when that one is present and calls the
+rest dead weight when it is not. The reviewer is otherwise unaffected -- it
 reaches `render-review.py` through
 `shakenfist/actions/review-pr-with-claude@main`, which carries its own
 copy and schema. Those copies are exempt from the check: a directory

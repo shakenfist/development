@@ -307,15 +307,25 @@ def check_release_process(repo_path, props):
 # alone.
 RETIRED_ADDRESSER_WORKFLOW = '.github/workflows/pr-address-comments.yml'
 
-# Searched for by name anywhere in the tree, not just under tools/. The
-# canonical home is tools/, but deployments put them elsewhere -- the
-# check this replaced found a contrib/ copy -- and a script that is dead
-# is dead wherever it sits.
 RETIRED_ADDRESSER_SCRIPTS = (
     'address-comments-with-claude.sh',
     'render-review.py',
     'review-schema.json',
 )
+
+# The whole chain, matched by name anywhere in the tree rather than only
+# under tools/ and .github/workflows/. Those are the canonical homes, but
+# deployments put them elsewhere -- the check this replaced found a
+# contrib/ copy, and a template directory carries the copy of the
+# workflow the next project installs -- and a dead file is dead wherever
+# it sits. Every copy is named because the remediation is to remove
+# everything the finding names in one commit: naming only the installed
+# workflow would leave the template behind, after which the repository
+# passes forever while still handing the chain to the next project. The
+# workflow's basename comes off the path above so the two cannot drift.
+RETIRED_ADDRESSER_FILES = (
+    os.path.basename(RETIRED_ADDRESSER_WORKFLOW),
+) + RETIRED_ADDRESSER_SCRIPTS
 
 # Except where they are a composite action's own source. shakenfist/actions
 # is in the audit matrix and is the canonical home of
@@ -331,11 +341,32 @@ RETIRED_ADDRESSER_SCRIPTS = (
 # the false finding this exists to prevent.
 COMPOSITE_ACTION_MANIFESTS = ('action.yml', 'action.yaml')
 
-ADDRESSER_RETIRED_DETAIL = (
-    'the retired comment addresser is still deployed (%s); it is '
-    'unused, and its workflow holds contents: write on the pull '
-    'request branch'
+ADDRESSER_RETIRED_PREFIX = (
+    'the retired comment addresser is still deployed (%s); it is unused, '
 )
+
+# Two tails, because the finding is the entire content of an auto-filed
+# issue on another repository and the maintainer goes looking for what it
+# names. A copy at .github/workflows/pr-address-comments.yml is a live
+# workflow holding contents: write on the pull request branch, which is
+# the urgent case. Anything else -- leftover scripts, a template copy of
+# the workflow -- does not run, and asserting a privileged workflow there
+# sends the maintainer hunting for one that was already deleted.
+ADDRESSER_RETIRED_LIVE_TAIL = (
+    'and its workflow holds contents: write on the pull request branch'
+)
+ADDRESSER_RETIRED_LEFTOVER_TAIL = (
+    'and these are dead weight the next project copies'
+)
+
+
+def addresser_retired_detail(deployed):
+    """Render the finding naming the retired addresser files found."""
+    if RETIRED_ADDRESSER_WORKFLOW in deployed:
+        tail = ADDRESSER_RETIRED_LIVE_TAIL
+    else:
+        tail = ADDRESSER_RETIRED_LEFTOVER_TAIL
+    return (ADDRESSER_RETIRED_PREFIX % ', '.join(deployed)) + tail
 
 
 def carries_retired_comment_addresser(repo_path):
@@ -345,10 +376,16 @@ def carries_retired_comment_addresser(repo_path):
     file: they are a single chain, they are removed in a single commit,
     and a repository which deletes the workflow but keeps the scripts has
     not finished the job.
+
+    All four names are matched by basename anywhere in the tree. A
+    workflow only runs from .github/workflows/, so a copy elsewhere is
+    inert -- but a template directory's copy is what the next project
+    installs, and the finding has to name it or the maintainer removes
+    the scripts, leaves the template, and passes the audit thereafter.
+    Which of the two the finding is about is what
+    addresser_retired_detail() decides.
     """
     found = []
-    if check_file_exists(repo_path, RETIRED_ADDRESSER_WORKFLOW):
-        found.append(RETIRED_ADDRESSER_WORKFLOW)
     for dirpath, dirnames, filenames in os.walk(repo_path):
         # .git holds whatever another branch left behind, which is not
         # something this repository can act on.
@@ -357,7 +394,7 @@ def carries_retired_comment_addresser(repo_path):
         # a deployed copy of the retired chain.
         if any(m in filenames for m in COMPOSITE_ACTION_MANIFESTS):
             continue
-        for name in RETIRED_ADDRESSER_SCRIPTS:
+        for name in RETIRED_ADDRESSER_FILES:
             if name in filenames:
                 found.append(
                     os.path.relpath(
@@ -483,7 +520,7 @@ def check_ci_review_automation(repo_path, props):
             return {
                 'id': 'ci-review-automation',
                 'status': 'fail',
-                'details': ADDRESSER_RETIRED_DETAIL % ', '.join(deployed),
+                'details': addresser_retired_detail(deployed),
             }
         if pr_re_review_open_codes_the_trigger(repo_path):
             return {
@@ -554,7 +591,7 @@ def check_ci_review_automation(repo_path, props):
     # The comment addresser is retired. See the helper's docstring.
     deployed = carries_retired_comment_addresser(repo_path)
     if deployed:
-        issues.append(ADDRESSER_RETIRED_DETAIL % ', '.join(deployed))
+        issues.append(addresser_retired_detail(deployed))
 
     if issues:
         return {
