@@ -294,31 +294,59 @@ def check_release_process(repo_path, props):
     }
 
 
-def render_review_copies_missing_schema(repo_path):
-    """Find deployed render-review.py copies with no schema beside them.
+# The comment addresser was retired in August 2026. It answered
+# "@shakenfist-bot please address comments" by handing the review's items
+# to Claude Code and pushing a commit per item, which nobody used: fixes
+# are worked through interactively with the reviewer instead, and a bot
+# authoring commits from a review no human had read was the part that
+# stopped it being used. What it leaves behind is not inert. The workflow
+# runs on issue_comment, so it holds contents: write against the pull
+# request branch, and it is the last consumer of a project's own copies
+# of render-review.py and review-schema.json -- which is why those are no
+# longer audited for either. Reap the whole chain rather than the trigger
+# alone.
+RETIRED_ADDRESSER_WORKFLOW = '.github/workflows/pr-address-comments.yml'
 
-    render-review.py resolves its schema as
-    Path(__file__).parent / 'review-schema.json'. When that file is not
-    there, load_schema() returns None and validate_review() returns
-    success without checking anything at all -- so it accepts a review
-    with an invented category or action, which is exactly what the schema
-    exists to reject. (Its structural fallback is a different branch,
-    taken only when jsonschema is not importable, and it runs whether or
-    not the schema file is present. On a runner with jsonschema
-    installed, which is the normal case, a missing schema means no
-    validation whatsoever.) The result is silent and exits zero, so a
-    repository in this state looks like one that is validating.
+# Searched for by name anywhere in the tree, not just under tools/. The
+# canonical home is tools/, but deployments put them elsewhere -- the
+# check this replaced found a contrib/ copy -- and a script that is dead
+# is dead wherever it sits.
+RETIRED_ADDRESSER_SCRIPTS = (
+    'address-comments-with-claude.sh',
+    'render-review.py',
+    'review-schema.json',
+)
 
-    Returns the directories holding a script without its schema.
+ADDRESSER_RETIRED_DETAIL = (
+    'the retired comment addresser is still deployed (%s); it is '
+    'unused, and its workflow holds contents: write on the pull '
+    'request branch'
+)
+
+
+def carries_retired_comment_addresser(repo_path):
+    """Return the retired addresser's files which are still deployed.
+
+    Reported as one finding naming every file found, not one finding per
+    file: they are a single chain, they are removed in a single commit,
+    and a repository which deletes the workflow but keeps the scripts has
+    not finished the job.
     """
-    broken = []
+    found = []
+    if check_file_exists(repo_path, RETIRED_ADDRESSER_WORKFLOW):
+        found.append(RETIRED_ADDRESSER_WORKFLOW)
     for dirpath, dirnames, filenames in os.walk(repo_path):
+        # .git holds whatever another branch left behind, which is not
+        # something this repository can act on.
         dirnames[:] = [d for d in dirnames if d != '.git']
-        if 'render-review.py' not in filenames:
-            continue
-        if 'review-schema.json' not in filenames:
-            broken.append(os.path.relpath(dirpath, repo_path))
-    return sorted(broken)
+        for name in RETIRED_ADDRESSER_SCRIPTS:
+            if name in filenames:
+                found.append(
+                    os.path.relpath(
+                        os.path.join(dirpath, name), repo_path
+                    )
+                )
+    return sorted(found)
 
 
 def pr_re_review_open_codes_the_trigger(repo_path):
@@ -339,9 +367,9 @@ def pr_re_review_open_codes_the_trigger(repo_path):
     malice is needed -- a maintainer typing the trigger phrase on a fork
     pull request is enough.
 
-    pr-retest.yml and pr-address-comments.yml use the action and inherit
-    that guard at @main without changing. A hand-rolled pr-re-review.yml
-    does not, and cannot, until it is replaced.
+    pr-retest.yml uses the action and inherits that guard at @main
+    without changing. A hand-rolled pr-re-review.yml does not, and
+    cannot, until it is replaced.
 
     Returns False when the workflow is absent: its absence is already
     reported separately, and saying both would be two findings for one
@@ -426,16 +454,19 @@ def secrets_inherit_issues(repo_path):
 def check_ci_review_automation(repo_path, props):
     """Check for automated review and developer automation workflows."""
     if props['is_docs_only']:
-        # cloudgood: only check for pr-re-review and pr-address-comments
+        # cloudgood: only pr-re-review is expected.
         missing = []
         if not check_file_exists(
             repo_path, '.github/workflows/pr-re-review.yml'
         ):
             missing.append('pr-re-review.yml')
-        if not check_file_exists(
-            repo_path, '.github/workflows/pr-address-comments.yml'
-        ):
-            missing.append('pr-address-comments.yml')
+        deployed = carries_retired_comment_addresser(repo_path)
+        if deployed:
+            return {
+                'id': 'ci-review-automation',
+                'status': 'fail',
+                'details': ADDRESSER_RETIRED_DETAIL % ', '.join(deployed),
+            }
         if pr_re_review_open_codes_the_trigger(repo_path):
             return {
                 'id': 'ci-review-automation',
@@ -471,7 +502,6 @@ def check_ci_review_automation(repo_path, props):
     # Check developer automation workflows
     for wf in [
         'pr-re-review.yml',
-        'pr-address-comments.yml',
         'pr-retest.yml',
     ]:
         if not check_file_exists(
@@ -503,13 +533,10 @@ def check_ci_review_automation(repo_path, props):
     # which reads none. See the helper's docstring.
     issues.extend(secrets_inherit_issues(repo_path))
 
-    # A copy of render-review.py without review-schema.json beside it
-    # validates nothing, silently. See the helper's docstring.
-    for directory in render_review_copies_missing_schema(repo_path):
-        issues.append(
-            f'{directory}/render-review.py has no review-schema.json '
-            f'beside it, so its --validate accepts any review'
-        )
+    # The comment addresser is retired. See the helper's docstring.
+    deployed = carries_retired_comment_addresser(repo_path)
+    if deployed:
+        issues.append(ADDRESSER_RETIRED_DETAIL % ', '.join(deployed))
 
     if issues:
         return {

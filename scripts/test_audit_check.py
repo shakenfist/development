@@ -2355,105 +2355,99 @@ class SelfHostedRunnerLabelPositionTest(unittest.TestCase):
         self.assertEqual(result['status'], 'not_applicable')
 
 
-class RenderReviewSchemaTest(unittest.TestCase):
-    """A deployed render-review.py must keep review-schema.json beside it.
+class RetiredCommentAddresserTest(unittest.TestCase):
+    """The comment addresser is retired and must not still be deployed.
 
-    render-review.py resolves SCHEMA_PATH as
-    Path(__file__).parent / 'review-schema.json'. Separate the two and
-    load_schema() returns None, validate_review() drops to structural
-    checks, and --validate starts accepting reviews with invented
-    categories and actions while still exiting zero. ryll was in that
-    state when this check was written, and the template directory shipped
-    the script without the schema, which is how ryll got there.
+    It was never used -- review items are worked through interactively
+    instead -- and what it leaves behind is a workflow triggered by
+    issue_comment holding contents: write on the pull request branch.
+    The scripts go with it: address-comments-with-claude.sh was its only
+    entry point, and render-review.py plus review-schema.json were only
+    ever there for that script to call.
     """
 
-    def _repo(self, tmp, script_dirs, schema_dirs):
-        """Build a fixture repo that otherwise passes the audit."""
+    def _repo(self, tmp, leftovers=()):
         workflows = os.path.join(tmp, '.github', 'workflows')
         os.makedirs(workflows)
-        for wf in ('pr-re-review.yml', 'pr-address-comments.yml',
-                   'pr-retest.yml'):
+        for wf in ('pr-re-review.yml', 'pr-retest.yml'):
             with open(os.path.join(workflows, wf), 'w') as f:
-                f.write('uses: shakenfist/actions/'
+                f.write('uses: shakenfist/actions/pr-bot-trigger@main\n'
+                        'uses: shakenfist/actions/'
                         'review-pr-with-claude@main\n')
-                # pr-re-review.yml must reach pr-bot-trigger, or the
-                # fork-guard check fires and this fixture fails for a
-                # reason that has nothing to do with the schema.
-                if wf == 'pr-re-review.yml':
-                    f.write('uses: shakenfist/actions/'
-                            'pr-bot-trigger@main\n')
-        for directory in script_dirs:
-            os.makedirs(os.path.join(tmp, directory), exist_ok=True)
-            with open(
-                os.path.join(tmp, directory, 'render-review.py'), 'w'
-            ) as f:
-                f.write('# render-review.py\n')
-        for directory in schema_dirs:
-            os.makedirs(os.path.join(tmp, directory), exist_ok=True)
-            with open(
-                os.path.join(tmp, directory, 'review-schema.json'), 'w'
-            ) as f:
-                f.write('{}\n')
+        for path in leftovers:
+            full = os.path.join(tmp, path)
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            with open(full, 'w') as f:
+                f.write('x\n')
         return tmp
 
-    def _check(self, script_dirs, schema_dirs):
+    def _check(self, leftovers=(), docs_only=False):
         with tempfile.TemporaryDirectory() as tmp:
-            self._repo(tmp, script_dirs, schema_dirs)
+            self._repo(tmp, leftovers)
             return audit_check.check_ci_review_automation(
-                tmp, {'is_docs_only': False}
+                tmp, {'is_docs_only': docs_only}
             )
 
-    def test_script_beside_its_schema_passes(self):
-        result = self._check(['tools'], ['tools'])
+    def test_a_repository_without_the_addresser_passes(self):
+        result = self._check()
         self.assertEqual(result['status'], 'pass', result['details'])
 
-    def test_script_without_its_schema_fails(self):
-        result = self._check(['tools'], [])
+    def test_the_workflow_alone_fails(self):
+        result = self._check(
+            ['.github/workflows/pr-address-comments.yml']
+        )
         self.assertEqual(result['status'], 'fail')
-        self.assertIn('tools/render-review.py', result['details'])
+        self.assertIn('pr-address-comments.yml', result['details'])
+
+    def test_the_scripts_alone_fail(self):
+        # Deleting the trigger but keeping the scripts is a half-done
+        # job, and the scripts are what the next person copies.
+        result = self._check(['tools/address-comments-with-claude.sh'])
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('address-comments-with-claude.sh', result['details'])
+
+    def test_render_review_and_its_schema_are_reaped_too(self):
+        # Nothing else in a project calls render-review.py: the reviewer
+        # uses the copy inside shakenfist/actions.
+        result = self._check(
+            ['tools/render-review.py', 'tools/review-schema.json']
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('render-review.py', result['details'])
         self.assertIn('review-schema.json', result['details'])
 
-    def test_a_schema_in_a_different_directory_does_not_count(self):
-        # The lookup is relative to the script, not to the repository, so
-        # a schema filed somewhere tidier does not help it.
-        result = self._check(['tools'], ['schemas'])
+    def test_the_whole_chain_is_one_finding(self):
+        chain = [audit_check.RETIRED_ADDRESSER_WORKFLOW] + [
+            'tools/%s' % name
+            for name in audit_check.RETIRED_ADDRESSER_SCRIPTS
+        ]
+        result = self._check(chain)
         self.assertEqual(result['status'], 'fail')
-        self.assertIn('tools/render-review.py', result['details'])
+        self.assertEqual(result['details'].count('still deployed'), 1)
+        for path in chain:
+            self.assertIn(os.path.basename(path), result['details'])
 
-    def test_every_broken_copy_is_reported_not_just_the_first(self):
-        # Both copies are broken, so reporting one of them is a partial
-        # answer that reads like a complete one. An earlier version of
-        # this test left the second copy's schema in place, which meant
-        # it passed against a check that stopped at the first finding.
-        result = self._check(['tools', 'contrib'], [])
+    def test_scripts_outside_tools_are_found_too(self):
+        # tools/ is the canonical home, but deployments put them
+        # elsewhere; the check this replaced found a contrib/ copy.
+        result = self._check(['contrib/render-review.py'])
         self.assertEqual(result['status'], 'fail')
-        self.assertIn('tools/render-review.py', result['details'])
         self.assertIn('contrib/render-review.py', result['details'])
 
-    def test_a_good_copy_alongside_a_broken_one_is_not_reported(self):
-        result = self._check(['tools', 'contrib'], ['contrib'])
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('tools/render-review.py', result['details'])
-        self.assertNotIn('contrib/render-review.py', result['details'])
-
-    def test_a_repository_with_no_copy_at_all_is_unaffected(self):
-        result = self._check([], [])
-        self.assertEqual(result['status'], 'pass', result['details'])
-
     def test_the_git_directory_is_not_walked(self):
-        # .git can hold anything, including checked-out worktree state
-        # from another branch. Findings from in there are not actionable.
-        with tempfile.TemporaryDirectory() as tmp:
-            self._repo(tmp, [], [])
-            os.makedirs(os.path.join(tmp, '.git', 'stash'))
-            with open(
-                os.path.join(tmp, '.git', 'stash', 'render-review.py'), 'w'
-            ) as f:
-                f.write('# stale\n')
-            result = audit_check.check_ci_review_automation(
-                tmp, {'is_docs_only': False}
-            )
+        # .git can hold checked-out state from another branch. Findings
+        # from in there are not actionable.
+        result = self._check(['.git/stash/render-review.py'])
         self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_a_docs_only_project_is_checked_too(self):
+        # cloudgood is exempt from most of this audit, but a workflow
+        # holding contents: write is not a documentation concern.
+        result = self._check(
+            ['.github/workflows/pr-address-comments.yml'], docs_only=True
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('pr-address-comments.yml', result['details'])
 
 
 class PrReReviewTriggerTest(unittest.TestCase):
@@ -2489,18 +2483,12 @@ class PrReReviewTriggerTest(unittest.TestCase):
     def _repo(self, tmp, re_review_body=None):
         workflows = os.path.join(tmp, '.github', 'workflows')
         os.makedirs(workflows)
-        for wf in ('pr-address-comments.yml', 'pr-retest.yml'):
-            with open(os.path.join(workflows, wf), 'w') as f:
-                f.write('uses: shakenfist/actions/'
-                        'review-pr-with-claude@main\n')
+        with open(os.path.join(workflows, 'pr-retest.yml'), 'w') as f:
+            f.write('uses: shakenfist/actions/'
+                    'review-pr-with-claude@main\n')
         if re_review_body is not None:
             with open(os.path.join(workflows, 'pr-re-review.yml'), 'w') as f:
                 f.write(re_review_body)
-        # Keep the render-review.py check quiet.
-        os.makedirs(os.path.join(tmp, 'tools'))
-        for name in ('render-review.py', 'review-schema.json'):
-            with open(os.path.join(tmp, 'tools', name), 'w') as f:
-                f.write('x\n')
         return tmp
 
     def _check(self, re_review_body=None, docs_only=False):
@@ -2569,21 +2557,20 @@ class PrAutoReviewSecretsInheritTest(unittest.TestCase):
     )
 
     def _repo(self, tmp, reviewer_job):
+        # A compliant repository apart from whatever the reviewer job
+        # under test does: both required workflows present, the shared
+        # trigger action used, and none of the retired addresser's
+        # files deployed. Anything else here shows up as an unrelated
+        # finding and masks the one being tested.
         workflows = os.path.join(tmp, '.github', 'workflows')
         os.makedirs(workflows)
-        for wf in ('pr-address-comments.yml', 'pr-retest.yml'):
-            with open(os.path.join(workflows, wf), 'w') as f:
-                f.write('uses: shakenfist/actions/'
-                        'review-pr-with-claude@main\n')
+        with open(os.path.join(workflows, 'pr-retest.yml'), 'w') as f:
+            f.write('uses: shakenfist/actions/'
+                    'review-pr-with-claude@main\n')
         with open(os.path.join(workflows, 'pr-re-review.yml'), 'w') as f:
             f.write('  - uses: shakenfist/actions/pr-bot-trigger@main\n')
         with open(os.path.join(workflows, 'ci.yml'), 'w') as f:
             f.write('jobs:\n' + reviewer_job)
-        # Keep the render-review.py check quiet.
-        os.makedirs(os.path.join(tmp, 'tools'))
-        for name in ('render-review.py', 'review-schema.json'):
-            with open(os.path.join(tmp, 'tools', name), 'w') as f:
-                f.write('x\n')
         return tmp
 
     def _check(self, reviewer_job, docs_only=False, extra=None):

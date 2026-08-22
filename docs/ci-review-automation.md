@@ -20,14 +20,11 @@ Tests pass ──> Automated reviewer (Claude Code)
                     |
                     v
               Posts structured review comment
-                    |
-                    v
-Maintainer comments: "@shakenfist-bot please address comments"
-                    |
-                    v
-              Claude addresses each actionable item
-              (one commit per fix)
 ```
+
+The review is where the automation stops. Its findings are worked
+through interactively; the workflow which acted on them automatically
+is retired, see below.
 
 ### Bot Commands
 
@@ -38,7 +35,6 @@ commands by commenting on a PR:
 |---------|----------|-------------|
 | `@shakenfist-bot please retest` | `pr-retest.yml` | Re-run functional tests |
 | `@shakenfist-bot please re-review` | `pr-re-review.yml` | Fresh automated review |
-| `@shakenfist-bot please address comments` | `pr-address-comments.yml` | Address review comments |
 | `@shakenfist-bot please attempt to fix` | `pr-fix-tests.yml` | Fix failing tests (separate template) |
 
 ## Security Model
@@ -72,9 +68,8 @@ Templates are in
 |----------|---------------|-------------|
 | `pr-re-review.yml` | None | Manual re-review trigger |
 | `pr-retest.yml` | None | Manual test re-run |
-| `pr-address-comments.yml` | None | Address review comments |
 
-All three files are project-agnostic and can be copied directly.
+Both files are project-agnostic and can be copied directly.
 
 For projects with large test suites that would benefit from
 automatic test fixing, see the separate
@@ -91,8 +86,6 @@ templates which provide `pr-fix-tests.yml` and
 cp /path/to/development/templates/ci-review-automation/pr-re-review.yml \
     .github/workflows/
 cp /path/to/development/templates/ci-review-automation/pr-retest.yml \
-    .github/workflows/
-cp /path/to/development/templates/ci-review-automation/pr-address-comments.yml \
     .github/workflows/
 ```
 
@@ -133,12 +126,32 @@ The `check-bot-commit` job detects if the last commit was authored
 by `bot@shakenfist.com`. If so, the automated reviewer is skipped.
 This prevents loops where:
 
-1. Bot makes a commit (from test fixing or comment addressing)
+1. Bot makes a commit (from test fixing)
 2. CI runs on the new commit
 3. Automated reviewer reviews the bot's commit
-4. Maintainer triggers "address comments"
-5. Bot makes another commit
-6. Repeat forever
+4. A bot workflow makes another commit
+5. Repeat forever
+
+## The retired comment addresser
+
+`pr-address-comments.yml` answered `@shakenfist-bot please address
+comments` by handing each actionable review item to Claude Code and
+pushing one commit per item. It was removed in August 2026, together
+with the `tools/address-comments-with-claude.sh`, `tools/render-review.py`
+and `tools/review-schema.json` scripts that existed to serve it.
+
+It went unused: review findings are worked through interactively with
+the reviewer, and a bot authoring commits from a review nobody had read
+is why. Removing it is not optional housekeeping -- the workflow
+triggers on `issue_comment`, so it holds `contents: write` against the
+pull request branch for a feature nobody wants. The
+`ci-review-automation` consistency audit fails a repository still
+carrying any of the four files; remove them in one commit, because
+deleting the workflow and keeping the scripts leaves the copy that gets
+propagated.
+
+The reviewer does not depend on any of it: `render-review.py` and its
+schema ship inside `shakenfist/actions/review-pr-with-claude`.
 
 ## Shared Actions
 
