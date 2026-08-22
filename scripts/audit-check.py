@@ -98,6 +98,7 @@ CHECK_NAMES = {
     'devpi-fallback': 'Workflow standards (devpi cache fallback)',
     'devpi-stale-ip': 'Workflow standards (devpi cache address)',
     'expensive-lane-path-filter': 'Expensive lane path filtering',
+    'merge-group-cancellation': 'Merge group run cancellation',
     'version-file-gitignore': 'Generated version file',
     'pyproject-usage': 'pyproject.toml usage',
     'rust-unwrap-lint': 'Rust unwrap lint',
@@ -2022,6 +2023,595 @@ def check_expensive_lane_path_filter(repo_path, props):
         'details': (
             f'{expensive} expensive PR lane(s) are path-filtered '
             f'or exempt (content scanners, marked exceptions)'
+        ),
+    }
+
+
+# On a merge_group event github.ref is the per-attempt queue branch,
+# gh-readonly-queue/<base>/pr-<N>-<SHA>, and GitHub mints a fresh SHA
+# every time it rebuilds the group. A concurrency group keyed on it is
+# therefore unique per rebuild, cancel-in-progress never matches, and
+# superseded runs build whole clouds nobody is waiting on. See
+# audits/merge-group-cancellation.md.
+MERGE_GROUP_TRIGGER_RE = re.compile(
+    r'^\s{1,4}merge_group:\s*$', re.MULTILINE
+)
+MERGE_GROUP_FLOW_RE = re.compile(
+    r'^on:\s*\[[^\]]*\bmerge_group\b', re.MULTILINE
+)
+WORKFLOW_CALL_TRIGGER_RE = re.compile(
+    r'^\s{1,4}workflow_call:\s*$', re.MULTILINE
+)
+
+# A deliberate exception, ideally with a reason beside it.
+MERGE_GROUP_CANCEL_EXCEPTION_RE = re.compile(
+    r'audit-ok:\s*merge-group-cancellation'
+)
+
+# The queue ref, and the contexts that resolve to something GitHub
+# mints afresh on every rebuild of a merge group. Any of these in a
+# concurrency group makes the group unique per rebuild, so the
+# superseding group never joins it. These are substring tests, so
+# 'github.ref' also covers github.ref_name and github.ref_type (the
+# same queue branch without the refs/heads/ prefix), and
+# 'github.event.merge_group.head_commit' covers its .id.
+#
+# github.sha is here because on merge_group it is the SHA of the
+# per-attempt merge commit, not of the pull request head: it is as
+# unique per rebuild as the queue branch, and it is the key somebody
+# reaches for when they notice github.ref is wrong.
+QUEUE_REF_CONTEXTS = (
+    'github.ref',
+    'github.sha',
+    'github.run_id',
+    'github.run_number',
+    'github.run_attempt',
+    'github.event.merge_group.head_ref',
+    'github.event.merge_group.head_sha',
+    'github.event.merge_group.head_commit',
+)
+
+# The branch that makes a github.ref-based key safe: the expression
+# picks a different key when the event is a merge group.
+MERGE_GROUP_BRANCH_RE = re.compile(
+    r"github\.event_name\s*[=!]=\s*'merge_group'"
+)
+
+# The key that has to vary between the lanes of one matrix, and
+# between two jobs that call the same reusable workflow. Without a
+# matrix context in the group, a matrix's own lanes share a group and
+# cancel each other -- which is not a wasted run but a cancelled
+# required check, and a cancelled required check ejects the pull
+# request from the queue.
+MATRIX_CONTEXT_RE = re.compile(r'\bmatrix\.[A-Za-z_]')
+INPUTS_CONTEXT_RE = re.compile(r'\binputs\.[A-Za-z_]')
+
+# The fleet convention for telling one invocation of a reusable
+# workflow from another on the same ref. A callee cannot see its
+# caller's job name, so the caller has to say which invocation it is;
+# shakenfist/actions' smoke-cluster.yml declares this input for
+# exactly that reason. Required only where a callee is invoked more
+# than once per ref, which is the only time invocations can collide.
+CONCURRENCY_KEY_INPUT = 'concurrency_key'
+
+# Callees this audit can actually see. An in-repo callee is read from
+# the clone; a shakenfist/ callee is a fleet repository the audit runs
+# against in its own right. Anything else is a concurrency group
+# nobody here has checked, and the caller cannot fix it.
+AUDITED_CALLEE_PREFIXES = ('./', 'shakenfist/')
+
+USES_WORKFLOW_RE = re.compile(
+    r'^\s*uses:\s*(\S+\.github/workflows/\S+)\s*$'
+)
+
+
+def strip_yaml_comments(text):
+    """Drop full-line comments from a block of YAML.
+
+    Concurrency keys and `if:` conditions are routinely explained by
+    a comment directly above them that quotes the very expression
+    being warned about, so matching comment text would read those
+    explanations as the code they describe.
+    """
+    return '\n'.join(
+        line for line in text.splitlines()
+        if not line.lstrip().startswith('#')
+    )
+
+
+def indented_block(body, key):
+    """Extract the `key:` mapping from a job or workflow body.
+
+    Returns the block's text (without the key line), or None when
+    there is none. The block runs from the key to the next line at or
+    below its indentation, which covers both the inline and the
+    folded (`>-`) forms the fleet uses.
+    """
+    lines = strip_yaml_comments(body).splitlines()
+    collected = None
+    indent = None
+    for line in lines:
+        if collected is None:
+            match = re.match(r'^(\s*)' + re.escape(key) + r':\s*$', line)
+            if match:
+                collected = []
+                indent = len(match.group(1))
+            continue
+        if not line.strip():
+            collected.append(line)
+            continue
+        if len(line) - len(line.lstrip()) <= indent:
+            break
+        collected.append(line)
+    if collected is None:
+        return None
+    return '\n'.join(collected)
+
+
+def concurrency_block(body):
+    """Extract a `concurrency:` mapping from a job or workflow body."""
+    return indented_block(body, 'concurrency')
+
+
+def cancels_superseded_merge_groups(block):
+    """Does a concurrency block cancel a superseded merge group?
+
+    Two requirements: cancel-in-progress must be on, and the group
+    must not be keyed on anything the queue mints afresh per rebuild
+    unless the expression branches on the event name and uses
+    something stable there.
+    """
+    if block is None:
+        return False, 'no concurrency block'
+    if not re.search(r'cancel-in-progress:\s*true', block):
+        return False, 'cancel-in-progress is not true'
+    if not any(ctx in block for ctx in QUEUE_REF_CONTEXTS):
+        return True, None
+    if MERGE_GROUP_BRANCH_RE.search(block):
+        return True, None
+    return False, 'group is keyed on the per-attempt queue ref'
+
+
+EVENT_NAME_EQUALITY_RE = re.compile(
+    r"github\.event_name\s*==\s*'([a-z_]+)'"
+)
+
+
+def job_excluded_from_merge_group(body):
+    """Does a job's `if:` keep it off merge_group events?
+
+    Two forms count, and both appear in the fleet:
+
+    * an inequality against 'merge_group' -- ryll's smoke tier, and
+      kerbside's whole-lane skip, are written this way;
+    * a condition that names one or more events by equality, none of
+      which is 'merge_group' -- instar's ci-tooling is
+      `github.event_name == 'pull_request' && ...`.
+
+    A job whose condition cannot be read either way is treated as
+    reachable, which errs toward auditing it. The second form is read
+    as constraining the whole condition, so a job would be wrongly
+    exempted by an `if:` that ORs an event equality with a term that
+    does not mention the event at all. Nothing in the fleet is
+    written that way, and the alternative -- parsing the boolean
+    structure of a GitHub expression -- buys accuracy that is not
+    yet needed.
+    """
+    body = strip_yaml_comments(body)
+    if re.search(r"github\.event_name\s*!=\s*'merge_group'", body):
+        return True
+    events = EVENT_NAME_EQUALITY_RE.findall(body)
+    return bool(events) and 'merge_group' not in events
+
+
+def job_uses_workflow(body):
+    """The reusable workflow a job delegates to, or None.
+
+    Such a job has no runner of its own; the concurrency group that
+    matters lives in the callee, which this audit checks where it is
+    defined. What is checked here instead is that two invocations of
+    one callee can be told apart.
+    """
+    for line in strip_yaml_comments(body).splitlines():
+        match = USES_WORKFLOW_RE.match(line)
+        if match:
+            return match.group(1)
+    return None
+
+
+def job_matrix_block(body):
+    """The `matrix:` mapping of a job, or None when it has none."""
+    strategy = indented_block(body, 'strategy')
+    if strategy is None:
+        return None
+    return indented_block(strategy, 'matrix')
+
+
+def job_with_inputs(body):
+    """The `with:` inputs a job passes, as a name -> value mapping.
+
+    Only the scalar `name: value` form is read, which is every input
+    the fleet passes. A folded or block scalar is recorded as the
+    empty string: it is present, which is what the collision checks
+    below ask about.
+    """
+    block = indented_block(body, 'with')
+    if block is None:
+        return {}
+    inputs = {}
+    base = None
+    for line in block.splitlines():
+        if not line.strip():
+            continue
+        indent = len(line) - len(line.lstrip())
+        if base is None:
+            base = indent
+        if indent != base:
+            continue
+        match = re.match(r'^\s*([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$', line)
+        if match:
+            inputs[match.group(1)] = match.group(2).strip()
+    return inputs
+
+
+def job_runs_on_scarce_runner(body):
+    """Does a job hold a scarce self-hosted runner while it runs?
+
+    Every self-hosted pool except `static` qualifies. The path-filter
+    audit uses the narrower 'vm' label, which is right for the
+    question it asks -- 'vm' marks the lanes that build clouds -- but
+    wrong for this one: instar's ephemeral runners are tagged
+    [self-hosted, debian-12, xl] with no 'vm' label at all, and an
+    abandoned merge group holds one of those just as firmly. The
+    static pool is the exception because it is always-on and shared,
+    and its jobs (path filters, gates) are seconds long.
+
+    A `runs-on:` that is an expression is resolved as far as the
+    matrix it reads: `runs-on: ${{ matrix.os }}` over a matrix whose
+    values are self-hosted label lists is a scarce job, and reading
+    it as unresolvable -- which is what parse_runner_labels alone
+    does -- would drop a whole matrix of cloud builds out of the
+    audit. An expression over a matrix with no self-hosted value in
+    it, ryll's GitHub-hosted Windows and macOS builds, stays out of
+    scope: there is no fleet runner to starve.
+    """
+    matrix = job_matrix_block(body)
+    for line in strip_yaml_comments(body).splitlines():
+        match = RUNS_ON_RE.match(line)
+        if not match:
+            continue
+        labels = parse_runner_labels(match.group(1))
+        if labels is None:
+            # An expression. It can only be scarce if the matrix it
+            # reads names a self-hosted pool other than static.
+            if matrix is None or 'self-hosted' not in matrix:
+                continue
+            for value in re.findall(r'\[[^\]]*\]', matrix):
+                resolved = parse_runner_labels(value)
+                if not resolved or 'self-hosted' not in resolved:
+                    continue
+                if set(resolved) - STATIC_ALLOWED_LABELS:
+                    return True
+            continue
+        if 'self-hosted' not in labels:
+            continue
+        if set(labels) - STATIC_ALLOWED_LABELS:
+            return True
+    return False
+
+
+def workflow_header(content):
+    """Everything in a workflow file above its `jobs:` key."""
+    return content.split('\njobs:')[0]
+
+
+def workflow_declares_inputs(content):
+    """Does a reusable workflow declare any `workflow_call` inputs?"""
+    call = indented_block(workflow_header(content), 'workflow_call')
+    if call is None:
+        return False
+    return indented_block(call, 'inputs') is not None
+
+
+def lane_key_is_distinct(block, has_matrix):
+    """Does a matrix job's concurrency group vary between its lanes?
+
+    A matrix whose lanes share one group is not a wasted run: the
+    lanes cancel each other, the queue sees a cancelled required
+    check, and the pull request is ejected. Which makes this the more
+    expensive half of getting concurrency wrong, and the half a group
+    keyed on github.ref accidentally got right.
+    """
+    if not has_matrix or block is None:
+        return True
+    return bool(MATRIX_CONTEXT_RE.search(block))
+
+
+def reusable_invocation_offenders(wf, invocations):
+    """Check that two invocations of one callee can be told apart.
+
+    A job that calls a reusable workflow has no concurrency group of
+    its own -- the callee's group is the one that matters, and this
+    audit checks it where the callee is defined. What cannot be seen
+    from there is how many times one ref invokes it. shakenfist's
+    merge tier calls smoke-cluster.yml five times, four of them the
+    lanes of one matrix, and every one of those invocations lands in
+    the callee's group; they are distinct only because the caller
+    passes a per-invocation concurrency_key. Drop it and the lanes
+    cancel each other, which ejects the pull request from the queue.
+
+    So the requirement lands on the caller, and only where
+    invocations can collide: a callee invoked once per ref, with no
+    matrix behind it, has nothing to be distinct from.
+    """
+    problems = []
+    for callee, calls in sorted(invocations.items()):
+        if not callee.startswith(AUDITED_CALLEE_PREFIXES):
+            names = ', '.join(sorted(name for name, _, _ in calls))
+            problems.append(
+                f'{wf}:{names} (calls {callee}, whose concurrency '
+                f'group is outside the audited fleet)'
+            )
+            continue
+        if len(calls) == 1 and not calls[0][2]:
+            continue
+        seen = {}
+        for name, inputs, has_matrix in sorted(calls):
+            key = inputs.get(CONCURRENCY_KEY_INPUT)
+            if key is None:
+                problems.append(
+                    f'{wf}:{name} (invokes {callee} more than once '
+                    f'per ref with no {CONCURRENCY_KEY_INPUT} input '
+                    f'to tell the invocations apart)'
+                )
+                continue
+            if has_matrix and not MATRIX_CONTEXT_RE.search(key):
+                problems.append(
+                    f'{wf}:{name} ({CONCURRENCY_KEY_INPUT} is the '
+                    f'same for every matrix lane)'
+                )
+                continue
+            if key in seen:
+                problems.append(
+                    f'{wf}:{name} (passes the same '
+                    f'{CONCURRENCY_KEY_INPUT} as {seen[key]})'
+                )
+                continue
+            seen[key] = name
+    return problems
+
+
+def merge_queue_is_serial(repo_name, org):
+    """Is the default branch's merge queue building one entry at a time?
+
+    Returns True, False, or None when GitHub could not be asked. The
+    base_ref key this audit requires aliases every live entry in a
+    queue, which is safe only while the queue builds one at a time --
+    with speculative stacking, entry N+1's run would be cancelled by
+    entry N's, and a cancelled required check ejects it. The
+    merge-queue-config audit is what holds the fleet to
+    max_entries_to_build: 1, and it is also what reports an
+    unreachable API, so a None here is left to that check to explain
+    rather than failing this one twice.
+    """
+    try:
+        branch = subprocess.run(
+            ['gh', 'api', f'repos/{org}/{repo_name}',
+             '--jq', '.default_branch'],
+            capture_output=True, text=True, timeout=30,
+        )
+        if branch.returncode != 0:
+            return None
+        rules = subprocess.run(
+            ['gh', 'api',
+             f'repos/{org}/{repo_name}/rules/branches/'
+             f'{branch.stdout.strip()}'],
+            capture_output=True, text=True, timeout=30,
+        )
+        if rules.returncode != 0:
+            return None
+        parsed = json.loads(rules.stdout)
+    except (subprocess.TimeoutExpired, FileNotFoundError,
+            json.JSONDecodeError):
+        return None
+
+    entries = [
+        (r.get('parameters') or {}).get('max_entries_to_build')
+        for r in parsed if r.get('type') == 'merge_queue'
+    ]
+    if not entries:
+        return None
+    return all(e == 1 for e in entries)
+
+
+def check_merge_group_cancellation(repo_path, props, repo_name, org):
+    """Check merge group runs cancel exactly what they should.
+
+    A job reachable on a merge_group event that holds a scarce
+    self-hosted runner must be in a concurrency group that a
+    superseding merge group joins, and that its own siblings do not.
+    Both halves have teeth, and they pull in opposite directions.
+
+    Cancelling too little is what this audit was written for.
+    github.ref does not group a job with its successor: on
+    merge_group it is the per-attempt queue branch
+    gh-readonly-queue/<base>/pr-<N>-<SHA>, GitHub mints a fresh SHA
+    on every rebuild of the group, and so every rebuild lands in a
+    group of its own and nothing is ever cancelled. The superseded
+    runs build complete clouds against a queue branch GitHub has
+    already abandoned, on an under-cloud shared with every other
+    repository in the fleet. github.sha, github.run_id and the
+    merge_group head contexts are the same mistake wearing a
+    different name.
+
+    Cancelling too much is worse, and is what the rest of the checks
+    are for. Two lanes of one matrix, or two jobs invoking one
+    reusable workflow, that share a concurrency group cancel each
+    other inside a single run -- and a cancelled required check does
+    not merely waste a runner, it ejects the pull request from the
+    queue. So a matrix job's group must carry a matrix context, and
+    a caller that invokes one reusable workflow more than once per
+    ref must pass a per-invocation concurrency_key.
+
+    Reusable (workflow_call) workflows are in scope, and
+    unconditionally: they inherit the caller's event, so a callee
+    keyed on github.ref carries the defect on behalf of every caller,
+    and a callee published for the fleet cannot know what event it
+    will see. Inferring reachability from in-repo callers was tried
+    and is wrong -- it exempted shakenfist/actions' smoke-cluster.yml,
+    which every shakenfist merge group runs four nested clusters
+    through, on the strength of a scheduled canary calling it too. A
+    callee that declares inputs must also key its group on one of
+    them, because a group made only of caller contexts is the same
+    group for every invocation on a ref.
+
+    The cost of that conservatism is reusable workflows that really
+    cannot see a merge group -- the fleet's test-drift-fix.yml is
+    called only from pr-fix-tests.yml on issue_comment -- which carry
+    the audit-ok marker with that as the stated reason. The marker is
+    read per job, and only exempts a whole file when it appears above
+    the jobs: key: a workflow file here runs to eight hundred lines
+    and fifteen jobs, and one job's stated exception should not
+    quietly stop the other fourteen being measured.
+
+    Cancelling is only safe at all because the merge-queue-config
+    audit holds the fleet to max_entries_to_build: 1, which makes any
+    other in-flight merge_group run superseded by definition. Where
+    that is not true, the base_ref key this audit asks for would
+    alias two live entries, so the precondition is checked here
+    rather than left as a note in the specification.
+    """
+    if not props['has_workflows_dir']:
+        return {
+            'id': 'merge-group-cancellation',
+            'status': 'not_applicable',
+            'details': 'No .github/workflows/ directory',
+        }
+
+    workflows = list_workflow_files(repo_path)
+    if not workflows:
+        return {
+            'id': 'merge-group-cancellation',
+            'status': 'not_applicable',
+            'details': 'No workflow files found',
+        }
+
+    offenders = []
+    audited = 0
+    saw_merge_group = False
+    keyed_on_base_ref = False
+    for wf in sorted(workflows):
+        filepath = os.path.join(
+            repo_path, '.github', 'workflows', wf
+        )
+        with open(filepath, 'r', errors='replace') as f:
+            content = f.read()
+
+        triggered = bool(
+            MERGE_GROUP_TRIGGER_RE.search(content)
+            or MERGE_GROUP_FLOW_RE.search(content)
+        )
+        reusable = bool(WORKFLOW_CALL_TRIGGER_RE.search(content))
+        if not (triggered or reusable):
+            continue
+        saw_merge_group = True
+
+        header = workflow_header(content)
+        if MERGE_GROUP_CANCEL_EXCEPTION_RE.search(header):
+            continue
+
+        workflow_block = concurrency_block(header)
+        needs_input_key = reusable and workflow_declares_inputs(content)
+        invocations = {}
+        for name, body in workflow_job_blocks(content):
+            if MERGE_GROUP_CANCEL_EXCEPTION_RE.search(body):
+                continue
+            if triggered and job_excluded_from_merge_group(body):
+                continue
+
+            callee = job_uses_workflow(body)
+            if callee:
+                invocations.setdefault(callee, []).append((
+                    name,
+                    job_with_inputs(body),
+                    job_matrix_block(body) is not None,
+                ))
+                continue
+
+            if not job_runs_on_scarce_runner(body):
+                continue
+            audited += 1
+
+            block = concurrency_block(body)
+            if block is None:
+                block = workflow_block
+            ok, reason = cancels_superseded_merge_groups(block)
+            if not ok:
+                offenders.append(f'{wf}:{name} ({reason})')
+                continue
+            if MERGE_GROUP_BRANCH_RE.search(block):
+                keyed_on_base_ref = True
+            if not lane_key_is_distinct(
+                    block, job_matrix_block(body) is not None):
+                offenders.append(
+                    f'{wf}:{name} (every matrix lane shares one '
+                    f'concurrency group, so the lanes cancel each '
+                    f'other)'
+                )
+                continue
+            if needs_input_key and not INPUTS_CONTEXT_RE.search(block):
+                offenders.append(
+                    f'{wf}:{name} (a reusable workflow group made '
+                    f'only of caller contexts is the same group for '
+                    f'every invocation on a ref)'
+                )
+
+        offenders.extend(
+            reusable_invocation_offenders(wf, invocations)
+        )
+        audited += sum(len(c) for c in invocations.values())
+
+    if not saw_merge_group:
+        return {
+            'id': 'merge-group-cancellation',
+            'status': 'not_applicable',
+            'details': (
+                f'No merge_group or reusable workflow among '
+                f'{len(workflows)} workflow(s)'
+            ),
+        }
+
+    if keyed_on_base_ref and merge_queue_is_serial(repo_name, org) is False:
+        offenders.append(
+            'the merge queue on the default branch builds more than '
+            'one entry at a time, so a group keyed on '
+            'merge_group.base_ref aliases live entries and would '
+            'cancel one of them (see audits/merge-queue-config.md)'
+        )
+
+    if offenders:
+        return {
+            'id': 'merge-group-cancellation',
+            'status': 'fail',
+            'details': (
+                f'{len(offenders)} problem(s) with merge_group '
+                f'cancellation: {", ".join(offenders)}. A group must '
+                f'be shared with the run that supersedes it -- key it '
+                f'on github.event.merge_group.base_ref rather than '
+                f'anything minted per rebuild -- and not shared with '
+                f'anything running beside it. See '
+                f'audits/merge-group-cancellation.md, or mark a '
+                f'deliberate exception with an "audit-ok: '
+                f'merge-group-cancellation" comment'
+            ),
+        }
+
+    return {
+        'id': 'merge-group-cancellation',
+        'status': 'pass',
+        'details': (
+            f'{audited} job(s) reachable on merge_group cancel '
+            f'superseded queue entries without cancelling each other'
         ),
     }
 
@@ -4389,6 +4979,9 @@ def check_calls(repo_path, props, repo_name, org):
          lambda: check_devpi_stale_ip(repo_path, props)),
         ('expensive-lane-path-filter',
          lambda: check_expensive_lane_path_filter(repo_path, props)),
+        ('merge-group-cancellation',
+         lambda: check_merge_group_cancellation(
+             repo_path, props, repo_name, org)),
         ('pyproject-usage',
          lambda: check_pyproject_usage(repo_path, props)),
         ('version-file-gitignore',
