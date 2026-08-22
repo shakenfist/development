@@ -2614,6 +2614,31 @@ class PrAutoReviewSecretsInheritTest(unittest.TestCase):
         result = self._check(commented)
         self.assertEqual(result['status'], 'pass', result['details'])
 
+    def test_a_trailing_comment_does_not_hide_it(self):
+        # The realistic evasion. Someone who reads the template text or
+        # receives the audit issue is likelier to annotate the line than
+        # to delete it, and Actions treats this as plain inherit.
+        annotated = self.REVIEWER + (
+            '    secrets: inherit  # TODO: drop once migrated\n')
+        result = self._check(annotated)
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('ci.yml', result['details'])
+
+    def test_a_quoted_inherit_does_not_hide_it(self):
+        for quoted in ("    secrets: 'inherit'\n",
+                       '    secrets: "inherit"\n'):
+            result = self._check(self.REVIEWER + quoted)
+            self.assertEqual(result['status'], 'fail', quoted)
+            self.assertIn('ci.yml', result['details'])
+
+    def test_a_named_secret_is_not_inherit(self):
+        # The explicit mapping form passes only what it names, which is
+        # the false positive worth declining.
+        named = self.REVIEWER + (
+            '    secrets:\n      MY_TOKEN: ${{ secrets.MY_TOKEN }}\n')
+        result = self._check(named)
+        self.assertEqual(result['status'], 'pass', result['details'])
+
     def test_the_docs_only_path_checks_it_too(self):
         # cloudgood takes a different branch through this check, and a
         # guard that only covers one branch is a guard with a hole.

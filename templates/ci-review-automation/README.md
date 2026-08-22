@@ -241,8 +241,11 @@ Three details specific to reusable workflows:
   handing every secret your repository holds, publishing tokens
   included, to a workflow which lives in another repository. An
   earlier version of this template carried the line, and nine
-  repositories copied it; the `ci-review-automation` audit now
-  checks for it.
+  repositories copied it before it was corrected. Seven have since
+  merged the removal; `development` and `ryll` were the two still
+  carrying it when this was written. The `ci-review-automation`
+  audit now checks for it, so a repository which reintroduces the
+  line during migration is told rather than discovered.
 
 This is the same calling pattern as
 `shakenfist/actions/.github/workflows/smoke-cluster.yml`, which
