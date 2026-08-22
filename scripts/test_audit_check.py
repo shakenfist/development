@@ -2586,9 +2586,13 @@ class PrAutoReviewSecretsInheritTest(unittest.TestCase):
                 f.write('x\n')
         return tmp
 
-    def _check(self, reviewer_job, docs_only=False):
+    def _check(self, reviewer_job, docs_only=False, extra=None):
         with tempfile.TemporaryDirectory() as tmp:
             self._repo(tmp, reviewer_job)
+            for name, content in (extra or {}).items():
+                path = os.path.join(tmp, '.github', 'workflows', name)
+                with open(path, 'w') as f:
+                    f.write(content)
             return audit_check.check_ci_review_automation(
                 tmp, {'is_docs_only': docs_only}
             )
@@ -2645,6 +2649,33 @@ class PrAutoReviewSecretsInheritTest(unittest.TestCase):
         result = self._check(self.INHERITS, docs_only=True)
         self.assertEqual(result['status'], 'fail')
         self.assertIn('secrets: inherit', result['details'])
+
+    def test_every_offending_workflow_is_named(self):
+        # Most projects carry the reviewer job in functional-tests.yml
+        # rather than ci.yml, so the finding has to name whichever file
+        # it found rather than the one the fixtures happen to use. Two
+        # at once also exercises the sorted join, which is what the
+        # audit issue body shows the person doing the work.
+        result = self._check(self.INHERITS, extra={
+            'functional-tests.yml': 'jobs:\n' + self.INHERITS,
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('ci.yml', result['details'])
+        self.assertIn('functional-tests.yml', result['details'])
+        self.assertLess(result['details'].index('ci.yml'),
+                        result['details'].index('functional-tests.yml'))
+
+    def test_a_workflow_with_no_jobs_key_is_skipped(self):
+        # workflow_job_blocks finds nothing in a file with no top-level
+        # jobs: key. That must skip the file rather than throw, or one
+        # malformed workflow stops the check measuring the rest of the
+        # repository -- and a check which does not run reports pass.
+        result = self._check(self.INHERITS, extra={
+            'dependabot-notes.yml': 'on:\n  push:\n',
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('ci.yml', result['details'])
+        self.assertNotIn('dependabot-notes.yml', result['details'])
 
 
 if __name__ == '__main__':

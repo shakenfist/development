@@ -383,12 +383,15 @@ def pr_auto_review_callers_inheriting_secrets(repo_path):
     The shared workflow's own header tells callers not to do this. An
     earlier version of templates/ci-review-automation/README.md told
     them to, which is how nine repositories came to, so this is checked
-    rather than left to the template being right from here on. Seven of
-    those nine have since merged the removal; run against fresh clones
-    of the whole matrix on 2026-08-22 this check reports development,
-    which this change fixes, and ryll, which is still outstanding. So
-    it is not a guard that has only ever seen fixtures, and the next
-    audit run will not report zero.
+    rather than left to the template being right from here on. Run
+    against fresh clones of the whole matrix on 2026-08-22 it reported
+    two of them rather than zero, so it is a guard which has seen real
+    repositories and not only fixtures. Which repositories are
+    outstanding today is the compliance table in
+    audits/ci-review-automation.md, which regenerates daily. That is
+    deliberately not restated here: one of the two the survey named had
+    merged its own removal within the day, and this change is the
+    other.
 
     Returns the workflow files whose reviewer job still inherits.
     """
