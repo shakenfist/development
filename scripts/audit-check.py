@@ -353,6 +353,55 @@ def pr_re_review_open_codes_the_trigger(repo_path):
     return not check_file_contains(repo_path, path, r'pr-bot-trigger@main')
 
 
+def pr_auto_review_callers_inheriting_secrets(repo_path):
+    """Find reviewer jobs which hand the shared workflow every secret.
+
+    pr-auto-review.yml declares no secrets and reads none: it and
+    review-pr-with-claude authenticate with github.token, which comes
+    from the calling job's permissions: block. "secrets: inherit" on
+    that job therefore buys the caller nothing, while passing every
+    secret the repository holds -- publishing tokens included -- to a
+    workflow which lives in another repository. The exposure is latent
+    rather than active, but it means a bad change landing in
+    shakenfist/actions would already have those secrets within reach,
+    which is the situation to avoid rather than to detect afterwards.
+
+    The shared workflow's own header tells callers not to do this. An
+    earlier version of templates/ci-review-automation/README.md told
+    them to, which is how nine repositories came to, so this is checked
+    rather than left to the template being right from here on.
+
+    Returns the workflow files whose reviewer job still inherits.
+    """
+    offenders = []
+    for wf in list_workflow_files(repo_path):
+        filepath = os.path.join(repo_path, '.github', 'workflows', wf)
+        with open(filepath, 'r', errors='replace') as f:
+            content = f.read()
+        for name, body in workflow_job_blocks(content):
+            lines = [line for line in body.splitlines()
+                     if not line.lstrip().startswith('#')]
+            if not any(re.search(r'uses:.*pr-auto-review\.yml', line)
+                       for line in lines):
+                continue
+            if any(re.match(r'\s*secrets:\s*inherit\s*$', line)
+                   for line in lines):
+                offenders.append(wf)
+                break
+    return sorted(set(offenders))
+
+
+def secrets_inherit_issues(repo_path):
+    """Findings for reviewer jobs which inherit secrets needlessly."""
+    return [
+        f'{wf} passes "secrets: inherit" to pr-auto-review.yml, which '
+        'reads no secrets and authenticates with github.token, so '
+        'every secret this repository holds is handed to a workflow '
+        'in another repository for no benefit'
+        for wf in pr_auto_review_callers_inheriting_secrets(repo_path)
+    ]
+
+
 def check_ci_review_automation(repo_path, props):
     """Check for automated review and developer automation workflows."""
     if props['is_docs_only']:
@@ -376,6 +425,13 @@ def check_ci_review_automation(repo_path, props):
                     'hand-rolls the trigger handling and does not inherit '
                     "the action's fork pull request guard"
                 ),
+            }
+        inheriting = secrets_inherit_issues(repo_path)
+        if inheriting:
+            return {
+                'id': 'ci-review-automation',
+                'status': 'fail',
+                'details': '; '.join(inheriting),
             }
         if missing:
             return {
@@ -420,6 +476,11 @@ def check_ci_review_automation(repo_path, props):
             "trigger handling and does not inherit the action's fork pull "
             'request guard'
         )
+
+    # "secrets: inherit" on the reviewer job hands every secret this
+    # repository holds to a workflow in another one, for a workflow
+    # which reads none. See the helper's docstring.
+    issues.extend(secrets_inherit_issues(repo_path))
 
     # A copy of render-review.py without review-schema.json beside it
     # validates nothing, silently. See the helper's docstring.

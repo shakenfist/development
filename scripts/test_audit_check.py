@@ -2541,5 +2541,86 @@ class PrReReviewTriggerTest(unittest.TestCase):
         self.assertEqual(result['status'], 'pass', result['details'])
 
 
+class PrAutoReviewSecretsInheritTest(unittest.TestCase):
+    """The reviewer job must not pass "secrets: inherit".
+
+    pr-auto-review.yml reads no secrets -- it and review-pr-with-claude
+    authenticate with github.token from the caller's permissions block
+    -- so inheriting buys nothing and hands every secret the calling
+    repository holds, publishing tokens included, to a workflow in
+    another repository.
+    """
+
+    REVIEWER = (
+        '  automated_reviewer:\n'
+        '    permissions:\n'
+        '      contents: read\n'
+        '    uses: shakenfist/actions/.github/workflows/'
+        'pr-auto-review.yml@main\n'
+    )
+    INHERITS = REVIEWER + '    secrets: inherit\n'
+    # smoke-cluster.yml genuinely needs the cluster secrets. Only the
+    # reviewer job is the finding.
+    SMOKE_INHERITS = (
+        '  smoke:\n'
+        '    uses: shakenfist/actions/.github/workflows/'
+        'smoke-cluster.yml@main\n'
+        '    secrets: inherit\n'
+    )
+
+    def _repo(self, tmp, reviewer_job):
+        workflows = os.path.join(tmp, '.github', 'workflows')
+        os.makedirs(workflows)
+        for wf in ('pr-address-comments.yml', 'pr-retest.yml'):
+            with open(os.path.join(workflows, wf), 'w') as f:
+                f.write('uses: shakenfist/actions/'
+                        'review-pr-with-claude@main\n')
+        with open(os.path.join(workflows, 'pr-re-review.yml'), 'w') as f:
+            f.write('  - uses: shakenfist/actions/pr-bot-trigger@main\n')
+        with open(os.path.join(workflows, 'ci.yml'), 'w') as f:
+            f.write('jobs:\n' + reviewer_job)
+        # Keep the render-review.py check quiet.
+        os.makedirs(os.path.join(tmp, 'tools'))
+        for name in ('render-review.py', 'review-schema.json'):
+            with open(os.path.join(tmp, 'tools', name), 'w') as f:
+                f.write('x\n')
+        return tmp
+
+    def _check(self, reviewer_job, docs_only=False):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, reviewer_job)
+            return audit_check.check_ci_review_automation(
+                tmp, {'is_docs_only': docs_only}
+            )
+
+    def test_a_reviewer_without_inherit_passes(self):
+        result = self._check(self.REVIEWER)
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_a_reviewer_which_inherits_fails(self):
+        result = self._check(self.INHERITS)
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('secrets: inherit', result['details'])
+        self.assertIn('ci.yml', result['details'])
+
+    def test_other_callers_may_inherit(self):
+        # smoke-cluster.yml reads real secrets. Sweeping it up in this
+        # finding would be telling projects to break their own CI.
+        result = self._check(self.REVIEWER + self.SMOKE_INHERITS)
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_a_commented_out_inherit_is_not_a_finding(self):
+        commented = self.REVIEWER + '    # secrets: inherit\n'
+        result = self._check(commented)
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_the_docs_only_path_checks_it_too(self):
+        # cloudgood takes a different branch through this check, and a
+        # guard that only covers one branch is a guard with a hole.
+        result = self._check(self.INHERITS, docs_only=True)
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('secrets: inherit', result['details'])
+
+
 if __name__ == '__main__':
     unittest.main()
