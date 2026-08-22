@@ -49,16 +49,70 @@ Projects should include bot-triggered workflows responding to
 
 * `pr-re-review.yml` -- triggers another automated review (with
   `pull-requests: write` and `issues: write`).
-* `pr-address-comments.yml` -- triggers Claude Code to address
-  review comments.
 * `pr-retest.yml` -- re-runs functional tests.
+
+### The comment addresser is retired
+
+`pr-address-comments.yml` answered `@shakenfist-bot please address
+comments` by handing the review's items to Claude Code and pushing a
+commit per item. It was retired in August 2026 because it went unused:
+review items are worked through interactively with the reviewer
+instead, and a bot authoring commits from a review no human had read
+was the part that stopped anyone reaching for it.
+
+Its remains are audited rather than ignored, because they are not
+inert. The workflow triggers on `issue_comment`, so it holds
+`contents: write` against the pull request branch for a feature nobody
+wants; and it is the last thing in a project that calls
+`render-review.py`, so the script and its schema are dead weight the
+next project copies. The check therefore looks for the whole chain:
+
+* `.github/workflows/pr-address-comments.yml`
+* `address-comments-with-claude.sh`
+* `render-review.py`
+* `review-schema.json`
+
+All four are searched for by basename anywhere in the tree. `tools/`
+and `.github/workflows/` are the canonical homes, but deployments put
+them elsewhere -- the check this replaced found a `contrib/` copy, and
+a template directory carries the copy of the workflow the next project
+installs -- and a dead file is dead wherever it sits. Naming only the
+installed workflow would mean a maintainer who removes everything the
+finding names deletes the scripts, leaves the template copy behind, and
+passes the audit from then on while still handing the chain to the next
+project.
+
+Only a copy at `.github/workflows/pr-address-comments.yml` actually
+runs, so only that one holds `contents: write` on the pull request
+branch. The finding says so when it is present and calls the rest dead
+weight when it is not, rather than asserting a privileged workflow the
+maintainer would then go looking for and not find.
+
+One exemption. A directory holding an `action.yml` or `action.yaml` is
+a composite action's own source rather than a deployed copy, and is
+skipped.
+`shakenfist/actions` is in the matrix and is where
+`review-pr-with-claude/render-review.py` and its schema actually live
+-- the copies every project's reviewer runs, and the ones this
+retirement sends projects to instead of their own. Without the
+exemption the finding would name them, and the instruction below is to
+remove everything it names in one commit, which would delete the
+renderer out from under the reviewer in every repository at once. The
+exemption covers the directory the manifest sits in and nothing below
+it, and `shakenfist/actions` is still reported for the leftovers it
+genuinely carries elsewhere in its tree.
+
+Everything the finding names goes in one commit. Deleting the workflow
+and keeping the scripts leaves the copy that gets propagated. The
+reviewer is otherwise unaffected: it reaches `render-review.py`
+through `shakenfist/actions/review-pr-with-claude@main`, which carries
+its own copy and its own schema.
 
 ### The trigger handling must be the shared action
 
 `pr-re-review.yml` must reach `shakenfist/actions/pr-bot-trigger@main`
 rather than hand-rolling the phrase match, permission lookup, reaction
-and refusal reply in inline shell. `pr-retest.yml` and
-`pr-address-comments.yml` already do.
+and refusal reply in inline shell. `pr-retest.yml` already does.
 
 This is a security requirement, not a tidiness one. `pr-bot-trigger`
 refuses pull requests from forks, and a hand-rolled copy does not
@@ -88,26 +142,6 @@ and never checked the trigger phrase itself, so it could not distinguish
 The check reports nothing when `pr-re-review.yml` is absent -- that is
 already a finding on its own, and reporting both would be two findings
 for one missing file.
-
-### Review JSON validation
-
-`render-review.py` resolves its schema as
-`Path(__file__).parent / 'review-schema.json'`. A deployed copy of the
-script must therefore keep `review-schema.json` in the same
-directory. Without it `load_schema()` returns `None` and
-`validate_review()` returns success without checking anything, so
-`--validate` accepts a review carrying an invented `category` or
-`action` while still exiting zero. The structural fallback in that
-function is a separate branch, reached only when `jsonschema` cannot be
-imported; on a runner where it can, a missing schema file means no
-validation at all.
-
-That matters because `address-comments-with-claude.sh` runs
-`render-review.py --validate` as its gate before letting Claude Code
-loose on the review's items: a review the schema would have rejected
-gets acted on instead. The failure is silent in both directions -- the
-script reports success and the audit saw nothing -- so the check looks
-for a `render-review.py` with no `review-schema.json` beside it.
 
 ### Test drift fixing (optional)
 

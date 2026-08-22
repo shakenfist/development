@@ -6,9 +6,9 @@ the Shaken Fist project.
 ## Documentation
 
 - [Automated PR Review with Claude Code](https://github.com/shakenfist/development/blob/main/docs/automated-pr-review.md) -- How we use
-  Claude Code to automate code review and address review comments
+  Claude Code to automate code review
 - [CI Review Automation](https://github.com/shakenfist/development/blob/main/docs/ci-review-automation.md) -- Workflow templates
-  for bot-triggered reviews, retests, test fixing, and comment addressing
+  for bot-triggered reviews, retests and test fixing
 - [Release Automation](https://github.com/shakenfist/development/blob/main/docs/release-automation.md) -- Automated PyPI releases
   with Sigstore signing and trusted publishers
 - [Code Review Tracking](https://github.com/shakenfist/development/blob/main/docs/code-review-tracking.md) -- Whole-codebase
@@ -45,7 +45,7 @@ to Shaken Fist projects:
 - [`templates/release-automation/`](https://github.com/shakenfist/development/tree/main/templates/release-automation) --
   `release.yml` workflow and `RELEASE-SETUP.md` for PyPI releases
 - [`templates/ci-review-automation/`](https://github.com/shakenfist/development/tree/main/templates/ci-review-automation) --
-  Bot-triggered workflows for PR review, retest, and comment addressing
+  Bot-triggered workflows for PR review and retest
 - [`templates/test-drift-fix/`](https://github.com/shakenfist/development/tree/main/templates/test-drift-fix) --
   Automatic test fixing with Claude Code (for projects with large
   test suites)
@@ -93,14 +93,13 @@ These actions reduce duplication and ensure consistent behavior across projects.
 
 ## Projects Using These Automations
 
-The following projects have Claude Code-powered automation:
-
-| Project | Automated Review | Test Fixer | Comment Addresser | Retest |
-|---------|------------------|------------|-------------------|--------|
-| [imago](https://github.com/shakenfist/imago) | Yes | Yes | Yes | Yes |
-| [occystrap](https://github.com/shakenfist/occystrap) | Yes | Yes | Yes | Yes |
-| [agent-python](https://github.com/shakenfist/agent-python) | Yes | No | Yes | Yes |
-| [development](https://github.com/shakenfist/development) | Yes | No | Yes | Yes |
+Most Shaken Fist projects have Claude Code-powered automated review
+and bot-triggered retests. Whether each audited project's review
+automation is compliant is measured every morning rather than listed
+here: see the compliance table in
+[`audits/ci-review-automation.md`](https://github.com/shakenfist/development/blob/main/audits/ci-review-automation.md).
+imago is the exception: it carries the automation but is not in the
+audit matrix, so it never appears in that table.
 
 ## About Shaken Fist
 

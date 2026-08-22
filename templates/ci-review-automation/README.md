@@ -1,34 +1,14 @@
 # CI Review Automation Templates
 
-These templates set up Claude Code-powered PR review automation and
-bot-triggered workflows for Shaken Fist projects. The workflow files
-can be copied directly with no modifications. The two helper scripts
-copy into the target repository's `tools/` directory, and
-`address-comments-with-claude.sh` needs one edit: replace
-`PROJECT_NAME` in its Claude prompt with the project's name (and a
-one-line description if that helps the model).
+These templates set up the bot-triggered workflows for Shaken Fist
+projects. Both files copy directly into `.github/workflows/` with no
+modifications: everything they need lives in the shared actions, so
+there are no helper scripts to copy alongside them and nothing to edit
+per project.
 
-**`review-schema.json` must land in the same directory as
-`render-review.py`.** The script resolves it as
-`Path(__file__).parent / 'review-schema.json'`, and when it is not
-there `load_schema()` returns `None` and `validate_review()` returns
-success **without checking anything** -- so `--validate` starts
-accepting reviews with invented categories and actions, and still exits
-zero. (The structural fallback in that function is a different branch,
-reached only when `jsonschema` is not importable at all; with
-`jsonschema` installed and no schema file, nothing is checked.) Nothing
-reports the downgrade, so a repository in that state is
-indistinguishable from one that is validating. This directory shipped
-the script without the schema until now, and ryll was deployed from it
-in exactly that state; the `ci-review-automation` audit now checks for
-a `render-review.py` with no schema beside it. Both scripts must have
-merged to the default branch before the bot trigger works, because
-`pr-address-comments.yml` reads them from a trusted checkout of that
-branch. Forgetting the scripts leaves the bot reacting to trigger
-comments and then failing with "No such file or directory" -- this
-has happened in practice on client-python-k3s, and again on sfui
-where `render-review.py` alone was missed (this directory not
-carrying the scripts is how both happened; it does now).
+The comment addresser used to ship from here as a third workflow and
+three helper scripts. It is retired -- see "The comment addresser is
+retired" below.
 
 For automatic test fixing (suited to projects with large test
 suites), see the separate
@@ -40,10 +20,6 @@ suites), see the separate
 |------|-------------|-------------|
 | `pr-re-review.yml` | `.github/workflows/pr-re-review.yml` | Manual re-review trigger |
 | `pr-retest.yml` | `.github/workflows/pr-retest.yml` | Manual functional test re-run (dispatches `functional-tests.yml`; substitute the project's own test workflow name if it differs, as development does for `ci.yml`) |
-| `pr-address-comments.yml` | `.github/workflows/pr-address-comments.yml` | Address review comments |
-| `address-comments-with-claude.sh` | `tools/address-comments-with-claude.sh` | Addresses review items with Claude Code (edit `PROJECT_NAME`) |
-| `render-review.py` | `tools/render-review.py` | Validates review JSON and renders it to markdown |
-| `review-schema.json` | `tools/review-schema.json` | The schema `render-review.py` validates against |
 
 ## Syncing deployed copies
 
@@ -51,8 +27,12 @@ Everything in this directory is now ahead of every deployment. The
 2026-08-21 round of fixes came out of the automated review of
 shakenfist/actions#22, which was the first time these files were read
 adversarially rather than copied, and it found defects in the templates
-themselves rather than in that deployment. **Every repository listed at
-the bottom of this file is running the pre-fix versions.**
+themselves rather than in that deployment. **Every repository listed
+at the bottom of this file is running pre-fix copies of the two
+workflows in this directory.** That is about these files, not about
+which reviewer a project uses: the migration to the reusable
+`pr-auto-review.yml` is finished everywhere, and is a separate matter
+from the bot triggers being out of date.
 
 ### Workflow fixes (2026-08-21)
 
@@ -77,25 +57,17 @@ the bottom of this file is running the pre-fix versions.**
   makes the symptom subtle: a real review, calibrated wrongly.
 * **`pr-re-review.yml` has a concurrency group.** Two requests in quick
   succession ran concurrently and posted two reviews.
-* **All three ignore comments authored by a bot.** The success and
+* **Both ignore comments authored by a bot.** The success and
   no-changes comments embed `${summary}`, which is model-generated text.
   A per-item rationale that quotes a trigger phrase re-fires the
   workflow, and `contains()` does not care that it is inside a quote.
-* **A failed `pr-address-comments.yml` run says so on the pull
-  request.** Both reporting steps were gated on the commit count, so any
-  failure before the push left the requester with `pr-bot-trigger`'s
-  "Starting to address automated review comments..." and nothing else.
-  The likeliest failure is the likeliest user error: asking for comments
-  to be addressed on a pull request that was never reviewed.
-* **The `addressed` and `skipped` counts are used.** They were extracted
-  into `$GITHUB_OUTPUT` and never read by anything.
 * `actions/upload-artifact` moved from `@v6` to `@v7`.
 
 ### Hardening from CodeQL (2026-08-22)
 
 Enabling CodeQL on the development repository put an Actions scanner in
 front of these files for the first time, and it raised
-`actions/untrusted-checkout/high` against both workflows that check out
+`actions/untrusted-checkout/high` against the workflows that check out
 a pull request: "checkout of untrusted code in a privileged workflow
 with later potential execution". Every repository running these
 workflows already carries the same open alert.
@@ -108,16 +80,17 @@ own merits:
 
 * **`persist-credentials: false` on `pr-re-review.yml`'s checkout.**
   This was a real gap rather than a scanner artefact.
-  `pr-address-comments.yml` has always set it; this file did not, so the
-  default left a write-scoped token in the `.git/config` of a working
-  tree holding the pull request's own code -- the tree Claude Code is
-  then pointed at with `--dangerously-skip-permissions`.
+  The retired `pr-address-comments.yml` had always set it; this file
+  did not, so the default left a write-scoped token in the
+  `.git/config` of a working tree holding the pull request's own code
+  -- the tree Claude Code is then pointed at with
+  `--dangerously-skip-permissions`.
   `review-pr-with-claude` authenticates `gh` from `GH_TOKEN` and never
   pushes, so nothing needed the credential helper.
-* **Both workflows now check `same_repo` explicitly** in the job `if:`,
+* **`pr-re-review.yml` now checks `same_repo` explicitly** in the job `if:`,
   alongside `authorized`. It is redundant -- `pr-bot-trigger` folds the
   fork check into `authorized` -- and that is the point: the guard is
-  the one restriction in these files worth stating twice, so a
+  the one restriction in this file worth stating twice, so a
   regression in the shared action cannot quietly widen what runs, and
   the restriction is visible without leaving the file.
 
@@ -145,60 +118,9 @@ request is enough.
 That is fixed in `shakenfist/actions/pr-bot-trigger`, folded into the
 existing `authorized` output, so **every deployment inherits it at
 `@main` with no change on their side** -- provided the workflow actually
-uses the action. `pr-retest.yml` and `pr-address-comments.yml` do. The
-old inline `pr-re-review.yml` does not, which is why replacing it is the
-one item here that cannot wait for a convenient moment.
-
-### Script fixes (2026-08-21)
-
-* **`reset_worktree` runs `git clean -fd`.** `git reset --hard` leaves
-  untracked files alone, so a Claude run that wrote a new file and then
-  errored, declined, or hit `--max-turns` before `git add` left it in
-  the tree -- and a later item reaching for `git add -A` committed it
-  under the wrong item's title. That is precisely what the function was
-  written to prevent.
-* **`--output-dir` inside the work tree is refused**, so the new
-  `git clean` cannot delete the script's own state files.
-* **`location` is sanitized, and `category` and `severity` are validated
-  against their enums.** All three are model output derived from an
-  untrusted diff, reaching a prompt for a Claude run holding `GH_TOKEN`
-  with `--dangerously-skip-permissions`. `action` was already validated;
-  these were not, and the schema is only enforced when `jsonschema` is
-  importable on the runner.
-* **Malformed items get a summary row and a skipped count.** The id and
-  action guards used to `continue` without either, so `items_found` no
-  longer equalled `addressed + skipped` and the item vanished from the
-  summary table -- silence in the one case where the input was bad.
-
-### Earlier drift
-
-The deployed copies of `address-comments-with-claude.sh` predate this
-directory becoming their source of truth, and drifted: fixes landed
-in one repository without reaching the others. The canonical script
-here carries all of them, and every deployment listed at the bottom
-of this file lacks at least one:
-
-- The Claude prompt no longer instructs running `pre-commit` inside
-  the untrusted PR checkout, and prohibits running any script from
-  it. The workflow's own security model documents why: a PR author
-  controls `.pre-commit-config.yaml` and the local hooks it points
-  at, so this was arbitrary code execution under a write-scoped
-  token. Every deployed copy has this problem; treat syncing this
-  fix as a security update, not housekeeping.
-- The git index is reset between review items (kerbside had this),
-  so an abandoned item's staged changes cannot leak into the next
-  item's commit.
-- The claude binary is located via `CLAUDE_BIN`, then PATH, then
-  `~/.local/bin/claude` (shakenfist had this).
-- `--help` prints the whole header comment block instead of a
-  hardcoded line range that had already drifted, and reads the
-  script through its saved absolute path -- the script changes
-  directory before parsing arguments, so a relative `$0` no longer
-  resolves. `sanitize_input` escapes pipes so item titles cannot
-  break the markdown summary table.
-
-When syncing, preserve the deployment's project name line in the
-Claude prompt.
+uses the action. `pr-retest.yml` does. The old inline
+`pr-re-review.yml` does not, which is why replacing it is the one item
+here that cannot wait for a convenient moment.
 
 ## Setting up the automatic review
 
@@ -320,17 +242,58 @@ comment on PRs with:
 |---------|-------------|
 | `@shakenfist-bot please retest` | Re-run functional tests |
 | `@shakenfist-bot please re-review` | Request a fresh automated review |
-| `@shakenfist-bot please address comments` | Address review comments |
 
 For the `@shakenfist-bot please attempt to fix` command, see the
 separate [`templates/test-drift-fix/`](../test-drift-fix/) templates.
 
+## The comment addresser is retired
+
+`pr-address-comments.yml` answered `@shakenfist-bot please address
+comments` by handing each item of a review to Claude Code and pushing a
+commit per item. It shipped from this directory along with
+`address-comments-with-claude.sh`, `render-review.py` and
+`review-schema.json`. All four were removed in August 2026.
+
+It was retired because it went unused. Review items are worked through
+interactively with the reviewer instead, and a bot authoring commits
+from a review no human had read is the part that stopped anyone
+reaching for it. That is a preference about how review works, not a
+defect in the implementation, so there is nothing here to fix and
+nothing to migrate to.
+
+What it leaves behind is worth removing rather than ignoring. The
+workflow triggers on `issue_comment`, so it holds `contents: write`
+against the pull request branch for a feature nobody wants, and it is
+the last thing in a project that calls `render-review.py` -- so the
+script and its schema become dead weight that the next project copies.
+The `ci-review-automation` audit now fails a repository carrying any of
+the four files, and they should be removed in a single commit: deleting
+the workflow but keeping the scripts leaves behind exactly the copy
+that gets propagated.
+
+One thing does change. `render-review.py` in the shared action
+still ends every review it posts with a line telling the reader to
+use the addresser's trigger phrase. Once the chain is reaped that
+invites a command nothing answers -- no workflow, no reply, no
+failure -- which is the outcome the retired workflow's own failure
+reporting existed to avoid. Dropping those lines is a change to
+shakenfist/actions and cannot land here.
+
+The reviewer is otherwise unaffected. It reaches `render-review.py`
+through `shakenfist/actions/review-pr-with-claude@main`, which carries
+its own copy of the script and its own schema.
+
 ## Projects using these templates
 
-The bot-triggered workflows (`pr-re-review.yml`, `pr-retest.yml`,
-`pr-address-comments.yml`) are live in agent-python, client-python,
-clingwrap, development, imago, instar, kerbside, occystrap, ryll and
+The bot-triggered workflows (`pr-re-review.yml` and `pr-retest.yml`)
+are live in agent-python, client-python, client-python-k3s, clingwrap,
+development, imago, instar, kerbside, occystrap, ryll, sfui and
 shakenfist.
+
+imago is the one to watch when reaping the addresser: it has the
+workflows and it still carries `pr-address-comments.yml`, but it is not
+in the consistency audit matrix, so nothing will ever file an issue
+about it. Everywhere else the audit does the asking.
 
 Every one of those projects now calls the reusable
 `pr-auto-review.yml` for its automatic review. The in-CI
