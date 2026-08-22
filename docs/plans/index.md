@@ -17,7 +17,7 @@ the phase arithmetic and the summary of what happened live in the plan.
 
 | Date | Plan | Intent | Status |
 |------|------|--------|--------|
-| 2026-02-18 | [Project consistency](PLAN-consistency.md) | The original per-project audit of every Shaken Fist repository, and the cleanup backlog it produced | In progress |
+| 2026-02-18 | [Project consistency](PLAN-consistency.md) | The original per-project audit of every Shaken Fist repository, and the cleanup backlog it produced | Superseded |
 | 2026-02-18 | [stestr / testtools pin](PLAN-stestr-testtools.md) | Pin stestr and testtools around an upstream incompatibility, and record the conditions for removing the pin | Blocked |
 | 2026-03-08 | [Consistency audits v2](PLAN-consistency-audits-v2.md) | Rebuild the audit as modular specs, a CI runner and GitHub issue automation, so criteria can be added without re-auditing everything | In progress |
 | 2026-07-09 | [Code review tracking](PLAN-code-review-tracking.md) | Systematic whole-codebase human review: weAudit, signed review state, staleness pruning against blob SHAs | In progress |
