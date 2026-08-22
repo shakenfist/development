@@ -861,6 +861,36 @@ See [`audits/merge-queue-config.md`](audits/merge-queue-config.md)
 for the full mechanics and the CLI recipe to inspect and fix a
 ruleset.
 
+## Merge group run cancellation
+
+**Standard:** An expensive job that can run on a `merge_group`
+event must be in a concurrency group that a superseding merge group
+joins, with `cancel-in-progress: true`, so the older run is
+cancelled instead of building a cloud nobody is waiting on.
+
+`github.ref` is the natural key and is right on every other event.
+On `merge_group` it is the per-attempt queue branch
+`gh-readonly-queue/<base>/pr-<N>-<SHA>`, and GitHub mints a fresh
+SHA every time it rebuilds the group — which it does on every push
+to the base branch. So a key containing it is unique per rebuild,
+`cancel-in-progress` never matches, and superseded runs run to
+completion. Key the merge queue branch of the expression on
+`github.event.merge_group.base_ref` instead.
+
+This is safe only because of the standard above: with
+`max_entries_to_build: 1` the queue builds one entry at a time, so
+any other in-flight `merge_group` run is superseded by definition.
+
+The cost of getting it wrong is fleet-wide rather than local, which
+is why this is audited everywhere rather than left per-project: the
+repositories share one sfcbr under-cloud, and
+shakenfist/kerbside#284 recorded both a repository starving itself
+with three concurrent oVirt builds of the same pull request and, a
+week later, starving on capacity held by two superseded
+shakenfist/shakenfist merge groups. See
+[`audits/merge-group-cancellation.md`](audits/merge-group-cancellation.md)
+for the pattern and its exemptions.
+
 ## GitHub CodeQL advanced security
 
 All **public** projects should have a GitHub Advanced Security CodeQL actions

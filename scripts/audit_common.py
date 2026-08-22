@@ -103,6 +103,10 @@ AUDIT_METADATA = {
         'spec': 'audits/expensive-lane-path-filter.md',
         'template': None,
     },
+    'merge-group-cancellation': {
+        'spec': 'audits/merge-group-cancellation.md',
+        'template': None,
+    },
     'pyproject-usage': {
         'spec': 'audits/pyproject-usage.md',
         'template': None,
@@ -187,6 +191,7 @@ ISSUE_TITLES = {
     'devpi-fallback': 'Workflow standards (devpi cache fallback)',
     'devpi-stale-ip': 'Workflow standards (devpi cache address)',
     'expensive-lane-path-filter': 'Expensive lane path filtering',
+    'merge-group-cancellation': 'Merge group run cancellation',
     'pyproject-usage': 'pyproject.toml usage',
     'version-file-gitignore': 'Generated version file',
     'rust-unwrap-lint': 'Rust unwrap lint',

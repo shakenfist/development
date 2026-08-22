@@ -96,6 +96,7 @@ See `PROJECT-CONSISTENCY-AUDITS.md` for the list of excluded projects
 | [github-security.md](github-security.md) | Dependabot, secret scanning, CodeQL |
 | [delete-branch-on-merge.md](delete-branch-on-merge.md) | Branches are deleted automatically when a PR merges |
 | [merge-queue-config.md](merge-queue-config.md) | Merge queues process entries serially, without speculative stacking or merge batching |
+| [merge-group-cancellation.md](merge-group-cancellation.md) | Superseded merge group runs are cancelled, not left building clouds |
 | [security-sanitization.md](security-sanitization.md) | HTTP header and file path sanitization |
 | [workflow-standards.md](workflow-standards.md) | Permissions, naming, self-hosted runners, static runner tags, devpi cache fallback, devpi cache address, linting, PIPESTATUS, flake8wrap |
 | [expensive-lane-path-filter.md](expensive-lane-path-filter.md) | Expensive PR lanes skip docs-only and review-marks-only changes |
