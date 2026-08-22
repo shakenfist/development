@@ -444,8 +444,8 @@ benefit from improvements in one place.
 The shared action produces structured JSON reviews that are:
 - Validated against a schema
 - Used to create GitHub issues for actionable items (`fix`/`document`)
-- Rendered to markdown with embedded JSON for the `address-comments`
-  automation to parse
+- Rendered to markdown with the JSON embedded in a collapsed
+  `<details>` section, so the findings stay machine-readable
 
 The automated reviewer job must have `pull-requests: write` and
 `issues: write` permissions so it can post review comments and
@@ -479,8 +479,6 @@ for full details on the automation system and setup steps.
 In addition to automated review, projects should include bot-triggered
 workflows for common developer tasks:
 
-- `pr-address-comments.yml` -- "@shakenfist-bot please address
-  comments" triggers Claude Code to address review comments
 - `pr-retest.yml` -- "@shakenfist-bot please retest" triggers a
   re-run of functional tests
 
@@ -496,13 +494,28 @@ then check out and push to in their own, so a fork pull request opened
 from the fork's default branch would name `main`. Older deployments
 open-code this and need replacing, not editing.
 
-When copying `render-review.py` out of that directory, copy
-`review-schema.json` with it and into the same directory. The script
-finds its schema next to itself, and a copy without one silently stops
-validating: `--validate` accepts a review with an invented category or
-action and exits zero, so the repository looks compliant and the gate
-in `address-comments-with-claude.sh` passes anything through to Claude
-Code. The `ci-review-automation` audit checks for this.
+### The comment addresser is retired
+
+`pr-address-comments.yml` answered "@shakenfist-bot please address
+comments" by handing each actionable review item to Claude Code and
+pushing a commit per item. It was removed in August 2026 because it
+went unused: findings are worked through interactively with the
+reviewer, and a bot authoring commits from a review nobody had read is
+the reason it was never reached for.
+
+Its remains are audited rather than left alone, because they are not
+inert. The workflow triggers on `issue_comment`, so it holds
+`contents: write` against the pull request branch for a feature nobody
+wants, and it is the last thing in a project that calls
+`render-review.py`, which makes that script and its schema dead weight
+for the next project to copy. The `ci-review-automation` audit fails a
+repository carrying any of `.github/workflows/pr-address-comments.yml`,
+`tools/address-comments-with-claude.sh`, `tools/render-review.py` or
+`tools/review-schema.json`. Remove all four in one commit; deleting the
+workflow while keeping the scripts leaves behind the copy that
+propagates. The reviewer is unaffected -- it reaches `render-review.py`
+through `shakenfist/actions/review-pr-with-claude@main`, which carries
+its own copy and schema.
 
 ### Test drift fixing (optional)
 
@@ -1152,14 +1165,11 @@ no longer exist on disk).
 Projects should include bot-triggered workflows that respond to
 `@shakenfist-bot` comments from authorised users:
 
-* `pr-address-comments.yml` -- "@shakenfist-bot please address
-  comments" triggers Claude Code to address review comments from
-  the automated reviewer.
 * `pr-re-review.yml` -- "@shakenfist-bot please re-review" triggers
   a second automated review (normally limited to one per PR).
 * `pr-retest.yml` -- "@shakenfist-bot please retest" re-runs the
-  functional tests. Needed because automated commits (e.g. from
-  the comment fixer) do not trigger new CI runs.
+  functional tests. Needed because automated commits do not trigger
+  new CI runs.
 
 These workflows use two shared composite actions from the `actions`
 repository:
@@ -1173,8 +1183,8 @@ repository:
 
 **Templates:** Use the templates in
 [`templates/ci-review-automation/`](templates/ci-review-automation/)
-as the canonical starting point. These contain `pr-re-review.yml`,
-`pr-address-comments.yml`, and `pr-retest.yml`.
+as the canonical starting point. These contain `pr-re-review.yml`
+and `pr-retest.yml`.
 
 Additionally, the automated reviewer's prompt should ensure that it
 checks that documentation in the `docs/` directory has been updated
