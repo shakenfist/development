@@ -115,7 +115,13 @@ gh api -X PUT repos/shakenfist/<repo>/automated-security-fixes
 - The reviewer's `permissions:` block goes on the **calling** job (a
   cross-repo reusable workflow cannot exceed its caller's token
   scope), and the calling job cannot set `runs-on:` or
-  `timeout-minutes:`.
+  `timeout-minutes:`. Do **not** add `secrets: inherit`: the reviewer
+  chain reads no secret and authenticates with `github.token` from
+  that same `permissions:` block, so inheriting buys nothing while
+  handing every secret the repository holds to a workflow living in
+  another repository. `smoke-cluster.yml` callers are the exception --
+  that one does read secrets. The `ci-review-automation` audit checks
+  for this.
 - `functional-tests.yml` must keep a `workflow_dispatch:` trigger or
   the `pr-retest.yml` bot automation cannot re-run it.
 - gitleaks: invoke the binary directly (`gitleaks-action@v2` refuses

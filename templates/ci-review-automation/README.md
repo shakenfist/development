@@ -218,7 +218,6 @@ their CI workflow (`functional-tests.yml`, or `ci.yml` for ryll):
       pull-requests: write
       issues: write
     uses: shakenfist/actions/.github/workflows/pr-auto-review.yml@main
-    secrets: inherit
 ```
 
 Replace the `needs:` list with the project's own test jobs -- that
@@ -227,7 +226,7 @@ failed never starts the reusable workflow. It is also the only part
 which differs between projects; everything else (runner, timeout,
 fork restriction, bot-commit check, concurrency) is centralised.
 
-Two details specific to reusable workflows:
+Three details specific to reusable workflows:
 
 * The `permissions:` block goes on the **calling** job. A
   cross-repository reusable workflow cannot grant itself more token
@@ -235,10 +234,27 @@ Two details specific to reusable workflows:
   unable to post.
 * The calling job cannot set `runs-on:` or `timeout-minutes:`; both
   are defined inside the reusable workflow.
+* Do **not** add `secrets: inherit`. Nothing in the reviewer chain
+  reads a secret -- `pr-auto-review.yml` and `review-pr-with-claude`
+  both authenticate with `github.token`, which comes from the
+  `permissions:` block above -- so inheriting buys nothing while
+  handing every secret your repository holds, publishing tokens
+  included, to a workflow which lives in another repository. An
+  earlier version of this template carried the line, and nine
+  repositories copied it before it was corrected. The
+  `ci-review-automation` audit now checks for it, so a repository
+  which reintroduces the line -- or which was deployed from the old
+  template and has not been cleaned up yet -- is told rather than
+  discovered. Which repositories those are is the compliance table
+  in `audits/ci-review-automation.md`, which regenerates daily; it
+  is not restated here, because a count written into a file nobody
+  edits goes stale silently.
 
-This is the same pattern as
+This is the same calling pattern as
 `shakenfist/actions/.github/workflows/smoke-cluster.yml`, which
-several projects already call from their CI workflows.
+several projects already call from their CI workflows -- though that
+one does read secrets, so its callers inherit and should keep doing
+so. The two are not interchangeable on this point.
 
 ### Migrating from the in-CI reviewer job
 
@@ -316,22 +332,16 @@ The bot-triggered workflows (`pr-re-review.yml`, `pr-retest.yml`,
 clingwrap, development, imago, instar, kerbside, occystrap, ryll and
 shakenfist.
 
-The standalone `pr-auto-review.yml` has one caller. development called
-it from the start rather than migrating to it, so its `ci.yml` is the
-worked example of the calling job described above -- including the
-`needs:` list doing duty as the CI-passed gate, and the absence of an
-event guard for the `workflow_dispatch` trigger. Everyone else still
-runs the automatic review as an in-CI `automated_reviewer` job and
-needs the migration:
+Every one of those projects now calls the reusable
+`pr-auto-review.yml` for its automatic review. The in-CI
+`automated_reviewer` job the migration section above describes no
+longer exists anywhere; that section is kept for repositories which
+have not adopted any of this yet. `development` and `ryll` call it
+from `ci.yml`, everyone else from `functional-tests.yml`. development
+called it from the start rather than migrating to it, so its `ci.yml`
+is the worked example of the calling job described above -- including
+the `needs:` list doing duty as the CI-passed gate, and the absence of
+an event guard for the `workflow_dispatch` trigger.
 
-| Project | Automatic review |
-|---------|------------------|
-| [development](https://github.com/shakenfist/development) | Calls the reusable workflow (reference) |
-| [agent-python](https://github.com/shakenfist/agent-python) | In-CI job, to migrate |
-| [client-python](https://github.com/shakenfist/client-python) | In-CI job, to migrate |
-| [clingwrap](https://github.com/shakenfist/clingwrap) | In-CI job, to migrate |
-| [instar](https://github.com/shakenfist/instar) | In-CI job, to migrate |
-| [kerbside](https://github.com/shakenfist/kerbside) | In-CI job, to migrate |
-| [occystrap](https://github.com/shakenfist/occystrap) | In-CI job, to migrate |
-| [ryll](https://github.com/shakenfist/ryll) | In-CI job, to migrate |
-| [shakenfist](https://github.com/shakenfist/shakenfist) | In-CI job, to migrate |
+Four audited repositories have no automated review at all: cloudgood,
+divergulent, kerbside-patches and library-utilities.

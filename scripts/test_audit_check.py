@@ -2541,5 +2541,142 @@ class PrReReviewTriggerTest(unittest.TestCase):
         self.assertEqual(result['status'], 'pass', result['details'])
 
 
+class PrAutoReviewSecretsInheritTest(unittest.TestCase):
+    """The reviewer job must not pass "secrets: inherit".
+
+    pr-auto-review.yml reads no secrets -- it and review-pr-with-claude
+    authenticate with github.token from the caller's permissions block
+    -- so inheriting buys nothing and hands every secret the calling
+    repository holds, publishing tokens included, to a workflow in
+    another repository.
+    """
+
+    REVIEWER = (
+        '  automated_reviewer:\n'
+        '    permissions:\n'
+        '      contents: read\n'
+        '    uses: shakenfist/actions/.github/workflows/'
+        'pr-auto-review.yml@main\n'
+    )
+    INHERITS = REVIEWER + '    secrets: inherit\n'
+    # smoke-cluster.yml genuinely needs the cluster secrets. Only the
+    # reviewer job is the finding.
+    SMOKE_INHERITS = (
+        '  smoke:\n'
+        '    uses: shakenfist/actions/.github/workflows/'
+        'smoke-cluster.yml@main\n'
+        '    secrets: inherit\n'
+    )
+
+    def _repo(self, tmp, reviewer_job):
+        workflows = os.path.join(tmp, '.github', 'workflows')
+        os.makedirs(workflows)
+        for wf in ('pr-address-comments.yml', 'pr-retest.yml'):
+            with open(os.path.join(workflows, wf), 'w') as f:
+                f.write('uses: shakenfist/actions/'
+                        'review-pr-with-claude@main\n')
+        with open(os.path.join(workflows, 'pr-re-review.yml'), 'w') as f:
+            f.write('  - uses: shakenfist/actions/pr-bot-trigger@main\n')
+        with open(os.path.join(workflows, 'ci.yml'), 'w') as f:
+            f.write('jobs:\n' + reviewer_job)
+        # Keep the render-review.py check quiet.
+        os.makedirs(os.path.join(tmp, 'tools'))
+        for name in ('render-review.py', 'review-schema.json'):
+            with open(os.path.join(tmp, 'tools', name), 'w') as f:
+                f.write('x\n')
+        return tmp
+
+    def _check(self, reviewer_job, docs_only=False, extra=None):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, reviewer_job)
+            for name, content in (extra or {}).items():
+                path = os.path.join(tmp, '.github', 'workflows', name)
+                with open(path, 'w') as f:
+                    f.write(content)
+            return audit_check.check_ci_review_automation(
+                tmp, {'is_docs_only': docs_only}
+            )
+
+    def test_a_reviewer_without_inherit_passes(self):
+        result = self._check(self.REVIEWER)
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_a_reviewer_which_inherits_fails(self):
+        result = self._check(self.INHERITS)
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('secrets: inherit', result['details'])
+        self.assertIn('ci.yml', result['details'])
+
+    def test_other_callers_may_inherit(self):
+        # smoke-cluster.yml reads real secrets. Sweeping it up in this
+        # finding would be telling projects to break their own CI.
+        result = self._check(self.REVIEWER + self.SMOKE_INHERITS)
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_a_commented_out_inherit_is_not_a_finding(self):
+        commented = self.REVIEWER + '    # secrets: inherit\n'
+        result = self._check(commented)
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_a_trailing_comment_does_not_hide_it(self):
+        # The realistic evasion. Someone who reads the template text or
+        # receives the audit issue is likelier to annotate the line than
+        # to delete it, and Actions treats this as plain inherit.
+        annotated = self.REVIEWER + (
+            '    secrets: inherit  # TODO: drop once migrated\n')
+        result = self._check(annotated)
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('ci.yml', result['details'])
+
+    def test_a_quoted_inherit_does_not_hide_it(self):
+        for quoted in ("    secrets: 'inherit'\n",
+                       '    secrets: "inherit"\n'):
+            result = self._check(self.REVIEWER + quoted)
+            self.assertEqual(result['status'], 'fail', quoted)
+            self.assertIn('ci.yml', result['details'])
+
+    def test_a_named_secret_is_not_inherit(self):
+        # The explicit mapping form passes only what it names, which is
+        # the false positive worth declining.
+        named = self.REVIEWER + (
+            '    secrets:\n      MY_TOKEN: ${{ secrets.MY_TOKEN }}\n')
+        result = self._check(named)
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_the_docs_only_path_checks_it_too(self):
+        # cloudgood takes a different branch through this check, and a
+        # guard that only covers one branch is a guard with a hole.
+        result = self._check(self.INHERITS, docs_only=True)
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('secrets: inherit', result['details'])
+
+    def test_every_offending_workflow_is_named(self):
+        # Most projects carry the reviewer job in functional-tests.yml
+        # rather than ci.yml, so the finding has to name whichever file
+        # it found rather than the one the fixtures happen to use. Two
+        # at once also exercises the sorted join, which is what the
+        # audit issue body shows the person doing the work.
+        result = self._check(self.INHERITS, extra={
+            'functional-tests.yml': 'jobs:\n' + self.INHERITS,
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('ci.yml', result['details'])
+        self.assertIn('functional-tests.yml', result['details'])
+        self.assertLess(result['details'].index('ci.yml'),
+                        result['details'].index('functional-tests.yml'))
+
+    def test_a_workflow_with_no_jobs_key_is_skipped(self):
+        # workflow_job_blocks finds nothing in a file with no top-level
+        # jobs: key. That must skip the file rather than throw, or one
+        # malformed workflow stops the check measuring the rest of the
+        # repository -- and a check which does not run reports pass.
+        result = self._check(self.INHERITS, extra={
+            'dependabot-notes.yml': 'on:\n  push:\n',
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('ci.yml', result['details'])
+        self.assertNotIn('dependabot-notes.yml', result['details'])
+
+
 if __name__ == '__main__':
     unittest.main()

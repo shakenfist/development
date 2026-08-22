@@ -144,7 +144,10 @@ jobs:
   # has to be here rather than there -- a cross-repository reusable
   # workflow cannot grant itself more token scope than its caller has --
   # and for the same reason this job cannot set runs-on or
-  # timeout-minutes, which the reusable workflow defines.
+  # timeout-minutes, which the reusable workflow defines. And
+  # deliberately no secrets: inherit -- nothing in the reviewer chain
+  # reads a secret, so inheriting would hand every secret this
+  # repository holds to a workflow in another one for no benefit.
   automated_reviewer:
     name: "Automated reviewer"
     needs: [lint-and-test, audit-smoke]
@@ -153,4 +156,3 @@ jobs:
       pull-requests: write
       issues: write
     uses: shakenfist/actions/.github/workflows/pr-auto-review.yml@main
-    secrets: inherit

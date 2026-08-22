@@ -461,6 +461,19 @@ to the reviewer job:
       issues: write
 ```
 
+The calling job must not pass `secrets: inherit`. Nothing in the
+reviewer chain reads a secret -- `pr-auto-review.yml` and
+`review-pr-with-claude` both authenticate with `github.token`, which
+comes from the `permissions:` block above -- so inheriting buys the
+caller nothing while handing every secret the repository holds,
+publishing tokens included, to a workflow which lives in another
+repository. The exposure is latent rather than active, but it means a
+bad change landing in `shakenfist/actions` would already have those
+secrets within reach. This applies to the `pr-auto-review.yml` call
+only: callers of `smoke-cluster.yml` and `export-repo-config.yml` do
+read secrets and should keep inheriting. The `ci-review-automation`
+audit checks for this.
+
 There is also another job called `pr-re-review.yml` that triggers a
 re-review on a PR, as by default each PR only gets one review due to
 cost limitations. We should include that job in every project too.
