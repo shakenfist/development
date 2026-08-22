@@ -162,8 +162,8 @@ best positioned to propose a fix.
 
 *(Written 2026-03. This turned out to be wrong, and usefully so: the
 human intervention between review and fix was the feature, not the
-friction. See Phase 3 below, and the retirement of the comment
-addresser in Phase 4.)*
+friction. See Phase 3 item 4 below, which records the decision to
+retire the comment addresser rather than combine it with anything.)*
 
 This should remain a separate workflow rather than being folded into
 the existing review or test workflows, but it should have two trigger
@@ -383,8 +383,10 @@ nothing in the chain reads a secret.
    model.~~ Superseded. The review half needs no write checkout at all:
    it authenticates with `github.token` under permissions the caller
    grants, and reads the diff through `gh pr diff`. There was nothing
-   for the two-checkout model to protect. That model stays where it is
-   still needed, in `pr-address-comments.yml`.
+   for the two-checkout model to protect here, and nothing left for it
+   to protect anywhere once item 4 is done: it existed for the fix
+   step's write access to the pull request branch, and that step is
+   being removed rather than combined.
 2. ~~Implement the "already reviewed" gate.~~ It lives in the
    `review-pr-with-claude` action, which skips when it finds an existing
    `shakenfist-bot` review unless its `force` input is set.
@@ -394,14 +396,16 @@ nothing in the chain reads a secret.
    checkout also let callers delete their `check-bot-commit` job.
 3. ~~Add the automatic trigger on successful functional test
    completion.~~ The caller's `needs:` list, as above.
-4. ~~Add the manual trigger via `@shakenfist-bot please review and
-   fix`.~~ Answered by deletion rather than by building it. The
-   comment addresser was retired in August 2026 because it went
-   unused: review findings are worked through interactively with the
-   reviewer, and a bot authoring commits from a review no human had
-   read is exactly what stopped anyone reaching for it. There is no
-   fix step left to combine a review with. The two commands that
-   remain are `please re-review` and `please retest`.
+4. Add the manual trigger via `@shakenfist-bot please review and
+   fix`. **Answered by deletion rather than by building it, and in
+   flight.** The decision was to retire the comment addresser rather
+   than combine it with the reviewer: it went unused, because review
+   findings are worked through interactively with the reviewer, and a
+   bot authoring commits from a review no human had read is exactly
+   what stopped anyone reaching for it. A retired addresser leaves no
+   fix step for a review to be combined with, so the two commands that
+   survive are `please re-review` and `please retest`. The removal is
+   PR #43; strike this item through when it lands.
 5. ~~Implement as a reusable workflow in `shakenfist/actions`.~~
 6. ~~Pilot it.~~ Piloted on `actions` and on this repository, rather
    than on `shakenfist` as originally written.

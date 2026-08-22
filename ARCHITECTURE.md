@@ -105,6 +105,8 @@ meeting PEP 668 stopped the fleet's audits for a day in August 2026
 without any file in the repository being wrong.
 
 The tests concentrate on invariants that span files, because those are
-the failures a single file review does not catch, and because the
-audit's failure mode is unattended: it rewrites every table before it
-discovers it cannot render one. See `docs/consistency-audits.md`.
+the failures a single file review does not catch, and because the audit
+runs unattended: a 2026-08 run rewrote every table before discovering it
+could not render one, and published none of them. Rendering now warns
+and falls back rather than raising, and a test catches the omission
+first. See `docs/consistency-audits.md`.

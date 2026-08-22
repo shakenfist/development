@@ -13,9 +13,10 @@ anything under `scripts/` or `audits/`.
 
 The parts worth knowing before you start:
 
-- A criterion spans six files (check, metadata, spec, column heading,
-  index, prose) and they must stay in sync. `pre-commit` runs the
-  tests that catch the cross-file breakages.
+- A criterion spans five files (check, metadata, spec, index, prose),
+  plus a column heading if it shares a spec file with another check,
+  and they must stay in sync. `pre-commit` runs the tests that catch
+  the cross-file breakages.
 - The compliance tables between the `consistency-audit` markers in
   `audits/*.md` are regenerated and pushed by the daily workflow.
   Never edit one by hand.

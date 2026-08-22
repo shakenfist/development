@@ -29,10 +29,12 @@ itself, which is why it survived the move to machine-readable specs
 rather than being archived. The spec file is what an agent or a person
 reads when they pick up an issue, so it links the template that
 implements the rule. The check is what actually measures, and it is
-allowed to be narrower than the prose -- four criteria have no check at
-all (`security-sanitization`, `console-logging`, `python-version`,
-`test-coverage`), because judging them takes reading rather than
-matching.
+allowed to be narrower than the prose: some criteria have no check at
+all, because judging them takes reading rather than matching. A
+criterion with no check has no `consistency-audit` marker block in its
+spec file, which is how to find the current set -- at the time of
+writing, `security-sanitization`, `console-logging`, `python-version`
+and `test-coverage`.
 
 Not every criterion maps to exactly one check. `workflow-standards`
 decomposes into several -- runner tags, permissions, linting, and more
@@ -121,9 +123,12 @@ A check that starts passing closes its issue. A check that becomes
 
 ## Adding a criterion
 
-Six files, and they have to stay in sync. The tests in
-`scripts/test_audit_check.py` cover the invariants that span them,
-because those are the ones that break.
+Five files, plus a sixth when the check shares a spec file with
+another, and they have to stay in sync. The invariants that span them
+are the ones that break, so they are the ones under test:
+`scripts/test_audit_check.py` holds the `check_calls()` scheduling
+test, and `scripts/test_audit_update_docs.py` holds the `COLUMN_NAMES`
+ones.
 
 1. **`scripts/audit-check.py`** -- add a `check_*()` function returning
    a dict with `id`, `status` (`pass` / `fail` / `not_applicable`) and
@@ -152,7 +157,12 @@ Step 4 is the one that bites. Its absence broke the 2026-08-12 run:
 `review-marks-pre-commit` joined the workflow-standards spec without a
 heading, and rendering crashed *after* rewriting every `audits/*.md`
 but before committing any -- so the whole fleet's tables silently stayed
-a day stale. There is now a test for it.
+a day stale. Both halves of that are now fixed. `column_name()` prints
+an ugly heading and a warning rather than raising, because a run that
+publishes a bad label beats a run that publishes nothing; and
+`test_multi_check_specs_have_a_heading_for_every_check` in
+`scripts/test_audit_update_docs.py` fails on the omission, so the
+fallback should never be reached from a tested tree.
 
 A new criterion does not require a re-audit of anything else, and does
 not require touching any project repository. The next morning's run

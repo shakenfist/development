@@ -8,6 +8,7 @@ Run with: python3 scripts/test_audit_update_docs.py
 import importlib.util
 import io
 import os
+import re
 import sys
 import unittest
 
@@ -102,6 +103,86 @@ class ColumnNameFallbackTest(unittest.TestCase):
             sys.stderr = original
         self.assertEqual(name, 'not-a-real-check')
         self.assertIn('no COLUMN_NAMES heading', stderr.getvalue())
+
+
+class DocumentedTestReferencesTest(unittest.TestCase):
+    """Documentation that names a test must name one that exists.
+
+    docs/consistency-audits.md tells a contributor which test catches
+    each cross-file breakage, and that pointer is the whole value of
+    the paragraph: someone who opens the named file, does not find the
+    named test, and concludes it was never written is worse off than
+    if the sentence had said nothing. It has already happened once --
+    the COLUMN_NAMES invariant was attributed to test_audit_check.py,
+    which does not hold it -- and a moved or renamed test is silent
+    about every prose reference to it.
+    """
+
+    REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    # Prose that explains the audit system. Not docs/plans/, which is a
+    # record of what was decided at the time and is allowed to name
+    # things that have since moved.
+    DOC_FILES = (
+        'AGENTS.md',
+        'ARCHITECTURE.md',
+        'audits/README.md',
+        'docs/consistency-audits.md',
+    )
+
+    TEST_FILE_RE = re.compile(r'\b(scripts/)?(test_[a-z0-9_]+\.py)\b')
+    TEST_FUNC_RE = re.compile(r'\b(test_[a-z0-9_]+)\b(?!\.py)')
+
+    def _docs(self):
+        for name in self.DOC_FILES:
+            path = os.path.join(self.REPO, name)
+            self.assertTrue(
+                os.path.exists(path), '%s is named here but missing' % name
+            )
+            with open(path) as f:
+                yield name, f.read()
+
+    def test_named_test_files_exist(self):
+        missing = []
+        for name, body in self._docs():
+            for _, filename in self.TEST_FILE_RE.findall(body):
+                if not os.path.exists(
+                    os.path.join(self.REPO, 'scripts', filename)
+                ):
+                    missing.append('%s names %s' % (name, filename))
+        self.assertEqual(missing, [])
+
+    def test_named_tests_exist_in_the_file_they_are_attributed_to(self):
+        # The failure this is really for: the test exists, but not
+        # where the prose says it does, so following the pointer finds
+        # nothing. Every test_* function named in a paragraph must be
+        # defined in a test file that paragraph also names.
+        sources = {}
+        for filename in os.listdir(os.path.join(self.REPO, 'scripts')):
+            if filename.startswith('test_') and filename.endswith('.py'):
+                with open(os.path.join(self.REPO, 'scripts', filename)) as f:
+                    sources[filename] = f.read()
+        self.assertTrue(sources)
+
+        wrong = []
+        for name, body in self._docs():
+            for paragraph in re.split(r'\n\s*\n', body):
+                named_files = {
+                    filename
+                    for _, filename in self.TEST_FILE_RE.findall(paragraph)
+                }
+                if not named_files:
+                    continue
+                for func in set(self.TEST_FUNC_RE.findall(paragraph)):
+                    if not any(
+                        re.search(r'def %s\(' % func, sources.get(f, ''))
+                        for f in named_files
+                    ):
+                        wrong.append(
+                            '%s attributes %s to %s'
+                            % (name, func, ', '.join(sorted(named_files)))
+                        )
+        self.assertEqual(wrong, [])
 
 
 if __name__ == '__main__':

@@ -116,7 +116,14 @@ repos:
         entry: python3 scripts/test_audit_update_docs.py
         language: system
         pass_filenames: false
-        files: ^scripts/.*\.py$
+        # Markdown as well as scripts/, because this suite also checks
+        # that prose naming a test names one that exists, in the file
+        # it says. The change that breaks that check is a doc edit, so
+        # a scripts-only filter would never run it on the commit that
+        # needs it. Any .md rather than a list of the files the test
+        # reads, so the two cannot drift apart; the suite is stdlib
+        # only and takes milliseconds.
+        files: ^(scripts/.*\.py|.*\.md)$
 
       - id: review-tracking-tests
         name: review tracking tests
