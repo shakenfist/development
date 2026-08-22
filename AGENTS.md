@@ -4,54 +4,32 @@ This repository holds Shaken Fist development documentation, consistency
 audit specifications, and the automation that enforces them. There is no
 application code here.
 
-## Adding or changing a consistency audit
+## Working on the consistency audits
 
-An audit item touches several files, all of which must stay in sync:
+`docs/consistency-audits.md` is the reference: what a daily run does,
+how to add a criterion, how to bring a repository into scope, and how
+to test a change before it reaches the fleet. Read it before changing
+anything under `scripts/` or `audits/`.
 
-1. `scripts/audit-check.py` -- add a `check_*()` function returning a
-   dict with `id`, `status` (`pass` / `fail` / `not_applicable`) and
-   `details`; register it in `check_calls()` and `CHECK_NAMES`. The id
-   written in `check_calls()` must be the id the function returns, and
-   a test asserts it: the calls are deferred so a scoped repository can
-   skip a check without running it, which means the table is what
-   schedules the check, not the function itself.
-2. `scripts/audit_common.py` -- add the check id to `AUDIT_METADATA`
-   (spec file, optional template) and `ISSUE_TITLES`. This module is
-   shared by `audit-manage-issues.py` and `audit-update-docs.py`.
-3. `audits/<check-id>.md` -- the audit specification, following the
-   structure documented in `audits/README.md`. Include an empty
-   consistency-audit marker block under `## Projects`; the compliance
-   table between the markers is regenerated daily by
-   `scripts/audit-update-docs.py` and must not be edited by hand.
-   A check may instead join an existing spec file (as the workflow
-   standards checks do); in that case also add a column heading for
-   the check id to `COLUMN_NAMES` in `scripts/audit-update-docs.py`.
-4. `audits/README.md` -- add the new file to the audit index.
-5. `PROJECT-CONSISTENCY-AUDITS.md` -- describe the expectation in prose;
-   this is the authoritative human-readable specification.
+The parts worth knowing before you start:
 
-Repo-specific exceptions (private repos, docs-only repos, non-Python
-repos) live in `REPO_OVERRIDES` in `scripts/audit-check.py`.
+- A criterion spans six files (check, metadata, spec, column heading,
+  index, prose) and they must stay in sync. `pre-commit` runs the
+  tests that catch the cross-file breakages.
+- The compliance tables between the `consistency-audit` markers in
+  `audits/*.md` are regenerated and pushed by the daily workflow.
+  Never edit one by hand.
+- Issue titles are the idempotency key for filing and closing, so
+  `ISSUE_TITLES` in `scripts/audit_common.py` is an interface.
+  Renaming an entry orphans every open issue for that check.
+- A check that does not apply must report `not_applicable` with a
+  reason rather than being omitted; an omitted check renders as
+  `unknown`.
+- Always pass `--dry-run` to `audit-manage-issues.py` when running it
+  by hand. Without it, it files and closes real issues fleet-wide.
 
-To add a repository to the audits, add it to the matrix in
-`.github/workflows/consistency-audit.yml`, to the in-scope list in
-`audits/README.md`, and remove it from the excluded list in
-`PROJECT-CONSISTENCY-AUDITS.md`. Adding it subjects it to every check,
-and every failure becomes an issue on the next run, so check first what
-it would file:
-
-```
-python3 scripts/audit-check.py --repo-path ~/src/shakenfist/<repo> \
-    --repo-name <repo> --github-org shakenfist
-```
-
-A repository that should be audited for some checks but not others
-takes an `only_checks` list in `REPO_OVERRIDES` (private-ci is the
-example: it is excluded from the conventions but does vendor sfui).
-Checks outside the list are reported `not_applicable` with the reason,
-never omitted -- `audit-update-docs.py` renders a check it cannot find
-as `unknown`, and "we decided not to" should not read as "we did not
-measure".
+Repo-specific exceptions live in `REPO_OVERRIDES` in
+`scripts/audit-check.py`.
 
 ## Testing changes
 
@@ -80,62 +58,15 @@ pre-commit install
 Worth doing rather than relying on remembering: CI will catch it on
 the pull request, but the local run is faster and quieter.
 
-All four test suites run as `local` pre-commit hooks, so any change
-under `scripts/` runs them. They can also be run directly, which is
-quicker while iterating:
+The individual test suites, and how to exercise a check against a real
+repository, are in `docs/consistency-audits.md`.
 
-```
-python3 scripts/test_audit_check.py
-python3 scripts/test_audit_update_docs.py
-python3 scripts/test_review_tracking.py
-python3 scripts/test_check_audit_smoke.py
-```
-
-The review tracking script has fixture-repo tests; the audit script
-tests cover the invariants that span files, which are the ones that
-break. Those are that every check id scheduled in `check_calls()` is a
-real check, and that every check sharing a spec file has a
-`COLUMN_NAMES` heading. The second exists because its absence broke
-the 2026-08-12 audit run: `review-marks-pre-commit` joined the
-workflow-standards spec without a heading, and rendering crashed after
-rewriting every `audits/*.md` but before committing any, so the whole
-fleet's tables silently stayed a day stale.
-
-`ci.yml` is what makes those hooks enforced rather than merely
-available. It also runs the audit against this repository as a smoke
-test, because linting cannot reach the scheduled workflow's runtime
-assumptions: the 2026-08-20 outage was a bare `pip install` meeting a
-runner that enforces PEP 668, which failed every leg of the matrix and
-stopped the fleet's audits for a day. The smoke job asserts the audit
-*measured* rather than that it approved -- `llm-context-lint` degrades
-to `not_applicable` when skillsaw is missing, which reads in the
-compliance table as a considered exemption rather than a broken
-tool.
-
-`review-tracking.py` is run by hand in target repositories (via a thin wrapper
-like ryll's `tools/review-tracking.sh`), deliberately not from git
-hooks. Two subcommands also run from CI in steady state: `prune`
-from an adopting repo's `prune-reviews` workflow on pushes to main,
-and `status` from the consistency audit's `review-coverage` check --
-see `docs/code-review-tracking.md`.
-
-The tests do not cover what a check *decides* about a repository, only
-that the machinery around it holds together. Test that part by running
-the scripts against local clones:
-
-```
-python3 scripts/audit-check.py --repo-path ~/src/shakenfist/<repo> \
-    --repo-name <repo> > /tmp/audit-result-<repo>.json
-python3 scripts/audit-manage-issues.py --results-dir /tmp/results/ --dry-run
-python3 scripts/audit-update-docs.py --results-dir /tmp/results/ --no-issues
-```
-
-Always use `--dry-run` for `audit-manage-issues.py` -- without it the
-script creates and closes real GitHub issues. `audit-update-docs.py`
-rewrites the tables in `audits/*.md` in place; discard the changes with
-`git restore audits/` after testing (CI regenerates them from the full
-repo matrix, so a locally generated table only covers the repos you fed
-it).
+`review-tracking.py` is run by hand in target repositories (via a thin
+wrapper like ryll's `tools/review-tracking.sh`), deliberately not from
+git hooks. Two subcommands also run from CI in steady state: `prune`
+from an adopting repo's `prune-reviews` workflow on pushes to main, and
+`status` from the consistency audit's `review-coverage` check -- see
+`docs/code-review-tracking.md`.
 
 ## Working on review tracking
 

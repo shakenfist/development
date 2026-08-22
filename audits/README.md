@@ -6,24 +6,15 @@ compliance status.
 
 ## How audits work
 
-Each audit file is independently checkable. An agent can be spawned per
-file to check all projects against that single criterion, enabling
-parallel audits.
+Each file here is independently checkable, so an agent can be spawned
+per criterion to check every project against it in parallel.
 
-## How to add a new audit
-
-1. Create a new `.md` file in this directory following the structure
-   below.
-2. Fill in the "What we check" section with the criterion description.
-3. Link to the template directory if one exists.
-4. Add an empty consistency-audit marker block under "## Projects"
-   (see the file structure below). The compliance table between the
-   markers is regenerated daily by the consistency-audit workflow
-   from `scripts/audit-check.py` results -- never edit it by hand.
-5. Add an automated check to `scripts/audit-check.py` and register it
-   in `scripts/audit_common.py` (`AUDIT_METADATA` and `ISSUE_TITLES`).
-   The workflow then files and closes GitHub issues (labelled
-   `consistency`) on target projects automatically.
+`docs/consistency-audits.md` is the working reference for the system as
+a whole: what the daily run does, how issues are filed and closed, how
+the compliance tables are regenerated, how to add a criterion, and how
+to bring a repository into scope. Read it before adding a file here --
+a new criterion touches six files, and a spec file on its own does not
+measure anything.
 
 ## File structure
 
