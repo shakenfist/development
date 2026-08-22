@@ -384,9 +384,9 @@ nothing in the chain reads a secret.
    it authenticates with `github.token` under permissions the caller
    grants, and reads the diff through `gh pr diff`. There was nothing
    for the two-checkout model to protect here, and nothing left for it
-   to protect anywhere once item 4 is done: it existed for the fix
-   step's write access to the pull request branch, and that step is
-   being removed rather than combined.
+   to protect anywhere once item 4 was done: it existed for the fix
+   step's write access to the pull request branch, and that step was
+   removed rather than combined.
 2. ~~Implement the "already reviewed" gate.~~ It lives in the
    `review-pr-with-claude` action, which skips when it finds an existing
    `shakenfist-bot` review unless its `force` input is set.
@@ -396,16 +396,15 @@ nothing in the chain reads a secret.
    checkout also let callers delete their `check-bot-commit` job.
 3. ~~Add the automatic trigger on successful functional test
    completion.~~ The caller's `needs:` list, as above.
-4. Add the manual trigger via `@shakenfist-bot please review and
-   fix`. **Answered by deletion rather than by building it, and in
-   flight.** The decision was to retire the comment addresser rather
-   than combine it with the reviewer: it went unused, because review
-   findings are worked through interactively with the reviewer, and a
-   bot authoring commits from a review no human had read is exactly
-   what stopped anyone reaching for it. A retired addresser leaves no
-   fix step for a review to be combined with, so the two commands that
-   survive are `please re-review` and `please retest`. The removal is
-   PR #43; strike this item through when it lands.
+4. ~~Add the manual trigger via `@shakenfist-bot please review and
+   fix`.~~ Answered by deletion rather than by building it. The
+   comment addresser was retired rather than combined with the
+   reviewer: it went unused, because review findings are worked
+   through interactively with the reviewer, and a bot authoring
+   commits from a review no human had read is exactly what stopped
+   anyone reaching for it. A retired addresser leaves no fix step for
+   a review to be combined with, so the two commands that survive are
+   `please re-review` and `please retest`. Removed in PR #43.
 5. ~~Implement as a reusable workflow in `shakenfist/actions`.~~
 6. ~~Pilot it.~~ Piloted on `actions` and on this repository, rather
    than on `shakenfist` as originally written.
@@ -422,7 +421,7 @@ nothing in the chain reads a secret.
    The `standards-alignment` skill is the vehicle for this, one
    repository per commit.
 
-### Phase 4: Cleanup
+### Phase 4: Cleanup -- DONE
 
 1. ~~Retire `PLAN-consistency.md` once issue tracking is
    live.~~ Done 2026-08-22. The file is now a record of what the
@@ -444,7 +443,7 @@ nothing in the chain reads a secret.
    how the compliance tables are regenerated, how to add a criterion,
    how to bring a repository into scope, and how to test a change
    before it reaches the fleet. `AGENTS.md` drops from 169 lines to
-   100 and `ARCHITECTURE.md` from 124 to 109, each keeping a summary
+   101 and `ARCHITECTURE.md` from 125 to 112, each keeping a summary
    and a link -- which is what `llm-doc-structure` asks of them, and
    `AGENTS.md` is loaded into every session held here.
 

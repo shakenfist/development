@@ -196,6 +196,16 @@ omitted -- `audit-update-docs.py` renders a check it cannot find as
 `unknown`, and "we decided not to" must not read as "we did not
 measure".
 
+A scoped repository does not follow the three steps above. It goes in
+the matrix, but stays *off* the in-scope list in `audits/README.md` and
+*on* the excluded list in `PROJECT-CONSISTENCY-AUDITS.md`: both
+statements are true of it, because it is excluded from the conventions
+and audited for one thing anyway.
+`test_matrix_matches_the_documented_scope` in
+`scripts/test_audit_check.py` subtracts the scoped repositories before
+comparing, so onboarding one the way the three steps say will fail that
+test.
+
 ## Testing a change
 
 The full gate, which `ci.yml` also runs on every pull request:
