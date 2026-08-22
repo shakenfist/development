@@ -2541,5 +2541,199 @@ class PrReReviewTriggerTest(unittest.TestCase):
         self.assertEqual(result['status'], 'pass', result['details'])
 
 
+class MergeGroupCancellationTest(unittest.TestCase):
+    """Which merge group jobs must be able to cancel each other."""
+
+    QUEUE_REF_KEY = """    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-cluster
+      cancel-in-progress: true
+"""
+
+    STABLE_KEY = """    concurrency:
+      group: >-
+        ${{ github.workflow }}-cluster-${{
+        github.event_name == 'merge_group'
+        && format('merge_group-{0}', github.event.merge_group.base_ref)
+        || github.ref }}
+      cancel-in-progress: true
+"""
+
+    def _job(self, concurrency='', runs_on='[self-hosted, vm, debian-12, l]',
+             condition=''):
+        return (
+            '  cluster:\n'
+            f'    runs-on: {runs_on}\n'
+            + (f'    if: {condition}\n' if condition else '')
+            + concurrency
+            + '    steps:\n      - run: deploy.sh\n'
+        )
+
+    def _check(self, workflows):
+        with tempfile.TemporaryDirectory() as tmp:
+            wdir = os.path.join(tmp, '.github', 'workflows')
+            os.makedirs(wdir)
+            for name, content in workflows.items():
+                with open(os.path.join(wdir, name), 'w') as f:
+                    f.write(content)
+            return audit_check.check_merge_group_cancellation(
+                tmp, {'has_workflows_dir': True}
+            )
+
+    def _merge_group_workflow(self, job):
+        return 'on:\n  pull_request:\n  merge_group:\njobs:\n' + job
+
+    def test_a_queue_ref_key_fails(self):
+        # The bug this audit exists for: on merge_group github.ref is
+        # gh-readonly-queue/<base>/pr-N-<SHA>, unique per rebuild, so
+        # cancel-in-progress never matches.
+        result = self._check({'ci.yml': self._merge_group_workflow(
+            self._job(self.QUEUE_REF_KEY))})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('per-attempt queue ref', result['details'])
+
+    def test_a_merge_group_aware_key_passes(self):
+        result = self._check({'ci.yml': self._merge_group_workflow(
+            self._job(self.STABLE_KEY))})
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_no_concurrency_block_at_all_fails(self):
+        result = self._check({'ci.yml': self._merge_group_workflow(
+            self._job())})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('no concurrency block', result['details'])
+
+    def test_cancel_in_progress_must_be_on(self):
+        # A stable key that queues instead of cancelling still leaves
+        # the superseded run holding the runner.
+        block = """    concurrency:
+      group: ${{ github.workflow }}-merge
+      cancel-in-progress: false
+"""
+        result = self._check({'ci.yml': self._merge_group_workflow(
+            self._job(block))})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('cancel-in-progress is not true', result['details'])
+
+    def test_a_workflow_level_block_covers_a_bare_job(self):
+        content = (
+            'on:\n  merge_group:\n'
+            'concurrency:\n'
+            "  group: ${{ github.workflow }}-${{ github.event_name =="
+            " 'merge_group' && 'queue' || github.ref }}\n"
+            '  cancel-in-progress: true\n'
+            'jobs:\n' + self._job()
+        )
+        result = self._check({'ci.yml': content})
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_a_job_that_cannot_run_on_merge_group_is_out_of_scope(self):
+        result = self._check({'ci.yml': self._merge_group_workflow(
+            self._job(self.QUEUE_REF_KEY,
+                      condition="github.event_name != 'merge_group'"))})
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_the_static_pool_is_out_of_scope(self):
+        # Gate jobs and path filters are seconds long on an
+        # always-on shared pool; there is nothing to starve.
+        result = self._check({'ci.yml': self._merge_group_workflow(
+            self._job(self.QUEUE_REF_KEY,
+                      runs_on='[self-hosted, static]'))})
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_a_self_hosted_pool_without_the_vm_label_is_in_scope(self):
+        # instar's ephemeral runners are [self-hosted, debian-12, xl].
+        # The sibling path-filter audit's 'vm' test would miss them
+        # while an abandoned merge group holds one for two hours.
+        result = self._check({'ci.yml': self._merge_group_workflow(
+            self._job(self.QUEUE_REF_KEY,
+                      runs_on='[self-hosted, debian-12, xl]'))})
+        self.assertEqual(result['status'], 'fail')
+
+    def test_a_github_hosted_runner_is_out_of_scope(self):
+        # No fleet runner to starve, so the workflow is examined and
+        # reports nothing rather than being skipped entirely.
+        result = self._check({'ci.yml': self._merge_group_workflow(
+            self._job(self.QUEUE_REF_KEY, runs_on='ubuntu-latest'))})
+        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assertIn('0 scarce-runner job(s)', result['details'])
+
+    def test_an_unresolvable_runs_on_expression_is_out_of_scope(self):
+        # ryll's cross-platform build matrix is runs-on:
+        # ${{ matrix.os }}; there is nothing to resolve it against.
+        result = self._check({'ci.yml': self._merge_group_workflow(
+            self._job(self.QUEUE_REF_KEY,
+                      runs_on='${{ matrix.os }}'))})
+        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assertIn('0 scarce-runner job(s)', result['details'])
+
+    def test_a_reusable_workflow_is_audited(self):
+        # It inherits the caller's event, and a callee published for
+        # the fleet cannot know what that event is. This is
+        # shakenfist/actions' smoke-cluster.yml.
+        result = self._check({'smoke-cluster.yml': (
+            'on:\n  workflow_call:\njobs:\n'
+            + self._job(self.QUEUE_REF_KEY)
+        )})
+        self.assertEqual(result['status'], 'fail')
+
+    def test_a_reusable_workflow_is_audited_despite_an_in_repo_caller(self):
+        # Inferring reachability from in-repo callers exempted
+        # smoke-cluster.yml on the strength of a scheduled canary
+        # calling it, while every shakenfist merge group ran four
+        # nested clusters through it from another repository.
+        result = self._check({
+            'smoke-cluster.yml': (
+                'on:\n  workflow_call:\njobs:\n'
+                + self._job(self.QUEUE_REF_KEY)
+            ),
+            'canary.yml': (
+                'on:\n  schedule:\n    - cron: "0 3 * * *"\njobs:\n'
+                '  canary:\n'
+                '    uses: ./.github/workflows/smoke-cluster.yml\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('smoke-cluster.yml:cluster', result['details'])
+
+    def test_calling_a_reusable_workflow_is_out_of_scope(self):
+        # The caller job has no runner of its own; the group that
+        # matters is in the callee, audited where it is defined.
+        result = self._check({'ci.yml': (
+            'on:\n  merge_group:\njobs:\n'
+            '  cluster:\n'
+            '    runs-on: [self-hosted, vm, debian-12, l]\n'
+            '    uses: shakenfist/actions/.github/workflows/'
+            'smoke-cluster.yml@main\n'
+        )})
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_a_marked_exception_is_allowed(self):
+        result = self._check({'test-drift-fix.yml': (
+            'on:\n  workflow_call:\n'
+            '# audit-ok: merge-group-cancellation -- issue_comment only\n'
+            'jobs:\n' + self._job(self.QUEUE_REF_KEY)
+        )})
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_a_comment_quoting_the_bad_key_does_not_count(self):
+        # Every fixed workflow explains itself with a comment naming
+        # github.ref directly above the corrected key.
+        block = """    # github.ref is wrong here on merge_group.
+    concurrency:
+      group: ${{ github.workflow }}-merge-queue
+      cancel-in-progress: true
+"""
+        result = self._check({'ci.yml': self._merge_group_workflow(
+            self._job(block))})
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_a_repo_with_no_merge_group_is_not_applicable(self):
+        result = self._check({'ci.yml': (
+            'on:\n  pull_request:\njobs:\n'
+            + self._job(self.QUEUE_REF_KEY)
+        )})
+        self.assertEqual(result['status'], 'not_applicable')
+
+
 if __name__ == '__main__':
     unittest.main()
