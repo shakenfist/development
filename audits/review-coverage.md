@@ -41,17 +41,17 @@ when the backlog has grown regardless.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-21T06:54:10.992868+00:00
+Last regenerated: 2026-08-22T06:45:22.459333+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
-| actions | N/A | - |
+| actions | non-compliant | shakenfist/actions#29 |
 | agent-python | N/A | - |
 | client-python | N/A | - |
 | client-python-k3s | N/A | - |
 | clingwrap | N/A | - |
 | cloudgood | N/A | - |
-| development | N/A | - |
+| development | non-compliant | shakenfist/development#45 |
 | divergulent | N/A | - |
 | instar | N/A | - |
 | kerbside | non-compliant | shakenfist/kerbside#227 |
@@ -65,6 +65,8 @@ Last regenerated: 2026-08-21T06:54:10.992868+00:00
 
 Details for non-compliant projects:
 
+- **actions** (Status): 0 of 89 in-scope files reviewed at HEAD; 89 need review (threshold 5)
+- **development** (Status): 0 of 74 in-scope files reviewed at HEAD; 74 need review (threshold 5)
 - **kerbside** (Status): 130 of 192 in-scope files reviewed at HEAD; 62 need review (threshold 5)
-- **ryll** (Status): 110 of 173 in-scope files reviewed at HEAD; 63 need review (threshold 5)
+- **ryll** (Status): 106 of 174 in-scope files reviewed at HEAD; 68 need review (threshold 5)
 <!-- consistency-audit:end -->

@@ -130,7 +130,7 @@ matching section of the repository's `PLAN-TEMPLATE.md`.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-21T06:54:10.992868+00:00
+Last regenerated: 2026-08-22T06:45:22.459333+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -150,7 +150,7 @@ Last regenerated: 2026-08-21T06:54:10.992868+00:00
 | private-ci | N/A | - |
 | ryll | non-compliant | shakenfist/ryll#296 |
 | sfui | N/A | - |
-| shakenfist | non-compliant | shakenfist/shakenfist#3811 |
+| shakenfist | compliant | - |
 
 Details for non-compliant projects:
 
@@ -159,5 +159,4 @@ Details for non-compliant projects:
 - **kerbside** (Status): missing shared block plan-status-vocabulary (copy it verbatim from templates/shared-blocks/plan-status-vocabulary.md in the development repository)
 - **occystrap** (Status): missing shared block plan-status-vocabulary (copy it verbatim from templates/shared-blocks/plan-status-vocabulary.md in the development repository)
 - **ryll** (Status): missing shared block plan-status-vocabulary (copy it verbatim from templates/shared-blocks/plan-status-vocabulary.md in the development repository)
-- **shakenfist** (Status): missing shared block plan-status-vocabulary (copy it verbatim from templates/shared-blocks/plan-status-vocabulary.md in the development repository)
 <!-- consistency-audit:end -->

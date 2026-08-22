@@ -92,7 +92,7 @@ documentation-review section.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-21T06:54:10.992868+00:00
+Last regenerated: 2026-08-22T06:45:22.459333+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -112,7 +112,7 @@ Last regenerated: 2026-08-21T06:54:10.992868+00:00
 | private-ci | N/A | - |
 | ryll | non-compliant | shakenfist/ryll#269 |
 | sfui | non-compliant | shakenfist/sfui#15 |
-| shakenfist | non-compliant | shakenfist/shakenfist#3733 |
+| shakenfist | compliant | - |
 
 Details for non-compliant projects:
 
@@ -123,5 +123,4 @@ Details for non-compliant projects:
 - **occystrap** (Status): missing shared block llm-doc-discipline (copy it verbatim from templates/shared-blocks/llm-doc-discipline.md in the development repository); missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
 - **ryll** (Status): missing shared block llm-doc-discipline (copy it verbatim from templates/shared-blocks/llm-doc-discipline.md in the development repository); missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
 - **sfui** (Status): missing shared block llm-doc-discipline (copy it verbatim from templates/shared-blocks/llm-doc-discipline.md in the development repository); missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
-- **shakenfist** (Status): missing shared block llm-doc-discipline (copy it verbatim from templates/shared-blocks/llm-doc-discipline.md in the development repository); missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
 <!-- consistency-audit:end -->

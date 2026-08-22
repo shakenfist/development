@@ -74,17 +74,17 @@ See: `templates/renovate/README.md`
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-21T06:54:10.992868+00:00
+Last regenerated: 2026-08-22T06:45:22.459333+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
-| actions | non-compliant | shakenfist/actions#6 |
+| actions | compliant | - |
 | agent-python | non-compliant | shakenfist/agent-python#122 |
 | client-python | non-compliant | shakenfist/client-python#362 |
 | client-python-k3s | non-compliant | shakenfist/client-python-k3s#28 |
 | clingwrap | non-compliant | shakenfist/clingwrap#117 |
 | cloudgood | non-compliant | shakenfist/cloudgood#2 |
-| development | non-compliant | shakenfist/development#31 |
+| development | compliant | - |
 | divergulent | non-compliant | shakenfist/divergulent#37 |
 | instar | compliant | - |
 | kerbside | non-compliant | shakenfist/kerbside#310 |
@@ -98,13 +98,11 @@ Last regenerated: 2026-08-21T06:54:10.992868+00:00
 
 Details for non-compliant projects:
 
-- **actions** (Status): Missing: .github/workflows/renovate.yml, renovate.json
 - **agent-python** (Status): renovate.json does not enable the pre-commit manager, so the hook revisions in .pre-commit-config.yaml are unmanaged and drift silently
 - **client-python** (Status): renovate.json does not enable the pre-commit manager, so the hook revisions in .pre-commit-config.yaml are unmanaged and drift silently
 - **client-python-k3s** (Status): renovate.json does not enable the pre-commit manager, so the hook revisions in .pre-commit-config.yaml are unmanaged and drift silently
 - **clingwrap** (Status): renovate.json does not enable the pre-commit manager, so the hook revisions in .pre-commit-config.yaml are unmanaged and drift silently
 - **cloudgood** (Status): Missing: .github/workflows/renovate.yml, renovate.json
-- **development** (Status): Missing: .github/workflows/renovate.yml, renovate.json
 - **divergulent** (Status): Missing: .github/workflows/renovate.yml, renovate.json
 - **kerbside** (Status): renovate.json does not enable the pre-commit manager, so the hook revisions in .pre-commit-config.yaml are unmanaged and drift silently
 - **kerbside-patches** (Status): renovate.json does not enable the pre-commit manager, so the hook revisions in .pre-commit-config.yaml are unmanaged and drift silently

@@ -45,11 +45,11 @@ For links to other files in the same repository, use
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-21T06:54:10.992868+00:00
+Last regenerated: 2026-08-22T06:45:22.459333+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
-| actions | non-compliant | shakenfist/actions#23 |
+| actions | compliant | - |
 | agent-python | non-compliant | shakenfist/agent-python#107 |
 | client-python | non-compliant | shakenfist/client-python#345 |
 | client-python-k3s | compliant | - |
@@ -69,7 +69,6 @@ Last regenerated: 2026-08-21T06:54:10.992868+00:00
 
 Details for non-compliant projects:
 
-- **actions** (Status): 1 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): docs/ci.md
 - **agent-python** (Status): 5 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): AGENTS.md, ARCHITECTURE.md, docs/developer-guide.md, docs/index.md, docs/protocol.md
 - **client-python** (Status): 3 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): AGENTS.md, ARCHITECTURE.md, RELEASE-SETUP.md
 - **clingwrap** (Status): 5 relative link target(s) in README.md (use absolute URLs so the README renders off the repo landing page): AGENTS.md, ARCHITECTURE.md, RELEASE-SETUP.md, docs/, docs/index.md

@@ -92,7 +92,7 @@ out its real status rather than guessing from the file's existence.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-21T06:54:10.992868+00:00
+Last regenerated: 2026-08-22T06:45:22.459333+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -102,7 +102,7 @@ Last regenerated: 2026-08-21T06:54:10.992868+00:00
 | client-python-k3s | non-compliant | shakenfist/client-python-k3s#32 |
 | clingwrap | N/A | - |
 | cloudgood | N/A | - |
-| development | non-compliant | shakenfist/development#34 |
+| development | compliant | - |
 | divergulent | non-compliant | shakenfist/divergulent#69 |
 | instar | non-compliant | shakenfist/instar#506 |
 | kerbside | non-compliant | shakenfist/kerbside#341 |
@@ -112,18 +112,16 @@ Last regenerated: 2026-08-21T06:54:10.992868+00:00
 | private-ci | N/A | - |
 | ryll | compliant | - |
 | sfui | non-compliant | shakenfist/sfui#24 |
-| shakenfist | non-compliant | shakenfist/shakenfist#3810 |
+| shakenfist | compliant | - |
 
 Details for non-compliant projects:
 
 - **client-python** (Status): docs/plans/index.md is missing, so none of the 1 plan(s) in docs/plans/ are registered
 - **client-python-k3s** (Status): docs/plans/index.md is missing, so none of the 2 plan(s) in docs/plans/ are registered
-- **development** (Status): docs/plans/index.md is missing, so none of the 2 plan(s) in docs/plans/ are registered
 - **divergulent** (Status): 1 table(s) not led by Date then Plan columns: line 10 starts "Plan | Phases"
 - **instar** (Status): 1 status cell(s) outside the shared vocabulary (Proposed, Not started, In progress, Blocked, Complete, Abandoned, Superseded): instar amend subcommand ("1.1 (qcow2 v2⇔v3 version transition, ...")
 - **kerbside** (Status): 2 status cell(s) outside the shared vocabulary (Proposed, Not started, In progress, Blocked, Complete, Abandoned, Superseded): Rolling kerbside-proxy dev releases ("In progress — all in-repo work merged..."), Use case documentation ("In progress — oVirt page landed 2026-...")
 - **library-utilities** (Status): docs/plans/index.md is missing, so none of the 1 plan(s) in docs/plans/ are registered
 - **occystrap** (Status): index has no plan table (it must list plans in a table led by Date and Plan columns, not as prose or a bullet list); 4 master plan(s) not listed in the index: PLAN-make-the-speed.md, PLAN-post-write-verification.md, PLAN-registry-proxy.md, PLAN-structured-logging.md
 - **sfui** (Status): docs/plans/index.md is missing, so none of the 3 plan(s) in docs/plans/ are registered
-- **shakenfist** (Status): 1 table(s) not led by Date then Plan columns: line 36 starts "Plan | Phase"; 5 master plan(s) not listed in the index: PLAN-artifact-fetch-retry-with-backoff.md, PLAN-attribute-field-masks.md, PLAN-ci-node-exec-assertions.md, PLAN-netserv.md, PLAN-qemu-futures.md
 <!-- consistency-audit:end -->

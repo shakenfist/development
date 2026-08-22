@@ -132,7 +132,7 @@ See: `templates/test-drift-fix/README.md`
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-21T06:54:10.992868+00:00
+Last regenerated: 2026-08-22T06:45:22.459333+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -142,7 +142,7 @@ Last regenerated: 2026-08-21T06:54:10.992868+00:00
 | client-python-k3s | non-compliant | shakenfist/client-python-k3s#36 |
 | clingwrap | non-compliant | shakenfist/clingwrap#121 |
 | cloudgood | non-compliant | shakenfist/cloudgood#1 |
-| development | non-compliant | shakenfist/development#30 |
+| development | compliant | - |
 | divergulent | non-compliant | shakenfist/divergulent#36 |
 | instar | non-compliant | shakenfist/instar#515 |
 | kerbside | non-compliant | shakenfist/kerbside#348 |
@@ -161,7 +161,6 @@ Details for non-compliant projects:
 - **client-python-k3s** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard
 - **clingwrap** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard
 - **cloudgood** (Status): Missing workflows: pr-re-review.yml, pr-address-comments.yml
-- **development** (Status): Missing pr-re-review.yml; Missing pr-address-comments.yml; Missing pr-retest.yml; No workflow uses shared action review-pr-with-claude@main
 - **divergulent** (Status): Missing pr-re-review.yml; Missing pr-address-comments.yml; Missing pr-retest.yml; No workflow uses shared action review-pr-with-claude@main
 - **instar** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard
 - **kerbside** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard
