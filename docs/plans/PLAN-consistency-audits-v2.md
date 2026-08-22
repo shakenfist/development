@@ -160,6 +160,11 @@ that "the reviewer should also propose fixes" is correct -- when a
 review finds issues, the same context that identified the problem is
 best positioned to propose a fix.
 
+*(Written 2026-03. This turned out to be wrong, and usefully so: the
+human intervention between review and fix was the feature, not the
+friction. See Phase 3 below, and the retirement of the comment
+addresser in Phase 4.)*
+
 This should remain a separate workflow rather than being folded into
 the existing review or test workflows, but it should have two trigger
 modes:
@@ -389,13 +394,14 @@ nothing in the chain reads a secret.
    checkout also let callers delete their `check-bot-commit` job.
 3. ~~Add the automatic trigger on successful functional test
    completion.~~ The caller's `needs:` list, as above.
-4. Decide whether `@shakenfist-bot please review and fix` is still
-   wanted. The three commands remain separate today (`please
-   re-review`, `please address comments`, `please retest`). Combining
-   them would land a bot-authored fix commit before any human has read
-   the review, which is the reason the split has survived contact with
-   use. If that is the settled answer, delete this item and record the
-   decision; leaving it open implies work nobody intends to do.
+4. ~~Add the manual trigger via `@shakenfist-bot please review and
+   fix`.~~ Answered by deletion rather than by building it. The
+   comment addresser was retired in August 2026 because it went
+   unused: review findings are worked through interactively with the
+   reviewer, and a bot authoring commits from a review no human had
+   read is exactly what stopped anyone reaching for it. There is no
+   fix step left to combine a review with. The two commands that
+   remain are `please re-review` and `please retest`.
 5. ~~Implement as a reusable workflow in `shakenfist/actions`.~~
 6. ~~Pilot it.~~ Piloted on `actions` and on this repository, rather
    than on `shakenfist` as originally written.
@@ -427,15 +433,16 @@ nothing in the chain reads a secret.
    `audits/*.md`. Archiving it would have deleted the only place the
    *reasoning* behind a rule is written down, leaving the machine
    checks with nothing to explain themselves against.
-3. Move the operational documentation into `docs/`. There is still no
-   page in `docs/` describing the audit system itself: how the daily
-   runner works, how issues are filed and closed, how the compliance
-   tables are regenerated, and how to add a criterion. That material
-   currently sits in `AGENTS.md`, `audits/README.md` and
-   `ARCHITECTURE.md` -- exactly the split the `llm-doc-structure`
-   audit exists to prevent, and `AGENTS.md` costs context in every
-   session held in this repository. This is the last unmet success
-   criterion.
+3. ~~Move the operational documentation into `docs/`.~~ Done.
+   `docs/consistency-audits.md` now describes the system: the three
+   layers a criterion lives in, what each stage of a daily run does,
+   how issues are filed and closed and why titles are an interface,
+   how the compliance tables are regenerated, how to add a criterion,
+   how to bring a repository into scope, and how to test a change
+   before it reaches the fleet. `AGENTS.md` drops from 169 lines to
+   100 and `ARCHITECTURE.md` from 124 to 109, each keeping a summary
+   and a link -- which is what `llm-doc-structure` asks of them, and
+   `AGENTS.md` is loaded into every session held here.
 
 ## Administration and logistics
 

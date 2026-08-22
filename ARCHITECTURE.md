@@ -32,51 +32,44 @@ projects consistent. It contains no application code.
 
 ## The consistency audit pipeline
 
-The daily `consistency-audit.yml` workflow runs a matrix job per target
-repository:
+The daily `consistency-audit.yml` workflow turns "are the projects
+consistent" into a measurement, in four stages:
 
-1. Each matrix job shallow-clones the target repo and runs
-   `scripts/audit-check.py` against it, producing a JSON result artifact
-   (`audit-result-<repo>.json`). Checks are file-based where possible;
-   a few (default branch, security settings) query the GitHub API via
-   `gh`, and the git-hygiene checks shell out to `git` in the clone.
-2. A follow-up job downloads all result artifacts and runs
-   `scripts/audit-manage-issues.py`, which creates a GitHub issue
-   (labelled `consistency`) on each non-compliant target repo for each
-   failing check, and closes issues for checks that now pass or no
-   longer apply. Issue titles are `Consistency: <check name>` and are
-   used as the idempotency key, so titles must remain stable. Repo
-   names are resolved to their canonical form first (GitHub issue
-   search does not follow repo renames, while issue creation does, so
-   a stale matrix entry would otherwise file a fresh duplicate on
-   every run); a rename still fails the job so the matrix gets
-   updated. If duplicate issues exist anyway, the oldest is kept and
-   the rest are closed automatically.
-3. A final job runs `scripts/audit-update-docs.py`, which regenerates
-   the per-project compliance tables between the consistency-audit
-   markers in `audits/*.md` from the same results (linking the open
-   `consistency` issues), then commits and pushes any changes back to
-   `main` via `scripts/commit-audit-docs.sh`. The tables are therefore
-   always a rendering of the latest audit run, never hand-maintained.
+1. A matrix job per target repository shallow-clones it and runs
+   `scripts/audit-check.py`, producing an `audit-result-<repo>.json`
+   artifact. Checks are file-based where possible; a few query the
+   GitHub API through `gh`, and the git-hygiene checks shell out to
+   `git` in the clone.
+2. `scripts/audit-manage-issues.py` reads every artifact and files a
+   `consistency`-labelled issue on each target repository for each
+   failing check, closing issues for checks that now pass or no longer
+   apply. Issue titles are the idempotency key.
+3. `scripts/audit-update-docs.py` regenerates the compliance tables in
+   `audits/*.md` from the same results, and
+   `scripts/commit-audit-docs.sh` pushes them back to `main`. The
+   tables are a rendering of the latest run, never hand-maintained.
+4. On failure, a reporting job files or updates an `audit-failure`
+   issue here -- because while the pipeline is down the tables keep
+   showing yesterday's verdicts, so a broken audit looks like a
+   healthy one.
 
-The shared check-to-spec-file mapping and issue title conventions live
-in `scripts/audit_common.py`. All the scripts are stdlib-only Python;
-the only external dependencies are the `git` and `gh` CLIs available on
-the self-hosted runners.
+Data flows one way: a clone produces JSON, JSON produces issues and
+tables. Nothing reads the tables back, which is why they can be
+regenerated wholesale.
 
-Repo properties that cannot be detected from a clone (docs-only repos,
-repos where Python is incidental) are hardcoded in `REPO_OVERRIDES` in
-`scripts/audit-check.py`. Repository visibility is queried live from
-the GitHub API rather than hardcoded, because it changes over time.
+The shared check-to-spec mapping and issue title conventions live in
+`scripts/audit_common.py`. All the scripts are stdlib-only Python; the
+only external dependencies are the `git` and `gh` CLIs on the
+self-hosted runners, plus a pinned `skillsaw` for one check.
 
-Audit scope is otherwise all-or-nothing per repository -- in the
-matrix means every check applies -- except where a repository carries
-an `only_checks` override, which narrows it to the listed check ids.
-The remaining checks are not run at all and are reported
-`not_applicable`, which matters because several checks query the
-GitHub API and some of those queries fail on a private repository for
-reasons unrelated to compliance. `private-ci` uses this to be audited
-for its vendored sfui copy and nothing else.
+Repo properties that cannot be detected from a clone are declared in
+`REPO_OVERRIDES` in `scripts/audit-check.py`, which is also where a
+repository is narrowed to a subset of checks. Scope is otherwise
+all-or-nothing: in the matrix means every check applies.
+
+`docs/consistency-audits.md` documents all of this in working detail --
+adding a criterion, bringing a repository into scope, and testing a
+change before it reaches the fleet.
 
 ## Review tracking automation
 
@@ -98,27 +91,19 @@ five or more in-scope files need review. Tests are in
 
 ## Testing the automation
 
-The unit tests (`scripts/test_audit_check.py`,
-`scripts/test_audit_update_docs.py`, `scripts/test_review_tracking.py`
-and `scripts/test_check_audit_smoke.py`) run as `local` pre-commit
-hooks, and `ci.yml` runs the same `pre-commit run --all-files` on every
-pull request. Until `ci.yml` existed the hooks were the only gate
-between an edit and the 06:00 UTC run, and only in a clone where
-somebody had installed them.
+The four test suites under `scripts/` run as `local` pre-commit hooks,
+and `ci.yml` runs `pre-commit run --all-files` on every pull request.
+Until `ci.yml` existed the hooks were the only gate between an edit and
+the 06:00 UTC run, and only in a clone where somebody had installed
+them.
 
 `ci.yml` also runs `audit-check.py` against this repository, which is
 the part linting cannot do: the scheduled workflow's runtime
-assumptions -- that skillsaw installs, and that it lands somewhere
-`audit-check.py` can invoke it -- are only exercised by running it. A
-bare `pip install` meeting PEP 668 stopped the fleet's audits for a day
-in August 2026 without any file in the repository being wrong. The
-smoke job asserts the audit measured rather than that it approved,
-because `llm-context-lint` renders a missing skillsaw as
-`not_applicable`, which is the same word the audit uses for a
-deliberate exemption.
-They concentrate on invariants that span files -- a check id
-scheduled somewhere it is not defined, a check sharing a spec file
-without a column heading -- because those are the failures a single
-file review does not catch, and because the audit's own failure mode
-is unattended: it rewrites every table before it discovers it cannot
-render one, so a small omission publishes nothing at all.
+assumptions are only exercised by running it. A bare `pip install`
+meeting PEP 668 stopped the fleet's audits for a day in August 2026
+without any file in the repository being wrong.
+
+The tests concentrate on invariants that span files, because those are
+the failures a single file review does not catch, and because the
+audit's failure mode is unattended: it rewrites every table before it
+discovers it cannot render one. See `docs/consistency-audits.md`.
