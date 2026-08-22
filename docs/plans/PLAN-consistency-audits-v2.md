@@ -327,16 +327,17 @@ it runs, and `development` is where these rules are written, so an
 exemption there is an exemption the authors of the standard wrote for
 themselves.
 
-### Phase 2: CI-based audit runner -- DONE
+### Phase 2: CI-based audit runner -- MOSTLY DONE
 
 1. ~~Write audit check scripts (shell or Python) for each
-   criterion.~~ `scripts/audit-check.py` checks 11 criteria
-   (4 subjective criteria skipped: security-sanitization,
-   console-logging, python-version, test-coverage).
+   criterion.~~ `scripts/audit-check.py` runs 37 registered checks
+   across 34 criteria (4 judged by reading rather than matching:
+   security-sanitization, console-logging, python-version,
+   test-coverage).
 2. ~~Create a scheduled workflow in `development` that runs all
    checks across all projects.~~
    `.github/workflows/consistency-audit.yml` runs daily at
-   06:00 UTC with a matrix of 10 repos.
+   06:00 UTC with a matrix of 17 repos.
 3. ~~Add issue creation/closure automation for audit results.~~
    `scripts/audit-manage-issues.py` creates issues for failures
    and closes them when checks pass, using exact title matching
@@ -404,7 +405,13 @@ nothing in the chain reads a secret.
    commits from a review no human had read is exactly what stopped
    anyone reaching for it. A retired addresser leaves no fix step for
    a review to be combined with, so the two commands that survive are
-   `please re-review` and `please retest`. Removed in PR #43.
+   `please re-review` and `please retest`. Removed in PR #43 -- from
+   this repository and from the template. Eleven of the sixteen
+   audited projects still carry the workflow (actions, agent-python,
+   client-python, client-python-k3s, clingwrap, instar, kerbside,
+   occystrap, ryll, shakenfist and sfui), so the command still answers
+   across most of the fleet; the `ci-review-automation` check files an
+   issue against each until it does not.
 5. ~~Implement as a reusable workflow in `shakenfist/actions`.~~
 6. ~~Pilot it.~~ Piloted on `actions` and on this repository, rather
    than on `shakenfist` as originally written.

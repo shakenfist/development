@@ -291,7 +291,17 @@ class UnmeasuredCriteriaTest(unittest.TestCase):
     def test_there_is_something_to_measure(self):
         # The comparison above passes trivially if both sides are
         # empty, which is also what a renamed marker string would do.
-        self.assertTrue(self._unmeasured())
+        # The right response to this failing is usually deletion
+        # rather than repair, and that is not guessable from
+        # "False is not true".
+        self.assertTrue(
+            self._unmeasured(),
+            f'no audit spec lacks a {self.MARKER} marker block. Either '
+            f'every criterion is measured now -- in which case delete '
+            f'this class and the "at the time of writing" paragraph in '
+            f'{self.DOC} -- or MARKER no longer matches the marker '
+            f'string.',
+        )
 
 
 if __name__ == '__main__':
