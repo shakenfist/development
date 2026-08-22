@@ -38,16 +38,44 @@ Projects should include bot-triggered workflows responding to
 
 * `pr-re-review.yml` -- triggers another automated review (with
   `pull-requests: write` and `issues: write`).
-* `pr-address-comments.yml` -- triggers Claude Code to address
-  review comments.
 * `pr-retest.yml` -- re-runs functional tests.
+
+### The comment addresser is retired
+
+`pr-address-comments.yml` answered `@shakenfist-bot please address
+comments` by handing the review's items to Claude Code and pushing a
+commit per item. It was retired in August 2026 because it went unused:
+review items are worked through interactively with the reviewer
+instead, and a bot authoring commits from a review no human had read
+was the part that stopped anyone reaching for it.
+
+Its remains are audited rather than ignored, because they are not
+inert. The workflow triggers on `issue_comment`, so it holds
+`contents: write` against the pull request branch for a feature nobody
+wants; and it is the last thing in a project that calls
+`render-review.py`, so the script and its schema are dead weight the
+next project copies. The check therefore looks for the whole chain:
+
+* `.github/workflows/pr-address-comments.yml`
+* `address-comments-with-claude.sh`
+* `render-review.py`
+* `review-schema.json`
+
+`tools/` is the canonical home for the three scripts, but they are
+searched for by name anywhere in the tree: deployments put them
+elsewhere, and a dead script is dead wherever it sits.
+
+All four go in one commit. Deleting the workflow and keeping the
+scripts leaves the copy that gets propagated. The reviewer is
+unaffected: it reaches `render-review.py` through
+`shakenfist/actions/review-pr-with-claude@main`, which carries its own
+copy and its own schema.
 
 ### The trigger handling must be the shared action
 
 `pr-re-review.yml` must reach `shakenfist/actions/pr-bot-trigger@main`
 rather than hand-rolling the phrase match, permission lookup, reaction
-and refusal reply in inline shell. `pr-retest.yml` and
-`pr-address-comments.yml` already do.
+and refusal reply in inline shell. `pr-retest.yml` already does.
 
 This is a security requirement, not a tidiness one. `pr-bot-trigger`
 refuses pull requests from forks, and a hand-rolled copy does not
@@ -77,26 +105,6 @@ and never checked the trigger phrase itself, so it could not distinguish
 The check reports nothing when `pr-re-review.yml` is absent -- that is
 already a finding on its own, and reporting both would be two findings
 for one missing file.
-
-### Review JSON validation
-
-`render-review.py` resolves its schema as
-`Path(__file__).parent / 'review-schema.json'`. A deployed copy of the
-script must therefore keep `review-schema.json` in the same
-directory. Without it `load_schema()` returns `None` and
-`validate_review()` returns success without checking anything, so
-`--validate` accepts a review carrying an invented `category` or
-`action` while still exiting zero. The structural fallback in that
-function is a separate branch, reached only when `jsonschema` cannot be
-imported; on a runner where it can, a missing schema file means no
-validation at all.
-
-That matters because `address-comments-with-claude.sh` runs
-`render-review.py --validate` as its gate before letting Claude Code
-loose on the review's items: a review the schema would have rejected
-gets acted on instead. The failure is silent in both directions -- the
-script reports success and the audit saw nothing -- so the check looks
-for a `render-review.py` with no `review-schema.json` beside it.
 
 ### Test drift fixing (optional)
 

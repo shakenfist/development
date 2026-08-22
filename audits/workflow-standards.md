@@ -82,16 +82,15 @@ Claude Code run has no natural upper bound of its own --
 Rules of thumb, matching the values used in the templates:
 
 * Trigger / dispatch jobs that only make a few `gh` API calls
-  (`pr-retest.yml`, and the `trigger-*` jobs in
-  `pr-address-comments.yml` and `pr-fix-tests.yml`): 10 minutes.
+  (`pr-retest.yml`, and the `trigger-*` job in `pr-fix-tests.yml`):
+  10 minutes.
 * Claude Code triage runs (`issue-fix.yml`'s `triage` job): 30
   minutes.
 * Claude Code review runs (`pr-re-review.yml`): 60 minutes. Real
   re-reviews finish in three to six minutes, so this is ten times
   headroom.
 * Claude Code fix runs that build and test (`issue-fix.yml`'s `fix`
-  job, `test-drift-fix.yml`, `pr-address-comments.yml`'s
-  `address-comments` job): 120 minutes.
+  job, `test-drift-fix.yml`): 120 minutes.
 
 ### Functional test workflow naming
 
