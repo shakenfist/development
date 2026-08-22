@@ -129,7 +129,8 @@ from the [shakenfist/actions](https://github.com/shakenfist/actions) repository.
 
 ## How the Reviewer Works
 
-The automated reviewer (`tools/review-pr-with-claude.sh`):
+The automated reviewer (`review-pr-with-claude.sh`, in the
+`review-pr-with-claude` action in shakenfist/actions):
 
 1. Fetches PR diff and file list using `gh` CLI
 2. Reads AGENTS.md and ARCHITECTURE.md for project context

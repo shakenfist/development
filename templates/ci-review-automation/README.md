@@ -27,8 +27,12 @@ Everything in this directory is now ahead of every deployment. The
 2026-08-21 round of fixes came out of the automated review of
 shakenfist/actions#22, which was the first time these files were read
 adversarially rather than copied, and it found defects in the templates
-themselves rather than in that deployment. **Every repository listed at
-the bottom of this file is running the pre-fix versions.**
+themselves rather than in that deployment. **Every repository listed
+at the bottom of this file is running pre-fix copies of the two
+workflows in this directory.** That is about these files, not about
+which reviewer a project uses: the migration to the reusable
+`pr-auto-review.yml` is finished everywhere, and is a separate matter
+from the bot triggers being out of date.
 
 ### Workflow fixes (2026-08-21)
 
@@ -274,7 +278,13 @@ copy of the script and its own schema.
 
 The bot-triggered workflows (`pr-re-review.yml` and `pr-retest.yml`)
 are live in agent-python, client-python, client-python-k3s, clingwrap,
-development, instar, kerbside, occystrap, ryll, sfui and shakenfist.
+development, imago, instar, kerbside, occystrap, ryll, sfui and
+shakenfist.
+
+imago is the one to watch when reaping the addresser: it has the
+workflows and it still carries `pr-address-comments.yml`, but it is not
+in the consistency audit matrix, so nothing will ever file an issue
+about it. Everywhere else the audit does the asking.
 
 Every one of those projects now calls the reusable
 `pr-auto-review.yml` for its automatic review. The in-CI

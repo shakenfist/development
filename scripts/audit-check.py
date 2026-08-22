@@ -317,6 +317,18 @@ RETIRED_ADDRESSER_SCRIPTS = (
     'review-schema.json',
 )
 
+# Except where they are a composite action's own source. shakenfist/actions
+# is in the audit matrix and is the canonical home of
+# review-pr-with-claude/render-review.py and its schema -- the copies every
+# project's reviewer actually runs, and the ones this retirement points
+# projects at instead of their own. Searching by bare filename cannot tell
+# those from a deployed leftover, and the finding tells the maintainer to
+# remove the whole chain in one commit, so acting on it would delete the
+# renderer out from under the reviewer in every repository at once. An
+# action.yml beside the file is what distinguishes the two: it means the
+# directory is the action, not a copy of somebody else's.
+COMPOSITE_ACTION_MANIFEST = 'action.yml'
+
 ADDRESSER_RETIRED_DETAIL = (
     'the retired comment addresser is still deployed (%s); it is '
     'unused, and its workflow holds contents: write on the pull '
@@ -339,6 +351,10 @@ def carries_retired_comment_addresser(repo_path):
         # .git holds whatever another branch left behind, which is not
         # something this repository can act on.
         dirnames[:] = [d for d in dirnames if d != '.git']
+        # See COMPOSITE_ACTION_MANIFEST: the action's own source is not
+        # a deployed copy of the retired chain.
+        if COMPOSITE_ACTION_MANIFEST in filenames:
+            continue
         for name in RETIRED_ADDRESSER_SCRIPTS:
             if name in filenames:
                 found.append(

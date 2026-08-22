@@ -27,8 +27,9 @@ projects consistent. It contains no application code.
   checks: the pre-commit gate, a smoke run of the audit, and the
   automated reviewer gated on both.
 - `.github/workflows/` also carries the fleet-standard supporting
-  workflows: the three `pr-*.yml` bot triggers, `secret-scan.yml`,
-  `codeql-analysis.yml`, `renovate.yml` and `export-repo-config.yml`.
+  workflows: the `pr-re-review.yml` and `pr-retest.yml` bot triggers,
+  `secret-scan.yml`, `codeql-analysis.yml`, `renovate.yml` and
+  `export-repo-config.yml`.
 
 ## The consistency audit pipeline
 

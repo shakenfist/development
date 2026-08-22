@@ -2449,6 +2449,60 @@ class RetiredCommentAddresserTest(unittest.TestCase):
         self.assertEqual(result['status'], 'fail')
         self.assertIn('pr-address-comments.yml', result['details'])
 
+    def test_the_reviewer_actions_own_copies_are_not_leftovers(self):
+        # shakenfist/actions is in the matrix and is where
+        # render-review.py and its schema actually live -- the copies
+        # every project's reviewer runs, and the ones this retirement
+        # sends projects to instead of their own. The finding says to
+        # remove the whole chain in one commit, so reporting these would
+        # be telling the maintainer to delete the renderer out from
+        # under the reviewer in every repository at once.
+        result = self._check([
+            'review-pr-with-claude/action.yml',
+            'review-pr-with-claude/render-review.py',
+            'review-pr-with-claude/review-schema.json',
+        ])
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_the_exemption_does_not_cover_the_rest_of_the_repository(self):
+        # shakenfist/actions carries genuine leftovers of its own next
+        # to the action. Exempting the action's directory must not
+        # exempt the repository, or the one repository that hosts the
+        # replacement is the one that never gets told to clean up.
+        result = self._check([
+            'review-pr-with-claude/action.yml',
+            'review-pr-with-claude/render-review.py',
+            '.github/workflows/pr-address-comments.yml',
+            'tools/address-comments-with-claude.sh',
+        ])
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('pr-address-comments.yml', result['details'])
+        self.assertIn('address-comments-with-claude.sh', result['details'])
+        self.assertNotIn('review-pr-with-claude', result['details'])
+
+    def test_any_composite_action_is_exempt_not_just_the_reviewer(self):
+        # The exemption keys on action.yml rather than on the reviewer's
+        # directory name, so a second action which vendors a renderer of
+        # its own does not have to be added here to avoid a false
+        # finding. Hardcoding the one name we know about today is how a
+        # check acquires a maintenance burden nobody remembers.
+        result = self._check([
+            'some-other-action/action.yml',
+            'some-other-action/render-review.py',
+        ])
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_the_exemption_is_the_directory_not_the_name(self):
+        # An action.yml exempts the directory it sits in and nothing
+        # below it, so a leftover parked one level down is still found.
+        result = self._check([
+            'review-pr-with-claude/action.yml',
+            'review-pr-with-claude/old/render-review.py',
+        ])
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn(
+            'review-pr-with-claude/old/render-review.py', result['details'])
+
 
 class PrReReviewTriggerTest(unittest.TestCase):
     """pr-re-review.yml must use pr-bot-trigger, not hand-rolled shell.

@@ -76,9 +76,22 @@ next project copies. The check therefore looks for the whole chain:
 searched for by name anywhere in the tree: deployments put them
 elsewhere, and a dead script is dead wherever it sits.
 
-All four go in one commit. Deleting the workflow and keeping the
-scripts leaves the copy that gets propagated. The reviewer is
-unaffected: it reaches `render-review.py` through
+One exemption. A directory holding an `action.yml` is a composite
+action's own source rather than a deployed copy, and is skipped.
+`shakenfist/actions` is in the matrix and is where
+`review-pr-with-claude/render-review.py` and its schema actually live
+-- the copies every project's reviewer runs, and the ones this
+retirement sends projects to instead of their own. Without the
+exemption the finding would name them, and the instruction below is to
+remove everything it names in one commit, which would delete the
+renderer out from under the reviewer in every repository at once. The
+exemption covers the directory the manifest sits in and nothing below
+it, and `shakenfist/actions` is still reported for the leftovers it
+genuinely carries elsewhere in its tree.
+
+Everything the finding names goes in one commit. Deleting the workflow
+and keeping the scripts leaves the copy that gets propagated. The
+reviewer is unaffected: it reaches `render-review.py` through
 `shakenfist/actions/review-pr-with-claude@main`, which carries its own
 copy and its own schema.
 
