@@ -218,7 +218,6 @@ their CI workflow (`functional-tests.yml`, or `ci.yml` for ryll):
       pull-requests: write
       issues: write
     uses: shakenfist/actions/.github/workflows/pr-auto-review.yml@main
-    secrets: inherit
 ```
 
 Replace the `needs:` list with the project's own test jobs -- that
@@ -227,7 +226,7 @@ failed never starts the reusable workflow. It is also the only part
 which differs between projects; everything else (runner, timeout,
 fork restriction, bot-commit check, concurrency) is centralised.
 
-Two details specific to reusable workflows:
+Three details specific to reusable workflows:
 
 * The `permissions:` block goes on the **calling** job. A
   cross-repository reusable workflow cannot grant itself more token
@@ -235,10 +234,24 @@ Two details specific to reusable workflows:
   unable to post.
 * The calling job cannot set `runs-on:` or `timeout-minutes:`; both
   are defined inside the reusable workflow.
+* Do **not** add `secrets: inherit`. Nothing in the reviewer chain
+  reads a secret -- `pr-auto-review.yml` and `review-pr-with-claude`
+  both authenticate with `github.token`, which comes from the
+  `permissions:` block above -- so inheriting buys nothing while
+  handing every secret your repository holds, publishing tokens
+  included, to a workflow which lives in another repository. An
+  earlier version of this template carried the line, and nine
+  repositories copied it before it was corrected. Seven have since
+  merged the removal; `development` and `ryll` were the two still
+  carrying it when this was written. The `ci-review-automation`
+  audit now checks for it, so a repository which reintroduces the
+  line during migration is told rather than discovered.
 
-This is the same pattern as
+This is the same calling pattern as
 `shakenfist/actions/.github/workflows/smoke-cluster.yml`, which
-several projects already call from their CI workflows.
+several projects already call from their CI workflows -- though that
+one does read secrets, so its callers inherit and should keep doing
+so. The two are not interchangeable on this point.
 
 ### Migrating from the in-CI reviewer job
 

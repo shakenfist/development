@@ -20,6 +20,17 @@
 * The calling job needs `pull-requests: write` and `issues: write`
   permissions, because a cross-repository reusable workflow cannot
   grant itself more token scope than its caller has.
+* The calling job must not pass `secrets: inherit`.
+  `pr-auto-review.yml` declares no secrets and reads none -- it and
+  `review-pr-with-claude` authenticate with `github.token`, which
+  comes from the `permissions:` block above -- so inheriting buys the
+  caller nothing while handing every secret the repository holds,
+  publishing tokens included, to a workflow in another repository. The
+  exposure is latent rather than active, but it means a bad change
+  landing in `shakenfist/actions` would already have those secrets
+  within reach. This applies to the `pr-auto-review.yml` call only:
+  callers of `smoke-cluster.yml` and `export-repo-config.yml` do read
+  secrets and inherit correctly.
 * The automatic review must not pass `force` to the review action,
   so that a PR the bot has already reviewed is left alone.
   `pr-re-review.yml` is the only workflow which sets `force`, making
