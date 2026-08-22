@@ -866,7 +866,9 @@ ruleset.
 **Standard:** An expensive job that can run on a `merge_group`
 event must be in a concurrency group that a superseding merge group
 joins, with `cancel-in-progress: true`, so the older run is
-cancelled instead of building a cloud nobody is waiting on.
+cancelled instead of building a cloud nobody is waiting on — and
+that nothing running beside it joins, so it cancels only what is
+actually superseded.
 
 `github.ref` is the natural key and is right on every other event.
 On `merge_group` it is the per-attempt queue branch
@@ -880,6 +882,20 @@ completion. Key the merge queue branch of the expression on
 This is safe only because of the standard above: with
 `max_entries_to_build: 1` the queue builds one entry at a time, so
 any other in-flight `merge_group` run is superseded by definition.
+The audit checks that precondition itself rather than trusting the
+note, because the two standards are only correct together.
+
+Cancelling too much is the more expensive mistake, and the one a
+`github.ref` key hid. Two lanes of one matrix, or two jobs invoking
+one reusable workflow, that land in the same group cancel each other
+*inside a single run* — and a cancelled required check does not
+merely waste a runner, it ejects the pull request from the queue. So
+a matrix job's group must carry a `matrix.` context, a reusable
+workflow that declares inputs must key its group on one of them, and
+a caller that invokes one reusable workflow more than once per ref
+must pass a distinct `concurrency_key` per invocation. shakenfist's
+merge tier runs four nested clusters through one callee from a single
+matrix job; the lanes are distinct only because of that input.
 
 The cost of getting it wrong is fleet-wide rather than local, which
 is why this is audited everywhere rather than left per-project: the

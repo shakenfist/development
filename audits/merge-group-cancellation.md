@@ -3,9 +3,10 @@
 ## What we check
 
 Expensive jobs that can run on a `merge_group` event must sit in a
-concurrency group that a superseding merge group actually joins, so
-the older run is cancelled rather than left to run a full cloud build
-nobody is waiting on.
+concurrency group that a superseding merge group joins -- so the
+older run is cancelled rather than left to run a full cloud build
+nobody is waiting on -- and that nothing running *beside* them
+joins, so the cancellation takes only what is superseded.
 
 Concretely, for every workflow with a `merge_group:` trigger and every
 reusable `workflow_call:` workflow, each job that holds a scarce
@@ -13,11 +14,44 @@ self-hosted runner and is reachable on `merge_group` must have an
 effective `concurrency:` block -- job-level, or workflow-level if the
 job declares none -- that:
 
-* sets `cancel-in-progress: true`, and
+* sets `cancel-in-progress: true`;
 * keys the group on something stable across queue rebuilds. Either the
-  group expression does not mention `github.ref` at all, or it
-  branches on `github.event_name == 'merge_group'` and uses a stable
-  key on that branch.
+  group expression does not mention a per-rebuild context at all, or
+  it branches on `github.event_name == 'merge_group'` and uses a
+  stable key on that branch. The per-rebuild contexts are
+  `github.ref` (and `ref_name` / `ref_type`), `github.sha`,
+  `github.run_id`, `github.run_number`, `github.run_attempt` and the
+  `github.event.merge_group` head contexts. `github.sha` is on that
+  list because on `merge_group` it is the per-attempt merge commit,
+  not the pull request head -- it is the key somebody reaches for on
+  noticing that `github.ref` is wrong, and it is just as unique per
+  rebuild;
+* varies between the lanes of its own matrix. A matrix job's group
+  must carry a `matrix.` context.
+
+And on the two sides of a `uses:`:
+
+* a reusable workflow that declares `workflow_call` inputs must key
+  its group on at least one of them. A group made only of caller
+  contexts renders identically for every invocation on a ref, so the
+  second invocation cancels the first;
+* a job that invokes a reusable workflow more than once per ref --
+  because it is a matrix job, or because a sibling job invokes the
+  same callee -- must pass a `concurrency_key` input, distinct per
+  invocation and varying per matrix lane. That is the fleet
+  convention shakenfist/actions' `smoke-cluster.yml` declares the
+  input for; a callee cannot see its caller's job name, so the caller
+  has to say which invocation it is. A callee invoked once per ref
+  needs nothing: there is nothing for it to be distinct from.
+
+Two further conditions are checked once per repository rather than
+per job. The default branch's merge queue must build one entry at a
+time wherever the `base_ref` key is used (see [Why cancelling is safe
+here](#why-cancelling-is-safe-here)), and a `uses:` job may only
+delegate to a callee this audit can see: in-repo, or another
+`shakenfist/` repository, both of which are audited in their own
+right. Anything else is a concurrency group nobody has checked and
+the caller cannot fix.
 
 "Scarce" means any self-hosted pool except `static`. The sibling
 `expensive-lane-path-filter` audit uses the narrower `vm` label, which
@@ -25,9 +59,11 @@ is right for the question it asks, but instar's ephemeral runners are
 tagged `[self-hosted, debian-12, xl]` with no `vm` label and an
 abandoned merge group holds one of those just as firmly. The `static`
 pool is exempt because it is always-on and shared, and the jobs on it
-(path filters, gate jobs) are seconds long. GitHub-hosted runners and
-unresolvable `runs-on:` expressions are exempt: there is no fleet
-runner to starve.
+(path filters, gate jobs) are seconds long. GitHub-hosted runners are
+exempt: there is no fleet runner to starve. A `runs-on:` expression is
+resolved against the matrix it reads, so `runs-on: ${{ matrix.runner }}`
+over self-hosted label lists is in scope; ryll's genuinely
+GitHub-hosted Windows and macOS matrix is not.
 
 Reusable workflows are in scope unconditionally, because a callee
 published for the fleet cannot know what event it will see. Inferring
@@ -36,13 +72,15 @@ shakenfist/actions' `smoke-cluster.yml` -- which every shakenfist merge
 group runs four nested clusters through -- on the strength of a
 scheduled canary also calling it.
 
-Out of scope: jobs whose `if:` excludes `merge_group`, and jobs that
-only call a reusable workflow (the callee carries the group).
-Deliberate exceptions are marked with an
-`audit-ok: merge-group-cancellation` comment in the workflow file. The
-fleet has one: `test-drift-fix.yml` is reusable, but its only caller is
-`pr-fix-tests.yml` on `issue_comment`, so it can never see a merge
-group.
+Out of scope: jobs whose `if:` excludes `merge_group`. Deliberate
+exceptions are marked with an `audit-ok: merge-group-cancellation`
+comment, read per job: a marker inside a job exempts that job, and
+only a marker above the `jobs:` key exempts a whole file. A workflow
+here runs to eight hundred lines and fifteen jobs, and one job's
+stated exception should not quietly stop the other fourteen being
+measured. The fleet has one exception: `test-drift-fix.yml` is
+reusable, but its only caller is `pr-fix-tests.yml` on
+`issue_comment`, so it can never see a merge group.
 
 ## Why
 
@@ -75,11 +113,19 @@ requires `max_entries_to_build: 1` on every repository with a merge
 queue, so the queue only ever builds one entry at a time and any
 *other* in-flight `merge_group` run is by definition superseded.
 
-This audit therefore depends on [merge-queue-config.md](merge-queue-config.md).
-If a repository ever raises `max_entries_to_build` above 1, several
-merge groups are live at once, a base-branch key would alias them, and
-the pattern below becomes unsafe -- the key would have to narrow to
-something unique per live entry.
+This audit therefore depends on [merge-queue-config.md](merge-queue-config.md),
+and checks the dependency rather than stating it: where a repository
+uses the `base_ref` key below, the check asks GitHub whether that
+repository's queue is serial and fails if it is not. If
+`max_entries_to_build` were ever raised above 1, several merge groups
+would be live at once, a base-branch key would alias them, and the
+pattern below would start cancelling entries that are still wanted --
+the key would have to narrow to something unique per live entry.
+
+The same reasoning is what puts lane distinctness in this audit. An
+ejected pull request is what the fleet is protected from at the queue
+level, and it is exactly what a self-cancelling matrix produces at
+the job level.
 
 ## Template
 
@@ -103,7 +149,28 @@ would cancel each other.
 
 In a reusable workflow, `github.workflow` resolves to the *caller's*
 name, so keep whatever literal prefix the callee already uses to
-separate components and substitute only the `github.ref` tail.
+separate components and substitute only the `github.ref` tail -- and
+add the caller-supplied key, so two invocations on one ref are two
+groups:
+
+```yaml
+    concurrency:
+      group: >-
+        smoke-cluster-${{ inputs.component }}-${{ inputs.tier }}-${{
+        inputs.concurrency_key }}-${{
+        github.event_name == 'merge_group'
+        && format('merge_group-{0}', github.event.merge_group.base_ref)
+        || github.ref }}
+      cancel-in-progress: true
+```
+
+A matrix job substitutes its own lane into the group, and a matrix
+job calling a reusable workflow does the same thing through the
+input:
+
+```yaml
+      concurrency_key: ${{ matrix.merge.job_name }}
+```
 
 ## Projects
 
