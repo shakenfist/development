@@ -174,24 +174,15 @@ Diff:
 
 ## The comment addresser, retired
 
-`pr-address-comments.yml` and `tools/address-comments-with-claude.sh` answered
-`@shakenfist-bot please address comments` by taking each review item with
-`action` of `fix` or `document`, prompting Claude Code with it, and pushing one
-commit per item. They were removed in August 2026, along with the
-`tools/render-review.py` and `tools/review-schema.json` copies that existed
-only for that script to call.
+Nothing acts on a review automatically any more. `pr-address-comments.yml`
+used to take each item with an `action` of `fix` or `document`, prompt Claude
+Code with it, and push a commit per item; it is retired, and
+[`audits/ci-review-automation.md`](audits/ci-review-automation.md) has the
+reasoning and the list of files a repository must not still carry.
 
-The reason is preference, not defect: review items are worked through
-interactively with the reviewer instead. A bot authoring commits from a review
-that no human had read is the part that stopped anyone reaching for it.
-
-Two consequences are worth knowing. The reviewer's JSON `action` field survives
-and is still worth setting accurately -- it is how a reader triages the review
--- but nothing consumes it automatically any more. And the `ci-review-automation`
-consistency audit now fails a repository which still carries any part of the
-chain, because the workflow triggers on `issue_comment` and so holds
-`contents: write` against the pull request branch for a feature nobody wants.
-See `docs/audits/ci-review-automation.md`.
+What matters for the review format is that the `action` field survives its
+consumer. It is still worth setting accurately, because it is how a human
+triages the review -- but it is read by people now, not by a workflow.
 
 ## Workflow Files
 

@@ -3,10 +3,10 @@
 ## What we check
 
 Every project should have an `AGENTS.md` and an `ARCHITECTURE.md`.
-Operations which have been historically repetitive should be covered
-by a Claude skill if they would benefit from it. Things that are
-likely to need a skill include remembering to write unit or functional
-tests, updating documentation for user-visible changes, and so forth.
+Repetitive operations should be covered by a Claude skill where one
+helps. Things that are likely to need a skill include remembering to
+write unit or functional tests, updating documentation for
+user-visible changes, and so forth.
 
 ## Template
 

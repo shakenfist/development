@@ -122,38 +122,22 @@ Your self-hosted runners need these labels:
 
 ## Not Reviewing The Bot's Own Commits
 
-The `check-bot-commit` job detects if the last commit was authored
-by `bot@shakenfist.com`. If so, the automated reviewer is skipped.
-
-A bot push -- from the test fixer -- triggers CI like any other push,
-so without the guard the reviewer would spend a claude-code run
-reviewing commits no human wrote, on a branch whose human-authored
-changes it has already reviewed. That waste is what the guard is for.
-It is not a loop any more: the comment addresser was the only thing
-that turned a review back into a commit, and it is retired.
+A push authored by `bot@shakenfist.com` skips the automated
+reviewer. Projects calling the shared `pr-auto-review.yml` get this
+for free and should delete any local `check-bot-commit` job; see
+[Not Reviewing The Bot's Own Commits](automated-pr-review.md#not-reviewing-the-bots-own-commits)
+for what the guard is for.
 
 ## The retired comment addresser
 
-`pr-address-comments.yml` answered `@shakenfist-bot please address
-comments` by handing each actionable review item to Claude Code and
-pushing one commit per item. It was removed in August 2026, together
-with the `tools/address-comments-with-claude.sh`, `tools/render-review.py`
-and `tools/review-schema.json` scripts that existed to serve it.
+There is no `pr-address-comments.yml` template here, and there will
+not be one: the comment addresser is retired, and a repository still
+carrying any part of it fails the audit. What it was, why it went, and
+exactly which files to delete are in
+[`audits/ci-review-automation.md`](audits/ci-review-automation.md).
 
-It went unused: review findings are worked through interactively with
-the reviewer, and a bot authoring commits from a review nobody had read
-is why. Removing it is not optional housekeeping -- the workflow
-triggers on `issue_comment`, so it holds `contents: write` against the
-pull request branch for a feature nobody wants. The
-`ci-review-automation` consistency audit fails a repository still
-carrying any of the four files; remove them in one commit, because
-deleting the workflow and keeping the scripts leaves the copy that gets
-propagated.
-
-The reviewer does not depend on any of it: `render-review.py` and its
-schema ship inside `shakenfist/actions/review-pr-with-claude`.
-
-One thing does change. `render-review.py` in the shared action
+One thing about the reaping belongs here, because it is about the
+templates rather than about the audit. `render-review.py` in the shared action
 still ends every review it posts with a line telling the reader to
 use the addresser's trigger phrase. Once the chain is reaped that
 invites a command nothing answers -- no workflow, no reply, no

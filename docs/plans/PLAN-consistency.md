@@ -16,9 +16,9 @@ on the repository concerned:
 
 From 2026-02-18, a hand audit of every Shaken Fist repository against
 the thirteen criteria
-[`PROJECT-CONSISTENCY-AUDITS.md`](https://github.com/shakenfist/development/blob/main/PROJECT-CONSISTENCY-AUDITS.md)
-described at the time, with a checklist per project of the cleanups it
-needed. It ran that way for about three weeks, and most of what the
+`PROJECT-CONSISTENCY-AUDITS.md` described at the time (that file has
+since been dissolved into [`docs/audits/`](../audits/README.md)),
+with a checklist per project of the cleanups it needed. It ran that way for about three weeks, and most of what the
 fleet's automation is built from came out of it:
 
 * The `export-repo-config` reusable workflow and the

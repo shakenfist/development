@@ -101,22 +101,57 @@ Rules of thumb, matching the values used in the templates:
 ### PIPESTATUS for piped commands
 
 When piping through `tee` in a `run:` step, always use the
-`${PIPESTATUS[0]}` pattern to capture the upstream exit code.
-Do not rely on `$?` (captures last command only) or `set -eo
-pipefail` alone (unreliable on self-hosted runners).
+`${PIPESTATUS[0]}` pattern to capture the upstream exit code:
+
+```yaml
+- name: Run something
+  run: |
+    set +e
+    make something 2>&1 | tee output.txt
+    exit_code=${PIPESTATUS[0]}
+    set -e
+    if [ ${exit_code} -ne 0 ]; then
+      echo "Command failed with exit code ${exit_code}"
+      exit ${exit_code}
+    fi
+```
+
+Do not rely on `$?` (it captures the last command in the pipeline,
+which is `tee`, which always succeeds) or on `set -eo pipefail`
+alone (unreliable on self-hosted runners). The exceptions are a
+pipeline whose failure is deliberately ignored
+(`command | tee log.txt || true`) and one whose upstream cannot fail
+(`echo ... | tee`).
 
 ### flake8wrap.sh correctness
 
-Projects with `tools/flake8wrap.sh` must not quote
-`${filtered_files}` on the diff/flake8 invocation line. Add
-`shellcheck disable=SC2086` with an explanatory comment. The
-script should also filter to `.py` files, skip `_pb2` generated
-files, and handle deleted files.
+`tools/flake8wrap.sh` runs flake8 over just the files changed in the
+current commit (via `tox -eflake8 -- -HEAD`), building a
+space-separated list in `filtered_files`. That variable must **not**
+be quoted on the diff/flake8 invocation line: quoting makes the whole
+list a single filename argument, which breaks as soon as more than
+one Python file changed.
+
+```sh
+# Correct -- the word splitting is deliberate.
+# shellcheck disable=SC2086
+diff -u --from-file /dev/null ${filtered_files} | $FLAKE_COMMAND ${filtered_files}
+
+# Wrong -- one argument named "a.py b.py".
+diff -u --from-file /dev/null "${filtered_files}" | $FLAKE_COMMAND "${filtered_files}"
+```
+
+The `shellcheck disable=SC2086` directive is required because
+shellcheck otherwise flags that splitting; keep the comment saying it
+is intentional. The script should also filter to `.py` files, skip
+`_pb2` generated files, and handle deleted files (paths in the diff
+that no longer exist on disk).
 
 ### CI linting
 
 * `actionlint`, `shellcheck`, and `.pre-commit-config.yaml` that
-  runs them.
+  runs them. `kerbside` and `kerbside-patches` are the worked
+  examples.
 * Helper shell scripts should have shellcheck pre-commit hooks.
 
 ### Review marks excluded from pre-commit
@@ -137,14 +172,10 @@ newline, so `end-of-file-fixer` rewrites them on every
 `pre-commit run --all-files`. That reports a failure nobody can fix:
 committing the newline only means the next regen drops it again, so
 the hook warns over and over until people learn to ignore it, which
-is the opposite of what a lint gate is for.
-
-Scope the exclude to the rewriting hooks. A top-level exclude also
-hides the marks from read-only hooks, and review notes are prose --
-so it would stop gitleaks and the bidi/zero-width scanners reading
-exactly the kind of human-written text a secret or a smuggled
-character would land in. That is the same reasoning that keeps
-content scanners out of `paths-ignore` in the adoption procedure.
+is the opposite of what a lint gate is for. Scope the exclude to the
+rewriting hooks rather than the whole file --
+[docs/code-review-tracking.md](../code-review-tracking.md) explains
+why a blanket exclude is worse than none.
 
 The check therefore applies only where a rewriting hook
 (`end-of-file-fixer`, `trailing-whitespace`, `mixed-line-ending`,

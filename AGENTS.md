@@ -13,9 +13,9 @@ anything under `scripts/` or `docs/audits/`.
 
 The parts worth knowing before you start:
 
-- A criterion spans five files (check, metadata, spec, index, prose),
-  plus a column heading if it shares a spec file with another check,
-  and they must stay in sync. `pre-commit` runs the tests that catch
+- A criterion spans four files (check, metadata, spec, index), plus
+  a column heading if it shares a spec file with another check, and
+  they must stay in sync. `pre-commit` runs the tests that catch
   the cross-file breakages.
 - The compliance tables between the `consistency-audit` markers in
   `docs/audits/*.md` are regenerated and pushed by the daily workflow.
@@ -95,15 +95,14 @@ content scanner differs per project and takes judgment.
 
 - Python: single quotes, no external dependencies in the audit scripts
   (stdlib plus the `git` and `gh` CLIs only).
-- Some of the prose here is parsed. `AuditScopeIsStatedOnceTest` reads
-  the scope lists out of `PROJECT-CONSISTENCY-AUDITS.md` and
-  `docs/audits/README.md` by splitting them on literal phrases, and
-  asserts
-  those phrases still delimit a list of repository names -- so reword
-  freely and let the tests say when a phrase mattered. Any new
-  parse of a document by phrase gets the same treatment: a named
+- Some of the prose here is parsed. `AuditScopeIsStatedOnceTest`
+  reads the in-scope and excluded lists out of
+  `docs/audits/README.md` by splitting it on literal phrases, and
+  asserts those phrases still delimit a list of repository names --
+  so reword freely and let the tests say when a phrase mattered. Any
+  new parse of a document by phrase gets the same treatment: a named
   constant and an assertion, not a bare `split()`.
 - This repository is audited by its own consistency audits. Two checks
   are N/A for stated reasons in `REPO_OVERRIDES` (its Python is never
   packaged, and it keeps `main` because it publishes no releases); see
-  the exceptional cases in `PROJECT-CONSISTENCY-AUDITS.md`.
+  the excluded projects section of `docs/audits/README.md`.

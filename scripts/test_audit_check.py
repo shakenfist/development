@@ -1205,13 +1205,13 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
     """The three places that say who is audited must agree.
 
     Scope is written down three times: the matrix in
-    .github/workflows/consistency-audit.yml is what actually runs, the
-    in-scope list in docs/audits/README.md is what a reader is told, and
-    the excluded list in PROJECT-CONSISTENCY-AUDITS.md is what the
-    standard claims. Nothing else ties them together, so a repository
-    added to the matrix alone is audited while the documentation says
-    it is not -- and one dropped from the matrix alone silently stops
-    being measured while both documents say it is.
+    .github/workflows/consistency-audit.yml is what actually runs,
+    and the in-scope and excluded lists in docs/audits/README.md are
+    what a reader is told. Nothing else ties them together, so a
+    repository added to the matrix alone is audited while the
+    documentation says it is not -- and one dropped from the matrix
+    alone silently stops being measured while the documentation says
+    it is.
 
     Reading two of the three means splitting prose on a literal
     phrase, so this class also holds those phrases to their job. See
@@ -1232,7 +1232,7 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
     # it, which the comparisons here can still pass on. So the phrases
     # are named constants and bulleted_block() asserts they still
     # delimit a list of repository names before anything trusts them.
-    EXCLUDED_DOC = 'PROJECT-CONSISTENCY-AUDITS.md'
+    EXCLUDED_DOC = 'docs/audits/README.md'
     EXCLUDED_START = 'are **excluded**'
     EXCLUDED_END = 'The `actions` repository'
     EXCLUDED_BULLET = '* '
@@ -1353,8 +1353,8 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
         # The comparisons below are worth no more than the parses that
         # feed them, and all three parses are anchored to phrases in
         # documents that get rewritten for reasons that have nothing
-        # to do with this suite -- PROJECT-CONSISTENCY-AUDITS.md was
-        # rewritten wholesale into the present tense once already. Run
+        # to do with this suite -- the page holding both lists was
+        # rewritten wholesale more than once already. Run
         # them here on their own so that a reworded anchor fails as a
         # reworded anchor, naming the phrase and the file, rather than
         # as a mysterious disagreement about which repositories are
@@ -1386,8 +1386,8 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
         )
         self.assertEqual(
             overlap, set(),
-            'PROJECT-CONSISTENCY-AUDITS.md lists these as excluded '
-            'but the audit matrix runs every check against them',
+            'docs/audits/README.md lists these as excluded but '
+            'the audit matrix runs every check against them',
         )
 
 

@@ -5,6 +5,10 @@ the Shaken Fist project.
 
 ## Documentation
 
+- [Audit Specifications](https://github.com/shakenfist/development/blob/main/docs/audits/README.md) -- What we expect
+  of every Shaken Fist project: one page per criterion, saying what
+  is checked and why, plus which repositories are in scope, excluded,
+  or audited for part of it
 - [Consistency Audits](https://github.com/shakenfist/development/blob/main/docs/consistency-audits.md) -- How the daily
   audit runs, files and closes issues, and how to add a criterion or
   bring a repository into scope
@@ -30,9 +34,6 @@ criterion, each independently checkable. See
 [`docs/audits/README.md`](https://github.com/shakenfist/development/blob/main/docs/audits/README.md) for the full index, and
 [`docs/consistency-audits.md`](https://github.com/shakenfist/development/blob/main/docs/consistency-audits.md) for how
 the system works and how to add an audit item.
-
-The authoritative specification of all audit criteria is in
-[`PROJECT-CONSISTENCY-AUDITS.md`](https://github.com/shakenfist/development/blob/main/PROJECT-CONSISTENCY-AUDITS.md).
 
 Audits run automatically via
 [`.github/workflows/consistency-audit.yml`](https://github.com/shakenfist/development/blob/main/.github/workflows/consistency-audit.yml),

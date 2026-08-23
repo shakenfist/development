@@ -112,16 +112,14 @@ repos:
         # canonical blocks from templates/shared-blocks, and
         # AuditScopeIsStatedOnceTest reads the audit matrix out of
         # .github/workflows/consistency-audit.yml and the scope lists
-        # out of PROJECT-CONSISTENCY-AUDITS.md and
-        # docs/audits/README.md by splitting them on phrases in their
-        # prose. The commit that
-        # breaks one of those parses is a documentation commit, so a
-        # scripts-only filter never ran the suite that would catch it
-        # -- rewriting PROJECT-CONSISTENCY-AUDITS.md into the present
-        # tense reworded one anchor and would have gone unchecked
-        # here. Patterns rather than the list of files the suite
-        # happens to read today, so the two cannot drift apart; the
-        # suite is stdlib only and takes under a second.
+        # out of docs/audits/README.md by splitting it on phrases in
+        # its prose. The commit that breaks one of those parses is a
+        # documentation commit, so a scripts-only filter never ran the
+        # suite that would catch it -- a wholesale rewrite of the page
+        # holding the lists reworded one anchor and would have gone
+        # unchecked here. Patterns rather than the list of files the
+        # suite happens to read today, so the two cannot drift apart;
+        # the suite is stdlib only and takes under a second.
         files: ^(scripts/.*\.py|.*\.md|\.github/workflows/.*\.ya?ml)$
 
       - id: audit-update-docs-tests
