@@ -2,7 +2,7 @@
 
 ## Exceptional cases
 
-The following projects are **excluded** from these rules due to being
+The following projects are **excluded** from these rules because they are
 **internal only tooling** or **historical archive repositories**:
 
 * ansible-modules
@@ -26,24 +26,23 @@ The following projects are **excluded** from these rules due to being
 * uefi-latency-guest
 * website
 
-The `actions` repository used to be on that list. It is now audited: the
-whole fleet depends on it for its composite actions and reusable
-workflows, so it should be held to the same standards as anything else.
-Two rules do not apply to it -- it has no Python to package, and it keeps
-`main` as its default branch because every consumer pins to `@main`.
+The `actions` repository is audited despite being tooling: the whole
+fleet depends on it for its composite actions and reusable workflows,
+so it is held to the same standards as anything else. Two rules do not
+apply to it -- it has no Python to package, and it keeps `main` as its
+default branch because every consumer pins to `@main`.
 
-`development` used to be on that list too, and is now audited for the
-same reason turned around: it is where these rules and the tooling that
-enforces them are written, so an exemption for it is an exemption the
-authors of the standard wrote for themselves. The same two rules do not
-apply -- its Python is the audit scripts, which are run from a checkout
-and never packaged, and it keeps `main` because it publishes no releases
-and so has no release branch for `develop` to be the integration branch
-against. Both exemptions are stated reasons in `REPO_OVERRIDES`, which
-means they are reported as N/A with the reason attached rather than
-disappearing from the table.
+`development` is audited for the same reason turned around: it is where
+these rules and the tooling that enforces them are written, so an
+exemption for it is an exemption the authors of the standard write for
+themselves. The same two rules do not apply -- its Python is the audit
+scripts, which run from a checkout and are never packaged, and it keeps
+`main` because it publishes no releases and so has no release branch for
+`develop` to be the integration branch against. Both exemptions are
+stated reasons in `REPO_OVERRIDES`, which means they are reported as N/A
+with the reason attached rather than disappearing from the table.
 
-`private-ci` stays on that list, but is audited for one thing. It
+`private-ci` is on the excluded list, but is audited for one thing. It
 vendors sfui, and a vendored copy is the one kind of problem an
 exclusion cannot make safe: nothing in the consumer fails when the copy
 falls behind, or when someone edits it in place and the next sync
@@ -55,11 +54,11 @@ config, release workflows, or a `develop` branch.
 
 ## LLM tooling
 
-Every project should have an `AGENTS.md`, and `ARCHITECTURE.md`. Operations
-which have been historically repetitive should be covered by a Claude skill
-if they would benefit from it. Things that are likely to need a skill
-include remembering to write unit or functional tests, updating documention
-for user visible changes, and so forth.
+Every project should have an `AGENTS.md`, and `ARCHITECTURE.md`.
+Repetitive operations should be covered by a Claude skill where one
+helps. Things that are likely to need a skill include remembering to
+write unit or functional tests, updating documentation for user visible
+changes, and so forth.
 
 ## AGENTS.md and ARCHITECTURE.md are a summary and an index
 
@@ -79,24 +78,25 @@ lines and 2500 words, `ARCHITECTURE.md` at most 500 lines and 4000 words,
 each file points at a page under `docs/` when `docs/` holds any (a link or
 a backticked path both count -- these files are read on GitHub and by
 agents, not rendered off-site), no `##` heading appears in both files, and
-no heading names a page `docs/` already has. The judgment half is enforced at push time by the `llm-doc-discipline`
-shared block in each repository's `PUSH-AUDIT.md` (see below).
+no heading names a page `docs/` already has. The judgment half is enforced
+at push time by the `llm-doc-discipline` shared block in each repository's
+`PUSH-AUDIT.md` (see below).
 
 `AGENTS.md` gets the tighter cap because it is loaded into every session:
 its whole length is a fixed tax on every task, whether or not the task
 touches the subject.
 
-This rule exists because these two files accreted the same way the READMEs
-did -- ryll's reached 1015 and 2262 lines, around 21,000 words, while
-restating `docs/configuration.md`, restating `docs/control-socket-protocol.md`
-in a section that names that file as the canonical source, and duplicating a
-`## Code Organisation` section between the two files.
+Left unchecked these two files accrete the same way READMEs do, reaching
+thousands of lines while restating `docs/configuration.md`, restating a
+protocol reference in a section that names that file as the canonical
+source, and duplicating a `## Code Organisation` section between the
+two.
 
 ## Agent context is linted
 
 `AGENTS.md`, `CLAUDE.md`, skills, plugins, hooks and MCP configuration
-are code an agent executes against, and until now nothing checked them.
-Every repository with agent context runs [skillsaw](https://skillsaw.org/),
+are code an agent executes against, so they are linted like code. Every
+repository with agent context runs [skillsaw](https://skillsaw.org/),
 and the audit reports its error-severity findings. See
 [audits/llm-context-lint.md](audits/llm-context-lint.md).
 
@@ -111,10 +111,9 @@ The audit also reports markdown that will never load as a skill. A skill
 is `<skills dir>/<name>/SKILL.md`; a bare markdown file in
 `.claude/skills/`, or a subdirectory with no `SKILL.md`, is inert. Worse,
 skillsaw cannot report it either, because such a file is never discovered
-as a skill -- the repository lints clean while its skills do nothing.
-Twelve local checkouts were in that state when this was written, several
-of them with an `AGENTS.md` asserting that their skills cover the
-repetitive work.
+as a skill -- the repository lints clean while its skills do nothing, and
+an `AGENTS.md` claiming those skills cover the repetitive work is simply
+wrong.
 
 The daily audit is a backstop, not a feedback loop. Each repository must
 also run skillsaw in its own pre-commit **and** in CI, alongside
@@ -146,19 +145,18 @@ committed to git:
   the `.gitignore` entry.
 
 A tracked copy shadows the build-time version, causing stale or wrong
-version numbers in releases. This has happened in practice on a
-`client-python` pull request.
+version numbers in releases.
 
 ## Release process
 
 There is no `release.sh` in the project directory. All Shaken Fist projects
-that release to pypi should now be using `pyproject.toml` instead of this
-shell script. Similarly we don't use `requirements.txt` and
-`test-requirements.txt`, we manage our dependencies in `pyproject.toml`.
-If `pyproject.toml` is missing, use the ones in `kerbside`, `occystrap`, and
-`shakenfist` as examples of our implementation style.
+that release to pypi use `pyproject.toml` instead of this shell script.
+Similarly we don't use `requirements.txt` and `test-requirements.txt`, we
+manage our dependencies in `pyproject.toml`. If `pyproject.toml` is
+missing, use the ones in `kerbside`, `occystrap`, and `shakenfist` as
+examples of our implementation style.
 
-We now push releases using github signed tags. Ensure there is a
+We push releases using github signed tags. Ensure there is a
 `.github/workflows/release.yml` workflow for all projects with a
 `pyproject.toml`. There should also be a `RELEASE-SETUP.md` in the project
 directory explaining setup.
@@ -188,9 +186,6 @@ only ever viewed on the GitHub file tree, where relative links work
 fine. Links inside fenced code blocks or inline code spans are ignored
 (a documented command containing `[x](y)` is sample text, not a
 link).
-
-This rule exists because divergulent's first PyPI release rendered
-with every relative link broken.
 
 ## Links out of docs/ must be absolute
 
@@ -240,16 +235,15 @@ time by the `readme-discipline` shared block in each repository's
 `PUSH-AUDIT.md` (see below), which sends new feature documentation to
 `docs/` and treats README growth as a finding.
 
-This rule exists because our READMEs accreted a bullet per feature
-per push -- ryll's reached 557 lines -- burying the pitch and
-duplicating content `docs/` already covers.
+Without that, a README accretes a bullet per feature per push, burying
+the pitch and duplicating content `docs/` already covers.
 
 ## Pre-push audit file and shared blocks
 
 Repositories that carry a pre-push audit runbook must name it
-`PUSH-AUDIT.md` (the historical `PUSH-TEMPLATE.md` name is legacy:
-the file is a runbook, not a template, and the `-TEMPLATE` suffix is
-reserved for true templates like `PLAN-TEMPLATE.md`). Repositories
+`PUSH-AUDIT.md`. `PUSH-TEMPLATE.md` is not an acceptable name: the
+file is a runbook, not a template, and the `-TEMPLATE` suffix is
+reserved for true templates like `PLAN-TEMPLATE.md`. Repositories
 without a pre-push audit file are exempt.
 
 Canonical wording that must stay identical across repositories --
@@ -289,8 +283,8 @@ feed the output to the same agent.
 `PLAN-TEMPLATE.md` is mostly not project-specific. How phase files
 are named, that sub-agents do the implementation work, what the
 effort levels mean, which models exist and when to reach for each --
-all of that was copied between repositories by hand and drifted.
-Repositories that carry a `PLAN-TEMPLATE.md` must embed the current
+copied between repositories by hand, all of that drifts. Repositories
+that carry a `PLAN-TEMPLATE.md` must embed the current
 `plan-file-conventions`, `subagent-execution-model`,
 `plan-planning-effort`, `subagent-step-guidance`,
 `subagent-model-roster`, `plan-review-checklist` and
@@ -311,14 +305,13 @@ index maintenance`.
 The admonition is chosen over a repeated heading because master
 plans written from the template live in `docs/plans/` and are
 published through mkdocs-material, where it renders as a proper
-callout -- and a lot of this material does survive into published
-plans (85 of shakenfist's 125 plans carry a Back brief, 44 carry
-Step-level guidance). A repeated heading would instead mint
-duplicate anchors and duplicate table-of-contents entries in each of
-them. Only the short runs trailing a shared block are marked;
-whole project-specific sections already announce themselves by their
-headings, and the `...` placeholders are per-plan rather than
-per-project.
+callout -- and a lot of this material survives into published plans,
+which carry their own Back brief and Step-level guidance sections. A
+repeated heading would instead mint duplicate anchors and duplicate
+table-of-contents entries in each of them. Only the short runs
+trailing a shared block are marked; whole project-specific sections
+already announce themselves by their headings, and the `...`
+placeholders are per-plan rather than per-project.
 
 `subagent-model-roster` is deliberately a block of its own rather
 than part of the step guidance, because it churns on a different
@@ -335,12 +328,12 @@ and the issue names the roster rather than the surrounding prose.
 
 Every repository that plans in `docs/plans/` carries an
 `index.md` there, and it is the one page that answers what the
-repository has planned and what still wants attention. Three
-different layouts had grown across the fleet -- a date-first table
-of plans, a plan-first table of plans, and a plan-first table of
-*phases* -- so anything reading an index had to work out which shape
-it was before it could find the status column. Local tooling that
-did not silently returned "every plan here is unstarted".
+repository has planned and what still wants attention. Without a
+canonical shape, indexes diverge -- a date-first table of plans, a
+plan-first table of plans, and a plan-first table of *phases* -- so
+anything reading an index has to work out which shape it is before it
+can find the status column, and local tooling that does not report
+"every plan here is unstarted".
 
 The canonical shape is one table row per plan, led by a `Date`
 column and then a `Plan` column, with rows oldest first. Later
@@ -362,7 +355,7 @@ and nothing else. Matching is case-insensitive; the spelling here is
 the one to write.
 
 The "nothing else" is the part that matters, because it is the part
-that decayed. Status cells had grown into paragraphs -- `Complete
+that decays. A status cell easily grows into a paragraph -- `Complete
 (phases 1-5 and 2b, 2026-08-15): every merge to develop installs a
 freshly built .deb/.rpm on...` -- which is useful writing in the
 wrong column. A status is read to decide whether a plan still wants
@@ -509,12 +502,12 @@ open-code this and need replacing, not editing.
 
 ### The comment addresser is retired
 
-`pr-address-comments.yml` answered "@shakenfist-bot please address
+`pr-address-comments.yml` answers "@shakenfist-bot please address
 comments" by handing each actionable review item to Claude Code and
-pushing a commit per item. It was removed in August 2026 because it
-went unused: findings are worked through interactively with the
-reviewer, and a bot authoring commits from a review nobody had read is
-the reason it was never reached for.
+pushing a commit per item. It is retired and must not be deployed:
+findings are worked through interactively with the reviewer, and a bot
+authoring commits from a review nobody has read is not something anyone
+reaches for.
 
 Its remains are audited rather than left alone, because they are not
 inert. The workflow triggers on `issue_comment`, so it holds
@@ -577,8 +570,6 @@ absence of a bump looks exactly like being up to date.
 The consequence is worse than for an ordinary dependency. Pre-commit
 hooks are the linters gating every commit, so the one file nobody is
 watching is the one deciding whether everything else is acceptable.
-`instar` was four months behind on `actionlint` while its cargo,
-dockerfile and github-actions dependencies were all current.
 
 Enable it with any of the three forms renovate supports -- a
 `"pre-commit": {"enabled": true}` block, `enabledManagers`, or the
@@ -598,8 +589,8 @@ Projects that must support multiple Linux distributions should set
 version they support. This prevents renovate from proposing
 dependency updates that are incompatible with older distros.
 
-At the moment the projects which need to meet this requirement are:
-agent-python; and occystrap.
+The projects which need to meet this requirement are: agent-python;
+and occystrap.
 
 The constraint should match the `requires-python` value in
 `pyproject.toml`. Both values are derived from the oldest supported
@@ -721,11 +712,11 @@ their archive already ships should not have to fight our idea of the
 dependency graph. Our libraries constrain loosely (`>=`) on purpose,
 and the audit reports them as not applicable.
 
-A library variant which kept the block in a `pinned` optional extra
-was tried and withdrawn. The base install stayed unconstrained, but
-the pins still shipped in the published metadata and Renovate's pep621
-manager tracks `optional-dependencies`, so every recorded version
-became another stream of bump pull requests.
+Keeping the block in a `pinned` optional extra is not a way around
+this. The base install stays unconstrained, but the pins still ship in
+the published metadata, and Renovate's pep621 manager tracks
+`optional-dependencies`, so every recorded version becomes another
+stream of bump pull requests.
 
 ### Requirements
 
@@ -780,11 +771,9 @@ Exceptions are allowed for:
 - GitHub Actions repos (conventionally use `main`)
 - Archived/deprecated repos (listed in Exceptional cases above)
 
-### Repos not using `develop` that need fixing
-
-| Repository | Current | Action Needed |
-|------------|---------|---------------|
-| cloudgood | main | Change to `develop` |
+The audit reads the default branch live from the GitHub API, so which
+repositories are currently non-compliant is whatever the latest run
+reports rather than a list kept here.
 
 To change the default branch:
 ```bash
@@ -813,20 +802,9 @@ Additionally, these repository settings are recommended:
 |---------|-------------|-------|
 | Allow auto-merge | Enabled | Useful with required checks |
 
-(Delete branch on merge used to be listed here as recommended; it is
-now a required setting with its own audit -- see "Delete branch on
-merge" below.)
-
-### Current security state (2026-02-08)
-
-| Repository | Dependabot | Secret Scanning | Notes |
-|------------|------------|-----------------|-------|
-| shakenfist | Enabled | Disabled | Enable secret scanning |
-| occystrap | Disabled | Disabled | Enable both |
-| instar (then imago, private) | N/A | N/A | Now public; enable secret scanning |
-| kerbside | Disabled | Disabled | Enable both |
-| client-python | Enabled | Disabled | Enable secret scanning |
-| agent-python | Disabled | Disabled | Enable both |
+These settings are read live from the GitHub API by the
+`github-security` check, which reports the current state per
+repository.
 
 ## Delete branch on merge
 
@@ -849,15 +827,15 @@ and merge them individually: `max_entries_to_build: 1` and
 `min_entries_to_merge: 1`. Repositories without a merge queue are
 out of scope — adopting two-stage CI is a per-project decision.
 
-The rationale (learned on shakenfist/shakenfist, August 2026): with
-build concurrency above 1, speculative stacked merge groups are
-ejected and rebuilt whenever an entry ahead of them fails, wasting
-CI runs and adding cluster load — and load is our dominant merge CI
-failure mode, so stacking amplifies the failures that trigger the
-rebuilds. Merge batching (`min_entries_to_merge` above 1) idles the
-queue for up to the configured wait time while saving no CI, since
-the queue runs CI once per entry regardless of how merges land.
-See [`audits/merge-queue-config.md`](audits/merge-queue-config.md)
+The rationale: with build concurrency above 1, speculative stacked
+merge groups are ejected and rebuilt whenever an entry ahead of them
+fails, wasting CI runs and adding cluster load — and load is our
+dominant merge CI failure mode, so stacking amplifies the failures
+that trigger the rebuilds. Merge batching (`min_entries_to_merge`
+above 1) idles the queue for up to the configured wait time while
+saving no CI, since the queue runs CI once per entry regardless of
+how merges land. See
+[`audits/merge-queue-config.md`](audits/merge-queue-config.md)
 for the full mechanics and the CLI recipe to inspect and fix a
 ruleset.
 
@@ -886,7 +864,7 @@ The audit checks that precondition itself rather than trusting the
 note, because the two standards are only correct together.
 
 Cancelling too much is the more expensive mistake, and the one a
-`github.ref` key hid. Two lanes of one matrix, or two jobs invoking
+`github.ref` key hides. Two lanes of one matrix, or two jobs invoking
 one reusable workflow, that land in the same group cancel each other
 *inside a single run* — and a cancelled required check does not
 merely waste a runner, it ejects the pull request from the queue. So
@@ -899,11 +877,11 @@ matrix job; the lanes are distinct only because of that input.
 
 The cost of getting it wrong is fleet-wide rather than local, which
 is why this is audited everywhere rather than left per-project: the
-repositories share one sfcbr under-cloud, and
-shakenfist/kerbside#284 recorded both a repository starving itself
-with three concurrent oVirt builds of the same pull request and, a
-week later, starving on capacity held by two superseded
-shakenfist/shakenfist merge groups. See
+repositories share one sfcbr under-cloud, so a repository that fails
+to cancel starves the others — three concurrent oVirt builds of the
+same pull request, or capacity held by two superseded merge groups,
+and everything else queues behind them (see
+shakenfist/kerbside#284). See
 [`audits/merge-group-cancellation.md`](audits/merge-group-cancellation.md)
 for the pattern and its exemptions.
 
@@ -919,7 +897,7 @@ point. Update the `branches:` lists if your project doesn't use
 
 **Private repos are excluded:** CodeQL code scanning requires a paid GitHub
 Advanced Security (GHAS) license for private repositories. Without GHAS,
-CodeQL workflows will fail with "Advanced Security must be enabled for this
+CodeQL workflows fail with "Advanced Security must be enabled for this
 repository to use code scanning." Since we don't have GHAS, private repos
 should **not** include a CodeQL workflow. The audit checks repository
 visibility live via the GitHub API rather than a hardcoded list, so repos
@@ -997,13 +975,12 @@ invoke the binary directly, and gitleaks is only packaged from Debian
 Scope the scan with `--log-opts="HEAD"`. The default is every ref,
 which on any project that publishes a site from a branch means
 scanning the built copy of its own documentation -- on Shaken Fist
-that was five minutes and 163 findings instead of three seconds and
-13, and gitleaks 8.16 attributed the extra findings to unrelated
-merge commits, so they could not even be triaged by commit. `HEAD`
-still reaches all of the default branch, so nothing is given up.
-Pair it with a positive control, and never let the job skip for
-docs-only changes: the only leaked key secret in Shaken Fist's
-history was published in the user guide. See
+that is five minutes and 163 findings instead of three seconds and
+13, and gitleaks attributes the extra findings to unrelated merge
+commits, so they cannot even be triaged by commit. `HEAD` still
+reaches all of the default branch, so nothing is given up. Pair it
+with a positive control, and never let the job skip for docs-only
+changes: our one leaked key was published in the user guide. See
 [audits/secret-handling.md](audits/secret-handling.md) for the
 invocation and for how to accept a finding that cannot be removed.
 
@@ -1267,15 +1244,14 @@ Any job that sets `PIP_INDEX_URL` to the devpi cache must also set
 `PIP_EXTRA_INDEX_URL: https://pypi.org/simple/` in the same `env` block.
 devpi's `root/pypi` mirror returns an empty index the first time it is asked
 for a package it has not cached, so without a pypi fallback pip fails that
-cold-cache miss with "from versions: none" (as happened for `bindep` and
-`uv` on the kerbside CI). The automated check flags any devpi-backed `env`
-block that is missing the fallback.
+cold-cache miss with "from versions: none" (as happens for packages like
+`bindep` and `uv` on the kerbside CI). The automated check flags any
+devpi-backed `env` block that is missing the fallback.
 
-The devpi cache used to live at `192.168.1.4` but moved to `192.168.1.15`
-some time ago; the old address no longer exists, so a job still pointing pip
-at `192.168.1.4` fails every install. The automated check flags any workflow
-referencing the retired `192.168.1.4` address so it can be updated to
-`192.168.1.15`.
+`192.168.1.4` is the retired address of the devpi cache and no longer
+exists, so a job still pointing pip at it fails every install. The
+automated check flags any workflow referencing `192.168.1.4` so it can be
+updated to `192.168.1.15`.
 
 ## Console script logging setup
 
@@ -1316,9 +1292,8 @@ Ubuntu 24.04. For all other Python projects, we should target the oldest
 system Python from the list of supported client operating systems, which are
 those listed at https://images.shakenfist.com/README.
 
-We should always use mypy type hints, although `shakenfist` has been
-going through a staged rollout and should be excluded from a strict
-interpretation of this requirement for now.
+We should always use mypy type hints. `shakenfist`'s rollout is staged, so
+it is excluded from a strict interpretation of this requirement.
 
 Specific features of modern Python that we like if available to us include:
 
@@ -1331,10 +1306,9 @@ Rust projects must enable clippy's `unwrap_used` lint so that
 `.unwrap()` calls in production code are flagged, while test code is
 exempted. `unwrap()` converts a recoverable error into a panic, and a
 panic on data from outside the process (network input, configuration,
-files, other systems) is an outage waiting to happen. This is the
+files, other systems) is an outage waiting to happen -- it is the
 failure mode behind the November 2025 Cloudflare outage, where an
-`unwrap()` on a feature file another system had generated too large
-panicked their core proxy fleet-wide.
+`unwrap()` on an oversized feature file panicked a core proxy fleet.
 
 The root `Cargo.toml` should carry the lint (workspace members inherit
 it via `[lints] workspace = true`):
@@ -1369,14 +1343,13 @@ note to fix that.
 ## Functional test coverage
 
 Despite believing in unit testing, we are **obsessed** with functional
-testing. We've invested a lot at this point in functional testing, and
-the gold standard for testing should ultimately be "do we run the code
-to do the real thing and does it work as intended". Sadly, I don't have
-a good way to measure functional test coverage, but at a high level the
-goal is to have a test for **everything** exposed on the command line
-or via an API. This is still a journey for `shakenfist`, but for the
-smaller projects we should be there now and any gap is a bug to be
-closed.
+testing. We invest heavily in functional testing, and the gold standard
+for testing is "do we run the code to do the real thing and does it work
+as intended". Sadly, I don't have a good way to measure functional test
+coverage, but at a high level the goal is to have a test for
+**everything** exposed on the command line or via an API. This is still a
+journey for `shakenfist`, but for the smaller projects we should be there
+now and any gap is a bug to be closed.
 
 ## Human review coverage
 
