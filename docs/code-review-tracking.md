@@ -75,6 +75,18 @@ this repository and passes through to the script.
    !.vscode/review-scope.toml
    ```
 
+   Exceptions rather than un-ignoring `.vscode/` wholesale, because
+   weAudit also writes `.vscode/.weauditdaylog`, a log of which files
+   each session opened. Nothing reads it, it is not attestation, and
+   it churns every session -- so if the repository does *not* ignore
+   `.vscode/` it needs the opposite entry, or the day log rides along
+   in every review commit and triggers the expensive CI lane that
+   step 8's `paths-ignore` block exists to skip:
+
+   ```
+   .vscode/.weauditdaylog
+   ```
+
    Then, *if the repository runs a pre-commit hook that rewrites the
    files it is given* -- `end-of-file-fixer`, `trailing-whitespace`
    and friends -- exempt the review marks from those hooks:

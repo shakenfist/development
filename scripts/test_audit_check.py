@@ -1250,7 +1250,12 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
     # point is not to validate the name but to notice a parse that has
     # started collecting prose: a swallowed paragraph brings back
     # bullets like "The configured version file path must be covered".
-    REPO_NAME = re.compile(r'[a-z0-9][a-z0-9.-]*$')
+    #
+    # Anchored at both ends. assertRegex is re.search, so an
+    # end-anchor alone matches any sentence closing on a lowercase
+    # word -- including that exact example, which is what this guard
+    # exists to reject.
+    REPO_NAME = re.compile(r'^[a-z0-9][a-z0-9.-]*$')
 
     def read(self, relative):
         with open(os.path.join(self.root, relative)) as f:
@@ -1348,6 +1353,64 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
             in audit_check.REPO_OVERRIDES.items()
             if overrides.get('only_checks')
         }
+
+    def test_a_parse_that_overruns_its_list_is_rejected(self):
+        """The REPO_NAME guard must fire, not merely exist.
+
+        Reading an assertion cannot distinguish one that holds from one
+        that cannot fail, so this hands bulleted_block() the failure it
+        was written for. The loud cases are already covered by the
+        count assertions: a start or end phrase that vanishes raises
+        naming the phrase. The quiet case is an end phrase that has
+        drifted further down the page, so the block still terminates
+        but now spans a prose list on the way -- with no heading
+        crossed, REPO_NAME is the only thing left to notice.
+
+        The bullet used here is the example named in the comment above
+        REPO_NAME, which an end-anchored pattern accepted: re.search
+        found 'covered' at the end of it and passed.
+        """
+        overrun = (
+            'Two repositories are **excluded** from the conventions:\n'
+            '\n'
+            '* imago\n'
+            '* ryll\n'
+            '\n'
+            'Some criterion, described in a paragraph that grew a list:\n'
+            '\n'
+            '* The configured version file path must be covered\n'
+            '\n'
+            'The `actions` repository is a library of composite actions.\n'
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, 'drifted.md'), 'w') as f:
+                f.write(overrun)
+            self.root = tmp
+            with self.assertRaisesRegex(
+                    AssertionError,
+                    'The configured version file path must be covered'):
+                self.bulleted_block(
+                    'drifted.md', self.EXCLUDED_START, self.EXCLUDED_END,
+                    self.EXCLUDED_BULLET,
+                )
+
+    def test_repo_name_rejects_a_sentence_ending_in_a_word(self):
+        # assertRegex is re.search, so this is the whole point of the
+        # leading anchor. Kept separate from the parse above because it
+        # is the property, not the plumbing: if REPO_NAME ever loses
+        # its '^' again, this is the test that says so in one line.
+        self.assertIsNone(
+            self.REPO_NAME.search(
+                'The configured version file path must be covered'),
+            'REPO_NAME matched a sentence, so it is not anchored at '
+            'the start and cannot notice a parse collecting prose',
+        )
+        for name in ['shakenfist', 'client-python', 'kerbside-patches']:
+            self.assertIsNotNone(
+                self.REPO_NAME.search(name),
+                f'REPO_NAME no longer matches the repository name '
+                f'"{name}"',
+            )
 
     def test_the_parse_anchors_still_delimit_their_lists(self):
         # The comparisons below are worth no more than the parses that

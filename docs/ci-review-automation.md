@@ -105,8 +105,9 @@ cp /path/to/development/templates/test-drift-fix/test-drift-fix.yml \
 Modify your main CI workflow (e.g. `functional-tests.yml`) to add:
 
 1. A top-level `permissions` block with `pull-requests: write`
-2. A `check-bot-commit` job to prevent infinite review loops
-3. An `automated_reviewer` job that runs after tests pass
+2. A job calling the shared
+   `shakenfist/actions/.github/workflows/pr-auto-review.yml@main`,
+   with the project's test jobs in its `needs:` list
 
 See the
 [template README](https://github.com/shakenfist/development/tree/main/templates/ci-review-automation/README.md)

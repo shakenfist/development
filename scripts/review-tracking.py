@@ -154,8 +154,17 @@ def is_dir_entry(path, tracked_set):
     return any(t.startswith(prefix) for t in tracked_set)
 
 
-def generate_reviews_md():
-    """Regenerate REVIEWS.md. Returns True if the file changed."""
+def render_reviews_md():
+    """Return the REVIEWS.md content implied by the committed review state.
+
+    Split out from generate_reviews_md() so that a test can compare the
+    rendering against the checked-in file without writing to it. That
+    comparison is the only thing standing between a review commit and an
+    unreproducible REVIEWS.md: the header count trusts marks rather than
+    stamps (see review_status), so a commit that forgets the sidecar
+    still reports the right count while every Date and Blob SHA cell
+    silently renders as '-'.
+    """
     include, exclude = load_scope()
     tracked = set(tracked_files())
     scoped = sorted(p for p in tracked if in_scope(p, include, exclude))
@@ -215,7 +224,12 @@ def generate_reviews_md():
         out.append('|------|-------|----------|------|----------|')
         for path, lines, reviewer, date, sha in sorted(partial_rows):
             out.append('| %s | %s | %s | %s | %s |' % (path, lines, reviewer, date, sha))
-    content = '\n'.join(out) + '\n'
+    return '\n'.join(out) + '\n'
+
+
+def generate_reviews_md():
+    """Regenerate REVIEWS.md. Returns True if the file changed."""
+    content = render_reviews_md()
 
     old = None
     if os.path.exists(REVIEWS_PATH):

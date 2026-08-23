@@ -253,8 +253,9 @@ The automation requires self-hosted runners with:
 
 ## Not Reviewing The Bot's Own Commits
 
-The sanity-checks workflow includes a `check-bot-commit` job that detects if the
-last commit was made by the bot. If so, the automated reviewer is skipped.
+The shared `pr-auto-review.yml` detects whether the last commit was made by the
+bot, and skips the reviewer if it was. Callers get this by calling the reusable
+workflow; there is nothing to add.
 
 A bot push -- from the test fixer -- triggers CI like any other push, so without
 the guard the reviewer would spend a claude-code run reviewing commits no human
@@ -263,6 +264,12 @@ waste is what the guard is for. It is not a loop any more: the comment addresser
 was the only thing that turned a review back into a commit, and it is retired.
 
 The check looks for commits with author email `bot@shakenfist.com`.
+
+The legacy form of the same guard was a `check-bot-commit` job written out in
+the project's own CI workflow, which the reviewer job then listed in `needs:`.
+The reusable workflow replaced it with an API call it makes itself, so a project
+still carrying that job should delete it -- the `ci-review-automation` audit
+checks for exactly this.
 
 ## Cost and Rate Limiting
 

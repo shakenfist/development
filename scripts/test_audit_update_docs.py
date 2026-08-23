@@ -84,6 +84,53 @@ class ColumnNamesTest(unittest.TestCase):
             self.assertNotIn(check_id, audit_update_docs.COLUMN_NAMES)
 
 
+class AuditMetadataPathsTest(unittest.TestCase):
+    """Every spec and template path in AUDIT_METADATA must resolve.
+
+    These paths are not dereferenced by anything that would fail: the
+    audit run reads a spec file to regenerate its compliance table, but
+    a path that does not exist just means no table, and
+    audit-manage-issues.py pastes the path into the issue it files. So
+    a typo surfaces as a dead link in somebody else's repository, days
+    later. All 38 entries were rewritten by hand when the tree moved
+    under docs/, which is exactly when one of them is wrong.
+    """
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    def test_every_spec_path_exists(self):
+        metadata = audit_update_docs.AUDIT_METADATA
+        self.assertTrue(metadata)
+        for check_id, meta in sorted(metadata.items()):
+            spec = meta['spec']
+            self.assertTrue(
+                os.path.isfile(os.path.join(self.root, spec)),
+                'the %s check names spec %s, which does not exist'
+                % (check_id, spec),
+            )
+
+    def test_every_template_path_exists(self):
+        for check_id, meta in sorted(audit_update_docs.AUDIT_METADATA.items()):
+            template = meta.get('template')
+            if template is None:
+                continue
+            # None means the criterion has no template. An empty string
+            # is a typo, and would otherwise resolve to the repository
+            # root and pass -- the skip has to be exactly None.
+            self.assertTrue(
+                template,
+                'the %s check has an empty template path; use None if '
+                'it has no template' % check_id,
+            )
+            # Templates are recorded as directories, with the trailing
+            # slash that the issue text prints.
+            self.assertTrue(
+                os.path.isdir(os.path.join(self.root, template)),
+                'the %s check names template %s, which is not a '
+                'directory here' % (check_id, template),
+            )
+
+
 class ColumnNameFallbackTest(unittest.TestCase):
     def test_known_check_uses_its_heading(self):
         self.assertEqual(

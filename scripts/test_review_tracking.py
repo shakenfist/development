@@ -5,6 +5,8 @@
 Run with: python3 scripts/test_review_tracking.py
 """
 
+import fnmatch
+import importlib.util
 import json
 import os
 import subprocess
@@ -315,6 +317,109 @@ class ReviewTrackingTest(unittest.TestCase):
         # status reports; it never prunes, stamps, or regenerates.
         for path in state_paths:
             self.assertEqual(self.read(path), before[path])
+
+
+class ThisRepositoryTest(unittest.TestCase):
+    """Checks against this repository's own review state, not a fixture.
+
+    The fixture tests above prove the tooling behaves; these two prove
+    the committed state is the state the tooling would produce. Both
+    exist because a review-only pull request is exempted from CI by
+    ci.yml's paths-ignore block, so the pre-commit run of this suite is
+    the only thing that ever looks at a review commit -- which is why
+    that hook carries no file filter.
+    """
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location('review_tracking', SCRIPT)
+        cls.rt = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.rt)
+
+    def setUp(self):
+        self.previous = os.getcwd()
+        os.chdir(self.root)
+
+    def tearDown(self):
+        os.chdir(self.previous)
+
+    def test_reviews_md_is_reproducible_from_the_committed_state(self):
+        """REVIEWS.md must be exactly what the review state renders to.
+
+        The header count is not enough to catch this: it counts weAudit
+        marks rather than stamps, so a commit that lands the marks and
+        forgets .vscode/<user>.weaudit-shas.json reports the right
+        number of reviews while every Date and Blob SHA cell renders as
+        '-'. That is not a cosmetic difference. prune-reviews.yml
+        regenerates and commits this file on every push to main, so the
+        first thing such a merge produces is a bot commit blanking the
+        attestation columns -- and review-tracking.py status, which the
+        review-coverage audit check reads, counts an unstamped mark as
+        needing review.
+
+        Comparing the rendering also catches a REVIEWS.md edited by
+        hand, which its own header forbids.
+        """
+        with open(os.path.join(self.root, 'REVIEWS.md')) as f:
+            committed = f.read()
+        self.assertEqual(
+            self.rt.render_reviews_md(), committed,
+            'REVIEWS.md is not what the committed review state '
+            'renders to. A difference in the header count means a file '
+            'entered or left review scope, and `review-tracking.py '
+            'regen` is all that is needed. A difference in the Date or '
+            'Blob SHA columns means the sidecar '
+            '(.vscode/<user>.weaudit-shas.json) is missing from the '
+            'commit: run `review-tracking.py stamp` and commit the '
+            'sidecar and REVIEWS.md together. A row for a file that '
+            'has since changed or gone needs `review-tracking.py '
+            'prune` first',
+        )
+
+    def test_every_scope_pattern_matches_something_or_says_why_not(self):
+        """A scope pattern that matches nothing must be deliberate.
+
+        This is the failure that has actually happened: the audits tree
+        moved under docs/, the exclude pattern kept saying 'audits/*',
+        and because a pattern matching nothing is indistinguishable
+        from a pattern doing its job, 36 machine-regenerated files
+        joined the review queue with every test still passing.
+
+        A pattern is allowed to match nothing -- 'PLAN-*.md' is a guard
+        against plans reappearing at the repository root -- but it has
+        to say so, so that the silent case is the one that fails.
+        """
+        include, exclude = self.rt.load_scope()
+        tracked = self.rt.tracked_files()
+        self.assertTrue(tracked, 'git ls-files returned nothing')
+
+        with open(os.path.join(self.root, self.rt.SCOPE_PATH)) as f:
+            raw = f.read()
+
+        for kind, patterns in [('include', include), ('exclude', exclude)]:
+            for pattern in patterns:
+                if any(fnmatch.fnmatch(path, pattern) for path in tracked):
+                    continue
+                # Either TOML quote style, so that a pattern which
+                # needs a marker is told so rather than being told it
+                # has no marker when the lookup simply missed it.
+                quoted = ["'%s'" % pattern, '"%s"' % pattern]
+                annotated = [
+                    line for line in raw.splitlines()
+                    if any(q in line for q in quoted)
+                    and 'unmatched-by-design' in line
+                ]
+                self.assertTrue(
+                    annotated,
+                    'the %s pattern %r in %s matches no tracked file. '
+                    'If that is deliberate, add an '
+                    '`unmatched-by-design` comment on its line; '
+                    'otherwise it has been left behind by a rename or '
+                    'a move and is no longer doing anything.'
+                    % (kind, pattern, self.rt.SCOPE_PATH),
+                )
 
 
 if __name__ == '__main__':

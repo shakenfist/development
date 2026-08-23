@@ -134,14 +134,36 @@ repos:
         # needs it. Any .md rather than a list of the files the test
         # reads, so the two cannot drift apart; the suite is stdlib
         # only and takes milliseconds.
-        files: ^(scripts/.*\.py|.*\.md)$
+        #
+        # templates/ too, since AuditMetadataPathsTest resolves every
+        # spec and template path in AUDIT_METADATA against the tree. A
+        # renamed template directory happens to drag a README.md along
+        # today, but that is a coincidence to depend on rather than a
+        # rule.
+        files: ^(scripts/.*\.py|.*\.md|templates/.*)$
 
       - id: review-tracking-tests
         name: review tracking tests
         entry: python3 scripts/test_review_tracking.py
         language: system
         pass_filenames: false
-        files: ^scripts/.*\.py$
+        # No file filter, because this suite now asserts two
+        # properties of the whole tree rather than of scripts/: that
+        # REVIEWS.md is exactly what the review marks and their sidecar
+        # render to, and that every pattern in review-scope.toml still
+        # matches a tracked path. Both can be broken by a commit that
+        # touches neither -- adding any in-scope file moves the header
+        # count, and a scope pattern left behind by a directory move
+        # put 36 machine-regenerated files into the review queue with
+        # all four suites passing. A filter listing the extensions that
+        # can be in scope would be the include list copied by hand,
+        # which is the drift this is meant to catch.
+        #
+        # Running it unconditionally also matters for review-only
+        # commits: ci.yml's paths-ignore deliberately skips CI for
+        # those, so this hook is the only thing that ever looks at one.
+        # The suite is stdlib only and takes about a second and a half,
+        # most of it building fixture git repositories.
 
       - id: check-audit-smoke-tests
         name: audit smoke checker tests

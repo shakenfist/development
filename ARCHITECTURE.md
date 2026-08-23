@@ -9,14 +9,11 @@ projects consistent. It contains no application code.
 - `templates/` -- canonical starting points (workflows, configs) for
   rolling infrastructure out to projects.
 - `docs/` -- longer-form documentation of the automation systems, and
-  `docs/audits/`: one specification file per audit criterion, each with
-  a per-project compliance table regenerated daily by the audit
+  `docs/audits/`: one specification file per audit criterion, each
+  with a per-project compliance table regenerated daily by the audit
   workflow (between the consistency-audit markers).
   `docs/audits/README.md` holds the index, and says which
-  repositories are in scope, excluded, or audited for part of it. The specifications live under `docs/` so that they publish to
-  shakenfist.com with everything else: what we hold a project to is
-  documentation, and a criterion nobody outside the fleet can read is
-  a criterion nobody outside the fleet can meet.
+  repositories are in scope, excluded, or audited for part of it.
 - `tools/` -- the review tracking wrappers: `review-tracking.sh` for
   local use, and `ci-prune-reviews.sh` which `prune-reviews.yml` runs
   on every push to main. The pull request automation's helpers used to

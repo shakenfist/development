@@ -6,6 +6,11 @@ what that means: one file per criterion, each defining what we check
 and why, linking the template that implements it, and carrying a
 per-project compliance table regenerated every morning.
 
+It sits under `docs/` so that it publishes to shakenfist.com with
+everything else. What we hold a project to is documentation, and a
+criterion nobody outside the fleet can read is a criterion nobody
+outside the fleet can meet.
+
 ## How audits work
 
 Each file here is independently checkable, so an agent can be spawned
