@@ -451,6 +451,17 @@ becomes yet another thing the consistency audits check for:
 4. Roll out to further codebases as first passes are scheduled.
 5. Revisit the open questions above with real experience.
 
+### Phase 5: Push audit
+
+Run `PUSH-AUDIT.md` over the accumulated diff of every phase in
+this plan against `main`, not over the last phase's diff alone --
+the interactions between phases are most of what a whole-plan
+audit is for. Findings land as their own pull request; the plan is
+not complete until each is resolved or declined in writing, with
+the reason recorded here. If the audit finds nothing, say so in
+one sentence: that is a real result, and a run of them is the
+evidence for making this phase conditional rather than mandatory.
+
 ## Administration and logistics
 
 ### Success criteria

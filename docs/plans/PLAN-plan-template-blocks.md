@@ -144,6 +144,16 @@ Documents what is checked, which blocks are required, why the model
 roster is separate, and what stays project-specific. Registered in
 `audits/README.md` and `PROJECT-CONSISTENCY-AUDITS.md`.
 
+### 4. Push audit
+
+Run `PUSH-AUDIT.md` over the accumulated diff of this plan's work
+against `main`, not over the last commit alone. The migration below
+touches eight repositories, so each migration pull request carries
+its own audit against that repository's default branch. Findings
+land as their own pull request; the plan is not complete until each
+is resolved or declined in writing, with the reason recorded here.
+If the audit finds nothing, say so in one sentence.
+
 ## Migration (separate commits, one per repository)
 
 Landed in four of the eight repositories: instar, kerbside, ryll

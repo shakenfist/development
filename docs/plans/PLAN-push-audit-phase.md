@@ -77,7 +77,7 @@ reference.
    The cost is that findings arrive after the phases have merged, so
    the fix is a new PR against the landed feature rather than a
    change to an unmerged branch. Measured (below) that exposure is
-   two plans fleet-wide, and a normal PR against merged work is a
+   six plans of thirty-six, and a normal PR against merged work is a
    cheaper shape than a rebase across live phase branches. Accepted,
    with decision 5 as the check on it.
 
@@ -107,8 +107,9 @@ reference.
    repository that defines the standard. It has 5,000 lines of audit
    script, 3,200 lines of tests, a pre-commit running five suites,
    and workflow templates shipped to the fleet. Wave 1 and the
-   documentation and security briefs all apply. Its five in-progress
-   plans get the phase like everyone else's.
+   documentation and security briefs all apply. Its own incomplete
+   plans get the phase like everyone else's -- six of them, counting
+   this one, which carries the phase it asks of every other plan.
 
    `PLAN-TEMPLATE.md` for `development` is deliberately *not* in
    scope: `PLAN-plan-template-blocks` already ruled that whether every
@@ -118,12 +119,12 @@ reference.
    Recorded in Future work rather than solved here.
 
 4. **The sweep covers every incomplete master plan, including the
-   not-started ones.** Twenty-one of the thirty-seven have no landed
+   not-started ones.** Nineteen of the thirty-six have no landed
    phases at all, so appending the phase costs nothing and shapes
    work that has not been written yet.
 
 5. **The mechanism gets a review point before it is trusted.**
-   Phase 3 exists because a mandatory phase written into thirty-seven
+   Phase 3 exists because a mandatory phase written into thirty-six
    plans, that turns out to find nothing, is worse than no phase at
    all -- it is a recurring cost that reads as diligence.
 
@@ -134,24 +135,50 @@ and then rewriting them all to satisfy an audit that runs at the end.
 Counted against the fleet on 2026-08-24, with 0 open PRs everywhere
 except shakenfist (two: a bot fix and queue performance step 7):
 
-**Thirty-seven incomplete master plans** -- shakenfist 22, ryll 6,
-development 5, kerbside 3, instar 1. occystrap, divergulent, sfui and
+The planning estimate was thirty-seven. The sweep in phase 2 counted
+properly, in fresh worktrees off each default branch, and found
+**thirty-six**: shakenfist 22, ryll 6, development 6 (five, plus this
+plan), kerbside 1, instar 1. occystrap, divergulent, sfui and
 client-python-k3s have none.
+
+Three of the planning figures were wrong, and the corrections are
+recorded here rather than quietly overwritten:
+
+* **kerbside is 1, not 3.** The estimate counted rows from
+  kerbside's *Standalone plans* table alongside its master plans,
+  and `PLAN-demo-install` closed out on 2026-08-22, after the
+  survey.
+* **shakenfist has one root-level `PLAN-*.md`, not seventeen.** The
+  estimate was taken from a local clone well behind `develop`; at
+  `develop` HEAD only `PLAN-TEMPLATE.md` sits at the root, and
+  nothing at the root is tracked by `index.md`. The warning written
+  into the phase 2 brief was therefore unnecessary, though harmless.
+* **ryll's shared blocks are current.** The estimate had ryll
+  failing two blocks; that too was clone staleness. It passes
+  `push-audit` outright.
 
 | Exposure | Plans | What the audit phase means there |
 |----------|-------|----------------------------------|
-| No phases landed (Not started / Proposed / Blocked) | 21 | Purely prospective; every phase is written knowing the audit is coming |
-| Early or middle (1 of 3, 4 of 11, 2 of 6, 3 of 7, 2 of 8, ...) | 14 | Most phases still ahead of the audit |
-| Near complete | 2 | shakenfist's Kerbside VDI tokens (9 of 10) and Queue performance (6 of 7) |
+| No phases landed (Not started / Proposed / Blocked) | 19 | Purely prospective; every phase is written knowing the audit is coming |
+| Early or middle | 11 | Most phases still ahead of the audit |
+| Near complete (70% or more of phases landed) | 6 | shakenfist's Kerbside VDI tokens (9 of 10), Queue performance (6 of 7) and Database load reduction (5 of 7); kerbside's proxy dev releases; development's Consistency audits v2 and Review coverage |
 
-The retrospective-rework scenario applies to two plans, not
-thirty-seven. Fifty-seven percent of incomplete plans have no landed
-work, so the mechanism mostly shapes future phases rather than
-reworking past ones.
+**The near-complete bucket is 6, not the 2 first claimed.** That
+figure came from reading shakenfist's index alone and never counting
+development's or kerbside's own plans -- an error of scope, not of
+arithmetic. Six plans of thirty-six will meet their audit over work
+that has already merged.
 
-The sweep itself -- 37 plan files, ~6 index files, one section and one
-table row each -- is a one-time mechanical migration with no rework in
-it. It is a large file count, not churn.
+That is still a minority, and the conclusion in decision 1 survives:
+just over half the incomplete plans have no landed work at all, so
+the mechanism mostly shapes phases that have not been written yet.
+But six is enough that the review point in phase 3 is doing real
+work rather than confirming a foregone result.
+
+The sweep itself -- 36 plan files across five repositories, four
+index files, one section and one table row each -- was a one-time
+mechanical migration with no rework in it. It is a large file count,
+not churn.
 
 ## Implementation
 
@@ -166,8 +193,9 @@ this repository's convention.
 | Phase | Status |
 |-------|--------|
 | 1. Foundations | Complete |
-| 2. Fleet sweep | Not started |
+| 2. Fleet sweep | Complete |
 | 3. Review point | Not started |
+| 4. Push audit | Not started |
 
 ### 1. Foundations -- this repository
 
@@ -270,16 +298,33 @@ on plan size, or is withdrawn. A mandatory phase that finds nothing
 is a recurring cost that reads as diligence, and this is the phase
 that catches that.
 
+### 4. Push audit
+
+Run `PUSH-AUDIT.md` over the accumulated diff of all three phases
+against `main`. This plan carries the phase it asks of every other
+plan, which is also the second real test of the mechanism after
+queue performance -- and the more interesting one, because the
+runbook it exercises is the one phase 1 wrote for this repository
+and nobody has run yet. Findings land as their own pull request;
+the plan is not complete until each is resolved or declined in
+writing, with the reason recorded here. If the audit finds nothing,
+say so in one sentence, and feed that into phase 3's decision.
+
 ## Risks and mitigations
 
 * **The audit finds nothing and the phase becomes ceremony.** This is
   the real risk, and phase 3 is the mitigation -- with a named
   measurement (queue performance) rather than an intention to review
   later.
-* **Thirty-seven hand-edited plan files drift into thirty-seven
+* **Thirty-six hand-edited plan files drift into thirty-six
   wordings.** Mitigated by the shared block being the source and the
   sub-agent briefs quoting it, and by the management session
-  reviewing each repository's diff before its commit.
+  reviewing each repository's diff before its commit. Outcome: the
+  wording is consistent in substance and deliberately varied in
+  form, because each sub-agent matched its own repository's idiom --
+  bold-lead paragraphs in shakenfist, a bullet in ryll's per-phase
+  intent list, a table cell where the table's own column carries the
+  description. That was the right call and is worth keeping.
 * **Colliding with `PLAN-plan-template-blocks`.** Mitigated by
   decision 2: this plan adds the block and updates that plan's block
   list, and touches no repository's `PLAN-TEMPLATE.md` itself.
@@ -299,7 +344,12 @@ that catches that.
   passes, and it is no longer `N/A` in the compliance table.
 * Every incomplete master plan in shakenfist, ryll, kerbside, instar
   and development ends with a push-audit phase, and its `index.md`
-  row reflects the new phase count.
+  row reflects the new phase count. Done: 36 plans across the five
+  repositories, verified by re-deriving the in-scope list from each
+  repository's own `index.md` and confirming every plan on it was
+  touched. shakenfist's `pre-commit` carries a "plan statuses and
+  index arithmetic agree" hook, which independently confirmed its 18
+  recomputed counts.
 * `pre-commit run --all-files` passes in this repository.
 * Phase 3 records, in this plan, what queue performance's audit found
   and what was decided about the phase remaining mandatory.
@@ -338,4 +388,4 @@ that catches that.
 Before phase 2 begins, the management session confirms with Mikal:
 the canonical wording of the shared block, and `development`'s
 `PUSH-AUDIT.md`. Both are cheap to propose and expensive to redo
-across thirty-seven plan files and eight repositories.
+across thirty-six plan files and eight repositories.
