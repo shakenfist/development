@@ -105,6 +105,88 @@ class ReviewTrackingTest(unittest.TestCase):
         p = self.run_tool('stamp')
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
 
+    def test_stamp_refuses_to_move_a_stamp_onto_unread_content(self):
+        """A changed file that is already stamped must stop the commit.
+
+        stamp used to iterate `marked - stamps`, so this file was
+        skipped in silence: the stale mark went into the commit, CI
+        never looked (review-only commits are path-ignored), and the
+        prune that runs on every push to the default branch then
+        deleted the mark -- throwing away the review instead of the
+        staleness. Re-stamping is the other wrong answer, and the one
+        worth naming: it would attest to content nobody read.
+        """
+        self.mark_reviewed(['src/a.py'])
+        self.run_tool('stamp')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'reviews')
+        stamped = self.read_json('.vscode/testuser.weaudit-shas.json')
+
+        self.write('src/a.py', 'a = 2\n')
+        self.git('add', 'src/a.py')
+        p = self.run_tool('stamp')
+
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn('src/a.py is stamped at', p.stderr)
+        self.assertIn('prune', p.stderr)
+        self.assertEqual(
+            self.read_json('.vscode/testuser.weaudit-shas.json'), stamped,
+            'stamp moved the attestation onto content nobody has read')
+
+    def test_an_exclude_can_be_negated_for_one_file(self):
+        # Excluding a directory except for one file otherwise means
+        # naming every other file by hand, and editing that list every
+        # time one is added.
+        os.mkdir(os.path.join(self.repo, 'gen'))
+        self.write('gen/keep.py', 'keep = 1\n')
+        self.write('gen/drop.py', 'drop = 1\n')
+        self.write('.vscode/review-scope.toml',
+                   'exclude = ["gen/*", "!gen/keep.py"]\n')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'generated')
+
+        p = self.run_tool('status')
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn('never reviewed: gen/keep.py', p.stdout)
+        self.assertNotIn('gen/drop.py', p.stdout)
+
+    def test_a_stamp_with_no_sha_is_stale_rather_than_skipped(self):
+        # A hand-edited or truncated sidecar entry has no sha, and a
+        # file that has left the index has no sha either -- so a bare
+        # equality test finds None == None and passes the pair over.
+        # Two unknowns are not a match, and the empty-looking answer
+        # is the one worth being loud about.
+        self.mark_reviewed(['src/a.py'])
+        self.run_tool('stamp')
+        side = os.path.join(self.repo, '.vscode/testuser.weaudit-shas.json')
+        with open(side) as f:
+            sidecar = json.load(f)
+        del sidecar['files']['src/a.py']['sha']
+        with open(side, 'w') as f:
+            json.dump(sidecar, f, indent=2)
+        os.remove(os.path.join(self.repo, 'src/a.py'))
+        self.git('add', '-A')
+
+        p = self.run_tool('stamp')
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn('src/a.py', p.stderr)
+
+    def test_a_negation_cannot_re_include_the_tracking_files(self):
+        # The review state describes the reviews, so it can never
+        # attest to itself: BUILTIN_EXCLUDE is not a default that a
+        # config may override, and a config that tries must not win.
+        self.write('.vscode/review-scope.toml',
+                   'exclude = ["!REVIEWS.md", "!.vscode/testuser.weaudit"]\n')
+        self.mark_reviewed(['src/a.py'])
+        self.run_tool('stamp')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'reviews')
+
+        p = self.run_tool('status')
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertNotIn('REVIEWS.md', p.stdout)
+        self.assertNotIn('.weaudit', p.stdout)
+
     def test_stamp_is_idempotent_for_existing_stamps(self):
         self.mark_reviewed(['src/a.py'])
         self.run_tool('stamp')
@@ -322,12 +404,12 @@ class ReviewTrackingTest(unittest.TestCase):
 class ThisRepositoryTest(unittest.TestCase):
     """Checks against this repository's own review state, not a fixture.
 
-    The fixture tests above prove the tooling behaves; these two prove
-    the committed state is the state the tooling would produce. Both
-    exist because a review-only pull request is exempted from CI by
-    ci.yml's paths-ignore block, so the pre-commit run of this suite is
-    the only thing that ever looks at a review commit -- which is why
-    that hook carries no file filter.
+    The fixture tests above prove the tooling behaves; these prove the
+    committed state is the state the tooling would produce. They exist
+    because a review-only pull request is exempted from CI by ci.yml's
+    paths-ignore block, so the pre-commit run of this suite is the only
+    thing that ever looks at a review commit -- which is why that hook
+    carries no file filter.
     """
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -381,6 +463,39 @@ class ThisRepositoryTest(unittest.TestCase):
             'prune` first',
         )
 
+    def test_every_stamp_matches_the_content_it_attests_to(self):
+        """No stamp may name content that is no longer there.
+
+        Compared against the index rather than HEAD deliberately: a
+        stamp records the index, so the commit that writes the stamp
+        has an index that matches and a HEAD that does not. Comparing
+        against HEAD would fail on exactly the commit doing the right
+        thing.
+
+        This is a second, independent guard on the same defect
+        `stamp` now refuses -- worth having twice because the two catch
+        it at different moments. `stamp` catches a stale stamp only if
+        somebody runs it; this catches one that is already committed,
+        whoever wrote it and however. The reproducibility check above
+        cannot: render_reviews_md() prints the recorded SHA without
+        comparing it to anything, so a stale stamp renders faithfully
+        and passes.
+        """
+        for state_path in self.rt.state_files():
+            side_path = self.rt.sidecar_path(state_path)
+            sidecar, _ = self.rt.load_json(side_path, {'files': {}})
+            for path, stamp in sorted(sidecar.get('files', {}).items()):
+                self.assertEqual(
+                    self.rt.blob_sha(':%s' % path), stamp.get('sha'),
+                    '%s stamps %s at content it no longer has. The mark '
+                    'attests to a version nobody has read since: run '
+                    '`review-tracking.py prune`, re-review the file, '
+                    'mark it again in weAudit, then `stamp` and `regen`. '
+                    'Leaving it means the prune that runs on every push '
+                    'to the default branch silently discards the review'
+                    % (side_path, path),
+                )
+
     def _array_lines(self, raw, key):
         """Return the lines between `<key> = [` and its closing `]`.
 
@@ -433,10 +548,28 @@ class ThisRepositoryTest(unittest.TestCase):
         with open(os.path.join(self.root, self.rt.SCOPE_PATH)) as f:
             raw = f.read()
 
+        # Negation is an exclude-list feature. In include it would be
+        # read literally, match nothing, and be reported below as a
+        # stale pattern -- a true failure with a misleading cause, so
+        # it is named here instead.
+        for pattern in include:
+            self.assertFalse(
+                pattern.startswith('!'),
+                'the include pattern %r in %s begins with \'!\'. '
+                'Re-includes belong in exclude, where they undo a '
+                'broader exclude; in include the \'!\' is matched '
+                'literally and the pattern matches nothing.'
+                % (pattern, self.rt.SCOPE_PATH),
+            )
+
         for kind, patterns in [('include', include), ('exclude', exclude)]:
             body = self._array_lines(raw, kind)
             for pattern in patterns:
-                if any(fnmatch.fnmatch(path, pattern) for path in tracked):
+                # A re-include is matched with its '!' stripped, but
+                # looked up in the file with it: the entry has to be
+                # found as written to be annotated as written.
+                bare = pattern[1:] if pattern.startswith('!') else pattern
+                if any(fnmatch.fnmatch(path, bare) for path in tracked):
                     continue
                 # The annotation has to be on the entry itself: the
                 # pattern must appear in the code half of a line in

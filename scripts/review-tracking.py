@@ -90,6 +90,11 @@ def load_scope():
     Patterns use fnmatch semantics against the full repo-relative path, so '*'
     matches across directory separators ('src/*.rs' matches 'src/a/b.rs').
     An empty include list means every tracked file is included.
+
+    An exclude entry beginning with '!' is a re-include: it puts back a file
+    a broader exclude on the same list takes away. Without it the only way
+    to exclude a directory except for one file is to name every other file
+    by hand and edit that list whenever one is added.
     """
     if not os.path.exists(SCOPE_PATH):
         return [], []
@@ -100,11 +105,23 @@ def load_scope():
 
 
 def in_scope(path, include, exclude):
+    """Is this path subject to whole-file review?
+
+    A '!' entry in exclude re-includes, and is evaluated only when
+    something else in exclude has already matched -- so ordering within
+    the list does not matter. It deliberately cannot override
+    BUILTIN_EXCLUDE: the review state files describe the reviews and
+    can never attest to themselves.
+    """
     if any(fnmatch.fnmatch(path, pat) for pat in BUILTIN_EXCLUDE):
         return False
     if include and not any(fnmatch.fnmatch(path, pat) for pat in include):
         return False
-    return not any(fnmatch.fnmatch(path, pat) for pat in exclude)
+    if not any(fnmatch.fnmatch(path, pat) for pat in exclude
+               if not pat.startswith('!')):
+        return True
+    return any(fnmatch.fnmatch(path, pat[1:]) for pat in exclude
+               if pat.startswith('!'))
 
 
 def state_files():
@@ -243,10 +260,25 @@ def generate_reviews_md():
 
 
 def cmd_stamp(_args):
+    """Record the reviewed content of every marked file in the sidecar.
+
+    Stamps are taken against the index rather than HEAD, because the
+    commit being prepared is the one the stamp belongs to.
+
+    A file that is already stamped and has since changed is reported
+    and never re-stamped. Re-stamping it would move the attestation
+    onto content nobody has read, which is the single thing this
+    tooling exists to prevent; and until this was checked, stamp
+    skipped such a file in silence, so the stale mark survived the
+    commit, survived CI (review-only commits are path-ignored) and was
+    then deleted by the prune the first push to the default branch
+    runs -- discarding the review rather than the staleness.
+    """
     include, exclude = load_scope()
     tracked = set(tracked_files())
     staged = set(git('diff', '--cached', '--name-only').stdout.splitlines())
     changed = []
+    stale = []
     for state_path in state_files():
         state, _ = load_json(state_path, {})
         side_path = sidecar_path(state_path)
@@ -271,6 +303,22 @@ def cmd_stamp(_args):
             stamps[path] = {'sha': sha, 'date': datetime.date.today().isoformat()}
             print('review-stamp: stamped %s at %s' % (path, sha[:SHORT_SHA]))
             side_changed = True
+        for path in sorted(marked & set(stamps)):
+            sha = blob_sha(':%s' % path)
+            # `is not None and ==` rather than a bare ==: a sidecar
+            # entry with no sha at all compares equal to a file that
+            # has left the index, and two unknowns are not a match.
+            recorded = stamps[path].get('sha')
+            if recorded is not None and sha == recorded:
+                continue
+            stale.append(path)
+            if sha is None:
+                print('review-stamp: ERROR: %s is marked reviewed and stamped but is no longer '
+                      'in the git index' % path, file=sys.stderr)
+            else:
+                print('review-stamp: ERROR: %s is stamped at %s but its content is now %s'
+                      % (path, (recorded or 'nothing')[:SHORT_SHA], sha[:SHORT_SHA]),
+                      file=sys.stderr)
         for path in sorted(set(stamps) - marked):
             del stamps[path]
             print('review-stamp: dropped stamp for unmarked file %s' % path)
@@ -286,8 +334,12 @@ def cmd_stamp(_args):
     if changed:
         print('review-stamp: updated %s; stage the changes (git add %s) and include them in the '
               'review-state commit' % (', '.join(changed), ' '.join(changed)))
-        return 1
-    return 0
+    if stale:
+        print('review-stamp: run `review-tracking.py prune` to drop the stale mark(s), then '
+              're-review those files and mark them again in weAudit. They are deliberately not '
+              're-stamped: a stamp nobody read the content for is a false attestation.',
+              file=sys.stderr)
+    return 1 if changed or stale else 0
 
 
 def cmd_prune(_args):

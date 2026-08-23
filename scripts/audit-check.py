@@ -3147,12 +3147,32 @@ def blank_generated_blocks(markdown):
     somebody can act on. With whole-line matching an unterminated
     block means a malformed file rather than a false trigger, so
     failing towards more scanning is both safe and loud.
+
+    Markers inside a fenced code block are ignored, because a document
+    may show what a generated block looks like -- README.md in the
+    audits tree does exactly that. The fence tracking has to happen
+    here rather than in the callers, which both handle fences only
+    after this function has run: a closing fence sitting between a
+    real marker pair would be blanked away, leaving the fence open and
+    silently exempting the rest of the file. That is the same invisible
+    exemption whole-line matching was introduced to remove, so it is
+    closed at the same place rather than left to the order in which
+    two callers happen to compose their passes.
     """
     lines = markdown.splitlines()
     blanked = list(lines)
+    fence = None
     start = None
     for index, line in enumerate(lines):
         stripped = line.strip()
+        opener = stripped[:3] if stripped[:3] in ('```', '~~~') else None
+        if fence is not None:
+            if opener == fence:
+                fence = None
+            continue
+        if opener is not None:
+            fence = opener
+            continue
         if start is None:
             if stripped == BEGIN_MARKER:
                 start = index

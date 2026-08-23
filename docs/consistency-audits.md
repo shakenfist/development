@@ -246,7 +246,7 @@ design.
 
 ## Related
 
-- [`audits/README.md`](audits/README.md) -- what we audit for: the
+- [`docs/audits/README.md`](audits/README.md) -- what we audit for: the
   criterion index, and which repositories are in scope, excluded, or
   scoped to part of the audit.
 - [`ci-review-automation.md`](ci-review-automation.md) and

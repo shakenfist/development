@@ -70,6 +70,12 @@ branch that did not cause it, when another branch adds an in-scope
 file and both regenerate to the same header text: the fix is the same
 one command.
 
+Editing a file that carries a review mark stales that mark, and the
+same suite fails. Run `prune` and say so: the file then needs a human
+to read it again and re-mark it in weAudit. Do not re-stamp -- the
+mark attests that a person read that exact content, so there is no
+version of this an agent can finish alone.
+
 `review-tracking.py` is run by hand in target repositories (via a thin
 wrapper like ryll's `tools/review-tracking.sh`), deliberately not from
 git hooks. Two subcommands also run from CI in steady state: `prune`

@@ -177,7 +177,7 @@ Diff:
 Nothing acts on a review automatically any more. `pr-address-comments.yml`
 used to take each item with an `action` of `fix` or `document`, prompt Claude
 Code with it, and push a commit per item; it is retired, and
-[`audits/ci-review-automation.md`](audits/ci-review-automation.md) has the
+[`docs/audits/ci-review-automation.md`](audits/ci-review-automation.md) has the
 reasoning and the list of files a repository must not still carry.
 
 What matters for the review format is that the `action` field survives its
@@ -302,7 +302,7 @@ render-review.py review.json
 ## Projects Using This System
 
 Most of them, and the list moves: see the compliance table in
-[`ci-review-automation.md`](audits/ci-review-automation.md).
+[`docs/audits/ci-review-automation.md`](audits/ci-review-automation.md).
 imago was the original implementation and occystrap the first
 adaptation of it, which is why both turn up in the history above.
 

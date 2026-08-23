@@ -47,8 +47,12 @@ this repository and passes through to the script.
   files count as reviewable: `include` and `exclude` lists of
   fnmatch patterns matched against repo-relative paths (`*` matches
   across directory separators; an empty or absent `include` means
-  all tracked files). The tracking machinery (`.vscode/*`,
-  `REVIEWS.md`) is always excluded. Scope should cover the
+  all tracked files). An `exclude` entry beginning with `!` is a
+  re-include, so a directory can be excluded except for one file
+  without naming every other file by hand; it cannot put the
+  tracking machinery (`.vscode/*`, `REVIEWS.md`) back, which is
+  always excluded, since those files describe the reviews and can
+  never attest to themselves. Scope should cover the
   executable artifacts (source code in every language the repo
   uses, plus shell scripts), the declarative configuration that is
   executable in practice (CI workflows, container and deployment
@@ -175,6 +179,26 @@ this repository and passes through to the script.
    keep generated code (`*_pb2.py` and friends), vendored trees
    (`vendor/*`, minified third-party JavaScript), and ephemeral
    archives out of the queue.
+
+   Prefix an `exclude` entry with `!` to re-include something the
+   pattern above it takes away:
+
+   ```toml
+   exclude = [
+       'docs/audits/*',
+       '!docs/audits/README.md',
+   ]
+   ```
+
+   Reach for this when a directory is excluded because its files are
+   machine-rewritten and one file in it is not. Prefer it to naming
+   the keepers individually, which is a list that has to be edited on
+   the day a file changes category and therefore will not be. Do not
+   reach for it to carve out several files from a directory that is
+   excluded for a reason those files will grow into -- a spec awaiting
+   its check has no generated table today and will have one the day
+   the check lands, so re-including it buys a review that the next
+   audit run invalidates.
 
    Widening scope in a repo that has already been adopted needs no
    migration -- the newly in-scope files simply have no review mark,
@@ -395,7 +419,13 @@ Three behaviours worth knowing about:
 * A stamped entry is never re-stamped while it exists: if a
   reviewed file changes, the only path forward is prune then
   re-review. This is what prevents a stale review being silently
-  refreshed at the file's current content.
+  refreshed at the file's current content. `stamp` reports such a
+  file and exits non-zero rather than passing over it, so the
+  pre-commit hook stops the commit that would carry the stale mark:
+  until this was checked it skipped the file in silence, and because
+  a review-only commit is exempt from CI, the mark then survived to
+  the default branch where `prune-reviews` deleted it -- discarding
+  the review rather than the staleness, which is the wrong half.
 * When every file in a directory is reviewed, weAudit adds a
   derived *directory* entry to `auditedFiles` alongside the
   per-file entries. The tooling treats these as pure UI state:

@@ -230,6 +230,68 @@ class DocsExternalLinksTest(unittest.TestCase):
         })
         self.assertEqual(result['status'], 'pass', result['details'])
 
+    def test_markers_shown_inside_a_fence_do_not_open_a_block(self):
+        """A document may show what a generated block looks like.
+
+        docs/audits/README.md does exactly that, and is safe only
+        because both fence delimiters happen to fall outside the
+        marker pair. When the closing fence falls between them instead,
+        blanking erases the fence delimiter, the caller's fence pass
+        never sees the block close, and every link in the rest of the
+        file is treated as code and skipped -- an invisible exemption,
+        which is the one direction this function must never fail in.
+        Blanking therefore tracks fences itself rather than relying on
+        the order in which each caller composes its passes.
+        """
+        result = self._check({
+            'docs/audits/README.md': (
+                '# Audit index\n'
+                '\n'
+                'Each audit file follows this structure:\n'
+                '\n'
+                '```markdown\n'
+                '## Projects\n'
+                '\n'
+                '<!-- consistency-audit:begin -->\n'
+                '```\n'
+                '<!-- consistency-audit:end -->\n'
+                '\n'
+                'Our own [bad link](../tools/x.sh).\n'
+            ),
+        })
+        self.assertEqual(
+            result['status'], 'fail',
+            'a fence delimiter blanked from inside a marker pair left '
+            'the rest of the file unscanned',
+        )
+        self.assertIn('../tools/x.sh', result['details'])
+
+    def test_prose_naming_a_marker_does_not_open_a_real_block(self):
+        # Same shape as the plan-phase-references case: the prose
+        # sentence and the real table are both normal things for a
+        # spec page to contain, and a loose begin match joins them
+        # into one exemption covering the file's own prose.
+        result = self._check({
+            'docs/audits/renovate.md': (
+                '# Audit: renovate\n'
+                '\n'
+                'The `<!-- consistency-audit:begin -->` marker opens '
+                'the table.\n'
+                '\n'
+                'Our own [bad link](../tools/x.sh).\n'
+                '\n'
+                '<!-- consistency-audit:begin -->\n'
+                '| ryll | PASS |\n'
+                '<!-- consistency-audit:end -->\n'
+            ),
+        })
+        self.assertEqual(
+            result['status'], 'fail',
+            'prose naming the begin marker was closed by the real end '
+            'marker further down, exempting everything between',
+        )
+        self.assertIn('../tools/x.sh', result['details'])
+
     def test_a_link_after_a_generated_block_is_still_scanned(self):
         result = self._check({
             'docs/audits/renovate.md': (
@@ -675,6 +737,39 @@ class PlanPhaseReferencesTest(unittest.TestCase):
         )
         self.assertIn('docs/notes.md:5', result['details'])
 
+    def test_prose_naming_a_marker_does_not_open_a_real_block(self):
+        """Prose and a real table in one file is the shape that bites.
+
+        The earlier tests here put prose naming the markers in a file
+        with no real block, so nothing could ever close what the prose
+        loosely opened and the exemption stayed empty. A spec page that
+        both explains the markers and carries a table has a real end
+        marker further down, which closes the block the prose opened --
+        blanking every line between the sentence and the table. That is
+        a larger and more plausible exemption than the one measured in
+        the plan files, and it is invisible in exactly the same way.
+        """
+        result = self._check({
+            'docs/audits/plan-index.md': (
+                '# Audit: plan index\n'
+                '\n'
+                'The `<!-- consistency-audit:begin -->` marker opens '
+                'the table.\n'
+                '\n'
+                'This was wired up in phase 6.\n'
+                '\n'
+                '<!-- consistency-audit:begin -->\n'
+                '| ryll | PASS |\n'
+                '<!-- consistency-audit:end -->\n'
+            ),
+        })
+        self.assertEqual(
+            result['status'], 'fail',
+            'prose naming the begin marker was closed by the real end '
+            'marker further down, exempting everything between',
+        )
+        self.assertIn('docs/audits/plan-index.md:5', result['details'])
+
     def test_an_unterminated_block_exempts_nothing(self):
         # Failing towards more scanning: a hidden exemption is
         # invisible, a false positive is not.
@@ -704,6 +799,31 @@ class PlanPhaseReferencesTest(unittest.TestCase):
         })
         self.assertEqual(result['status'], 'fail')
         self.assertIn('docs/audits/plan-index.md:7', result['details'])
+
+    def test_markers_shown_inside_a_fence_do_not_open_a_block(self):
+        # The same hazard as the docs-external-links case, and worth
+        # pinning per caller: each one runs its own fence pass, and
+        # both ran it after blanking. A closing fence blanked from
+        # between a marker pair leaves the fence open for the rest of
+        # the file, so the phase reference below escapes.
+        result = self._check({
+            'docs/audits/README.md': (
+                '# Audit index\n'
+                '\n'
+                '```markdown\n'
+                '<!-- consistency-audit:begin -->\n'
+                '```\n'
+                '<!-- consistency-audit:end -->\n'
+                '\n'
+                'This was wired up in phase 6.\n'
+            ),
+        })
+        self.assertEqual(
+            result['status'], 'fail',
+            'a fence delimiter blanked from inside a marker pair left '
+            'the rest of the file unscanned',
+        )
+        self.assertIn('docs/audits/README.md:8', result['details'])
 
     def test_plural_phases_fails(self):
         result = self._check({

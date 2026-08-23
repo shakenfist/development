@@ -135,7 +135,7 @@ There is no `pr-address-comments.yml` template here, and there will
 not be one: the comment addresser is retired, and a repository still
 carrying any part of it fails the audit. What it was, why it went, and
 exactly which files to delete are in
-[`audits/ci-review-automation.md`](audits/ci-review-automation.md).
+[`docs/audits/ci-review-automation.md`](audits/ci-review-automation.md).
 
 One thing about the reaping belongs here, because it is about the
 templates rather than about the audit. `render-review.py` in the shared action
@@ -162,6 +162,6 @@ repository:
 Which projects have which of these is measured every morning rather
 than listed here, because a hand-maintained table of fleet state goes
 stale silently: see the compliance table in
-[`ci-review-automation.md`](audits/ci-review-automation.md).
+[`docs/audits/ci-review-automation.md`](audits/ci-review-automation.md).
 Note that imago is not in the audit matrix, so it is the one project
 carrying this automation which the audit will never report on.
