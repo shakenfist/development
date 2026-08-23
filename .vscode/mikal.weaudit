@@ -1,0 +1,14 @@
+{
+  "clientRemote": "",
+  "gitRemote": "",
+  "gitSha": "",
+  "treeEntries": [],
+  "auditedFiles": [
+    {
+      "path": "README.md",
+      "author": "mikal"
+    }
+  ],
+  "partiallyAuditedFiles": [],
+  "resolvedEntries": []
+}

@@ -11,10 +11,15 @@ dependency management:
   alongside it.
 
 Repositories where Python is incidental are excluded: Rust projects
-(any Python present is helper scripts), docs-only repositories, and
-`kerbside-patches` (a patch archive with Python helper scripts, not a
-Python project -- excluded via `REPO_OVERRIDES` in
-`scripts/audit-check.py`).
+(any Python present is helper scripts), docs-only repositories, the
+`actions` library of composite actions and reusable workflows, this
+repository (its Python is the audit scripts, which run from a
+checkout and are never packaged), and `kerbside-patches` (a patch
+archive with Python helper scripts, not a Python project). Rust
+projects need no declaration -- the check reads a `Cargo.toml` at the
+root of the clone and exempts the repository on that alone. The rest
+are declared `not_python` or `is_docs_only` in `REPO_OVERRIDES` in
+`scripts/audit-check.py`.
 
 Note that `requirements.txt` / `test-requirements.txt` removal is
 covered by the [release process audit](release-process.md), and the

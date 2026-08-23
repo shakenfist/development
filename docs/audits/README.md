@@ -1,8 +1,15 @@
 # Consistency Audit Specifications
 
-This directory contains one file per audit criterion. Each file defines
-what we check, links to the relevant template, and tracks per-project
-compliance status.
+Every Shaken Fist project is expected to be packaged, documented,
+tested and automated the same way. This directory is the statement of
+what that means: one file per criterion, each defining what we check
+and why, linking the template that implements it, and carrying a
+per-project compliance table regenerated every morning.
+
+It sits under `docs/` so that it publishes to shakenfist.com with
+everything else. What we hold a project to is documentation, and a
+criterion nobody outside the fleet can read is a criterion nobody
+outside the fleet can meet.
 
 ## How audits work
 
@@ -67,8 +74,58 @@ One project is in scope for part of the audit only:
   `REPO_OVERRIDES` in `scripts/audit-check.py`; every other check
   reports N/A for it.
 
-See `PROJECT-CONSISTENCY-AUDITS.md` for the list of excluded projects
-(internal tooling and historical archives).
+### Excluded projects
+
+The following projects are **excluded** from these criteria, because
+they are internal only tooling or historical archive repositories:
+
+* ansible-modules
+* client-js
+* client-go
+* client-python-ova
+* deploy
+* images
+* imago-testdata
+* imago-testdata-quarantine
+* jenkins-private
+* loadtest
+* occystrap-testdata
+* ostrich
+* performance
+* private-ci
+* reproducables
+* sonobouy
+* symbolicmode
+* terraform-provider-shakenfist
+* uefi-latency-guest
+* website
+
+The `actions` repository is audited despite being tooling: the whole
+fleet depends on it for its composite actions and reusable workflows,
+so it is held to the same standards as anything else. Two criteria do
+not apply to it -- it has no Python to package, and it keeps `main` as
+its default branch because every consumer pins to `@main`.
+
+`development`, this repository, is audited for the same reason turned
+around: it is where these criteria and the tooling that enforces them
+are written, so an exemption here is an exemption the authors of the
+standard write for themselves. The same two criteria do not apply --
+its Python is the audit scripts, which run from a checkout and are
+never packaged, and it keeps `main` because it publishes no releases
+and so has no release branch for `develop` to be the integration
+branch against.
+
+Both exemptions are stated reasons in `REPO_OVERRIDES` in
+`scripts/audit-check.py`, which means they are reported as N/A with
+the reason attached rather than quietly disappearing from the table.
+
+`private-ci` stays excluded and is still audited for one thing,
+because a vendored copy is the one kind of problem an exclusion
+cannot make safe: nothing in the consumer fails when the copy falls
+behind, or when someone edits it in place and the next sync discards
+the edit. Exclusion means what it says for the rest -- `private-ci`
+is not expected to grow a `pyproject.toml`, a renovate config,
+release workflows, or a `develop` branch.
 
 ## Audit index
 
@@ -82,6 +139,7 @@ See `PROJECT-CONSISTENCY-AUDITS.md` for the list of excluded projects
 | [ci-review-automation.md](ci-review-automation.md) | Automated review, developer automation workflows |
 | [renovate.md](renovate.md) | Renovate for dependency bumps |
 | [pin-indirect-dependencies.md](pin-indirect-dependencies.md) | Pinning transitive dependencies |
+| [dependency-name-normalization.md](dependency-name-normalization.md) | One spelling per pinned distribution |
 | [export-repo-config.md](export-repo-config.md) | Repo configuration export |
 | [default-branch-naming.md](default-branch-naming.md) | Default branch conventions |
 | [github-security.md](github-security.md) | Dependabot, secret scanning, CodeQL |
@@ -108,3 +166,13 @@ See `PROJECT-CONSISTENCY-AUDITS.md` for the list of excluded projects
 | [secret-handling.md](secret-handling.md) | Secret scanner in CI, credentials kept out of logs |
 | [review-coverage.md](review-coverage.md) | Human review backlog stays under threshold in repos with review tracking |
 | [sfui-vendor.md](sfui-vendor.md) | Vendored sfui copies are verbatim and current |
+
+## Beyond the audits
+
+Everything here is a criterion because it can be stated plainly and,
+mostly, measured. That is not the whole of what we want from a
+project. We should be proud of our shared work: a regular holistic
+review of each project should ask what could be improved or tightened
+up with a refactor, and we should not be scared of a large refactor
+that delivers a large benefit -- while equally avoiding change for
+change's sake.

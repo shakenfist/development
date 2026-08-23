@@ -52,6 +52,12 @@ history in these files is covered separately by the
 `plan-phase-references` audit, which scans them alongside `README.md`
 and `docs/`.
 
+Left unchecked these two files accrete the same way READMEs do,
+reaching thousands of lines while restating `docs/configuration.md`,
+restating a protocol reference in the very section that names that
+file as the canonical source, and duplicating a `## Code
+Organisation` section between the two.
+
 The judgment half of the policy is enforced at the point where the
 bloat is actually created: the documentation-review section of each
 repository's pre-push audit file carries the canonical

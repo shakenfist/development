@@ -20,22 +20,50 @@ include = ['*.py', '*.sh', '*.md', '*.yml', '*.yaml']
 # reappearing at the root rather than because it currently matches
 # anything.
 #
-# audits/*.md are excluded for a different and more specific reason.
-# Each one carries a machine-regenerated compliance table between
-# consistency-audit markers, and the table's "Last regenerated" line
-# is rewritten on every audit run -- 27 of these files changed in a
-# single bot commit on 2026-08-19, and that happens most days. That
-# timestamp is deliberate: it is how a reader tells a current verdict
-# from a stale one when the audit has silently stopped running. But a
-# review mark attests to whole-file content, so a file whose last
-# line moves daily can never hold one. Including them would put 35
-# permanently-stale files in the queue and keep a review-coverage
-# issue open that no amount of reviewing could close, which would
-# make the alert useless for the files it can actually speak for.
-# The prose in these files is reviewed as part of reviewing the
-# change that writes it.
+# docs/audits/*.md are excluded for a different and more specific
+# reason. 31 of the 36 carry a machine-regenerated compliance table
+# between consistency-audit markers, and the table's "Last
+# regenerated" line is rewritten on every audit run -- 27 of these
+# files changed in a single bot commit on 2026-08-19, and that happens
+# most days. That timestamp is deliberate: it is how a reader tells a
+# current verdict from a stale one when the audit has silently stopped
+# running. But a review mark attests to whole-file content, so a file
+# whose last line moves daily can never hold one. Including them would
+# put permanently-stale files in the queue and keep a review-coverage
+# issue open that no amount of reviewing could close, which would make
+# the alert useless for the files it can actually speak for. The prose
+# in these files is reviewed as part of reviewing the change that
+# writes it.
+#
+# Four specs -- console-logging, python-version, security-sanitization
+# and test-coverage -- have no check yet and so no table, but they are
+# left excluded rather than named as exceptions: each one grows a table
+# the day its check lands, and an exception list that has to be pruned
+# on that day is an exception list that will not be.
+#
+# README.md is the exception, because it is not a spec. It is the
+# index, audit-update-docs.py rewrites files named in AUDIT_METADATA
+# and it is not one of them, and the only markers it contains sit
+# inside a fenced example of what a spec looks like. It is also now
+# the authoritative statement of which projects are audited and which
+# are deliberately excluded, which used to live in a root file that
+# was in scope -- so leaving it out would have quietly dropped the
+# most consequential page here from review coverage at the moment it
+# became the most consequential page here.
+#
+# The audits pattern named `audits/*` until the tree moved under docs/
+# in 2026-08. It then matched nothing, silently putting all 36 files
+# into scope; the test suite now asserts that every pattern here
+# matches a path that exists, so the next move fails loudly.
+#
+# A pattern that is meant to match nothing today carries an
+# `unmatched-by-design` trailing comment on its own entry below --
+# not on a line of its own, and not up here in the prose, both of
+# which the test suite rejects. That marker is what tells it the
+# difference between a deliberate guard and a stale pattern.
 exclude = [
     'docs/plans/*',
-    'PLAN-*.md',
-    'audits/*',
+    'PLAN-*.md',  # unmatched-by-design: a guard against plans returning to the root
+    'docs/audits/*',
+    '!docs/audits/README.md',
 ]

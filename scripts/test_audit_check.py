@@ -212,6 +212,99 @@ class DocsExternalLinksTest(unittest.TestCase):
         })
         self.assertEqual(result['status'], 'pass')
 
+    def test_generated_compliance_block_links_are_not_scanned(self):
+        # Same reasoning as the plan-phase-references case: a detail
+        # string harvested from another repository can carry a
+        # markdown link, and it is that repository's link to get
+        # wrong, not ours.
+        result = self._check({
+            'docs/audits/renovate.md': (
+                '# Audit: renovate\n'
+                '\n'
+                '<!-- consistency-audit:begin -->\n'
+                'Details for non-compliant projects:\n'
+                '\n'
+                '- ryll: see [the config](../renovate.json) for why\n'
+                '<!-- consistency-audit:end -->\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_markers_shown_inside_a_fence_do_not_open_a_block(self):
+        """A document may show what a generated block looks like.
+
+        docs/audits/README.md does exactly that, and is safe only
+        because both fence delimiters happen to fall outside the
+        marker pair. When the closing fence falls between them instead,
+        blanking erases the fence delimiter, the caller's fence pass
+        never sees the block close, and every link in the rest of the
+        file is treated as code and skipped -- an invisible exemption,
+        which is the one direction this function must never fail in.
+        Blanking therefore tracks fences itself rather than relying on
+        the order in which each caller composes its passes.
+        """
+        result = self._check({
+            'docs/audits/README.md': (
+                '# Audit index\n'
+                '\n'
+                'Each audit file follows this structure:\n'
+                '\n'
+                '```markdown\n'
+                '## Projects\n'
+                '\n'
+                '<!-- consistency-audit:begin -->\n'
+                '```\n'
+                '<!-- consistency-audit:end -->\n'
+                '\n'
+                'Our own [bad link](../tools/x.sh).\n'
+            ),
+        })
+        self.assertEqual(
+            result['status'], 'fail',
+            'a fence delimiter blanked from inside a marker pair left '
+            'the rest of the file unscanned',
+        )
+        self.assertIn('../tools/x.sh', result['details'])
+
+    def test_prose_naming_a_marker_does_not_open_a_real_block(self):
+        # Same shape as the plan-phase-references case: the prose
+        # sentence and the real table are both normal things for a
+        # spec page to contain, and a loose begin match joins them
+        # into one exemption covering the file's own prose.
+        result = self._check({
+            'docs/audits/renovate.md': (
+                '# Audit: renovate\n'
+                '\n'
+                'The `<!-- consistency-audit:begin -->` marker opens '
+                'the table.\n'
+                '\n'
+                'Our own [bad link](../tools/x.sh).\n'
+                '\n'
+                '<!-- consistency-audit:begin -->\n'
+                '| ryll | PASS |\n'
+                '<!-- consistency-audit:end -->\n'
+            ),
+        })
+        self.assertEqual(
+            result['status'], 'fail',
+            'prose naming the begin marker was closed by the real end '
+            'marker further down, exempting everything between',
+        )
+        self.assertIn('../tools/x.sh', result['details'])
+
+    def test_a_link_after_a_generated_block_is_still_scanned(self):
+        result = self._check({
+            'docs/audits/renovate.md': (
+                '<!-- consistency-audit:begin -->\n'
+                '- ryll: see [x](../renovate.json)\n'
+                '<!-- consistency-audit:end -->\n'
+                '\n'
+                'Our own [bad link](../tools/x.sh).\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('../tools/x.sh', result['details'])
+
     def test_absolute_and_anchor_links_pass(self):
         result = self._check({
             'docs/index.md': (
@@ -550,6 +643,187 @@ class PlanPhaseReferencesTest(unittest.TestCase):
         })
         self.assertEqual(result['status'], 'fail')
         self.assertIn('README.md:1', result['details'])
+
+    def test_generated_compliance_block_is_not_scanned(self):
+        """A harvested detail must not fail this repository's own audit.
+
+        The compliance tables under docs/audits/ are written by
+        audit-update-docs.py from detail strings collected in other
+        repositories, and rendered as bare prose. The plan-index check
+        quotes an offending status cell verbatim, and the canonical
+        example of one is 'Complete (phases 1-5 and 2b, 2026-08-15)'.
+        Once the audits tree moved under docs/ those files entered this
+        check's scope, so without the exclusion the bot writes that
+        phrase into docs/audits/plan-index.md one morning and this
+        repository fails its own audit the next, having committed
+        nothing.
+        """
+        result = self._check({
+            'docs/audits/plan-index.md': (
+                '# Audit: plan index\n'
+                '\n'
+                '<!-- consistency-audit:begin -->\n'
+                '| Project | Status |\n'
+                '|---------|--------|\n'
+                '| ryll | FAIL |\n'
+                '\n'
+                'Details for non-compliant projects:\n'
+                '\n'
+                '- ryll: 1 plan has a freeform status cell '
+                '(PLAN-x.md ("Complete (phases 1-5 and 2b, '
+                '2026-08-15): shipped"))\n'
+                '<!-- consistency-audit:end -->\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_prose_naming_the_markers_exempts_nothing(self):
+        """Naming a marker in prose must not exempt anything.
+
+        The first version of this exclusion matched
+        'consistency-audit:begin' as a bare substring, so a sentence
+        describing the markers triggered it. Documents that write the
+        pair as one token -- '<!-- consistency-audit:begin/end -->' --
+        matched the begin and never the end, blanking the rest of the
+        file: 148 of 309 lines of one plan and 96 of 159 of another
+        silently left docs-external-links. Both spellings below are
+        taken from the real files that did it.
+        """
+        for prose in (
+            'The `<!-- consistency-audit:begin/end -->` marker block so',
+            'empty `<!-- consistency-audit:begin/end -->` block. Pairs with',
+            'rewrites the table between the `<!-- consistency-audit:begin',
+        ):
+            result = self._check({
+                'docs/notes.md': (
+                    '# Notes\n'
+                    '\n'
+                    + prose + '\n'
+                    '\n'
+                    'This was wired up in phase 6.\n'
+                ),
+            })
+            self.assertEqual(
+                result['status'], 'fail',
+                f'prose naming the markers exempted the rest of the '
+                f'file: {prose!r}',
+            )
+            self.assertIn('docs/notes.md:5', result['details'])
+
+    def test_prose_naming_both_markers_exempts_nothing_between_them(self):
+        """Exact whole-line matching, pinned by the case that needs it.
+
+        This is the one the substring test really got wrong and that
+        the unterminated case cannot prove: docs/consistency-audits.md
+        names the begin marker on one line and the end marker two
+        lines later while explaining them, so a substring test found a
+        matched pair and blanked the prose between. Only a whole-line
+        match in the exact spelling audit-update-docs.py emits
+        distinguishes that from a real block.
+        """
+        result = self._check({
+            'docs/notes.md': (
+                '# Notes\n'
+                '\n'
+                'audit-update-docs.py rewrites the table between the\n'
+                '`<!-- consistency-audit:begin -->` and\n'
+                'This part was wired up in phase 6.\n'
+                '`<!-- consistency-audit:end -->` markers.\n'
+            ),
+        })
+        self.assertEqual(
+            result['status'], 'fail',
+            'prose naming both markers exempted the lines between them',
+        )
+        self.assertIn('docs/notes.md:5', result['details'])
+
+    def test_prose_naming_a_marker_does_not_open_a_real_block(self):
+        """Prose and a real table in one file is the shape that bites.
+
+        The earlier tests here put prose naming the markers in a file
+        with no real block, so nothing could ever close what the prose
+        loosely opened and the exemption stayed empty. A spec page that
+        both explains the markers and carries a table has a real end
+        marker further down, which closes the block the prose opened --
+        blanking every line between the sentence and the table. That is
+        a larger and more plausible exemption than the one measured in
+        the plan files, and it is invisible in exactly the same way.
+        """
+        result = self._check({
+            'docs/audits/plan-index.md': (
+                '# Audit: plan index\n'
+                '\n'
+                'The `<!-- consistency-audit:begin -->` marker opens '
+                'the table.\n'
+                '\n'
+                'This was wired up in phase 6.\n'
+                '\n'
+                '<!-- consistency-audit:begin -->\n'
+                '| ryll | PASS |\n'
+                '<!-- consistency-audit:end -->\n'
+            ),
+        })
+        self.assertEqual(
+            result['status'], 'fail',
+            'prose naming the begin marker was closed by the real end '
+            'marker further down, exempting everything between',
+        )
+        self.assertIn('docs/audits/plan-index.md:5', result['details'])
+
+    def test_an_unterminated_block_exempts_nothing(self):
+        # Failing towards more scanning: a hidden exemption is
+        # invisible, a false positive is not.
+        result = self._check({
+            'docs/notes.md': (
+                '<!-- consistency-audit:begin -->\n'
+                'Wired up in phase 6.\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('docs/notes.md:2', result['details'])
+
+    def test_a_phase_reference_after_a_generated_block_still_fails(self):
+        # The exclusion must end at the end marker, and must not shift
+        # the reported line numbers: blanked lines are kept, not
+        # dropped. Without both, this is a hole rather than a filter.
+        result = self._check({
+            'docs/audits/plan-index.md': (
+                '# Audit: plan index\n'
+                '\n'
+                '<!-- consistency-audit:begin -->\n'
+                '- ryll: shipped in phase 4\n'
+                '<!-- consistency-audit:end -->\n'
+                '\n'
+                'This was wired up in phase 6.\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('docs/audits/plan-index.md:7', result['details'])
+
+    def test_markers_shown_inside_a_fence_do_not_open_a_block(self):
+        # The same hazard as the docs-external-links case, and worth
+        # pinning per caller: each one runs its own fence pass, and
+        # both ran it after blanking. A closing fence blanked from
+        # between a marker pair leaves the fence open for the rest of
+        # the file, so the phase reference below escapes.
+        result = self._check({
+            'docs/audits/README.md': (
+                '# Audit index\n'
+                '\n'
+                '```markdown\n'
+                '<!-- consistency-audit:begin -->\n'
+                '```\n'
+                '<!-- consistency-audit:end -->\n'
+                '\n'
+                'This was wired up in phase 6.\n'
+            ),
+        })
+        self.assertEqual(
+            result['status'], 'fail',
+            'a fence delimiter blanked from inside a marker pair left '
+            'the rest of the file unscanned',
+        )
+        self.assertIn('docs/audits/README.md:8', result['details'])
 
     def test_plural_phases_fails(self):
         result = self._check({
@@ -1205,51 +1479,151 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
     """The three places that say who is audited must agree.
 
     Scope is written down three times: the matrix in
-    .github/workflows/consistency-audit.yml is what actually runs, the
-    in-scope list in audits/README.md is what a reader is told, and
-    the excluded list in PROJECT-CONSISTENCY-AUDITS.md is what the
-    standard claims. Nothing else ties them together, so a repository
-    added to the matrix alone is audited while the documentation says
-    it is not -- and one dropped from the matrix alone silently stops
-    being measured while both documents say it is.
+    .github/workflows/consistency-audit.yml is what actually runs,
+    and the in-scope and excluded lists in docs/audits/README.md are
+    what a reader is told. Nothing else ties them together, so a
+    repository added to the matrix alone is audited while the
+    documentation says it is not -- and one dropped from the matrix
+    alone silently stops being measured while the documentation says
+    it is.
+
+    Reading two of the three means splitting prose on a literal
+    phrase, so this class also holds those phrases to their job. See
+    bulleted_block() for what a phrase has to keep doing to stay a
+    usable anchor.
     """
 
     root = os.path.dirname(
         os.path.dirname(os.path.abspath(__file__))
     )
 
+    # Each list below is found by splitting a file on a literal phrase:
+    # two sentences of prose and one line of YAML indentation, in files
+    # nobody edits with a parser in mind. A start phrase that gets
+    # reworded away is loud, because the split raises. An end phrase
+    # that gets reworded away is the dangerous one -- the block simply
+    # runs on to the end of the file and collects every bullet after
+    # it, which the comparisons here can still pass on. So the phrases
+    # are named constants and bulleted_block() asserts they still
+    # delimit a list of repository names before anything trusts them.
+    EXCLUDED_DOC = 'docs/audits/README.md'
+    EXCLUDED_START = 'are **excluded**'
+    EXCLUDED_END = 'The `actions` repository'
+    EXCLUDED_BULLET = '* '
+
+    IN_SCOPE_DOC = 'docs/audits/README.md'
+    IN_SCOPE_START = '## In-scope projects'
+    IN_SCOPE_END = 'One project is in scope'
+    IN_SCOPE_BULLET = '- '
+
+    MATRIX_WORKFLOW = '.github/workflows/consistency-audit.yml'
+    MATRIX_START = '        repo:\n'
+    MATRIX_BULLET = '          - '
+
+    # What a GitHub repository in any of these lists looks like. The
+    # point is not to validate the name but to notice a parse that has
+    # started collecting prose: a swallowed paragraph brings back
+    # bullets like "The configured version file path must be covered".
+    #
+    # Anchored at both ends. assertRegex is re.search, so an
+    # end-anchor alone matches any sentence closing on a lowercase
+    # word -- including that exact example, which is what this guard
+    # exists to reject.
+    REPO_NAME = re.compile(r'^[a-z0-9][a-z0-9.-]*$')
+
     def read(self, relative):
         with open(os.path.join(self.root, relative)) as f:
             return f.read()
 
+    def bulleted_block(self, path, start, end, bullet):
+        """Return the bullet list delimited by two literal phrases.
+
+        Every assertion here is about the parse rather than the
+        content, so that a reworded document fails with the phrase it
+        needs to carry rather than with a comparison of two sets of
+        repository names that no longer means anything.
+        """
+        text = self.read(path)
+        self.assertEqual(
+            text.count(start), 1,
+            f'{path} must contain the phrase "{start}" exactly once: '
+            f'it is where this suite starts reading the list that '
+            f'follows it',
+        )
+        after = text.split(start, 1)[1]
+        self.assertEqual(
+            after.count(end), 1,
+            f'{path} must contain the phrase "{end}" exactly once '
+            f'after "{start}": it is where this suite stops reading, '
+            f'and without it the parse runs to the end of the file',
+        )
+        block = after.split(end, 1)[0]
+        # Any heading level, not just '## '. The excluded-projects
+        # list this guards sits under a '### ', so a '###' subsection
+        # inserted inside the block would have slipped past a check
+        # for '## ' alone.
+        self.assertIsNone(
+            re.search(r'^#{1,6} ', block, re.MULTILINE),
+            f'the list after "{start}" in {path} now runs past a '
+            f'heading, so "{end}" is no longer the end of it',
+        )
+        entries = [
+            line[len(bullet):].strip() for line in block.splitlines()
+            if line.startswith(bullet)
+        ]
+        self.assertTrue(
+            entries,
+            f'no "{bullet}" bullets between "{start}" and "{end}" in '
+            f'{path}; the list has moved or changed its bullet style',
+        )
+        for entry in entries:
+            self.assertRegex(
+                entry, self.REPO_NAME,
+                f'"{entry}" was read as a repository name from the '
+                f'list after "{start}" in {path}, so the parse is '
+                f'picking up something that is not that list',
+            )
+        return entries
+
     def matrix_repos(self):
-        text = self.read('.github/workflows/consistency-audit.yml')
-        block = text.split('        repo:\n', 1)[1]
+        text = self.read(self.MATRIX_WORKFLOW)
+        self.assertEqual(
+            text.count(self.MATRIX_START), 1,
+            f'{self.MATRIX_WORKFLOW} must contain the matrix key '
+            f'"{self.MATRIX_START.strip()}" at exactly one '
+            f'indentation this suite recognises',
+        )
+        block = text.split(self.MATRIX_START, 1)[1]
         repos = []
         for line in block.splitlines():
-            if line.startswith('          - '):
-                repos.append(line[len('          - '):].strip())
+            if line.startswith(self.MATRIX_BULLET):
+                repos.append(line[len(self.MATRIX_BULLET):].strip())
             elif line.strip() and not line.lstrip().startswith('#'):
                 break
+        self.assertTrue(
+            repos,
+            f'no matrix entries read from {self.MATRIX_WORKFLOW}; the '
+            f'list is indented differently to "{self.MATRIX_BULLET}"',
+        )
+        for repo in repos:
+            self.assertRegex(
+                repo, self.REPO_NAME,
+                f'"{repo}" was read as a repository name from the '
+                f'audit matrix, so the parse has overrun the list',
+            )
         return repos
 
     def documented_in_scope(self):
-        text = self.read('audits/README.md')
-        block = text.split('## In-scope projects', 1)[1]
-        block = block.split('One project is in scope', 1)[0]
-        return [
-            line[2:].strip() for line in block.splitlines()
-            if line.startswith('- ')
-        ]
+        return self.bulleted_block(
+            self.IN_SCOPE_DOC, self.IN_SCOPE_START, self.IN_SCOPE_END,
+            self.IN_SCOPE_BULLET,
+        )
 
     def documented_excluded(self):
-        text = self.read('PROJECT-CONSISTENCY-AUDITS.md')
-        block = text.split('are **excluded**', 1)[1]
-        block = block.split('The `actions` repository', 1)[0]
-        return [
-            line[2:].strip() for line in block.splitlines()
-            if line.startswith('* ')
-        ]
+        return self.bulleted_block(
+            self.EXCLUDED_DOC, self.EXCLUDED_START, self.EXCLUDED_END,
+            self.EXCLUDED_BULLET,
+        )
 
     def partially_scoped(self):
         return {
@@ -1258,6 +1632,105 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
             if overrides.get('only_checks')
         }
 
+    def test_a_parse_that_overruns_its_list_is_rejected(self):
+        """The REPO_NAME guard must fire, not merely exist.
+
+        Reading an assertion cannot distinguish one that holds from one
+        that cannot fail, so this hands bulleted_block() the failure it
+        was written for. The loud cases are already covered by the
+        count assertions: a start or end phrase that vanishes raises
+        naming the phrase. The quiet case is an end phrase that has
+        drifted further down the page, so the block still terminates
+        but now spans a prose list on the way -- with no heading
+        crossed, REPO_NAME is the only thing left to notice.
+
+        The bullet used here is the example named in the comment above
+        REPO_NAME, which an end-anchored pattern accepted: re.search
+        found 'covered' at the end of it and passed.
+        """
+        overrun = (
+            'Two repositories are **excluded** from the conventions:\n'
+            '\n'
+            '* imago\n'
+            '* ryll\n'
+            '\n'
+            'Some criterion, described in a paragraph that grew a list:\n'
+            '\n'
+            '* The configured version file path must be covered\n'
+            '\n'
+            'The `actions` repository is a library of composite actions.\n'
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, 'drifted.md'), 'w') as f:
+                f.write(overrun)
+            self.root = tmp
+            with self.assertRaisesRegex(
+                    AssertionError,
+                    'The configured version file path must be covered'):
+                self.bulleted_block(
+                    'drifted.md', self.EXCLUDED_START, self.EXCLUDED_END,
+                    self.EXCLUDED_BULLET,
+                )
+
+    def test_repo_name_rejects_a_sentence_ending_in_a_word(self):
+        # assertRegex is re.search, so this is the whole point of the
+        # leading anchor. Kept separate from the parse above because it
+        # is the property, not the plumbing: if REPO_NAME ever loses
+        # its '^' again, this is the test that says so in one line.
+        self.assertIsNone(
+            self.REPO_NAME.search(
+                'The configured version file path must be covered'),
+            'REPO_NAME matched a sentence, so it is not anchored at '
+            'the start and cannot notice a parse collecting prose',
+        )
+        for name in ['shakenfist', 'client-python', 'kerbside-patches']:
+            self.assertIsNotNone(
+                self.REPO_NAME.search(name),
+                f'REPO_NAME no longer matches the repository name '
+                f'"{name}"',
+            )
+
+    def test_a_subsection_heading_inside_the_block_is_caught(self):
+        # The list this guards sits under a '### ', so a guard that
+        # only knew '## ' would not have noticed a '###' subsection
+        # appearing inside the parsed span.
+        drifted = (
+            'Two repositories are **excluded** from the conventions:\n'
+            '\n'
+            '* imago\n'
+            '\n'
+            '### Some new subsection\n'
+            '\n'
+            '* ryll\n'
+            '\n'
+            'The `actions` repository is a library of composite actions.\n'
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, 'drifted.md'), 'w') as f:
+                f.write(drifted)
+            self.root = tmp
+            with self.assertRaisesRegex(AssertionError, 'runs past a heading'):
+                self.bulleted_block(
+                    'drifted.md', self.EXCLUDED_START, self.EXCLUDED_END,
+                    self.EXCLUDED_BULLET,
+                )
+
+    def test_the_parse_anchors_still_delimit_their_lists(self):
+        # The comparisons below are worth no more than the parses that
+        # feed them, and all three parses are anchored to phrases in
+        # documents that get rewritten for reasons that have nothing
+        # to do with this suite -- the page holding both lists was
+        # rewritten wholesale more than once already. Run
+        # them here on their own so that a reworded anchor fails as a
+        # reworded anchor, naming the phrase and the file, rather than
+        # as a mysterious disagreement about which repositories are
+        # audited. Each parse asserts its own delimiting; this test is
+        # what makes sure all three are exercised even if a comparison
+        # below is one day rewritten not to call them.
+        self.matrix_repos()
+        self.documented_in_scope()
+        self.documented_excluded()
+
     def test_matrix_matches_the_documented_scope(self):
         matrix = set(self.matrix_repos())
         self.assertIn('development', matrix)
@@ -1265,7 +1738,7 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
             matrix - self.partially_scoped(),
             set(self.documented_in_scope()),
             'the audit matrix and the in-scope list in '
-            'audits/README.md disagree',
+            'docs/audits/README.md disagree',
         )
 
     def test_no_audited_repo_is_also_documented_as_excluded(self):
@@ -1279,8 +1752,8 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
         )
         self.assertEqual(
             overlap, set(),
-            'PROJECT-CONSISTENCY-AUDITS.md lists these as excluded '
-            'but the audit matrix runs every check against them',
+            'docs/audits/README.md lists these as excluded but '
+            'the audit matrix runs every check against them',
         )
 
 
@@ -1507,7 +1980,7 @@ class CheckScopeTest(unittest.TestCase):
             self.assertEqual(check['details'], reason)
 
         # Nothing is dropped from the results, because a check missing
-        # from the JSON renders as "unknown" in the audits/ tables.
+        # from the JSON renders as "unknown" in the docs/audits/ tables.
         self.assertEqual(
             results['summary']['total'], len(audit_check.CHECK_NAMES)
         )

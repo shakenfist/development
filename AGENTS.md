@@ -9,16 +9,16 @@ application code here.
 `docs/consistency-audits.md` is the reference: what a daily run does,
 how to add a criterion, how to bring a repository into scope, and how
 to test a change before it reaches the fleet. Read it before changing
-anything under `scripts/` or `audits/`.
+anything under `scripts/` or `docs/audits/`.
 
 The parts worth knowing before you start:
 
-- A criterion spans five files (check, metadata, spec, index, prose),
-  plus a column heading if it shares a spec file with another check,
-  and they must stay in sync. `pre-commit` runs the tests that catch
+- A criterion spans four files (check, metadata, spec, index), plus
+  a column heading if it shares a spec file with another check, and
+  they must stay in sync. `pre-commit` runs the tests that catch
   the cross-file breakages.
 - The compliance tables between the `consistency-audit` markers in
-  `audits/*.md` are regenerated and pushed by the daily workflow.
+  `docs/audits/*.md` are regenerated and pushed by the daily workflow.
   Never edit one by hand.
 - Issue titles are the idempotency key for filing and closing, so
   `ISSUE_TITLES` in `scripts/audit_common.py` is an interface.
@@ -62,6 +62,20 @@ the pull request, but the local run is faster and quieter.
 The individual test suites, and how to exercise a check against a real
 repository, are in `docs/consistency-audits.md`.
 
+Adding or removing a file matched by `.vscode/review-scope.toml`
+changes the in-scope count in `REVIEWS.md`, which is generated. Run
+`python3 scripts/review-tracking.py regen` and commit the result with
+the change, or `review-tracking-tests` fails. It can also fail on a
+branch that did not cause it, when another branch adds an in-scope
+file and both regenerate to the same header text: the fix is the same
+one command.
+
+Editing a file that carries a review mark stales that mark, and the
+same suite fails. Run `prune` and say so: the file then needs a human
+to read it again and re-mark it in weAudit. Do not re-stamp -- the
+mark attests that a person read that exact content, so there is no
+version of this an agent can finish alone.
+
 `review-tracking.py` is run by hand in target repositories (via a thin
 wrapper like ryll's `tools/review-tracking.sh`), deliberately not from
 git hooks. Two subcommands also run from CI in steady state: `prune`
@@ -95,7 +109,14 @@ content scanner differs per project and takes judgment.
 
 - Python: single quotes, no external dependencies in the audit scripts
   (stdlib plus the `git` and `gh` CLIs only).
+- Some of the prose here is parsed. `AuditScopeIsStatedOnceTest`
+  reads the in-scope and excluded lists out of
+  `docs/audits/README.md` by splitting it on literal phrases, and
+  asserts those phrases still delimit a list of repository names --
+  so reword freely and let the tests say when a phrase mattered. Any
+  new parse of a document by phrase gets the same treatment: a named
+  constant and an assertion, not a bare `split()`.
 - This repository is audited by its own consistency audits. Two checks
   are N/A for stated reasons in `REPO_OVERRIDES` (its Python is never
   packaged, and it keeps `main` because it publishes no releases); see
-  the exceptional cases in `PROJECT-CONSISTENCY-AUDITS.md`.
+  the excluded projects section of `docs/audits/README.md`.

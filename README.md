@@ -5,6 +5,10 @@ the Shaken Fist project.
 
 ## Documentation
 
+- [Audit Specifications](https://github.com/shakenfist/development/blob/main/docs/audits/README.md) -- What we expect
+  of every Shaken Fist project: one page per criterion, saying what
+  is checked and why, plus which repositories are in scope, excluded,
+  or audited for part of it
 - [Consistency Audits](https://github.com/shakenfist/development/blob/main/docs/consistency-audits.md) -- How the daily
   audit runs, files and closes issues, and how to add a criterion or
   bring a repository into scope
@@ -25,14 +29,11 @@ the Shaken Fist project.
 
 ## Consistency Audits
 
-The [`audits/`](https://github.com/shakenfist/development/tree/main/audits) directory contains one file per audit
+The [`docs/audits/`](https://github.com/shakenfist/development/tree/main/docs/audits) directory contains one file per audit
 criterion, each independently checkable. See
-[`audits/README.md`](https://github.com/shakenfist/development/blob/main/audits/README.md) for the full index, and
+[`docs/audits/README.md`](https://github.com/shakenfist/development/blob/main/docs/audits/README.md) for the full index, and
 [`docs/consistency-audits.md`](https://github.com/shakenfist/development/blob/main/docs/consistency-audits.md) for how
 the system works and how to add an audit item.
-
-The authoritative specification of all audit criteria is in
-[`PROJECT-CONSISTENCY-AUDITS.md`](https://github.com/shakenfist/development/blob/main/PROJECT-CONSISTENCY-AUDITS.md).
 
 Audits run automatically via
 [`.github/workflows/consistency-audit.yml`](https://github.com/shakenfist/development/blob/main/.github/workflows/consistency-audit.yml),
@@ -101,7 +102,7 @@ Most Shaken Fist projects have Claude Code-powered automated review
 and bot-triggered retests. Whether each audited project's review
 automation is compliant is measured every morning rather than listed
 here: see the compliance table in
-[`audits/ci-review-automation.md`](https://github.com/shakenfist/development/blob/main/audits/ci-review-automation.md).
+[`docs/audits/ci-review-automation.md`](https://github.com/shakenfist/development/blob/main/docs/audits/ci-review-automation.md).
 imago is the exception: it carries the automation but is not in the
 audit matrix, so it never appears in that table.
 

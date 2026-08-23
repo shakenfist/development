@@ -110,8 +110,9 @@ major version falls outside the existing range:
 ```
 
 Server projects (shakenfist, kerbside) use exact pins and the
-default range strategy. See `PROJECT-CONSISTENCY-AUDITS.md` for
-the full rationale.
+default range strategy. The
+[audit spec](https://github.com/shakenfist/development/blob/main/docs/audits/renovate.md)
+has the full rationale.
 
 ## Prerequisites
 

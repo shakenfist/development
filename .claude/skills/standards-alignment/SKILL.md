@@ -14,9 +14,10 @@ it there by adding it to the daily audit fleet.
 Do not work from a memorised checklist -- the standards move. The
 authority is:
 
-- `PROJECT-CONSISTENCY-AUDITS.md` -- the prose specification of every
-  standard, including the ones no script checks (functional test
-  coverage, credential handling, pride in our work).
+- `docs/audits/` -- one specification per standard, including the
+  ones no script checks (functional test coverage, credential
+  handling). `docs/audits/README.md` indexes them and says which
+  repositories are in scope or excluded.
 - `scripts/audit-check.py` -- exactly what the daily audit verifies,
   and therefore the definition of "would not create issues".
 - `templates/` -- canonical starting points for most of the files the
@@ -90,7 +91,7 @@ Packaging first, because several checks key off the presence of
     `.github/workflows/consistency-audit.yml`, as its own branch and
     commit here. Land it after the target repo's branch, so the first
     daily audit does not file issues against work still in flight.
-    The per-audit status tables in `audits/*.md` regenerate daily --
+    The per-audit status tables in `docs/audits/*.md` regenerate daily --
     never hand-edit them.
 
 ## Repo settings commands
@@ -151,8 +152,8 @@ gh api -X PUT repos/shakenfist/<repo>/automated-security-fixes
 
 ## What the audit does not check
 
-Passing `audit-check.py` is necessary, not sufficient. Read
-`PROJECT-CONSISTENCY-AUDITS.md` for the judgment-call standards --
+Passing `audit-check.py` is necessary, not sufficient. Read the
+specifications in `docs/audits/` for the judgment-call standards --
 most importantly functional test coverage ("a test for everything
 exposed on the command line") -- and report remaining gaps to Michael
 honestly rather than declaring the repo done.

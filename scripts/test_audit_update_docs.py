@@ -32,7 +32,7 @@ class ColumnNamesTest(unittest.TestCase):
     This is the invariant that broke the 2026-08-12 audit run: the
     review-marks-pre-commit check joined the workflow-standards spec
     without a column heading, and rendering raised KeyError after
-    every audits/*.md had been rewritten but before any was
+    every docs/audits/*.md had been rewritten but before any was
     committed, so no project's table published that day.
     """
 
@@ -59,9 +59,9 @@ class ColumnNamesTest(unittest.TestCase):
         # The test above passes trivially if nothing shares a spec, so
         # assert the case it is meant to cover still exists.
         specs = self._multi_check_specs()
-        self.assertIn('audits/workflow-standards.md', specs)
+        self.assertIn('docs/audits/workflow-standards.md', specs)
         self.assertIn(
-            'review-marks-pre-commit', specs['audits/workflow-standards.md']
+            'review-marks-pre-commit', specs['docs/audits/workflow-standards.md']
         )
 
     def test_no_heading_for_an_unknown_check(self):
@@ -82,6 +82,53 @@ class ColumnNamesTest(unittest.TestCase):
         self.assertTrue(singles)
         for check_id in singles:
             self.assertNotIn(check_id, audit_update_docs.COLUMN_NAMES)
+
+
+class AuditMetadataPathsTest(unittest.TestCase):
+    """Every spec and template path in AUDIT_METADATA must resolve.
+
+    These paths are not dereferenced by anything that would fail: the
+    audit run reads a spec file to regenerate its compliance table, but
+    a path that does not exist just means no table, and
+    audit-manage-issues.py pastes the path into the issue it files. So
+    a typo surfaces as a dead link in somebody else's repository, days
+    later. All 38 entries were rewritten by hand when the tree moved
+    under docs/, which is exactly when one of them is wrong.
+    """
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    def test_every_spec_path_exists(self):
+        metadata = audit_update_docs.AUDIT_METADATA
+        self.assertTrue(metadata)
+        for check_id, meta in sorted(metadata.items()):
+            spec = meta['spec']
+            self.assertTrue(
+                os.path.isfile(os.path.join(self.root, spec)),
+                'the %s check names spec %s, which does not exist'
+                % (check_id, spec),
+            )
+
+    def test_every_template_path_exists(self):
+        for check_id, meta in sorted(audit_update_docs.AUDIT_METADATA.items()):
+            template = meta.get('template')
+            if template is None:
+                continue
+            # None means the criterion has no template. An empty string
+            # is a typo, and would otherwise resolve to the repository
+            # root and pass -- the skip has to be exactly None.
+            self.assertTrue(
+                template,
+                'the %s check has an empty template path; use None if '
+                'it has no template' % check_id,
+            )
+            # Templates are recorded as directories, with the trailing
+            # slash that the issue text prints.
+            self.assertTrue(
+                os.path.isdir(os.path.join(self.root, template)),
+                'the %s check names template %s, which is not a '
+                'directory here' % (check_id, template),
+            )
 
 
 class ColumnNameFallbackTest(unittest.TestCase):
@@ -129,15 +176,15 @@ class DocumentedTestReferencesTest(unittest.TestCase):
     # docs/ except docs/plans/, which is a record of what was decided
     # at the time and is allowed to name things that have since moved.
     #
-    # audits/*.md is deliberately out, apart from the index. Those
+    # docs/audits/*.md is deliberately out, apart from the index. Those
     # files carry generated compliance tables whose findings quote file
-    # paths harvested from the audited repositories -- audits/
+    # paths harvested from the audited repositories -- docs/audits/
     # docs-external-links.md already names a test_amend.py that belongs
     # to another project entirely -- so scanning them would demand that
     # other people's test files exist under our scripts/.
     @property
     def doc_files(self):
-        names = ['AGENTS.md', 'ARCHITECTURE.md', 'audits/README.md']
+        names = ['AGENTS.md', 'ARCHITECTURE.md', 'docs/audits/README.md']
         names.extend(
             sorted(
                 os.path.join('docs', f)
@@ -228,6 +275,41 @@ class DocumentedTestReferencesTest(unittest.TestCase):
         self.assertEqual(wrong, [])
 
 
+class AuditIndexIsCompleteTest(unittest.TestCase):
+    """Every criterion spec must be reachable from the index.
+
+    docs/audits/README.md is the index, and a criterion is described
+    as spanning four files with the index among them. A spec missing
+    from the table is a criterion nobody browsing the directory finds
+    -- which is the whole reason the specifications were moved under
+    docs/ and published. dependency-name-normalization.md was absent
+    from the index from the day it was written and survived a
+    wholesale rewrite of the page, because nothing compared the two.
+    """
+
+    REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    INDEX = 'docs/audits/README.md'
+
+    def test_every_spec_file_is_named_in_the_index(self):
+        audits = os.path.join(self.REPO, 'docs', 'audits')
+        specs = sorted(
+            f for f in os.listdir(audits)
+            if f.endswith('.md') and f != 'README.md'
+        )
+        self.assertTrue(specs)
+        with open(os.path.join(self.REPO, self.INDEX)) as f:
+            index = f.read()
+        # Matched as a link target rather than as a bare filename, so
+        # that a spec merely mentioned in the prose does not count as
+        # indexed.
+        missing = [s for s in specs if '(%s)' % s not in index]
+        self.assertEqual(
+            [], missing,
+            'these criterion specs are not linked from %s: %s'
+            % (self.INDEX, ', '.join(missing)),
+        )
+
+
 class UnmeasuredCriteriaTest(unittest.TestCase):
     """The criteria with no check are named in prose, so pin the list.
 
@@ -247,7 +329,7 @@ class UnmeasuredCriteriaTest(unittest.TestCase):
     MARKER = 'consistency-audit:begin'
 
     def _unmeasured(self):
-        audits = os.path.join(self.REPO, 'audits')
+        audits = os.path.join(self.REPO, 'docs', 'audits')
         found = set()
         for filename in os.listdir(audits):
             # README.md is the index, not a criterion. It is excluded
@@ -281,7 +363,7 @@ class UnmeasuredCriteriaTest(unittest.TestCase):
         return {
             token for token in re.findall(r'`([a-z0-9-]+)`', paragraphs[0])
             if os.path.exists(
-                os.path.join(self.REPO, 'audits', f'{token}.md')
+                os.path.join(self.REPO, 'docs', 'audits', f'{token}.md')
             )
         }
 

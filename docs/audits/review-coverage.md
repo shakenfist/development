@@ -3,7 +3,7 @@
 ## What we check
 
 Repositories that have the human review tracking tooling deployed
-(see [docs/code-review-tracking.md](../docs/code-review-tracking.md))
+(see [docs/code-review-tracking.md](../code-review-tracking.md))
 should keep the review backlog small: fewer than 5 in-scope files
 needing review. Repositories without a `.vscode/review-scope.toml`
 scope config do not have the tooling deployed and are reported as
@@ -28,7 +28,7 @@ back under the threshold.
 
 No template -- compliance is restored by doing review sessions,
 not by copying files. See
-[docs/code-review-tracking.md](../docs/code-review-tracking.md)
+[docs/code-review-tracking.md](../code-review-tracking.md)
 for the session workflow. Staleness on the default branch is
 normally pruned automatically by the adopting repository's
 `prune-reviews` workflow; this audit is the backstop that notices

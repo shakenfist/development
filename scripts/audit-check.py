@@ -18,6 +18,8 @@ import tomllib
 import urllib.parse
 from datetime import datetime, timezone
 
+from audit_common import BEGIN_MARKER, END_MARKER
+
 
 # Minimal hardcoded overrides for properties that cannot be detected
 # from a clone alone.
@@ -472,7 +474,7 @@ def pr_auto_review_callers_inheriting_secrets(repo_path):
     two of them rather than zero, so it is a guard which has seen real
     repositories and not only fixtures. Which repositories are
     outstanding today is the compliance table in
-    audits/ci-review-automation.md, which regenerates daily. That is
+    docs/audits/ci-review-automation.md, which regenerates daily. That is
     deliberately not restated here: one of the two the survey named had
     merged its own removal within the day, and this change is the
     other.
@@ -2032,7 +2034,7 @@ def check_expensive_lane_path_filter(repo_path, props):
 # every time it rebuilds the group. A concurrency group keyed on it is
 # therefore unique per rebuild, cancel-in-progress never matches, and
 # superseded runs build whole clouds nobody is waiting on. See
-# audits/merge-group-cancellation.md.
+# docs/audits/merge-group-cancellation.md.
 MERGE_GROUP_TRIGGER_RE = re.compile(
     r'^\s{1,4}merge_group:\s*$', re.MULTILINE
 )
@@ -2586,7 +2588,7 @@ def check_merge_group_cancellation(repo_path, props, repo_name, org):
             'the merge queue on the default branch builds more than '
             'one entry at a time, so a group keyed on '
             'merge_group.base_ref aliases live entries and would '
-            'cancel one of them (see audits/merge-queue-config.md)'
+            'cancel one of them (see docs/audits/merge-queue-config.md)'
         )
 
     if offenders:
@@ -2600,7 +2602,7 @@ def check_merge_group_cancellation(repo_path, props, repo_name, org):
                 f'on github.event.merge_group.base_ref rather than '
                 f'anything minted per rebuild -- and not shared with '
                 f'anything running beside it. See '
-                f'audits/merge-group-cancellation.md, or mark a '
+                f'docs/audits/merge-group-cancellation.md, or mark a '
                 f'deliberate exception with an "audit-ok: '
                 f'merge-group-cancellation" comment'
             ),
@@ -3110,6 +3112,83 @@ URL_SCHEME_RE = re.compile(r'^[a-zA-Z][a-zA-Z0-9+.\-]*:')
 INLINE_CODE_RE = re.compile(r'(`+)(?:(?!\1)[\s\S])*?\1')
 
 
+def blank_generated_blocks(markdown):
+    """Return markdown with consistency-audit blocks blanked out.
+
+    The compliance tables between those markers are written by
+    audit-update-docs.py, and the "Details for non-compliant projects"
+    notes inside them are detail strings harvested from other
+    repositories and rendered as bare prose. They are not this
+    repository's documentation and must not be judged as it: a
+    plan-index detail reading 'Complete (phases 1-5, 2026-08-15)'
+    would fail plan-phase-references here the next morning, and a
+    harvested markdown link would fail docs-external-links, in both
+    cases through no commit anyone made in this repository. This
+    became reachable when the audits tree moved under docs/ and its
+    36 files entered the scope of both checks.
+
+    A marker is recognised only as a whole line, and only in the exact
+    spelling audit-update-docs.py emits -- which is why both scripts
+    read it from audit_common. A substring test instead matched prose
+    that merely names the markers, and documents that write the pair
+    as one token (`<!-- consistency-audit:begin/end -->`) matched the
+    begin without ever matching the end: that exempted 148 of 309
+    lines of one plan file and 96 of 159 of another from
+    docs-external-links, invisibly.
+
+    Lines are replaced with empty ones rather than removed so that
+    line numbers in reported offenders still point at the right line
+    of the file.
+
+    An unterminated block blanks nothing at all. Swallowing to the end
+    of the file is the one outcome worth avoiding: an exemption that
+    hides content is invisible, while scanning generated content that
+    should have been skipped produces a visible false positive
+    somebody can act on. With whole-line matching an unterminated
+    block means a malformed file rather than a false trigger, so
+    failing towards more scanning is both safe and loud.
+
+    Markers inside a fenced code block are ignored, because a document
+    may show what a generated block looks like -- README.md in the
+    audits tree does exactly that. The fence tracking has to happen
+    here rather than in the callers, which both handle fences only
+    after this function has run: a closing fence sitting between a
+    real marker pair would be blanked away, leaving the fence open and
+    silently exempting the rest of the file. That is the same invisible
+    exemption whole-line matching was introduced to remove, so it is
+    closed at the same place rather than left to the order in which
+    two callers happen to compose their passes.
+    """
+    lines = markdown.splitlines()
+    blanked = list(lines)
+    fence = None
+    start = None
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        opener = stripped[:3] if stripped[:3] in ('```', '~~~') else None
+        if fence is not None:
+            if opener == fence:
+                fence = None
+            continue
+        if opener is not None:
+            fence = opener
+            continue
+        if start is None:
+            if stripped == BEGIN_MARKER:
+                start = index
+            continue
+        if stripped == END_MARKER:
+            for position in range(start, index + 1):
+                blanked[position] = ''
+            start = None
+    out = '\n'.join(blanked)
+    # Keep the trailing newline, so that the blanked text has exactly
+    # as many lines as the original however the file ended.
+    if markdown.endswith('\n'):
+        out += '\n'
+    return out
+
+
 def strip_markdown_code(markdown):
     """Return markdown with fenced blocks and inline code spans removed.
 
@@ -3289,6 +3368,9 @@ def check_docs_external_links(repo_path, props):
     alone. They are the mkdocs convention for addressing another page
     of the same site and resolve on the published site, which is the
     rendering this audit exists to protect.
+
+    Generated consistency-audit blocks are skipped: see
+    blank_generated_blocks().
     """
     if not os.path.isdir(os.path.join(repo_path, 'docs')):
         return {
@@ -3302,7 +3384,9 @@ def check_docs_external_links(repo_path, props):
         with open(
             os.path.join(repo_path, rel_path), 'r', errors='replace'
         ) as f:
-            scannable = strip_markdown_code(f.read())
+            scannable = strip_markdown_code(
+                blank_generated_blocks(f.read())
+            )
 
         rel_dir = os.path.dirname(rel_path)
         raw_targets = [m.group(1) for m in MD_LINK_RE.finditer(scannable)]
@@ -3348,7 +3432,7 @@ def check_docs_external_links(repo_path, props):
 
 
 # README structure limits: the top-level README is a pitch, not a
-# reference manual. See audits/readme-structure.md.
+# reference manual. See docs/audits/readme-structure.md.
 README_MAX_LINES = 150
 README_MAX_WORDS = 1200
 
@@ -3413,7 +3497,7 @@ def check_readme_structure(repo_path, props):
 # AGENTS.md / ARCHITECTURE.md structure limits: both files are a
 # summary and an index into docs/, not reference manuals. AGENTS.md
 # is loaded into every session, so it gets the tighter cap.
-# See audits/llm-doc-structure.md.
+# See docs/audits/llm-doc-structure.md.
 LLM_DOC_LIMITS = {
     'AGENTS.md': (300, 2500),
     'ARCHITECTURE.md': (500, 4000),
@@ -3602,7 +3686,7 @@ def check_llm_doc_structure(repo_path, props):
 
 # Plan phase references: documentation outside plans directories
 # describes current behaviour, not the phase of the plan that built
-# it. See audits/plan-phase-references.md.
+# it. See docs/audits/plan-phase-references.md.
 PHASE_REFERENCE_RE = re.compile(r'\bphases?\s+\d+\b', re.IGNORECASE)
 PHASE_REFERENCE_OK = '<!-- audit-ok: phase-reference -->'
 
@@ -3656,8 +3740,9 @@ def check_plan_phase_references(repo_path, props):
     without even naming the plan. The word "phase" is reserved for
     plan documents (procedural docs use "step" or "stage"), so any
     "phase <number>" outside a plans/ directory is flagged. Fenced
-    code, inline code spans, and lines carrying the
-    audit-ok: phase-reference marker are skipped.
+    code, inline code spans, generated consistency-audit blocks,
+    and lines carrying the audit-ok: phase-reference marker are
+    skipped.
     """
     files = list(iter_doc_content_files(repo_path, props))
     if not files:
@@ -3672,7 +3757,7 @@ def check_plan_phase_references(repo_path, props):
         with open(
             os.path.join(repo_path, rel), 'r', errors='replace'
         ) as f:
-            content = f.read()
+            content = blank_generated_blocks(f.read())
 
         fence = None
         for lineno, line in enumerate(content.splitlines(), 1):
@@ -3720,7 +3805,7 @@ def check_plan_phase_references(repo_path, props):
 
 # Plan source references: a plan pointer written into source or
 # configuration must resolve in this repository, or else be an
-# absolute URL. See audits/plan-source-references.md.
+# absolute URL. See docs/audits/plan-source-references.md.
 PLAN_SOURCE_REF_RE = re.compile(r'[\w./-]*PLAN-[\w.-]*\.md')
 PLAN_SOURCE_URL_RE = re.compile(r'[a-z][a-z0-9+.-]*://\S*', re.IGNORECASE)
 PLAN_SOURCE_REF_OK = 'audit-ok: plan-reference'
@@ -4355,7 +4440,7 @@ def check_secret_scanning_ci(repo_path, props):
     check brittle against reasonable variation.
 
     Note this covers only the scanner. The credential handling
-    patterns in audits/secret-handling.md are review criteria; a
+    patterns in docs/audits/secret-handling.md are review criteria; a
     pass here does not mean a project keeps credentials out of its
     logs.
     """

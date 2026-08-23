@@ -46,21 +46,91 @@ block is the form the template now carries.
 
 Projects supporting multiple Linux distributions should set
 `constraints.python` in `renovate.json` to match the oldest Python
-version they support (matching `requires-python` in `pyproject.toml`).
+version they support, so renovate stops proposing updates that the
+oldest distribution cannot install:
+
+```json
+{
+  "constraints": {
+    "python": ">=3.8"
+  }
+}
+```
 
 Currently required for: agent-python, occystrap.
+
+The value matches `requires-python` in `pyproject.toml`, because both
+are derived from the same thing: the system Python of the oldest
+supported distribution. Where a project has a supported platforms
+matrix, that table lives in `ARCHITECTURE.md`, and both
+`pyproject.toml` and `renovate.json` carry a comment pointing back to
+it. Dropping a distribution therefore means three edits -- the table,
+`requires-python`, and `constraints.python` -- and CI should test on
+the oldest supported Python so a bump that breaks it fails there
+rather than on a user's machine.
 
 ### Package grouping
 
 Projects with tightly coupled dependencies (e.g. the grpc stack)
-should group them in `renovate.json` so they are bumped together.
+should group them in `renovate.json` so they are bumped together:
+
+```json
+{
+  "packageRules": [
+    {
+      "description": "Group grpc packages together",
+      "matchPackagePatterns": [
+        "^grpcio",
+        "^googleapis-common-protos",
+        "^protobuf"
+      ],
+      "groupName": "grpc packages"
+    }
+  ]
+}
+```
 
 ### Range strategy
 
-Client/library projects should use `rangeStrategy: "widen"` for
-grpc package groups so renovate only fires on major version
-changes. Server projects use the default (pin-bumping) strategy.
-See `PROJECT-CONSISTENCY-AUDITS.md` for full rationale.
+Server projects (shakenfist, kerbside) pin their dependencies exactly
+(`==`) and use renovate's default range strategy, which bumps those
+pins on every release. That is right for software running on
+infrastructure we control.
+
+Client and library projects (agent-python, client-python,
+client-python-k3s, clingwrap, occystrap) constrain loosely (`>=`) so
+they install across a wide range of distributions and Python
+versions. For those, the grpc group takes `rangeStrategy: "widen"`, so
+renovate only opens a pull request when a new major version falls
+outside the existing range:
+
+```json
+{
+  "packageRules": [
+    {
+      "description": "Group grpc packages together with widen strategy",
+      "matchPackagePatterns": [
+        "^grpcio",
+        "^googleapis-common-protos",
+        "^protobuf"
+      ],
+      "groupName": "grpc packages",
+      "rangeStrategy": "widen"
+    }
+  ]
+}
+```
+
+Without it, renovate raises the floor of every `>=` constraint on
+every minor release, which is pure churn -- and worse than churn on
+the newest distributions. Fedora 43 ships Python 3.14, and older
+grpcio releases have no wheels for it; a loose constraint lets pip
+choose whichever version does, while a raised floor or an exact pin
+sends it to a source build that fails wherever a C++ compiler is
+missing. Nothing is given up by staying loose: the gRPC wire protocol
+is stable across minor versions, so a client on grpcio 1.80 talks to
+a server on 1.70, and proto3 serialization is stable within a major
+version.
 
 ## Template
 

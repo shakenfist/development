@@ -1,1 +1,9 @@
 __pycache__/
+
+# weAudit writes a per-session log of which files were opened next to
+# its review state. It is editor telemetry rather than attestation --
+# nothing in scripts/review-tracking.py reads it -- and it churns on
+# every review session, so tracking it would trigger the expensive CI
+# lane on review-only pull requests that paths-ignore exists to keep
+# cheap.
+.vscode/.weauditdaylog

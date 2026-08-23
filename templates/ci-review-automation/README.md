@@ -168,9 +168,10 @@ Three details specific to reusable workflows:
   which reintroduces the line -- or which was deployed from the old
   template and has not been cleaned up yet -- is told rather than
   discovered. Which repositories those are is the compliance table
-  in `audits/ci-review-automation.md`, which regenerates daily; it
-  is not restated here, because a count written into a file nobody
-  edits goes stale silently.
+  in the
+  [audit spec](https://github.com/shakenfist/development/blob/main/docs/audits/ci-review-automation.md),
+  which regenerates daily; it is not restated here, because a count
+  written into a file nobody edits goes stale silently.
 
 This is the same calling pattern as
 `shakenfist/actions/.github/workflows/smoke-cluster.yml`, which

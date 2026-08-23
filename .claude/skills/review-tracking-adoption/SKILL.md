@@ -88,7 +88,7 @@ The procedure:
 
 ## Related pieces
 
-- `audits/review-coverage.md` -- the deterministic daily backstop
+- `docs/audits/review-coverage.md` -- the deterministic daily backstop
   for review *backlog*; it does not check CI skipping.
 - The `pr-re-review` user skill -- bot re-reviews on PRs, unrelated
   to review-state PRs.

@@ -5,17 +5,15 @@ projects consistent. It contains no application code.
 
 ## Layout
 
-- `PROJECT-CONSISTENCY-AUDITS.md` -- the authoritative prose
-  specification of everything we expect from a Shaken Fist project,
-  including the list of excluded repositories.
-- `audits/` -- one machine-oriented specification file per audit
-  criterion, each with a per-project compliance table regenerated daily
-  by the audit workflow (between the consistency-audit markers).
-  `audits/README.md` holds the index and the in-scope project list.
 - `scripts/` -- the automation that enforces the audits (see below).
 - `templates/` -- canonical starting points (workflows, configs) for
   rolling infrastructure out to projects.
-- `docs/` -- longer-form documentation of the automation systems.
+- `docs/` -- longer-form documentation of the automation systems, and
+  `docs/audits/`: one specification file per audit criterion, each
+  with a per-project compliance table regenerated daily by the audit
+  workflow (between the consistency-audit markers).
+  `docs/audits/README.md` holds the index, and says which
+  repositories are in scope, excluded, or audited for part of it.
 - `tools/` -- the review tracking wrappers: `review-tracking.sh` for
   local use, and `ci-prune-reviews.sh` which `prune-reviews.yml` runs
   on every push to main. The pull request automation's helpers used to
@@ -46,7 +44,7 @@ consistent" into a measurement, in four stages:
    failing check, closing issues for checks that now pass or no longer
    apply. Issue titles are the idempotency key.
 3. `scripts/audit-update-docs.py` regenerates the compliance tables in
-   `audits/*.md` from the same results, and
+   `docs/audits/*.md` from the same results, and
    `scripts/commit-audit-docs.sh` pushes them back to `main`. The
    tables are a rendering of the latest run, never hand-maintained.
 4. On failure, a reporting job files or updates an `audit-failure`

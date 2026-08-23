@@ -65,7 +65,7 @@ extra so the base install stayed unconstrained. It was withdrawn: the
 pins still shipped in the published metadata, and Renovate's pep621
 manager tracks `optional-dependencies`, so each recorded version
 became another stream of bump pull requests. The
-[audit spec](../../audits/pin-indirect-dependencies.md) describes how
+[audit spec](https://github.com/shakenfist/development/blob/main/docs/audits/pin-indirect-dependencies.md) describes how
 the applies-to test is now made.
 
 ## Rollout

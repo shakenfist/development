@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate the per-project compliance tables in audits/*.md.
+"""Regenerate the per-project compliance tables in docs/audits/*.md.
 
 Reads the JSON results produced by audit-check.py and rewrites the
 section between the consistency-audit markers in each audit spec
@@ -21,13 +21,11 @@ import sys
 
 from audit_common import (
     AUDIT_METADATA,
+    BEGIN_MARKER,
+    END_MARKER,
     ISSUE_TITLES,
     gh_search_issues,
 )
-
-
-BEGIN_MARKER = '<!-- consistency-audit:begin -->'
-END_MARKER = '<!-- consistency-audit:end -->'
 
 # Column headings for specs covered by more than one check. Specs
 # with a single check get a plain 'Status' column.
@@ -87,7 +85,7 @@ def column_name(check_id):
     itself, loudly. Adding a check to a multi-check spec means adding
     its heading here, and forgetting once already cost the fleet a
     day of tables: the KeyError this replaces was raised after every
-    audits/*.md had been rewritten but before any of them was
+    docs/audits/*.md had been rewritten but before any of them was
     committed, so one missing label stopped every project's table
     from publishing. A run that prints an ugly heading and a warning
     is a better failure than a run that silently publishes nothing.
