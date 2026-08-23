@@ -1212,44 +1212,135 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
     added to the matrix alone is audited while the documentation says
     it is not -- and one dropped from the matrix alone silently stops
     being measured while both documents say it is.
+
+    Reading two of the three means splitting prose on a literal
+    phrase, so this class also holds those phrases to their job. See
+    bulleted_block() for what a phrase has to keep doing to stay a
+    usable anchor.
     """
 
     root = os.path.dirname(
         os.path.dirname(os.path.abspath(__file__))
     )
 
+    # Each list below is found by splitting a file on a literal phrase:
+    # two sentences of prose and one line of YAML indentation, in files
+    # nobody edits with a parser in mind. A start phrase that gets
+    # reworded away is loud, because the split raises. An end phrase
+    # that gets reworded away is the dangerous one -- the block simply
+    # runs on to the end of the file and collects every bullet after
+    # it, which the comparisons here can still pass on. So the phrases
+    # are named constants and bulleted_block() asserts they still
+    # delimit a list of repository names before anything trusts them.
+    EXCLUDED_DOC = 'PROJECT-CONSISTENCY-AUDITS.md'
+    EXCLUDED_START = 'are **excluded**'
+    EXCLUDED_END = 'The `actions` repository'
+    EXCLUDED_BULLET = '* '
+
+    IN_SCOPE_DOC = 'audits/README.md'
+    IN_SCOPE_START = '## In-scope projects'
+    IN_SCOPE_END = 'One project is in scope'
+    IN_SCOPE_BULLET = '- '
+
+    MATRIX_WORKFLOW = '.github/workflows/consistency-audit.yml'
+    MATRIX_START = '        repo:\n'
+    MATRIX_BULLET = '          - '
+
+    # What a GitHub repository in any of these lists looks like. The
+    # point is not to validate the name but to notice a parse that has
+    # started collecting prose: a swallowed paragraph brings back
+    # bullets like "The configured version file path must be covered".
+    REPO_NAME = re.compile(r'[a-z0-9][a-z0-9.-]*$')
+
     def read(self, relative):
         with open(os.path.join(self.root, relative)) as f:
             return f.read()
 
+    def bulleted_block(self, path, start, end, bullet):
+        """Return the bullet list delimited by two literal phrases.
+
+        Every assertion here is about the parse rather than the
+        content, so that a reworded document fails with the phrase it
+        needs to carry rather than with a comparison of two sets of
+        repository names that no longer means anything.
+        """
+        text = self.read(path)
+        self.assertEqual(
+            text.count(start), 1,
+            f'{path} must contain the phrase "{start}" exactly once: '
+            f'it is where this suite starts reading the list that '
+            f'follows it',
+        )
+        after = text.split(start, 1)[1]
+        self.assertEqual(
+            after.count(end), 1,
+            f'{path} must contain the phrase "{end}" exactly once '
+            f'after "{start}": it is where this suite stops reading, '
+            f'and without it the parse runs to the end of the file',
+        )
+        block = after.split(end, 1)[0]
+        self.assertNotIn(
+            '\n## ', block,
+            f'the list after "{start}" in {path} now runs past a '
+            f'heading, so "{end}" is no longer the end of it',
+        )
+        entries = [
+            line[len(bullet):].strip() for line in block.splitlines()
+            if line.startswith(bullet)
+        ]
+        self.assertTrue(
+            entries,
+            f'no "{bullet}" bullets between "{start}" and "{end}" in '
+            f'{path}; the list has moved or changed its bullet style',
+        )
+        for entry in entries:
+            self.assertRegex(
+                entry, self.REPO_NAME,
+                f'"{entry}" was read as a repository name from the '
+                f'list after "{start}" in {path}, so the parse is '
+                f'picking up something that is not that list',
+            )
+        return entries
+
     def matrix_repos(self):
-        text = self.read('.github/workflows/consistency-audit.yml')
-        block = text.split('        repo:\n', 1)[1]
+        text = self.read(self.MATRIX_WORKFLOW)
+        self.assertEqual(
+            text.count(self.MATRIX_START), 1,
+            f'{self.MATRIX_WORKFLOW} must contain the matrix key '
+            f'"{self.MATRIX_START.strip()}" at exactly one '
+            f'indentation this suite recognises',
+        )
+        block = text.split(self.MATRIX_START, 1)[1]
         repos = []
         for line in block.splitlines():
-            if line.startswith('          - '):
-                repos.append(line[len('          - '):].strip())
+            if line.startswith(self.MATRIX_BULLET):
+                repos.append(line[len(self.MATRIX_BULLET):].strip())
             elif line.strip() and not line.lstrip().startswith('#'):
                 break
+        self.assertTrue(
+            repos,
+            f'no matrix entries read from {self.MATRIX_WORKFLOW}; the '
+            f'list is indented differently to "{self.MATRIX_BULLET}"',
+        )
+        for repo in repos:
+            self.assertRegex(
+                repo, self.REPO_NAME,
+                f'"{repo}" was read as a repository name from the '
+                f'audit matrix, so the parse has overrun the list',
+            )
         return repos
 
     def documented_in_scope(self):
-        text = self.read('audits/README.md')
-        block = text.split('## In-scope projects', 1)[1]
-        block = block.split('One project is in scope', 1)[0]
-        return [
-            line[2:].strip() for line in block.splitlines()
-            if line.startswith('- ')
-        ]
+        return self.bulleted_block(
+            self.IN_SCOPE_DOC, self.IN_SCOPE_START, self.IN_SCOPE_END,
+            self.IN_SCOPE_BULLET,
+        )
 
     def documented_excluded(self):
-        text = self.read('PROJECT-CONSISTENCY-AUDITS.md')
-        block = text.split('are **excluded**', 1)[1]
-        block = block.split('The `actions` repository', 1)[0]
-        return [
-            line[2:].strip() for line in block.splitlines()
-            if line.startswith('* ')
-        ]
+        return self.bulleted_block(
+            self.EXCLUDED_DOC, self.EXCLUDED_START, self.EXCLUDED_END,
+            self.EXCLUDED_BULLET,
+        )
 
     def partially_scoped(self):
         return {
@@ -1257,6 +1348,22 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
             in audit_check.REPO_OVERRIDES.items()
             if overrides.get('only_checks')
         }
+
+    def test_the_parse_anchors_still_delimit_their_lists(self):
+        # The comparisons below are worth no more than the parses that
+        # feed them, and all three parses are anchored to phrases in
+        # documents that get rewritten for reasons that have nothing
+        # to do with this suite -- PROJECT-CONSISTENCY-AUDITS.md was
+        # rewritten wholesale into the present tense once already. Run
+        # them here on their own so that a reworded anchor fails as a
+        # reworded anchor, naming the phrase and the file, rather than
+        # as a mysterious disagreement about which repositories are
+        # audited. Each parse asserts its own delimiting; this test is
+        # what makes sure all three are exercised even if a comparison
+        # below is one day rewritten not to call them.
+        self.matrix_repos()
+        self.documented_in_scope()
+        self.documented_excluded()
 
     def test_matrix_matches_the_documented_scope(self):
         matrix = set(self.matrix_repos())
