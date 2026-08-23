@@ -139,6 +139,7 @@ release workflows, or a `develop` branch.
 | [ci-review-automation.md](ci-review-automation.md) | Automated review, developer automation workflows |
 | [renovate.md](renovate.md) | Renovate for dependency bumps |
 | [pin-indirect-dependencies.md](pin-indirect-dependencies.md) | Pinning transitive dependencies |
+| [dependency-name-normalization.md](dependency-name-normalization.md) | One spelling per pinned distribution |
 | [export-repo-config.md](export-repo-config.md) | Repo configuration export |
 | [default-branch-naming.md](default-branch-naming.md) | Default branch conventions |
 | [github-security.md](github-security.md) | Dependabot, secret scanning, CodeQL |

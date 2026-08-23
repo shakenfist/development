@@ -268,8 +268,11 @@ The check looks for commits with author email `bot@shakenfist.com`.
 The legacy form of the same guard was a `check-bot-commit` job written out in
 the project's own CI workflow, which the reviewer job then listed in `needs:`.
 The reusable workflow replaced it with an API call it makes itself, so a project
-still carrying that job should delete it -- the `ci-review-automation` audit
-checks for exactly this.
+still carrying that job should delete it. Nothing measures that: the
+`ci-review-automation` audit checks the shape of the reviewer call and the
+retired comment addresser, but not for a leftover `check-bot-commit`, so
+migrating is a step somebody has to remember. The template README has the
+procedure, including the case where another job depends on its output.
 
 ## Cost and Rate Limiting
 

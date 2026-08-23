@@ -147,6 +147,11 @@ repos:
         entry: python3 scripts/test_review_tracking.py
         language: system
         pass_filenames: false
+        # Declared rather than left to pre-commit's empty-pattern
+        # default, so that the absence of a `files:` line reads as a
+        # decision, and so a top-level `exclude:` added later cannot
+        # quietly narrow it.
+        always_run: true
         # No file filter, because this suite now asserts two
         # properties of the whole tree rather than of scripts/: that
         # REVIEWS.md is exactly what the review marks and their sidecar

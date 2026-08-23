@@ -3110,6 +3110,47 @@ URL_SCHEME_RE = re.compile(r'^[a-zA-Z][a-zA-Z0-9+.\-]*:')
 INLINE_CODE_RE = re.compile(r'(`+)(?:(?!\1)[\s\S])*?\1')
 
 
+GENERATED_BEGIN = 'consistency-audit:begin'
+GENERATED_END = 'consistency-audit:end'
+
+
+def blank_generated_blocks(markdown):
+    """Return markdown with consistency-audit blocks blanked out.
+
+    The compliance tables between those markers are written by
+    audit-update-docs.py, and the "Details for non-compliant projects"
+    notes inside them are detail strings harvested from other
+    repositories and rendered as bare prose. They are not this
+    repository's documentation and must not be judged as it: a
+    plan-index detail reading 'Complete (phases 1-5, 2026-08-15)'
+    would fail plan-phase-references here the next morning, and a
+    harvested markdown link would fail docs-external-links, in both
+    cases through no commit anyone made in this repository. This
+    became reachable when the audits tree moved under docs/ and its
+    36 files entered the scope of both checks.
+
+    Lines are replaced with empty ones rather than removed so that
+    line numbers in the reported offenders still point at the right
+    line of the file. An unterminated block runs to the end of the
+    file, which matches how audit-update-docs.py itself would fail to
+    find its end marker.
+    """
+    out = []
+    in_generated = False
+    for line in markdown.splitlines():
+        if in_generated:
+            out.append('')
+            if GENERATED_END in line:
+                in_generated = False
+            continue
+        if GENERATED_BEGIN in line:
+            in_generated = True
+            out.append('')
+            continue
+        out.append(line)
+    return '\n'.join(out)
+
+
 def strip_markdown_code(markdown):
     """Return markdown with fenced blocks and inline code spans removed.
 
@@ -3289,6 +3330,9 @@ def check_docs_external_links(repo_path, props):
     alone. They are the mkdocs convention for addressing another page
     of the same site and resolve on the published site, which is the
     rendering this audit exists to protect.
+
+    Generated consistency-audit blocks are skipped: see
+    blank_generated_blocks().
     """
     if not os.path.isdir(os.path.join(repo_path, 'docs')):
         return {
@@ -3302,7 +3346,9 @@ def check_docs_external_links(repo_path, props):
         with open(
             os.path.join(repo_path, rel_path), 'r', errors='replace'
         ) as f:
-            scannable = strip_markdown_code(f.read())
+            scannable = strip_markdown_code(
+                blank_generated_blocks(f.read())
+            )
 
         rel_dir = os.path.dirname(rel_path)
         raw_targets = [m.group(1) for m in MD_LINK_RE.finditer(scannable)]
@@ -3656,8 +3702,9 @@ def check_plan_phase_references(repo_path, props):
     without even naming the plan. The word "phase" is reserved for
     plan documents (procedural docs use "step" or "stage"), so any
     "phase <number>" outside a plans/ directory is flagged. Fenced
-    code, inline code spans, and lines carrying the
-    audit-ok: phase-reference marker are skipped.
+    code, inline code spans, generated consistency-audit blocks,
+    and lines carrying the audit-ok: phase-reference marker are
+    skipped.
     """
     files = list(iter_doc_content_files(repo_path, props))
     if not files:
@@ -3672,7 +3719,7 @@ def check_plan_phase_references(repo_path, props):
         with open(
             os.path.join(repo_path, rel), 'r', errors='replace'
         ) as f:
-            content = f.read()
+            content = blank_generated_blocks(f.read())
 
         fence = None
         for lineno, line in enumerate(content.splitlines(), 1):

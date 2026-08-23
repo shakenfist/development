@@ -212,6 +212,37 @@ class DocsExternalLinksTest(unittest.TestCase):
         })
         self.assertEqual(result['status'], 'pass')
 
+    def test_generated_compliance_block_links_are_not_scanned(self):
+        # Same reasoning as the plan-phase-references case: a detail
+        # string harvested from another repository can carry a
+        # markdown link, and it is that repository's link to get
+        # wrong, not ours.
+        result = self._check({
+            'docs/audits/renovate.md': (
+                '# Audit: renovate\n'
+                '\n'
+                '<!-- consistency-audit:begin -->\n'
+                'Details for non-compliant projects:\n'
+                '\n'
+                '- ryll: see [the config](../renovate.json) for why\n'
+                '<!-- consistency-audit:end -->\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_a_link_after_a_generated_block_is_still_scanned(self):
+        result = self._check({
+            'docs/audits/renovate.md': (
+                '<!-- consistency-audit:begin -->\n'
+                '- ryll: see [x](../renovate.json)\n'
+                '<!-- consistency-audit:end -->\n'
+                '\n'
+                'Our own [bad link](../tools/x.sh).\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('../tools/x.sh', result['details'])
+
     def test_absolute_and_anchor_links_pass(self):
         result = self._check({
             'docs/index.md': (
@@ -550,6 +581,57 @@ class PlanPhaseReferencesTest(unittest.TestCase):
         })
         self.assertEqual(result['status'], 'fail')
         self.assertIn('README.md:1', result['details'])
+
+    def test_generated_compliance_block_is_not_scanned(self):
+        """A harvested detail must not fail this repository's own audit.
+
+        The compliance tables under docs/audits/ are written by
+        audit-update-docs.py from detail strings collected in other
+        repositories, and rendered as bare prose. The plan-index check
+        quotes an offending status cell verbatim, and the canonical
+        example of one is 'Complete (phases 1-5 and 2b, 2026-08-15)'.
+        Once the audits tree moved under docs/ those files entered this
+        check's scope, so without the exclusion the bot writes that
+        phrase into docs/audits/plan-index.md one morning and this
+        repository fails its own audit the next, having committed
+        nothing.
+        """
+        result = self._check({
+            'docs/audits/plan-index.md': (
+                '# Audit: plan index\n'
+                '\n'
+                '<!-- consistency-audit:begin -->\n'
+                '| Project | Status |\n'
+                '|---------|--------|\n'
+                '| ryll | FAIL |\n'
+                '\n'
+                'Details for non-compliant projects:\n'
+                '\n'
+                '- ryll: 1 plan has a freeform status cell '
+                '(PLAN-x.md ("Complete (phases 1-5 and 2b, '
+                '2026-08-15): shipped"))\n'
+                '<!-- consistency-audit:end -->\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_a_phase_reference_after_a_generated_block_still_fails(self):
+        # The exclusion must end at the end marker, and must not shift
+        # the reported line numbers: blanked lines are kept, not
+        # dropped. Without both, this is a hole rather than a filter.
+        result = self._check({
+            'docs/audits/plan-index.md': (
+                '# Audit: plan index\n'
+                '\n'
+                '<!-- consistency-audit:begin -->\n'
+                '- ryll: shipped in phase 4\n'
+                '<!-- consistency-audit:end -->\n'
+                '\n'
+                'This was wired up in phase 6.\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('docs/audits/plan-index.md:7', result['details'])
 
     def test_plural_phases_fails(self):
         result = self._check({

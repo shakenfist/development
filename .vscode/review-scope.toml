@@ -44,8 +44,10 @@ include = ['*.py', '*.sh', '*.md', '*.yml', '*.yaml']
 # path that exists, so the next move fails loudly.
 #
 # A pattern that is meant to match nothing today carries an
-# `unmatched-by-design` comment on its own line; that marker is what
-# tells the test suite the difference between a guard and a typo.
+# `unmatched-by-design` trailing comment on its own entry below --
+# not on a line of its own, and not up here in the prose, both of
+# which the test suite rejects. That marker is what tells it the
+# difference between a deliberate guard and a stale pattern.
 exclude = [
     'docs/plans/*',
     'PLAN-*.md',  # unmatched-by-design: a guard against plans returning to the root

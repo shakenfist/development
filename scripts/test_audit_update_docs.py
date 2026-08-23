@@ -275,6 +275,41 @@ class DocumentedTestReferencesTest(unittest.TestCase):
         self.assertEqual(wrong, [])
 
 
+class AuditIndexIsCompleteTest(unittest.TestCase):
+    """Every criterion spec must be reachable from the index.
+
+    docs/audits/README.md is the index, and a criterion is described
+    as spanning four files with the index among them. A spec missing
+    from the table is a criterion nobody browsing the directory finds
+    -- which is the whole reason the specifications were moved under
+    docs/ and published. dependency-name-normalization.md was absent
+    from the index from the day it was written and survived a
+    wholesale rewrite of the page, because nothing compared the two.
+    """
+
+    REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    INDEX = 'docs/audits/README.md'
+
+    def test_every_spec_file_is_named_in_the_index(self):
+        audits = os.path.join(self.REPO, 'docs', 'audits')
+        specs = sorted(
+            f for f in os.listdir(audits)
+            if f.endswith('.md') and f != 'README.md'
+        )
+        self.assertTrue(specs)
+        with open(os.path.join(self.REPO, self.INDEX)) as f:
+            index = f.read()
+        # Matched as a link target rather than as a bare filename, so
+        # that a spec merely mentioned in the prose does not count as
+        # indexed.
+        missing = [s for s in specs if '(%s)' % s not in index]
+        self.assertEqual(
+            [], missing,
+            'these criterion specs are not linked from %s: %s'
+            % (self.INDEX, ', '.join(missing)),
+        )
+
+
 class UnmeasuredCriteriaTest(unittest.TestCase):
     """The criteria with no check are named in prose, so pin the list.
 

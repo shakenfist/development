@@ -378,6 +378,38 @@ class ThisRepositoryTest(unittest.TestCase):
             'prune` first',
         )
 
+    def _array_lines(self, raw, key):
+        """Return the lines between `<key> = [` and its closing `]`.
+
+        Deliberately a dumb scan rather than a TOML parse: tomllib
+        gives back values, and what is needed here is the physical
+        lines, because the annotation lives in a comment that a parser
+        discards. A single-line array (`key = ['a', 'b']`) is returned
+        as that one line.
+        """
+        lines = raw.splitlines()
+        for index, line in enumerate(lines):
+            if not line.lstrip().startswith('%s ' % key):
+                continue
+            if '=' not in line:
+                continue
+            if ']' in line.split('=', 1)[1]:
+                return [line]
+            body = []
+            for following in lines[index + 1:]:
+                if following.lstrip().startswith(']'):
+                    return body
+                body.append(following)
+            self.fail(
+                'the %s array in %s is never closed'
+                % (key, self.rt.SCOPE_PATH)
+            )
+        self.fail(
+            'no %s array found in %s; this test reads it by scanning '
+            'for "%s = [" and needs updating if the file changed shape'
+            % (key, self.rt.SCOPE_PATH, key)
+        )
+
     def test_every_scope_pattern_matches_something_or_says_why_not(self):
         """A scope pattern that matches nothing must be deliberate.
 
@@ -399,17 +431,25 @@ class ThisRepositoryTest(unittest.TestCase):
             raw = f.read()
 
         for kind, patterns in [('include', include), ('exclude', exclude)]:
+            body = self._array_lines(raw, kind)
             for pattern in patterns:
                 if any(fnmatch.fnmatch(path, pattern) for path in tracked):
                     continue
-                # Either TOML quote style, so that a pattern which
-                # needs a marker is told so rather than being told it
-                # has no marker when the lookup simply missed it.
+                # The annotation has to be on the entry itself: the
+                # pattern must appear in the code half of a line in
+                # this array whose comment half carries the marker.
+                # Anything looser lets a comment stand in for an
+                # annotation -- the prose above the array quotes
+                # patterns while explaining them, and a comment inside
+                # it could name a pattern it does not annotate. Either
+                # TOML quote style, so that a pattern needing a marker
+                # is told so rather than told it has none because the
+                # lookup missed it.
                 quoted = ["'%s'" % pattern, '"%s"' % pattern]
                 annotated = [
-                    line for line in raw.splitlines()
-                    if any(q in line for q in quoted)
-                    and 'unmatched-by-design' in line
+                    line for line in body
+                    if 'unmatched-by-design' in line
+                    and any(q in line.split('#', 1)[0] for q in quoted)
                 ]
                 self.assertTrue(
                     annotated,
