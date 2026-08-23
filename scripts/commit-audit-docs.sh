@@ -2,9 +2,9 @@
 
 # Commit regenerated audit compliance tables back to main. Run by the
 # update-docs job in the consistency-audit workflow after
-# audit-update-docs.py has rewritten the tables in audits/*.md.
+# audit-update-docs.py has rewritten the tables in docs/audits/*.md.
 
-if git diff --quiet -- audits/; then
+if git diff --quiet -- docs/audits/; then
     echo "No changes to the audit compliance tables."
     exit 0
 fi
@@ -12,7 +12,7 @@ fi
 git config user.name 'shakenfist-bot'
 git config user.email 'bot@shakenfist.com'
 
-git add audits/
+git add docs/audits/
 git commit -m 'Regenerate audit compliance tables.
 
 Automated commit by the consistency-audit workflow.'

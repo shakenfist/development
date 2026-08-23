@@ -113,7 +113,7 @@ def gh_close_issue(org, repo, issue_number, comment=None):
 def build_issue_body(check_id, check_result):
     """Build the issue body for a failed check."""
     meta = AUDIT_METADATA.get(check_id, {})
-    spec_file = meta.get('spec', f'audits/{check_id}.md')
+    spec_file = meta.get('spec', f'docs/audits/{check_id}.md')
     template_dir = meta.get('template')
 
     body = (

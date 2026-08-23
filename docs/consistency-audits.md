@@ -21,7 +21,7 @@ A criterion exists in three places, and all three have to agree.
 | Layer | Lives in | Audience |
 |-------|----------|----------|
 | Prose | `PROJECT-CONSISTENCY-AUDITS.md` | Humans. Why the rule exists, what it is worth, what it does not cover. |
-| Specification | `audits/<check-id>.md` | Both. What is checked, which template implements it, and a generated per-project compliance table. |
+| Specification | `docs/audits/<check-id>.md` | Both. What is checked, which template implements it, and a generated per-project compliance table. |
 | Check | `scripts/audit-check.py` | The runner. A function returning `pass`, `fail` or `not_applicable` with a reason. |
 
 The split is deliberate. The prose is the only place a rule explains
@@ -68,7 +68,7 @@ compliance table for reasons nobody chose.
 
 **3. `update-docs`** -- runs `scripts/audit-update-docs.py`, which
 rewrites the compliance table between the `<!-- consistency-audit:begin
--->` and `<!-- consistency-audit:end -->` markers in each `audits/*.md`
+-->` and `<!-- consistency-audit:end -->` markers in each `docs/audits/*.md`
 from the same results, linking the issues the previous job just filed.
 `scripts/commit-audit-docs.sh` then commits and pushes the result to
 `main` as `shakenfist-bot`, rebasing first in case another push landed
@@ -141,21 +141,21 @@ ones.
    (spec file, optional template) and `ISSUE_TITLES`. Both
    `audit-manage-issues.py` and `audit-update-docs.py` read this
    module.
-3. **`audits/<check-id>.md`** -- the specification, following the
-   structure in `audits/README.md`. Include an empty
+3. **`docs/audits/<check-id>.md`** -- the specification, following the
+   structure in `docs/audits/README.md`. Include an empty
    `consistency-audit` marker block under `## Projects`; the first run
    fills it in.
 4. **`scripts/audit-update-docs.py`** -- only if the check joins an
    existing spec file rather than getting its own. Add a column heading
    for the id to `COLUMN_NAMES`.
-5. **`audits/README.md`** -- add the file to the index.
+5. **`docs/audits/README.md`** -- add the file to the index.
 6. **`PROJECT-CONSISTENCY-AUDITS.md`** -- describe the expectation in
    prose. This is the authoritative human-readable statement of the
    rule.
 
 Step 4 is the one that bites. Its absence broke the 2026-08-12 run:
 `review-marks-pre-commit` joined the workflow-standards spec without a
-heading, and rendering crashed *after* rewriting every `audits/*.md`
+heading, and rendering crashed *after* rewriting every `docs/audits/*.md`
 but before committing any -- so the whole fleet's tables silently stayed
 a day stale. Both halves of that are now fixed. `column_name()` prints
 an ugly heading and a warning rather than raising, because a run that
@@ -171,7 +171,7 @@ measures it everywhere and files the issues.
 ## Bringing a repository into scope
 
 Add it to the matrix in `.github/workflows/consistency-audit.yml` and
-to the in-scope list in `audits/README.md`, and remove it from the
+to the in-scope list in `docs/audits/README.md`, and remove it from the
 excluded list in `PROJECT-CONSISTENCY-AUDITS.md`.
 
 Adding a repository subjects it to every check at once, and every
@@ -197,7 +197,7 @@ omitted -- `audit-update-docs.py` renders a check it cannot find as
 measure".
 
 A scoped repository does not follow the three steps above. It goes in
-the matrix, but stays *off* the in-scope list in `audits/README.md` and
+the matrix, but stays *off* the in-scope list in `docs/audits/README.md` and
 *on* the excluded list in `PROJECT-CONSISTENCY-AUDITS.md`: both
 statements are true of it, because it is excluded from the conventions
 and audited for one thing anyway.
@@ -237,8 +237,8 @@ python3 scripts/audit-update-docs.py --results-dir /tmp/results/ --no-issues
 
 Always pass `--dry-run` to `audit-manage-issues.py`. Without it the
 script creates and closes real issues on real repositories.
-`audit-update-docs.py` rewrites `audits/*.md` in place; discard the
-result with `git restore audits/` afterwards, because a locally
+`audit-update-docs.py` rewrites `docs/audits/*.md` in place; discard the
+result with `git restore docs/audits/` afterwards, because a locally
 generated table only covers the repositories you fed it.
 
 `ci.yml` also runs the audit against this repository as a smoke test,
@@ -253,7 +253,7 @@ design.
 
 - [`PROJECT-CONSISTENCY-AUDITS.md`](https://github.com/shakenfist/development/blob/main/PROJECT-CONSISTENCY-AUDITS.md)
   -- the prose specification of what we audit for.
-- `audits/README.md` -- the criterion index and the in-scope project
+- `docs/audits/README.md` -- the criterion index and the in-scope project
   list.
 - [`ci-review-automation.md`](ci-review-automation.md) and
   [`automated-pr-review.md`](automated-pr-review.md) -- the review

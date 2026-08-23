@@ -44,9 +44,14 @@ passes, but the canonical spelling is the one to write.
 
 The rule is strict about the "nothing else" because that is the part
 that decayed. Status cells across the fleet had grown into whole
-paragraphs -- `Complete (phases 1-5 and 2b, 2026-08-15): every merge
-to develop installs a freshly built .deb/.rpm on...` -- which is
-useful writing in the wrong column. A status is read to decide
+paragraphs:
+
+```
+Complete (phases 1-5 and 2b, 2026-08-15): every merge to develop
+installs a freshly built .deb/.rpm on...
+```
+
+That is useful writing in the wrong column. A status is read to decide
 whether a plan still wants attention; when the answer is buried in a
 paragraph, neither a person scanning the table nor a script can get
 it out. Dates, phase arithmetic and summaries of what happened

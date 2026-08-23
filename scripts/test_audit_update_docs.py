@@ -32,7 +32,7 @@ class ColumnNamesTest(unittest.TestCase):
     This is the invariant that broke the 2026-08-12 audit run: the
     review-marks-pre-commit check joined the workflow-standards spec
     without a column heading, and rendering raised KeyError after
-    every audits/*.md had been rewritten but before any was
+    every docs/audits/*.md had been rewritten but before any was
     committed, so no project's table published that day.
     """
 
@@ -59,9 +59,9 @@ class ColumnNamesTest(unittest.TestCase):
         # The test above passes trivially if nothing shares a spec, so
         # assert the case it is meant to cover still exists.
         specs = self._multi_check_specs()
-        self.assertIn('audits/workflow-standards.md', specs)
+        self.assertIn('docs/audits/workflow-standards.md', specs)
         self.assertIn(
-            'review-marks-pre-commit', specs['audits/workflow-standards.md']
+            'review-marks-pre-commit', specs['docs/audits/workflow-standards.md']
         )
 
     def test_no_heading_for_an_unknown_check(self):
@@ -129,15 +129,15 @@ class DocumentedTestReferencesTest(unittest.TestCase):
     # docs/ except docs/plans/, which is a record of what was decided
     # at the time and is allowed to name things that have since moved.
     #
-    # audits/*.md is deliberately out, apart from the index. Those
+    # docs/audits/*.md is deliberately out, apart from the index. Those
     # files carry generated compliance tables whose findings quote file
-    # paths harvested from the audited repositories -- audits/
+    # paths harvested from the audited repositories -- docs/audits/
     # docs-external-links.md already names a test_amend.py that belongs
     # to another project entirely -- so scanning them would demand that
     # other people's test files exist under our scripts/.
     @property
     def doc_files(self):
-        names = ['AGENTS.md', 'ARCHITECTURE.md', 'audits/README.md']
+        names = ['AGENTS.md', 'ARCHITECTURE.md', 'docs/audits/README.md']
         names.extend(
             sorted(
                 os.path.join('docs', f)
@@ -247,7 +247,7 @@ class UnmeasuredCriteriaTest(unittest.TestCase):
     MARKER = 'consistency-audit:begin'
 
     def _unmeasured(self):
-        audits = os.path.join(self.REPO, 'audits')
+        audits = os.path.join(self.REPO, 'docs', 'audits')
         found = set()
         for filename in os.listdir(audits):
             # README.md is the index, not a criterion. It is excluded
@@ -281,7 +281,7 @@ class UnmeasuredCriteriaTest(unittest.TestCase):
         return {
             token for token in re.findall(r'`([a-z0-9-]+)`', paragraphs[0])
             if os.path.exists(
-                os.path.join(self.REPO, 'audits', f'{token}.md')
+                os.path.join(self.REPO, 'docs', 'audits', f'{token}.md')
             )
         }
 

@@ -123,7 +123,7 @@ files, and handle deleted files.
 
 Repositories with human review tracking deployed (those carrying
 `.vscode/review-scope.toml` -- see
-[docs/code-review-tracking.md](../docs/code-review-tracking.md))
+[docs/code-review-tracking.md](../code-review-tracking.md))
 must exempt the weAudit state files from any pre-commit hook that
 rewrites the files it is given:
 

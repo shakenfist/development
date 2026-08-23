@@ -191,7 +191,7 @@ and is still worth setting accurately -- it is how a reader triages the review
 consistency audit now fails a repository which still carries any part of the
 chain, because the workflow triggers on `issue_comment` and so holds
 `contents: write` against the pull request branch for a feature nobody wants.
-See `audits/ci-review-automation.md`.
+See `docs/audits/ci-review-automation.md`.
 
 ## Workflow Files
 
@@ -301,7 +301,7 @@ render-review.py review.json
 ## Projects Using This System
 
 Most of them, and the list moves: see the compliance table in
-[`ci-review-automation.md`](https://github.com/shakenfist/development/blob/main/audits/ci-review-automation.md).
+[`ci-review-automation.md`](audits/ci-review-automation.md).
 imago was the original implementation and occystrap the first
 adaptation of it, which is why both turn up in the history above.
 

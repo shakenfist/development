@@ -5,7 +5,7 @@ review: periodically reading a repository file by file to catch the
 inconsistencies in style, architecture, and approach that creep in
 over years of incremental change. It is complementary to both PR
 review (which only ever examines deltas) and the consistency audits
-(which catch mechanical drift like missing files -- see `audits/`).
+(which catch mechanical drift like missing files -- see `docs/audits/`).
 The full design rationale is in
 `docs/plans/PLAN-code-review-tracking.md`.
 
@@ -423,7 +423,7 @@ deletes marks weakens nothing. Removing a mark is always safe; it
 merely queues the file for re-review.
 
 **Backlog alerting.** The daily consistency audit runs a
-`review-coverage` check (`audits/review-coverage.md`) against
+`review-coverage` check (`docs/audits/review-coverage.md`) against
 every repository in its matrix. Repositories without a
 `.vscode/review-scope.toml` are reported as not applicable, so
 adopting the tooling automatically opts a repository in. The check

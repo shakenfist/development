@@ -112,8 +112,9 @@ repos:
         # canonical blocks from templates/shared-blocks, and
         # AuditScopeIsStatedOnceTest reads the audit matrix out of
         # .github/workflows/consistency-audit.yml and the scope lists
-        # out of PROJECT-CONSISTENCY-AUDITS.md and audits/README.md by
-        # splitting them on phrases in their prose. The commit that
+        # out of PROJECT-CONSISTENCY-AUDITS.md and
+        # docs/audits/README.md by splitting them on phrases in their
+        # prose. The commit that
         # breaks one of those parses is a documentation commit, so a
         # scripts-only filter never ran the suite that would catch it
         # -- rewriting PROJECT-CONSISTENCY-AUDITS.md into the present

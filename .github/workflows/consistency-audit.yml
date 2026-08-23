@@ -35,7 +35,7 @@ jobs:
           - library-utilities
           - occystrap
           # Scoped to the sfui-vendor check by REPO_OVERRIDES; see
-          # audits/sfui-vendor.md for why it is in the matrix at all.
+          # docs/audits/sfui-vendor.md for why it is in the matrix at all.
           - private-ci
           - ryll
           - shakenfist
@@ -137,7 +137,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
 
-  # Regenerate the per-project compliance tables in audits/*.md from
+  # Regenerate the per-project compliance tables in docs/audits/*.md from
   # the JSON results and commit them back, so the docs cannot drift
   # from what the audit actually measured. Runs after manage-issues
   # so the issue links in the tables include issues created by this
@@ -227,7 +227,7 @@ jobs:
               "closed, across every audited repository. The tables still" \
               "show the previous run's verdicts, so the audit looks" \
               "healthy from the outside -- check the run before trusting" \
-              "anything in audits/.")
+              "anything in docs/audits/.")
 
           if [ -n "${existing}" ]; then
               echo "Commenting on existing audit failure issue #${existing}."

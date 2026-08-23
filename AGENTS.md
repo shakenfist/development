@@ -9,7 +9,7 @@ application code here.
 `docs/consistency-audits.md` is the reference: what a daily run does,
 how to add a criterion, how to bring a repository into scope, and how
 to test a change before it reaches the fleet. Read it before changing
-anything under `scripts/` or `audits/`.
+anything under `scripts/` or `docs/audits/`.
 
 The parts worth knowing before you start:
 
@@ -18,7 +18,7 @@ The parts worth knowing before you start:
   and they must stay in sync. `pre-commit` runs the tests that catch
   the cross-file breakages.
 - The compliance tables between the `consistency-audit` markers in
-  `audits/*.md` are regenerated and pushed by the daily workflow.
+  `docs/audits/*.md` are regenerated and pushed by the daily workflow.
   Never edit one by hand.
 - Issue titles are the idempotency key for filing and closing, so
   `ISSUE_TITLES` in `scripts/audit_common.py` is an interface.
@@ -97,7 +97,8 @@ content scanner differs per project and takes judgment.
   (stdlib plus the `git` and `gh` CLIs only).
 - Some of the prose here is parsed. `AuditScopeIsStatedOnceTest` reads
   the scope lists out of `PROJECT-CONSISTENCY-AUDITS.md` and
-  `audits/README.md` by splitting them on literal phrases, and asserts
+  `docs/audits/README.md` by splitting them on literal phrases, and
+  asserts
   those phrases still delimit a list of repository names -- so reword
   freely and let the tests say when a phrase mattered. Any new
   parse of a document by phrase gets the same treatment: a named

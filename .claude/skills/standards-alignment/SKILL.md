@@ -90,7 +90,7 @@ Packaging first, because several checks key off the presence of
     `.github/workflows/consistency-audit.yml`, as its own branch and
     commit here. Land it after the target repo's branch, so the first
     daily audit does not file issues against work still in flight.
-    The per-audit status tables in `audits/*.md` regenerate daily --
+    The per-audit status tables in `docs/audits/*.md` regenerate daily --
     never hand-edit them.
 
 ## Repo settings commands

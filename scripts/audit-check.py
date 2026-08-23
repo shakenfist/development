@@ -472,7 +472,7 @@ def pr_auto_review_callers_inheriting_secrets(repo_path):
     two of them rather than zero, so it is a guard which has seen real
     repositories and not only fixtures. Which repositories are
     outstanding today is the compliance table in
-    audits/ci-review-automation.md, which regenerates daily. That is
+    docs/audits/ci-review-automation.md, which regenerates daily. That is
     deliberately not restated here: one of the two the survey named had
     merged its own removal within the day, and this change is the
     other.
@@ -2032,7 +2032,7 @@ def check_expensive_lane_path_filter(repo_path, props):
 # every time it rebuilds the group. A concurrency group keyed on it is
 # therefore unique per rebuild, cancel-in-progress never matches, and
 # superseded runs build whole clouds nobody is waiting on. See
-# audits/merge-group-cancellation.md.
+# docs/audits/merge-group-cancellation.md.
 MERGE_GROUP_TRIGGER_RE = re.compile(
     r'^\s{1,4}merge_group:\s*$', re.MULTILINE
 )
@@ -2586,7 +2586,7 @@ def check_merge_group_cancellation(repo_path, props, repo_name, org):
             'the merge queue on the default branch builds more than '
             'one entry at a time, so a group keyed on '
             'merge_group.base_ref aliases live entries and would '
-            'cancel one of them (see audits/merge-queue-config.md)'
+            'cancel one of them (see docs/audits/merge-queue-config.md)'
         )
 
     if offenders:
@@ -2600,7 +2600,7 @@ def check_merge_group_cancellation(repo_path, props, repo_name, org):
                 f'on github.event.merge_group.base_ref rather than '
                 f'anything minted per rebuild -- and not shared with '
                 f'anything running beside it. See '
-                f'audits/merge-group-cancellation.md, or mark a '
+                f'docs/audits/merge-group-cancellation.md, or mark a '
                 f'deliberate exception with an "audit-ok: '
                 f'merge-group-cancellation" comment'
             ),
@@ -3348,7 +3348,7 @@ def check_docs_external_links(repo_path, props):
 
 
 # README structure limits: the top-level README is a pitch, not a
-# reference manual. See audits/readme-structure.md.
+# reference manual. See docs/audits/readme-structure.md.
 README_MAX_LINES = 150
 README_MAX_WORDS = 1200
 
@@ -3413,7 +3413,7 @@ def check_readme_structure(repo_path, props):
 # AGENTS.md / ARCHITECTURE.md structure limits: both files are a
 # summary and an index into docs/, not reference manuals. AGENTS.md
 # is loaded into every session, so it gets the tighter cap.
-# See audits/llm-doc-structure.md.
+# See docs/audits/llm-doc-structure.md.
 LLM_DOC_LIMITS = {
     'AGENTS.md': (300, 2500),
     'ARCHITECTURE.md': (500, 4000),
@@ -3602,7 +3602,7 @@ def check_llm_doc_structure(repo_path, props):
 
 # Plan phase references: documentation outside plans directories
 # describes current behaviour, not the phase of the plan that built
-# it. See audits/plan-phase-references.md.
+# it. See docs/audits/plan-phase-references.md.
 PHASE_REFERENCE_RE = re.compile(r'\bphases?\s+\d+\b', re.IGNORECASE)
 PHASE_REFERENCE_OK = '<!-- audit-ok: phase-reference -->'
 
@@ -3720,7 +3720,7 @@ def check_plan_phase_references(repo_path, props):
 
 # Plan source references: a plan pointer written into source or
 # configuration must resolve in this repository, or else be an
-# absolute URL. See audits/plan-source-references.md.
+# absolute URL. See docs/audits/plan-source-references.md.
 PLAN_SOURCE_REF_RE = re.compile(r'[\w./-]*PLAN-[\w.-]*\.md')
 PLAN_SOURCE_URL_RE = re.compile(r'[a-z][a-z0-9+.-]*://\S*', re.IGNORECASE)
 PLAN_SOURCE_REF_OK = 'audit-ok: plan-reference'
@@ -4355,7 +4355,7 @@ def check_secret_scanning_ci(repo_path, props):
     check brittle against reasonable variation.
 
     Note this covers only the scanner. The credential handling
-    patterns in audits/secret-handling.md are review criteria; a
+    patterns in docs/audits/secret-handling.md are review criteria; a
     pass here does not mean a project keeps credentials out of its
     logs.
     """

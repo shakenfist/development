@@ -14,9 +14,9 @@ it is not, in which case the docs should link to the master plan in
 
 `AGENTS.md` and `ARCHITECTURE.md` are in scope for the same reason
 `README.md` is: they describe current behaviour to a reader who was
-not present for the construction, so an `## Phase 6: Bridge
-Lifecycle` section heading is as unhelpful there as it would be in
-`docs/`. Their *shape* is a separate audit (`llm-doc-structure`).
+not present for the construction, so a
+`## Phase 6: Bridge Lifecycle` section heading is as unhelpful there
+as it would be in `docs/`. Their *shape* is a separate audit (`llm-doc-structure`).
 
 The automated check greps the top-level `README.md`, `AGENTS.md` and
 `ARCHITECTURE.md`, and every `.md` file under `docs/`, for
@@ -49,10 +49,10 @@ carries the canonical `plan-phase-references` shared block (see the
 keep plan history out of the docs.
 
 This audit exists because feature documentation across the fleet
-accreted phrasing like "since two-tier CI phase 3" and "phase 6 is
-what makes..." -- references to the phase numbering of historical
-plans that mean nothing to a reader who was not there when the plan
-was executed.
+accreted phrasing like `since two-tier CI phase 3` and
+`phase 6 is what makes...` -- references to the phase numbering of
+historical plans that mean nothing to a reader who was not there
+when the plan was executed.
 
 ## Template
 

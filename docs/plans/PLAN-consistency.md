@@ -6,7 +6,7 @@ tracking was live. Nothing here is a work list any more.
 
 The current answer to "what is this repository missing" is measured
 daily rather than written down. The criteria live in
-[`audits/`](https://github.com/shakenfist/development/blob/main/audits/README.md),
+[`audits/`](https://github.com/shakenfist/development/blob/main/docs/audits/README.md),
 `scripts/audit-check.py` measures them against a fresh clone of every
 in-scope repository each morning, and what it finds is filed as issues
 on the repository concerned:

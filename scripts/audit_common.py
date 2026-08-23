@@ -12,155 +12,155 @@ import subprocess
 # Map from check ID to the audit spec file and optional template.
 AUDIT_METADATA = {
     'llm-tooling': {
-        'spec': 'audits/llm-tooling.md',
+        'spec': 'docs/audits/llm-tooling.md',
         'template': None,
     },
     'llm-doc-structure': {
-        'spec': 'audits/llm-doc-structure.md',
+        'spec': 'docs/audits/llm-doc-structure.md',
         'template': None,
     },
     'llm-context-lint': {
-        'spec': 'audits/llm-context-lint.md',
+        'spec': 'docs/audits/llm-context-lint.md',
         'template': None,
     },
     'llm-context-lint-ci': {
-        'spec': 'audits/llm-context-lint-ci.md',
+        'spec': 'docs/audits/llm-context-lint-ci.md',
         'template': None,
     },
     'release-process': {
-        'spec': 'audits/release-process.md',
+        'spec': 'docs/audits/release-process.md',
         'template': 'templates/release-automation/',
     },
     'ci-review-automation': {
-        'spec': 'audits/ci-review-automation.md',
+        'spec': 'docs/audits/ci-review-automation.md',
         'template': 'templates/ci-review-automation/',
     },
     'renovate': {
-        'spec': 'audits/renovate.md',
+        'spec': 'docs/audits/renovate.md',
         'template': 'templates/renovate/',
     },
     'pin-indirect-dependencies': {
-        'spec': 'audits/pin-indirect-dependencies.md',
+        'spec': 'docs/audits/pin-indirect-dependencies.md',
         'template': 'templates/pin-indirect-dependencies/',
     },
     'dependency-name-normalization': {
-        'spec': 'audits/dependency-name-normalization.md',
+        'spec': 'docs/audits/dependency-name-normalization.md',
         'template': None,
     },
     'export-repo-config': {
-        'spec': 'audits/export-repo-config.md',
+        'spec': 'docs/audits/export-repo-config.md',
         'template': 'templates/export-repo-config/',
     },
     'default-branch-naming': {
-        'spec': 'audits/default-branch-naming.md',
+        'spec': 'docs/audits/default-branch-naming.md',
         'template': None,
     },
     'github-security': {
-        'spec': 'audits/github-security.md',
+        'spec': 'docs/audits/github-security.md',
         'template': 'templates/codeql/',
     },
     'delete-branch-on-merge': {
-        'spec': 'audits/delete-branch-on-merge.md',
+        'spec': 'docs/audits/delete-branch-on-merge.md',
         'template': None,
     },
     'merge-queue-config': {
-        'spec': 'audits/merge-queue-config.md',
+        'spec': 'docs/audits/merge-queue-config.md',
         'template': None,
     },
     'workflow-permissions': {
-        'spec': 'audits/workflow-standards.md',
+        'spec': 'docs/audits/workflow-standards.md',
         'template': None,
     },
     'pre-commit-config': {
-        'spec': 'audits/workflow-standards.md',
+        'spec': 'docs/audits/workflow-standards.md',
         'template': None,
     },
     'review-marks-pre-commit': {
-        'spec': 'audits/workflow-standards.md',
+        'spec': 'docs/audits/workflow-standards.md',
         'template': None,
     },
     'flake8wrap': {
-        'spec': 'audits/workflow-standards.md',
+        'spec': 'docs/audits/workflow-standards.md',
         'template': None,
     },
     'self-hosted-runners': {
-        'spec': 'audits/workflow-standards.md',
+        'spec': 'docs/audits/workflow-standards.md',
         'template': None,
     },
     'static-runner-tags': {
-        'spec': 'audits/workflow-standards.md',
+        'spec': 'docs/audits/workflow-standards.md',
         'template': None,
     },
     'devpi-fallback': {
-        'spec': 'audits/workflow-standards.md',
+        'spec': 'docs/audits/workflow-standards.md',
         'template': None,
     },
     'devpi-stale-ip': {
-        'spec': 'audits/workflow-standards.md',
+        'spec': 'docs/audits/workflow-standards.md',
         'template': None,
     },
     'expensive-lane-path-filter': {
-        'spec': 'audits/expensive-lane-path-filter.md',
+        'spec': 'docs/audits/expensive-lane-path-filter.md',
         'template': None,
     },
     'merge-group-cancellation': {
-        'spec': 'audits/merge-group-cancellation.md',
+        'spec': 'docs/audits/merge-group-cancellation.md',
         'template': None,
     },
     'pyproject-usage': {
-        'spec': 'audits/pyproject-usage.md',
+        'spec': 'docs/audits/pyproject-usage.md',
         'template': None,
     },
     'version-file-gitignore': {
-        'spec': 'audits/version-file-gitignore.md',
+        'spec': 'docs/audits/version-file-gitignore.md',
         'template': None,
     },
     'rust-unwrap-lint': {
-        'spec': 'audits/rust-unwrap-lint.md',
+        'spec': 'docs/audits/rust-unwrap-lint.md',
         'template': None,
     },
     'readme-absolute-links': {
-        'spec': 'audits/readme-absolute-links.md',
+        'spec': 'docs/audits/readme-absolute-links.md',
         'template': None,
     },
     'docs-external-links': {
-        'spec': 'audits/docs-external-links.md',
+        'spec': 'docs/audits/docs-external-links.md',
         'template': None,
     },
     'readme-structure': {
-        'spec': 'audits/readme-structure.md',
+        'spec': 'docs/audits/readme-structure.md',
         'template': None,
     },
     'plan-phase-references': {
-        'spec': 'audits/plan-phase-references.md',
+        'spec': 'docs/audits/plan-phase-references.md',
         'template': None,
     },
     'plan-source-references': {
-        'spec': 'audits/plan-source-references.md',
+        'spec': 'docs/audits/plan-source-references.md',
         'template': None,
     },
     'plan-index': {
-        'spec': 'audits/plan-index.md',
+        'spec': 'docs/audits/plan-index.md',
         'template': 'templates/shared-blocks/',
     },
     'push-audit': {
-        'spec': 'audits/push-audit.md',
+        'spec': 'docs/audits/push-audit.md',
         'template': 'templates/shared-blocks/',
     },
     'plan-template': {
-        'spec': 'audits/plan-template.md',
+        'spec': 'docs/audits/plan-template.md',
         'template': 'templates/shared-blocks/',
     },
     'secret-scanning-ci': {
-        'spec': 'audits/secret-handling.md',
+        'spec': 'docs/audits/secret-handling.md',
         'template': None,
     },
     'review-coverage': {
-        'spec': 'audits/review-coverage.md',
+        'spec': 'docs/audits/review-coverage.md',
         'template': None,
     },
     'sfui-vendor': {
-        'spec': 'audits/sfui-vendor.md',
+        'spec': 'docs/audits/sfui-vendor.md',
         'template': None,
     },
 }

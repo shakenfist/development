@@ -1206,7 +1206,7 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
 
     Scope is written down three times: the matrix in
     .github/workflows/consistency-audit.yml is what actually runs, the
-    in-scope list in audits/README.md is what a reader is told, and
+    in-scope list in docs/audits/README.md is what a reader is told, and
     the excluded list in PROJECT-CONSISTENCY-AUDITS.md is what the
     standard claims. Nothing else ties them together, so a repository
     added to the matrix alone is audited while the documentation says
@@ -1237,7 +1237,7 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
     EXCLUDED_END = 'The `actions` repository'
     EXCLUDED_BULLET = '* '
 
-    IN_SCOPE_DOC = 'audits/README.md'
+    IN_SCOPE_DOC = 'docs/audits/README.md'
     IN_SCOPE_START = '## In-scope projects'
     IN_SCOPE_END = 'One project is in scope'
     IN_SCOPE_BULLET = '- '
@@ -1372,7 +1372,7 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
             matrix - self.partially_scoped(),
             set(self.documented_in_scope()),
             'the audit matrix and the in-scope list in '
-            'audits/README.md disagree',
+            'docs/audits/README.md disagree',
         )
 
     def test_no_audited_repo_is_also_documented_as_excluded(self):
@@ -1614,7 +1614,7 @@ class CheckScopeTest(unittest.TestCase):
             self.assertEqual(check['details'], reason)
 
         # Nothing is dropped from the results, because a check missing
-        # from the JSON renders as "unknown" in the audits/ tables.
+        # from the JSON renders as "unknown" in the docs/audits/ tables.
         self.assertEqual(
             results['summary']['total'], len(audit_check.CHECK_NAMES)
         )

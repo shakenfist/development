@@ -98,7 +98,7 @@ two.
 are code an agent executes against, so they are linted like code. Every
 repository with agent context runs [skillsaw](https://skillsaw.org/),
 and the audit reports its error-severity findings. See
-[audits/llm-context-lint.md](audits/llm-context-lint.md).
+[docs/audits/llm-context-lint.md](docs/audits/llm-context-lint.md).
 
 Only the error tier counts. skillsaw's warning and info tiers carry style
 opinions -- unlinked path references alone run to dozens per repository --
@@ -120,7 +120,7 @@ also run skillsaw in its own pre-commit **and** in CI, alongside
 actionlint and shellcheck, so a bad skill is caught by the commit that
 introduces it. Pre-commit alone is advisory -- `--no-verify` skips it, and
 a fresh clone never ran `pre-commit install`. CI alone is slow. See
-[audits/llm-context-lint-ci.md](audits/llm-context-lint-ci.md) for the
+[docs/audits/llm-context-lint-ci.md](docs/audits/llm-context-lint-ci.md) for the
 config to copy.
 
 ## Python packaging with pyproject.toml
@@ -215,7 +215,7 @@ The automated check also reports relative targets that stay under
 `../../src/app.rs`) -- the same defect wearing a different spelling,
 and dead on GitHub too.
 
-See [audits/docs-external-links.md](audits/docs-external-links.md) for
+See [docs/audits/docs-external-links.md](docs/audits/docs-external-links.md) for
 the full criterion.
 
 ## README is a pitch
@@ -417,7 +417,7 @@ The remedy is to make the pointer land, not to delete it. If a
 reference cannot be made to resolve, replace it with the reasoning
 it was standing in for.
 
-See [audits/plan-source-references.md](audits/plan-source-references.md)
+See [docs/audits/plan-source-references.md](docs/audits/plan-source-references.md)
 for the full criterion.
 
 ## Claude Code for automated review in CI
@@ -835,7 +835,7 @@ that trigger the rebuilds. Merge batching (`min_entries_to_merge`
 above 1) idles the queue for up to the configured wait time while
 saving no CI, since the queue runs CI once per entry regardless of
 how merges land. See
-[`audits/merge-queue-config.md`](audits/merge-queue-config.md)
+[`docs/audits/merge-queue-config.md`](docs/audits/merge-queue-config.md)
 for the full mechanics and the CLI recipe to inspect and fix a
 ruleset.
 
@@ -882,7 +882,7 @@ to cancel starves the others — three concurrent oVirt builds of the
 same pull request, or capacity held by two superseded merge groups,
 and everything else queues behind them (see
 shakenfist/kerbside#284). See
-[`audits/merge-group-cancellation.md`](audits/merge-group-cancellation.md)
+[`docs/audits/merge-group-cancellation.md`](docs/audits/merge-group-cancellation.md)
 for the pattern and its exemptions.
 
 ## GitHub CodeQL advanced security
@@ -981,7 +981,7 @@ commits, so they cannot even be triaged by commit. `HEAD` still
 reaches all of the default branch, so nothing is given up. Pair it
 with a positive control, and never let the job skip for docs-only
 changes: our one leaked key was published in the user guide. See
-[audits/secret-handling.md](audits/secret-handling.md) for the
+[docs/audits/secret-handling.md](docs/audits/secret-handling.md) for the
 invocation and for how to accept a finding that cannot be removed.
 
 Separately, and not something a scanner can check for us: credentials
@@ -1021,7 +1021,7 @@ nothing cryptographically -- a bearer token is a random identifier
 rather than ciphertext, so a fixed prefix sits beside the random part
 without revealing any of it.
 
-See [audits/secret-handling.md](audits/secret-handling.md) for the full
+See [docs/audits/secret-handling.md](docs/audits/secret-handling.md) for the full
 criterion. Only the scanner half is checked automatically; the rest are
 review criteria, so a passing check means a scanner is running, not
 that a project keeps credentials out of its logs.
@@ -1099,7 +1099,7 @@ deliberate exceptions -- a lane that must
 run even for docs-only changes -- are marked with an
 `audit-ok: no-path-filter` comment in the workflow file, ideally
 with a reason. See
-[audits/expensive-lane-path-filter.md](audits/expensive-lane-path-filter.md)
+[docs/audits/expensive-lane-path-filter.md](docs/audits/expensive-lane-path-filter.md)
 for the full criterion.
 
 ### Linting for CI jobs
@@ -1329,7 +1329,7 @@ allow-unwrap-in-tests = true
 arrangement; `deny` directly in `Cargo.toml` is also acceptable. We do
 not lint `expect_used` -- replacing a provably-infallible `unwrap()`
 with `expect("why this cannot fail")` is the sanctioned fix. See
-[audits/rust-unwrap-lint.md](audits/rust-unwrap-lint.md) for the full
+[docs/audits/rust-unwrap-lint.md](docs/audits/rust-unwrap-lint.md) for the full
 criterion, including the fuzz harness exemption and guidance on mutex
 poisoning panics.
 
@@ -1361,7 +1361,7 @@ needing review, where a file needs review if it has never been reviewed
 or has changed since its last review. The backlog is recomputed against
 HEAD by `scripts/review-tracking.py status` rather than trusted from the
 committed `REVIEWS.md`, so a missed prune cannot inflate coverage. See
-[audits/review-coverage.md](audits/review-coverage.md) for the full
+[docs/audits/review-coverage.md](docs/audits/review-coverage.md) for the full
 criterion.
 
 ## Pride in our work

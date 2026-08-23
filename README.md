@@ -25,9 +25,9 @@ the Shaken Fist project.
 
 ## Consistency Audits
 
-The [`audits/`](https://github.com/shakenfist/development/tree/main/audits) directory contains one file per audit
+The [`docs/audits/`](https://github.com/shakenfist/development/tree/main/docs/audits) directory contains one file per audit
 criterion, each independently checkable. See
-[`audits/README.md`](https://github.com/shakenfist/development/blob/main/audits/README.md) for the full index, and
+[`docs/audits/README.md`](https://github.com/shakenfist/development/blob/main/docs/audits/README.md) for the full index, and
 [`docs/consistency-audits.md`](https://github.com/shakenfist/development/blob/main/docs/consistency-audits.md) for how
 the system works and how to add an audit item.
 
@@ -101,7 +101,7 @@ Most Shaken Fist projects have Claude Code-powered automated review
 and bot-triggered retests. Whether each audited project's review
 automation is compliant is measured every morning rather than listed
 here: see the compliance table in
-[`audits/ci-review-automation.md`](https://github.com/shakenfist/development/blob/main/audits/ci-review-automation.md).
+[`docs/audits/ci-review-automation.md`](https://github.com/shakenfist/development/blob/main/docs/audits/ci-review-automation.md).
 imago is the exception: it carries the automation but is not in the
 audit matrix, so it never appears in that table.
 

@@ -38,15 +38,14 @@ canonical merges behind, and only a hand-run of
 have said so.
 
 kerbside is the second consumer and is audited normally. Its admin UI
-began converting to sfui on 2026-08-11, when phase 4 of the conversion
-put a second base template and the login page on the design system;
-the remaining pages convert a phase at a time, so `.sfui-commit` is
-already there and already checked while most of the UI is still
-Bootstrap. This audit does not care how much of a consumer's UI has
-converted, only that whatever it vendors is verbatim and current --
-which is the useful property during a long conversion, because the
-copy is re-vendored on almost every phase and each of those is a
-chance to land one merge behind.
+is part way through converting to sfui: a second base template and the
+login page are on the design system, and the rest converts a group of
+pages at a time, so `.sfui-commit` is already there and already checked
+while most of the UI is still Bootstrap. This audit does not care how
+much of a consumer's UI has converted, only that whatever it vendors is
+verbatim and current -- which is the useful property during a long
+conversion, because the copy is re-vendored on almost every step of it
+and each of those is a chance to land one merge behind.
 
 ## Template
 
