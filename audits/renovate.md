@@ -74,7 +74,7 @@ See: `templates/renovate/README.md`
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-22T06:45:22.459333+00:00
+Last regenerated: 2026-08-23T06:45:38.740880+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -87,12 +87,12 @@ Last regenerated: 2026-08-22T06:45:22.459333+00:00
 | development | compliant | - |
 | divergulent | non-compliant | shakenfist/divergulent#37 |
 | instar | compliant | - |
-| kerbside | non-compliant | shakenfist/kerbside#310 |
+| kerbside | compliant | - |
 | kerbside-patches | non-compliant | shakenfist/kerbside-patches#1582 |
 | library-utilities | non-compliant | shakenfist/library-utilities#33 |
 | occystrap | non-compliant | shakenfist/occystrap#112 |
 | private-ci | N/A | - |
-| ryll | non-compliant | shakenfist/ryll#273 |
+| ryll | compliant | - |
 | sfui | compliant | - |
 | shakenfist | non-compliant | shakenfist/shakenfist#3757 |
 
@@ -104,10 +104,8 @@ Details for non-compliant projects:
 - **clingwrap** (Status): renovate.json does not enable the pre-commit manager, so the hook revisions in .pre-commit-config.yaml are unmanaged and drift silently
 - **cloudgood** (Status): Missing: .github/workflows/renovate.yml, renovate.json
 - **divergulent** (Status): Missing: .github/workflows/renovate.yml, renovate.json
-- **kerbside** (Status): renovate.json does not enable the pre-commit manager, so the hook revisions in .pre-commit-config.yaml are unmanaged and drift silently
 - **kerbside-patches** (Status): renovate.json does not enable the pre-commit manager, so the hook revisions in .pre-commit-config.yaml are unmanaged and drift silently
 - **library-utilities** (Status): Missing: .github/workflows/renovate.yml, renovate.json
 - **occystrap** (Status): renovate.json does not enable the pre-commit manager, so the hook revisions in .pre-commit-config.yaml are unmanaged and drift silently
-- **ryll** (Status): renovate.json does not enable the pre-commit manager, so the hook revisions in .pre-commit-config.yaml are unmanaged and drift silently
 - **shakenfist** (Status): renovate.json does not enable the pre-commit manager, so the hook revisions in .pre-commit-config.yaml are unmanaged and drift silently
 <!-- consistency-audit:end -->

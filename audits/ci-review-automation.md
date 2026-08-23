@@ -177,11 +177,11 @@ See: `templates/test-drift-fix/README.md`
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-22T06:45:22.459333+00:00
+Last regenerated: 2026-08-23T06:45:38.740880+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
-| actions | compliant | - |
+| actions | non-compliant | shakenfist/actions#36 |
 | agent-python | non-compliant | shakenfist/agent-python#126 |
 | client-python | non-compliant | shakenfist/client-python#367 |
 | client-python-k3s | non-compliant | shakenfist/client-python-k3s#36 |
@@ -190,7 +190,7 @@ Last regenerated: 2026-08-22T06:45:22.459333+00:00
 | development | compliant | - |
 | divergulent | non-compliant | shakenfist/divergulent#36 |
 | instar | non-compliant | shakenfist/instar#515 |
-| kerbside | non-compliant | shakenfist/kerbside#348 |
+| kerbside | non-compliant | shakenfist/kerbside#360 |
 | kerbside-patches | non-compliant | shakenfist/kerbside-patches#949 |
 | library-utilities | non-compliant | shakenfist/library-utilities#32 |
 | occystrap | non-compliant | shakenfist/occystrap#120 |
@@ -201,18 +201,19 @@ Last regenerated: 2026-08-22T06:45:22.459333+00:00
 
 Details for non-compliant projects:
 
-- **agent-python** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard
-- **client-python** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard
-- **client-python-k3s** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard
-- **clingwrap** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard
-- **cloudgood** (Status): Missing workflows: pr-re-review.yml, pr-address-comments.yml
-- **divergulent** (Status): Missing pr-re-review.yml; Missing pr-address-comments.yml; Missing pr-retest.yml; No workflow uses shared action review-pr-with-claude@main
-- **instar** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard
-- **kerbside** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard
-- **kerbside-patches** (Status): Missing pr-re-review.yml; Missing pr-address-comments.yml; Missing pr-retest.yml; No workflow uses shared action review-pr-with-claude@main
-- **library-utilities** (Status): Missing pr-re-review.yml; Missing pr-address-comments.yml; Missing pr-retest.yml; No workflow uses shared action review-pr-with-claude@main
-- **occystrap** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard
-- **ryll** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard; tools/render-review.py has no review-schema.json beside it, so its --validate accepts any review
-- **sfui** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard; tools/render-review.py has no review-schema.json beside it, so its --validate accepts any review
-- **shakenfist** (Status): Missing pr-retest.yml; pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard
+- **actions** (Status): the retired comment addresser is still deployed (.github/workflows/pr-address-comments.yml, tools/address-comments-with-claude.sh); it is unused, and its workflow holds contents: write on the pull request branch
+- **agent-python** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard; the retired comment addresser is still deployed (.github/workflows/pr-address-comments.yml); it is unused, and its workflow holds contents: write on the pull request branch
+- **client-python** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard; the retired comment addresser is still deployed (.github/workflows/pr-address-comments.yml); it is unused, and its workflow holds contents: write on the pull request branch
+- **client-python-k3s** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard; the retired comment addresser is still deployed (.github/workflows/pr-address-comments.yml, tools/address-comments-with-claude.sh); it is unused, and its workflow holds contents: write on the pull request branch
+- **clingwrap** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard; the retired comment addresser is still deployed (.github/workflows/pr-address-comments.yml, tools/address-comments-with-claude.sh, tools/render-review.py, tools/review-schema.json); it is unused, and its workflow holds contents: write on the pull request branch
+- **cloudgood** (Status): Missing workflows: pr-re-review.yml
+- **divergulent** (Status): Missing pr-re-review.yml; Missing pr-retest.yml; No workflow uses shared action review-pr-with-claude@main
+- **instar** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard; the retired comment addresser is still deployed (.github/workflows/pr-address-comments.yml, tools/address-comments-with-claude.sh, tools/render-review.py, tools/review-schema.json); it is unused, and its workflow holds contents: write on the pull request branch
+- **kerbside** (Status): the retired comment addresser is still deployed (.github/workflows/pr-address-comments.yml, tools/address-comments-with-claude.sh, tools/render-review.py, tools/review-schema.json); it is unused, and its workflow holds contents: write on the pull request branch
+- **kerbside-patches** (Status): Missing pr-re-review.yml; Missing pr-retest.yml; No workflow uses shared action review-pr-with-claude@main
+- **library-utilities** (Status): Missing pr-re-review.yml; Missing pr-retest.yml; No workflow uses shared action review-pr-with-claude@main
+- **occystrap** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard; the retired comment addresser is still deployed (.github/workflows/pr-address-comments.yml, tools/address-comments-with-claude.sh, tools/render-review.py, tools/review-schema.json); it is unused, and its workflow holds contents: write on the pull request branch
+- **ryll** (Status): the retired comment addresser is still deployed (.github/workflows/pr-address-comments.yml, tools/address-comments-with-claude.sh, tools/render-review.py, tools/review-schema.json); it is unused, and its workflow holds contents: write on the pull request branch
+- **sfui** (Status): pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard; the retired comment addresser is still deployed (.github/workflows/pr-address-comments.yml, tools/address-comments-with-claude.sh, tools/render-review.py); it is unused, and its workflow holds contents: write on the pull request branch
+- **shakenfist** (Status): Missing pr-retest.yml; pr-re-review.yml does not use shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the trigger handling and does not inherit the action's fork pull request guard; the retired comment addresser is still deployed (.github/workflows/pr-address-comments.yml, tools/address-comments-with-claude.sh, tools/render-review.py, tools/review-schema.json); it is unused, and its workflow holds contents: write on the pull request branch
 <!-- consistency-audit:end -->

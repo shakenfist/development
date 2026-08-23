@@ -70,7 +70,7 @@ See: `templates/pin-indirect-dependencies/README.md`
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-22T06:45:22.459333+00:00
+Last regenerated: 2026-08-23T06:45:38.740880+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|

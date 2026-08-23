@@ -92,7 +92,7 @@ kerbside's smoke workflows for gating lanes, or add trigger-level
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-22T06:45:22.459333+00:00
+Last regenerated: 2026-08-23T06:45:38.740880+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -110,7 +110,7 @@ Last regenerated: 2026-08-22T06:45:22.459333+00:00
 | library-utilities | compliant | - |
 | occystrap | non-compliant | shakenfist/occystrap#113 |
 | private-ci | N/A | - |
-| ryll | non-compliant | shakenfist/ryll#274 |
+| ryll | compliant | - |
 | sfui | non-compliant | shakenfist/sfui#14 |
 | shakenfist | compliant | - |
 
@@ -120,6 +120,5 @@ Details for non-compliant projects:
 - **client-python-k3s** (Status): 1 expensive lane(s) triggered by pull_request or merge_group without adequate path filtering: functional-tests.yml (no path filtering). Add a check_paths filter job (see kerbside functional-tests.yml) or, only for workflows backing no required status check, trigger-level paths-ignore, excluding docs/** and the review-tracking files; mark deliberate exceptions with an "audit-ok: no-path-filter" comment
 - **clingwrap** (Status): 1 expensive lane(s) triggered by pull_request or merge_group without adequate path filtering: functional-tests.yml (no path filtering). Add a check_paths filter job (see kerbside functional-tests.yml) or, only for workflows backing no required status check, trigger-level paths-ignore, excluding docs/** and the review-tracking files; mark deliberate exceptions with an "audit-ok: no-path-filter" comment
 - **occystrap** (Status): 2 expensive lane(s) triggered by pull_request or merge_group without adequate path filtering: functional-tests.yml (no path filtering), python-unit-tests.yml (no path filtering). Add a check_paths filter job (see kerbside functional-tests.yml) or, only for workflows backing no required status check, trigger-level paths-ignore, excluding docs/** and the review-tracking files; mark deliberate exceptions with an "audit-ok: no-path-filter" comment
-- **ryll** (Status): 1 expensive lane(s) triggered by pull_request or merge_group without adequate path filtering: ci.yml (filter does not exclude docs/). Add a check_paths filter job (see kerbside functional-tests.yml) or, only for workflows backing no required status check, trigger-level paths-ignore, excluding docs/** and the review-tracking files; mark deliberate exceptions with an "audit-ok: no-path-filter" comment
 - **sfui** (Status): 1 expensive lane(s) triggered by pull_request or merge_group without adequate path filtering: functional-tests.yml (no path filtering). Add a check_paths filter job (see kerbside functional-tests.yml) or, only for workflows backing no required status check, trigger-level paths-ignore, excluding docs/** and the review-tracking files; mark deliberate exceptions with an "audit-ok: no-path-filter" comment
 <!-- consistency-audit:end -->

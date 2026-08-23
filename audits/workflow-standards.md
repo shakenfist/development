@@ -202,7 +202,7 @@ of correctly structured workflows.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-22T06:45:22.459333+00:00
+Last regenerated: 2026-08-23T06:45:38.740880+00:00
 
 | Project | Permissions | Linting | Review marks | flake8wrap | Runners | Static tags | devpi fallback | devpi IP | Issue |
 |---------|--------|--------|--------|--------|--------|--------|--------|--------|--------|
@@ -220,7 +220,7 @@ Last regenerated: 2026-08-22T06:45:22.459333+00:00
 | library-utilities | compliant | compliant | N/A | compliant | compliant | compliant | N/A | compliant | - |
 | occystrap | compliant | compliant | N/A | non-compliant | compliant | compliant | N/A | compliant | shakenfist/occystrap#67 |
 | private-ci | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | - |
-| ryll | compliant | compliant | N/A | N/A | non-compliant | compliant | N/A | compliant | shakenfist/ryll#201 |
+| ryll | compliant | compliant | N/A | N/A | compliant | compliant | N/A | compliant | - |
 | sfui | compliant | compliant | N/A | N/A | compliant | compliant | compliant | compliant | - |
 | shakenfist | compliant | compliant | N/A | non-compliant | compliant | compliant | non-compliant | compliant | shakenfist/shakenfist#3057, shakenfist/shakenfist#3418 |
 
@@ -230,7 +230,6 @@ Details for non-compliant projects:
 - **agent-python** (Runners): 2 unmarked GitHub-hosted runner reference(s): functional-tests.yml:103 (ubuntu-latest), functional-tests.yml:114 (ubuntu-latest). Move to a self-hosted runner, or mark deliberate exceptions with an "audit-ok: github-hosted-runner" comment
 - **kerbside-patches** (Permissions): 8 workflow(s) missing top-level permissions: auto-retry-infra-failures.yml, ci-reporting.yml, daily-rebase-checks.yml, functional-tests.yml, heal-data-prs.yml, local-container-builds.yml, rebase-tests.yml, trigger-downstream.yml
 - **occystrap** (flake8wrap): Missing shellcheck disable=SC2086 directive
-- **ryll** (Runners): 2 unmarked GitHub-hosted runner reference(s): release.yml:277 (ubuntu-24.04-arm), release.yml:303 (ubuntu-latest). Move to a self-hosted runner, or mark deliberate exceptions with an "audit-ok: github-hosted-runner" comment
 - **shakenfist** (flake8wrap): Missing shellcheck disable=SC2086 directive
-- **shakenfist** (devpi fallback): 9 devpi-backed env block(s) missing a PIP_EXTRA_INDEX_URL pypi fallback: code-formatting.yml:27, codeql-analysis.yml:20, docs-tests.yml:19, functional-tests.yml:26, issue-fix.yml:102, publish-website.yml:17, release.yml:26, scheduled-tests.yml:24, test-drift-fix.yml:74. Add "PIP_EXTRA_INDEX_URL: https://pypi.org/simple/" alongside PIP_INDEX_URL so a devpi cold-cache miss (empty index for a first-touch package) falls back to pypi instead of failing with "from versions: none"
+- **shakenfist** (devpi fallback): 9 devpi-backed env block(s) missing a PIP_EXTRA_INDEX_URL pypi fallback: code-formatting.yml:27, codeql-analysis.yml:20, docs-tests.yml:19, functional-tests.yml:26, issue-fix.yml:102, publish-website.yml:17, release.yml:26, scheduled-tests.yml:24, test-drift-fix.yml:78. Add "PIP_EXTRA_INDEX_URL: https://pypi.org/simple/" alongside PIP_INDEX_URL so a devpi cold-cache miss (empty index for a first-touch package) falls back to pypi instead of failing with "from versions: none"
 <!-- consistency-audit:end -->

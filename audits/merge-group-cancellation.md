@@ -175,6 +175,29 @@ input:
 ## Projects
 
 <!-- consistency-audit:begin -->
-*(Awaiting the first automated regeneration by the consistency
-audit workflow.)*
+*This table is regenerated daily by the consistency audit
+workflow from `scripts/audit-check.py` results; do not edit
+it by hand.*
+
+Last regenerated: 2026-08-23T06:45:38.740880+00:00
+
+| Project | Status | Issue |
+|---------|--------|--------|
+| actions | compliant | - |
+| agent-python | N/A | - |
+| client-python | N/A | - |
+| client-python-k3s | compliant | - |
+| clingwrap | N/A | - |
+| cloudgood | N/A | - |
+| development | N/A | - |
+| divergulent | N/A | - |
+| instar | compliant | - |
+| kerbside | compliant | - |
+| kerbside-patches | N/A | - |
+| library-utilities | N/A | - |
+| occystrap | compliant | - |
+| private-ci | N/A | - |
+| ryll | compliant | - |
+| sfui | N/A | - |
+| shakenfist | compliant | - |
 <!-- consistency-audit:end -->

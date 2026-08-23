@@ -70,7 +70,7 @@ it.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-22T06:45:22.459333+00:00
+Last regenerated: 2026-08-23T06:45:38.740880+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -94,5 +94,5 @@ Last regenerated: 2026-08-22T06:45:22.459333+00:00
 
 Details for non-compliant projects:
 
-- **shakenfist** (Status): 17 plan phase reference(s) in documentation (describe the current behaviour, or link the master plan in docs/plans/ instead of citing a phase number): ARCHITECTURE.md:199, docs/developer_guide/database_internals.md:315, docs/developer_guide/database_internals.md:319, docs/developer_guide/subsystem_internals.md:51, docs/developer_guide/subsystem_internals.md:119, docs/developer_guide/subsystem_internals.md:121, docs/developer_guide/subsystem_internals.md:140, docs/developer_guide/subsystem_internals.md:194, docs/developer_guide/subsystem_internals.md:211, docs/developer_guide/subsystem_internals.md:415 (+7 more)
+- **shakenfist** (Status): 17 plan phase reference(s) in documentation (describe the current behaviour, or link the master plan in docs/plans/ instead of citing a phase number): ARCHITECTURE.md:199, docs/developer_guide/database_internals.md:315, docs/developer_guide/database_internals.md:319, docs/developer_guide/subsystem_internals.md:51, docs/developer_guide/subsystem_internals.md:151, docs/developer_guide/subsystem_internals.md:153, docs/developer_guide/subsystem_internals.md:172, docs/developer_guide/subsystem_internals.md:226, docs/developer_guide/subsystem_internals.md:243, docs/developer_guide/subsystem_internals.md:447 (+7 more)
 <!-- consistency-audit:end -->

@@ -92,7 +92,7 @@ documentation-review section.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-22T06:45:22.459333+00:00
+Last regenerated: 2026-08-23T06:45:38.740880+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -105,12 +105,12 @@ Last regenerated: 2026-08-22T06:45:22.459333+00:00
 | development | N/A | - |
 | divergulent | non-compliant | shakenfist/divergulent#65 |
 | instar | non-compliant | shakenfist/instar#491 |
-| kerbside | non-compliant | shakenfist/kerbside#295 |
+| kerbside | compliant | - |
 | kerbside-patches | N/A | - |
 | library-utilities | N/A | - |
 | occystrap | non-compliant | shakenfist/occystrap#110 |
 | private-ci | N/A | - |
-| ryll | non-compliant | shakenfist/ryll#269 |
+| ryll | compliant | - |
 | sfui | non-compliant | shakenfist/sfui#15 |
 | shakenfist | compliant | - |
 
@@ -119,8 +119,6 @@ Details for non-compliant projects:
 - **client-python-k3s** (Status): missing shared block llm-doc-discipline (copy it verbatim from templates/shared-blocks/llm-doc-discipline.md in the development repository); missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
 - **divergulent** (Status): missing shared block llm-doc-discipline (copy it verbatim from templates/shared-blocks/llm-doc-discipline.md in the development repository); missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
 - **instar** (Status): missing shared block llm-doc-discipline (copy it verbatim from templates/shared-blocks/llm-doc-discipline.md in the development repository); missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
-- **kerbside** (Status): missing shared block llm-doc-discipline (copy it verbatim from templates/shared-blocks/llm-doc-discipline.md in the development repository); missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
 - **occystrap** (Status): missing shared block llm-doc-discipline (copy it verbatim from templates/shared-blocks/llm-doc-discipline.md in the development repository); missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
-- **ryll** (Status): missing shared block llm-doc-discipline (copy it verbatim from templates/shared-blocks/llm-doc-discipline.md in the development repository); missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
 - **sfui** (Status): missing shared block llm-doc-discipline (copy it verbatim from templates/shared-blocks/llm-doc-discipline.md in the development repository); missing shared block plan-phase-references (copy it verbatim from templates/shared-blocks/plan-phase-references.md in the development repository)
 <!-- consistency-audit:end -->

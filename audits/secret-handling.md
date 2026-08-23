@@ -220,7 +220,7 @@ to it before pushing.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-22T06:45:22.459333+00:00
+Last regenerated: 2026-08-23T06:45:38.740880+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -233,7 +233,7 @@ Last regenerated: 2026-08-22T06:45:22.459333+00:00
 | development | compliant | - |
 | divergulent | non-compliant | shakenfist/divergulent#57 |
 | instar | compliant | - |
-| kerbside | non-compliant | shakenfist/kerbside#185 |
+| kerbside | compliant | - |
 | kerbside-patches | non-compliant | shakenfist/kerbside-patches#1504 |
 | library-utilities | non-compliant | shakenfist/library-utilities#41 |
 | occystrap | non-compliant | shakenfist/occystrap#101 |
@@ -248,7 +248,6 @@ Details for non-compliant projects:
 - **client-python** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
 - **clingwrap** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
 - **divergulent** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
-- **kerbside** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
 - **kerbside-patches** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
 - **library-utilities** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow
 - **occystrap** (Status): No secret scanner in CI; expected one of gitleaks, trufflehog, detect-secrets in a workflow

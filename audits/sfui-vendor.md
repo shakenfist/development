@@ -61,7 +61,7 @@ the template.
 workflow from `scripts/audit-check.py` results; do not edit
 it by hand.*
 
-Last regenerated: 2026-08-22T06:45:22.459333+00:00
+Last regenerated: 2026-08-23T06:45:38.740880+00:00
 
 | Project | Status | Issue |
 |---------|--------|--------|
@@ -74,7 +74,7 @@ Last regenerated: 2026-08-22T06:45:22.459333+00:00
 | development | N/A | - |
 | divergulent | N/A | - |
 | instar | N/A | - |
-| kerbside | non-compliant | shakenfist/kerbside#296 |
+| kerbside | compliant | - |
 | kerbside-patches | N/A | - |
 | library-utilities | N/A | - |
 | occystrap | N/A | - |
@@ -85,6 +85,5 @@ Last regenerated: 2026-08-22T06:45:22.459333+00:00
 
 Details for non-compliant projects:
 
-- **kerbside** (Status): kerbside/api/static/sfui: 37 commit(s) behind canonical; re-run tools/vendor.sh from an up to date sfui checkout
 - **private-ci** (Status): conductor/static/sfui: 2 commit(s) behind canonical; re-run tools/vendor.sh from an up to date sfui checkout
 <!-- consistency-audit:end -->
