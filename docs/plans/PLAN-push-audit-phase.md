@@ -11,15 +11,23 @@ Nothing runs it.
 
 The check verifies the file's *contents* with some care -- correct
 name, four shared blocks, current versions -- and never verifies that
-anything *references* it. Measured across the fleet, nothing does:
+anything *references* it. Measured across the eight repositories that
+carry one:
 
 | Referencing surface | Repositories that point at `PUSH-AUDIT.md` |
 |---------------------|--------------------------------------------|
-| `AGENTS.md` | ryll only, and only as a passive index entry |
+| `AGENTS.md` | 3 of 8 -- ryll, divergulent, client-python-k3s |
 | `CLAUDE.md` | none |
 | `PLAN-TEMPLATE.md` | none |
 | git hooks | none |
 | CI | none |
+
+Of the three, only client-python-k3s says *when*: "Before pushing,
+work through the checks in `PUSH-AUDIT.md`." ryll and divergulent
+carry passive index entries -- this file exists, here is what it is
+for. The other five say nothing at all, shakenfist and kerbside
+included, which are the two repositories the audit is most often
+wanted in.
 
 The audit has only ever run because Mikal remembered it. Shipping a
 PR per phase through `/next-phase` raised how often he has to
@@ -75,12 +83,12 @@ reference.
 
 2. **The phase text is a shared block, and `PLAN-TEMPLATE.md` gains
    it as a ninth block.** `PLAN-plan-template-blocks` is in progress:
-   its eight blocks, `check_plan_template` and `audits/plan-template.md`
-   exist, but the migration into the eight repositories' templates has
-   not started. Adding a ninth block now means that migration carries
-   it in the same pass. Editing eight templates by hand in parallel
-   would duplicate the migration and reintroduce exactly the drift
-   that plan exists to remove.
+   its eight blocks, `check_plan_template` and
+   `docs/audits/plan-template.md` exist, but the migration into the
+   eight repositories' templates has not started. Adding a ninth block
+   now means that migration carries it in the same pass. Editing eight
+   templates by hand in parallel would duplicate the migration and
+   reintroduce exactly the drift that plan exists to remove.
 
 3. **`development` gets its own `PUSH-AUDIT.md`.** It is `N/A` today
    -- no pre-push audit file, no plan template -- while being the
@@ -145,7 +153,7 @@ this repository's convention.
 
 | Phase | Status |
 |-------|--------|
-| 1. Foundations | Not started |
+| 1. Foundations | Complete |
 | 2. Fleet sweep | Not started |
 | 3. Review point | Not started |
 
@@ -162,7 +170,7 @@ this repository's convention.
   where the repository has a `PLAN-TEMPLATE.md` it must carry the new
   block. Add the block to `PLAN_TEMPLATE_BLOCKS` so
   `check_plan_template` requires it too.
-* **`audits/push-audit.md`** -- document the reference checks in
+* **`docs/audits/push-audit.md`** -- document the reference checks in
   "What we check" and the fix instructions.
 * **`scripts/test_audit_check.py`** -- cases for: `AGENTS.md` with no
   reference fails; with a reference passes; a repository with no
@@ -179,6 +187,21 @@ this repository's convention.
   audit scripts, the shared-block canon, and the workflow templates
   shipped to other repositories. Carries the four required shared
   blocks.
+* **`AGENTS.md`** -- the reference that makes this repository pass
+  its own new check.
+
+**Blast radius of the reference check**, measured against local
+clones before landing: of the eight repositories carrying a
+`PUSH-AUDIT.md`, three already reference it from `AGENTS.md` (ryll,
+divergulent, client-python-k3s) and five do not. Two of those five
+were otherwise compliant and so become non-compliant on the next
+daily run purely because of this check: **shakenfist and kerbside**.
+The other three (instar, occystrap, sfui) are already non-compliant
+on shared blocks and gain one more line of detail. Local clones lag
+their remotes, so the daily run is the authority on the exact
+number; the shape -- two newly failing, three gaining a line -- is
+what to expect. The fix in each case is one line in `AGENTS.md`, and
+phase 2's sub-agents do it while they are in the repository anyway.
 
 ### 2. Fleet sweep -- one sub-agent per repository
 

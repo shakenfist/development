@@ -33,9 +33,13 @@ version of each of these shared blocks:
   given, what each is for, their context windows, and the
   skew-to-the-more-capable-model rule;
 * **`plan-review-checklist`** -- what the management session
-  verifies after a sub-agent completes; and
+  verifies after a sub-agent completes;
 * **`plan-closeout-sections`** -- the Future work, Bugs fixed and
-  Back brief sections.
+  Back brief sections; and
+* **`plan-push-audit-phase`** -- that every master plan ends with a
+  phase running the repository's `PUSH-AUDIT.md` over the whole
+  plan's work. This is the block that gives the pre-push audit a
+  trigger; see the `push-audit` audit for the runbook it starts.
 
 Every embedded block must be verbatim and at the current version.
 

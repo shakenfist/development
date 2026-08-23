@@ -941,8 +941,24 @@ class PushAuditTest(unittest.TestCase):
         )
 
     def _check(self, files):
+        # A referencing AGENTS.md is supplied unless the case brings
+        # its own, so the block-validation cases below keep testing
+        # block validation instead of all failing on the reference
+        # check. The reference check has its own cases.
+        files = dict(files)
+        named = None
+        for candidate in ('PUSH-AUDIT.md', 'PUSH-TEMPLATE.md'):
+            if candidate in files:
+                named = candidate
+                break
+        if named and 'AGENTS.md' not in files:
+            files['AGENTS.md'] = f'# Agents\n\nSee {named}.\n'
         with tempfile.TemporaryDirectory() as tmp:
             for name, content in files.items():
+                # None means "this file is absent", which is how a
+                # case opts out of the default AGENTS.md above.
+                if content is None:
+                    continue
                 with open(os.path.join(tmp, name), 'w') as f:
                     f.write(content)
             return audit_check.check_push_audit(
@@ -1071,6 +1087,54 @@ class PushAuditTest(unittest.TestCase):
         })
         self.assertEqual(result['status'], 'fail')
         self.assertIn('legacy filename', result['details'])
+
+    def test_unreferenced_audit_fails(self):
+        result = self._check({
+            'PUSH-AUDIT.md': f'# Audit\n\n{self.canonical}\n',
+            'AGENTS.md': '# Agents\n\nNothing about the audit here.\n',
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn(
+            'AGENTS.md does not reference PUSH-AUDIT.md',
+            result['details'],
+        )
+
+    def test_missing_agents_file_fails(self):
+        result = self._check({
+            'PUSH-AUDIT.md': f'# Audit\n\n{self.canonical}\n',
+            'AGENTS.md': None,
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('no AGENTS.md to reference', result['details'])
+
+    def test_legacy_name_reference_names_the_legacy_file(self):
+        # A repository still on the old name gets told to rename it,
+        # not told twice about a file it does not have.
+        result = self._check({
+            'PUSH-TEMPLATE.md': f'# Audit\n\n{self.canonical}\n',
+            'AGENTS.md': '# Agents\n\nSee PUSH-TEMPLATE.md.\n',
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('legacy filename', result['details'])
+        self.assertNotIn('does not reference', result['details'])
+
+    def test_reference_is_reported_alongside_block_problems(self):
+        # Both failures at once, so a repository fixing one is not
+        # surprised by the other on the next daily run.
+        result = self._check({
+            'PUSH-AUDIT.md': '# Audit\n',
+            'AGENTS.md': '# Agents\n\nNothing here.\n',
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('missing shared block', result['details'])
+        self.assertIn('does not reference', result['details'])
+
+    def test_pass_details_mention_the_reference(self):
+        result = self._check({
+            'PUSH-AUDIT.md': f'# Audit\n\n{self.canonical}\n',
+        })
+        self.assertEqual(result['status'], 'pass')
+        self.assertIn('referenced from AGENTS.md', result['details'])
 
 
 class PinIndirectDepsScopeTest(unittest.TestCase):

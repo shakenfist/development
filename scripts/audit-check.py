@@ -4074,6 +4074,14 @@ def check_push_audit(repo_path, props, blocks_dir=None):
     comment-proportion and plan-phase-references shared blocks.
     Repositories with no pre-push audit file at all are N/A --
     whether every project should have one is a separate decision.
+
+    The runbook must also be reachable. Checking only its contents
+    is how it went untriggered: across the fleet the file was
+    current and correct in eight repositories while exactly one
+    AGENTS.md mentioned it, so the audit ran when somebody
+    remembered it and not otherwise. AGENTS.md is loaded into every
+    session, which makes it the one place a reference is certain to
+    be read.
     """
     has_new = check_file_exists(repo_path, 'PUSH-AUDIT.md')
     has_legacy = check_file_exists(repo_path, 'PUSH-TEMPLATE.md')
@@ -4105,6 +4113,23 @@ def check_push_audit(repo_path, props, blocks_dir=None):
         blocks_dir=blocks_dir,
     )
 
+    # The reference check. Match the filename the repository
+    # actually uses, so a repository on the legacy name is told
+    # about the rename once rather than being told twice that
+    # nothing points at a file it does not have.
+    if not check_file_exists(repo_path, 'AGENTS.md'):
+        problems.append(
+            f'no AGENTS.md to reference {filename} from (see the '
+            'llm-tooling audit)'
+        )
+    elif not check_file_contains(
+        repo_path, 'AGENTS.md', re.escape(filename)
+    ):
+        problems.append(
+            f'AGENTS.md does not reference {filename} (an audit '
+            'nothing points at does not get run)'
+        )
+
     if problems:
         return {
             'id': 'push-audit',
@@ -4115,7 +4140,8 @@ def check_push_audit(repo_path, props, blocks_dir=None):
         'id': 'push-audit',
         'status': 'pass',
         'details': (
-            'PUSH-AUDIT.md carries current shared blocks'
+            'PUSH-AUDIT.md carries current shared blocks and is '
+            'referenced from AGENTS.md'
         ),
     }
 
@@ -4378,6 +4404,7 @@ PLAN_TEMPLATE_BLOCKS = [
     'subagent-model-roster',
     'plan-review-checklist',
     'plan-closeout-sections',
+    'plan-push-audit-phase',
 ]
 
 
