@@ -1,9 +1,69 @@
 {
   "version": 1,
   "files": {
+    ".claude/skills/review-tracking-adoption/SKILL.md": {
+      "sha": "8a9af2eaea2b6868cbff0153bba8ca07a43351d0",
+      "date": "2026-08-24"
+    },
+    ".claude/skills/standards-alignment/SKILL.md": {
+      "sha": "ed308932100bca70f211561e79f5478f76e8cdc1",
+      "date": "2026-08-24"
+    },
+    ".github/actionlint.yaml": {
+      "sha": "b2d35594ef5f45213fead85f438b0505cc43a4ac",
+      "date": "2026-08-24"
+    },
+    ".github/workflows/ci.yml": {
+      "sha": "f1ab408ee7c45e13fec2c8ec51169ab6a8135ab5",
+      "date": "2026-08-24"
+    },
+    ".github/workflows/codeql-analysis.yml": {
+      "sha": "3075c3224ffa9a29f77f42702ecb6f76fcf8c673",
+      "date": "2026-08-24"
+    },
+    ".github/workflows/consistency-audit.yml": {
+      "sha": "20ef71b6cf9f1b5229e5fb5617097650d9cd3645",
+      "date": "2026-08-24"
+    },
+    ".github/workflows/export-repo-config.yml": {
+      "sha": "53b5d8eb46e89e228dd88d42d7e1b0c3ea6694cd",
+      "date": "2026-08-24"
+    },
+    ".github/workflows/pr-re-review.yml": {
+      "sha": "80ec34dd460aa292ed7c43d9c2565741af5b76af",
+      "date": "2026-08-24"
+    },
+    ".github/workflows/pr-retest.yml": {
+      "sha": "7323bfc33fd3fa04372d51e904b3c01c14f7be2c",
+      "date": "2026-08-24"
+    },
+    ".github/workflows/prune-reviews.yml": {
+      "sha": "38a5b1dbd2c0448f3d3d02025caa9d799fbc9307",
+      "date": "2026-08-24"
+    },
+    ".github/workflows/renovate.yml": {
+      "sha": "6de354ace01bd8a848b3ca386987109e32a2a43e",
+      "date": "2026-08-24"
+    },
+    ".github/workflows/secret-scan.yml": {
+      "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
+      "date": "2026-08-24"
+    },
+    ".pre-commit-config.yaml": {
+      "sha": "d3c3fcb190f1e07d4e0305d8dda03a0a001c8c81",
+      "date": "2026-08-24"
+    },
     "README.md": {
       "sha": "62dd13f51ec678d99b39cb3a968f24e62898da7f",
       "date": "2026-08-23"
+    },
+    "tools/ci-prune-reviews.sh": {
+      "sha": "3e10680265c6b885619e8e08bea30a4fb05cb10b",
+      "date": "2026-08-24"
+    },
+    "tools/review-tracking.sh": {
+      "sha": "fabe2fc68a97b45b5f628f6380893bbfac9d764c",
+      "date": "2026-08-24"
     }
   }
 }
