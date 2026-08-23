@@ -410,6 +410,18 @@ questions change: reviews go stale as PRs merge, and someone needs
 to notice when enough staleness has accumulated to be worth a
 session. Two pieces of automation cover this.
 
+One consequence of `REVIEWS.md` being generated is worth stating
+before either of them: the header count is a property of the whole
+tree, so adding or removing *any* in-scope file changes it. Running
+`regen` and committing the result belongs with such a change, the
+same way a regenerated lockfile does. `prune-reviews` heals a
+forgotten one on the next push to main, so it is a tidiness rule
+rather than a correctness one -- but this repository additionally
+asserts it at commit time (`review-tracking-tests`), because
+`REVIEWS.md` that is not reproducible from the committed state is how
+a missing stamp sidecar hides. An adopting repository that copies
+that hook inherits the rule; one that does not, does not.
+
 **Automatic pruning.** Each adopting repository carries a
 `prune-reviews` workflow (see ryll's
 `.github/workflows/prune-reviews.yml` and

@@ -21,13 +21,11 @@ import sys
 
 from audit_common import (
     AUDIT_METADATA,
+    BEGIN_MARKER,
+    END_MARKER,
     ISSUE_TITLES,
     gh_search_issues,
 )
-
-
-BEGIN_MARKER = '<!-- consistency-audit:begin -->'
-END_MARKER = '<!-- consistency-audit:end -->'
 
 # Column headings for specs covered by more than one check. Specs
 # with a single check get a plain 'Status' column.

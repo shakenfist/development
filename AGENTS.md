@@ -62,6 +62,14 @@ the pull request, but the local run is faster and quieter.
 The individual test suites, and how to exercise a check against a real
 repository, are in `docs/consistency-audits.md`.
 
+Adding or removing a file matched by `.vscode/review-scope.toml`
+changes the in-scope count in `REVIEWS.md`, which is generated. Run
+`python3 scripts/review-tracking.py regen` and commit the result with
+the change, or `review-tracking-tests` fails. It can also fail on a
+branch that did not cause it, when another branch adds an in-scope
+file and both regenerate to the same header text: the fix is the same
+one command.
+
 `review-tracking.py` is run by hand in target repositories (via a thin
 wrapper like ryll's `tools/review-tracking.sh`), deliberately not from
 git hooks. Two subcommands also run from CI in steady state: `prune`

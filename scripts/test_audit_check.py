@@ -615,6 +615,78 @@ class PlanPhaseReferencesTest(unittest.TestCase):
         })
         self.assertEqual(result['status'], 'pass', result['details'])
 
+    def test_prose_naming_the_markers_exempts_nothing(self):
+        """Naming a marker in prose must not exempt anything.
+
+        The first version of this exclusion matched
+        'consistency-audit:begin' as a bare substring, so a sentence
+        describing the markers triggered it. Documents that write the
+        pair as one token -- '<!-- consistency-audit:begin/end -->' --
+        matched the begin and never the end, blanking the rest of the
+        file: 148 of 309 lines of one plan and 96 of 159 of another
+        silently left docs-external-links. Both spellings below are
+        taken from the real files that did it.
+        """
+        for prose in (
+            'The `<!-- consistency-audit:begin/end -->` marker block so',
+            'empty `<!-- consistency-audit:begin/end -->` block. Pairs with',
+            'rewrites the table between the `<!-- consistency-audit:begin',
+        ):
+            result = self._check({
+                'docs/notes.md': (
+                    '# Notes\n'
+                    '\n'
+                    + prose + '\n'
+                    '\n'
+                    'This was wired up in phase 6.\n'
+                ),
+            })
+            self.assertEqual(
+                result['status'], 'fail',
+                f'prose naming the markers exempted the rest of the '
+                f'file: {prose!r}',
+            )
+            self.assertIn('docs/notes.md:5', result['details'])
+
+    def test_prose_naming_both_markers_exempts_nothing_between_them(self):
+        """Exact whole-line matching, pinned by the case that needs it.
+
+        This is the one the substring test really got wrong and that
+        the unterminated case cannot prove: docs/consistency-audits.md
+        names the begin marker on one line and the end marker two
+        lines later while explaining them, so a substring test found a
+        matched pair and blanked the prose between. Only a whole-line
+        match in the exact spelling audit-update-docs.py emits
+        distinguishes that from a real block.
+        """
+        result = self._check({
+            'docs/notes.md': (
+                '# Notes\n'
+                '\n'
+                'audit-update-docs.py rewrites the table between the\n'
+                '`<!-- consistency-audit:begin -->` and\n'
+                'This part was wired up in phase 6.\n'
+                '`<!-- consistency-audit:end -->` markers.\n'
+            ),
+        })
+        self.assertEqual(
+            result['status'], 'fail',
+            'prose naming both markers exempted the lines between them',
+        )
+        self.assertIn('docs/notes.md:5', result['details'])
+
+    def test_an_unterminated_block_exempts_nothing(self):
+        # Failing towards more scanning: a hidden exemption is
+        # invisible, a false positive is not.
+        result = self._check({
+            'docs/notes.md': (
+                '<!-- consistency-audit:begin -->\n'
+                'Wired up in phase 6.\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('docs/notes.md:2', result['details'])
+
     def test_a_phase_reference_after_a_generated_block_still_fails(self):
         # The exclusion must end at the end marker, and must not shift
         # the reported line numbers: blanked lines are kept, not
@@ -1366,8 +1438,12 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
             f'and without it the parse runs to the end of the file',
         )
         block = after.split(end, 1)[0]
-        self.assertNotIn(
-            '\n## ', block,
+        # Any heading level, not just '## '. The excluded-projects
+        # list this guards sits under a '### ', so a '###' subsection
+        # inserted inside the block would have slipped past a check
+        # for '## ' alone.
+        self.assertIsNone(
+            re.search(r'^#{1,6} ', block, re.MULTILINE),
             f'the list after "{start}" in {path} now runs past a '
             f'heading, so "{end}" is no longer the end of it',
         )
@@ -1493,6 +1569,31 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
                 f'REPO_NAME no longer matches the repository name '
                 f'"{name}"',
             )
+
+    def test_a_subsection_heading_inside_the_block_is_caught(self):
+        # The list this guards sits under a '### ', so a guard that
+        # only knew '## ' would not have noticed a '###' subsection
+        # appearing inside the parsed span.
+        drifted = (
+            'Two repositories are **excluded** from the conventions:\n'
+            '\n'
+            '* imago\n'
+            '\n'
+            '### Some new subsection\n'
+            '\n'
+            '* ryll\n'
+            '\n'
+            'The `actions` repository is a library of composite actions.\n'
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, 'drifted.md'), 'w') as f:
+                f.write(drifted)
+            self.root = tmp
+            with self.assertRaisesRegex(AssertionError, 'runs past a heading'):
+                self.bulleted_block(
+                    'drifted.md', self.EXCLUDED_START, self.EXCLUDED_END,
+                    self.EXCLUDED_BULLET,
+                )
 
     def test_the_parse_anchors_still_delimit_their_lists(self):
         # The comparisons below are worth no more than the parses that

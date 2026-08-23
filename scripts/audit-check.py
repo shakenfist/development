@@ -18,6 +18,8 @@ import tomllib
 import urllib.parse
 from datetime import datetime, timezone
 
+from audit_common import BEGIN_MARKER, END_MARKER
+
 
 # Minimal hardcoded overrides for properties that cannot be detected
 # from a clone alone.
@@ -3110,10 +3112,6 @@ URL_SCHEME_RE = re.compile(r'^[a-zA-Z][a-zA-Z0-9+.\-]*:')
 INLINE_CODE_RE = re.compile(r'(`+)(?:(?!\1)[\s\S])*?\1')
 
 
-GENERATED_BEGIN = 'consistency-audit:begin'
-GENERATED_END = 'consistency-audit:end'
-
-
 def blank_generated_blocks(markdown):
     """Return markdown with consistency-audit blocks blanked out.
 
@@ -3129,26 +3127,46 @@ def blank_generated_blocks(markdown):
     became reachable when the audits tree moved under docs/ and its
     36 files entered the scope of both checks.
 
+    A marker is recognised only as a whole line, and only in the exact
+    spelling audit-update-docs.py emits -- which is why both scripts
+    read it from audit_common. A substring test instead matched prose
+    that merely names the markers, and documents that write the pair
+    as one token (`<!-- consistency-audit:begin/end -->`) matched the
+    begin without ever matching the end: that exempted 148 of 309
+    lines of one plan file and 96 of 159 of another from
+    docs-external-links, invisibly.
+
     Lines are replaced with empty ones rather than removed so that
-    line numbers in the reported offenders still point at the right
-    line of the file. An unterminated block runs to the end of the
-    file, which matches how audit-update-docs.py itself would fail to
-    find its end marker.
+    line numbers in reported offenders still point at the right line
+    of the file.
+
+    An unterminated block blanks nothing at all. Swallowing to the end
+    of the file is the one outcome worth avoiding: an exemption that
+    hides content is invisible, while scanning generated content that
+    should have been skipped produces a visible false positive
+    somebody can act on. With whole-line matching an unterminated
+    block means a malformed file rather than a false trigger, so
+    failing towards more scanning is both safe and loud.
     """
-    out = []
-    in_generated = False
-    for line in markdown.splitlines():
-        if in_generated:
-            out.append('')
-            if GENERATED_END in line:
-                in_generated = False
+    lines = markdown.splitlines()
+    blanked = list(lines)
+    start = None
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if start is None:
+            if stripped == BEGIN_MARKER:
+                start = index
             continue
-        if GENERATED_BEGIN in line:
-            in_generated = True
-            out.append('')
-            continue
-        out.append(line)
-    return '\n'.join(out)
+        if stripped == END_MARKER:
+            for position in range(start, index + 1):
+                blanked[position] = ''
+            start = None
+    out = '\n'.join(blanked)
+    # Keep the trailing newline, so that the blanked text has exactly
+    # as many lines as the original however the file ended.
+    if markdown.endswith('\n'):
+        out += '\n'
+    return out
 
 
 def strip_markdown_code(markdown):

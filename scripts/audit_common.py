@@ -9,6 +9,15 @@ import json
 import subprocess
 
 
+# The markers delimiting the generated compliance table in a spec
+# file. audit-update-docs.py writes them; audit-check.py reads them so
+# that its documentation checks do not judge generated content. Defined
+# here because a writer and a reader that disagree about the marker is
+# the failure that silently exempted half of two plan files.
+BEGIN_MARKER = '<!-- consistency-audit:begin -->'
+END_MARKER = '<!-- consistency-audit:end -->'
+
+
 # Map from check ID to the audit spec file and optional template.
 AUDIT_METADATA = {
     'llm-tooling': {
