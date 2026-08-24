@@ -109,11 +109,7 @@ matching section of the repository's `PLAN-TEMPLATE.md`.
 ## Projects
 
 <!-- consistency-audit:begin -->
-*This table is regenerated daily by the consistency audit
-workflow from `scripts/audit-check.py` results; do not edit
-it by hand.*
-
-Last regenerated: 2026-08-25T06:54:21.186929+00:00
+*Generated 2026-08-25T06:54:21.186929+00:00 from `scripts/audit-check.py`; do not edit.*
 
 | Project | Status | Issue |
 |---------|--------|--------|

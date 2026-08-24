@@ -108,18 +108,14 @@ def render_section(spec, check_ids, results, no_issues):
         else [column_name(c) for c in check_ids]
     )
 
+    timestamps = sorted(r['timestamp'] for r in results)
+    when = f' {timestamps[-1]}' if timestamps else ''
+
     lines = [
         BEGIN_MARKER,
-        '*This table is regenerated daily by the consistency audit',
-        'workflow from `scripts/audit-check.py` results; do not edit',
-        'it by hand.*',
+        f'*Generated{when} from `scripts/audit-check.py`; do not edit.*',
         '',
     ]
-
-    timestamps = sorted(r['timestamp'] for r in results)
-    if timestamps:
-        lines.append(f'Last regenerated: {timestamps[-1]}')
-        lines.append('')
 
     lines.append('| Project | ' + ' | '.join(columns) + ' | Issue |')
     lines.append('|---------|' + '--------|' * (len(columns) + 1))
