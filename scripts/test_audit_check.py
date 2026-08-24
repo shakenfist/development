@@ -925,11 +925,17 @@ class PushAuditTest(unittest.TestCase):
             'Agent doc wording.\n'
             '<!-- shared-block-end -->\n'
         )
+        self.path_block = (
+            '<!-- shared-block: path-traversal-review v1 -->\n'
+            'Path wording.\n'
+            '<!-- shared-block-end -->\n'
+        )
         for name, block in (
             ('readme-discipline', self.readme_block),
             ('llm-doc-discipline', self.llm_doc_block),
             ('comment-proportion', self.comment_block),
             ('plan-phase-references', self.phase_block),
+            ('path-traversal-review', self.path_block),
         ):
             with open(
                 os.path.join(self._blocks.name, f'{name}.md'), 'w'
@@ -937,7 +943,8 @@ class PushAuditTest(unittest.TestCase):
                 f.write(block)
         self.canonical = (
             f'{self.readme_block}\n{self.llm_doc_block}\n'
-            f'{self.comment_block}\n{self.phase_block}'
+            f'{self.comment_block}\n{self.phase_block}\n'
+            f'{self.path_block}'
         )
 
     def _check(self, files):
@@ -2905,6 +2912,82 @@ class ConsoleLoggingTest(unittest.TestCase):
         self.assertIn('thing/bad.py', result['details'])
         self.assertNotIn('thing/good.py', result['details'])
         self.assertIn('1 of 2', result['details'])
+
+
+class HeaderSanitizationTest(unittest.TestCase):
+    """The header-sanitization check.
+
+    Position in the bases is the property under test: a subclass
+    that lists SafeHeaderMixin after BaseHTTPRequestHandler reaches
+    the base send_header() through the MRO and the override never
+    runs, which is indistinguishable from not having the mixin.
+    """
+
+    def _check(self, files):
+        with tempfile.TemporaryDirectory() as tmp:
+            subprocess.run(['git', 'init', '-q', tmp], check=True)
+            for path, content in files.items():
+                full = os.path.join(tmp, path)
+                os.makedirs(os.path.dirname(full), exist_ok=True)
+                with open(full, 'w') as f:
+                    f.write(content)
+            subprocess.run(['git', '-C', tmp, 'add', '-A'], check=True)
+            return audit_check.check_header_sanitization(tmp, {})
+
+    def test_no_handler_is_not_applicable(self):
+        result = self._check({'a.py': 'x = 1\n'})
+        self.assertEqual(result['status'], 'not_applicable')
+
+    def test_mixin_first_passes(self):
+        result = self._check({'a.py': (
+            'class Handler(\n'
+            '        SafeHeaderMixin,\n'
+            '        http.server.BaseHTTPRequestHandler):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_missing_mixin_fails(self):
+        result = self._check({'a.py': (
+            'class Handler(http.server.BaseHTTPRequestHandler):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('does not inherit SafeHeaderMixin', result['details'])
+
+    def test_mixin_after_the_base_class_fails(self):
+        result = self._check({'a.py': (
+            'class Handler(http.server.BaseHTTPRequestHandler,\n'
+            '              SafeHeaderMixin):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('listed after', result['details'])
+
+    def test_audit_ok_marker_exempts_one_class(self):
+        # A module may hold both a real server and a test fixture, so
+        # the marker is read on the class rather than on the file.
+        result = self._check({'a.py': (
+            '# audit-ok: header-sanitization -- fixture, literal headers\n'
+            'class Fixture(http.server.BaseHTTPRequestHandler):\n'
+            '    pass\n'
+            '\n'
+            '\n'
+            'class Real(http.server.BaseHTTPRequestHandler):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('Real', result['details'])
+        self.assertNotIn('Fixture', result['details'])
+
+    def test_the_finding_names_a_line(self):
+        result = self._check({'pkg/srv.py': (
+            '\n'
+            '\n'
+            'class Handler(http.server.BaseHTTPRequestHandler):\n'
+            '    pass\n'
+        )})
+        self.assertIn('pkg/srv.py:3', result['details'])
 
 
 class OrphanSkillMarkdownTest(unittest.TestCase):

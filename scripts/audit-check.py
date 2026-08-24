@@ -104,6 +104,7 @@ CHECK_NAMES = {
     'version-file-gitignore': 'Generated version file',
     'pyproject-usage': 'pyproject.toml usage',
     'console-logging': 'Console script logging setup',
+    'header-sanitization': 'HTTP header sanitization',
     'rust-unwrap-lint': 'Rust unwrap lint',
     'readme-absolute-links': 'README absolute links',
     'docs-external-links': 'Links out of docs/ are absolute',
@@ -3104,6 +3105,116 @@ def check_console_logging(repo_path, props):
     }
 
 
+def check_header_sanitization(repo_path, props):
+    """Check BaseHTTPRequestHandler subclasses strip header newlines.
+
+    A header value carrying a CR or LF splits the response
+    (CWE-113), which CodeQL reports as py/http-response-splitting.
+    The fleet remedy is occystrap's SafeHeaderMixin, which strips
+    both before delegating to the base class.
+
+    The mixin has to be listed *first* in the bases or the MRO
+    reaches BaseHTTPRequestHandler.send_header() and the override
+    never runs, which is why position is checked rather than mere
+    presence.
+
+    Flask projects are unaffected -- Werkzeug's Headers raises on a
+    line break -- and are not applicable here because they have no
+    BaseHTTPRequestHandler subclass to find.
+    """
+    try:
+        result = subprocess.run(
+            ['git', '-C', repo_path, 'ls-files', '--', '*.py'],
+            capture_output=True, text=True, timeout=30,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        return {
+            'id': 'header-sanitization',
+            'status': 'fail',
+            'details': f'Could not run git ls-files: {e}',
+        }
+
+    handlers = []
+    problems = []
+    for relative in result.stdout.splitlines():
+        relative = relative.strip()
+        if not relative:
+            continue
+        path = os.path.join(repo_path, relative)
+        try:
+            with open(path, 'r', errors='replace') as f:
+                content = f.read()
+        except OSError:
+            continue
+        if 'BaseHTTPRequestHandler' not in content:
+            continue
+
+        for match in re.finditer(
+            r'^class\s+(\w+)\s*\(([^)]*)\)\s*:',
+            content, re.MULTILINE | re.DOTALL,
+        ):
+            name, bases = match.group(1), match.group(2)
+            if 'BaseHTTPRequestHandler' not in bases:
+                continue
+
+            line = content.count('\n', 0, match.start()) + 1
+            where = f'{relative}:{line} ({name})'
+
+            # The marker is read on the class statement rather than
+            # per file: a module may hold both a real server and a
+            # test fixture, and exempting the file would exempt both.
+            statement = content[match.start():match.end()]
+            preceding = content[:match.start()].splitlines()[-2:]
+            if 'audit-ok: header-sanitization' in statement or any(
+                'audit-ok: header-sanitization' in p for p in preceding
+            ):
+                continue
+
+            handlers.append(where)
+            names = [b.strip().split('.')[-1] for b in bases.split(',')]
+            names = [n for n in names if n]
+            if 'SafeHeaderMixin' not in names:
+                problems.append(
+                    f'{where}: does not inherit SafeHeaderMixin, so '
+                    f'send_header() passes CR and LF straight through'
+                )
+            elif names.index('SafeHeaderMixin') > names.index(
+                'BaseHTTPRequestHandler'
+            ):
+                problems.append(
+                    f'{where}: SafeHeaderMixin is listed after '
+                    f'BaseHTTPRequestHandler, so the MRO reaches the '
+                    f'base send_header() and the override never runs'
+                )
+
+    if not handlers:
+        return {
+            'id': 'header-sanitization',
+            'status': 'not_applicable',
+            'details': 'No BaseHTTPRequestHandler subclasses',
+        }
+
+    if problems:
+        return {
+            'id': 'header-sanitization',
+            'status': 'fail',
+            'details': (
+                f'{len(problems)} of {len(handlers)} '
+                f'BaseHTTPRequestHandler subclass(es) do not sanitize '
+                f'header values: ' + '; '.join(sorted(problems))
+            ),
+        }
+
+    return {
+        'id': 'header-sanitization',
+        'status': 'pass',
+        'details': (
+            f'{len(handlers)} BaseHTTPRequestHandler subclass(es) '
+            f'inherit SafeHeaderMixin first'
+        ),
+    }
+
+
 def check_rust_unwrap_lint(repo_path, props):
     """Check Rust projects enable clippy's unwrap_used lint.
 
@@ -4239,6 +4350,7 @@ def check_push_audit(repo_path, props, blocks_dir=None):
         required=[
             'readme-discipline', 'llm-doc-discipline',
             'comment-proportion', 'plan-phase-references',
+            'path-traversal-review',
         ],
         blocks_dir=blocks_dir,
     )
@@ -5230,6 +5342,8 @@ def check_calls(repo_path, props, repo_name, org):
          lambda: check_version_file(repo_path, props)),
         ('console-logging',
          lambda: check_console_logging(repo_path, props)),
+        ('header-sanitization',
+         lambda: check_header_sanitization(repo_path, props)),
         ('rust-unwrap-lint',
          lambda: check_rust_unwrap_lint(repo_path, props)),
         ('readme-absolute-links',
