@@ -76,9 +76,14 @@ commit in each affected repository runs that repository's
 default branch. Record here what each audit found, or that it found
 nothing.
 
-The repositories are listed under *Affected repositories* above;
-those without a `PUSH-AUDIT.md` say so rather than skipping the
-step silently.
+Both affected repositories carry a `PUSH-AUDIT.md` today, so there
+is nothing to rediscover when the pin finally comes out: shakenfist
+is in the consistency-audit matrix and `push-audit` reports it
+compliant, and imago has one but sits outside the matrix entirely,
+so its copy is not version-checked and may have drifted from the
+current shared blocks -- check it before relying on it. If either
+loses its runbook before the unpinning lands, the commit says so
+rather than skipping the step silently.
 
 ## Timeline
 

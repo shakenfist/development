@@ -132,22 +132,43 @@ reference.
 
 The worry motivating decision 1 is landing several phases of a plan
 and then rewriting them all to satisfy an audit that runs at the end.
-Counted against the fleet on 2026-08-24, with 0 open PRs everywhere
-except shakenfist (two: a bot fix and queue performance step 7):
 
-The planning estimate was thirty-seven. The sweep in phase 2 counted
-properly, in fresh worktrees off each default branch, and found
-**thirty-six**: shakenfist 22, ryll 6, development 6 (five, plus this
-plan), kerbside 1, instar 1. occystrap, divergulent, sfui and
-client-python-k3s have none.
+Two counts sit behind the figures below and they are not the same
+event, which is what makes the correction dates read oddly until the
+distinction is drawn. The **planning estimate** was read from the
+local clones on this machine, several of which had not been fetched
+for some time -- one of them from before kerbside's
+`PLAN-demo-install` closed out on 2026-08-22. The **sweep count** was
+taken on 2026-08-24 in fresh worktrees off each default branch, with
+0 open PRs everywhere except shakenfist (two: a bot fix and queue
+performance step 7). Both happened on 2026-08-24; only the data
+behind the estimate was old.
 
-Three of the planning figures were wrong, and the corrections are
+The estimate was thirty-seven. The sweep counted **thirty-six**:
+shakenfist 22, ryll 6, development 6 (five, plus this plan),
+kerbside 1, instar 1.
+
+Thirty-six is a count of the plans **in scope for the sweep** -- the
+incomplete master plans an `index.md` tracks in the five repositories
+phase 2 covered -- and not a count of every plan in the organisation.
+Four repositories contributed nothing, for three different reasons:
+
+* **client-python-k3s** has two planning documents and neither is a
+  master plan.
+* **occystrap** and **sfui** have master plans but no index a
+  scope list can be derived from: sfui has three plans and no
+  `docs/plans/index.md` at all, and occystrap's index is a bullet
+  list naming two of its seven master plans, with no status column.
+* **divergulent** has both, and was missed. See the fourth
+  correction below.
+
+Four of the planning figures were wrong, and the corrections are
 recorded here rather than quietly overwritten:
 
 * **kerbside is 1, not 3.** The estimate counted rows from
   kerbside's *Standalone plans* table alongside its master plans,
-  and `PLAN-demo-install` closed out on 2026-08-22, after the
-  survey.
+  and `PLAN-demo-install` closed out on 2026-08-22 -- after the
+  local clone's last fetch, so the estimate still saw it open.
 * **shakenfist has one root-level `PLAN-*.md`, not seventeen.** The
   estimate was taken from a local clone well behind `develop`; at
   `develop` HEAD only `PLAN-TEMPLATE.md` sits at the root, and
@@ -156,12 +177,35 @@ recorded here rather than quietly overwritten:
 * **ryll's shared blocks are current.** The estimate had ryll
   failing two blocks; that too was clone staleness. It passes
   `push-audit` outright.
+* **divergulent has four incomplete master plans, not none.** The
+  estimate's repository list said it had none and the sweep
+  inherited that without rechecking. It has nine master plans in a
+  conforming `docs/plans/index.md` -- `PLAN-published-cache`,
+  `PLAN-release-1.0`, `PLAN-patch-classification` and
+  `PLAN-curation-cli-ergonomics` are the incomplete four -- and it
+  carries a `PUSH-AUDIT.md`, so it is exactly the shape the
+  mechanism is for. This is a gap in phase 2, not a scope
+  exclusion: phase 2's definition of done names five repositories,
+  while decision 4 says the sweep covers *every* incomplete master
+  plan. Phase 3 decides which of those two is right before the
+  count is quoted anywhere else.
 
 | Exposure | Plans | What the audit phase means there |
 |----------|-------|----------------------------------|
 | No phases landed (Not started / Proposed / Blocked) | 19 | Purely prospective; every phase is written knowing the audit is coming |
 | Early or middle | 11 | Most phases still ahead of the audit |
-| Near complete (70% or more of phases landed) | 6 | shakenfist's Kerbside VDI tokens (9 of 10), Queue performance (6 of 7) and Database load reduction (5 of 7); kerbside's proxy dev releases; development's Consistency audits v2 and Review coverage |
+| Near complete (70% or more of phases landed) | 6 | shakenfist's Kerbside VDI tokens (9 of 10), Queue performance (6 of 7) and Database load reduction (5 of 7); kerbside's proxy dev releases (5 of 5); development's Consistency audits v2 (4 of 4) and Review coverage (4 of 5) |
+
+The unit is **phases landed out of the phases the plan carried
+before this sweep appended its audit phase**, counted from the
+plan's own phase list rather than from an execution table -- the two
+disagree for `PLAN-review-coverage`, whose table has eight rows
+because two phases split across repositories. Two of the six are at
+100% and still incomplete, which is the point of counting phases
+rather than statuses: kerbside's proxy dev releases has all five
+phases landed and an operator-driven Gerrit recheck outstanding, and
+Consistency audits v2 has all four landed with two of them recorded
+as `MOSTLY DONE`.
 
 **The near-complete bucket is 6, not the 2 first claimed.** That
 figure came from reading shakenfist's index alone and never counting
@@ -204,7 +248,13 @@ this repository's convention.
   `PUSH-AUDIT.md` against the accumulated diff of the whole plan
   rather than one phase's, that findings land as their own PR, and
   that a plan whose repository has no `PUSH-AUDIT.md` says so
-  explicitly rather than omitting the phase silently.
+  explicitly rather than omitting the phase silently, and how to
+  derive the range when the plan's phases have already merged and a
+  diff against the default branch would be empty. That last bullet
+  arrived from review during phase 2 and edits v1 in place rather
+  than bumping to v2: no `PLAN-TEMPLATE.md` embeds the block yet, so
+  there is no copy to mark stale and nothing a version bump would
+  tell anyone.
 * **`scripts/audit-check.py`** -- extend `check_push_audit` with the
   reference checks: `AGENTS.md` must mention `PUSH-AUDIT.md`, and
   where the repository has a `PLAN-TEMPLATE.md` it must carry the new
@@ -275,8 +325,12 @@ row.
 Per-repository variance the briefs must handle, rather than letting
 six agents invent six shapes:
 
-* shakenfist keeps 17 `PLAN-*.md` at the repository root as well as
-  129 in `docs/plans/`; the sweep covers what `index.md` tracks.
+* shakenfist was believed to keep 17 `PLAN-*.md` at the repository
+  root as well as 129 in `docs/plans/`. It does not: at `develop`
+  HEAD only `PLAN-TEMPLATE.md` sits at the root, and the figure came
+  from a stale clone (see *The churn question, measured*). The rule
+  the brief carried is still the right one -- the sweep covers what
+  `index.md` tracks -- it just had nothing to exclude.
 * Index formats differ: shakenfist is
   `Date|Plan|Intent|Status|Phases`, development is four columns,
   ryll lists phase files inline in the row.
@@ -285,18 +339,51 @@ six agents invent six shapes:
 * development's plans have no separate phase files -- phases are
   sections inside the master plan, so the phase is a section and a
   row in that plan's own Execution table.
-* sfui has no `docs/plans/index.md` and three plans; it is
-  out of scope for the sweep and recorded as such.
+* sfui has three plans and no `docs/plans/index.md`, so there is no
+  in-scope list to derive; it is out of scope for the sweep and
+  recorded as such rather than counted as having no plans.
+  occystrap is the same shape with a weaker index, and divergulent
+  should have been in scope and was not -- both recorded under *The
+  churn question, measured*.
 
 ### 3. Review point -- after the first real run
 
-Queue performance (shakenfist, 6 of 7, step 7 in flight) reaches its
-audit phase first, over six merged phases of database and queue work.
-Phase 3 reads what that audit actually found and decides one thing:
-whether the phase stays mandatory for every plan, becomes conditional
-on plan size, or is withdrawn. A mandatory phase that finds nothing
-is a recurring cost that reads as diligence, and this is the phase
-that catches that.
+Queue performance (shakenfist, 6 of 7 at the sweep count, step 7 in
+flight) reaches its audit phase first, over six merged phases of
+database and queue work.
+
+That premise moved while phase 2 was in review: step 7 landed and
+`index.md` on `develop` now reads `Complete | 7 of 7`, while the
+sweep that gives the plan its audit phase is still open as
+shakenfist#3873. So the first real run will be an audit of a plan
+that is already complete -- the merged-range case the shared block
+now describes, arrived at by accident rather than by design. It is
+still the right measurement, and it makes phase 3's decision 2 more
+pressing rather than less: nothing stopped a plan being marked
+complete without its audit.
+Phase 3 reads what that audit actually found and decides three
+things:
+
+1. Whether the phase stays mandatory for every plan, becomes
+   conditional on plan size, or is withdrawn. A mandatory phase that
+   finds nothing is a recurring cost that reads as diligence, and
+   this is the phase that catches that.
+2. Whether a passing verdict should be mechanically checkable per
+   plan -- a check that every master plan an `index.md` tracks
+   carries the phase -- or left to `PLAN-TEMPLATE.md` to deliver.
+   Nothing checks it today: `check_push_audit` looks at `AGENTS.md`,
+   `check_plan_template` looks at the template, and
+   `check_plan_index` checks columns, dates and status vocabulary.
+   The thirty-six plans this sweep edited are held in place by the
+   sweep alone. Building the check before decision 1 is settled
+   would be the same ceremony this plan is guarding against, which
+   is why it is a decision here and not a phase 1 deliverable.
+3. Whether the sweep's repository scope was right. Decision 4 says
+   the sweep covers every incomplete master plan; phase 2's
+   definition of done names five repositories and divergulent's four
+   are outside both. Either the scope widens and divergulent is
+   swept, or the plan says why an `index.md`-tracking repository
+   with a `PUSH-AUDIT.md` is excluded.
 
 ### 4. Push audit
 
@@ -343,13 +430,21 @@ say so in one sentence, and feed that into phase 3's decision.
 * `development` has a `PUSH-AUDIT.md` that its own `push-audit` check
   passes, and it is no longer `N/A` in the compliance table.
 * Every incomplete master plan in shakenfist, ryll, kerbside, instar
-  and development ends with a push-audit phase, and its `index.md`
-  row reflects the new phase count. Done: 36 plans across the five
-  repositories, verified by re-deriving the in-scope list from each
-  repository's own `index.md` and confirming every plan on it was
-  touched. shakenfist's `pre-commit` carries a "plan statuses and
-  index arithmetic agree" hook, which independently confirmed its 18
-  recomputed counts.
+  and development ends with a push-audit phase and, in the
+  repositories whose index carries phase counts, its `index.md` row
+  reflects the new count. Done: 36 plans across the five
+  repositories and four of the five indexes, verified by re-deriving
+  the in-scope list from each repository's own `index.md` and
+  confirming every plan on it was touched. development is the fifth:
+  its index deliberately carries a one-line status and no phase
+  column, `check_plan_index` enforces that it has no arithmetic to
+  recompute, and it is correctly untouched here. shakenfist's
+  `pre-commit` carries a "plan statuses and index arithmetic agree"
+  hook, which independently confirmed its 18 recomputed counts --
+  18 rather than 22 because four of its incomplete plans carry an
+  em-dash in the phases column, having no phase list yet.
+  Divergulent's four, recorded under *The churn question, measured*,
+  are outside this criterion until phase 3 settles the scope.
 * `pre-commit run --all-files` passes in this repository.
 * Phase 3 records, in this plan, what queue performance's audit found
   and what was decided about the phase remaining mandatory.
