@@ -12,6 +12,12 @@ copy lives in shakenfist/development at
   each other -- the duplicated helper that only exists once phases
   three and six have both landed, the doc page that phase two made
   wrong and phase five never revisited.
+- Where the plan's phases have already merged, `git diff` against
+  the default branch is empty and would read as a clean audit.
+  Derive the range instead: audit from the merge base of the plan's
+  first phase commit to the default branch, restricted to the paths
+  the plan touched, and name the commit range in the phase when it
+  runs so the next reader can tell a real result from a no-op.
 - Findings land as their own pull request against the default
   branch, and the plan is not complete until they are resolved or
   explicitly declined in writing. A finding that is declined says
