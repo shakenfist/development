@@ -62,6 +62,15 @@ the pull request, but the local run is faster and quieter.
 The individual test suites, and how to exercise a check against a real
 repository, are in `docs/consistency-audits.md`.
 
+`PUSH-AUDIT.md` is a runbook followed in place before pushing:
+`pre-commit`, the diff-level greps, then four judgment sub-agents over
+code quality, tests, documentation and security. Its briefs are
+written for this repository's blast radius -- a defect here breaks
+sixteen other repositories quietly rather than breaking a service. It
+is being made the last phase of every master plan -- see
+`docs/plans/PLAN-push-audit-phase.md`, which is rolling that out;
+drop this qualifier once the sweep has landed.
+
 Adding or removing a file matched by `.vscode/review-scope.toml`
 changes the in-scope count in `REVIEWS.md`, which is generated. Run
 `python3 scripts/review-tracking.py regen` and commit the result with

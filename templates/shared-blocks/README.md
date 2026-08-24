@@ -33,8 +33,8 @@ checks) verify that an embedded block:
   `plan-file-conventions`, `plan-status-vocabulary`,
   `subagent-execution-model`, `plan-planning-effort`,
   `subagent-step-guidance`, `subagent-model-roster`,
-  `plan-review-checklist` and `plan-closeout-sections` in
-  `PLAN-TEMPLATE.md`;
+  `plan-review-checklist`, `plan-closeout-sections` and
+  `plan-push-audit-phase` in `PLAN-TEMPLATE.md`;
 - carries the current version number; and
 - matches the canonical wording exactly (modulo trailing
   whitespace).
