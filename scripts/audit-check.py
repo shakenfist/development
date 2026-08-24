@@ -105,6 +105,7 @@ CHECK_NAMES = {
     'pyproject-usage': 'pyproject.toml usage',
     'console-logging': 'Console script logging setup',
     'header-sanitization': 'HTTP header sanitization',
+    'python-version-targeting': 'Python version targeting',
     'rust-unwrap-lint': 'Rust unwrap lint',
     'readme-absolute-links': 'README absolute links',
     'docs-external-links': 'Links out of docs/ are absolute',
@@ -3215,6 +3216,83 @@ def check_header_sanitization(repo_path, props):
     }
 
 
+def check_python_version_targeting(repo_path, props):
+    """Check the declared Python floor exists and is stated once.
+
+    A package that does not declare requires-python claims to support
+    every interpreter, which is never true and gives pip nothing to
+    refuse an install with.
+
+    Where renovate.json also carries constraints.python, the two must
+    agree. Both are derived from the same fact -- the system Python of
+    the oldest supported distribution -- so a disagreement means one
+    of them was updated and the other forgotten, and renovate then
+    proposes bumps against a floor the package does not claim.
+    """
+    if props.get('not_python') or props.get('is_docs_only'):
+        return {
+            'id': 'python-version-targeting',
+            'status': 'not_applicable',
+            'details': 'Not a Python project (per overrides)',
+        }
+    if not props['has_pyproject_toml']:
+        return {
+            'id': 'python-version-targeting',
+            'status': 'not_applicable',
+            'details': 'No pyproject.toml (not a Python package)',
+        }
+
+    try:
+        with open(os.path.join(repo_path, 'pyproject.toml'), 'rb') as f:
+            data = tomllib.load(f)
+    except (tomllib.TOMLDecodeError, OSError) as e:
+        return {
+            'id': 'python-version-targeting',
+            'status': 'fail',
+            'details': f'Could not parse pyproject.toml: {e}',
+        }
+
+    requires = data.get('project', {}).get('requires-python')
+    if not requires:
+        return {
+            'id': 'python-version-targeting',
+            'status': 'fail',
+            'details': (
+                'pyproject.toml declares no requires-python, so the '
+                'package claims to support every interpreter and pip '
+                'has nothing to refuse an install with'
+            ),
+        }
+
+    renovate = os.path.join(repo_path, 'renovate.json')
+    if os.path.exists(renovate):
+        try:
+            with open(renovate, 'r', errors='replace') as f:
+                config = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            config = {}
+        constraint = (config.get('constraints') or {}).get('python')
+        if constraint and constraint.strip() != requires.strip():
+            return {
+                'id': 'python-version-targeting',
+                'status': 'fail',
+                'details': (
+                    f'requires-python is "{requires}" but '
+                    f'renovate.json constraints.python is '
+                    f'"{constraint}". Both describe the oldest '
+                    f'supported interpreter, so one of them is stale '
+                    f'and renovate is proposing bumps against a floor '
+                    f'the package does not claim'
+                ),
+            }
+
+    return {
+        'id': 'python-version-targeting',
+        'status': 'pass',
+        'details': f'requires-python is "{requires}"',
+    }
+
+
 def check_rust_unwrap_lint(repo_path, props):
     """Check Rust projects enable clippy's unwrap_used lint.
 
@@ -4350,7 +4428,7 @@ def check_push_audit(repo_path, props, blocks_dir=None):
         required=[
             'readme-discipline', 'llm-doc-discipline',
             'comment-proportion', 'plan-phase-references',
-            'path-traversal-review',
+            'path-traversal-review', 'python-version-discipline',
         ],
         blocks_dir=blocks_dir,
     )
@@ -5344,6 +5422,8 @@ def check_calls(repo_path, props, repo_name, org):
          lambda: check_console_logging(repo_path, props)),
         ('header-sanitization',
          lambda: check_header_sanitization(repo_path, props)),
+        ('python-version-targeting',
+         lambda: check_python_version_targeting(repo_path, props)),
         ('rust-unwrap-lint',
          lambda: check_rust_unwrap_lint(repo_path, props)),
         ('readme-absolute-links',

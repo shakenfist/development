@@ -930,12 +930,18 @@ class PushAuditTest(unittest.TestCase):
             'Path wording.\n'
             '<!-- shared-block-end -->\n'
         )
+        self.python_block = (
+            '<!-- shared-block: python-version-discipline v1 -->\n'
+            'Python wording.\n'
+            '<!-- shared-block-end -->\n'
+        )
         for name, block in (
             ('readme-discipline', self.readme_block),
             ('llm-doc-discipline', self.llm_doc_block),
             ('comment-proportion', self.comment_block),
             ('plan-phase-references', self.phase_block),
             ('path-traversal-review', self.path_block),
+            ('python-version-discipline', self.python_block),
         ):
             with open(
                 os.path.join(self._blocks.name, f'{name}.md'), 'w'
@@ -944,7 +950,7 @@ class PushAuditTest(unittest.TestCase):
         self.canonical = (
             f'{self.readme_block}\n{self.llm_doc_block}\n'
             f'{self.comment_block}\n{self.phase_block}\n'
-            f'{self.path_block}'
+            f'{self.path_block}\n{self.python_block}'
         )
 
     def _check(self, files):
@@ -2988,6 +2994,80 @@ class HeaderSanitizationTest(unittest.TestCase):
             '    pass\n'
         )})
         self.assertIn('pkg/srv.py:3', result['details'])
+
+
+class PythonVersionTargetingTest(unittest.TestCase):
+    """The python-version-targeting check.
+
+    The interesting case is the agreement between requires-python and
+    renovate.json's constraints.python. Both are the system Python of
+    the oldest supported distribution, so a disagreement is one of
+    them having been updated alone -- which nothing else notices,
+    because renovate goes on working against the stale floor.
+    """
+
+    def _check(self, pyproject=None, renovate=None, props=None):
+        with tempfile.TemporaryDirectory() as tmp:
+            if pyproject is not None:
+                with open(os.path.join(tmp, 'pyproject.toml'), 'w') as f:
+                    f.write(pyproject)
+            if renovate is not None:
+                with open(os.path.join(tmp, 'renovate.json'), 'w') as f:
+                    f.write(renovate)
+            merged = {'has_pyproject_toml': pyproject is not None}
+            merged.update(props or {})
+            return audit_check.check_python_version_targeting(tmp, merged)
+
+    def test_no_pyproject_is_not_applicable(self):
+        self.assertEqual(
+            self._check()['status'], 'not_applicable')
+
+    def test_declared_overrides_are_not_applicable(self):
+        result = self._check(
+            '[project]\nname = "x"\n', props={'not_python': True})
+        self.assertEqual(result['status'], 'not_applicable')
+
+    def test_missing_requires_python_fails(self):
+        result = self._check('[project]\nname = "x"\n')
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('requires-python', result['details'])
+
+    def test_declared_requires_python_passes(self):
+        result = self._check(
+            '[project]\nname = "x"\nrequires-python = ">=3.8"\n')
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_matching_renovate_constraint_passes(self):
+        result = self._check(
+            '[project]\nname = "x"\nrequires-python = ">=3.8"\n',
+            '{"constraints": {"python": ">=3.8"}}',
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_disagreeing_renovate_constraint_fails(self):
+        result = self._check(
+            '[project]\nname = "x"\nrequires-python = ">=3.8"\n',
+            '{"constraints": {"python": ">=3.7"}}',
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('>=3.8', result['details'])
+        self.assertIn('>=3.7', result['details'])
+
+    def test_renovate_without_a_constraint_is_not_a_finding(self):
+        # Only projects supporting several distributions need one.
+        result = self._check(
+            '[project]\nname = "x"\nrequires-python = ">=3.8"\n',
+            '{"extends": [":enablePreCommit"]}',
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_unparseable_renovate_json_is_not_a_version_finding(self):
+        # renovate.json validity is the renovate audit's business.
+        result = self._check(
+            '[project]\nname = "x"\nrequires-python = ">=3.8"\n',
+            'not json at all',
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
 
 
 class OrphanSkillMarkdownTest(unittest.TestCase):
