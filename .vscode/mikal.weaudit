@@ -5,10 +5,6 @@
   "treeEntries": [],
   "auditedFiles": [
     {
-      "path": "README.md",
-      "author": "mikal"
-    },
-    {
       "path": ".claude/skills/review-tracking-adoption/SKILL.md",
       "author": "mikal"
     },

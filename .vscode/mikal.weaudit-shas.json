@@ -53,10 +53,6 @@
       "sha": "d3c3fcb190f1e07d4e0305d8dda03a0a001c8c81",
       "date": "2026-08-24"
     },
-    "README.md": {
-      "sha": "62dd13f51ec678d99b39cb3a968f24e62898da7f",
-      "date": "2026-08-23"
-    },
     "tools/ci-prune-reviews.sh": {
       "sha": "3e10680265c6b885619e8e08bea30a4fb05cb10b",
       "date": "2026-08-24"
