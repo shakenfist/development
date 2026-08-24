@@ -4077,11 +4077,11 @@ def check_push_audit(repo_path, props, blocks_dir=None):
 
     The runbook must also be reachable. Checking only its contents
     is how it went untriggered: across the fleet the file was
-    current and correct in eight repositories while exactly one
-    AGENTS.md mentioned it, so the audit ran when somebody
-    remembered it and not otherwise. AGENTS.md is loaded into every
-    session, which makes it the one place a reference is certain to
-    be read.
+    current and correct in eight repositories while three AGENTS.md
+    files mentioned it at all, and exactly one of those said when to
+    run it. Mention is what this check measures. AGENTS.md is loaded
+    into every session, which makes it the one place a reference is
+    certain to be read.
     """
     has_new = check_file_exists(repo_path, 'PUSH-AUDIT.md')
     has_legacy = check_file_exists(repo_path, 'PUSH-TEMPLATE.md')

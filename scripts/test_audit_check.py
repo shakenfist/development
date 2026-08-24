@@ -948,7 +948,10 @@ class PushAuditTest(unittest.TestCase):
         files = dict(files)
         named = None
         for candidate in ('PUSH-AUDIT.md', 'PUSH-TEMPLATE.md'):
-            if candidate in files:
+            # `is not None` rather than `in`, so a case using the
+            # absent-file sentinel selects the same filename the
+            # check will.
+            if files.get(candidate) is not None:
                 named = candidate
                 break
         if named and 'AGENTS.md' not in files:
@@ -1128,6 +1131,37 @@ class PushAuditTest(unittest.TestCase):
         self.assertEqual(result['status'], 'fail')
         self.assertIn('missing shared block', result['details'])
         self.assertIn('does not reference', result['details'])
+
+    def test_both_files_with_only_the_legacy_name_referenced(self):
+        # The code resolves filename to the new name when both are
+        # present, so an AGENTS.md naming only the legacy file gets
+        # both a rename message and a reference message. Pinning the
+        # behaviour rather than asserting it is desirable.
+        result = self._check({
+            'PUSH-AUDIT.md': f'# Audit\n\n{self.canonical}\n',
+            'PUSH-TEMPLATE.md': '# Old\n',
+            'AGENTS.md': '# Agents\n\nSee PUSH-TEMPLATE.md.\n',
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('legacy filename', result['details'])
+        self.assertIn(
+            'AGENTS.md does not reference PUSH-AUDIT.md',
+            result['details'],
+        )
+
+    def test_shallowness_is_deliberate(self):
+        # The spec says the check looks for the filename and not for
+        # particular wording, so a mention inside a fenced code block
+        # counts. That is a known false positive, kept on purpose:
+        # this test exists so a later tightening is a deliberate
+        # decision rather than a quiet one.
+        result = self._check({
+            'PUSH-AUDIT.md': f'# Audit\n\n{self.canonical}\n',
+            'AGENTS.md': (
+                '# Agents\n\n```\ncat PUSH-AUDIT.md\n```\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass')
 
     def test_pass_details_mention_the_reference(self):
         result = self._check({
@@ -2579,6 +2613,97 @@ class PlanStatusVocabularyBlockTest(unittest.TestCase):
         self.assertIn(
             'plan-status-vocabulary', audit_check.PLAN_TEMPLATE_BLOCKS
         )
+
+
+class PlanTemplateTest(unittest.TestCase):
+    """Tests for check_plan_template.
+
+    The check had no direct coverage at all, which matters once
+    PLAN_TEMPLATE_BLOCKS gains an entry: adding a name to that list
+    marks every repository carrying the previous set non-compliant
+    on the next daily run, and nothing asserted either the list's
+    contents or that the check reads it.
+    """
+
+    def setUp(self):
+        self._blocks = tempfile.TemporaryDirectory()
+        self.addCleanup(self._blocks.cleanup)
+        self.blocks = {}
+        for name in audit_check.PLAN_TEMPLATE_BLOCKS:
+            block = (
+                f'<!-- shared-block: {name} v1 -->\n'
+                f'Canonical {name} wording.\n'
+                '<!-- shared-block-end -->\n'
+            )
+            self.blocks[name] = block
+            with open(
+                os.path.join(self._blocks.name, f'{name}.md'), 'w'
+            ) as f:
+                f.write(block)
+
+    def _check(self, files):
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, content in files.items():
+                with open(os.path.join(tmp, name), 'w') as f:
+                    f.write(content)
+            return audit_check.check_plan_template(
+                tmp, {}, blocks_dir=self._blocks.name
+            )
+
+    def _template(self, omit=None):
+        return '# Plan template\n\n' + '\n'.join(
+            block for name, block in self.blocks.items()
+            if name != omit
+        )
+
+    def test_not_applicable_without_template(self):
+        self.assertEqual(self._check({})['status'], 'not_applicable')
+
+    def test_all_blocks_passes(self):
+        result = self._check({'PLAN-TEMPLATE.md': self._template()})
+        self.assertEqual(result['status'], 'pass')
+
+    def test_missing_push_audit_phase_block_fails(self):
+        result = self._check({
+            'PLAN-TEMPLATE.md': self._template(
+                omit='plan-push-audit-phase'),
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn(
+            'missing shared block plan-push-audit-phase',
+            result['details'],
+        )
+
+    def test_stale_push_audit_phase_block_fails(self):
+        stale = self._template().replace(
+            '<!-- shared-block: plan-push-audit-phase v1 -->',
+            '<!-- shared-block: plan-push-audit-phase v0 -->',
+        )
+        result = self._check({'PLAN-TEMPLATE.md': stale})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn(
+            'shared block plan-push-audit-phase is stale',
+            result['details'],
+        )
+
+    def test_push_audit_phase_is_required(self):
+        # The line of this change with the widest fleet consequence:
+        # naming the block here is what marks four currently
+        # compliant repositories non-compliant.
+        self.assertIn(
+            'plan-push-audit-phase', audit_check.PLAN_TEMPLATE_BLOCKS
+        )
+
+    def test_every_required_block_has_a_canonical_copy(self):
+        # A name in the list with no file under
+        # templates/shared-blocks would report every repository as
+        # carrying an unknown block.
+        root = os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__)))
+        for name in audit_check.PLAN_TEMPLATE_BLOCKS:
+            with self.subTest(block=name):
+                self.assertTrue(os.path.exists(os.path.join(
+                    root, 'templates', 'shared-blocks', f'{name}.md')))
 
 
 class OrphanSkillMarkdownTest(unittest.TestCase):

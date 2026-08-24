@@ -82,13 +82,25 @@ reference.
    with decision 5 as the check on it.
 
 2. **The phase text is a shared block, and `PLAN-TEMPLATE.md` gains
-   it as a ninth block.** `PLAN-plan-template-blocks` is in progress:
-   its eight blocks, `check_plan_template` and
-   `docs/audits/plan-template.md` exist, but the migration into the
-   eight repositories' templates has not started. Adding a ninth block
-   now means that migration carries it in the same pass. Editing eight
-   templates by hand in parallel would duplicate the migration and
-   reintroduce exactly the drift that plan exists to remove.
+   it as a ninth block.** `PLAN-plan-template-blocks` built eight
+   blocks, `check_plan_template` and `docs/audits/plan-template.md`.
+   A ninth there is one canonical edit rather than a hand-edit of
+   every template, which is the drift that plan exists to remove.
+
+   **Correction.** This was first written on the premise that the
+   migration into the repositories' templates "has not started",
+   taken from that plan's own Migration heading, which still says
+   so. The generated compliance table in
+   `docs/audits/plan-template.md` says otherwise: instar, kerbside,
+   ryll and shakenfist are `compliant`, so they already carry all
+   eight blocks. The migration has landed in four of the eight
+   repositories and the plan text is stale; that stale line is
+   corrected as part of this work.
+
+   The premise was wrong and the decision survives it -- if four
+   templates are already migrated, hand-editing them in parallel
+   would have been worse rather than better, because it would race
+   the mechanism designed to update them.
 
 3. **`development` gets its own `PUSH-AUDIT.md`.** It is `N/A` today
    -- no pre-push audit file, no plan template -- while being the
@@ -202,6 +214,28 @@ their remotes, so the daily run is the authority on the exact
 number; the shape -- two newly failing, three gaining a line -- is
 what to expect. The fix in each case is one line in `AGENTS.md`, and
 phase 2's sub-agents do it while they are in the repository anyway.
+
+**Blast radius of the ninth `PLAN-TEMPLATE.md` block**, which the
+first draft of this plan missed entirely. `instar`, `kerbside`,
+`ryll` and `shakenfist` are `compliant` on `plan-template` today,
+meaning they carry all eight existing blocks. Naming a ninth in
+`PLAN_TEMPLATE_BLOCKS` marks all four non-compliant on the next
+daily run and files four issues.
+
+Combined with the two above, **the next run after this lands files
+six new issues, not two.** That is the shared-block mechanism
+working as designed -- edit the canonical copy, the fleet is told,
+the issues are the worklist -- but an unstated fleet effect is
+exactly the defect this repository's own `PUSH-AUDIT.md` brief names
+under "blast radius of a changed check", so it is stated here rather
+than discovered at 06:00 UTC.
+
+Deliberately not deferred. Splitting the block file from its entry
+in `PLAN_TEMPLATE_BLOCKS`, to spare four repositories an issue until
+the wording settles, would mean two fleet-wide notifications instead
+of one: the issues now, and a re-file after any version bump. One
+round of six issues against a worklist that already exists is
+cheaper than two rounds against the same four repositories.
 
 ### 2. Fleet sweep -- one sub-agent per repository
 

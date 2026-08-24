@@ -53,7 +53,7 @@ git diff main...HEAD -- 'scripts/*.py' | grep -nE '^\+import |^\+from '
 # by the daily workflow; an edit between the markers is reverted
 # tomorrow morning and confuses whoever reads it today
 git diff main...HEAD -- 'docs/audits/*.md' | \
-    grep -nE '^\+.*(consistency-audit:(begin|end)|^\+\| .* \| (compliant|non-compliant|N/A) \|)'
+    grep -nE '^\+.*consistency-audit:(begin|end)|^\+\| .* \| (compliant|non-compliant|N/A) \|'
 
 # Changes to the issue-title interface. ISSUE_TITLES is the
 # idempotency key for filing and closing: renaming an entry

@@ -32,11 +32,15 @@ smuggled in here.
 
 Checking only the file's contents is how the runbook went
 untriggered. In August 2026 the audit was current and correct in
-eight repositories while exactly one `AGENTS.md` mentioned it, and
-that mention was a passive index entry rather than an instruction.
-No `CLAUDE.md`, no `PLAN-TEMPLATE.md`, no git hook and no CI job
-pointed at it either, so the audit ran when the operator remembered
-it and not otherwise.
+eight repositories while three `AGENTS.md` files mentioned it at
+all, and exactly one of those said *when* to run it -- the other
+two were passive index entries. No `CLAUDE.md`, no
+`PLAN-TEMPLATE.md`, no git hook and no CI job pointed at it either,
+so the audit ran when the operator remembered it and not otherwise.
+
+Mention is what this check measures, so three is the number it
+moves; one is the number that had a trigger. The check closes the
+discoverability half of that gap, not the trigger half.
 
 `AGENTS.md` is the surface checked because it is loaded into every
 session, which makes it the one place a reference is certain to be

@@ -146,7 +146,11 @@ roster is separate, and what stays project-specific. Registered in
 
 ## Migration (separate commits, one per repository)
 
-Not started. For each of the eight repositories, in its own branch:
+Landed in four of the eight repositories: instar, kerbside, ryll
+and shakenfist are `compliant` on the `plan-template` check.
+Outstanding for client-python-k3s, divergulent and occystrap
+(sfui has no template and is N/A). For each remaining repository,
+in its own branch:
 
 1. Restructure `PLAN-TEMPLATE.md` so no section mixes generic and
    project-specific text. In practice: move the project-specific

@@ -67,8 +67,9 @@ repository, are in `docs/consistency-audits.md`.
 code quality, tests, documentation and security. Its briefs are
 written for this repository's blast radius -- a defect here breaks
 sixteen other repositories quietly rather than breaking a service. It
-runs as the last phase of every master plan; see
-`docs/plans/PLAN-push-audit-phase.md`.
+is being made the last phase of every master plan -- see
+`docs/plans/PLAN-push-audit-phase.md`, which is rolling that out;
+drop this qualifier once the sweep has landed.
 
 Adding or removing a file matched by `.vscode/review-scope.toml`
 changes the in-scope count in `REVIEWS.md`, which is generated. Run
