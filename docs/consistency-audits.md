@@ -31,8 +31,8 @@ specification: some criteria have no check at all, because judging
 them takes reading rather than matching. A
 criterion with no check has no `consistency-audit` marker block in its
 spec file, which is how to find the current set -- at the time of
-writing, `security-sanitization`, `console-logging`, `python-version`
-and `test-coverage`.
+writing, `security-sanitization`, `python-version` and
+`test-coverage`.
 
 Not every criterion maps to exactly one check. `workflow-standards`
 decomposes into several -- runner tags, permissions, linting, and more

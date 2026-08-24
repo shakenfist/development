@@ -103,6 +103,7 @@ CHECK_NAMES = {
     'merge-group-cancellation': 'Merge group run cancellation',
     'version-file-gitignore': 'Generated version file',
     'pyproject-usage': 'pyproject.toml usage',
+    'console-logging': 'Console script logging setup',
     'rust-unwrap-lint': 'Rust unwrap lint',
     'readme-absolute-links': 'README absolute links',
     'docs-external-links': 'Links out of docs/ are absolute',
@@ -2974,6 +2975,135 @@ def check_version_file(repo_path, props):
     }
 
 
+def console_entry_point_files(repo_path):
+    """Return the source file for each [project.scripts] entry point.
+
+    The spec is about how a *CLI entry point* uses setup_console(),
+    not about every module that logs. Anchoring on the declared
+    console scripts is what makes that distinction mechanical:
+    occystrap calls logs.setup_console(__name__) at the top of all
+    24 of its modules, and only occystrap/main.py is the entry point
+    any of it is reached through.
+    """
+    pyproject = os.path.join(repo_path, 'pyproject.toml')
+    if not os.path.exists(pyproject):
+        return []
+    try:
+        with open(pyproject, 'rb') as f:
+            data = tomllib.load(f)
+    except (tomllib.TOMLDecodeError, OSError):
+        return []
+
+    scripts = data.get('project', {}).get('scripts', {})
+    files = []
+    for target in scripts.values():
+        module = target.split(':', 1)[0].strip()
+        if not module:
+            continue
+        relative = module.replace('.', os.sep)
+        for candidate in (
+            f'{relative}.py',
+            os.path.join(relative, '__init__.py'),
+            os.path.join('src', f'{relative}.py'),
+            os.path.join('src', relative, '__init__.py'),
+        ):
+            if os.path.exists(os.path.join(repo_path, candidate)):
+                if candidate not in files:
+                    files.append(candidate)
+                break
+    return sorted(files)
+
+
+def check_console_logging(repo_path, props):
+    """Check console entry points also configure the root logger.
+
+    shakenfist_utilities.logs.setup_console() raises the root
+    logger's level but attaches its handler to one named logger. Every
+    other module's records therefore propagate to a root logger with
+    no handler on it and are dropped, so an entry point calling it
+    must also call logging.basicConfig() to put a handler there -- and
+    must then stop its own logger propagating into that handler, or
+    every line it logs is emitted twice.
+
+    Only files named by [project.scripts] are examined, and only those
+    that call setup_console(). A repository that declares no console
+    scripts, or whose entry points do not use the helper, is not
+    applicable: this is a rule about how the helper is used, not a
+    requirement to use it.
+    """
+    entry_points = console_entry_point_files(repo_path)
+    if not entry_points:
+        return {
+            'id': 'console-logging',
+            'status': 'not_applicable',
+            'details': 'No [project.scripts] console entry points',
+        }
+
+    problems = []
+    using = []
+    for relative in entry_points:
+        try:
+            with open(
+                os.path.join(repo_path, relative), 'r', errors='replace'
+            ) as f:
+                content = f.read()
+        except OSError:
+            continue
+        if not re.search(r'(?<!def )setup_console\s*\(', content):
+            continue
+
+        # Read per file rather than per line: the finding is about
+        # the file's logging setup as a whole, so there is no single
+        # line for a marker to sit on.
+        if 'audit-ok: console-logging' in content:
+            continue
+        using.append(relative)
+
+        missing = []
+        if not re.search(r'logging\.basicConfig\s*\(', content):
+            missing.append(
+                'logging.basicConfig() (INFO from every other module '
+                'reaches a root logger with no handler and is dropped)'
+            )
+        if not re.search(r'\.propagate\s*=\s*False', content):
+            missing.append(
+                'propagate = False on its own logger (its own lines '
+                'are emitted twice once root has a handler)'
+            )
+        if missing:
+            problems.append(f'{relative}: missing {"; ".join(missing)}')
+
+    if not using:
+        return {
+            'id': 'console-logging',
+            'status': 'not_applicable',
+            'details': (
+                f'{len(entry_points)} console entry point(s), none '
+                f'calling shakenfist_utilities.logs.setup_console()'
+            ),
+        }
+
+    if problems:
+        return {
+            'id': 'console-logging',
+            'status': 'fail',
+            'details': (
+                f'{len(problems)} of {len(using)} console entry '
+                f'point(s) calling setup_console() do not configure '
+                f'the root logger -- ' + '; '.join(sorted(problems))
+            ),
+        }
+
+    return {
+        'id': 'console-logging',
+        'status': 'pass',
+        'details': (
+            f'{len(using)} console entry point(s) calling '
+            f'setup_console() configure the root logger'
+        ),
+    }
+
+
 def check_rust_unwrap_lint(repo_path, props):
     """Check Rust projects enable clippy's unwrap_used lint.
 
@@ -5098,6 +5228,8 @@ def check_calls(repo_path, props, repo_name, org):
          lambda: check_pyproject_usage(repo_path, props)),
         ('version-file-gitignore',
          lambda: check_version_file(repo_path, props)),
+        ('console-logging',
+         lambda: check_console_logging(repo_path, props)),
         ('rust-unwrap-lint',
          lambda: check_rust_unwrap_lint(repo_path, props)),
         ('readme-absolute-links',

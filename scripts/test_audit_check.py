@@ -2754,6 +2754,159 @@ class PlanTemplateTest(unittest.TestCase):
                     root, 'templates', 'shared-blocks', f'{name}.md')))
 
 
+class ConsoleLoggingTest(unittest.TestCase):
+    """The console-logging check.
+
+    The two false positives these guard against are the ones the
+    first version of the check actually produced: the file that
+    *defines* setup_console(), and the twenty-four occystrap modules
+    that call it at import time without being an entry point.
+    """
+
+    PYPROJECT = (
+        '[project]\n'
+        'name = "thing"\n'
+        '\n'
+        '[project.scripts]\n'
+        'thing = "thing.main:cli"\n'
+    )
+
+    COMPLIANT = (
+        'from shakenfist_utilities import logs\n'
+        'import logging\n'
+        '\n'
+        'LOG = logs.setup_console(__name__)\n'
+        'logging.basicConfig(level=logging.INFO)\n'
+        'logging.getLogger(__name__).propagate = False\n'
+    )
+
+    def _check(self, files, pyproject=None):
+        with tempfile.TemporaryDirectory() as tmp:
+            if pyproject is not False:
+                with open(os.path.join(tmp, 'pyproject.toml'), 'w') as f:
+                    f.write(pyproject or self.PYPROJECT)
+            for path, content in files.items():
+                full = os.path.join(tmp, path)
+                os.makedirs(os.path.dirname(full), exist_ok=True)
+                with open(full, 'w') as f:
+                    f.write(content)
+            return audit_check.check_console_logging(tmp, {})
+
+    def test_compliant_entry_point_passes(self):
+        result = self._check({'thing/main.py': self.COMPLIANT})
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_missing_basic_config_fails(self):
+        result = self._check({'thing/main.py': (
+            'from shakenfist_utilities import logs\n'
+            'LOG = logs.setup_console(__name__)\n'
+            'LOG.propagate = False\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('basicConfig', result['details'])
+
+    def test_missing_propagate_fails(self):
+        result = self._check({'thing/main.py': (
+            'from shakenfist_utilities import logs\n'
+            'import logging\n'
+            'LOG = logs.setup_console(__name__)\n'
+            'logging.basicConfig(level=logging.INFO)\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('propagate', result['details'])
+
+    def test_no_pyproject_is_not_applicable(self):
+        result = self._check({'thing/main.py': self.COMPLIANT},
+                             pyproject=False)
+        self.assertEqual(result['status'], 'not_applicable')
+
+    def test_no_console_scripts_is_not_applicable(self):
+        result = self._check(
+            {'thing/main.py': self.COMPLIANT},
+            pyproject='[project]\nname = "thing"\n',
+        )
+        self.assertEqual(result['status'], 'not_applicable')
+        self.assertIn('No [project.scripts]', result['details'])
+
+    def test_entry_point_not_using_the_helper_is_not_applicable(self):
+        result = self._check({'thing/main.py': 'def cli():\n    pass\n'})
+        self.assertEqual(result['status'], 'not_applicable')
+        self.assertIn('none calling', result['details'])
+
+    def test_a_non_entry_point_module_is_not_examined(self):
+        # occystrap calls logs.setup_console(__name__) at the top of
+        # all 24 of its modules. Only the entry point is the subject
+        # of this rule, so a bare call anywhere else is not a finding.
+        result = self._check({
+            'thing/main.py': self.COMPLIANT,
+            'thing/util.py': (
+                'from shakenfist_utilities import logs\n'
+                'LOG = logs.setup_console(__name__)\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_the_helpers_own_definition_is_not_a_call(self):
+        # library-utilities defines setup_console(); it does not use
+        # it, and has no console scripts either.
+        result = self._check(
+            {'shakenfist_utilities/logs.py': (
+                'def setup_console(name):\n'
+                '    return logging.getLogger(name)\n'
+            )},
+            pyproject='[project]\nname = "shakenfist-utilities"\n',
+        )
+        self.assertEqual(result['status'], 'not_applicable')
+
+    def test_audit_ok_marker_exempts_a_file(self):
+        result = self._check({'thing/main.py': (
+            '# audit-ok: console-logging -- logging set up by the caller\n'
+            'from shakenfist_utilities import logs\n'
+            'LOG = logs.setup_console(__name__)\n'
+        )})
+        self.assertEqual(result['status'], 'not_applicable')
+
+    def test_a_package_entry_point_resolves_to_its_init(self):
+        result = self._check(
+            {'thing/__init__.py': self.COMPLIANT},
+            pyproject=(
+                '[project]\n'
+                'name = "thing"\n'
+                '\n'
+                '[project.scripts]\n'
+                'thing = "thing:cli"\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_a_src_layout_entry_point_resolves(self):
+        result = self._check({'src/thing/main.py': self.COMPLIANT})
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_only_the_offending_entry_point_is_named(self):
+        result = self._check(
+            {
+                'thing/good.py': self.COMPLIANT,
+                'thing/bad.py': (
+                    'from shakenfist_utilities import logs\n'
+                    'LOG = logs.setup_console(__name__)\n'
+                ),
+            },
+            pyproject=(
+                '[project]\n'
+                'name = "thing"\n'
+                '\n'
+                '[project.scripts]\n'
+                'good = "thing.good:cli"\n'
+                'bad = "thing.bad:cli"\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('thing/bad.py', result['details'])
+        self.assertNotIn('thing/good.py', result['details'])
+        self.assertIn('1 of 2', result['details'])
+
+
 class OrphanSkillMarkdownTest(unittest.TestCase):
     """Markdown in a skills directory that will never load."""
 
