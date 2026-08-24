@@ -2675,8 +2675,17 @@ class PlanTemplateTest(unittest.TestCase):
         )
 
     def test_stale_push_audit_phase_block_fails(self):
-        stale = self._template().replace(
-            '<!-- shared-block: plan-push-audit-phase v1 -->',
+        # Derive the current version rather than naming it: hard-coding
+        # it here made this test silently stop testing anything the
+        # first time the canonical block was revised, because the
+        # replacement below simply found no match.
+        template = self._template()
+        marker = re.search(
+            r'<!-- shared-block: plan-push-audit-phase v\d+ -->', template
+        )
+        self.assertIsNotNone(marker)
+        stale = template.replace(
+            marker.group(0),
             '<!-- shared-block: plan-push-audit-phase v0 -->',
         )
         result = self._check({'PLAN-TEMPLATE.md': stale})
