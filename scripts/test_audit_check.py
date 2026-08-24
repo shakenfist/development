@@ -2615,6 +2615,31 @@ class PlanStatusVocabularyBlockTest(unittest.TestCase):
         )
 
 
+class PushAuditPhaseBlockTest(unittest.TestCase):
+    def test_canonical_block_names_the_merged_column(self):
+        # The block is the only statement of where a phase's merge
+        # commit is recorded. Nothing mechanical reads a plan's
+        # Execution table yet, so if a later revision renames the
+        # column or drops the rule, the first thing to notice would
+        # be a sweep already halfway through thirty-six plans.
+        canonical = audit_check.load_canonical_block(
+            'plan-push-audit-phase'
+        )
+        self.assertIsNotNone(canonical)
+        _, text = canonical
+        self.assertIn('`Merged` column', text)
+        self.assertIn('`Merged:` line', text)
+        # And that it keeps the commit out of the status cell, which
+        # plan-status-vocabulary reserves for a single term.
+        self.assertIn('`Status` column keeps its single vocabulary',
+                      text)
+
+    def test_canonical_block_is_a_plan_template_block(self):
+        self.assertIn(
+            'plan-push-audit-phase', audit_check.PLAN_TEMPLATE_BLOCKS
+        )
+
+
 class PlanTemplateTest(unittest.TestCase):
     """Tests for check_plan_template.
 
@@ -2675,17 +2700,13 @@ class PlanTemplateTest(unittest.TestCase):
         )
 
     def test_stale_push_audit_phase_block_fails(self):
-        # Derive the current version rather than naming it: hard-coding
-        # it here made this test silently stop testing anything the
-        # first time the canonical block was revised, because the
-        # replacement below simply found no match.
-        template = self._template()
-        marker = re.search(
-            r'<!-- shared-block: plan-push-audit-phase v\d+ -->', template
-        )
-        self.assertIsNotNone(marker)
-        stale = template.replace(
-            marker.group(0),
+        # Take the marker from the fixture setUp built rather than
+        # naming a version. These fixtures are deliberately
+        # independent of templates/shared-blocks/, so a literal here
+        # would be a version this test does not otherwise track.
+        marker = self.blocks['plan-push-audit-phase'].splitlines()[0]
+        stale = self._template().replace(
+            marker,
             '<!-- shared-block: plan-push-audit-phase v0 -->',
         )
         result = self._check({'PLAN-TEMPLATE.md': stale})

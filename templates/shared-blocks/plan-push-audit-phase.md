@@ -5,9 +5,11 @@ copy lives in shakenfist/development at
 
 - Every master plan ends with a phase that runs the repository's
   `PUSH-AUDIT.md` over the whole plan's work. It is the last row of
-  the Execution table and it is not optional. Plans already marked
-  `Complete` before this convention landed are not reopened; the
-  rule binds every plan that is not yet `Complete`.
+  the Execution table and it is not optional. The rule binds every
+  plan that carries the phase: a plan already `Complete` when the
+  phase reached its repository is not reopened to acquire one, and
+  a plan that has the phase runs it even if it reaches `Complete`
+  before the phase does.
 - That phase audits the accumulated diff of every phase in the plan
   against the default branch, not the diff of the last phase alone.
   Auditing one phase at a time would miss what the phases did to
@@ -18,11 +20,24 @@ copy lives in shakenfist/development at
   branch is empty and would read as a clean audit. The range is not
   reliably derivable after the fact either: unrelated work lands on
   the default branch between phases, so anything anchored on "since
-  the plan file appeared" is far too wide. It has to be recorded:
-  each phase's merge commit goes into the plan as that phase lands,
-  in a `Merged` column where the Execution phases are a table. Keep
-  the commit out of the `Status` column, which holds one vocabulary
-  term and nothing else.
+  the plan file appeared" is far too wide. It has to be recorded.
+  As each phase lands, the commit that put it on the default branch
+  goes into the plan -- the merge commit of its pull request, or the
+  phase's last commit where it landed directly. Where the Execution
+  phases are a table that is a `Merged` column, added last so that a
+  row which omits it still reaches `Status`; where they are prose
+  sections it is a `Merged:` line in the phase's own section. The
+  `Status` column keeps its single vocabulary term and nothing else
+  (see `plan-status-vocabulary`).
+- Phases that landed before the plan started recording them are
+  reconstructed rather than left blank: recover what you can from
+  `gh pr list --state merged`, `git log --merges --first-parent` and
+  the plan file's own history, record every commit a phase landed
+  under rather than forcing one, and say in the plan that the range
+  was reconstructed. Where a phase accreted over months of unrelated
+  commits and no range is recoverable, say that instead and name the
+  paths the audit read -- an audit that says what it could not scope
+  is a result; one that silently audits nothing is not.
 - Findings land as their own pull request against the default
   branch, and the plan is not complete until they are resolved or
   explicitly declined in writing. A finding that is declined says

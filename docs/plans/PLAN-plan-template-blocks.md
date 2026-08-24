@@ -203,6 +203,22 @@ There are two obligations here and they are not the same one:
   against `main`, not over the last commit alone. It runs once the
   migration is complete.
 
+The blocks half of that diff did not land in one place, so the
+range is recorded here rather than derived when the phase runs.
+`plan-push-audit-phase` asks for a `Merged:` line per phase where a
+plan's phases are prose sections rather than a table; this plan's
+implementation sections were built block by block, so the line
+names the set:
+
+Merged: `9a74046`, `fbcd759`, `3abb973`, `51d872f`, `2468dda`,
+`5918f5b`, `e2585e3` (`templates/shared-blocks/`, plus
+`check_plan_template` and `docs/audits/plan-template.md`), all
+direct to `main`, plus `5b1fb74` (#49) and `ff92357` (#50) for the
+`plan-push-audit-phase` block itself. Reconstructed from
+`git log -- templates/shared-blocks/`, not recorded as they landed.
+The migration commits in the other four repositories are named in
+their own pull requests and are audited there.
+
 Findings from either land as their own pull request; the plan is not
 complete until each is resolved or declined in writing, with the
 reason recorded here. If an audit finds nothing, say so in one
