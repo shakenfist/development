@@ -4429,6 +4429,7 @@ def check_push_audit(repo_path, props, blocks_dir=None):
             'readme-discipline', 'llm-doc-discipline',
             'comment-proportion', 'plan-phase-references',
             'path-traversal-review', 'python-version-discipline',
+            'functional-test-coverage',
         ],
         blocks_dir=blocks_dir,
     )

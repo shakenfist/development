@@ -935,6 +935,11 @@ class PushAuditTest(unittest.TestCase):
             'Python wording.\n'
             '<!-- shared-block-end -->\n'
         )
+        self.tests_block = (
+            '<!-- shared-block: functional-test-coverage v1 -->\n'
+            'Testing wording.\n'
+            '<!-- shared-block-end -->\n'
+        )
         for name, block in (
             ('readme-discipline', self.readme_block),
             ('llm-doc-discipline', self.llm_doc_block),
@@ -942,6 +947,7 @@ class PushAuditTest(unittest.TestCase):
             ('plan-phase-references', self.phase_block),
             ('path-traversal-review', self.path_block),
             ('python-version-discipline', self.python_block),
+            ('functional-test-coverage', self.tests_block),
         ):
             with open(
                 os.path.join(self._blocks.name, f'{name}.md'), 'w'
@@ -950,7 +956,8 @@ class PushAuditTest(unittest.TestCase):
         self.canonical = (
             f'{self.readme_block}\n{self.llm_doc_block}\n'
             f'{self.comment_block}\n{self.phase_block}\n'
-            f'{self.path_block}\n{self.python_block}'
+            f'{self.path_block}\n{self.python_block}\n'
+            f'{self.tests_block}'
         )
 
     def _check(self, files):
