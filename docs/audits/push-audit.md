@@ -15,6 +15,14 @@ Repositories that carry a pre-push audit runbook must:
   policies they enforce);
 * embed the current **`comment-proportion`** shared block in its
   code-quality review section;
+* embed the current **`path-traversal-review`**,
+  **`python-version-discipline`** and **`functional-test-coverage`**
+  shared blocks, which carry the three criteria delegated to the
+  reviewer because no grep can judge them (see the
+  [security-sanitization](security-sanitization.md),
+  [python-version](python-version.md) and
+  [test-coverage](test-coverage.md) audits for the policies they
+  enforce);
 * keep every embedded block verbatim and at the current version; and
 * be **referenced from `AGENTS.md`**, so a session can discover it.
 
@@ -74,6 +82,11 @@ which is the exact feedback loop that bloats READMEs.
 
 Template: `templates/shared-blocks/`
 See: `templates/shared-blocks/README.md`
+
+To fix a non-compliant repository, copy each named block verbatim from
+`templates/shared-blocks/` into `PUSH-AUDIT.md` and reference the file
+from `AGENTS.md`; `templates/shared-blocks/README.md` describes the
+markers and the version bump procedure.
 
 ## Projects
 

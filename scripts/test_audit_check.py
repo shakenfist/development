@@ -28,6 +28,12 @@ SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), 'audit-check.py'
 )
 
+# This repository, for the tests that check a check against the spec
+# page or the canonical template it is supposed to agree with.
+REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
+)
+
 # These tests drive fixture git repositories, and the pre-commit hook
 # runs them during `git commit`, when git exports GIT_INDEX_FILE and
 # friends to hooks. Inherited by the fixture git subprocesses, those
@@ -1189,6 +1195,39 @@ class PushAuditTest(unittest.TestCase):
         })
         self.assertEqual(result['status'], 'pass')
         self.assertIn('referenced from AGENTS.md', result['details'])
+
+    def test_every_required_block_has_a_canonical_copy(self):
+        # A name in the list with no file under
+        # templates/shared-blocks would report every repository as
+        # carrying an unknown block.
+        for name in audit_check.PUSH_AUDIT_BLOCKS:
+            with self.subTest(block=name):
+                self.assertTrue(os.path.exists(os.path.join(
+                    REPO_ROOT, 'templates', 'shared-blocks',
+                    f'{name}.md')))
+
+    def test_every_required_block_is_named_in_the_spec(self):
+        # A criterion spans four files that must stay in sync. A
+        # block required here but absent from the spec page files a
+        # fleet issue naming something that page never mentions,
+        # which is exactly the cross-file drift this suite exists to
+        # catch.
+        with open(os.path.join(
+                REPO_ROOT, 'docs', 'audits', 'push-audit.md')) as f:
+            spec = f.read()
+        for name in audit_check.PUSH_AUDIT_BLOCKS:
+            with self.subTest(block=name):
+                self.assertIn(name, spec)
+
+    def test_the_fixture_covers_every_required_block(self):
+        # Otherwise a block added to the list is never exercised
+        # here: self.canonical would simply be missing it and every
+        # case in this class would fail for the same reason.
+        self.assertEqual(
+            sorted(audit_check.PUSH_AUDIT_BLOCKS),
+            sorted(os.path.splitext(name)[0]
+                   for name in os.listdir(self._blocks.name)),
+        )
 
 
 class PinIndirectDepsScopeTest(unittest.TestCase):
@@ -2766,12 +2805,11 @@ class PlanTemplateTest(unittest.TestCase):
         # A name in the list with no file under
         # templates/shared-blocks would report every repository as
         # carrying an unknown block.
-        root = os.path.dirname(
-            os.path.dirname(os.path.abspath(__file__)))
         for name in audit_check.PLAN_TEMPLATE_BLOCKS:
             with self.subTest(block=name):
                 self.assertTrue(os.path.exists(os.path.join(
-                    root, 'templates', 'shared-blocks', f'{name}.md')))
+                    REPO_ROOT, 'templates', 'shared-blocks',
+                    f'{name}.md')))
 
 
 class ConsoleLoggingTest(unittest.TestCase):

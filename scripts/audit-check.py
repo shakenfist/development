@@ -4494,13 +4494,26 @@ def validate_shared_blocks(content, required=None, blocks_dir=None):
     return problems
 
 
+# The blocks every PUSH-AUDIT.md must carry. Named here rather than
+# inline so docs/audits/push-audit.md can be tested against the list:
+# a block required by the check but absent from its spec page files a
+# fleet issue naming something the page never mentions.
+PUSH_AUDIT_BLOCKS = [
+    'readme-discipline', 'llm-doc-discipline',
+    'comment-proportion', 'plan-phase-references',
+    'path-traversal-review', 'python-version-discipline',
+    'functional-test-coverage',
+]
+
+
 def check_push_audit(repo_path, props, blocks_dir=None):
     """Check the pre-push audit file name and its shared blocks.
 
     The pre-push audit runbook must be named PUSH-AUDIT.md (the
     historical PUSH-TEMPLATE.md name is flagged as legacy) and must
-    embed the current readme-discipline, llm-doc-discipline,
-    comment-proportion and plan-phase-references shared blocks.
+    embed the current PUSH_AUDIT_BLOCKS shared blocks -- the
+    documentation and code-quality standards, plus the three criteria
+    delegated to the reviewer because no grep can judge them.
     Repositories with no pre-push audit file at all are N/A --
     whether every project should have one is a separate decision.
 
@@ -4535,12 +4548,7 @@ def check_push_audit(repo_path, props, blocks_dir=None):
         content = f.read()
     problems += validate_shared_blocks(
         content,
-        required=[
-            'readme-discipline', 'llm-doc-discipline',
-            'comment-proportion', 'plan-phase-references',
-            'path-traversal-review', 'python-version-discipline',
-            'functional-test-coverage',
-        ],
+        required=PUSH_AUDIT_BLOCKS,
         blocks_dir=blocks_dir,
     )
 
