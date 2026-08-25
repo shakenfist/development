@@ -3016,6 +3016,47 @@ def console_entry_point_files(repo_path):
     return sorted(files)
 
 
+def sets_own_logger_propagate(content):
+    """Does this file stop *its own* logger propagating to root?
+
+    A bare search for .propagate = False is satisfied by a line
+    silencing an unrelated third-party logger, which is the precise
+    case this rule exists to catch: the entry point still emits every
+    one of its own INFO lines twice. So the receiver is matched
+    instead -- the name bound to setup_console()'s return, or
+    getLogger() called with the same argument setup_console() was
+    given, which are the two spellings the standard uses.
+    """
+    setup = re.search(
+        r'(?:(\w+)\s*=\s*)?(?:\w+\.)*(?<!def )setup_console\s*\(([^)]*)\)',
+        content,
+    )
+    if not setup:
+        return False
+
+    receivers = []
+    if setup.group(1):
+        receivers.append(re.escape(setup.group(1)))
+    argument = setup.group(2).strip()
+    if argument:
+        get_logger = (
+            r'(?:\w+\.)*getLogger\s*\(\s*'
+            + re.escape(argument) + r'\s*\)'
+        )
+        receivers.append(get_logger)
+        # And anything bound to that logger, for the entry point
+        # that fetches it by name rather than keeping what
+        # setup_console() handed back.
+        receivers += [
+            re.escape(match.group(1))
+            for match in re.finditer(r'(\w+)\s*=\s*' + get_logger, content)
+        ]
+    return any(
+        re.search(receiver + r'\s*\.propagate\s*=\s*False', content)
+        for receiver in receivers
+    )
+
+
 def check_console_logging(repo_path, props):
     """Check console entry points also configure the root logger.
 
@@ -3043,6 +3084,7 @@ def check_console_logging(repo_path, props):
 
     problems = []
     using = []
+    exempt = []
     for relative in entry_points:
         try:
             with open(
@@ -3058,6 +3100,7 @@ def check_console_logging(repo_path, props):
         # the file's logging setup as a whole, so there is no single
         # line for a marker to sit on.
         if 'audit-ok: console-logging' in content:
+            exempt.append(relative)
             continue
         using.append(relative)
 
@@ -3067,7 +3110,7 @@ def check_console_logging(repo_path, props):
                 'logging.basicConfig() (INFO from every other module '
                 'reaches a root logger with no handler and is dropped)'
             )
-        if not re.search(r'\.propagate\s*=\s*False', content):
+        if not sets_own_logger_propagate(content):
             missing.append(
                 'propagate = False on its own logger (its own lines '
                 'are emitted twice once root has a handler)'
@@ -3076,6 +3119,15 @@ def check_console_logging(repo_path, props):
             problems.append(f'{relative}: missing {"; ".join(missing)}')
 
     if not using:
+        if exempt:
+            return {
+                'id': 'console-logging',
+                'status': 'not_applicable',
+                'details': (
+                    f'{len(exempt)} console entry point(s) calling '
+                    f'setup_console() exempt by audit-ok marker'
+                ),
+            }
         return {
             'id': 'console-logging',
             'status': 'not_applicable',

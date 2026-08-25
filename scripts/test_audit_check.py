@@ -2886,6 +2886,56 @@ class ConsoleLoggingTest(unittest.TestCase):
         )})
         self.assertEqual(result['status'], 'not_applicable')
 
+    def test_all_entry_points_exempt_says_so(self):
+        # The 'none calling setup_console()' wording would tell a
+        # reader the opposite of what is true, and send them looking
+        # for a call that is right there.
+        result = self._check({'thing/main.py': (
+            '# audit-ok: console-logging -- logging set up by the caller\n'
+            'from shakenfist_utilities import logs\n'
+            'LOG = logs.setup_console(__name__)\n'
+        )})
+        self.assertEqual(result['status'], 'not_applicable')
+        self.assertIn('exempt by audit-ok marker', result['details'])
+        self.assertNotIn('none calling', result['details'])
+
+    def test_propagate_on_a_foreign_logger_is_not_enough(self):
+        # The precise defect this rule exists to catch: the entry
+        # point's own INFO lines are still emitted twice.
+        result = self._check({'thing/main.py': (
+            'from shakenfist_utilities import logs\n'
+            'import logging\n'
+            'LOG = logs.setup_console(__name__)\n'
+            'logging.basicConfig(level=logging.INFO)\n'
+            "logging.getLogger('urllib3').propagate = False\n"
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('propagate', result['details'])
+
+    def test_propagate_via_get_logger_on_the_same_name_passes(self):
+        result = self._check({'thing/main.py': (
+            'from shakenfist_utilities import logs\n'
+            'import logging\n'
+            "LOG = logs.setup_console('thing')\n"
+            'logging.basicConfig(level=logging.INFO)\n'
+            "logging.getLogger('thing').propagate = False\n"
+        )})
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_propagate_on_a_separately_fetched_logger_passes(self):
+        # The entry point that fetches its logger by name instead of
+        # keeping what setup_console() handed back is still setting
+        # propagate on its own logger.
+        result = self._check({'thing/main.py': (
+            'from shakenfist_utilities import logs\n'
+            'import logging\n'
+            'logs.setup_console(__name__)\n'
+            'LOG = logging.getLogger(__name__)\n'
+            'logging.basicConfig(level=logging.INFO)\n'
+            'LOG.propagate = False\n'
+        )})
+        self.assertEqual(result['status'], 'pass', result['details'])
+
     def test_a_package_entry_point_resolves_to_its_init(self):
         result = self._check(
             {'thing/__init__.py': self.COMPLIANT},

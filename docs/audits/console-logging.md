@@ -14,6 +14,12 @@ logging.basicConfig(level=logging.INFO)
 logging.getLogger(__name__).propagate = False
 ```
 
+The `propagate` assignment is matched against the entry point's *own*
+logger -- the name bound to `setup_console()`'s return, or
+`getLogger()` called with the same argument it was given. A line
+silencing an unrelated third-party logger does not satisfy it, because
+the entry point still emits every one of its own lines twice.
+
 `setup_console()` raises the root logger's level to INFO but attaches
 its handler to the *named* logger only. Records from every other
 module therefore propagate up to a root logger with no handler on it
