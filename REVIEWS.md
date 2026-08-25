@@ -30,6 +30,5 @@ for how this works, including how to verify the attestations.
 | .github/workflows/renovate.yml | mikal | 2026-08-24 | 6de354ace01b |
 | .github/workflows/secret-scan.yml | mikal | 2026-08-24 | afd9d7247b03 |
 | .pre-commit-config.yaml | mikal | 2026-08-24 | d3c3fcb190f1 |
-| docs/audits/ci-review-automation.md | mikal | 2026-08-25 | a1b12328f1a0 |
 | tools/ci-prune-reviews.sh | mikal | 2026-08-24 | 3e10680265c6 |
 | tools/review-tracking.sh | mikal | 2026-08-24 | fabe2fc68a97 |

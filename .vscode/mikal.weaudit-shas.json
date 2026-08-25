@@ -53,10 +53,6 @@
       "sha": "d3c3fcb190f1e07d4e0305d8dda03a0a001c8c81",
       "date": "2026-08-24"
     },
-    "docs/audits/ci-review-automation.md": {
-      "sha": "a1b12328f1a016e274a4409d4e09fa76915dbe9e",
-      "date": "2026-08-25"
-    },
     "tools/ci-prune-reviews.sh": {
       "sha": "3e10680265c6b885619e8e08bea30a4fb05cb10b",
       "date": "2026-08-24"
