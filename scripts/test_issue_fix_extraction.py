@@ -313,12 +313,52 @@ class ExtractionTest(unittest.TestCase):
         # "Fixes #NNNN" after this pass.
         with open(WORKFLOW) as f:
             workflow = f.read()
-        self.assertIn('cp tools/neutralise-pr-body.sh', workflow)
         self.assertIn(
             'neutralise-pr-body.sh \\\n              '
             '${{ runner.temp }}/pr-description.txt', workflow)
         self.assertNotIn('neutralise-pr-body.sh ${{ runner.temp }}/'
                          'commit-summary.txt', workflow)
+
+    def test_the_issue_reference_precedes_the_model_prose(self):
+        # An unbalanced fence in the description renders everything
+        # after it as preformatted text, and GitHub does not autolink
+        # #NNNN inside a code block -- a trailing reference would
+        # silently stop closing the issue. Scope to the brace group
+        # which assembles the body and to nothing else: the commit
+        # message step also emits a "Fixes" line, and a window which
+        # caught that one would pass whatever order publish used.
+        with open(WORKFLOW) as f:
+            workflow = f.read()
+
+        end = workflow.index('} > ${{ runner.temp }}/pr-body.md')
+        start = workflow.rindex('\n          {\n', 0, end)
+        body = workflow[start:end]
+
+        self.assertIn('cat ${{ runner.temp }}/pr-description.txt', body)
+        self.assertLess(
+            body.index('echo "Fixes #${ISSUE_NUMBER}"'),
+            body.index('cat ${{ runner.temp }}/pr-description.txt'),
+            'the appended "Fixes #NNNN" must come before the model '
+            'description, not after it')
+
+    def test_the_workflow_runs_the_scripts_from_head(self):
+        # The fix under test may have edited these files -- the
+        # extractor's own header calls that out as a plausible subject
+        # for an automated fix. Copying them out of the workspace after
+        # Claude has exited copies whatever Claude wrote, so the
+        # workflow would parse its own output with the untested version.
+        # Nothing is committed until the publish step, so HEAD is the
+        # pre-fix tree.
+        with open(WORKFLOW) as f:
+            workflow = f.read()
+
+        self.assertIn('git show "HEAD:tools/${script}"', workflow)
+        for script in ('extract-model-block.sh', 'neutralise-pr-body.sh'):
+            self.assertNotIn(
+                'cp tools/%s' % script, workflow,
+                '%s is copied from the workspace, which is the tree the '
+                'fix under test just edited. Read it from HEAD instead.'
+                % script)
 
     def test_the_workflow_calls_the_script_for_both_blocks(self):
         # A tested script the workflow does not call is not an
@@ -327,7 +367,6 @@ class ExtractionTest(unittest.TestCase):
         with open(WORKFLOW) as f:
             workflow = f.read()
 
-        self.assertIn('cp tools/extract-model-block.sh', workflow)
         for block in ('COMMIT_SUMMARY', 'PR_DESCRIPTION'):
             self.assertIn(
                 'extract-model-block.sh %s' % block, workflow,
