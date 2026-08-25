@@ -103,6 +103,9 @@ CHECK_NAMES = {
     'merge-group-cancellation': 'Merge group run cancellation',
     'version-file-gitignore': 'Generated version file',
     'pyproject-usage': 'pyproject.toml usage',
+    'console-logging': 'Console script logging setup',
+    'header-sanitization': 'HTTP header sanitization',
+    'python-version-targeting': 'Python version targeting',
     'rust-unwrap-lint': 'Rust unwrap lint',
     'readme-absolute-links': 'README absolute links',
     'docs-external-links': 'Links out of docs/ are absolute',
@@ -407,6 +410,17 @@ def carries_retired_comment_addresser(repo_path):
     return sorted(found)
 
 
+# The three things check_ci_review_automation() can name in a finding
+# beyond a missing file. A maintainer following an audit issue has to
+# land on a spec page that states the thing they are being measured
+# against, and a rewrite of that page dropped the shared action while
+# the check went on filing it -- so the names live here and
+# CiReviewAutomationSpecTest asserts the page carries every one.
+CI_REVIEW_DEVELOPER_WORKFLOWS = ('pr-re-review.yml', 'pr-retest.yml')
+CI_REVIEW_SHARED_ACTION = 'review-pr-with-claude@main'
+CI_REVIEW_TRIGGER_ACTION = 'shakenfist/actions/pr-bot-trigger@main'
+
+
 def pr_re_review_open_codes_the_trigger(repo_path):
     """True when pr-re-review.yml hand-rolls what pr-bot-trigger does.
 
@@ -436,7 +450,8 @@ def pr_re_review_open_codes_the_trigger(repo_path):
     path = '.github/workflows/pr-re-review.yml'
     if not check_file_exists(repo_path, path):
         return False
-    return not check_file_contains(repo_path, path, r'pr-bot-trigger@main')
+    return not check_file_contains(
+        repo_path, path, re.escape(CI_REVIEW_TRIGGER_ACTION.split('/')[-1]))
 
 
 # Quoting and a trailing comment are both forms GitHub Actions treats
@@ -558,10 +573,7 @@ def check_ci_review_automation(repo_path, props):
 
     issues = []
     # Check developer automation workflows
-    for wf in [
-        'pr-re-review.yml',
-        'pr-retest.yml',
-    ]:
+    for wf in CI_REVIEW_DEVELOPER_WORKFLOWS:
         if not check_file_exists(
             repo_path, f'.github/workflows/{wf}'
         ):
@@ -569,21 +581,19 @@ def check_ci_review_automation(repo_path, props):
 
     # Check that at least one workflow uses the shared review action
     if not any_workflow_contains(
-        repo_path, r'review-pr-with-claude@main'
+        repo_path, re.escape(CI_REVIEW_SHARED_ACTION)
     ):
         issues.append(
-            'No workflow uses shared action '
-            'review-pr-with-claude@main'
+            f'No workflow uses shared action {CI_REVIEW_SHARED_ACTION}'
         )
 
     # A hand-rolled pr-re-review.yml misses the shared action's fork
     # guard. See the helper's docstring.
     if pr_re_review_open_codes_the_trigger(repo_path):
         issues.append(
-            'pr-re-review.yml does not use '
-            'shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the '
-            "trigger handling and does not inherit the action's fork pull "
-            'request guard'
+            f'pr-re-review.yml does not use {CI_REVIEW_TRIGGER_ACTION}, '
+            f'so it hand-rolls the trigger handling and does not '
+            f"inherit the action's fork pull request guard"
         )
 
     # "secrets: inherit" on the reviewer job hands every secret this
@@ -2974,6 +2984,805 @@ def check_version_file(repo_path, props):
     }
 
 
+def mask_source(content, comments=True, strings=True):
+    """Blank out comment and/or string-literal bodies, keeping offsets.
+
+    Every search in this file is a grep over source text, which
+    counts a commented-out call as a call. That is not a cosmetic
+    inaccuracy: a file whose logging.basicConfig() is commented out
+    -- the state of anything somebody was debugging -- passed the
+    console-logging check, which exists to catch precisely that, and
+    a docstring saying a module deliberately does not call
+    setup_console() made it a caller and failed it.
+
+    Bodies are replaced space for space and newlines are kept, so
+    every offset and line number in the result still addresses the
+    same character of the original. Callers can therefore match
+    structure against the masked text and still read audit-ok
+    markers, which live in comments, out of the original.
+    """
+    out = list(content)
+    index, length = 0, len(content)
+    while index < length:
+        char = content[index]
+        if char == '#':
+            # Recognised even when it is not being blanked: an
+            # apostrophe in a comment ("don't") would otherwise open a
+            # string literal and swallow the rest of the file.
+            while index < length and content[index] != '\n':
+                if comments:
+                    out[index] = ' '
+                index += 1
+            continue
+        if char not in '\'"':
+            index += 1
+            continue
+
+        # The quote characters are left in place. Only the body is
+        # blanked, so a triple-quoted block holding a code sample
+        # becomes blank lines rather than disappearing and pulling
+        # the lines after it up into a new position.
+        quote = char * 3 if content.startswith(char * 3, index) else char
+        index += len(quote)
+        while index < length:
+            if content[index] == '\\':
+                for offset in (0, 1):
+                    if strings and index + offset < length and (
+                            content[index + offset] != '\n'):
+                        out[index + offset] = ' '
+                index += 2
+                continue
+            if content.startswith(quote, index):
+                index += len(quote)
+                break
+            if strings and content[index] != '\n':
+                out[index] = ' '
+            index += 1
+    return ''.join(out)
+
+
+def mask_comments_and_strings(content):
+    """The view structure is matched against: code only."""
+    return mask_source(content)
+
+
+def mask_strings(content):
+    """The view an audit-ok marker is read from: code and comments.
+
+    A marker is a comment, but the membership test that looked for
+    one ran over the whole file, so `DOC = "audit-ok:
+    header-sanitization"` -- an ordinary string constant, on the line
+    above a class -- silently exempted a request handler from the
+    CWE-113 check. That is the mirror of the false pass
+    mask_comments_and_strings() was written to close: this half fixed
+    "a docstring made it a caller" and left "a docstring made it
+    exempt".
+    """
+    return mask_source(content, comments=False)
+
+
+def console_entry_point_files(repo_path):
+    """Return (resolved files, unresolved targets) for the entry points.
+
+    The spec is about how a *CLI entry point* uses setup_console(),
+    not about every module that logs. Anchoring on the declared
+    console scripts is what makes that distinction mechanical:
+    occystrap calls logs.setup_console(__name__) at the top of all
+    24 of its modules, and only occystrap/main.py is the entry point
+    any of it is reached through.
+
+    All three spellings of the declaration are read. [project.scripts]
+    is what the fleet uses today, but a gui-scripts or an explicit
+    entry-points.console_scripts table names an entry point just as
+    much, and reading only the first reported those packages as
+    having none at all -- a clean bill for a file nobody looked at.
+
+    Anything declared that cannot be turned into a file is returned
+    rather than dropped: a repository laying its packages out under
+    lib/ declares entry points and resolves none of them, and
+    returning only the files said it had declared none. A malformed
+    table and a non-string target reach the same false statement by
+    another door, so they come back the same way.
+    """
+    pyproject = os.path.join(repo_path, 'pyproject.toml')
+    if not os.path.exists(pyproject):
+        return [], []
+    try:
+        with open(pyproject, 'rb') as f:
+            data = tomllib.load(f)
+    except (tomllib.TOMLDecodeError, OSError):
+        return [], []
+
+    # Guarded at every level rather than assumed, the way
+    # renovate_enables_pre_commit does. A pyproject.toml declaring
+    # scripts as a string is malformed, but the AttributeError it
+    # raised propagated out of run_checks and took every other
+    # check's result for that repository with it.
+    unresolved = []
+
+    def table(value, *keys):
+        # Named at the level that is wrong, not at the level asked
+        # for: a string where [project.entry-points] should be takes
+        # console_scripts down with it, and reporting the leaf would
+        # point at a table the file does not contain.
+        seen = []
+        for key in keys:
+            if not isinstance(value, dict):
+                break
+            seen.append(key)
+            value = value.get(key)
+        if value is None:
+            return {}
+        if isinstance(value, dict) and len(seen) == len(keys):
+            return value
+        problem = (
+            f'[{".".join(seen)}] is a {type(value).__name__}, '
+            f'not a table')
+        if problem not in unresolved:
+            unresolved.append(problem)
+        return {}
+
+    project = data if isinstance(data, dict) else {}
+    targets = []
+    for name in ('scripts', 'gui-scripts'):
+        targets += list(table(project, 'project', name).values())
+    targets += list(
+        table(project, 'project', 'entry-points',
+              'console_scripts').values())
+
+    files = []
+    for target in targets:
+        if not isinstance(target, str) or not target.split(
+                ':', 1)[0].strip():
+            unresolved.append(f'{target!r} does not name a module')
+            continue
+        module = target.split(':', 1)[0].strip()
+        relative = module.replace('.', os.sep)
+        for candidate in (
+            f'{relative}.py',
+            os.path.join(relative, '__init__.py'),
+            os.path.join('src', f'{relative}.py'),
+            os.path.join('src', relative, '__init__.py'),
+        ):
+            if os.path.exists(os.path.join(repo_path, candidate)):
+                if candidate not in files:
+                    files.append(candidate)
+                break
+        else:
+            if module not in unresolved:
+                unresolved.append(module)
+    return sorted(files), sorted(unresolved)
+
+
+def sets_own_logger_propagate(code):
+    """Does this file stop *its own* logger propagating to root?
+
+    A bare search for .propagate = False is satisfied by a line
+    silencing an unrelated third-party logger, which is the precise
+    case this rule exists to catch: the entry point still emits every
+    one of its own INFO lines twice. So the receiver is matched
+    instead -- the name bound to setup_console()'s return, or
+    getLogger() called with the same argument setup_console() was
+    given, which are the two spellings the standard uses.
+
+    Expects the masked code rather than the file. Every call is
+    considered, not the first: an entry point configuring another
+    package's logger before its own had its receivers taken from
+    that one, so a correct LOG.propagate = False did not match and
+    the file was failed for a line it had.
+    """
+    setups = list(re.finditer(
+        r'(?:((?:\w+\.)*\w+)\s*=\s*)?'
+        r'(?:\w+\.)*(?<!def )setup_console\s*\(([^)]*)\)',
+        code,
+    ))
+    if not setups:
+        return False
+
+    # A call given __name__ is the file configuring itself, so when
+    # there is one it is the only one that decides this. Accepting
+    # any receiver would let silencing somebody else's logger stand
+    # in for silencing your own, which is the defect this catches.
+    own = [s for s in setups if s.group(2).strip() == '__name__']
+    receivers = []
+    for setup in own or setups:
+        # Dotted targets included: self.LOG = setup_console(...) is
+        # written self.LOG.propagate = False, and matching only the
+        # bare name meant the lookbehind below rejected it.
+        if setup.group(1):
+            receivers.append(re.escape(setup.group(1)))
+        argument = setup.group(2).strip()
+        if not argument:
+            continue
+        get_logger = (
+            r'(?:\w+\.)*getLogger\s*\(\s*'
+            + re.escape(argument) + r'\s*\)'
+        )
+        receivers.append(get_logger)
+        # And anything bound to that logger, for the entry point
+        # that fetches it by name rather than keeping what
+        # setup_console() handed back.
+        receivers += [
+            re.escape(match.group(1))
+            for match in re.finditer(r'(\w+)\s*=\s*' + get_logger, code)
+        ]
+    # The lookbehind is what makes the receiver the *whole* name.
+    # Without it re.escape('LOG') matches inside URLLIB_LOG, and an
+    # entry point silencing urllib3 was read as having silenced
+    # itself -- a pass for exactly the defect this exists to catch.
+    # It also rejects wrapper.LOG, an attribute of something else,
+    # and is harmless for the getLogger() alternative, which already
+    # begins with its own optional dotted prefix.
+    return any(
+        re.search(
+            r'(?<![\w.])' + receiver + r'\s*\.propagate\s*=\s*False',
+            code,
+        )
+        for receiver in receivers
+    )
+
+
+def check_console_logging(repo_path, props):
+    """Check console entry points also configure the root logger.
+
+    shakenfist_utilities.logs.setup_console() raises the root
+    logger's level but attaches its handler to one named logger. Every
+    other module's records therefore propagate to a root logger with
+    no handler on it and are dropped, so an entry point calling it
+    must also call logging.basicConfig() to put a handler there -- and
+    must then stop its own logger propagating into that handler, or
+    every line it logs is emitted twice.
+
+    Only files named by [project.scripts] are examined, and only those
+    that call setup_console(). A repository that declares no console
+    scripts, or whose entry points do not use the helper, is not
+    applicable: this is a rule about how the helper is used, not a
+    requirement to use it.
+    """
+    entry_points, unresolved = console_entry_point_files(repo_path)
+    if not entry_points:
+        # "None declared" and "declared, none found" are different
+        # facts, and reporting the second as the first is a false
+        # statement about a repository nobody has looked at yet.
+        if unresolved:
+            return {
+                'id': 'console-logging',
+                'status': 'not_applicable',
+                'details': (
+                    f'{len(unresolved)} entry point declaration(s) '
+                    f'resolved to no file in this checkout: '
+                    + ', '.join(unresolved)
+                ),
+            }
+        return {
+            'id': 'console-logging',
+            'status': 'not_applicable',
+            'details': 'No console or GUI entry points declared',
+        }
+
+    problems = []
+    using = []
+    exempt = []
+    for relative in entry_points:
+        try:
+            with open(
+                os.path.join(repo_path, relative), 'r', errors='replace'
+            ) as f:
+                content = f.read()
+        except OSError:
+            continue
+
+        # Matched against the code rather than the file: a
+        # commented-out logging.basicConfig() satisfied the
+        # requirement it is the absence of, and a docstring saying a
+        # module deliberately does not call setup_console() made it
+        # a caller.
+        code = mask_comments_and_strings(content)
+        if not re.search(r'(?<!def )setup_console\s*\(', code):
+            continue
+
+        # Read per file rather than per line: the finding is about
+        # the file's logging setup as a whole, so there is no single
+        # line for a marker to sit on. Read from the comment view,
+        # because a marker is a comment: a docstring mentioning the
+        # marker exempted the file that mentioned it.
+        if 'audit-ok: console-logging' in mask_strings(content):
+            exempt.append(relative)
+            continue
+        using.append(relative)
+
+        missing = []
+        if not re.search(r'logging\.basicConfig\s*\(', code):
+            missing.append(
+                'logging.basicConfig() (INFO from every other module '
+                'reaches a root logger with no handler and is dropped)'
+            )
+        if not sets_own_logger_propagate(code):
+            missing.append(
+                'propagate = False on its own logger (its own lines '
+                'are emitted twice once root has a handler)'
+            )
+        if missing:
+            problems.append(f'{relative}: missing {"; ".join(missing)}')
+
+    # Named in every outcome, not only when nothing resolved at all.
+    # A repository with a mixed layout had its unresolved entry
+    # points dropped and collected a pass on the ones that did
+    # resolve -- the same clean bill for a file nobody opened as the
+    # total case, in the partial rather than the whole.
+    unnamed = (
+        f'{len(unresolved)} declaration(s) resolved to no file in '
+        f'this checkout: ' + ', '.join(unresolved)
+    ) if unresolved else ''
+
+    if not using:
+        if exempt:
+            return {
+                'id': 'console-logging',
+                'status': 'not_applicable',
+                'details': (
+                    f'{len(exempt)} console entry point(s) calling '
+                    f'setup_console() exempt by audit-ok marker'
+                    + (f'; {unnamed}' if unnamed else '')
+                ),
+            }
+        return {
+            'id': 'console-logging',
+            'status': 'not_applicable',
+            'details': (
+                f'{len(entry_points)} console entry point(s), none '
+                f'calling shakenfist_utilities.logs.setup_console()'
+                + (f'; {unnamed}' if unnamed else '')
+            ),
+        }
+
+    if problems:
+        return {
+            'id': 'console-logging',
+            'status': 'fail',
+            'details': (
+                f'{len(problems)} of {len(using)} console entry '
+                f'point(s) calling setup_console() do not configure '
+                f'the root logger -- ' + '; '.join(sorted(problems))
+                + (f'; {unnamed}' if unnamed else '')
+            ),
+        }
+
+    # A pass is a statement about every entry point the repository
+    # declares, so one that resolved to no file withholds it. The
+    # ones that did resolve are compliant and the details say so, but
+    # the criterion has not been assessed -- which is not_applicable,
+    # the same answer the total case gives, rather than a fail this
+    # checkout has not demonstrated.
+    if unresolved:
+        return {
+            'id': 'console-logging',
+            'status': 'not_applicable',
+            'details': (
+                f'{len(using)} console entry point(s) calling '
+                f'setup_console() configure the root logger, but '
+                + unnamed
+            ),
+        }
+
+    return {
+        'id': 'console-logging',
+        'status': 'pass',
+        'details': (
+            f'{len(using)} console entry point(s) calling '
+            f'setup_console() configure the root logger'
+        ),
+    }
+
+
+# Every one of these inherits the unsanitized send_header() from
+# http.server, so subclassing any of them is the exposure. Naming only
+# the root class read "class Handler(SimpleHTTPRequestHandler)" as
+# having no raw HTTP server in it at all.
+HTTP_HANDLER_BASES = (
+    'BaseHTTPRequestHandler',
+    'SimpleHTTPRequestHandler',
+    'CGIHTTPRequestHandler',
+)
+
+
+def parse_class_statements(content):
+    """Yield (name, bases, start, end) for each class statement.
+
+    The base list is closed by counting parentheses rather than with
+    \\(([^)]*)\\), which stops at the first ")" and so read nothing at
+    all from "class H(make_base(), BaseHTTPRequestHandler):". Skipping
+    a class is a clean bill for a handler nobody looked at, so a base
+    list the walk cannot close is yielded with bases of None for the
+    caller to report rather than dropped here.
+
+    Classes with no base list are not yielded: they inherit nothing,
+    so they cannot be a request handler.
+
+    A PEP 695 type parameter list may sit between the name and the
+    bases, and a bound in one can itself hold brackets, so it is
+    walked the same way rather than matched -- "class H[T](Base)"
+    otherwise looked like a class with no base list at all, which is
+    the silent skip this function exists to avoid.
+    """
+    # Comments and string bodies are blanked first, so a ")" in
+    # either no longer closes the walk early and a code sample in a
+    # docstring is no longer a class. Masking preserves offsets, so
+    # the positions yielded here still address `content`.
+    code = mask_comments_and_strings(content)
+    for match in re.finditer(
+        r'^[ \t]*class\s+(\w+)\s*', code, re.MULTILINE,
+    ):
+        index = match.end()
+        if index < len(code) and code[index] == '[':
+            depth, index = 1, index + 1
+            while index < len(code) and depth:
+                if code[index] == '[':
+                    depth += 1
+                elif code[index] == ']':
+                    depth -= 1
+                index += 1
+            if depth:
+                yield match.group(1), None, match.start(), len(code)
+                continue
+            while index < len(code) and code[index] in ' \t':
+                index += 1
+        if index >= len(code) or code[index] != '(':
+            continue
+        opens = index
+        depth, index = 1, index + 1
+        while index < len(code) and depth:
+            if code[index] == '(':
+                depth += 1
+            elif code[index] == ')':
+                depth -= 1
+            index += 1
+        if depth:
+            yield match.group(1), None, match.start(), len(code)
+            continue
+        yield (match.group(1), code[opens + 1:index - 1],
+               match.start(), index)
+
+
+def handler_base_names(content):
+    """Local names that refer to an http.server request handler base.
+
+    The base list is compared against names, not searched for
+    substrings, so an alias has to be resolved or the class is
+    dropped: "from http.server import BaseHTTPRequestHandler as BHR"
+    followed by "class Handler(BHR)" was reported as a repository
+    with no raw HTTP server in it, which is the false clean bill this
+    check exists to refuse. An alias may sit on a continuation line
+    of either kind, parenthesised or backslashed, so the import
+    statement is read whole rather than a line at a time.
+    """
+    names = set(HTTP_HANDLER_BASES)
+    for match in re.finditer(
+        # Both continuation forms, because an import list long enough
+        # to need one is exactly where an alias hides: the capture
+        # stopped at the newline, so the parenthesised spelling
+        # resolved nothing and the class using the alias was dropped
+        # without a word.
+        r'^[ \t]*(?:from\s+[\w.]+\s+)?import\s+'
+        r'(\([^)]*\)|(?:[^\n\\]|\\\n)+)',
+        mask_comments_and_strings(content), re.MULTILINE,
+    ):
+        # The backslash is punctuation joining the statement, just
+        # as the parens are. Left in place it became a fourth token
+        # and the "name as alias" shape stopped matching, so the
+        # capture spanned the continuation and resolved nothing.
+        for clause in match.group(1).replace('(', ' ').replace(
+                ')', ' ').replace('\\', ' ').split(','):
+            parts = clause.split()
+            if len(parts) == 3 and parts[1] == 'as' and (
+                    parts[0].split('.')[-1] in HTTP_HANDLER_BASES):
+                names.add(parts[2])
+    return names
+
+
+def check_header_sanitization(repo_path, props):
+    """Check http.server handler subclasses strip header newlines.
+
+    A header value carrying a CR or LF splits the response
+    (CWE-113), which CodeQL reports as py/http-response-splitting.
+    The fleet remedy is occystrap's SafeHeaderMixin, which strips
+    both before delegating to the base class.
+
+    The mixin has to be listed *first* in the bases or the MRO
+    reaches the base send_header() and the override never runs,
+    which is why position is checked rather than mere presence.
+
+    Flask projects are unaffected -- Werkzeug's Headers raises on a
+    line break -- and are not applicable here because they have no
+    http.server handler subclass to find.
+    """
+    try:
+        result = subprocess.run(
+            ['git', '-C', repo_path, 'ls-files', '--', '*.py'],
+            capture_output=True, text=True, timeout=30,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        return {
+            'id': 'header-sanitization',
+            'status': 'fail',
+            'details': f'Could not run git ls-files: {e}',
+        }
+
+    # A non-zero exit leaves stdout empty, which is indistinguishable
+    # from a repository holding no Python at all. On a security check
+    # a silent clean bill is the worse default, so say so instead.
+    if result.returncode != 0:
+        return {
+            'id': 'header-sanitization',
+            'status': 'fail',
+            'details': (
+                f'git ls-files failed with exit {result.returncode}: '
+                f'{result.stderr.strip()}'
+            ),
+        }
+
+    handlers = []
+    unreadable = []
+    problems = []
+    for relative in result.stdout.splitlines():
+        relative = relative.strip()
+        if not relative:
+            continue
+        path = os.path.join(repo_path, relative)
+        try:
+            with open(path, 'r', errors='replace') as f:
+                content = f.read()
+        except OSError:
+            continue
+        if not any(
+            base in mask_comments_and_strings(content)
+            for base in HTTP_HANDLER_BASES
+        ):
+            continue
+        aliases = handler_base_names(content)
+
+        # Indented definitions count. http.server gives no way to
+        # pass arguments to a handler, so defining one inside a
+        # function to close over state is the common idiom -- and
+        # anchoring at column zero reported those repositories as
+        # having no raw HTTP server at all.
+        for name, bases, start, stop in parse_class_statements(content):
+            # A base list may span lines, and a dotted base is an
+            # attribute of the module it was imported from.
+            names = [] if bases is None else [
+                b.strip().split('.')[-1] for b in bases.split(',')
+            ]
+            names = [n for n in names if n]
+            handler = next((n for n in names if n in aliases), None)
+            # Compared as whole names rather than as substrings, so
+            # a class inheriting MyBaseHTTPRequestHandlerWrapper is
+            # out of scope instead of being failed for not carrying
+            # a mixin it has no reason to.
+            if bases is not None and handler is None:
+                continue
+
+            line = content.count('\n', 0, start) + 1
+            where = f'{relative}:{line} ({name})'
+
+            # The marker is read on the class statement rather than
+            # per file: a module may hold both a real server and a
+            # test fixture, and exempting the file would exempt both.
+            # To the end of the line so a trailing comment counts as
+            # being *on* the statement, and exactly one line above,
+            # which is what security-sanitization.md advertises.
+            # Sliced from the comment view rather than the file,
+            # so a string constant holding the marker no longer
+            # exempts the class below it. Masking preserves offsets,
+            # so start and stop still address the same characters.
+            commented = mask_strings(content)
+            end = commented.find('\n', stop)
+            statement = commented[
+                start:end if end != -1 else len(commented)]
+            preceding = commented[:start].splitlines()[-1:]
+            if 'audit-ok: header-sanitization' in statement or any(
+                'audit-ok: header-sanitization' in p for p in preceding
+            ):
+                continue
+
+            # A base list this cannot read is not a class this can
+            # clear. Reported rather than skipped, because the skip
+            # is indistinguishable from a repository with no handler
+            # in it and reads as a clean bill on a security check.
+            if bases is None:
+                unreadable.append(where)
+                continue
+
+            handlers.append(where)
+            if 'SafeHeaderMixin' not in names:
+                problems.append(
+                    f'{where}: does not inherit SafeHeaderMixin, so '
+                    f'send_header() passes CR and LF straight through'
+                )
+            elif names.index('SafeHeaderMixin') > names.index(handler):
+                problems.append(
+                    f'{where}: SafeHeaderMixin is listed after '
+                    f'{handler}, so the MRO reaches the base '
+                    f'send_header() and the override never runs'
+                )
+
+    problems.extend(
+        f'{where}: could not read the base list, so whether it is an '
+        f'HTTP request handler is unknown'
+        for where in unreadable
+    )
+
+    if not handlers and not unreadable:
+        return {
+            'id': 'header-sanitization',
+            'status': 'not_applicable',
+            'details': 'No http.server request handler subclasses',
+        }
+
+    if problems:
+        return {
+            'id': 'header-sanitization',
+            'status': 'fail',
+            'details': (
+                f'{len(problems)} of {len(handlers) + len(unreadable)} '
+                f'HTTP request handler class(es) do not sanitize '
+                f'header values: ' + '; '.join(sorted(problems))
+            ),
+        }
+
+    return {
+        'id': 'header-sanitization',
+        'status': 'pass',
+        'details': (
+            f'{len(handlers)} HTTP request handler subclass(es) '
+            f'inherit SafeHeaderMixin first'
+        ),
+    }
+
+
+def python_specifier_clauses(specifier):
+    """Reduce a PEP 440 specifier to a comparable set of clauses.
+
+    Whitespace, clause order and a trailing ".0" are spelling rather
+    than meaning: ">= 3.8", ">=3.8" and ">=3.8.0" are one floor said
+    three ways. Comparing the raw strings filed a fleet issue whose
+    only remedy was a cosmetic edit, and asserted one of the two was
+    stale when neither was.
+    """
+    clauses = set()
+    for clause in specifier.split(','):
+        clause = re.sub(r'\s+', '', clause)
+        if clause:
+            clauses.add(re.sub(r'(\.0)+$', '', clause))
+    return clauses
+
+
+def check_python_version_targeting(repo_path, props):
+    """Check the declared Python floor exists and is stated once.
+
+    A package that does not declare requires-python claims to support
+    every interpreter, which is never true and gives pip nothing to
+    refuse an install with.
+
+    Where renovate.json also carries constraints.python, the two must
+    agree. Both are derived from the same fact -- the system Python of
+    the oldest supported distribution -- so a disagreement means one
+    of them was updated and the other forgotten, and renovate then
+    proposes bumps against a floor the package does not claim.
+    """
+    if props.get('not_python') or props.get('is_docs_only'):
+        return {
+            'id': 'python-version-targeting',
+            'status': 'not_applicable',
+            'details': 'Not a Python project (per overrides)',
+        }
+    if props.get('has_cargo_toml'):
+        return {
+            'id': 'python-version-targeting',
+            'status': 'not_applicable',
+            'details': 'Rust project (any Python is helper scripts)',
+        }
+    if not props['has_pyproject_toml']:
+        return {
+            'id': 'python-version-targeting',
+            'status': 'not_applicable',
+            'details': 'No pyproject.toml (not a Python package)',
+        }
+
+    try:
+        with open(os.path.join(repo_path, 'pyproject.toml'), 'rb') as f:
+            data = tomllib.load(f)
+    except (tomllib.TOMLDecodeError, OSError) as e:
+        return {
+            'id': 'python-version-targeting',
+            'status': 'fail',
+            'details': f'Could not parse pyproject.toml: {e}',
+        }
+
+    # A pyproject.toml holding only [tool.*] sections configures
+    # linters; it does not package anything, and has nothing to
+    # declare an interpreter floor for.
+    if not isinstance(data, dict) or 'project' not in data:
+        return {
+            'id': 'python-version-targeting',
+            'status': 'not_applicable',
+            'details': (
+                'pyproject.toml carries tool configuration only, not '
+                'packaging metadata'
+            ),
+        }
+
+    # Valid TOML, invalid PEP 621. Reported rather than raised: the
+    # AttributeError this used to throw propagated out of run_checks
+    # and cost the repository every other check as well.
+    if not isinstance(data['project'], dict):
+        return {
+            'id': 'python-version-targeting',
+            'status': 'fail',
+            'details': (
+                f'pyproject.toml declares [project] as a '
+                f'{type(data["project"]).__name__}, not a table, so it '
+                f'carries no packaging metadata to read'
+            ),
+        }
+
+    requires = data['project'].get('requires-python')
+    if not requires:
+        return {
+            'id': 'python-version-targeting',
+            'status': 'fail',
+            'details': (
+                'pyproject.toml declares no requires-python, so the '
+                'package claims to support every interpreter and pip '
+                'has nothing to refuse an install with'
+            ),
+        }
+
+    renovate = os.path.join(repo_path, 'renovate.json')
+    if os.path.exists(renovate):
+        try:
+            with open(renovate, 'r', errors='replace') as f:
+                config = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            config = {}
+        # Guarded rather than assumed: renovate.json's top level can
+        # be any JSON value, and calling .get() on the array one
+        # repository had there raised out of run_checks and cost
+        # that repository every other check as well.
+        if not isinstance(config, dict):
+            config = {}
+        constraints = config.get('constraints')
+        constraint = (
+            constraints.get('python')
+            if isinstance(constraints, dict) else None
+        )
+        # Compared clause by clause rather than as text, so the
+        # finding is a real disagreement about which interpreters are
+        # supported and not a difference in how one was spelled.
+        if constraint and (
+            python_specifier_clauses(constraint)
+            != python_specifier_clauses(requires)
+        ):
+            return {
+                'id': 'python-version-targeting',
+                'status': 'fail',
+                'details': (
+                    f'requires-python is "{requires}" but '
+                    f'renovate.json constraints.python is '
+                    f'"{constraint}". Both describe the '
+                    f'interpreters this package supports, so they '
+                    f'disagree, and renovate is resolving dependency '
+                    f'versions against a range the package does not '
+                    f'claim'
+                ),
+            }
+
+    return {
+        'id': 'python-version-targeting',
+        'status': 'pass',
+        'details': f'requires-python is "{requires}"',
+    }
+
+
 def check_rust_unwrap_lint(repo_path, props):
     """Check Rust projects enable clippy's unwrap_used lint.
 
@@ -4065,13 +4874,26 @@ def validate_shared_blocks(content, required=None, blocks_dir=None):
     return problems
 
 
+# The blocks every PUSH-AUDIT.md must carry. Named here rather than
+# inline so docs/audits/push-audit.md can be tested against the list:
+# a block required by the check but absent from its spec page files a
+# fleet issue naming something the page never mentions.
+PUSH_AUDIT_BLOCKS = [
+    'readme-discipline', 'llm-doc-discipline',
+    'comment-proportion', 'plan-phase-references',
+    'path-traversal-review', 'python-version-discipline',
+    'functional-test-coverage',
+]
+
+
 def check_push_audit(repo_path, props, blocks_dir=None):
     """Check the pre-push audit file name and its shared blocks.
 
     The pre-push audit runbook must be named PUSH-AUDIT.md (the
     historical PUSH-TEMPLATE.md name is flagged as legacy) and must
-    embed the current readme-discipline, llm-doc-discipline,
-    comment-proportion and plan-phase-references shared blocks.
+    embed the current PUSH_AUDIT_BLOCKS shared blocks -- the
+    documentation and code-quality standards, plus the three criteria
+    delegated to the reviewer because no grep can judge them.
     Repositories with no pre-push audit file at all are N/A --
     whether every project should have one is a separate decision.
 
@@ -4106,10 +4928,7 @@ def check_push_audit(repo_path, props, blocks_dir=None):
         content = f.read()
     problems += validate_shared_blocks(
         content,
-        required=[
-            'readme-discipline', 'llm-doc-discipline',
-            'comment-proportion', 'plan-phase-references',
-        ],
+        required=PUSH_AUDIT_BLOCKS,
         blocks_dir=blocks_dir,
     )
 
@@ -5098,6 +5917,12 @@ def check_calls(repo_path, props, repo_name, org):
          lambda: check_pyproject_usage(repo_path, props)),
         ('version-file-gitignore',
          lambda: check_version_file(repo_path, props)),
+        ('console-logging',
+         lambda: check_console_logging(repo_path, props)),
+        ('header-sanitization',
+         lambda: check_header_sanitization(repo_path, props)),
+        ('python-version-targeting',
+         lambda: check_python_version_targeting(repo_path, props)),
         ('rust-unwrap-lint',
          lambda: check_rust_unwrap_lint(repo_path, props)),
         ('readme-absolute-links',

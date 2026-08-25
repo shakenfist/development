@@ -124,6 +124,18 @@ AUDIT_METADATA = {
         'spec': 'docs/audits/version-file-gitignore.md',
         'template': None,
     },
+    'console-logging': {
+        'spec': 'docs/audits/console-logging.md',
+        'template': None,
+    },
+    'header-sanitization': {
+        'spec': 'docs/audits/security-sanitization.md',
+        'template': None,
+    },
+    'python-version-targeting': {
+        'spec': 'docs/audits/python-version.md',
+        'template': None,
+    },
     'rust-unwrap-lint': {
         'spec': 'docs/audits/rust-unwrap-lint.md',
         'template': None,
@@ -203,6 +215,9 @@ ISSUE_TITLES = {
     'merge-group-cancellation': 'Merge group run cancellation',
     'pyproject-usage': 'pyproject.toml usage',
     'version-file-gitignore': 'Generated version file',
+    'console-logging': 'Console script logging setup',
+    'header-sanitization': 'HTTP header sanitization',
+    'python-version-targeting': 'Python version targeting',
     'rust-unwrap-lint': 'Rust unwrap lint',
     'readme-absolute-links': 'README absolute links',
     'docs-external-links': 'Links out of docs/ are absolute',
