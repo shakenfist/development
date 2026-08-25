@@ -2993,6 +2993,72 @@ class HeaderSanitizationTest(unittest.TestCase):
         self.assertIn('Real', result['details'])
         self.assertNotIn('Fixture', result['details'])
 
+    def test_a_handler_defined_inside_a_function_is_examined(self):
+        # http.server gives no way to pass arguments to a handler, so
+        # defining one in a closure is the common idiom. Reported as
+        # not_applicable, it reads as 'no raw HTTP server here'.
+        result = self._check({'a.py': (
+            'def serve(state):\n'
+            '    class Handler(http.server.BaseHTTPRequestHandler):\n'
+            '        pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('does not inherit SafeHeaderMixin', result['details'])
+
+    def test_a_commented_base_list_is_read_without_the_comment(self):
+        # The comment's dot used to be read as attribute access, so
+        # the base names came out mangled and the ordering finding
+        # this check exists for was reported as a missing mixin.
+        result = self._check({'a.py': (
+            'class Handler(BaseHTTPRequestHandler,  # http.server bits\n'
+            '              SafeHeaderMixin):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('listed after', result['details'])
+
+    def test_an_unreadable_base_list_does_not_abort_the_run(self):
+        # The name is in the base list only as a comment, so the
+        # substring test admits the class while the parser cannot
+        # reduce it to a base. index() on a name it did not find used
+        # to raise out of the whole audit run for that repository,
+        # losing every other check's result with it.
+        result = self._check({'a.py': (
+            'class Handler(SafeHeaderMixin,  # a BaseHTTPRequestHandler\n'
+            '              Base):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_a_marker_a_blank_line_above_does_not_exempt(self):
+        # security-sanitization.md says 'on or immediately above'.
+        result = self._check({'a.py': (
+            '# audit-ok: header-sanitization -- fixture\n'
+            '\n'
+            'class Handler(http.server.BaseHTTPRequestHandler):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+
+    def test_a_marker_on_the_class_line_exempts(self):
+        result = self._check({'a.py': (
+            'class Handler(http.server.BaseHTTPRequestHandler):  '
+            '# audit-ok: header-sanitization -- fixture\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'not_applicable')
+
+    def test_a_failing_git_ls_files_is_a_finding(self):
+        # Not a repository: stdout is empty, which is otherwise
+        # indistinguishable from a clean bill of health.
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, 'a.py'), 'w') as f:
+                f.write('class H(http.server.BaseHTTPRequestHandler):\n'
+                        '    pass\n')
+            result = audit_check.check_header_sanitization(tmp, {})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('git ls-files failed', result['details'])
+
     def test_the_finding_names_a_line(self):
         result = self._check({'pkg/srv.py': (
             '\n'

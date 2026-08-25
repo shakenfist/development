@@ -3135,6 +3135,19 @@ def check_header_sanitization(repo_path, props):
             'details': f'Could not run git ls-files: {e}',
         }
 
+    # A non-zero exit leaves stdout empty, which is indistinguishable
+    # from a repository holding no Python at all. On a security check
+    # a silent clean bill is the worse default, so say so instead.
+    if result.returncode != 0:
+        return {
+            'id': 'header-sanitization',
+            'status': 'fail',
+            'details': (
+                f'git ls-files failed with exit {result.returncode}: '
+                f'{result.stderr.strip()}'
+            ),
+        }
+
     handlers = []
     problems = []
     for relative in result.stdout.splitlines():
@@ -3150,9 +3163,14 @@ def check_header_sanitization(repo_path, props):
         if 'BaseHTTPRequestHandler' not in content:
             continue
 
+        # Indented definitions count. http.server gives no way to
+        # pass arguments to a handler, so defining one inside a
+        # function to close over state is the common idiom -- and
+        # anchoring at column zero reported those repositories as
+        # having no raw HTTP server at all.
         for match in re.finditer(
-            r'^class\s+(\w+)\s*\(([^)]*)\)\s*:',
-            content, re.MULTILINE | re.DOTALL,
+            r'^[ \t]*class\s+(\w+)\s*\(([^)]*)\)\s*:',
+            content, re.MULTILINE,
         ):
             name, bases = match.group(1), match.group(2)
             if 'BaseHTTPRequestHandler' not in bases:
@@ -3164,24 +3182,39 @@ def check_header_sanitization(repo_path, props):
             # The marker is read on the class statement rather than
             # per file: a module may hold both a real server and a
             # test fixture, and exempting the file would exempt both.
-            statement = content[match.start():match.end()]
-            preceding = content[:match.start()].splitlines()[-2:]
+            # To the end of the line so a trailing comment counts as
+            # being *on* the statement, and exactly one line above,
+            # which is what security-sanitization.md advertises.
+            end = content.find('\n', match.end())
+            statement = content[
+                match.start():end if end != -1 else len(content)]
+            preceding = content[:match.start()].splitlines()[-1:]
             if 'audit-ok: header-sanitization' in statement or any(
                 'audit-ok: header-sanitization' in p for p in preceding
             ):
                 continue
 
             handlers.append(where)
-            names = [b.strip().split('.')[-1] for b in bases.split(',')]
+            # A base list may span lines and carry comments, whose
+            # dots would otherwise be read as attribute access.
+            names = [
+                b.strip().split('.')[-1]
+                for b in re.sub(r'#[^\n]*', '', bases).split(',')
+            ]
             names = [n for n in names if n]
             if 'SafeHeaderMixin' not in names:
                 problems.append(
                     f'{where}: does not inherit SafeHeaderMixin, so '
                     f'send_header() passes CR and LF straight through'
                 )
-            elif names.index('SafeHeaderMixin') > names.index(
-                'BaseHTTPRequestHandler'
-            ):
+            # The membership test above is on the raw base text, so it
+            # accepts spellings this parser cannot reduce to a bare
+            # name. Order is compared only when both names are there;
+            # index() on a name it did not find used to abort the
+            # whole audit run for the repository.
+            elif ('BaseHTTPRequestHandler' in names
+                  and names.index('SafeHeaderMixin') > names.index(
+                      'BaseHTTPRequestHandler')):
                 problems.append(
                     f'{where}: SafeHeaderMixin is listed after '
                     f'BaseHTTPRequestHandler, so the MRO reaches the '
