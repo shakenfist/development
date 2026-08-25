@@ -2957,6 +2957,20 @@ class ConsoleLoggingTest(unittest.TestCase):
         )
         self.assertEqual(result['status'], 'fail', result['details'])
 
+    def test_a_non_string_entry_point_does_not_abort_the_run(self):
+        # One exception loses every other check's result for the
+        # repository, so a malformed declaration is stepped over
+        # rather than allowed to propagate out of the walk.
+        result = self._check(
+            {'thing/main.py': self.NO_BASIC_CONFIG},
+            pyproject=(
+                '[project]\nname = "thing"\n\n'
+                '[project.scripts]\nbroken = 1\n'
+                'thing = "thing.main:cli"\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'fail', result['details'])
+
     def test_entry_point_not_using_the_helper_is_not_applicable(self):
         result = self._check({'thing/main.py': 'def cli():\n    pass\n'})
         self.assertEqual(result['status'], 'not_applicable')
@@ -3209,6 +3223,19 @@ class HeaderSanitizationTest(unittest.TestCase):
         )})
         self.assertEqual(result['status'], 'fail')
         self.assertIn('does not inherit SafeHeaderMixin', result['details'])
+
+    def test_a_closing_paren_in_a_base_list_comment_does_not_hide_it(self):
+        # The paren walk used to close here, on the ")" inside the
+        # comment, leaving bases of "SafeHeaderMixin,  # note" --
+        # which names no handler, so the class was skipped and the
+        # repository read as having no HTTP server in it.
+        result = self._check({'a.py': (
+            'class Handler(http.server.BaseHTTPRequestHandler,  # note)\n'
+            '              SafeHeaderMixin):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('listed after', result['details'])
 
     def test_an_unclosable_base_list_is_reported_not_skipped(self):
         # Nothing the paren walk can close. A skip here is

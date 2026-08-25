@@ -3019,6 +3019,8 @@ def console_entry_point_files(repo_path):
 
     files = []
     for target in targets:
+        if not isinstance(target, str):
+            continue
         module = target.split(':', 1)[0].strip()
         if not module:
             continue
@@ -3217,6 +3219,14 @@ def parse_class_statements(content):
     ):
         depth, index = 1, match.end()
         while index < len(content) and depth:
+            # A comment in the base list is ordinary -- round one
+            # already had to strip one out of the base names -- and
+            # a ")" inside it closed the walk early, leaving a
+            # handler class read as having no handler base at all.
+            if content[index] == '#':
+                newline = content.find('\n', index)
+                index = len(content) if newline == -1 else newline
+                continue
             if content[index] == '(':
                 depth += 1
             elif content[index] == ')':
