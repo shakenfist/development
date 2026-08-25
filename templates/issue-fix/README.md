@@ -80,6 +80,31 @@ optionally naming a specific issue.
   job rather than paying for a pre-flight probe on every run where
   the preferred model is in fact available. Triage stays pinned to
   Haiku, which is cheap enough not to need this.
+- **The model writes the PR description, not the workflow.** A
+  body assembled by the workflow can only ever be a diffstat and a
+  boilerplate paragraph, which throws away everything the model
+  learned while fixing the issue -- what the root cause turned out
+  to be, which half of the issue it deliberately left alone, which
+  judgement calls a reviewer might make differently. The prompt
+  therefore asks for a `PR_DESCRIPTION_START`/`END` block alongside
+  the commit summary, and the workflow appends only the mechanical
+  parts (`Fixes #NNNN`, diffstat, verification note, run link).
+  Both blocks are best-effort: a missing description falls back to
+  the commit message body, and a missing commit message to the old
+  boilerplate, because the code changes are worth publishing even
+  when the prose is lost.
+- **The description is passed to `gh` with `--body-file`.** It is
+  model output, so interpolating it into a shell string -- an
+  unquoted heredoc in particular -- would execute any `$(...)` or
+  backticks it contained.
+- **The prompt tells the model it gets exactly one turn.** Under
+  `claude -p` there is nobody to reply and nothing to re-invoke it,
+  so a model which backgrounds a long test run and ends its turn
+  intending to check back has silently ended the session. This is
+  not hypothetical: it happened, and the run committed a correct
+  fix under a placeholder commit message with an empty PR
+  description. The "How this run works" section of the prompt
+  exists to say run the test suite in the foreground and wait.
 - **Output is always a draft PR** (or an issue comment). The
   workflow has no path to merging code; a human reviews and merges
   every proposed fix.
