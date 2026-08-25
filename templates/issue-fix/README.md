@@ -19,6 +19,7 @@ optionally naming a specific issue.
 | `issue-fix.yml` | `.github/workflows/issue-fix.yml` | Triage and fix workflow |
 | `claude-model-fallback.sh` | `tools/claude-model-fallback.sh` | Model fallback wrapper (needs `chmod +x`) |
 | `extract-model-block.sh` | `tools/extract-model-block.sh` | Marker block extraction (needs `chmod +x`) |
+| `neutralise-pr-body.sh` | `tools/neutralise-pr-body.sh` | Defuses mentions and closing keywords (needs `chmod +x`) |
 
 ## How it works
 
@@ -128,6 +129,21 @@ optionally naming a specific issue.
   model output, so interpolating it into a shell string -- an
   unquoted heredoc in particular -- would execute any `$(...)` or
   backticks it contained.
+- **The description is neutralised before it is published.** Two
+  things GitHub finds in a PR body it acts on rather than renders:
+  an `@mention` notifies a real person the instant `gh pr create`
+  runs -- before any human has looked at the draft, and a
+  notification cannot be taken back -- and an issue-closing keyword
+  closes an unrelated issue when the PR merges. The prompt forbids
+  both, and the prompt is not enough: a side effect which fires
+  automatically and is irreversible should not rest on the model
+  having complied. `neutralise-pr-body.sh` drops the `@` and
+  separates the keyword from its reference, and leaves fenced code
+  alone, since GitHub does not linkify inside a fence and a
+  description quoting a decorator or an email address is a normal
+  description. That last half is the part with tests worth reading:
+  mangling a description to defuse a hazard which is not there is
+  its own defect.
 - **The prompt tells the model that ending its turn ends the run.**
   The model may take as many turns as it likes -- `max_turns` is
   200 -- but under `claude -p` there is nobody to reply and nothing

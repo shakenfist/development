@@ -13,7 +13,7 @@ blast radius rather than for a product.
 
 The audit splits into two waves:
 
-**Wave 1 -- mechanical.** Lint and the four test suites, then
+**Wave 1 -- mechanical.** Lint and the test suites, then
 the grep-level checks on the diff. Always run wave 1 first;
 wave 2 is only worth spending on if wave 1 passes.
 
