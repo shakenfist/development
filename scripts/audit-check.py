@@ -3320,6 +3320,12 @@ def check_python_version_targeting(repo_path, props):
             'status': 'not_applicable',
             'details': 'Not a Python project (per overrides)',
         }
+    if props.get('has_cargo_toml'):
+        return {
+            'id': 'python-version-targeting',
+            'status': 'not_applicable',
+            'details': 'Rust project (any Python is helper scripts)',
+        }
     if not props['has_pyproject_toml']:
         return {
             'id': 'python-version-targeting',
@@ -3335,6 +3341,19 @@ def check_python_version_targeting(repo_path, props):
             'id': 'python-version-targeting',
             'status': 'fail',
             'details': f'Could not parse pyproject.toml: {e}',
+        }
+
+    # A pyproject.toml holding only [tool.*] sections configures
+    # linters; it does not package anything, and has nothing to
+    # declare an interpreter floor for.
+    if 'project' not in data:
+        return {
+            'id': 'python-version-targeting',
+            'status': 'not_applicable',
+            'details': (
+                'pyproject.toml carries tool configuration only, not '
+                'packaging metadata'
+            ),
         }
 
     requires = data.get('project', {}).get('requires-python')
@@ -3357,7 +3376,13 @@ def check_python_version_targeting(repo_path, props):
         except (json.JSONDecodeError, OSError):
             config = {}
         constraint = (config.get('constraints') or {}).get('python')
-        if constraint and constraint.strip() != requires.strip():
+        # Compared with all whitespace removed: ">= 3.8" and ">=3.8"
+        # are the same floor, and filing a fleet issue whose only
+        # remedy is a whitespace edit is churn rather than a finding.
+        if constraint and (
+            re.sub(r'\s+', '', constraint)
+            != re.sub(r'\s+', '', requires)
+        ):
             return {
                 'id': 'python-version-targeting',
                 'status': 'fail',

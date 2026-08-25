@@ -3184,6 +3184,29 @@ class PythonVersionTargetingTest(unittest.TestCase):
         )
         self.assertEqual(result['status'], 'pass', result['details'])
 
+    def test_a_rust_project_is_not_applicable(self):
+        # Mirrors pyproject-usage: a tooling pyproject.toml in a Rust
+        # repository is not a package claiming an interpreter range.
+        result = self._check(
+            '[project]\nname = "helper-scripts"\n',
+            props={'has_cargo_toml': True},
+        )
+        self.assertEqual(result['status'], 'not_applicable')
+
+    def test_a_tooling_only_pyproject_is_not_applicable(self):
+        result = self._check('[tool.ruff]\nline-length = 79\n')
+        self.assertEqual(result['status'], 'not_applicable')
+        self.assertIn('tool configuration only', result['details'])
+
+    def test_whitespace_in_the_constraint_is_not_a_disagreement(self):
+        # ">= 3.8" and ">=3.8" are the same floor; filing an issue
+        # whose only remedy is a whitespace edit is churn.
+        result = self._check(
+            '[project]\nname = "x"\nrequires-python = ">= 3.8"\n',
+            '{"constraints": {"python": ">=3.8"}}',
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+
     def test_unparseable_renovate_json_is_not_a_version_finding(self):
         # renovate.json validity is the renovate audit's business.
         result = self._check(
