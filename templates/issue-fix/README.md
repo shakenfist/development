@@ -18,6 +18,7 @@ optionally naming a specific issue.
 |------|-------------|-------------|
 | `issue-fix.yml` | `.github/workflows/issue-fix.yml` | Triage and fix workflow |
 | `claude-model-fallback.sh` | `tools/claude-model-fallback.sh` | Model fallback wrapper (needs `chmod +x`) |
+| `extract-model-block.sh` | `tools/extract-model-block.sh` | Marker block extraction (needs `chmod +x`) |
 
 ## How it works
 
@@ -93,16 +94,36 @@ optionally naming a specific issue.
   the commit message body, and a missing commit message to the old
   boilerplate, because the code changes are worth publishing even
   when the prose is lost.
-- **The marker extraction is pinned by a test**, in
-  `scripts/test_issue_fix_extraction.py`, which lifts the awk
-  program out of this workflow and runs it over the shapes a
-  transcript can take: two blocks, a repeated `START`, an `END`
-  before any `START`, a block truncated by the end of the run, a
-  marker named mid-line in the prose. None of those are syntax
-  errors, so actionlint and shellcheck pass over an extraction
-  which quietly publishes marker lines or a slab of transcript as
-  the PR body. The first version of this code used a `sed` address
-  range and did exactly that.
+- **The marker extraction is a script, not inline shell, and is
+  pinned by a test.** `extract-model-block.sh` takes the text
+  between the last `START` marker and the first `END` which follows
+  it, buffered and emitted only once that `END` is seen, so every
+  awkward shape fails safe rather than into the published output: a
+  second block is ignored, a repeated `START` restarts rather than
+  embedding a marker line in the prose, an `END` before any `START`
+  is not a close, and a block truncated by the end of the run
+  yields nothing rather than the remainder of the transcript. A
+  marker matches only a line which is nothing but the marker, so
+  prose may name the tokens -- a description of this template has
+  to be able to. A code fence is stripped only when one wraps the
+  whole block, which catches a model copying the fenced
+  illustration from the prompt without eating fenced code a
+  description legitimately contains.
+
+  Both blocks go through it. The commit summary path was left on a
+  `sed` address range for a while longer than the description path,
+  which was worse rather than better: an unterminated summary ran
+  to end of file and swallowed the description into the commit
+  message, and its first line into the PR title.
+
+  `scripts/test_issue_fix_extraction.py` pins all of that, and
+  checks the workflow still calls the script for both blocks. None
+  of these shapes are syntax errors, so actionlint and shellcheck
+  pass over an extraction which quietly publishes marker lines or a
+  slab of transcript as the PR body. The first version of this code
+  used a `sed` address range and did exactly that; the second
+  embedded awk in the workflow, which had to be lifted back out
+  with a regular expression to be testable at all.
 - **The description is passed to `gh` with `--body-file`.** It is
   model output, so interpolating it into a shell string -- an
   unquoted heredoc in particular -- would execute any `$(...)` or
