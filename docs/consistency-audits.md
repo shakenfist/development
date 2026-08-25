@@ -208,9 +208,9 @@ The full gate, which `ci.yml` also runs on every pull request:
 pre-commit run --all-files
 ```
 
-All four test suites run as `local` pre-commit hooks, so any change
-under `scripts/` runs them. Individually, which is quicker while
-iterating:
+Every test suite under `scripts/` runs as a `local` pre-commit hook,
+so any change under `scripts/` runs all of them. The four which cover
+the audit machinery, individually, which is quicker while iterating:
 
 ```
 python3 scripts/test_audit_check.py

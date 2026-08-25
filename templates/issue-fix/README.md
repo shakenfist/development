@@ -93,15 +93,27 @@ optionally naming a specific issue.
   the commit message body, and a missing commit message to the old
   boilerplate, because the code changes are worth publishing even
   when the prose is lost.
+- **The marker extraction is pinned by a test**, in
+  `scripts/test_issue_fix_extraction.py`, which lifts the awk
+  program out of this workflow and runs it over the shapes a
+  transcript can take: two blocks, a repeated `START`, an `END`
+  before any `START`, a block truncated by the end of the run, a
+  marker named mid-line in the prose. None of those are syntax
+  errors, so actionlint and shellcheck pass over an extraction
+  which quietly publishes marker lines or a slab of transcript as
+  the PR body. The first version of this code used a `sed` address
+  range and did exactly that.
 - **The description is passed to `gh` with `--body-file`.** It is
   model output, so interpolating it into a shell string -- an
   unquoted heredoc in particular -- would execute any `$(...)` or
   backticks it contained.
-- **The prompt tells the model it gets exactly one turn.** Under
-  `claude -p` there is nobody to reply and nothing to re-invoke it,
-  so a model which backgrounds a long test run and ends its turn
-  intending to check back has silently ended the session. This is
-  not hypothetical: it happened, and the run committed a correct
+- **The prompt tells the model that ending its turn ends the run.**
+  The model may take as many turns as it likes -- `max_turns` is
+  200 -- but under `claude -p` there is nobody to reply and nothing
+  to re-invoke it, so the turn which ends without a tool call is
+  the last one, and any work it meant to come back to is lost.
+  This is not hypothetical: a run backgrounded the test suite,
+  ended its turn intending to check on it, and committed a correct
   fix under a placeholder commit message with an empty PR
   description. The "How this run works" section of the prompt
   exists to say run the test suite in the foreground and wait.

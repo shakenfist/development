@@ -577,10 +577,19 @@ jobs:
           - Any judgement call a reviewer might reasonably make
             differently.
 
-          Do NOT include a diffstat, a "Fixes #NNNN" line, a link to
-          this workflow run, or a note about CI not starting -- the
-          workflow appends all of those. Do not pad it either: a small
-          mechanical fix deserves a short description.
+          Do NOT include a diffstat, a link to this workflow run, or
+          a note about CI not starting -- the workflow appends all of
+          those. Do not pad it either: a small mechanical fix deserves
+          a short description.
+
+          The description is published verbatim into a pull request
+          body, where GitHub interprets what it finds. So do NOT write
+          an issue-closing keyword for any issue -- "fixes", "closes"
+          and "resolves" followed by #NNNN all close that issue when
+          this merges, and the workflow already appends the one for
+          the issue you are fixing. Refer to other issues as "issue
+          NNNN". Do NOT write "@name": it notifies a real person.
+          Refer to people by name alone.
           TASK_EOF
           } > ${{ runner.temp }}/claude-prompt.txt
 
@@ -706,21 +715,32 @@ jobs:
 
           # A PR description may legitimately contain fenced code, so
           # unlike the commit summary above only the marker lines are
-          # stripped. Both markers must be present: a truncated block
-          # would otherwise run to the end of the captured output.
-          if grep -q "^PR_DESCRIPTION_START" \
-               ${{ runner.temp }}/claude-output.txt && \
-             grep -q "^PR_DESCRIPTION_END" \
-               ${{ runner.temp }}/claude-output.txt
-          then
-            sed -n '/^PR_DESCRIPTION_START/,/^PR_DESCRIPTION_END/p' \
-              ${{ runner.temp }}/claude-output.txt | \
-              sed '1d;$d' \
-              > ${{ runner.temp }}/pr-description.txt
+          # stripped, and they are matched rather than counted off by
+          # position. The rule is "the text between the last START and
+          # the first END which follows it", buffered and emitted only
+          # once that END is seen. Every awkward shape then fails safe
+          # rather than into the PR body: a second block is ignored, a
+          # repeated START restarts rather than embedding a marker in
+          # the prose, an END before any START is not a close, and a
+          # START which is never closed (a truncated run) yields
+          # nothing rather than the remainder of the transcript. A sed
+          # address range does none of that -- it re-matches, so
+          # repeated markers concatenate and the markers themselves
+          # survive into the published body.
+          awk '
+            /^PR_DESCRIPTION_START/ { inblock = 1; body = ""; next }
+            inblock && /^PR_DESCRIPTION_END/ { closed = 1; exit }
+            inblock { body = body $0 "\n" }
+            END { if (closed) printf "%s", body }
+          ' ${{ runner.temp }}/claude-output.txt \
+            > ${{ runner.temp }}/pr-description.txt
 
-            if [ -s ${{ runner.temp }}/pr-description.txt ]; then
-              description_found=true
-            fi
+          # Whitespace-only is as useless as empty, and both fall
+          # through to the commit message body in the publish step.
+          if grep -q '[^[:space:]]' \
+              ${{ runner.temp }}/pr-description.txt
+          then
+            description_found=true
           fi
 
           # Neither block is fatal: the publish step falls back to a
@@ -918,6 +938,8 @@ jobs:
             ${{ runner.temp }}/verify-output.txt
             ${{ runner.temp }}/commit-summary.txt
             ${{ runner.temp }}/commit-message.txt
+            ${{ runner.temp }}/pr-description.txt
+            ${{ runner.temp }}/pr-body.md
             ${{ runner.temp }}/claude-logs/
           retention-days: 14
           if-no-files-found: ignore
