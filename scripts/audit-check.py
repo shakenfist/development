@@ -2984,8 +2984,61 @@ def check_version_file(repo_path, props):
     }
 
 
+def mask_comments_and_strings(content):
+    """Blank out comment and string-literal bodies, keeping offsets.
+
+    Every search in this file is a grep over source text, which
+    counts a commented-out call as a call. That is not a cosmetic
+    inaccuracy: a file whose logging.basicConfig() is commented out
+    -- the state of anything somebody was debugging -- passed the
+    console-logging check, which exists to catch precisely that, and
+    a docstring saying a module deliberately does not call
+    setup_console() made it a caller and failed it.
+
+    Bodies are replaced space for space and newlines are kept, so
+    every offset and line number in the result still addresses the
+    same character of the original. Callers can therefore match
+    structure against the masked text and still read audit-ok
+    markers, which live in comments, out of the original.
+    """
+    out = list(content)
+    index, length = 0, len(content)
+    while index < length:
+        char = content[index]
+        if char == '#':
+            while index < length and content[index] != '\n':
+                out[index] = ' '
+                index += 1
+            continue
+        if char not in '\'"':
+            index += 1
+            continue
+
+        # The quote characters are left in place. Only the body is
+        # blanked, so a triple-quoted block holding a code sample
+        # becomes blank lines rather than disappearing and pulling
+        # the lines after it up into a new position.
+        quote = char * 3 if content.startswith(char * 3, index) else char
+        index += len(quote)
+        while index < length:
+            if content[index] == '\\':
+                for offset in (0, 1):
+                    if index + offset < length and (
+                            content[index + offset] != '\n'):
+                        out[index + offset] = ' '
+                index += 2
+                continue
+            if content.startswith(quote, index):
+                index += len(quote)
+                break
+            if content[index] != '\n':
+                out[index] = ' '
+            index += 1
+    return ''.join(out)
+
+
 def console_entry_point_files(repo_path):
-    """Return the source file for each declared entry point.
+    """Return (resolved files, unresolved targets) for the entry points.
 
     The spec is about how a *CLI entry point* uses setup_console(),
     not about every module that logs. Anchoring on the declared
@@ -2999,31 +3052,67 @@ def console_entry_point_files(repo_path):
     entry-points.console_scripts table names an entry point just as
     much, and reading only the first reported those packages as
     having none at all -- a clean bill for a file nobody looked at.
+
+    Anything declared that cannot be turned into a file is returned
+    rather than dropped: a repository laying its packages out under
+    lib/ declares entry points and resolves none of them, and
+    returning only the files said it had declared none. A malformed
+    table and a non-string target reach the same false statement by
+    another door, so they come back the same way.
     """
     pyproject = os.path.join(repo_path, 'pyproject.toml')
     if not os.path.exists(pyproject):
-        return []
+        return [], []
     try:
         with open(pyproject, 'rb') as f:
             data = tomllib.load(f)
     except (tomllib.TOMLDecodeError, OSError):
-        return []
+        return [], []
 
-    project = data.get('project', {})
+    # Guarded at every level rather than assumed, the way
+    # renovate_enables_pre_commit does. A pyproject.toml declaring
+    # scripts as a string is malformed, but the AttributeError it
+    # raised propagated out of run_checks and took every other
+    # check's result for that repository with it.
+    unresolved = []
+
+    def table(value, *keys):
+        # Named at the level that is wrong, not at the level asked
+        # for: a string where [project.entry-points] should be takes
+        # console_scripts down with it, and reporting the leaf would
+        # point at a table the file does not contain.
+        seen = []
+        for key in keys:
+            if not isinstance(value, dict):
+                break
+            seen.append(key)
+            value = value.get(key)
+        if value is None:
+            return {}
+        if isinstance(value, dict) and len(seen) == len(keys):
+            return value
+        problem = (
+            f'[{".".join(seen)}] is a {type(value).__name__}, '
+            f'not a table')
+        if problem not in unresolved:
+            unresolved.append(problem)
+        return {}
+
+    project = data if isinstance(data, dict) else {}
     targets = []
-    for table in ('scripts', 'gui-scripts'):
-        targets += list((project.get(table) or {}).values())
+    for name in ('scripts', 'gui-scripts'):
+        targets += list(table(project, 'project', name).values())
     targets += list(
-        ((project.get('entry-points') or {}).get('console_scripts')
-         or {}).values())
+        table(project, 'project', 'entry-points',
+              'console_scripts').values())
 
     files = []
     for target in targets:
-        if not isinstance(target, str):
+        if not isinstance(target, str) or not target.split(
+                ':', 1)[0].strip():
+            unresolved.append(f'{target!r} does not name a module')
             continue
         module = target.split(':', 1)[0].strip()
-        if not module:
-            continue
         relative = module.replace('.', os.sep)
         for candidate in (
             f'{relative}.py',
@@ -3035,10 +3124,13 @@ def console_entry_point_files(repo_path):
                 if candidate not in files:
                     files.append(candidate)
                 break
-    return sorted(files)
+        else:
+            if module not in unresolved:
+                unresolved.append(module)
+    return sorted(files), sorted(unresolved)
 
 
-def sets_own_logger_propagate(content):
+def sets_own_logger_propagate(code):
     """Does this file stop *its own* logger propagating to root?
 
     A bare search for .propagate = False is satisfied by a line
@@ -3048,19 +3140,36 @@ def sets_own_logger_propagate(content):
     instead -- the name bound to setup_console()'s return, or
     getLogger() called with the same argument setup_console() was
     given, which are the two spellings the standard uses.
+
+    Expects the masked code rather than the file. Every call is
+    considered, not the first: an entry point configuring another
+    package's logger before its own had its receivers taken from
+    that one, so a correct LOG.propagate = False did not match and
+    the file was failed for a line it had.
     """
-    setup = re.search(
-        r'(?:(\w+)\s*=\s*)?(?:\w+\.)*(?<!def )setup_console\s*\(([^)]*)\)',
-        content,
-    )
-    if not setup:
+    setups = list(re.finditer(
+        r'(?:((?:\w+\.)*\w+)\s*=\s*)?'
+        r'(?:\w+\.)*(?<!def )setup_console\s*\(([^)]*)\)',
+        code,
+    ))
+    if not setups:
         return False
 
+    # A call given __name__ is the file configuring itself, so when
+    # there is one it is the only one that decides this. Accepting
+    # any receiver would let silencing somebody else's logger stand
+    # in for silencing your own, which is the defect this catches.
+    own = [s for s in setups if s.group(2).strip() == '__name__']
     receivers = []
-    if setup.group(1):
-        receivers.append(re.escape(setup.group(1)))
-    argument = setup.group(2).strip()
-    if argument:
+    for setup in own or setups:
+        # Dotted targets included: self.LOG = setup_console(...) is
+        # written self.LOG.propagate = False, and matching only the
+        # bare name meant the lookbehind below rejected it.
+        if setup.group(1):
+            receivers.append(re.escape(setup.group(1)))
+        argument = setup.group(2).strip()
+        if not argument:
+            continue
         get_logger = (
             r'(?:\w+\.)*getLogger\s*\(\s*'
             + re.escape(argument) + r'\s*\)'
@@ -3071,7 +3180,7 @@ def sets_own_logger_propagate(content):
         # setup_console() handed back.
         receivers += [
             re.escape(match.group(1))
-            for match in re.finditer(r'(\w+)\s*=\s*' + get_logger, content)
+            for match in re.finditer(r'(\w+)\s*=\s*' + get_logger, code)
         ]
     # The lookbehind is what makes the receiver the *whole* name.
     # Without it re.escape('LOG') matches inside URLLIB_LOG, and an
@@ -3083,7 +3192,7 @@ def sets_own_logger_propagate(content):
     return any(
         re.search(
             r'(?<![\w.])' + receiver + r'\s*\.propagate\s*=\s*False',
-            content,
+            code,
         )
         for receiver in receivers
     )
@@ -3106,8 +3215,21 @@ def check_console_logging(repo_path, props):
     applicable: this is a rule about how the helper is used, not a
     requirement to use it.
     """
-    entry_points = console_entry_point_files(repo_path)
+    entry_points, unresolved = console_entry_point_files(repo_path)
     if not entry_points:
+        # "None declared" and "declared, none found" are different
+        # facts, and reporting the second as the first is a false
+        # statement about a repository nobody has looked at yet.
+        if unresolved:
+            return {
+                'id': 'console-logging',
+                'status': 'not_applicable',
+                'details': (
+                    f'{len(unresolved)} entry point declaration(s) '
+                    f'resolved to no file in this checkout: '
+                    + ', '.join(unresolved)
+                ),
+            }
         return {
             'id': 'console-logging',
             'status': 'not_applicable',
@@ -3125,7 +3247,15 @@ def check_console_logging(repo_path, props):
                 content = f.read()
         except OSError:
             continue
-        if not re.search(r'(?<!def )setup_console\s*\(', content):
+
+        # Matched against the code rather than the file: a
+        # commented-out logging.basicConfig() satisfied the
+        # requirement it is the absence of, and a docstring saying a
+        # module deliberately does not call setup_console() made it
+        # a caller. The audit-ok marker is still read from the
+        # original, because a marker is a comment.
+        code = mask_comments_and_strings(content)
+        if not re.search(r'(?<!def )setup_console\s*\(', code):
             continue
 
         # Read per file rather than per line: the finding is about
@@ -3137,12 +3267,12 @@ def check_console_logging(repo_path, props):
         using.append(relative)
 
         missing = []
-        if not re.search(r'logging\.basicConfig\s*\(', content):
+        if not re.search(r'logging\.basicConfig\s*\(', code):
             missing.append(
                 'logging.basicConfig() (INFO from every other module '
                 'reaches a root logger with no handler and is dropped)'
             )
-        if not sets_own_logger_propagate(content):
+        if not sets_own_logger_propagate(code):
             missing.append(
                 'propagate = False on its own logger (its own lines '
                 'are emitted twice once root has a handler)'
@@ -3214,29 +3344,50 @@ def parse_class_statements(content):
     Classes with no base list are not yielded: they inherit nothing,
     so they cannot be a request handler.
     """
+    # Comments and string bodies are blanked first, so a ")" in
+    # either no longer closes the walk early and a code sample in a
+    # docstring is no longer a class. Masking preserves offsets, so
+    # the positions yielded here still address `content`.
+    code = mask_comments_and_strings(content)
     for match in re.finditer(
-        r'^[ \t]*class\s+(\w+)\s*\(', content, re.MULTILINE,
+        r'^[ \t]*class\s+(\w+)\s*\(', code, re.MULTILINE,
     ):
         depth, index = 1, match.end()
-        while index < len(content) and depth:
-            # A comment in the base list is ordinary -- round one
-            # already had to strip one out of the base names -- and
-            # a ")" inside it closed the walk early, leaving a
-            # handler class read as having no handler base at all.
-            if content[index] == '#':
-                newline = content.find('\n', index)
-                index = len(content) if newline == -1 else newline
-                continue
-            if content[index] == '(':
+        while index < len(code) and depth:
+            if code[index] == '(':
                 depth += 1
-            elif content[index] == ')':
+            elif code[index] == ')':
                 depth -= 1
             index += 1
         if depth:
-            yield match.group(1), None, match.start(), len(content)
+            yield match.group(1), None, match.start(), len(code)
             continue
-        yield (match.group(1), content[match.end():index - 1],
+        yield (match.group(1), code[match.end():index - 1],
                match.start(), index)
+
+
+def handler_base_names(content):
+    """Local names that refer to an http.server request handler base.
+
+    The base list is compared against names, not searched for
+    substrings, so an alias has to be resolved or the class is
+    dropped: "from http.server import BaseHTTPRequestHandler as BHR"
+    followed by "class Handler(BHR)" was reported as a repository
+    with no raw HTTP server in it, which is the false clean bill this
+    check exists to refuse.
+    """
+    names = set(HTTP_HANDLER_BASES)
+    for match in re.finditer(
+        r'^[ \t]*(?:from\s+[\w.]+\s+)?import\s+([^\n]+)',
+        mask_comments_and_strings(content), re.MULTILINE,
+    ):
+        for clause in match.group(1).replace('(', ' ').replace(
+                ')', ' ').split(','):
+            parts = clause.split()
+            if len(parts) == 3 and parts[1] == 'as' and (
+                    parts[0].split('.')[-1] in HTTP_HANDLER_BASES):
+                names.add(parts[2])
+    return names
 
 
 def check_header_sanitization(repo_path, props):
@@ -3293,8 +3444,12 @@ def check_header_sanitization(repo_path, props):
                 content = f.read()
         except OSError:
             continue
-        if not any(base in content for base in HTTP_HANDLER_BASES):
+        if not any(
+            base in mask_comments_and_strings(content)
+            for base in HTTP_HANDLER_BASES
+        ):
             continue
+        aliases = handler_base_names(content)
 
         # Indented definitions count. http.server gives no way to
         # pass arguments to a handler, so defining one inside a
@@ -3302,9 +3457,18 @@ def check_header_sanitization(repo_path, props):
         # anchoring at column zero reported those repositories as
         # having no raw HTTP server at all.
         for name, bases, start, stop in parse_class_statements(content):
-            if bases is not None and not any(
-                base in bases for base in HTTP_HANDLER_BASES
-            ):
+            # A base list may span lines, and a dotted base is an
+            # attribute of the module it was imported from.
+            names = [] if bases is None else [
+                b.strip().split('.')[-1] for b in bases.split(',')
+            ]
+            names = [n for n in names if n]
+            handler = next((n for n in names if n in aliases), None)
+            # Compared as whole names rather than as substrings, so
+            # a class inheriting MyBaseHTTPRequestHandlerWrapper is
+            # out of scope instead of being failed for not carrying
+            # a mixin it has no reason to.
+            if bases is not None and handler is None:
                 continue
 
             line = content.count('\n', 0, start) + 1
@@ -3333,27 +3497,12 @@ def check_header_sanitization(repo_path, props):
                 continue
 
             handlers.append(where)
-            # A base list may span lines and carry comments, whose
-            # dots would otherwise be read as attribute access.
-            names = [
-                b.strip().split('.')[-1]
-                for b in re.sub(r'#[^\n]*', '', bases).split(',')
-            ]
-            names = [n for n in names if n]
-            handler = next(
-                (b for b in HTTP_HANDLER_BASES if b in names), None)
             if 'SafeHeaderMixin' not in names:
                 problems.append(
                     f'{where}: does not inherit SafeHeaderMixin, so '
                     f'send_header() passes CR and LF straight through'
                 )
-            # The membership test above is on the raw base text, so it
-            # accepts spellings this parser cannot reduce to a bare
-            # name. Order is compared only when both names are there;
-            # index() on a name it did not find used to abort the
-            # whole audit run for the repository.
-            elif handler and names.index('SafeHeaderMixin') > names.index(
-                    handler):
+            elif names.index('SafeHeaderMixin') > names.index(handler):
                 problems.append(
                     f'{where}: SafeHeaderMixin is listed after '
                     f'{handler}, so the MRO reaches the base '
@@ -3456,7 +3605,7 @@ def check_python_version_targeting(repo_path, props):
     # A pyproject.toml holding only [tool.*] sections configures
     # linters; it does not package anything, and has nothing to
     # declare an interpreter floor for.
-    if 'project' not in data:
+    if not isinstance(data, dict) or 'project' not in data:
         return {
             'id': 'python-version-targeting',
             'status': 'not_applicable',
@@ -3466,7 +3615,21 @@ def check_python_version_targeting(repo_path, props):
             ),
         }
 
-    requires = data.get('project', {}).get('requires-python')
+    # Valid TOML, invalid PEP 621. Reported rather than raised: the
+    # AttributeError this used to throw propagated out of run_checks
+    # and cost the repository every other check as well.
+    if not isinstance(data['project'], dict):
+        return {
+            'id': 'python-version-targeting',
+            'status': 'fail',
+            'details': (
+                f'pyproject.toml declares [project] as a '
+                f'{type(data["project"]).__name__}, not a table, so it '
+                f'carries no packaging metadata to read'
+            ),
+        }
+
+    requires = data['project'].get('requires-python')
     if not requires:
         return {
             'id': 'python-version-targeting',
@@ -3485,7 +3648,17 @@ def check_python_version_targeting(repo_path, props):
                 config = json.load(f)
         except (json.JSONDecodeError, OSError):
             config = {}
-        constraint = (config.get('constraints') or {}).get('python')
+        # Guarded rather than assumed: renovate.json's top level can
+        # be any JSON value, and calling .get() on the array one
+        # repository had there raised out of run_checks and cost
+        # that repository every other check as well.
+        if not isinstance(config, dict):
+            config = {}
+        constraints = config.get('constraints')
+        constraint = (
+            constraints.get('python')
+            if isinstance(constraints, dict) else None
+        )
         # Compared clause by clause rather than as text, so the
         # finding is a real disagreement about which interpreters are
         # supported and not a difference in how one was spelled.

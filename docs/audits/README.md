@@ -110,11 +110,12 @@ where these criteria and the tooling that enforces them are written,
 so an exemption here is one the authors of the standard write for
 themselves.
 
-Two criteria do not apply to either. Neither has Python to package,
-and both keep `main` as their default branch: `actions` because every
-consumer pins to `@main`, `development` because it publishes no
-releases and so has no release branch for `develop` to integrate
-against.
+Some criteria do not apply to either. Neither has Python to package
+-- which takes `pyproject-usage` and `python-version` both out of
+scope -- and both keep `main` as their default branch: `actions`
+because every consumer pins to `@main`, `development` because it
+publishes no releases and so has no release branch for `develop` to
+integrate against.
 
 All scoping and exemptions live in `REPO_OVERRIDES` in
 `scripts/audit-check.py`, so they are reported as N/A with the reason

@@ -386,5 +386,61 @@ class UnmeasuredCriteriaTest(unittest.TestCase):
         )
 
 
+class GeneratedNoteMatchesTheGeneratorTest(unittest.TestCase):
+    """The note above each compliance table is generated, not written.
+
+    It sits inside the marker block, which AGENTS.md says is never
+    hand-maintained, so the copy in each spec page is only ever as
+    current as the last run. Nothing asserted the two agreed: the
+    next change to the generator's wording would have rewritten
+    thirty files in one daily-workflow commit with no warning, which
+    is the cross-file drift this suite closes everywhere else.
+    """
+
+    SENTINEL = 'TIMESTAMP-SENTINEL'
+
+    def _note_pattern(self):
+        """The generator's note, as a regex over the timestamp."""
+        spec, check_ids = sorted(audit_update_docs.checks_by_spec().items())[0]
+        section = audit_update_docs.render_section(
+            spec, check_ids,
+            [{
+                'repo': 'repo', 'org': 'shakenfist',
+                'timestamp': self.SENTINEL,
+                'checks': [
+                    {'id': c, 'status': 'pass', 'details': ''}
+                    for c in check_ids
+                ],
+            }],
+            True,
+        )
+        note = section.splitlines()[1]
+        self.assertIn(self.SENTINEL, note)
+        return re.compile('^' + '.*'.join(
+            re.escape(part) for part in note.split(self.SENTINEL)) + '$')
+
+    def test_every_generated_block_opens_with_the_current_note(self):
+        pattern = self._note_pattern()
+        root = os.path.dirname(os.path.dirname(SCRIPT))
+        checked = 0
+        for spec in sorted(audit_update_docs.checks_by_spec()):
+            with open(os.path.join(root, spec)) as f:
+                lines = f.read().splitlines()
+            if audit_update_docs.BEGIN_MARKER not in lines:
+                continue
+            # A page whose check is new carries a placeholder until
+            # the workflow first runs, and has no note to compare.
+            if not any(line.startswith('| Project |') for line in lines):
+                continue
+            checked += 1
+            with self.subTest(spec=spec):
+                self.assertRegex(
+                    lines[lines.index(audit_update_docs.BEGIN_MARKER) + 1],
+                    pattern,
+                )
+        # A pass on nothing is the failure this test exists to avoid.
+        self.assertGreater(checked, 20)
+
+
 if __name__ == '__main__':
     unittest.main()

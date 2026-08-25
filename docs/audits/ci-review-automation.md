@@ -2,32 +2,37 @@
 
 ## What we check
 
-### Automated review
+### Measured
 
+These are the requirements the check decides a pass or a failure on,
+and the only ones that produce an issue. The rest of this section is
+part of the same standard; it is simply not decidable from the
+workflow files alone, so a reviewer confirms it instead.
+
+* Both developer workflows are present: `pr-re-review.yml`, which
+  triggers another review, and `pr-retest.yml`, which re-runs the
+  functional tests.
 * Some workflow reaches Claude Code through the shared action
   `shakenfist/actions/review-pr-with-claude@main`, rather than a
   per-project script. Calling the reusable workflow below satisfies
   this, because that is how the reusable workflow reaches it.
+* `pr-re-review.yml` reaches `shakenfist/actions/pr-bot-trigger@main`
+  rather than open-coding the phrase match, permission lookup, reaction
+  and refusal reply.
+* No caller passes `secrets: inherit`.
+* The retired comment addresser is gone from the tree, as below.
+
+### Required, but confirmed by a reviewer
+
 * The reviewer job is a call to the reusable workflow
   `shakenfist/actions/.github/workflows/pr-auto-review.yml@main`, with
   the project's test jobs in its `needs:`. Hand-written
   `automated_reviewer` jobs are superseded; migrating deletes the
-  project's `check-bot-commit` job too. The migration itself is not
-  measured -- only the shared action above is, and the `secrets:`
-  rule below -- so a compliant hand-written job still passes.
-* The calling job sets `pull-requests: write` and `issues: write`, and
-  does **not** pass `secrets: inherit`.
+  project's `check-bot-commit` job too. A compliant hand-written job
+  still passes, because only the shared action above is measured.
+* The calling job sets `pull-requests: write` and `issues: write`.
 * The automatic review does not pass `force`, and runs on
   same-repository pull requests only.
-
-### Developer automation
-
-* `pr-re-review.yml` -- triggers another review (`pull-requests: write`,
-  `issues: write`).
-* `pr-retest.yml` -- re-runs functional tests.
-* `pr-re-review.yml` reaches `shakenfist/actions/pr-bot-trigger@main`
-  rather than open-coding the phrase match, permission lookup, reaction
-  and refusal reply.
 * Optional, for suites prone to drift: `pr-fix-tests.yml` +
   `test-drift-fix.yml`.
 * The reviewer prompt asks it to check that `docs/` was updated for
@@ -35,7 +40,7 @@
 
 ### The comment addresser is retired
 
-None of these may be present, anywhere in the tree:
+Measured. None of these may be present, anywhere in the tree:
 `.github/workflows/pr-address-comments.yml`,
 `address-comments-with-claude.sh`, `render-review.py`,
 `review-schema.json`. Remove all four in one commit. A directory

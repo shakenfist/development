@@ -915,22 +915,24 @@ class CiReviewAutomationSpecTest(unittest.TestCase):
     agreement is what stops that recurring in a new guise.
     """
 
-    def _what_we_check(self):
-        # The "What we check" section only. Asserting against the
-        # whole page passes on the strength of the auto-generated
-        # compliance table at the bottom, which quotes the issue
-        # message verbatim -- so the assertion would hold precisely
-        # while a repository was being failed for a requirement the
-        # page never states.
+    def _measured(self):
+        # The "Measured" subsection only. Asserting against the whole
+        # page passes on the strength of the auto-generated compliance
+        # table at the bottom, which quotes the issue message verbatim
+        # -- so the assertion would hold precisely while a repository
+        # was being failed for a requirement the page never states.
+        # And asserting against all of "What we check" would let a
+        # requirement satisfy it from the list the check does *not*
+        # measure, which is the opposite claim.
         with open(os.path.join(
                 REPO_ROOT, 'docs', 'audits',
                 'ci-review-automation.md')) as f:
             spec = f.read()
-        start = spec.index('## What we check')
-        return spec[start:spec.index('\n## ', start + 1)]
+        start = spec.index('### Measured')
+        return spec[start:spec.index('\n### ', start + 1)]
 
     def test_the_spec_names_every_requirement(self):
-        spec = self._what_we_check()
+        spec = self._measured()
         for requirement in (
             audit_check.CI_REVIEW_DEVELOPER_WORKFLOWS
             + (audit_check.CI_REVIEW_SHARED_ACTION,
@@ -2896,6 +2898,112 @@ class ConsoleLoggingTest(unittest.TestCase):
                     f.write(content)
             return audit_check.check_console_logging(tmp, {})
 
+    def test_a_commented_out_basic_config_does_not_satisfy_it(self):
+        # The state of any file somebody was debugging, and the exact
+        # misconfiguration this check exists to catch. Grepping the
+        # file rather than the code reported it as compliant.
+        result = self._check({'thing/main.py': (
+            'from shakenfist_utilities import logs\n'
+            'LOG = logs.setup_console(__name__)\n'
+            'LOG.propagate = False\n'
+            '# logging.basicConfig(level=logging.INFO)\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('basicConfig', result['details'])
+
+    def test_a_docstring_mention_does_not_make_it_a_caller(self):
+        # And the same defect pointing the other way: a fleet issue
+        # filed against a module whose only setup_console( is prose
+        # saying it deliberately does not call one.
+        result = self._check({'thing/main.py': (
+            '"""Logging is configured by the caller, not by\n'
+            'logs.setup_console( ) here."""\n'
+            'def cli():\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'not_applicable',
+                         result['details'])
+
+    def test_an_earlier_setup_console_does_not_take_the_receiver(self):
+        # Receivers used to come from whichever call was first, so an
+        # entry point configuring somebody else's logger before its
+        # own was failed for a line it has.
+        result = self._check({'thing/main.py': (
+            'import logging\n'
+            'from shakenfist_utilities import logs\n'
+            "OTHER = logs.setup_console('other')\n"
+            'LOG = logs.setup_console(__name__)\n'
+            'LOG.propagate = False\n'
+            'logging.basicConfig(level=logging.INFO)\n'
+        )})
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_silencing_someone_elses_logger_is_still_not_enough(self):
+        # The other half of the same change: accepting *any* call's
+        # receiver would let this stand in for silencing your own.
+        result = self._check({'thing/main.py': (
+            'import logging\n'
+            'from shakenfist_utilities import logs\n'
+            "OTHER = logs.setup_console('other')\n"
+            'LOG = logs.setup_console(__name__)\n'
+            'OTHER.propagate = False\n'
+            'logging.basicConfig(level=logging.INFO)\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('propagate', result['details'])
+
+    def test_an_attribute_receiver_is_read(self):
+        # self.LOG = setup_console(...) is silenced by writing
+        # self.LOG.propagate, which the whole-name lookbehind
+        # rejected when only the bare name had been captured.
+        result = self._check({'thing/main.py': (
+            'import logging\n'
+            'from shakenfist_utilities import logs\n'
+            'class App:\n'
+            '    def __init__(self):\n'
+            '        self.LOG = logs.setup_console(__name__)\n'
+            '        self.LOG.propagate = False\n'
+            'logging.basicConfig(level=logging.INFO)\n'
+        )})
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_declared_but_unresolved_entry_points_are_named(self):
+        # A repository laying its packages out under lib/ declares
+        # entry points and resolves none of them. Reporting that as
+        # "none declared" is a false statement about a file nobody
+        # looked at.
+        result = self._check({'lib/thing/main.py': self.NO_BASIC_CONFIG})
+        self.assertEqual(result['status'], 'not_applicable')
+        self.assertIn('resolved to no file', result['details'])
+        self.assertIn('thing.main', result['details'])
+
+    def test_a_malformed_scripts_table_does_not_abort_the_run(self):
+        # Valid TOML, invalid PEP 621. The AttributeError this raised
+        # propagated out of run_checks and cost the repository every
+        # other check as well. Reported rather than dropped: a
+        # declaration nobody could read is not the same fact as no
+        # declaration, and saying the second is a clean bill for a
+        # file nobody looked at.
+        for pyproject, expected in (
+            ('[project]\nname = "thing"\nscripts = "thing.main:cli"\n',
+             '[project.scripts] is a str'),
+            ('[project]\nname = "thing"\nentry-points = "oops"\n',
+             '[project.entry-points] is a str'),
+            ('project = "x"\n', '[project] is a str'),
+        ):
+            with self.subTest(pyproject=pyproject):
+                result = self._check({}, pyproject=pyproject)
+                self.assertEqual(result['status'], 'not_applicable')
+                if expected:
+                    self.assertIn(expected, result['details'])
+
+    def test_a_non_string_target_is_reported_not_dropped(self):
+        result = self._check(
+            {}, pyproject='[project]\nname = "thing"\n'
+                          '[project.scripts]\nthing = 3\n')
+        self.assertEqual(result['status'], 'not_applicable')
+        self.assertIn('does not name a module', result['details'])
+
     def test_compliant_entry_point_passes(self):
         result = self._check({'thing/main.py': self.COMPLIANT})
         self.assertEqual(result['status'], 'pass', result['details'])
@@ -3129,6 +3237,47 @@ class ConsoleLoggingTest(unittest.TestCase):
         self.assertIn('1 of 2', result['details'])
 
 
+class MaskCommentsAndStringsTest(unittest.TestCase):
+    """Masking is only usable if it preserves every offset.
+
+    Class positions, reported line numbers and the window an
+    audit-ok marker is read from are all offsets taken against the
+    masked text and used against the original. A mask that changed a
+    single length would keep working on every fixture here -- the
+    class is still found -- while reporting the wrong line and
+    reading the marker window off the wrong part of the file.
+    """
+
+    SOURCES = (
+        'a = 1  # class Handler(X):\n',
+        'S = """\nclass H(Base):\n    pass\n"""\nc = 3\n',
+        'D = \'\'\'\nclass H(Base):\n    pass\n\'\'\'\n',
+        'class H(make("#"), Base):\n    pass\n',
+        "x = 'a\\'b' + 1\n",
+        'y = f"{a}"  # tail\n',
+        'z = "never closed\n',
+        'w = "trailing backslash \\\\"\n',
+    )
+
+    def test_masking_preserves_length_and_line_breaks(self):
+        for source in self.SOURCES:
+            with self.subTest(source=source):
+                masked = audit_check.mask_comments_and_strings(source)
+                self.assertEqual(len(masked), len(source))
+                self.assertEqual(
+                    [i for i, c in enumerate(masked) if c == '\n'],
+                    [i for i, c in enumerate(source) if c == '\n'],
+                )
+
+    def test_code_outside_comments_and_strings_is_untouched(self):
+        source = 'import os  # noqa\nPATH = "/tmp/x"\nclass A(B):\n'
+        masked = audit_check.mask_comments_and_strings(source)
+        self.assertIn('import os', masked)
+        self.assertIn('class A(B):', masked)
+        self.assertNotIn('noqa', masked)
+        self.assertNotIn('/tmp/x', masked)
+
+
 class HeaderSanitizationTest(unittest.TestCase):
     """The header-sanitization check.
 
@@ -3148,6 +3297,98 @@ class HeaderSanitizationTest(unittest.TestCase):
                     f.write(content)
             subprocess.run(['git', '-C', tmp, 'add', '-A'], check=True)
             return audit_check.check_header_sanitization(tmp, {})
+
+    def test_an_aliased_handler_base_is_examined(self):
+        # The import line carries the name, so the file was admitted
+        # and then every class in it dropped -- reported as a
+        # repository with no raw HTTP server in it at all.
+        result = self._check({'a.py': (
+            'from http.server import BaseHTTPRequestHandler as BHR\n'
+            'class Handler(BHR):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('does not inherit SafeHeaderMixin',
+                      result['details'])
+
+    def test_an_aliased_base_behind_the_mixin_is_still_ordered(self):
+        result = self._check({'a.py': (
+            'from http.server import BaseHTTPRequestHandler as BHR\n'
+            'class Handler(BHR, SafeHeaderMixin):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('listed after', result['details'])
+
+    def test_a_name_merely_containing_a_base_is_out_of_scope(self):
+        # Bases are compared as whole names, not searched for as
+        # substrings: this class has no reason to carry the mixin and
+        # was being failed for not carrying it.
+        result = self._check({'a.py': (
+            'from x import MyBaseHTTPRequestHandlerWrapper\n'
+            'class Handler(MyBaseHTTPRequestHandlerWrapper):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'not_applicable',
+                         result['details'])
+
+    def test_a_class_inside_a_string_is_not_a_class(self):
+        # A code sample in a module docstring, an embedded template,
+        # a fixture built as a string: all produced a finding against
+        # a class that does not exist.
+        result = self._check({'a.py': (
+            'SAMPLE = """\n'
+            'send a "header like this:\n'
+            'class Handler(BaseHTTPRequestHandler):\n'
+            '    pass\n'
+            '"""\n'
+        )})
+        self.assertEqual(result['status'], 'not_applicable',
+                         result['details'])
+
+    def test_a_hash_inside_a_base_list_string_does_not_hide_it(self):
+        # The paren walk treated it as starting a comment and ran to
+        # the end of the line, so the class was reported as having a
+        # base list nobody could read.
+        result = self._check({'a.py': (
+            'from http.server import BaseHTTPRequestHandler\n'
+            'class Handler(make_base("#"), BaseHTTPRequestHandler):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('does not inherit SafeHeaderMixin',
+                      result['details'])
+
+    def test_the_reported_line_survives_a_masked_preamble(self):
+        # The line is counted in the original from an offset taken
+        # against the masked text, so a mask that did not preserve
+        # length would report a real class at the wrong line.
+        result = self._check({'a.py': (
+            'DOC = """\n'
+            'a long\n'
+            'embedded sample\n'
+            '"""\n'
+            '# and a comment\n'
+            'class Handler(BaseHTTPRequestHandler):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('a.py:6 (Handler)', result['details'])
+
+    def test_a_marker_survives_a_masked_preamble(self):
+        # And the marker window is read out of the original at that
+        # same offset, so an off-by-anything reads the wrong line.
+        result = self._check({'a.py': (
+            'DOC = """\n'
+            'a long\n'
+            'embedded sample\n'
+            '"""\n'
+            '# audit-ok: header-sanitization -- fixture\n'
+            'class Handler(BaseHTTPRequestHandler):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'not_applicable',
+                         result['details'])
 
     def test_no_handler_is_not_applicable(self):
         result = self._check({'a.py': 'x = 1\n'})
@@ -3242,9 +3483,8 @@ class HeaderSanitizationTest(unittest.TestCase):
         # indistinguishable from a repository with no handler in it,
         # which on a security check is a clean bill nobody earned.
         result = self._check({'a.py': (
-            'class Handler(make_base("("),\n'
-            '              http.server.BaseHTTPRequestHandler):\n'
-            '    pass\n'
+            'class Handler(http.server.BaseHTTPRequestHandler,\n'
+            '              SafeHeaderMixin\n'
         )})
         self.assertEqual(result['status'], 'fail')
         self.assertIn('could not read the base list', result['details'])
@@ -3289,18 +3529,18 @@ class HeaderSanitizationTest(unittest.TestCase):
         self.assertEqual(result['status'], 'fail')
         self.assertIn('listed after', result['details'])
 
-    def test_an_unreadable_base_list_does_not_abort_the_run(self):
-        # The name is in the base list only as a comment, so the
-        # substring test admits the class while the parser cannot
-        # reduce it to a base. index() on a name it did not find used
-        # to raise out of the whole audit run for that repository,
-        # losing every other check's result with it.
+    def test_a_handler_named_only_in_a_comment_is_not_a_handler(self):
+        # The name is in the base list only as a comment. It used to
+        # admit the class, which then had no reducible handler base
+        # and reached index() with a name it had not found -- raising
+        # out of the whole audit run for that repository.
         result = self._check({'a.py': (
             'class Handler(SafeHeaderMixin,  # a BaseHTTPRequestHandler\n'
             '              Base):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assertEqual(result['status'], 'not_applicable',
+                         result['details'])
 
     def test_a_marker_a_blank_line_above_does_not_exempt(self):
         # security-sanitization.md says 'on or immediately above'.
@@ -3362,6 +3602,24 @@ class PythonVersionTargetingTest(unittest.TestCase):
             merged = {'has_pyproject_toml': pyproject is not None}
             merged.update(props or {})
             return audit_check.check_python_version_targeting(tmp, merged)
+
+    def test_a_malformed_renovate_config_does_not_abort_the_run(self):
+        # renovate.json's top level can hold any JSON value, and
+        # calling .get() on it raised out of run_checks and cost the
+        # repository every other check as well.
+        for renovate in ('{"constraints": "3.8"}', '{"constraints": [1]}',
+                         '[1, 2]', '"hi"'):
+            with self.subTest(renovate=renovate):
+                result = self._check(
+                    '[project]\nrequires-python = ">=3.8"\n',
+                    renovate=renovate)
+                self.assertEqual(result['status'], 'pass',
+                                 result['details'])
+
+    def test_a_project_table_that_is_not_a_table_is_reported(self):
+        result = self._check('project = "x"\n')
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('not a table', result['details'])
 
     def test_no_pyproject_is_not_applicable(self):
         self.assertEqual(

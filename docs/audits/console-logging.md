@@ -20,7 +20,17 @@ The `propagate` assignment is matched against the entry point's *own*
 logger -- the name bound to `setup_console()`'s return, or
 `getLogger()` called with the same argument it was given. A line
 silencing an unrelated third-party logger does not satisfy it, because
-the entry point still emits every one of its own lines twice.
+the entry point still emits every one of its own lines twice. Where a
+file makes several `setup_console()` calls, the one given `__name__`
+is the file configuring itself, and is the one that decides this.
+
+All three matches are made against the file's *code*: comments and
+string literals are blanked first. A commented-out
+`logging.basicConfig()` is the state of anything somebody was
+debugging and is exactly the misconfiguration this exists to catch, so
+counting it as a call would pass the file for the defect it has. The
+`audit-ok` marker is still read from the file itself, because a marker
+is a comment.
 
 `setup_console()` raises the root logger's level to INFO but attaches
 its handler to the *named* logger only. Records from every other
@@ -38,6 +48,16 @@ is a module getting a logger, not a console script setting up logging.
 A repository that declares no console scripts, or whose entry points
 do not use the helper, is not applicable -- this is a rule about how
 the helper is used, not a requirement to use it.
+
+An entry point is resolved to a file by trying `pkg/mod.py`,
+`pkg/__init__.py` and both of those under `src/`. A repository whose
+layout is none of those -- `lib/`, say -- is reported as having
+declared entry points that did not resolve, naming them, rather than
+as having declared none: the two are different facts, and the second
+is a clean bill for a file nobody looked at. A declaration that is
+malformed rather than merely unresolvable -- `scripts` given as a
+string, a target that is not one -- is named the same way, and does
+not stop the rest of the repository being audited.
 
 A file that genuinely should not configure logging -- because
 something else in the process already has -- carries an

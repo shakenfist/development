@@ -47,6 +47,25 @@ than skipped: a skipped class is indistinguishable from a repository
 with no handler in it, and on a security check that reads as a clean
 bill nobody earned.
 
+The same principle decides how a base is recognised. Bases are
+compared as whole names after any dotted prefix is dropped, so
+`http.server.BaseHTTPRequestHandler` is in scope while
+`MyBaseHTTPRequestHandlerWrapper` is not, and names bound by
+`import ... as` are resolved -- `from http.server import
+BaseHTTPRequestHandler as BHR` followed by `class Handler(BHR)` is a
+handler subclass, and reading it as a bare substring reported the
+repository as having no raw HTTP server in it at all.
+
+Comments and string literals are blanked before any of this, so a
+`class` statement inside a docstring code sample is not a class, and
+a `#` or a `)` inside a base list no longer ends the parse early.
+
+What is still not followed is a base bound by plain assignment
+(`Base = BaseHTTPRequestHandler`), which needs the kind of name
+tracking a full parse gives and this does not attempt. If you write
+one, put an `audit-ok` marker on the class with a reason, or spell
+the base out.
+
 ### File path sanitization
 
 **Delegated to the pre-push review, and not measured here.** Whether a
