@@ -2984,8 +2984,8 @@ def check_version_file(repo_path, props):
     }
 
 
-def mask_comments_and_strings(content):
-    """Blank out comment and string-literal bodies, keeping offsets.
+def mask_source(content, comments=True, strings=True):
+    """Blank out comment and/or string-literal bodies, keeping offsets.
 
     Every search in this file is a grep over source text, which
     counts a commented-out call as a call. That is not a cosmetic
@@ -3006,8 +3006,12 @@ def mask_comments_and_strings(content):
     while index < length:
         char = content[index]
         if char == '#':
+            # Recognised even when it is not being blanked: an
+            # apostrophe in a comment ("don't") would otherwise open a
+            # string literal and swallow the rest of the file.
             while index < length and content[index] != '\n':
-                out[index] = ' '
+                if comments:
+                    out[index] = ' '
                 index += 1
             continue
         if char not in '\'"':
@@ -3023,7 +3027,7 @@ def mask_comments_and_strings(content):
         while index < length:
             if content[index] == '\\':
                 for offset in (0, 1):
-                    if index + offset < length and (
+                    if strings and index + offset < length and (
                             content[index + offset] != '\n'):
                         out[index + offset] = ' '
                 index += 2
@@ -3031,10 +3035,30 @@ def mask_comments_and_strings(content):
             if content.startswith(quote, index):
                 index += len(quote)
                 break
-            if content[index] != '\n':
+            if strings and content[index] != '\n':
                 out[index] = ' '
             index += 1
     return ''.join(out)
+
+
+def mask_comments_and_strings(content):
+    """The view structure is matched against: code only."""
+    return mask_source(content)
+
+
+def mask_strings(content):
+    """The view an audit-ok marker is read from: code and comments.
+
+    A marker is a comment, but the membership test that looked for
+    one ran over the whole file, so `DOC = "audit-ok:
+    header-sanitization"` -- an ordinary string constant, on the line
+    above a class -- silently exempted a request handler from the
+    CWE-113 check. That is the mirror of the false pass
+    mask_comments_and_strings() was written to close: this half fixed
+    "a docstring made it a caller" and left "a docstring made it
+    exempt".
+    """
+    return mask_source(content, comments=False)
 
 
 def console_entry_point_files(repo_path):
@@ -3252,16 +3276,17 @@ def check_console_logging(repo_path, props):
         # commented-out logging.basicConfig() satisfied the
         # requirement it is the absence of, and a docstring saying a
         # module deliberately does not call setup_console() made it
-        # a caller. The audit-ok marker is still read from the
-        # original, because a marker is a comment.
+        # a caller.
         code = mask_comments_and_strings(content)
         if not re.search(r'(?<!def )setup_console\s*\(', code):
             continue
 
         # Read per file rather than per line: the finding is about
         # the file's logging setup as a whole, so there is no single
-        # line for a marker to sit on.
-        if 'audit-ok: console-logging' in content:
+        # line for a marker to sit on. Read from the comment view,
+        # because a marker is a comment: a docstring mentioning the
+        # marker exempted the file that mentioned it.
+        if 'audit-ok: console-logging' in mask_strings(content):
             exempt.append(relative)
             continue
         using.append(relative)
@@ -3280,6 +3305,16 @@ def check_console_logging(repo_path, props):
         if missing:
             problems.append(f'{relative}: missing {"; ".join(missing)}')
 
+    # Named in every outcome, not only when nothing resolved at all.
+    # A repository with a mixed layout had its unresolved entry
+    # points dropped and collected a pass on the ones that did
+    # resolve -- the same clean bill for a file nobody opened as the
+    # total case, in the partial rather than the whole.
+    unnamed = (
+        f'{len(unresolved)} declaration(s) resolved to no file in '
+        f'this checkout: ' + ', '.join(unresolved)
+    ) if unresolved else ''
+
     if not using:
         if exempt:
             return {
@@ -3288,6 +3323,7 @@ def check_console_logging(repo_path, props):
                 'details': (
                     f'{len(exempt)} console entry point(s) calling '
                     f'setup_console() exempt by audit-ok marker'
+                    + (f'; {unnamed}' if unnamed else '')
                 ),
             }
         return {
@@ -3296,6 +3332,7 @@ def check_console_logging(repo_path, props):
             'details': (
                 f'{len(entry_points)} console entry point(s), none '
                 f'calling shakenfist_utilities.logs.setup_console()'
+                + (f'; {unnamed}' if unnamed else '')
             ),
         }
 
@@ -3307,6 +3344,24 @@ def check_console_logging(repo_path, props):
                 f'{len(problems)} of {len(using)} console entry '
                 f'point(s) calling setup_console() do not configure '
                 f'the root logger -- ' + '; '.join(sorted(problems))
+                + (f'; {unnamed}' if unnamed else '')
+            ),
+        }
+
+    # A pass is a statement about every entry point the repository
+    # declares, so one that resolved to no file withholds it. The
+    # ones that did resolve are compliant and the details say so, but
+    # the criterion has not been assessed -- which is not_applicable,
+    # the same answer the total case gives, rather than a fail this
+    # checkout has not demonstrated.
+    if unresolved:
+        return {
+            'id': 'console-logging',
+            'status': 'not_applicable',
+            'details': (
+                f'{len(using)} console entry point(s) calling '
+                f'setup_console() configure the root logger, but '
+                + unnamed
             ),
         }
 
@@ -3343,6 +3398,12 @@ def parse_class_statements(content):
 
     Classes with no base list are not yielded: they inherit nothing,
     so they cannot be a request handler.
+
+    A PEP 695 type parameter list may sit between the name and the
+    bases, and a bound in one can itself hold brackets, so it is
+    walked the same way rather than matched -- "class H[T](Base)"
+    otherwise looked like a class with no base list at all, which is
+    the silent skip this function exists to avoid.
     """
     # Comments and string bodies are blanked first, so a ")" in
     # either no longer closes the walk early and a code sample in a
@@ -3350,9 +3411,26 @@ def parse_class_statements(content):
     # the positions yielded here still address `content`.
     code = mask_comments_and_strings(content)
     for match in re.finditer(
-        r'^[ \t]*class\s+(\w+)\s*\(', code, re.MULTILINE,
+        r'^[ \t]*class\s+(\w+)\s*', code, re.MULTILINE,
     ):
-        depth, index = 1, match.end()
+        index = match.end()
+        if index < len(code) and code[index] == '[':
+            depth, index = 1, index + 1
+            while index < len(code) and depth:
+                if code[index] == '[':
+                    depth += 1
+                elif code[index] == ']':
+                    depth -= 1
+                index += 1
+            if depth:
+                yield match.group(1), None, match.start(), len(code)
+                continue
+            while index < len(code) and code[index] in ' \t':
+                index += 1
+        if index >= len(code) or code[index] != '(':
+            continue
+        opens = index
+        depth, index = 1, index + 1
         while index < len(code) and depth:
             if code[index] == '(':
                 depth += 1
@@ -3362,7 +3440,7 @@ def parse_class_statements(content):
         if depth:
             yield match.group(1), None, match.start(), len(code)
             continue
-        yield (match.group(1), code[match.end():index - 1],
+        yield (match.group(1), code[opens + 1:index - 1],
                match.start(), index)
 
 
@@ -3374,15 +3452,27 @@ def handler_base_names(content):
     dropped: "from http.server import BaseHTTPRequestHandler as BHR"
     followed by "class Handler(BHR)" was reported as a repository
     with no raw HTTP server in it, which is the false clean bill this
-    check exists to refuse.
+    check exists to refuse. An alias may sit on a continuation line
+    of either kind, parenthesised or backslashed, so the import
+    statement is read whole rather than a line at a time.
     """
     names = set(HTTP_HANDLER_BASES)
     for match in re.finditer(
-        r'^[ \t]*(?:from\s+[\w.]+\s+)?import\s+([^\n]+)',
+        # Both continuation forms, because an import list long enough
+        # to need one is exactly where an alias hides: the capture
+        # stopped at the newline, so the parenthesised spelling
+        # resolved nothing and the class using the alias was dropped
+        # without a word.
+        r'^[ \t]*(?:from\s+[\w.]+\s+)?import\s+'
+        r'(\([^)]*\)|(?:[^\n\\]|\\\n)+)',
         mask_comments_and_strings(content), re.MULTILINE,
     ):
+        # The backslash is punctuation joining the statement, just
+        # as the parens are. Left in place it became a fourth token
+        # and the "name as alias" shape stopped matching, so the
+        # capture spanned the continuation and resolved nothing.
         for clause in match.group(1).replace('(', ' ').replace(
-                ')', ' ').split(','):
+                ')', ' ').replace('\\', ' ').split(','):
             parts = clause.split()
             if len(parts) == 3 and parts[1] == 'as' and (
                     parts[0].split('.')[-1] in HTTP_HANDLER_BASES):
@@ -3480,9 +3570,15 @@ def check_header_sanitization(repo_path, props):
             # To the end of the line so a trailing comment counts as
             # being *on* the statement, and exactly one line above,
             # which is what security-sanitization.md advertises.
-            end = content.find('\n', stop)
-            statement = content[start:end if end != -1 else len(content)]
-            preceding = content[:start].splitlines()[-1:]
+            # Sliced from the comment view rather than the file,
+            # so a string constant holding the marker no longer
+            # exempts the class below it. Masking preserves offsets,
+            # so start and stop still address the same characters.
+            commented = mask_strings(content)
+            end = commented.find('\n', stop)
+            statement = commented[
+                start:end if end != -1 else len(commented)]
+            preceding = commented[:start].splitlines()[-1:]
             if 'audit-ok: header-sanitization' in statement or any(
                 'audit-ok: header-sanitization' in p for p in preceding
             ):

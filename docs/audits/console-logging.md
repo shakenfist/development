@@ -29,8 +29,10 @@ string literals are blanked first. A commented-out
 `logging.basicConfig()` is the state of anything somebody was
 debugging and is exactly the misconfiguration this exists to catch, so
 counting it as a call would pass the file for the defect it has. The
-`audit-ok` marker is still read from the file itself, because a marker
-is a comment.
+`audit-ok` marker is read from a complementary view in which string
+bodies are blanked and comments survive, because a marker *is* a
+comment: reading it from the whole file let a docstring that merely
+mentioned the marker exempt the module that mentioned it.
 
 `setup_console()` raises the root logger's level to INFO but attaches
 its handler to the *named* logger only. Records from every other
@@ -58,6 +60,15 @@ is a clean bill for a file nobody looked at. A declaration that is
 malformed rather than merely unresolvable -- `scripts` given as a
 string, a target that is not one -- is named the same way, and does
 not stop the rest of the repository being audited.
+
+An unresolved declaration is named in every outcome, not only when
+nothing resolved at all. A repository with a mixed layout collected a
+pass on the entry points that were found while the one that was not
+went unmentioned, which is the same clean bill for a file nobody
+opened. A pass is a statement about every entry point the repository
+declares, so one that resolved to nothing withholds it: the ones that
+did resolve are reported as compliant, but the criterion has not been
+assessed.
 
 A file that genuinely should not configure logging -- because
 something else in the process already has -- carries an

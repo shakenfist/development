@@ -2911,6 +2911,72 @@ class ConsoleLoggingTest(unittest.TestCase):
         self.assertEqual(result['status'], 'fail')
         self.assertIn('basicConfig', result['details'])
 
+    def test_a_marker_in_a_docstring_does_not_exempt(self):
+        # The mirror of the masking defect above: that half stopped a
+        # docstring making a file a caller, this half stops one making
+        # it exempt. Prose about the marker is not the marker.
+        result = self._check({'thing/main.py': (
+            '"""We do not use audit-ok: console-logging here."""\n'
+            + self.NO_BASIC_CONFIG
+        )})
+        self.assertEqual(result['status'], 'fail', result['details'])
+
+    def test_a_marker_in_a_string_constant_does_not_exempt(self):
+        result = self._check({'thing/main.py': (
+            'DOC = "audit-ok: console-logging"\n' + self.NO_BASIC_CONFIG
+        )})
+        self.assertEqual(result['status'], 'fail', result['details'])
+
+    def test_a_marker_in_a_commented_out_string_still_exempts(self):
+        # The marker view keeps comments and blanks strings, so a
+        # quote inside a comment must not open a literal and swallow
+        # the marker that follows it.
+        result = self._check({'thing/main.py': (
+            "# don't reconfigure: audit-ok: console-logging\n"
+            + self.NO_BASIC_CONFIG
+        )})
+        self.assertEqual(result['status'], 'not_applicable',
+                         result['details'])
+
+    def test_an_unresolved_entry_point_withholds_the_pass(self):
+        # A mixed layout reported pass on the entry points it could
+        # find and dropped the one it could not, which is the same
+        # clean bill for a file nobody opened that the check refuses
+        # when nothing resolves at all.
+        result = self._check(
+            {'thing/main.py': self.COMPLIANT},
+            pyproject=(
+                '[project]\n'
+                'name = "thing"\n'
+                '\n'
+                '[project.scripts]\n'
+                'thing = "thing.main:cli"\n'
+                'lost = "elsewhere.cli:main"\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'not_applicable',
+                         result['details'])
+        self.assertIn('elsewhere.cli', result['details'])
+
+    def test_an_unresolved_entry_point_is_named_in_a_failure(self):
+        # A demonstrated violation stays a failure, but the entry
+        # point nobody could look at is still named: fixing the one
+        # that was found does not make the report complete.
+        result = self._check(
+            {'thing/main.py': self.NO_BASIC_CONFIG},
+            pyproject=(
+                '[project]\n'
+                'name = "thing"\n'
+                '\n'
+                '[project.scripts]\n'
+                'thing = "thing.main:cli"\n'
+                'lost = "elsewhere.cli:main"\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assertIn('basicConfig', result['details'])
+        self.assertIn('elsewhere.cli', result['details'])
+
     def test_a_docstring_mention_does_not_make_it_a_caller(self):
         # And the same defect pointing the other way: a fleet issue
         # filed against a module whose only setup_console( is prose
@@ -3278,6 +3344,38 @@ class MaskCommentsAndStringsTest(unittest.TestCase):
         self.assertNotIn('/tmp/x', masked)
 
 
+class MaskStringsTest(unittest.TestCase):
+    """The view an audit-ok marker is read from.
+
+    The complement of the code view: string bodies are blanked and
+    comments survive, because a marker is a comment. Reading it from
+    the file instead let `DOC = "audit-ok: header-sanitization"`
+    exempt the class below it from a CWE-113 check.
+    """
+
+    def test_comments_survive_and_string_bodies_do_not(self):
+        source = 'X = "audit-ok: x"  # audit-ok: y\n'
+        masked = audit_check.mask_strings(source)
+        self.assertIn('# audit-ok: y', masked)
+        self.assertNotIn('audit-ok: x', masked)
+
+    def test_a_hash_inside_a_string_does_not_start_a_comment(self):
+        source = 'X = "# audit-ok: x"\nY = 1\n'
+        masked = audit_check.mask_strings(source)
+        self.assertNotIn('audit-ok', masked)
+        self.assertIn('Y = 1', masked)
+
+    def test_masking_preserves_length_and_line_breaks(self):
+        for source in MaskCommentsAndStringsTest.SOURCES:
+            with self.subTest(source=source):
+                masked = audit_check.mask_strings(source)
+                self.assertEqual(len(masked), len(source))
+                self.assertEqual(
+                    [i for i, c in enumerate(masked) if c == '\n'],
+                    [i for i, c in enumerate(source) if c == '\n'],
+                )
+
+
 class HeaderSanitizationTest(unittest.TestCase):
     """The header-sanitization check.
 
@@ -3297,6 +3395,96 @@ class HeaderSanitizationTest(unittest.TestCase):
                     f.write(content)
             subprocess.run(['git', '-C', tmp, 'add', '-A'], check=True)
             return audit_check.check_header_sanitization(tmp, {})
+
+    def test_a_marker_in_a_string_constant_does_not_exempt(self):
+        # A false clean bill on a security check, produced by an
+        # ordinary string constant on the line above the class. The
+        # marker window was read from the file rather than from a
+        # view in which only comments survive.
+        result = self._check({'a.py': (
+            'from http.server import BaseHTTPRequestHandler\n'
+            'DOC = "audit-ok: header-sanitization"\n'
+            'class Handler(BaseHTTPRequestHandler):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail', result['details'])
+
+    def test_a_marker_in_a_docstring_does_not_exempt(self):
+        result = self._check({'a.py': (
+            'from http.server import BaseHTTPRequestHandler\n'
+            '"""audit-ok: header-sanitization"""\n'
+            'class Handler(BaseHTTPRequestHandler):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail', result['details'])
+
+    def test_an_apostrophe_in_the_marker_comment_does_not_break_it(self):
+        # Comments survive in the marker view, so the scanner has to
+        # keep recognising them: an apostrophe in one would otherwise
+        # open a literal and blank the marker after it.
+        result = self._check({'a.py': (
+            'from http.server import BaseHTTPRequestHandler\n'
+            "# don't wrap this one: audit-ok: header-sanitization\n"
+            'class Handler(BaseHTTPRequestHandler):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'not_applicable',
+                         result['details'])
+
+    def test_a_multi_line_aliased_import_is_examined(self):
+        # An import list long enough to be wrapped is exactly where
+        # an alias hides. The capture stopped at the newline, so the
+        # alias resolved to nothing and the class using it was
+        # dropped without a word.
+        result = self._check({'a.py': (
+            'from http.server import (\n'
+            '    BaseHTTPRequestHandler as BHR,\n'
+            ')\n'
+            'class Handler(BHR):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assertIn('does not inherit SafeHeaderMixin',
+                      result['details'])
+
+    def test_a_backslash_continued_aliased_import_is_examined(self):
+        result = self._check({'a.py': (
+            'from http.server import \\\n'
+            '    BaseHTTPRequestHandler as BHR\n'
+            'class Handler(BHR):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail', result['details'])
+
+    def test_a_generic_class_is_examined(self):
+        # PEP 695 puts a type parameter list between the name and the
+        # bases, which read as a class with no base list at all --
+        # silently out of scope on a security check.
+        result = self._check({'a.py': (
+            'from http.server import BaseHTTPRequestHandler\n'
+            'class Handler[T](BaseHTTPRequestHandler):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail', result['details'])
+
+    def test_a_generic_class_with_a_bracketed_bound_is_examined(self):
+        # A bound may itself hold brackets, so the parameter list is
+        # walked rather than matched to the first "]".
+        result = self._check({'a.py': (
+            'from http.server import BaseHTTPRequestHandler\n'
+            'class Handler[T: dict[str, int]](BaseHTTPRequestHandler):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail', result['details'])
+
+    def test_an_unclosed_type_parameter_list_is_reported_not_skipped(self):
+        result = self._check({'a.py': (
+            'from http.server import BaseHTTPRequestHandler\n'
+            'class Handler[T(BaseHTTPRequestHandler):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assertIn('could not read the base list', result['details'])
 
     def test_an_aliased_handler_base_is_examined(self):
         # The import line carries the name, so the file was admitted

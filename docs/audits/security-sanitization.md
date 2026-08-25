@@ -40,7 +40,11 @@ A subclass that genuinely does not need it -- a test fixture serving
 literal headers, say -- carries an `audit-ok: header-sanitization`
 comment on or immediately above the `class` statement, ideally with a
 reason. The marker is read per class rather than per file, because a
-module may hold both a real server and a fixture.
+module may hold both a real server and a fixture, and it is read from
+a view in which string bodies are blanked and comments survive. A
+marker is a comment, and searching the whole file let an ordinary
+string constant holding the marker text exempt the class beneath it
+from a security check.
 
 A `class` statement whose base list cannot be read is reported rather
 than skipped: a skipped class is indistinguishable from a repository
@@ -54,11 +58,17 @@ compared as whole names after any dotted prefix is dropped, so
 `import ... as` are resolved -- `from http.server import
 BaseHTTPRequestHandler as BHR` followed by `class Handler(BHR)` is a
 handler subclass, and reading it as a bare substring reported the
-repository as having no raw HTTP server in it at all.
+repository as having no raw HTTP server in it at all. An import
+statement is read whole rather than a line at a time, because an
+import list long enough to be wrapped -- in parentheses or over a
+backslash -- is exactly where an alias hides.
 
 Comments and string literals are blanked before any of this, so a
 `class` statement inside a docstring code sample is not a class, and
-a `#` or a `)` inside a base list no longer ends the parse early.
+a `#` or a `)` inside a base list no longer ends the parse early. A
+PEP 695 type parameter list between the name and the bases is walked
+rather than matched, so `class Handler[T](Base)` is in scope and a
+bound holding brackets of its own does not truncate the walk.
 
 What is still not followed is a base bound by plain assignment
 (`Base = BaseHTTPRequestHandler`), which needs the kind of name
