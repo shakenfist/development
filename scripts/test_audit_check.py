@@ -2616,28 +2616,34 @@ class PlanStatusVocabularyBlockTest(unittest.TestCase):
 
 
 class PushAuditPhaseBlockTest(unittest.TestCase):
-    def test_canonical_block_names_the_merged_column(self):
-        # The block is the only statement of where a phase's merge
-        # commit is recorded. Nothing mechanical reads a plan's
-        # Execution table yet, so if a later revision renames the
-        # column or drops the rule, the first thing to notice would
-        # be a sweep already halfway through thirty-six plans.
+    """The canonical block is the only statement of where a phase's
+    landing commit is recorded.
+
+    Nothing mechanical reads a plan's Execution table, so if a later
+    revision renames the column or drops the rule, the first thing
+    to notice would be a sweep already halfway through thirty-six
+    plans. That the block is required of every PLAN-TEMPLATE.md is
+    asserted by PlanTemplateTest, which owns that invariant.
+    """
+
+    def test_canonical_block_names_where_the_commit_is_recorded(self):
         canonical = audit_check.load_canonical_block(
             'plan-push-audit-phase'
         )
         self.assertIsNotNone(canonical)
         _, text = canonical
-        self.assertIn('`Merged` column', text)
-        self.assertIn('`Merged:` line', text)
-        # And that it keeps the commit out of the status cell, which
+        # Collapse whitespace first. These phrases are prose wrapped
+        # at seventy columns, so matching raw text would fail on a
+        # reflow that changed no meaning -- and a test that fails on
+        # cosmetic reflow teaches people to edit the test, which is
+        # the reflex this tripwire exists to prevent.
+        flat = ' '.join(text.split())
+        self.assertIn('`Merged` column', flat)
+        self.assertIn('`Merged:` line', flat)
+        # And that the commit stays out of the status cell, which
         # plan-status-vocabulary reserves for a single term.
         self.assertIn('`Status` column keeps its single vocabulary',
-                      text)
-
-    def test_canonical_block_is_a_plan_template_block(self):
-        self.assertIn(
-            'plan-push-audit-phase', audit_check.PLAN_TEMPLATE_BLOCKS
-        )
+                      flat)
 
 
 class PlanTemplateTest(unittest.TestCase):

@@ -478,6 +478,15 @@ recorded here and what cannot is named as such:
 | 3. Automatic review and the fix/retest split | not recoverable; built largely in `shakenfist/actions` |
 | 4. Cleanup | `b8bf764` (#41), `ada14ef` (#44), `e3d1333` (#47) |
 
+The phase 4 merges are the plan's work but not only the plan's
+work: #47 landed `54df816`, which published the audit specs under
+`docs/`, alongside unrelated review-tracking fixes. Recording a
+merge commit buys a range that certainly contains the phase, at the
+cost of a range that may contain more -- which is the right trade
+against the alternative of a range that contains neither reliably,
+but the audit says which files it read rather than reporting the
+whole merge as this plan's diff.
+
 Phases 2 and 3 are the honest gap. Phase 2 shipped one runner in
 March 2026 and then accreted from 13 criteria to 34 over five
 months, in commits interleaved with everything else this repository
