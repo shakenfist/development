@@ -903,6 +903,43 @@ class PlanPhaseReferencesTest(unittest.TestCase):
         self.assertEqual(result['status'], 'pass')
 
 
+class CiReviewAutomationSpecTest(unittest.TestCase):
+    """The check and its spec page name the same requirements.
+
+    A rewrite of the page condensed the "What we check" list and
+    dropped review-pr-with-claude@main from it, while the check went
+    on filing "No workflow uses shared action
+    review-pr-with-claude@main" against repositories -- so a
+    maintainer following the issue link landed on a page that did not
+    state the thing they were being measured against. Deriving the
+    agreement is what stops that recurring in a new guise.
+    """
+
+    def _what_we_check(self):
+        # The "What we check" section only. Asserting against the
+        # whole page passes on the strength of the auto-generated
+        # compliance table at the bottom, which quotes the issue
+        # message verbatim -- so the assertion would hold precisely
+        # while a repository was being failed for a requirement the
+        # page never states.
+        with open(os.path.join(
+                REPO_ROOT, 'docs', 'audits',
+                'ci-review-automation.md')) as f:
+            spec = f.read()
+        start = spec.index('## What we check')
+        return spec[start:spec.index('\n## ', start + 1)]
+
+    def test_the_spec_names_every_requirement(self):
+        spec = self._what_we_check()
+        for requirement in (
+            audit_check.CI_REVIEW_DEVELOPER_WORKFLOWS
+            + (audit_check.CI_REVIEW_SHARED_ACTION,
+               audit_check.CI_REVIEW_TRIGGER_ACTION)
+        ):
+            with self.subTest(requirement=requirement):
+                self.assertIn(requirement, spec)
+
+
 class PushAuditTest(unittest.TestCase):
     def setUp(self):
         # A private canonical blocks directory so the tests do not
@@ -2950,6 +2987,35 @@ class ConsoleLoggingTest(unittest.TestCase):
         self.assertEqual(result['status'], 'fail')
         self.assertIn('propagate', result['details'])
 
+    def test_a_foreign_logger_named_after_the_entry_points_is_not_enough(
+            self):
+        # URLLIB_LOG.propagate contains LOG.propagate as a substring,
+        # so an unanchored receiver read this file as having silenced
+        # its own logger. The third-party lines stop; the entry
+        # point's own INFO lines are still emitted twice.
+        result = self._check({'thing/main.py': (
+            'from shakenfist_utilities import logs\n'
+            'import logging\n'
+            'LOG = logs.setup_console(__name__)\n'
+            'logging.basicConfig(level=logging.INFO)\n'
+            "URLLIB_LOG = logging.getLogger('urllib3')\n"
+            'URLLIB_LOG.propagate = False\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('propagate', result['details'])
+
+    def test_propagate_on_an_attribute_of_something_else_is_not_enough(self):
+        # wrapper.LOG is not this module's LOG either.
+        result = self._check({'thing/main.py': (
+            'from shakenfist_utilities import logs\n'
+            'import logging\n'
+            'LOG = logs.setup_console(__name__)\n'
+            'logging.basicConfig(level=logging.INFO)\n'
+            'wrapper.LOG.propagate = False\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('propagate', result['details'])
+
     def test_propagate_via_get_logger_on_the_same_name_passes(self):
         result = self._check({'thing/main.py': (
             'from shakenfist_utilities import logs\n'
@@ -3064,6 +3130,63 @@ class HeaderSanitizationTest(unittest.TestCase):
         )})
         self.assertEqual(result['status'], 'fail')
         self.assertIn('listed after', result['details'])
+
+    def test_a_simple_http_request_handler_subclass_is_examined(self):
+        # SimpleHTTPRequestHandler inherits the same unsanitized
+        # send_header(), and a module subclassing it never mentions
+        # the root class -- so naming only the root class reported a
+        # genuine CWE-113 exposure as having no handler in it at all.
+        result = self._check({'a.py': (
+            'import http.server\n'
+            '\n'
+            '\n'
+            'class Handler(http.server.SimpleHTTPRequestHandler):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('does not inherit SafeHeaderMixin', result['details'])
+
+    def test_a_cgi_http_request_handler_subclass_is_examined(self):
+        result = self._check({'a.py': (
+            'class Handler(CGIHTTPRequestHandler):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('does not inherit SafeHeaderMixin', result['details'])
+
+    def test_the_mixin_after_a_subclass_base_names_that_base(self):
+        result = self._check({'a.py': (
+            'class Handler(http.server.SimpleHTTPRequestHandler,\n'
+            '              SafeHeaderMixin):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn(
+            'listed after SimpleHTTPRequestHandler', result['details'])
+
+    def test_a_call_in_the_base_list_is_still_parsed(self):
+        # The base list used to be closed with \(([^)]*)\), which
+        # stops at the first ")" -- so this class matched nothing,
+        # handlers stayed empty and the result was not_applicable.
+        result = self._check({'a.py': (
+            'class Handler(make_base(),\n'
+            '              http.server.BaseHTTPRequestHandler):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('does not inherit SafeHeaderMixin', result['details'])
+
+    def test_an_unclosable_base_list_is_reported_not_skipped(self):
+        # Nothing the paren walk can close. A skip here is
+        # indistinguishable from a repository with no handler in it,
+        # which on a security check is a clean bill nobody earned.
+        result = self._check({'a.py': (
+            'class Handler(make_base("("),\n'
+            '              http.server.BaseHTTPRequestHandler):\n'
+            '    pass\n'
+        )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('could not read the base list', result['details'])
 
     def test_audit_ok_marker_exempts_one_class(self):
         # A module may hold both a real server and a test fixture, so

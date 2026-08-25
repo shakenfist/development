@@ -4,11 +4,17 @@
 
 ### Automated review
 
+* Some workflow reaches Claude Code through the shared action
+  `shakenfist/actions/review-pr-with-claude@main`, rather than a
+  per-project script. Calling the reusable workflow below satisfies
+  this, because that is how the reusable workflow reaches it.
 * The reviewer job is a call to the reusable workflow
   `shakenfist/actions/.github/workflows/pr-auto-review.yml@main`, with
   the project's test jobs in its `needs:`. Hand-written
   `automated_reviewer` jobs are superseded; migrating deletes the
-  project's `check-bot-commit` job too.
+  project's `check-bot-commit` job too. The migration itself is not
+  measured -- only the shared action above is, and the `secrets:`
+  rule below -- so a compliant hand-written job still passes.
 * The calling job sets `pull-requests: write` and `issues: write`, and
   does **not** pass `secrets: inherit`.
 * The automatic review does not pass `force`, and runs on

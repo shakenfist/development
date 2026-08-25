@@ -410,6 +410,17 @@ def carries_retired_comment_addresser(repo_path):
     return sorted(found)
 
 
+# The three things check_ci_review_automation() can name in a finding
+# beyond a missing file. A maintainer following an audit issue has to
+# land on a spec page that states the thing they are being measured
+# against, and a rewrite of that page dropped the shared action while
+# the check went on filing it -- so the names live here and
+# CiReviewAutomationSpecTest asserts the page carries every one.
+CI_REVIEW_DEVELOPER_WORKFLOWS = ('pr-re-review.yml', 'pr-retest.yml')
+CI_REVIEW_SHARED_ACTION = 'review-pr-with-claude@main'
+CI_REVIEW_TRIGGER_ACTION = 'shakenfist/actions/pr-bot-trigger@main'
+
+
 def pr_re_review_open_codes_the_trigger(repo_path):
     """True when pr-re-review.yml hand-rolls what pr-bot-trigger does.
 
@@ -439,7 +450,8 @@ def pr_re_review_open_codes_the_trigger(repo_path):
     path = '.github/workflows/pr-re-review.yml'
     if not check_file_exists(repo_path, path):
         return False
-    return not check_file_contains(repo_path, path, r'pr-bot-trigger@main')
+    return not check_file_contains(
+        repo_path, path, re.escape(CI_REVIEW_TRIGGER_ACTION.split('/')[-1]))
 
 
 # Quoting and a trailing comment are both forms GitHub Actions treats
@@ -561,10 +573,7 @@ def check_ci_review_automation(repo_path, props):
 
     issues = []
     # Check developer automation workflows
-    for wf in [
-        'pr-re-review.yml',
-        'pr-retest.yml',
-    ]:
+    for wf in CI_REVIEW_DEVELOPER_WORKFLOWS:
         if not check_file_exists(
             repo_path, f'.github/workflows/{wf}'
         ):
@@ -572,21 +581,19 @@ def check_ci_review_automation(repo_path, props):
 
     # Check that at least one workflow uses the shared review action
     if not any_workflow_contains(
-        repo_path, r'review-pr-with-claude@main'
+        repo_path, re.escape(CI_REVIEW_SHARED_ACTION)
     ):
         issues.append(
-            'No workflow uses shared action '
-            'review-pr-with-claude@main'
+            f'No workflow uses shared action {CI_REVIEW_SHARED_ACTION}'
         )
 
     # A hand-rolled pr-re-review.yml misses the shared action's fork
     # guard. See the helper's docstring.
     if pr_re_review_open_codes_the_trigger(repo_path):
         issues.append(
-            'pr-re-review.yml does not use '
-            'shakenfist/actions/pr-bot-trigger@main, so it hand-rolls the '
-            "trigger handling and does not inherit the action's fork pull "
-            'request guard'
+            f'pr-re-review.yml does not use {CI_REVIEW_TRIGGER_ACTION}, '
+            f'so it hand-rolls the trigger handling and does not '
+            f"inherit the action's fork pull request guard"
         )
 
     # "secrets: inherit" on the reviewer job hands every secret this
@@ -3051,8 +3058,18 @@ def sets_own_logger_propagate(content):
             re.escape(match.group(1))
             for match in re.finditer(r'(\w+)\s*=\s*' + get_logger, content)
         ]
+    # The lookbehind is what makes the receiver the *whole* name.
+    # Without it re.escape('LOG') matches inside URLLIB_LOG, and an
+    # entry point silencing urllib3 was read as having silenced
+    # itself -- a pass for exactly the defect this exists to catch.
+    # It also rejects wrapper.LOG, an attribute of something else,
+    # and is harmless for the getLogger() alternative, which already
+    # begins with its own optional dotted prefix.
     return any(
-        re.search(receiver + r'\s*\.propagate\s*=\s*False', content)
+        re.search(
+            r'(?<![\w.])' + receiver + r'\s*\.propagate\s*=\s*False',
+            content,
+        )
         for receiver in receivers
     )
 
@@ -3158,8 +3175,49 @@ def check_console_logging(repo_path, props):
     }
 
 
+# Every one of these inherits the unsanitized send_header() from
+# http.server, so subclassing any of them is the exposure. Naming only
+# the root class read "class Handler(SimpleHTTPRequestHandler)" as
+# having no raw HTTP server in it at all.
+HTTP_HANDLER_BASES = (
+    'BaseHTTPRequestHandler',
+    'SimpleHTTPRequestHandler',
+    'CGIHTTPRequestHandler',
+)
+
+
+def parse_class_statements(content):
+    """Yield (name, bases, start, end) for each class statement.
+
+    The base list is closed by counting parentheses rather than with
+    \\(([^)]*)\\), which stops at the first ")" and so read nothing at
+    all from "class H(make_base(), BaseHTTPRequestHandler):". Skipping
+    a class is a clean bill for a handler nobody looked at, so a base
+    list the walk cannot close is yielded with bases of None for the
+    caller to report rather than dropped here.
+
+    Classes with no base list are not yielded: they inherit nothing,
+    so they cannot be a request handler.
+    """
+    for match in re.finditer(
+        r'^[ \t]*class\s+(\w+)\s*\(', content, re.MULTILINE,
+    ):
+        depth, index = 1, match.end()
+        while index < len(content) and depth:
+            if content[index] == '(':
+                depth += 1
+            elif content[index] == ')':
+                depth -= 1
+            index += 1
+        if depth:
+            yield match.group(1), None, match.start(), len(content)
+            continue
+        yield (match.group(1), content[match.end():index - 1],
+               match.start(), index)
+
+
 def check_header_sanitization(repo_path, props):
-    """Check BaseHTTPRequestHandler subclasses strip header newlines.
+    """Check http.server handler subclasses strip header newlines.
 
     A header value carrying a CR or LF splits the response
     (CWE-113), which CodeQL reports as py/http-response-splitting.
@@ -3167,13 +3225,12 @@ def check_header_sanitization(repo_path, props):
     both before delegating to the base class.
 
     The mixin has to be listed *first* in the bases or the MRO
-    reaches BaseHTTPRequestHandler.send_header() and the override
-    never runs, which is why position is checked rather than mere
-    presence.
+    reaches the base send_header() and the override never runs,
+    which is why position is checked rather than mere presence.
 
     Flask projects are unaffected -- Werkzeug's Headers raises on a
     line break -- and are not applicable here because they have no
-    BaseHTTPRequestHandler subclass to find.
+    http.server handler subclass to find.
     """
     try:
         result = subprocess.run(
@@ -3201,6 +3258,7 @@ def check_header_sanitization(repo_path, props):
         }
 
     handlers = []
+    unreadable = []
     problems = []
     for relative in result.stdout.splitlines():
         relative = relative.strip()
@@ -3212,7 +3270,7 @@ def check_header_sanitization(repo_path, props):
                 content = f.read()
         except OSError:
             continue
-        if 'BaseHTTPRequestHandler' not in content:
+        if not any(base in content for base in HTTP_HANDLER_BASES):
             continue
 
         # Indented definitions count. http.server gives no way to
@@ -3220,15 +3278,13 @@ def check_header_sanitization(repo_path, props):
         # function to close over state is the common idiom -- and
         # anchoring at column zero reported those repositories as
         # having no raw HTTP server at all.
-        for match in re.finditer(
-            r'^[ \t]*class\s+(\w+)\s*\(([^)]*)\)\s*:',
-            content, re.MULTILINE,
-        ):
-            name, bases = match.group(1), match.group(2)
-            if 'BaseHTTPRequestHandler' not in bases:
+        for name, bases, start, stop in parse_class_statements(content):
+            if bases is not None and not any(
+                base in bases for base in HTTP_HANDLER_BASES
+            ):
                 continue
 
-            line = content.count('\n', 0, match.start()) + 1
+            line = content.count('\n', 0, start) + 1
             where = f'{relative}:{line} ({name})'
 
             # The marker is read on the class statement rather than
@@ -3237,13 +3293,20 @@ def check_header_sanitization(repo_path, props):
             # To the end of the line so a trailing comment counts as
             # being *on* the statement, and exactly one line above,
             # which is what security-sanitization.md advertises.
-            end = content.find('\n', match.end())
-            statement = content[
-                match.start():end if end != -1 else len(content)]
-            preceding = content[:match.start()].splitlines()[-1:]
+            end = content.find('\n', stop)
+            statement = content[start:end if end != -1 else len(content)]
+            preceding = content[:start].splitlines()[-1:]
             if 'audit-ok: header-sanitization' in statement or any(
                 'audit-ok: header-sanitization' in p for p in preceding
             ):
+                continue
+
+            # A base list this cannot read is not a class this can
+            # clear. Reported rather than skipped, because the skip
+            # is indistinguishable from a repository with no handler
+            # in it and reads as a clean bill on a security check.
+            if bases is None:
+                unreadable.append(where)
                 continue
 
             handlers.append(where)
@@ -3254,6 +3317,8 @@ def check_header_sanitization(repo_path, props):
                 for b in re.sub(r'#[^\n]*', '', bases).split(',')
             ]
             names = [n for n in names if n]
+            handler = next(
+                (b for b in HTTP_HANDLER_BASES if b in names), None)
             if 'SafeHeaderMixin' not in names:
                 problems.append(
                     f'{where}: does not inherit SafeHeaderMixin, so '
@@ -3264,20 +3329,25 @@ def check_header_sanitization(repo_path, props):
             # name. Order is compared only when both names are there;
             # index() on a name it did not find used to abort the
             # whole audit run for the repository.
-            elif ('BaseHTTPRequestHandler' in names
-                  and names.index('SafeHeaderMixin') > names.index(
-                      'BaseHTTPRequestHandler')):
+            elif handler and names.index('SafeHeaderMixin') > names.index(
+                    handler):
                 problems.append(
                     f'{where}: SafeHeaderMixin is listed after '
-                    f'BaseHTTPRequestHandler, so the MRO reaches the '
-                    f'base send_header() and the override never runs'
+                    f'{handler}, so the MRO reaches the base '
+                    f'send_header() and the override never runs'
                 )
 
-    if not handlers:
+    problems.extend(
+        f'{where}: could not read the base list, so whether it is an '
+        f'HTTP request handler is unknown'
+        for where in unreadable
+    )
+
+    if not handlers and not unreadable:
         return {
             'id': 'header-sanitization',
             'status': 'not_applicable',
-            'details': 'No BaseHTTPRequestHandler subclasses',
+            'details': 'No http.server request handler subclasses',
         }
 
     if problems:
@@ -3285,8 +3355,8 @@ def check_header_sanitization(repo_path, props):
             'id': 'header-sanitization',
             'status': 'fail',
             'details': (
-                f'{len(problems)} of {len(handlers)} '
-                f'BaseHTTPRequestHandler subclass(es) do not sanitize '
+                f'{len(problems)} of {len(handlers) + len(unreadable)} '
+                f'HTTP request handler class(es) do not sanitize '
                 f'header values: ' + '; '.join(sorted(problems))
             ),
         }
@@ -3295,7 +3365,7 @@ def check_header_sanitization(repo_path, props):
         'id': 'header-sanitization',
         'status': 'pass',
         'details': (
-            f'{len(handlers)} BaseHTTPRequestHandler subclass(es) '
+            f'{len(handlers)} HTTP request handler subclass(es) '
             f'inherit SafeHeaderMixin first'
         ),
     }

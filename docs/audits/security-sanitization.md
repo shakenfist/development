@@ -7,9 +7,12 @@ other is a judgment call and is delegated to the pre-push review.
 
 ### HTTP response header sanitization
 
-Measured. Every class inheriting `http.server.BaseHTTPRequestHandler`
-must also inherit occystrap's `SafeHeaderMixin`, which strips `\r` and
-`\n` from header values before delegating to the base class. A header
+Measured. Every class inheriting an `http.server` request handler --
+`BaseHTTPRequestHandler`, or its `SimpleHTTPRequestHandler` and
+`CGIHTTPRequestHandler` subclasses, all of which carry the same
+`send_header()` -- must also inherit occystrap's `SafeHeaderMixin`,
+which strips `\r` and `\n` from header values before delegating to
+the base class. A header
 value carrying a line break splits the response (CWE-113), which
 CodeQL reports as `py/http-response-splitting`.
 
@@ -21,15 +24,15 @@ class Handler(
         http.server.BaseHTTPRequestHandler):
 ```
 
-Position is what is checked, not mere presence. Listed after the base
-class, the MRO reaches `BaseHTTPRequestHandler.send_header()` and the
-override never runs -- which is indistinguishable at runtime from not
-having the mixin at all.
+Position is what is checked, not mere presence. Listed after the
+handler base, the MRO reaches its `send_header()` and the override
+never runs -- which is indistinguishable at runtime from not having
+the mixin at all.
 
 Flask projects (kerbside, shakenfist, agent-python) are already
 protected by Werkzeug's `Headers`, which raises `ValueError` on a
-header value containing a line break, and have no
-`BaseHTTPRequestHandler` subclass to find. Prefer Flask for a new HTTP
+header value containing a line break, and have no `http.server`
+handler subclass to find. Prefer Flask for a new HTTP
 server; reach for `http.server` only where a dependency-free embedded
 server is the point, and then use the mixin.
 
@@ -38,6 +41,11 @@ literal headers, say -- carries an `audit-ok: header-sanitization`
 comment on or immediately above the `class` statement, ideally with a
 reason. The marker is read per class rather than per file, because a
 module may hold both a real server and a fixture.
+
+A `class` statement whose base list cannot be read is reported rather
+than skipped: a skipped class is indistinguishable from a repository
+with no handler in it, and on a security check that reads as a clean
+bill nobody earned.
 
 ### File path sanitization
 
