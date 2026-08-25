@@ -294,8 +294,14 @@ audits the accumulated diff of those commits against `main`.
   block to `PLAN_TEMPLATE_BLOCKS`. Phase 1's bump is what marks them
   non-compliant; v2 marks nothing newly stale on top of that. The
   one copy of v2 anywhere is shakenfist/ryll#319, which is still
-  open and re-copies the block from this pull request before it
-  lands.
+  open. The ordering that keeps that true is manual and nothing
+  records it on the ryll side, so it is stated here: this pull
+  request lands first, and ryll#319 re-copies the block from this
+  repository's `main` rather than from a branch, because the wording
+  was revised twice in review. If ryll#319 lands first, or carries a
+  copy taken mid-review, the next daily run files a stale-block issue
+  against ryll -- self-correcting, but it arrives as an audit failure
+  rather than as a known consequence.
 * **`scripts/audit-check.py`** -- extend `check_push_audit` with the
   reference checks: `AGENTS.md` must mention `PUSH-AUDIT.md`, and
   where the repository has a `PLAN-TEMPLATE.md` it must carry the new
@@ -430,30 +436,30 @@ things:
    `check_plan_template` looks at the template, and
    `check_plan_index` checks columns, dates and status vocabulary.
    The thirty-six plans this sweep edited are held in place by the
-   sweep alone. Building the check before decision 1 is settled
-   would be the same ceremony this plan is guarding against, which
-   is why it is a decision here and not a phase 1 deliverable.
-3. Whether the sweep's repository scope was right. Decision 4 says
-   the sweep covers every incomplete master plan; phase 2's
-   definition of done names five repositories and divergulent's four
-   are outside both. Either the scope widens and divergulent is
-   swept, or the plan says why an `index.md`-tracking repository
-   with a `PUSH-AUDIT.md` is excluded.
+   sweep alone. Building the check before phase 3's decision 1 is
+   settled would be the same ceremony this plan is guarding against,
+   which is why it is a decision here and not a phase 1 deliverable.
+3. Whether the sweep's repository scope was right. The plan's own
+   decision 4, under `## Decisions` above, says the sweep covers
+   every incomplete master plan; phase 2's definition of done names
+   five repositories and divergulent's four are outside both. Either
+   the scope widens and divergulent is swept, or the plan says why an
+   `index.md`-tracking repository with a `PUSH-AUDIT.md` is excluded.
 4. What to do about the thirty-six plans the phase 2 sweep already
    edited. They carry v1's "derive the range from the merge base"
    sentence, which v2 retracts, and none of them records a landing
    commit for the phases that have already merged. This repository's
-   own five are fixed in the same change that bumps the block --
-   they are the canon's own plans and could not be left contradicting
-   it -- but the fleet-wide backfill is deliberately not done here.
-   It touches five repositories and needs the same sub-agent sweep
-   phase 2 ran, and if decision 1 makes the phase conditional then
-   some of those plans stop needing a range at all. Doing it before
-   decision 1 would be re-sweeping thirty-six plans to install a
-   convention that might be withdrawn a fortnight later. Until it
-   happens, a reader of one of those plans gets retracted guidance,
-   which is the cost of the deferral and is recorded here rather
-   than discovered.
+   own five are fixed in the same change that bumps the block -- they
+   are the canon's own plans and could not be left contradicting it
+   -- but the fleet-wide backfill is deliberately not done here. It
+   touches five repositories and needs the same sub-agent sweep phase
+   2 ran, and if phase 3's decision 1 makes the phase conditional
+   then some of those plans stop needing a range at all. Doing it
+   before that decision would be re-sweeping thirty-six plans to
+   install a convention that might be withdrawn a fortnight later.
+   Until it happens, a reader of one of those plans gets retracted
+   guidance, which is the cost of the deferral and is recorded here
+   rather than discovered.
 
 ### 4. Push audit
 
@@ -508,6 +514,12 @@ say so in one sentence, and feed that into phase 3's decision.
 * `plan-push-audit-phase` is in `templates/shared-blocks/`, listed in
   its README, and required by `check_plan_template`.
 * `PLAN-plan-template-blocks.md` names nine blocks, not eight.
+* `plan-push-audit-phase` is at v2, and this repository's own five
+  master plans each record a landing commit for every merged phase,
+  or say why no range is recoverable. The thirty-six plans across
+  shakenfist, ryll, kerbside and instar still carry v1's retracted
+  wording; backfilling them is phase 3's decision 4, so this plan is
+  not done on that count until the decision is made.
 * `development` has a `PUSH-AUDIT.md` that its own `push-audit` check
   passes, and it is no longer `N/A` in the compliance table.
 * Every incomplete master plan in shakenfist, ryll, kerbside, instar

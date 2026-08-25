@@ -2615,35 +2615,47 @@ class PlanStatusVocabularyBlockTest(unittest.TestCase):
         )
 
 
+# The rules of plan-push-audit-phase that this repository reads by
+# phrase, per the "a named constant and an assertion" rule in
+# AGENTS.md. Each is the shortest fragment that cannot survive the
+# rule being dropped: a reword should keep them, a retraction should
+# not. Grep for this list before rewording the canonical block.
+PUSH_AUDIT_BLOCK_RULES = {
+    'where a table records it': '`Merged` column',
+    'where prose records it': '`Merged:` line',
+    'not in the status cell': '`Status` column keeps',
+    'one commit is not a range': 'only ever enough when it is a merge commit',
+    'complete plans are not reopened': 'not reopened to acquire',
+}
+
+
 class PushAuditPhaseBlockTest(unittest.TestCase):
     """The canonical block is the only statement of where a phase's
-    landing commit is recorded.
+    landing commit is recorded, and of what counts as a range.
 
     Nothing mechanical reads a plan's Execution table, so if a later
-    revision renames the column or drops the rule, the first thing
-    to notice would be a sweep already halfway through thirty-six
-    plans. That the block is required of every PLAN-TEMPLATE.md is
-    asserted by PlanTemplateTest, which owns that invariant.
+    revision renames the column or shortens away one of these rules,
+    the first thing to notice would be a sweep already halfway
+    through thirty-six plans. That the block is required of every
+    PLAN-TEMPLATE.md is asserted by PlanTemplateTest, which owns that
+    invariant.
     """
 
-    def test_canonical_block_names_where_the_commit_is_recorded(self):
+    def test_canonical_block_still_states_each_rule(self):
         canonical = audit_check.load_canonical_block(
             'plan-push-audit-phase'
         )
         self.assertIsNotNone(canonical)
         _, text = canonical
-        # Collapse whitespace first. These phrases are prose wrapped
-        # at seventy columns, so matching raw text would fail on a
+        # Collapse whitespace first. These are prose wrapped at
+        # seventy columns, so matching raw text would fail on a
         # reflow that changed no meaning -- and a test that fails on
         # cosmetic reflow teaches people to edit the test, which is
         # the reflex this tripwire exists to prevent.
         flat = ' '.join(text.split())
-        self.assertIn('`Merged` column', flat)
-        self.assertIn('`Merged:` line', flat)
-        # And that the commit stays out of the status cell, which
-        # plan-status-vocabulary reserves for a single term.
-        self.assertIn('`Status` column keeps its single vocabulary',
-                      flat)
+        for rule, phrase in PUSH_AUDIT_BLOCK_RULES.items():
+            with self.subTest(rule=rule):
+                self.assertIn(phrase, flat)
 
 
 class PlanTemplateTest(unittest.TestCase):

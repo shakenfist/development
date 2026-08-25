@@ -474,8 +474,8 @@ recorded here and what cannot is named as such:
 | Phase | Merged |
 |-------|--------|
 | 1. Modular audit specs | `a56f5f6`, `7c5b540`, `200e007` (2026-03-08, direct to `main`) |
-| 2. CI-based audit runner | `4a970a6`, `fed8aa4` for the first runner; not recoverable thereafter |
-| 3. Automatic review and the fix/retest split | not recoverable; built largely in `shakenfist/actions` |
+| 2. CI-based audit runner | `4a970a6`, `fed8aa4`, then not recoverable |
+| 3. Automatic review and the fix/retest split | not recoverable |
 | 4. Cleanup | `b8bf764` (#41), `ada14ef` (#44), `e3d1333` (#47) |
 
 The phase 4 merges are the plan's work but not only the plan's
@@ -490,7 +490,8 @@ whole merge as this plan's diff.
 Phases 2 and 3 are the honest gap. Phase 2 shipped one runner in
 March 2026 and then accreted from 13 criteria to 34 over five
 months, in commits interleaved with everything else this repository
-did; phase 3 spans two repositories. No commit range recovers either
+did; phase 3 was built largely in `shakenfist/actions`, so it spans
+two repositories. No commit range recovers either
 without also recovering unrelated work, which is the failure v2
 names. So the audit for those two phases reads the current state of
 the paths the plan owns rather than a diff -- `scripts/audit-check.py`,
