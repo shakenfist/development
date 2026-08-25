@@ -2985,7 +2985,7 @@ def check_version_file(repo_path, props):
 
 
 def console_entry_point_files(repo_path):
-    """Return the source file for each [project.scripts] entry point.
+    """Return the source file for each declared entry point.
 
     The spec is about how a *CLI entry point* uses setup_console(),
     not about every module that logs. Anchoring on the declared
@@ -2993,6 +2993,12 @@ def console_entry_point_files(repo_path):
     occystrap calls logs.setup_console(__name__) at the top of all
     24 of its modules, and only occystrap/main.py is the entry point
     any of it is reached through.
+
+    All three spellings of the declaration are read. [project.scripts]
+    is what the fleet uses today, but a gui-scripts or an explicit
+    entry-points.console_scripts table names an entry point just as
+    much, and reading only the first reported those packages as
+    having none at all -- a clean bill for a file nobody looked at.
     """
     pyproject = os.path.join(repo_path, 'pyproject.toml')
     if not os.path.exists(pyproject):
@@ -3003,9 +3009,16 @@ def console_entry_point_files(repo_path):
     except (tomllib.TOMLDecodeError, OSError):
         return []
 
-    scripts = data.get('project', {}).get('scripts', {})
+    project = data.get('project', {})
+    targets = []
+    for table in ('scripts', 'gui-scripts'):
+        targets += list((project.get(table) or {}).values())
+    targets += list(
+        ((project.get('entry-points') or {}).get('console_scripts')
+         or {}).values())
+
     files = []
-    for target in scripts.values():
+    for target in targets:
         module = target.split(':', 1)[0].strip()
         if not module:
             continue
@@ -3096,7 +3109,7 @@ def check_console_logging(repo_path, props):
         return {
             'id': 'console-logging',
             'status': 'not_applicable',
-            'details': 'No [project.scripts] console entry points',
+            'details': 'No console or GUI entry points declared',
         }
 
     problems = []
@@ -3371,6 +3384,23 @@ def check_header_sanitization(repo_path, props):
     }
 
 
+def python_specifier_clauses(specifier):
+    """Reduce a PEP 440 specifier to a comparable set of clauses.
+
+    Whitespace, clause order and a trailing ".0" are spelling rather
+    than meaning: ">= 3.8", ">=3.8" and ">=3.8.0" are one floor said
+    three ways. Comparing the raw strings filed a fleet issue whose
+    only remedy was a cosmetic edit, and asserted one of the two was
+    stale when neither was.
+    """
+    clauses = set()
+    for clause in specifier.split(','):
+        clause = re.sub(r'\s+', '', clause)
+        if clause:
+            clauses.add(re.sub(r'(\.0)+$', '', clause))
+    return clauses
+
+
 def check_python_version_targeting(repo_path, props):
     """Check the declared Python floor exists and is stated once.
 
@@ -3446,12 +3476,12 @@ def check_python_version_targeting(repo_path, props):
         except (json.JSONDecodeError, OSError):
             config = {}
         constraint = (config.get('constraints') or {}).get('python')
-        # Compared with all whitespace removed: ">= 3.8" and ">=3.8"
-        # are the same floor, and filing a fleet issue whose only
-        # remedy is a whitespace edit is churn rather than a finding.
+        # Compared clause by clause rather than as text, so the
+        # finding is a real disagreement about which interpreters are
+        # supported and not a difference in how one was spelled.
         if constraint and (
-            re.sub(r'\s+', '', constraint)
-            != re.sub(r'\s+', '', requires)
+            python_specifier_clauses(constraint)
+            != python_specifier_clauses(requires)
         ):
             return {
                 'id': 'python-version-targeting',
@@ -3459,10 +3489,11 @@ def check_python_version_targeting(repo_path, props):
                 'details': (
                     f'requires-python is "{requires}" but '
                     f'renovate.json constraints.python is '
-                    f'"{constraint}". Both describe the oldest '
-                    f'supported interpreter, so one of them is stale '
-                    f'and renovate is proposing bumps against a floor '
-                    f'the package does not claim'
+                    f'"{constraint}". Both describe the '
+                    f'interpreters this package supports, so they '
+                    f'disagree, and renovate is resolving dependency '
+                    f'versions against a range the package does not '
+                    f'claim'
                 ),
             }
 

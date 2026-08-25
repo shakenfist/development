@@ -2875,6 +2875,15 @@ class ConsoleLoggingTest(unittest.TestCase):
         'logging.getLogger(__name__).propagate = False\n'
     )
 
+    # Non-compliant on purpose. A test that a declaration spelling is
+    # read wants a *finding* out of the file it names: not_applicable
+    # and pass are both what you get when the file was never opened.
+    NO_BASIC_CONFIG = (
+        'from shakenfist_utilities import logs\n'
+        'LOG = logs.setup_console(__name__)\n'
+        'LOG.propagate = False\n'
+    )
+
     def _check(self, files, pyproject=None):
         with tempfile.TemporaryDirectory() as tmp:
             if pyproject is not False:
@@ -2921,7 +2930,32 @@ class ConsoleLoggingTest(unittest.TestCase):
             pyproject='[project]\nname = "thing"\n',
         )
         self.assertEqual(result['status'], 'not_applicable')
-        self.assertIn('No [project.scripts]', result['details'])
+        self.assertIn('No console or GUI entry points', result['details'])
+
+    def test_a_gui_script_is_an_entry_point(self):
+        # [project.scripts] is what the fleet declares today, but a
+        # gui-scripts table names an entry point just as much, and
+        # reading only the first reported the package as declaring
+        # none -- a clean bill for a file nobody looked at.
+        result = self._check(
+            {'thing/main.py': self.NO_BASIC_CONFIG},
+            pyproject=(
+                '[project]\nname = "thing"\n\n'
+                '[project.gui-scripts]\nthing = "thing.main:cli"\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'fail', result['details'])
+
+    def test_an_explicit_console_scripts_table_is_an_entry_point(self):
+        result = self._check(
+            {'thing/main.py': self.NO_BASIC_CONFIG},
+            pyproject=(
+                '[project]\nname = "thing"\n\n'
+                '[project.entry-points."console_scripts"]\n'
+                'thing = "thing.main:cli"\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'fail', result['details'])
 
     def test_entry_point_not_using_the_helper_is_not_applicable(self):
         result = self._check({'thing/main.py': 'def cli():\n    pass\n'})
@@ -3327,6 +3361,39 @@ class PythonVersionTargetingTest(unittest.TestCase):
             '{"constraints": {"python": ">=3.8"}}',
         )
         self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_a_trailing_zero_is_the_same_floor(self):
+        # ">=3.8" and ">=3.8.0" are one floor said two ways. Compared
+        # as text this filed a fleet issue whose only remedy was a
+        # cosmetic edit, and called one of the two stale when it was
+        # not.
+        result = self._check(
+            '[project]\nname = "x"\nrequires-python = ">=3.8"\n',
+            '{"constraints": {"python": ">=3.8.0"}}',
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_clause_order_is_not_a_disagreement(self):
+        result = self._check(
+            '[project]\nname = "x"\nrequires-python = ">=3.8,<4"\n',
+            '{"constraints": {"python": "<4, >=3.8"}}',
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_a_double_digit_minor_keeps_its_zero(self):
+        # ">=3.10" must not be trimmed to ">=3.1".
+        result = self._check(
+            '[project]\nname = "x"\nrequires-python = ">=3.10"\n',
+            '{"constraints": {"python": ">=3.1"}}',
+        )
+        self.assertEqual(result['status'], 'fail', result['details'])
+
+    def test_an_extra_clause_is_still_a_disagreement(self):
+        result = self._check(
+            '[project]\nname = "x"\nrequires-python = ">=3.8"\n',
+            '{"constraints": {"python": ">=3.8,<4"}}',
+        )
+        self.assertEqual(result['status'], 'fail', result['details'])
 
     def test_disagreeing_renovate_constraint_fails(self):
         result = self._check(

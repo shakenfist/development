@@ -2,7 +2,9 @@
 
 ## What we check
 
-Every file named by `[project.scripts]` in `pyproject.toml` that calls
+Every file named as an entry point in `pyproject.toml` -- by
+`[project.scripts]`, `[project.gui-scripts]` or
+`[project.entry-points."console_scripts"]` -- that calls
 `shakenfist_utilities.logs.setup_console()` must also:
 
 * call `logging.basicConfig()`; and

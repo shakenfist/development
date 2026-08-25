@@ -418,10 +418,6 @@ that reach out of this repository.
 - **Secret scanning.** Does the diff add anything that looks like
   a credential, or weaken `secret-scan.yml`?
 
-Report findings with severity (critical / high / medium / low /
-informational). For each, state the file, line, the vulnerability
-class, and a recommended fix.
-
 <!-- shared-block: path-traversal-review v1 -->
 Path construction from outside data (shared block; do not edit --
 the canonical copy lives in shakenfist/development at
@@ -448,6 +444,10 @@ the canonical copy lives in shakenfist/development at
   process-chosen, say so in a comment rather than leaving the
   reader to re-derive it.
 <!-- shared-block-end -->
+
+Report findings with severity (critical / high / medium / low /
+informational). For each, state the file, line, the vulnerability
+class, and a recommended fix.
 
 ## Management session checklist
 
