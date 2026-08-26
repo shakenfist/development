@@ -1818,11 +1818,12 @@ def is_dedicated_scanner_workflow(content):
     """Does this workflow do nothing but scan content?
 
     The exemption from path filtering exists because a scanner has
-    to read the human-written text a filter would skip -- a secret
-    lands in docs or review notes as easily as in code. That is an
-    argument about the scanner job, not about the file it happens
-    to live in, so it only carries the whole workflow when the
-    whole workflow is the scanner.
+    to read the human-written text a filter would skip -- a secret,
+    or an instruction aimed at an agent, lands in docs or review
+    notes as easily as in code. That is an argument about the
+    scanner job, not about the file it happens to live in, so it
+    only carries the whole workflow when the whole workflow is
+    scanners.
 
     Asking merely whether a scanner is mentioned anywhere gave
     shakenfist/actions a pass for a ci.yml that ran lint, unit
@@ -1839,7 +1840,14 @@ def is_dedicated_scanner_workflow(content):
 
 
 def job_runs_a_scanner(body):
-    """Does a job body invoke a secret scanner, outside comments?
+    """Does a job body invoke a content scanner, outside comments?
+
+    CONTENT_SCANNERS rather than SECRET_SCANNERS: what earns the
+    exemption is that the job has to read the text a path filter
+    would skip, which is as true of the agent-context linter as it
+    is of the credential scanner. CONTENT_SCANNERS is defined next
+    to SECRET_SCANNERS further down this file, and is read at call
+    time rather than at import.
 
     Full-line comments do not count, for the reason file_mentions()
     gives: a job routinely names a tool in a header comment
@@ -1851,7 +1859,7 @@ def job_runs_a_scanner(body):
     for line in body.splitlines():
         if line.lstrip().startswith('#'):
             continue
-        if any(scanner in line for scanner in SECRET_SCANNERS):
+        if any(scanner in line for scanner in CONTENT_SCANNERS):
             return True
     return False
 
@@ -1883,10 +1891,11 @@ def check_expensive_lane_path_filter(repo_path, props):
     'audit-ok: no-path-filter' comment in the workflow file.
 
     Dedicated content-scanner workflows -- detected as an
-    unfiltered workflow invoking a SECRET_SCANNERS tool -- are
-    exempt: their whole point is to read the human-written text a
-    filter would skip, since a secret lands in docs or review marks
-    as easily as in code. That is the same reasoning that keeps
+    unfiltered workflow all of whose jobs invoke a CONTENT_SCANNERS
+    tool -- are exempt: their whole point is to read the
+    human-written text a filter would skip, since a secret, or an
+    instruction smuggled into an agent's context, lands in docs or
+    review marks as easily as in code. That is the same reasoning that keeps
     content scanners out of paths-ignore in the review-tracking
     adoption procedure (see workflow-standards.md). A workflow that
     mixes scanner jobs with expensive lanes and already carries a
@@ -1977,7 +1986,7 @@ def check_expensive_lane_path_filter(repo_path, props):
             # should simply not consume the filter's output.
             if is_dedicated_scanner_workflow(content):
                 continue
-            if any(s in content for s in SECRET_SCANNERS):
+            if any(s in content for s in CONTENT_SCANNERS):
                 offenders.append(
                     f'{wf} (no path filtering; a scanner job does '
                     f'not exempt the expensive jobs beside it -- '
@@ -5274,6 +5283,19 @@ def check_plan_template(repo_path, props, blocks_dir=None):
 # is the reference implementation; the others are equivalent enough
 # that requiring a specific one would be churn for no gain.
 SECRET_SCANNERS = ['gitleaks', 'trufflehog', 'detect-secrets']
+
+# Tools whose job is reading the repository's own human-written
+# content for something dangerous, used by the path-filter exemption
+# in check_expensive_lane_path_filter(). A superset of
+# SECRET_SCANNERS, because the exemption's argument is not specific to
+# credentials: skillsaw lints the agent context for instructions
+# smuggled into text an agent will load, and a prompt aimed at an
+# agent lands in a document at least as readily as a key does.
+#
+# Kept separate from SECRET_SCANNERS so the two questions stay
+# separate. check_secret_scanning_ci() asks whether this repository
+# scans for credentials at all, and skillsaw is not an answer to that.
+CONTENT_SCANNERS = SECRET_SCANNERS + ['skillsaw']
 
 
 def check_secret_scanning_ci(repo_path, props):

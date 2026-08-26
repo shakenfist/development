@@ -37,13 +37,21 @@ documents the design. When adopting it, note dorny/paths-filter's
 `predicate-quantifier: 'every'` trap: the default ANY-match semantics
 make a `'**'` pattern defeat every exclusion.
 
-Dedicated content-scanner workflows (gitleaks, trufflehog,
-detect-secrets) are exempt. Their whole point is to read the
-human-written text a filter would skip: a secret lands in docs or
-review marks as easily as in code.
+Dedicated content-scanner workflows are exempt. Their whole point is to
+read the human-written text a filter would skip: a secret lands in docs
+or review marks as easily as in code, and so does an instruction
+smuggled into text an agent will load.
+
+The tools that count are `CONTENT_SCANNERS` in `scripts/audit-check.py`
+— the credential scanners (gitleaks, trufflehog, detect-secrets) plus
+`skillsaw`, which lints the agent context. skillsaw earns the exemption
+for the same reason the credential scanners do, not because it is a
+secret scanner: `CONTENT_SCANNERS` is deliberately a superset of
+`SECRET_SCANNERS`, so a repository whose only scanner is skillsaw still
+fails [the secret scanning audit](secret-handling.md).
 
 *Dedicated* is measured per job: every job in the workflow must invoke
-a scanner, outside of comments. The argument for the exemption is about
+one of those tools, outside of comments. The argument for the exemption is about
 the scanner job, not the file it lives in. Asking merely whether a
 scanner appeared anywhere in the file gave `shakenfist/actions` a pass
 for a `ci.yml` that ran lint, unit tests and the LLM reviewer on
@@ -59,7 +67,9 @@ ryll's secret scan skips documentation-only pull requests.
 
 Other deliberate exceptions — a lane that must run even for docs-only
 changes — take an `audit-ok: no-path-filter` comment anywhere in the
-workflow file, ideally with a reason.
+workflow file, ideally with a reason. client-python needed one when it
+first put its agent-context lint beside its credential scan, before
+this audit knew what skillsaw was; that marker is now redundant there.
 
 Repositories with neither a `docs/` directory nor review tracking have
 nothing for a filter to exclude and are not applicable, as are
