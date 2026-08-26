@@ -3,8 +3,13 @@
 Every Shaken Fist project is expected to be packaged, documented,
 tested and automated the same way. This directory is the statement of
 what that means: one file per criterion, each defining what we check
-and why, linking the template that implements it, and carrying a
-per-project compliance table regenerated every morning.
+and why, and linking the template that implements it.
+
+Who currently passes what is on [compliance.md](compliance.md),
+regenerated every morning by the consistency audit and committed by
+it. It is the only generated file here; every criterion page beside it
+is hand-written, and each links its own section of the compliance
+page.
 
 It sits under `docs/` so that it publishes to shakenfist.com with
 everything else. What we hold a project to is documentation, and a

@@ -137,13 +137,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
 
-  # Regenerate the per-project compliance tables in docs/audits/*.md from
-  # the JSON results and commit them back, so the docs cannot drift
-  # from what the audit actually measured. Runs after manage-issues
-  # so the issue links in the tables include issues created by this
-  # run.
+  # Regenerate docs/audits/compliance.md from the JSON results and
+  # commit it back, so the docs cannot drift from what the audit
+  # actually measured. Runs after manage-issues so the issue links in
+  # the tables include issues created by this run. The tables are on
+  # one generated page rather than in the criterion specs so that the
+  # specs, which are hand-written, can hold a human review mark.
   update-docs:
-    name: Update audit compliance tables
+    name: Update the audit compliance page
     needs: [audit, manage-issues]
     runs-on: [self-hosted, static]
     permissions:
@@ -159,14 +160,14 @@ jobs:
           pattern: audit-*
           merge-multiple: true
 
-      - name: Regenerate audit compliance tables
+      - name: Regenerate the audit compliance page
         run: |
           python3 scripts/audit-update-docs.py \
             --results-dir /tmp/consistency-audit-results
         env:
           GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
 
-      - name: Commit and push updated tables
+      - name: Commit and push the updated page
         run: scripts/commit-audit-docs.sh
 
       - name: Clean up
