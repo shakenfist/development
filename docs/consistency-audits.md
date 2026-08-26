@@ -20,7 +20,7 @@ A criterion exists in two places, and both have to agree.
 
 | Layer | Lives in | Audience |
 |-------|----------|----------|
-| Specification | `docs/audits/<check-id>.md` | Humans and agents. Why the rule exists, what is checked, what it does not cover, which template implements it, and a generated per-project compliance table. |
+| Specification | `docs/audits/<check-id>.md` | Humans and agents. Why the rule exists, what is checked, what it does not cover, which template implements it, and a link to its section of the compliance page. Hand-written throughout. |
 | Check | `scripts/audit-check.py` | The runner. A function returning `pass`, `fail` or `not_applicable` with a reason. |
 
 The split is deliberate. The specification is where a rule explains
@@ -28,14 +28,22 @@ itself, and it is what an agent or a person reads when they pick up an
 issue, so it links the template that implements the rule. The check is
 what actually measures, and it is allowed to be narrower than the
 specification: some criteria have no check at all, because judging
-them takes reading rather than matching. A
-criterion with no check has no `consistency-audit` marker block in its
-spec file, which is how to find the current set -- at the time of
+them takes reading rather than matching. The current set is listed
+under "Criteria with no automated check" at the foot of
+[`docs/audits/compliance.md`](audits/compliance.md), generated from
+`AUDIT_METADATA` rather than written by hand -- at the time of
 writing, `test-coverage`.
+
+That listing replaced an older tell. Every specification used to
+carry its own generated table, so a criterion with no check was the
+one with no `consistency-audit` marker block in its file. Moving the
+tables onto one page took that away, and the page states the set
+instead, which a reader can see rather than having to grep for.
 
 Not every criterion maps to exactly one check. `workflow-standards`
 decomposes into several -- runner tags, permissions, linting, and more
--- which all render into the one spec file as separate columns.
+-- which all render into its one section of the compliance page as
+separate columns.
 
 ## What a daily run does
 
@@ -57,19 +65,25 @@ Visibility is queried live rather than hardcoded because it changes.
 The skillsaw pin is deliberate, and so is the assertion next to it.
 `llm-context-lint` reports what skillsaw calls an error, and skillsaw's
 rule set moves between releases, so an unpinned upgrade would change the
-compliance table for reasons nobody chose.
+compliance page for reasons nobody chose.
 
 **2. `manage-issues`** -- downloads every artifact and runs
 `scripts/audit-manage-issues.py`, which files and closes issues. See
 [Issues are the work tracking](#issues-are-the-work-tracking) below.
 
 **3. `update-docs`** -- runs `scripts/audit-update-docs.py`, which
-rewrites the compliance table between the `<!-- consistency-audit:begin
--->` and `<!-- consistency-audit:end -->` markers in each `docs/audits/*.md`
-from the same results, linking the issues the previous job just filed.
-`scripts/commit-audit-docs.sh` then commits and pushes the result to
-`main` as `shakenfist-bot`, rebasing first in case another push landed
-while the audit ran.
+rewrites everything between the `<!-- consistency-audit:begin -->` and
+`<!-- consistency-audit:end -->` markers in
+[`docs/audits/compliance.md`](audits/compliance.md) from the same
+results -- one table per criterion, linking the issues the previous job
+just filed. `scripts/commit-audit-docs.sh` then commits and pushes
+that one file to `main` as `shakenfist-bot`, rebasing first in case
+another push landed while the audit ran.
+
+It writes that page and nothing else. The criterion specifications are
+hand-written, and are in scope for whole-file human review because of
+it; a generated block in one would carry a timestamp that changes
+daily and no review mark could survive it.
 
 The tables are therefore always a rendering of the most recent run.
 Never edit one by hand: the next run overwrites it.
@@ -139,9 +153,12 @@ ones.
    `audit-manage-issues.py` and `audit-update-docs.py` read this
    module.
 3. **`docs/audits/<check-id>.md`** -- the specification, following the
-   structure in `docs/audits/README.md`. Include an empty
-   `consistency-audit` marker block under `## Projects`; the first run
-   fills it in.
+   structure in `docs/audits/README.md`. Under `## Projects`, link
+   `compliance.md#<check-id>`; the section appears there at the first
+   run. Do not add a `consistency-audit` marker block -- the tables
+   live on the compliance page so that every specification stays
+   reviewable, and `test_audit_update_docs.py` fails on a marker in a
+   spec.
 4. **`scripts/audit-update-docs.py`** -- only if the check joins an
    existing spec file rather than getting its own. Add a column heading
    for the id to `COLUMN_NAMES`.

@@ -176,9 +176,9 @@ Three details specific to reusable workflows:
   `ci-review-automation` audit now checks for it, so a repository
   which reintroduces the line -- or which was deployed from the old
   template and has not been cleaned up yet -- is told rather than
-  discovered. Which repositories those are is the compliance table
-  in the
-  [audit spec](https://github.com/shakenfist/development/blob/main/docs/audits/ci-review-automation.md),
+  discovered. Which repositories those are is the
+  `ci-review-automation` section of the
+  [compliance page](https://github.com/shakenfist/development/blob/main/docs/audits/compliance.md#ci-review-automation),
   which regenerates daily; it is not restated here, because a count
   written into a file nobody edits goes stale silently.
 

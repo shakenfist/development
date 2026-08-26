@@ -9,7 +9,7 @@ that goes missing more quietly does not fail anything at all.
 `skillsaw_errors()` catches `FileNotFoundError` and returns `None`, and
 `check_llm_context_lint()` renders that as `not_applicable`, which is
 the same word the audit uses for "we decided this check does not apply
-here". The compliance table then reports a considered exemption where
+here". The compliance page then reports a considered exemption where
 what actually happened is that the tool was not installed.
 
 So the smoke job asserts the audit reached verdicts, not that the
@@ -71,7 +71,7 @@ def main(argv):
                 '%s reported not_applicable (%s). In this smoke run that '
                 'means its tooling is missing rather than that the check '
                 'does not apply, and a missing tool reads as a deliberate '
-                'exemption in the compliance table.'
+                'exemption in the compliance page.'
                 % (check_id, check.get('details', 'no details')))
 
     if problems:

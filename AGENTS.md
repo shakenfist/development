@@ -17,9 +17,11 @@ The parts worth knowing before you start:
   a column heading if it shares a spec file with another check, and
   they must stay in sync. `pre-commit` runs the tests that catch
   the cross-file breakages.
-- The compliance tables between the `consistency-audit` markers in
-  `docs/audits/*.md` are regenerated and pushed by the daily workflow.
-  Never edit one by hand.
+- The compliance tables live in `docs/audits/compliance.md` between
+  the `consistency-audit` markers, and are regenerated and pushed by
+  the daily workflow. Never edit them by hand, and never add a table
+  or a marker to a criterion spec: the specs are hand-written so they
+  can hold a human review mark.
 - Issue titles are the idempotency key for filing and closing, so
   `ISSUE_TITLES` in `scripts/audit_common.py` is an interface.
   Renaming an entry orphans every open issue for that check.

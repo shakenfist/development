@@ -59,7 +59,7 @@ jobs:
       # so a bare `pip install` is refused with
       # "error: externally-managed-environment" -- which is how every
       # leg of this matrix started failing on 2026-08-20, taking the
-      # compliance tables and issue filing with it.
+      # compliance page and issue filing with it.
       - name: Install skillsaw
         run: |
           python3 -m venv /tmp/audit-venv
@@ -79,7 +79,7 @@ jobs:
       # looks deliberate. Assert it here instead, where the failure is
       # unambiguous, and assert the pinned version rather than just that
       # something answers: the whole point of the pin above is that the
-      # rule set does not move underneath the compliance table.
+      # rule set does not move underneath the compliance page.
       - name: Check skillsaw runs, at the pinned version
         run: |
           set -e
@@ -177,7 +177,7 @@ jobs:
   # A scheduled workflow that fails emails whoever last pushed, which
   # is nobody's inbox in particular and is easy to miss for a workflow
   # that runs at 06:00 UTC. The August 2026 PEP 668 breakage went a full
-  # day that way, with the compliance tables and issue filing stopped
+  # day that way, with the compliance page and issue filing stopped
   # the whole time and the tables still showing the previous run's
   # verdicts -- so the audit looked like it was working. This puts a
   # failure somewhere it will be seen, and updates one issue rather than
@@ -223,7 +223,7 @@ jobs:
               "" \
               "Run: ${RUN_URL}" \
               "" \
-              "While this is failing no compliance tables are being" \
+              "While this is failing no compliance page is being" \
               "regenerated and no consistency issues are being filed or" \
               "closed, across every audited repository. The tables still" \
               "show the previous run's verdicts, so the audit looks" \

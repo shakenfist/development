@@ -221,8 +221,8 @@ this repository's convention.
 |-------|--------|--------|
 | 1. Split the generated output out | Complete | |
 | 2. Bring the specifications into review scope | Complete | |
-| 3. Documentation and runbooks | In progress | |
-| 4. Push audit | Not started | |
+| 3. Documentation and runbooks | Complete | |
+| 4. Push audit | In progress | |
 
 The `Merged` column stays empty until the branch lands; all four
 phases ship as one pull request rather than one each, because phase 2
@@ -382,6 +382,32 @@ half of it or leaves 34 files carrying a stale table nothing updates.
   in the specifications is likely, and a grep for `consistency-audit`
   and for `docs/audits` across the repository is the cheap way to
   find every remaining one.
+
+  **Outcome: both needed an edit, and the grep found eleven more
+  files.** `ARCHITECTURE.md` described every spec as carrying a table;
+  `AGENTS.md` said the tables sit in `docs/audits/*.md`. The rest were
+  one-line wording fixes plus four pointers that named a spec file as
+  the place to read fleet state, which now name the compliance page
+  and its anchor: `README.md`, `docs/automated-pr-review.md`,
+  `docs/ci-review-automation.md` and
+  `templates/ci-review-automation/README.md`.
+
+  `blank_generated_blocks` in `scripts/audit-check.py` was the one
+  worth reading rather than editing. It blanks generated blocks before
+  the `docs-external-links` and `plan-phase-references` checks scan
+  this repository's own markdown, so harvested detail strings from
+  other repositories are not judged as our prose. It still does
+  exactly that, over one file instead of thirty-four; only its
+  docstring needed the correction.
+
+  One inconsistency turned up that predates this work.
+  `docs/audits/README.md` said a new criterion touches "five files
+  (six if it shares a spec file)", while the numbered list in
+  `docs/consistency-audits.md` gives four plus a conditional fifth.
+  The list is right, so the README now says four. Neither count
+  changes as a result of the split: a criterion still gets one spec
+  file, and it is the compliance page that gains a section
+  automatically.
 
 * Run `pre-commit run --all-files` -- actionlint, shellcheck, flake8,
   skillsaw and the four Python suites -- which is the whole of lint

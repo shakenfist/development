@@ -100,8 +100,8 @@ These actions reduce duplication and ensure consistent behavior across projects.
 Most Shaken Fist projects have Claude Code-powered automated review
 and bot-triggered retests. Whether each audited project's review
 automation is compliant is measured every morning rather than listed
-here: see the compliance table in
-[`docs/audits/ci-review-automation.md`](https://github.com/shakenfist/development/blob/main/docs/audits/ci-review-automation.md).
+here: see
+[the compliance page](https://github.com/shakenfist/development/blob/main/docs/audits/compliance.md#ci-review-automation).
 imago is the exception: it carries the automation but is not in the
 audit matrix, so it never appears in that table.
 
