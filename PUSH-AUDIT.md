@@ -13,7 +13,7 @@ blast radius rather than for a product.
 
 The audit splits into two waves:
 
-**Wave 1 -- mechanical.** Lint and the four test suites, then
+**Wave 1 -- mechanical.** Lint and the test suites, then
 the grep-level checks on the diff. Always run wave 1 first;
 wave 2 is only worth spending on if wave 1 passes.
 
@@ -207,10 +207,11 @@ and whether it is blocking or advisory.
 
 **Brief for sub-agent:**
 
-Review `git diff main...HEAD` for test coverage. The four suites
-are `test_audit_check.py`, `test_audit_update_docs.py`,
+Review `git diff main...HEAD` for test coverage. The audit
+suites are `test_audit_check.py`, `test_audit_update_docs.py`,
 `test_review_tracking.py` and `test_check_audit_smoke.py`, all
-stdlib `unittest`, all run by `pre-commit`.
+stdlib `unittest`, all run by `pre-commit`. Other suites under
+`scripts/` cover the workflow templates in the same style.
 
 - Does every new or modified check function have cases for each
   status it can return -- `pass`, `fail`, and `not_applicable`?

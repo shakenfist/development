@@ -179,3 +179,14 @@ repos:
         language: system
         pass_filenames: false
         files: ^scripts/.*\.py$
+
+      - id: issue-fix-extraction-tests
+        name: issue-fix marker extraction tests
+        entry: python3 scripts/test_issue_fix_extraction.py
+        language: system
+        pass_filenames: false
+        # The script under test and the workflow which calls it are both
+        # in the pattern: the tests cover the marker semantics and the
+        # seam between the two, and actionlint and shellcheck both pass
+        # over an extraction which silently mangles its input.
+        files: ^(scripts/test_issue_fix_extraction\.py|templates/issue-fix/(issue-fix\.yml|extract-model-block\.sh|neutralise-pr-body\.sh))$

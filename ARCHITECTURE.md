@@ -90,7 +90,7 @@ five or more in-scope files need review. Tests are in
 
 ## Testing the automation
 
-The four test suites under `scripts/` run as `local` pre-commit hooks,
+The test suites under `scripts/` run as `local` pre-commit hooks,
 and `ci.yml` runs `pre-commit run --all-files` on every pull request.
 Until `ci.yml` existed the hooks were the only gate between an edit and
 the 06:00 UTC run, and only in a clone where somebody had installed

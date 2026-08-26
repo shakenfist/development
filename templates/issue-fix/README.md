@@ -18,6 +18,8 @@ optionally naming a specific issue.
 |------|-------------|-------------|
 | `issue-fix.yml` | `.github/workflows/issue-fix.yml` | Triage and fix workflow |
 | `claude-model-fallback.sh` | `tools/claude-model-fallback.sh` | Model fallback wrapper (needs `chmod +x`) |
+| `extract-model-block.sh` | `tools/extract-model-block.sh` | Marker block extraction (needs `chmod +x`) |
+| `neutralise-pr-body.sh` | `tools/neutralise-pr-body.sh` | Defuses mentions and closing keywords (needs `chmod +x`) |
 
 ## How it works
 
@@ -80,6 +82,78 @@ optionally naming a specific issue.
   job rather than paying for a pre-flight probe on every run where
   the preferred model is in fact available. Triage stays pinned to
   Haiku, which is cheap enough not to need this.
+- **The model writes the PR description, not the workflow.** A
+  body assembled by the workflow can only ever be a diffstat and a
+  boilerplate paragraph, which throws away everything the model
+  learned while fixing the issue -- what the root cause turned out
+  to be, which half of the issue it deliberately left alone, which
+  judgement calls a reviewer might make differently. The prompt
+  therefore asks for a `PR_DESCRIPTION_START`/`END` block alongside
+  the commit summary, and the workflow appends only the mechanical
+  parts (`Fixes #NNNN`, diffstat, verification note, run link).
+  Both blocks are best-effort: a missing description falls back to
+  the commit message body, and a missing commit message to the old
+  boilerplate, because the code changes are worth publishing even
+  when the prose is lost.
+- **The marker extraction is a script, not inline shell, and is
+  pinned by a test.** `extract-model-block.sh` takes the text
+  between the last `START` marker and the first `END` which follows
+  it, buffered and emitted only once that `END` is seen, so every
+  awkward shape fails safe rather than into the published output: a
+  second block is ignored, a repeated `START` restarts rather than
+  embedding a marker line in the prose, an `END` before any `START`
+  is not a close, and a block truncated by the end of the run
+  yields nothing rather than the remainder of the transcript. A
+  marker matches only a line which is nothing but the marker, so
+  prose may name the tokens -- a description of this template has
+  to be able to. A code fence is stripped only when one wraps the
+  whole block, which catches a model copying the fenced
+  illustration from the prompt without eating fenced code a
+  description legitimately contains.
+
+  Both blocks go through it. The commit summary path was left on a
+  `sed` address range for a while longer than the description path,
+  which was worse rather than better: an unterminated summary ran
+  to end of file and swallowed the description into the commit
+  message, and its first line into the PR title.
+
+  `scripts/test_issue_fix_extraction.py` pins all of that, and
+  checks the workflow still calls the script for both blocks. None
+  of these shapes are syntax errors, so actionlint and shellcheck
+  pass over an extraction which quietly publishes marker lines or a
+  slab of transcript as the PR body. The first version of this code
+  used a `sed` address range and did exactly that; the second
+  embedded awk in the workflow, which had to be lifted back out
+  with a regular expression to be testable at all.
+- **The description is passed to `gh` with `--body-file`.** It is
+  model output, so interpolating it into a shell string -- an
+  unquoted heredoc in particular -- would execute any `$(...)` or
+  backticks it contained.
+- **The description is neutralised before it is published.** Two
+  things GitHub finds in a PR body it acts on rather than renders:
+  an `@mention` notifies a real person the instant `gh pr create`
+  runs -- before any human has looked at the draft, and a
+  notification cannot be taken back -- and an issue-closing keyword
+  closes an unrelated issue when the PR merges. The prompt forbids
+  both, and the prompt is not enough: a side effect which fires
+  automatically and is irreversible should not rest on the model
+  having complied. `neutralise-pr-body.sh` drops the `@` and
+  separates the keyword from its reference, and leaves fenced code
+  alone, since GitHub does not linkify inside a fence and a
+  description quoting a decorator or an email address is a normal
+  description. That last half is the part with tests worth reading:
+  mangling a description to defuse a hazard which is not there is
+  its own defect.
+- **The prompt tells the model that ending its turn ends the run.**
+  The model may take as many turns as it likes -- `max_turns` is
+  200 -- but under `claude -p` there is nobody to reply and nothing
+  to re-invoke it, so the turn which ends without a tool call is
+  the last one, and any work it meant to come back to is lost.
+  This is not hypothetical: a run backgrounded the test suite,
+  ended its turn intending to check on it, and committed a correct
+  fix under a placeholder commit message with an empty PR
+  description. The "How this run works" section of the prompt
+  exists to say run the test suite in the foreground and wait.
 - **Output is always a draft PR** (or an issue comment). The
   workflow has no path to merging code; a human reviews and merges
   every proposed fix.
