@@ -129,7 +129,8 @@ once, as a reusable workflow in the actions repository at
 `shakenfist/actions/.github/workflows/pr-auto-review.yml`, because the
 gate "review only after the tests pass" has to be expressed in terms
 of each project's own test jobs. Projects add a small calling job to
-their CI workflow (`functional-tests.yml`, or `ci.yml` for ryll):
+their CI workflow -- `functional-tests.yml` in most projects,
+`ci.yml` in development and ryll, `unit-tests.yml` in divergulent:
 
 ```yaml
   automated_reviewer:
@@ -288,24 +289,27 @@ its own copy of the script and its own schema.
 
 The bot-triggered workflows (`pr-re-review.yml` and `pr-retest.yml`)
 are live in agent-python, client-python, client-python-k3s, clingwrap,
-development, imago, instar, kerbside, occystrap, ryll, sfui and
-shakenfist.
+development, divergulent, imago, instar, kerbside, kerbside-patches,
+occystrap, ryll, sfui and shakenfist.
 
 imago is the one to watch when reaping the addresser: it has the
 workflows and it still carries `pr-address-comments.yml`, but it is not
 in the consistency audit matrix, so nothing will ever file an issue
 about it. Everywhere else the audit does the asking.
 
-Every one of those projects now calls the reusable
-`pr-auto-review.yml` for its automatic review. The in-CI
+All of those except kerbside-patches call the reusable
+`pr-auto-review.yml` for their automatic review. The in-CI
 `automated_reviewer` job the migration section above describes no
 longer exists anywhere; that section is kept for repositories which
 have not adopted any of this yet. `development` and `ryll` call it
-from `ci.yml`, everyone else from `functional-tests.yml`. development
-called it from the start rather than migrating to it, so its `ci.yml`
-is the worked example of the calling job described above -- including
-the `needs:` list doing duty as the CI-passed gate, and the absence of
-an event guard for the `workflow_dispatch` trigger.
+from `ci.yml`, divergulent from `unit-tests.yml`, everyone else from
+`functional-tests.yml`. development called it from the start rather
+than migrating to it, so its `ci.yml` is the worked example of the
+calling job described above -- including the `needs:` list doing duty
+as the CI-passed gate, and the absence of an event guard for the
+`workflow_dispatch` trigger.
 
-Four audited repositories have no automated review at all: cloudgood,
-divergulent, kerbside-patches and library-utilities.
+Three audited repositories have no automated review at all:
+cloudgood, kerbside-patches and library-utilities. kerbside-patches
+does carry the two bot triggers, so `@shakenfist-bot please re-review`
+works there even though nothing reviews automatically.

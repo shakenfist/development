@@ -78,8 +78,8 @@ jobs:
     # Two re-review requests in quick succession would otherwise run
     # concurrently on the scarce runner and post two reviews on the same
     # pull request. The automatic lane -- the reusable workflow at
-    # shakenfist/actions/.github/workflows/pr-auto-review.yml, which
-    # functional-tests.yml calls -- carries the same guard.
+    # shakenfist/actions/.github/workflows/pr-auto-review.yml, called
+    # from this project's own CI workflow -- carries the same guard.
     concurrency:
       group: pr-re-review-${{ github.event.issue.number }}
       cancel-in-progress: true
