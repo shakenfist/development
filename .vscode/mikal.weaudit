@@ -45,10 +45,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/pr-re-review.yml",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/pr-retest.yml",
       "author": "mikal"
     },
@@ -62,10 +58,6 @@
     },
     {
       "path": ".github/workflows/secret-scan.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
       "author": "mikal"
     },
     {
