@@ -29,10 +29,6 @@
       "sha": "53b5d8eb46e89e228dd88d42d7e1b0c3ea6694cd",
       "date": "2026-08-24"
     },
-    ".github/workflows/pr-re-review.yml": {
-      "sha": "80ec34dd460aa292ed7c43d9c2565741af5b76af",
-      "date": "2026-08-24"
-    },
     ".github/workflows/pr-retest.yml": {
       "sha": "7323bfc33fd3fa04372d51e904b3c01c14f7be2c",
       "date": "2026-08-24"
