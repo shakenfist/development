@@ -1966,6 +1966,11 @@ class ExpensiveLanePathFilterTest(unittest.TestCase):
     steps:
       - run: gitleaks detect
 """
+    SKILLSAW_JOB = """  agent-context:
+    runs-on: [self-hosted, vm]
+    steps:
+      - run: pre-commit run skillsaw --all-files
+"""
 
     def _repo(self, tmp, workflows, docs=True):
         wdir = os.path.join(tmp, '.github', 'workflows')
@@ -1988,6 +1993,51 @@ class ExpensiveLanePathFilterTest(unittest.TestCase):
                 'on:\n  pull_request:\njobs:\n' + self.SCAN_JOB
             )})
         self.assertEqual(result['status'], 'pass')
+
+    def test_agent_context_lint_is_a_content_scanner(self):
+        # skillsaw reads the text a filter would skip for the same
+        # reason gitleaks does: a prompt aimed at an agent lands in a
+        # document as readily as a credential.
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {'supply-chain.yml': (
+                'on:\n  pull_request:\njobs:\n' + self.SKILLSAW_JOB
+            )})
+        self.assertEqual(result['status'], 'pass')
+
+    def test_a_scanner_and_a_context_lint_together_are_exempt(self):
+        # The shape client-python arrived at: one ungated workflow
+        # holding the credential scan and the context lint, and
+        # nothing else.
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {'supply-chain.yml': (
+                'on:\n  pull_request:\njobs:\n'
+                + self.SCAN_JOB + self.SKILLSAW_JOB
+            )})
+        self.assertEqual(result['status'], 'pass')
+
+    def test_a_context_lint_does_not_exempt_the_lanes_beside_it(self):
+        # Widening the scanner list must not widen the hole the
+        # per-job rule exists to close.
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {'ci.yml': (
+                'on:\n  pull_request:\njobs:\n'
+                + self.SKILLSAW_JOB + self.LINT_JOB
+            )})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('beside it', result['details'])
+
+    def test_a_context_lint_named_only_in_a_comment_does_not_count(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {'ci.yml': (
+                'on:\n  pull_request:\njobs:\n'
+                + """  lint:
+    # skillsaw runs in the supply chain workflow, not here.
+    runs-on: [self-hosted, vm, debian-12, s]
+    steps:
+      - run: tox -e pep8
+"""
+            )})
+        self.assertEqual(result['status'], 'fail')
 
     def test_a_scanner_does_not_exempt_the_lanes_beside_it(self):
         # shakenfist/actions ran lint, unit tests and the LLM
