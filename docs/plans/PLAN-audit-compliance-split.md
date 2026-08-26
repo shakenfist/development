@@ -186,6 +186,13 @@ the count in the body of an issue that is already open. The backlog
 this creates is the backlog that already existed and was not being
 counted.
 
+**Outcome: 13 of 112, 99 needing review**, one worse than predicted.
+Phase 1 edited `.github/workflows/consistency-audit.yml`, which
+carried a review mark, so the mark went stale and phase 2's prune
+removed it. That is the tracking working, not a miscount -- the
+comment block on the workflow's `update-docs` job is part of what a
+reviewer of that file signed off on.
+
 The new exclude list:
 
 ```toml
@@ -212,10 +219,15 @@ this repository's convention.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. Split the generated output out | Not started | |
-| 2. Bring the specifications into review scope | Not started | |
-| 3. Documentation and runbooks | Not started | |
+| 1. Split the generated output out | Complete | |
+| 2. Bring the specifications into review scope | Complete | |
+| 3. Documentation and runbooks | In progress | |
 | 4. Push audit | Not started | |
+
+The `Merged` column stays empty until the branch lands; all four
+phases ship as one pull request rather than one each, because phase 2
+cannot be reviewed without phase 1 in the tree and phase 3 corrects
+prose that phase 1 makes wrong.
 
 Phases 1 and 2 have a hard ordering dependency:
 `test_review_tracking.py` asserts that every pattern in
