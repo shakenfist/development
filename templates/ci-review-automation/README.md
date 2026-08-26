@@ -29,13 +29,16 @@ shakenfist/actions#22, which was the first time these files were read
 adversarially rather than copied, and it found defects in the templates
 themselves rather than in that deployment. **Assume every deployment
 is running pre-fix copies of the two workflows in this directory
-unless you have checked that one.** development's own copy in
-`.github/workflows/` is the exception, kept in step with the template
-because the README points at this repository as the worked example.
+unless you have checked that one.** development's own
+`.github/workflows/pr-re-review.yml` is the exception, kept in step
+with the template because the README points at this repository as the
+worked example. Its `pr-retest.yml` is not: that one dispatches
+`ci.yml` rather than `functional-tests.yml`, which is the per-project
+substitution its own header tells you to preserve when syncing.
 Being out of date here is about these files, not about which reviewer
-a project uses: the migration to the reusable `pr-auto-review.yml` is
-finished everywhere, and is a separate matter from the bot triggers
-being out of date.
+a project uses: every repository that has an automatic review at all
+now gets it from the reusable `pr-auto-review.yml`, and that is a
+separate matter from the bot triggers being out of date.
 
 ### Workflow fixes (2026-08-21)
 
@@ -133,9 +136,9 @@ once, as a reusable workflow in the actions repository at
 gate "review only after the tests pass" has to be expressed in terms
 of each project's own test jobs. Projects add a small calling job to
 whichever workflow runs their tests. That is `functional-tests.yml` in
-most projects, but the name varies -- `ci.yml` and `unit-tests.yml` are
-both in use -- so read the `needs:` list below as "this project's test
-jobs", not as literal job names:
+most projects, but the name varies by project, so read the `needs:`
+list below as "this project's test jobs" rather than as literal job
+names:
 
 ```yaml
   automated_reviewer:
@@ -189,7 +192,7 @@ so. The two are not interchangeable on this point.
 
 Projects which predate this arrangement have a full `automated_reviewer`
 job, and a `check-bot-commit` job it depends on, written out inside
-`functional-tests.yml` (or `ci.yml`). To migrate:
+whichever workflow runs their tests. To migrate:
 
 1. Replace the `automated_reviewer` job body with the calling job
    above, keeping the existing `needs:` list.
