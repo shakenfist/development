@@ -16,7 +16,8 @@ development repository and passes through to this script:
 - stamp: record the blob SHA and date of newly reviewed files in a
   sidecar next to each weAudit state file, then regenerate REVIEWS.md.
   Run before committing new review marks; exits non-zero if it changed
-  anything so the caller knows there is something to stage.
+  anything so the caller knows there is something to stage, or if a
+  mark sits on a file the scope config excludes from review.
 - prune: remove review marks (whole-file and region) for files whose
   content no longer matches the stamped blob SHA, then regenerate
   REVIEWS.md. Run after a pull, merge, or rebase; always exits zero.
@@ -58,6 +59,9 @@ SCOPE_PATH = os.path.join('.vscode', 'review-scope.toml')
 REVIEWS_PATH = 'REVIEWS.md'
 SIDECAR_SUFFIX = '-shas.json'
 SHORT_SHA = 12
+
+# Rules the out-of-scope banner off from the per-file chatter around it.
+RULE = '=' * 72
 
 # The review tracking machinery itself is never a review target,
 # whatever the repo's scope config says.
@@ -259,6 +263,51 @@ def generate_reviews_md():
     return True
 
 
+def report_out_of_scope(paths):
+    """Announce marks on files the scope config excludes from review.
+
+    Loudly, and at the end of the run rather than in the middle of it.
+    Reviewing an out-of-scope file is easy to do by accident and hard
+    to notice afterwards, because the failure is silent in both
+    directions: the file does appear in the REVIEWS.md table, so the
+    review looks recorded, but the coverage count above that table
+    only counts in-scope files and does not move. `status` cannot see
+    it either, so the review-coverage audit still reports the file as
+    outstanding, and `next` will never offer it because it was never
+    in the queue. The reviewer reads a file carefully and the number
+    they are trying to move stays where it was.
+
+    Reported on every run, not only the run that first stamps the
+    file: a mark noticed once and left alone is exactly the case that
+    needs saying again.
+    """
+    if not paths:
+        return
+    # The per-file lines above go to stdout, which is block-buffered
+    # whenever stamp is piped or redirected -- so without this flush the
+    # banner is emitted first and lands at the top of the output, which
+    # is the one place it was never meant to be.
+    sys.stdout.flush()
+    lines = ['', RULE,
+             'review-stamp: %d file(s) MARKED REVIEWED BUT OUT OF REVIEW SCOPE' % len(paths),
+             RULE]
+    lines.extend('    %s' % path for path in paths)
+    lines.extend([
+        '',
+        'These are excluded by %s, so reviewing them' % SCOPE_PATH,
+        'did not count. They do get a row in the %s table, which is what' % REVIEWS_PATH,
+        'makes this easy to miss, but the coverage number above that table counts',
+        'in-scope files only and has not moved. `status` cannot see them either, so',
+        'the review-coverage audit still considers them outstanding, and `next`',
+        'never offered them in the first place.',
+        '',
+        'If reviewing them was a mistake, un-mark them in weAudit. If they should',
+        'be reviewed, widen the scope config -- and say why in the commit message,',
+        'because the exclusions there are argued rather than incidental.',
+        RULE])
+    print('\n'.join(lines), file=sys.stderr)
+
+
 def cmd_stamp(_args):
     """Record the reviewed content of every marked file in the sidecar.
 
@@ -279,6 +328,7 @@ def cmd_stamp(_args):
     staged = set(git('diff', '--cached', '--name-only').stdout.splitlines())
     changed = []
     stale = []
+    out_of_scope = []
     for state_path in state_files():
         state, _ = load_json(state_path, {})
         side_path = sidecar_path(state_path)
@@ -286,6 +336,7 @@ def cmd_stamp(_args):
         stamps = sidecar.setdefault('files', {})
         audited, partial = marked_paths(state)
         marked = set(p for p in set(audited) | set(partial) if not is_dir_entry(p, tracked))
+        out_of_scope.extend(p for p in marked if not in_scope(p, include, exclude))
 
         side_changed = False
         for path in sorted(marked - set(stamps)):
@@ -297,9 +348,6 @@ def cmd_stamp(_args):
             if path in staged:
                 print('review-stamp: WARNING: %s is marked reviewed but has changes staged in this '
                       'commit; the stamp attests to the staged content' % path, file=sys.stderr)
-            if not in_scope(path, include, exclude):
-                print('review-stamp: WARNING: %s is marked reviewed but out of review scope (see %s)'
-                      % (path, SCOPE_PATH), file=sys.stderr)
             stamps[path] = {'sha': sha, 'date': datetime.date.today().isoformat()}
             print('review-stamp: stamped %s at %s' % (path, sha[:SHORT_SHA]))
             side_changed = True
@@ -339,7 +387,8 @@ def cmd_stamp(_args):
               're-review those files and mark them again in weAudit. They are deliberately not '
               're-stamped: a stamp nobody read the content for is a false attestation.',
               file=sys.stderr)
-    return 1 if changed or stale else 0
+    report_out_of_scope(sorted(set(out_of_scope)))
+    return 1 if changed or stale or out_of_scope else 0
 
 
 def cmd_prune(_args):

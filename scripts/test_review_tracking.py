@@ -79,6 +79,11 @@ class ReviewTrackingTest(unittest.TestCase):
         return subprocess.run([sys.executable, SCRIPT] + list(args), cwd=self.repo,
                               capture_output=True, text=True)
 
+    def run_tool_interleaved(self, *args):
+        """Run with stdout and stderr on one pipe, as a terminal sees them."""
+        return subprocess.run([sys.executable, SCRIPT] + list(args), cwd=self.repo,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
     def blob(self, rev_path):
         return self.git('rev-parse', rev_path).stdout.strip()
 
@@ -207,8 +212,84 @@ class ReviewTrackingTest(unittest.TestCase):
         self.write('src/gen_pb2.py', 'generated = False\n')
         self.git('add', 'src/gen_pb2.py')
         p = self.run_tool('stamp')
-        self.assertIn('out of review scope', p.stderr)
+        self.assertIn('OUT OF REVIEW SCOPE', p.stderr)
+        self.assertIn('src/gen_pb2.py', p.stderr)
         self.assertIn('changes staged in this commit', p.stderr)
+
+    def test_stamp_announces_out_of_scope_every_run(self):
+        """The announcement must survive the run that first stamps the file.
+
+        The mistake this catches is noticed late or not at all, so a
+        warning that fires once and then goes quiet is no use: the
+        second run is the one where the reviewer is looking for
+        confirmation that the count moved.
+        """
+        self.mark_reviewed(['src/gen_pb2.py'])
+        first = self.run_tool('stamp')
+        self.assertIn('OUT OF REVIEW SCOPE', first.stderr)
+        self.git('add', '-A')
+        self.git('commit', '-m', 'reviews')
+
+        second = self.run_tool('stamp')
+        self.assertNotIn('stamped src/gen_pb2.py', second.stdout)
+        self.assertIn('OUT OF REVIEW SCOPE', second.stderr)
+        self.assertIn('src/gen_pb2.py', second.stderr)
+        self.assertEqual(second.returncode, 1)
+
+    def test_stamp_out_of_scope_announcement_is_the_last_thing_on_stderr(self):
+        """It has to outlive the chatter it would otherwise scroll past.
+
+        The old warning printed in the middle of the per-file loop,
+        which is where it got lost. Coming after the staged-changes
+        warning is not enough to prove that -- that warning is early
+        enough that almost any placement beats it. The property worth
+        holding is that nothing follows the announcement at all, so it
+        is what remains on screen when stamp returns.
+
+        Set up against the noisiest run there is: a stale stamp (which
+        reports after the per-file loop) and a staged out-of-scope
+        file (which reports inside it).
+        """
+        self.mark_reviewed(['src/a.py'])
+        self.run_tool('stamp')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'reviews')
+        self.write('src/a.py', 'a = 99\n')
+        self.git('add', 'src/a.py')
+        self.mark_reviewed(['src/a.py', 'src/gen_pb2.py'])
+        self.write('src/gen_pb2.py', 'generated = False\n')
+        self.git('add', 'src/gen_pb2.py')
+
+        p = self.run_tool('stamp')
+        self.assertIn('is stamped at', p.stderr)
+        self.assertIn('changes staged in this commit', p.stderr)
+        self.assertIn('.vscode/review-scope.toml', p.stderr)
+        self.assertIn('un-mark them in weAudit', p.stderr)
+
+        tail = p.stderr.rstrip().rsplit('=' * 72, 1)
+        self.assertEqual(len(tail), 2, 'announcement is not delimited by a rule')
+        self.assertEqual(tail[1], '', 'something is printed after the announcement')
+        self.assertIn('OUT OF REVIEW SCOPE', tail[0])
+
+    def test_stamp_out_of_scope_announcement_survives_stdout_buffering(self):
+        """Last on stderr is not last on screen.
+
+        The per-file lines go to stdout, which Python block-buffers as
+        soon as the output is a pipe rather than a terminal -- so an
+        unflushed banner is written first and scrolls off the top,
+        which is the exact failure it exists to prevent. Checked on a
+        combined stream, because separate captures cannot see it.
+        """
+        self.mark_reviewed(['src/a.py', 'src/b.py', 'src/gen_pb2.py'])
+        p = self.run_tool_interleaved('stamp')
+        self.assertIn('stamped src/a.py', p.stdout)
+        self.assertGreater(p.stdout.index('OUT OF REVIEW SCOPE'),
+                           p.stdout.index('stamped src/a.py'))
+
+    def test_stamp_silent_when_every_mark_is_in_scope(self):
+        self.mark_reviewed(['src/a.py'])
+        p = self.run_tool('stamp')
+        self.assertNotIn('OUT OF REVIEW SCOPE', p.stderr)
 
     def test_stamp_drops_unmarked_entries(self):
         self.mark_reviewed(['src/a.py', 'src/b.py'])
