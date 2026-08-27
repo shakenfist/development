@@ -51,6 +51,62 @@
     {
       "path": "tools",
       "author": "mikal"
+    },
+    {
+      "path": "docs/audits/ci-review-automation.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/console-logging.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/default-branch-naming.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/delete-branch-on-merge.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/dependency-name-normalization.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/docs-external-links.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/expensive-lane-path-filter.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/export-repo-config.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/github-security.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/llm-context-lint-ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/llm-context-lint.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/llm-doc-structure.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/llm-tooling.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/merge-group-cancellation.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

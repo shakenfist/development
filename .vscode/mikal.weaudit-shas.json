@@ -33,6 +33,62 @@
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
       "date": "2026-08-24"
     },
+    "docs/audits/ci-review-automation.md": {
+      "sha": "b0e5dd33cc1c7e7d845ee3b42e63ec31e35b58da",
+      "date": "2026-08-27"
+    },
+    "docs/audits/console-logging.md": {
+      "sha": "89fc842904ab41daaf07a9fdee038e54ed439973",
+      "date": "2026-08-27"
+    },
+    "docs/audits/default-branch-naming.md": {
+      "sha": "8a213d692499fdb211f896f518807cdb336c29b2",
+      "date": "2026-08-27"
+    },
+    "docs/audits/delete-branch-on-merge.md": {
+      "sha": "941d50366e32c83d5888a2e551b9c593d19398b7",
+      "date": "2026-08-27"
+    },
+    "docs/audits/dependency-name-normalization.md": {
+      "sha": "9cda252fa5e03506f0677c0ec6d07922e5da9e0d",
+      "date": "2026-08-27"
+    },
+    "docs/audits/docs-external-links.md": {
+      "sha": "9b09c0d4f5d44caa46a3212407f89e8ade0eef11",
+      "date": "2026-08-27"
+    },
+    "docs/audits/expensive-lane-path-filter.md": {
+      "sha": "a73639bc27b1bab18e649fa22b808ca73234e12e",
+      "date": "2026-08-27"
+    },
+    "docs/audits/export-repo-config.md": {
+      "sha": "7fba89f8a3f2ac89ed16118e31c637eafb5567c4",
+      "date": "2026-08-27"
+    },
+    "docs/audits/github-security.md": {
+      "sha": "59aa05becc43e1c7b5d4f42240b6c20a8ac53dae",
+      "date": "2026-08-27"
+    },
+    "docs/audits/llm-context-lint-ci.md": {
+      "sha": "5cee017834ace75783ff7b1b308c5f69bd3b608b",
+      "date": "2026-08-27"
+    },
+    "docs/audits/llm-context-lint.md": {
+      "sha": "45885eb745a5c98facc5b20681c52d87c1aaf1d5",
+      "date": "2026-08-27"
+    },
+    "docs/audits/llm-doc-structure.md": {
+      "sha": "4bfd7ae30e609b8f273a81df083ed2f615cb9a56",
+      "date": "2026-08-27"
+    },
+    "docs/audits/llm-tooling.md": {
+      "sha": "d3ea450f3add02f84fc8a21d641aeb7381d1467a",
+      "date": "2026-08-27"
+    },
+    "docs/audits/merge-group-cancellation.md": {
+      "sha": "9d503ea3881cac8cfea2cca0cc7dcdc789c4a45b",
+      "date": "2026-08-27"
+    },
     "tools/ci-prune-reviews.sh": {
       "sha": "3e10680265c6b885619e8e08bea30a4fb05cb10b",
       "date": "2026-08-24"
