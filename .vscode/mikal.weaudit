@@ -13,22 +13,6 @@
       "author": "mikal"
     },
     {
-      "path": ".claude/skills/standards-alignment/SKILL.md",
-      "author": "mikal"
-    },
-    {
-      "path": ".claude/skills/standards-alignment",
-      "author": "mikal"
-    },
-    {
-      "path": ".claude/skills",
-      "author": "mikal"
-    },
-    {
-      "path": ".claude",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/ci.yml",
       "author": "mikal"
     },
