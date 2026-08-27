@@ -673,6 +673,40 @@ class UpdateCompliancePageTest(unittest.TestCase):
         self.assertIn('new', body)
         self.assertNotIn('old', body)
 
+    def test_page_redirects_output_without_moving_the_criteria(self):
+        """--page changes where, never what the page describes.
+
+        The scan was briefly pointed at the output directory so that a
+        redirected page would be "self-consistent". It made a local run
+        with --page publish whatever unrelated .md files sat beside the
+        scratch page as criteria nobody measures, and an empty output
+        directory drop the section entirely -- noise in the diff the
+        plan relies on to check a change before the unattended 06:00
+        run makes it live. Which criteria have no check is a property
+        of this repository.
+        """
+        stray = os.path.join(self.tmp, 'not-a-criterion.md')
+        with open(stray, 'w') as f:
+            f.write('# not a criterion\n')
+        self._write('%s\n%s\n' % (self.BEGIN, self.END))
+        results = os.path.join(self.tmp, 'results')
+        os.makedirs(results)
+        with open(os.path.join(results, 'audit-result-repo.json'), 'w') as f:
+            json.dump({
+                'repo': 'repo', 'org': 'shakenfist', 'timestamp': 'when',
+                'checks': [],
+            }, f)
+        proc = subprocess.run(
+            [sys.executable, SCRIPT, '--results-dir', results,
+             '--no-issues', '--page', self.page],
+            capture_output=True, text=True,
+            cwd=os.path.dirname(os.path.dirname(SCRIPT)))
+        self.assertEqual(0, proc.returncode, proc.stderr)
+        body = self._read()
+        self.assertNotIn('not-a-criterion', body)
+        for anchor in audit_update_docs.unmeasured_specs():
+            self.assertIn('(%s.md)' % anchor, body)
+
     def test_the_cli_writes_the_page_it_is_given(self):
         results = os.path.join(self.tmp, 'results')
         os.makedirs(results)

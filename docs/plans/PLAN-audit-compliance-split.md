@@ -177,7 +177,7 @@ Measured on this branch by editing the scope file and running
 | | In scope | Reviewed | Needing review |
 |---|---|---|---|
 | Today | 77 | 14 | 63 |
-| After | 112 | 14 | 98 |
+| After | 112 | 10 | 102 |
 
 The `review-coverage` threshold is 5 and `development` is already
 non-compliant against it (`shakenfist/development#45`, open). So this
@@ -186,12 +186,24 @@ the count in the body of an issue that is already open. The backlog
 this creates is the backlog that already existed and was not being
 counted.
 
-**Outcome: 13 of 112, 99 needing review**, one worse than predicted.
-Phase 1 edited `.github/workflows/consistency-audit.yml`, which
-carried a review mark, so the mark went stale and phase 2's prune
-removed it. That is the tracking working, not a miscount -- the
-comment block on the workflow's `update-docs` job is part of what a
-reviewer of that file signed off on.
+**Outcome: 10 of 112, 102 needing review**, four worse than
+predicted, because the prediction only counted files entering scope and
+not the marks this work would invalidate on the way. Three were pruned,
+each for the same reason -- the branch edited a file somebody had
+reviewed, and a mark attests to exact content:
+
+| Pruned mark | Edited by |
+|---|---|
+| `.github/workflows/consistency-audit.yml` | Phase 1, the `update-docs` job's comments |
+| `.github/workflows/prune-reviews.yml` | Phase 3, one comment line |
+| `.claude/skills/standards-alignment/SKILL.md` | The push-audit fixes |
+
+The fourth is not a prune: rebasing onto `main` late in the work
+brought in two upstream prunes of its own, which moved the count again.
+That is the tracking working rather than a miscount, and it is worth
+predicting next time -- a change that sweeps wording across a
+repository under review invalidates marks in proportion to how many
+files it touches.
 
 The new exclude list:
 
@@ -348,8 +360,10 @@ half of it or leaves 34 files carrying a stale table nothing updates.
 * **`REVIEWS.md`**. Regenerated, not hand-edited. Expect
   `112 in-scope files` and no change to the reviewed list.
 
-* Confirm `scripts/review-tracking.py status` reports 14 of 112 with
-  98 needing review, and that `compliance.md` is not among them.
+* Confirm `scripts/review-tracking.py status` reports 112 files in
+  scope and that `compliance.md` is not among them. The reviewed count
+  is not fixed in advance: it falls as later phases edit files that
+  carry marks. It ended at 10 of 112 -- see D5.
 
 ### 3. Documentation and runbooks
 
@@ -513,9 +527,11 @@ called the new `--page` flag dead, untested surface whose value was
 decoupled from `AUDITS_DIR` -- so `unmeasured_specs()` would describe
 the real `docs/audits/` even when writing elsewhere. 2d found the
 recipe above, for which `--page` is exactly the right answer. Keeping
-it and fixing the decoupling satisfies both: `AUDITS_DIR` is now
-derived from the page being written, the flag has a documented caller
-and CLI coverage, and it is named in the module's usage block.
+it satisfies both: the flag now has a documented caller and CLI
+coverage, and is named in the module's usage block.
+
+The decoupling 2a complained about turned out to be correct, and
+"fixing" it was a mistake -- see the review round below.
 
 **Coverage added**, per 2b and 2d: an isolated unit test of
 `unmeasured_specs()` against a fabricated directory, which nothing
@@ -534,6 +550,37 @@ block's instruction rather than a reason to widen the change. Two
 informational findings about harvested detail strings reaching other
 sinks are recorded under Future work instead of fixed, because they are
 outside this page.
+
+### The review round on pull request #57
+
+The automated reviewer raised four `fix` items, two `consider` and two
+informational. All eight are addressed; the two `consider` items were
+taken because one is a defect this branch introduced and the other is
+its comment.
+
+**The interesting one is that it caught a fix that made things worse.**
+Responding to 2a-1 above, `render_page` was changed to derive the
+audits directory from the `--page` path, so that a redirected page
+would be "self-consistent". The reviewer ran the recipe this branch
+documents, `--page /tmp/compliance.md`, and found it publishing two
+unrelated scratch files as criteria nobody measures; in a clean output
+directory the section vanishes instead. Which criteria have no check is
+a property of *this repository*, not of wherever the output happens to
+go, so the scan is anchored back at `AUDITS_DIR` and a test renders
+into a directory seeded with unrelated `.md` files to pin it. Nothing
+reached the published page -- the workflow never passes `--page` -- but
+it defeated the mitigation this plan names for the risky unattended
+06:00 run, which is to render locally and diff before landing.
+
+The other three `fix` items were documentation the phase 3 sweep
+missed: two specs (`python-version`, `security-sanitization`) kept a
+sentence introducing "the table below" with no table below it, which
+was the only thing telling a reader that just one of the standards on
+each page is measured; a second stale pointer in
+`templates/ci-review-automation/README.md`, in a section that did
+predate the sweep; and a comment in `scripts/audit_common.py` whose
+edit dropped the noun its preposition governed. Plus the stale numbers
+in D5, corrected above.
 
 ## Risks and mitigations
 

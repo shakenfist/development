@@ -24,7 +24,8 @@ With --no-issues the GitHub issue column is omitted from lookups
 which is how to render a page locally without touching the tree: the
 criterion specifications beside the real one are hand-written, so
 `git restore docs/audits/` is no longer a safe way to clean up after a
-test run.
+test run. It redirects the output only -- the criteria the page
+describes are always read from docs/audits/.
 """
 
 import argparse
@@ -45,10 +46,8 @@ from audit_common import (
 # .vscode/review-scope.toml, and the only one this script writes.
 COMPLIANCE_PAGE = 'docs/audits/compliance.md'
 
-# The audits directory, for finding criteria that have no check. It is
-# derived from the page rather than declared, so that --page renders a
-# self-consistent page: a run writing somewhere else must describe the
-# specs beside *that* page, not the ones beside the default.
+# The audits directory: where the criterion specifications live, and so
+# where the criteria that have no check are found.
 AUDITS_DIR = os.path.dirname(COMPLIANCE_PAGE)
 
 # Pages in AUDITS_DIR that are not criterion specs.
@@ -247,7 +246,7 @@ def render_table(check_ids, results, no_issues):
     return lines
 
 
-def render_page(results, no_issues, page=COMPLIANCE_PAGE):
+def render_page(results, no_issues):
     """Render the generated block of the whole compliance page."""
     timestamps = sorted(r['timestamp'] for r in results)
     when = f' {timestamps[-1]}' if timestamps else ''
@@ -266,7 +265,15 @@ def render_page(results, no_issues, page=COMPLIANCE_PAGE):
         lines.append('')
         lines.extend(render_table(check_ids, results, no_issues))
 
-    unmeasured = unmeasured_specs(os.path.dirname(page))
+    # Deliberately the real audits tree rather than wherever --page
+    # writes. Which criteria have no check is a property of this
+    # repository, not of the output location: pointing the scan at the
+    # output directory made a local run with --page /tmp/... publish
+    # whatever unrelated .md files happened to sit beside the scratch
+    # page as criteria nobody measures, which is noise in exactly the
+    # diff the plan relies on to check a change before the unattended
+    # 06:00 run makes it live.
+    unmeasured = unmeasured_specs()
     if unmeasured:
         lines.append('')
         lines.append('## Criteria with no automated check')
@@ -353,7 +360,7 @@ def main():
         print('No JSON result files found.')
         sys.exit(0)
 
-    section = render_page(results, args.no_issues, args.page)
+    section = render_page(results, args.no_issues)
     if not update_compliance_page(args.page, section):
         # The markers are the only thing tying the generated block to
         # its page. Losing them silently would leave yesterday's
