@@ -24,7 +24,6 @@ for how this works, including how to verify the attestations.
 | .github/workflows/codeql-analysis.yml | mikal | 2026-08-24 | 3075c3224ffa |
 | .github/workflows/export-repo-config.yml | mikal | 2026-08-24 | 53b5d8eb46e8 |
 | .github/workflows/pr-retest.yml | mikal | 2026-08-24 | 7323bfc33fd3 |
-| .github/workflows/prune-reviews.yml | mikal | 2026-08-24 | 38a5b1dbd2c0 |
 | .github/workflows/renovate.yml | mikal | 2026-08-24 | 6de354ace01b |
 | .github/workflows/secret-scan.yml | mikal | 2026-08-24 | afd9d7247b03 |
 | tools/ci-prune-reviews.sh | mikal | 2026-08-24 | 3e10680265c6 |

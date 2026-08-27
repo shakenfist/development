@@ -222,7 +222,7 @@ this repository's convention.
 | 1. Split the generated output out | Complete | |
 | 2. Bring the specifications into review scope | Complete | |
 | 3. Documentation and runbooks | Complete | |
-| 4. Push audit | In progress | |
+| 4. Push audit | Complete | |
 
 The `Merged` column stays empty until the branch lands; all four
 phases ship as one pull request rather than one each, because phase 2
@@ -426,6 +426,115 @@ change edits 34 specification files mechanically and rewrites prose
 in five more, and a mechanical edit repeated 34 times is exactly
 where a wrong anchor or a dropped section heading hides.
 
+**Outcome.** Wave 1 passed: `pre-commit` clean at the time, all seven
+greps empty. One correction to the runbook is owed and is recorded
+under Future work -- every diff command in `PUSH-AUDIT.md` is written
+against `main...HEAD`, and a stale local `main` silently widens the
+diff to unrelated history. The first run of the greps here reported
+hits from commits that were already on `origin/main`.
+
+Wave 2 found no critical or high security findings and six things
+worth fixing. All six are fixed on this branch rather than deferred,
+because five of them were introduced by phases 1 to 3 and the sixth
+is a two-line change to code this plan already touches.
+
+**2c-1 / 2d-1: a stale review attestation, shipped.** Phase 3 edited
+`.github/workflows/prune-reviews.yml`, which carried a review mark, and
+no prune followed -- so `REVIEWS.md` published it as reviewed at
+content nobody had read, and `test_every_stamp_matches_the_content_it_
+attests_to` failed. Pruned, and `REVIEWS.md` regenerated.
+
+Worth recording *why* this got past the pre-commit run at the end of
+phase 3, because it will happen again. That test compares the stamp
+against `blob_sha(':<path>')`, which reads the git **index**. The file
+was edited but not staged, so the test compared the stamp against the
+old staged blob and passed; `git add` moved the new content into the
+index and the same test then failed. Running `pre-commit
+run --all-files` on an unstaged tree gives a false pass for exactly
+the check that guards the attestations.
+
+**2c-2: a file the phase 3 sweep missed.**
+`.claude/skills/standards-alignment/SKILL.md` said "The per-audit
+status tables in `docs/audits/*.md` regenerate daily". The sweep
+grepped for "compliance table"; this file says "status tables". Fixed.
+
+**2c-3: the index row.** `docs/plans/index.md` registered this plan as
+`Not started` while its own Execution table had three phases
+`Complete`. `plan-index` checks the vocabulary, not the accuracy, so
+CI passed on a visibly wrong row. Fixed.
+
+**2b-1: the new link test broke the documented "Adding a criterion"
+recipe.** `test_measured_specs_link_a_section_that_exists` required a
+spec's anchor to already have a section on `compliance.md`. But the
+page is generated daily and lags the specs by one run, so a criterion
+registered today has no section until tomorrow -- which is precisely
+what step 3 of that recipe produces. The test would have failed the
+first commit of every future criterion pull request, and the class it
+replaced had explicitly tolerated the transitional state.
+
+Fixed by deleting the wrong half of the assertion rather than adding a
+skip. The anchor must match the spec's own basename, which is the typo
+this can actually catch; that the section will exist is guaranteed by
+`test_the_page_has_a_section_for_every_spec`, which asserts against the
+renderer instead of against yesterday's file. `test_the_page_names_
+every_unmeasured_spec` had the same coupling and moved to the renderer
+for the same reason. Verified by deleting a section from the page and
+confirming the suite still passes.
+
+**2d-2: a harvested detail string could restructure the page.**
+Detail strings are written out of what a check found in an audited
+repository and rendered as bare prose. `update_compliance_page` found
+the end marker with a substring search, so a detail carrying that
+marker truncated the next run's splice -- leaving that run's tables
+*outside* the block, where every later run preserved them again. The
+page grows without bound, publishing stale verdicts that
+`blank_generated_blocks` no longer exempts from this repository's own
+`docs-external-links` and `plan-phase-references` checks. A merged
+workflow file named for the marker is enough to trigger it, so it
+takes commit access to a fleet repository.
+
+Pre-existing, and the consolidation escalated it from corrupting one
+spec's block to corrupting the single page carrying all 34 tables.
+Fixed at both ends: `defuse()` collapses newlines and neutralises the
+HTML comment opener before interpolation, and the splice is now
+anchored to whole lines the way `blank_generated_blocks` already was,
+so it does not depend on the defusing having worked. Newline collapsing
+also fixes the accidental route, a subprocess traceback reaching a
+detail string.
+
+**2d-3: the documented local-test recipe destroyed hand-written work.**
+`docs/consistency-audits.md` told the reader to clean up with `git
+restore docs/audits/`. That was safe when the directory was generated;
+it now throws away edits to any of the 35 hand-written specifications.
+The recipe uses `--page /tmp/compliance.md` instead.
+
+**2a-1 and 2d-3 disagreed, and the disagreement was productive.** 2a
+called the new `--page` flag dead, untested surface whose value was
+decoupled from `AUDITS_DIR` -- so `unmeasured_specs()` would describe
+the real `docs/audits/` even when writing elsewhere. 2d found the
+recipe above, for which `--page` is exactly the right answer. Keeping
+it and fixing the decoupling satisfies both: `AUDITS_DIR` is now
+derived from the page being written, the flag has a documented caller
+and CLI coverage, and it is named in the module's usage block.
+
+**Coverage added**, per 2b and 2d: an isolated unit test of
+`unmeasured_specs()` against a fabricated directory, which nothing
+pinned before -- all three callers treated its output as ground truth;
+`update_compliance_page()` and `main()`, which had no coverage on
+either side of the split and are the only path that writes the file
+the privileged bot commits, including the missing-marker and
+markers-out-of-order guards; and `defuse()`. The suite goes from 20
+tests to 33.
+
+**Declined, with reasons.** `render_table`'s `unknown` cell,
+`load_results` on an empty directory, and `render_page`'s
+zero-unmeasured branch are untested. All three predate this change and
+none is touched by it; naming them here is the functional-test-coverage
+block's instruction rather than a reason to widen the change. Two
+informational findings about harvested detail strings reaching other
+sinks are recorded under Future work instead of fixed, because they are
+outside this page.
+
 ## Risks and mitigations
 
 * **The next daily run publishes nothing, or publishes to the wrong
@@ -492,6 +601,25 @@ where a wrong anchor or a dropped section heading hides.
   has generated content interleaved with reviewable prose, it has
   this problem too. Worth a look during the next review session
   rather than a check of its own -- one instance is not a pattern.
+
+* **`PUSH-AUDIT.md` is written against `main...HEAD`.** Every diff
+  command in it names the local `main`, which is whatever was last
+  fetched into the working clone. A stale `main` silently widens the
+  audit's diff to unrelated history, which is what happened on the
+  first run of wave 1 here. It should be `origin/main...HEAD`, or the
+  runbook should open by asserting the two agree. This is a change to
+  the runbook rather than to this plan's subject, and it affects the
+  eight repositories that carry one, so it belongs in its own change.
+
+* **Detail strings reach two sinks this change does not cover.**
+  `defuse()` protects the compliance page. The same unsanitised
+  strings go into issue bodies filed fleet-wide with `AUDIT_TOKEN` by
+  `audit-manage-issues.py`, where an `@mention` harvested out of an
+  audited repository notifies a real person; and
+  `check_review_coverage` can put a multi-line subprocess traceback
+  into a detail string. Both predate this change and neither is on the
+  page, so both are left alone here. The issue-body one is the more
+  interesting of the two and should probably reuse `defuse()`.
 
 ## Back brief
 

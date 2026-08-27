@@ -25,4 +25,4 @@ the phase arithmetic and the summary of what happened live in the plan.
 | 2026-08-15 | [LLM doc structure](PLAN-llm-doc-structure.md) | An audit keeping AGENTS.md and ARCHITECTURE.md a summary and an index rather than a second copy of docs/ | Complete |
 | 2026-08-16 | [Plan template blocks](PLAN-plan-template-blocks.md) | Shared blocks for PLAN-TEMPLATE.md, so plans are written to the conventions rather than corrected against them afterwards | In progress |
 | 2026-08-24 | [Push audit phase](PLAN-push-audit-phase.md) | Give the pre-push audit a trigger: a mandatory final phase in every master plan, and a consistency check that nothing drops the reference | In progress |
-| 2026-08-27 | [Audit compliance split](PLAN-audit-compliance-split.md) | Move the generated compliance tables out of the criterion specifications, so the prose that defines the standards can hold a human review mark | Not started |
+| 2026-08-27 | [Audit compliance split](PLAN-audit-compliance-split.md) | Move the generated compliance tables out of the criterion specifications, so the prose that defines the standards can hold a human review mark | In progress |

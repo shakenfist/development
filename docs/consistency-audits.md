@@ -246,14 +246,21 @@ repository. Test that half against local clones:
 python3 scripts/audit-check.py --repo-path ~/src/shakenfist/<repo> \
     --repo-name <repo> > /tmp/results/audit-result-<repo>.json
 python3 scripts/audit-manage-issues.py --results-dir /tmp/results/ --dry-run
-python3 scripts/audit-update-docs.py --results-dir /tmp/results/ --no-issues
+python3 scripts/audit-update-docs.py --results-dir /tmp/results/ \
+    --no-issues --page /tmp/compliance.md
 ```
 
 Always pass `--dry-run` to `audit-manage-issues.py`. Without it the
 script creates and closes real issues on real repositories.
-`audit-update-docs.py` rewrites `docs/audits/*.md` in place; discard the
-result with `git restore docs/audits/` afterwards, because a locally
-generated table only covers the repositories you fed it.
+
+Pass `--page` as well, as above. A locally generated page only covers
+the repositories you fed it, so it is never what you want to keep, and
+without `--page` the script rewrites the real
+`docs/audits/compliance.md` in place. The old advice here was to
+discard the result with `git restore docs/audits/`, which is now
+actively dangerous: the other 35 files in that directory are
+hand-written, and a `git restore` of the directory throws away
+whatever you were editing along with the generated page.
 
 `ci.yml` also runs the audit against this repository as a smoke test,
 via `scripts/check-audit-smoke.py`. Linting cannot reach the scheduled

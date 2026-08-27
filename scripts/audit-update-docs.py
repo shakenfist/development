@@ -19,7 +19,12 @@ Usage:
     python audit-update-docs.py --results-dir ./audit-results/
 
 With --no-issues the GitHub issue column is omitted from lookups
-(cells show '-'), which allows offline testing without `gh`.
+(cells show '-'), which allows offline testing without `gh`. With
+--page the output goes somewhere other than docs/audits/compliance.md,
+which is how to render a page locally without touching the tree: the
+criterion specifications beside the real one are hand-written, so
+`git restore docs/audits/` is no longer a safe way to clean up after a
+test run.
 """
 
 import argparse
@@ -40,8 +45,11 @@ from audit_common import (
 # .vscode/review-scope.toml, and the only one this script writes.
 COMPLIANCE_PAGE = 'docs/audits/compliance.md'
 
-# The audits directory, for finding criteria that have no check.
-AUDITS_DIR = 'docs/audits'
+# The audits directory, for finding criteria that have no check. It is
+# derived from the page rather than declared, so that --page renders a
+# self-consistent page: a run writing somewhere else must describe the
+# specs beside *that* page, not the ones beside the default.
+AUDITS_DIR = os.path.dirname(COMPLIANCE_PAGE)
 
 # Pages in AUDITS_DIR that are not criterion specs.
 NOT_A_SPEC = ('README.md', os.path.basename(COMPLIANCE_PAGE))
@@ -85,7 +93,7 @@ def spec_anchor(spec):
     return os.path.basename(spec)[:-len('.md')]
 
 
-def unmeasured_specs():
+def unmeasured_specs(audits_dir=AUDITS_DIR):
     """Criterion specs with no automated check, by anchor.
 
     Marker-block absence used to be how a reader told a measured
@@ -95,11 +103,11 @@ def unmeasured_specs():
     the same AUDIT_METADATA the runner uses rather than from prose that
     would rot the first time one of them was automated.
     """
-    if not os.path.isdir(AUDITS_DIR):
+    if not os.path.isdir(audits_dir):
         return []
     measured = {spec_anchor(spec) for spec in checks_by_spec()}
     found = []
-    for filename in sorted(os.listdir(AUDITS_DIR)):
+    for filename in sorted(os.listdir(audits_dir)):
         if not filename.endswith('.md') or filename in NOT_A_SPEC:
             continue
         anchor = filename[:-len('.md')]
@@ -159,6 +167,36 @@ def column_name(check_id):
     return COLUMN_NAMES.get(check_id, check_id)
 
 
+def defuse(details):
+    """Make a harvested detail string safe to splice into the page.
+
+    A detail string is written by a check in audit-check.py out of what
+    it found in an audited repository, so it can carry that
+    repository's filenames and a tool's output verbatim. It is then
+    rendered as bare prose inside the generated block, which means two
+    things have to be taken away from it before it lands.
+
+    Newlines, because the block's structure is line-based: a detail
+    spanning lines can emit a table row, a `## ` heading, or a bare
+    marker, none of which the renderer intended. A subprocess
+    traceback reaching a detail string is the way this happens by
+    accident.
+
+    The HTML comment opener, because update_compliance_page finds the
+    end marker in order to replace the block. A detail containing the
+    literal end marker would terminate the next run's splice early,
+    leaving the rest of that run's tables outside the block -- where
+    they are preserved, and preserved again by every later run, so the
+    page grows without bound and publishes stale verdicts that
+    blank_generated_blocks no longer exempts from this repository's own
+    docs-external-links and plan-phase-references checks. It takes
+    commit access to an audited repository to do deliberately (a
+    workflow file named for the marker is enough), which is why the
+    marker is defused here rather than the whole string escaped.
+    """
+    return ' '.join(details.split()).replace('<!--', '&lt;!--')
+
+
 def render_table(check_ids, results, no_issues):
     """Render the compliance table for one audit spec.
 
@@ -193,7 +231,7 @@ def render_table(check_ids, results, no_issues):
                     else column_name(check_id)
                 )
                 failures.append(
-                    f'- **{repo}** ({column}): {check["details"]}'
+                    f'- **{repo}** ({column}): {defuse(check["details"])}'
                 )
         issue = issue_cell(result['org'], repo, check_ids, no_issues)
         lines.append(
@@ -209,7 +247,7 @@ def render_table(check_ids, results, no_issues):
     return lines
 
 
-def render_page(results, no_issues):
+def render_page(results, no_issues, page=COMPLIANCE_PAGE):
     """Render the generated block of the whole compliance page."""
     timestamps = sorted(r['timestamp'] for r in results)
     when = f' {timestamps[-1]}' if timestamps else ''
@@ -228,7 +266,7 @@ def render_page(results, no_issues):
         lines.append('')
         lines.extend(render_table(check_ids, results, no_issues))
 
-    unmeasured = unmeasured_specs()
+    unmeasured = unmeasured_specs(os.path.dirname(page))
     if unmeasured:
         lines.append('')
         lines.append('## Criteria with no automated check')
@@ -245,6 +283,22 @@ def render_page(results, no_issues):
     return '\n'.join(lines)
 
 
+def marker_line(lines, marker):
+    """Index of the line that is exactly `marker`, or -1.
+
+    Whole-line matching, for the same reason blank_generated_blocks in
+    audit-check.py uses it: a substring search finds a marker quoted
+    inside prose, or one carried in a harvested detail string, and
+    splices the page at the wrong offset. defuse() takes the marker out
+    of detail strings, and this makes the splice not depend on that
+    having worked.
+    """
+    for index, line in enumerate(lines):
+        if line.strip() == marker:
+            return index
+    return -1
+
+
 def update_compliance_page(page, section):
     """Replace the marker block in the compliance page.
 
@@ -254,13 +308,14 @@ def update_compliance_page(page, section):
     with open(page) as f:
         content = f.read()
 
-    begin = content.find(BEGIN_MARKER)
-    end = content.find(END_MARKER)
+    lines = content.split('\n')
+    begin = marker_line(lines, BEGIN_MARKER)
+    end = marker_line(lines, END_MARKER)
     if begin == -1 or end == -1 or end < begin:
         return False
 
-    updated = (
-        content[:begin] + section + content[end + len(END_MARKER):]
+    updated = '\n'.join(
+        lines[:begin] + section.split('\n') + lines[end + 1:]
     )
     if updated != content:
         with open(page, 'w') as f:
@@ -298,7 +353,7 @@ def main():
         print('No JSON result files found.')
         sys.exit(0)
 
-    section = render_page(results, args.no_issues)
+    section = render_page(results, args.no_issues, args.page)
     if not update_compliance_page(args.page, section):
         # The markers are the only thing tying the generated block to
         # its page. Losing them silently would leave yesterday's

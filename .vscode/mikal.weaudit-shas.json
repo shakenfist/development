@@ -29,10 +29,6 @@
       "sha": "7323bfc33fd3fa04372d51e904b3c01c14f7be2c",
       "date": "2026-08-24"
     },
-    ".github/workflows/prune-reviews.yml": {
-      "sha": "38a5b1dbd2c0448f3d3d02025caa9d799fbc9307",
-      "date": "2026-08-24"
-    },
     ".github/workflows/renovate.yml": {
       "sha": "6de354ace01bd8a848b3ca386987109e32a2a43e",
       "date": "2026-08-24"
