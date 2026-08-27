@@ -7,9 +7,13 @@ Run with: python3 scripts/test_audit_update_docs.py
 
 import importlib.util
 import io
+import json
 import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 
 
@@ -24,6 +28,11 @@ sys.path.insert(0, os.path.dirname(SCRIPT))
 _spec = importlib.util.spec_from_file_location('audit_update_docs', SCRIPT)
 audit_update_docs = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(audit_update_docs)
+
+# The heading render_page gives the list of criteria with no
+# automated check. It is not a spec anchor, so the section-count
+# assertions have to allow for it.
+NO_CHECK_HEADING = 'Criteria with no automated check'
 
 
 class ColumnNamesTest(unittest.TestCase):
@@ -176,12 +185,15 @@ class DocumentedTestReferencesTest(unittest.TestCase):
     # docs/ except docs/plans/, which is a record of what was decided
     # at the time and is allowed to name things that have since moved.
     #
-    # docs/audits/*.md is deliberately out, apart from the index. Those
-    # files carry generated compliance tables whose findings quote file
-    # paths harvested from the audited repositories -- docs/audits/
-    # docs-external-links.md already names a test_amend.py that belongs
-    # to another project entirely -- so scanning them would demand that
-    # other people's test files exist under our scripts/.
+    # docs/audits/ is deliberately out, apart from the index. It is
+    # docs/audits/compliance.md that makes it necessary: the generated
+    # findings there quote file paths harvested from the audited
+    # repositories, and already name a test_amend.py that belongs to
+    # another project entirely, so scanning it would demand that other
+    # people's test files exist under our scripts/. The criterion
+    # specs beside it no longer carry generated content and could be
+    # scanned now; that is a widening of this test rather than part of
+    # the split that made it possible, so it has not been done.
     @property
     def doc_files(self):
         names = ['AGENTS.md', 'ARCHITECTURE.md', 'docs/audits/README.md']
@@ -313,12 +325,17 @@ class AuditIndexIsCompleteTest(unittest.TestCase):
 class UnmeasuredCriteriaTest(unittest.TestCase):
     """The criteria with no check are named in prose, so pin the list.
 
-    docs/consistency-audits.md states the property that identifies
-    them -- a criterion with no check has no consistency-audit marker
-    block in its spec file -- and then names the current set. The
-    property makes the set computable, so the list can be held to it
-    rather than left to rot the first time one of them is automated.
-    The plan's own future work proposes doing exactly that.
+    docs/consistency-audits.md names the current set, and this holds
+    the prose to what the runner actually measures rather than letting
+    it rot the first time one of them is automated.
+
+    The identifying property used to be marker-block absence: a
+    criterion with no check had no generated table in its spec file.
+    Moving the tables onto one page took that away, so the property is
+    now membership in AUDIT_METADATA, which is what the runner has
+    always keyed on and what the compliance page's own no-check
+    section is generated from. Three statements of the set are now
+    tied together: the metadata, the page, and the prose here.
 
     Same shape as AuditScopeIsStatedOnceTest in test_audit_check.py,
     which ties the audit matrix to the two places that describe it.
@@ -326,21 +343,9 @@ class UnmeasuredCriteriaTest(unittest.TestCase):
 
     REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     DOC = 'docs/consistency-audits.md'
-    MARKER = 'consistency-audit:begin'
 
     def _unmeasured(self):
-        audits = os.path.join(self.REPO, 'docs', 'audits')
-        found = set()
-        for filename in os.listdir(audits):
-            # README.md is the index, not a criterion. It is excluded
-            # by name rather than by whether it happens to mention the
-            # marker in its prose.
-            if not filename.endswith('.md') or filename == 'README.md':
-                continue
-            with open(os.path.join(audits, filename)) as f:
-                if self.MARKER not in f.read():
-                    found.add(filename[:-len('.md')])
-        return found
+        return set(audit_update_docs.unmeasured_specs())
 
     def _documented(self):
         with open(os.path.join(self.REPO, self.DOC)) as f:
@@ -378,11 +383,11 @@ class UnmeasuredCriteriaTest(unittest.TestCase):
         # "False is not true".
         self.assertTrue(
             self._unmeasured(),
-            f'no audit spec lacks a {self.MARKER} marker block. Either '
-            f'every criterion is measured now -- in which case delete '
-            f'this class and the "at the time of writing" paragraph in '
-            f'{self.DOC} -- or MARKER no longer matches the marker '
-            f'string.',
+            f'every criterion spec in docs/audits/ has a check in '
+            f'AUDIT_METADATA. Either every criterion is measured now '
+            f'-- in which case delete this class and the "at the time '
+            f'of writing" paragraph in {self.DOC} -- or '
+            f'unmeasured_specs() is no longer finding the spec files.',
         )
 
 
@@ -399,47 +404,382 @@ class GeneratedNoteMatchesTheGeneratorTest(unittest.TestCase):
 
     SENTINEL = 'TIMESTAMP-SENTINEL'
 
-    def _note_pattern(self):
-        """The generator's note, as a regex over the timestamp."""
-        spec, check_ids = sorted(audit_update_docs.checks_by_spec().items())[0]
-        section = audit_update_docs.render_section(
-            spec, check_ids,
+    def _render(self, timestamp):
+        """Render the whole generated block with one synthetic repo."""
+        return audit_update_docs.render_page(
             [{
                 'repo': 'repo', 'org': 'shakenfist',
-                'timestamp': self.SENTINEL,
+                'timestamp': timestamp,
                 'checks': [
                     {'id': c, 'status': 'pass', 'details': ''}
-                    for c in check_ids
+                    for c in sorted(audit_update_docs.AUDIT_METADATA)
                 ],
             }],
             True,
         )
-        note = section.splitlines()[1]
+
+    def _note_pattern(self):
+        """The generator's note, as a regex over the timestamp."""
+        note = self._render(self.SENTINEL).splitlines()[1]
         self.assertIn(self.SENTINEL, note)
         return re.compile('^' + '.*'.join(
             re.escape(part) for part in note.split(self.SENTINEL)) + '$')
 
-    def test_every_generated_block_opens_with_the_current_note(self):
-        pattern = self._note_pattern()
+    def _page(self):
         root = os.path.dirname(os.path.dirname(SCRIPT))
-        checked = 0
-        for spec in sorted(audit_update_docs.checks_by_spec()):
-            with open(os.path.join(root, spec)) as f:
-                lines = f.read().splitlines()
-            if audit_update_docs.BEGIN_MARKER not in lines:
+        with open(
+            os.path.join(root, audit_update_docs.COMPLIANCE_PAGE)
+        ) as f:
+            return f.read().splitlines()
+
+    def test_the_page_opens_with_the_current_note(self):
+        lines = self._page()
+        begin = lines.index(audit_update_docs.BEGIN_MARKER)
+        self.assertRegex(lines[begin + 1], self._note_pattern())
+
+    def test_the_page_has_a_section_for_every_spec(self):
+        """The note test above passes on a page rendering nothing.
+
+        It used to be guarded by requiring more than twenty spec files
+        checked. Consolidating the blocks onto one page took that count
+        away, so the guard is the section list instead: a generator
+        that silently stopped emitting tables would still write a
+        well-formed note.
+        """
+        expected = {
+            audit_update_docs.spec_anchor(spec)
+            for spec in audit_update_docs.checks_by_spec()
+        }
+        self.assertGreater(len(expected), 20)
+        rendered = {
+            line[len('## '):].strip()
+            for line in self._render('when').splitlines()
+            if line.startswith('## ')
+        }
+        self.assertEqual(expected, rendered - {NO_CHECK_HEADING})
+
+
+class SpecsLinkTheirComplianceSectionTest(unittest.TestCase):
+    """Each spec links its section, and carries no generated block.
+
+    The link is the whole of the connection between a criterion and
+    its compliance table now that the two are in different files, and
+    it is hand-written -- so nothing but a test keeps it pointing at a
+    section that exists. The marker assertion is the other half: a
+    spec that regrows a generated block becomes unreviewable again,
+    which is the regression the split exists to prevent, and an agent
+    working an audit issue is exactly who would reintroduce one.
+    """
+
+    root = os.path.dirname(os.path.dirname(SCRIPT))
+    PAGE = audit_update_docs.COMPLIANCE_PAGE
+
+    def _specs(self):
+        audits = os.path.join(self.root, audit_update_docs.AUDITS_DIR)
+        specs = sorted(
+            f for f in os.listdir(audits)
+            if f.endswith('.md')
+            and f not in audit_update_docs.NOT_A_SPEC
+        )
+        self.assertGreater(len(specs), 20)
+        return specs
+
+    def _body(self, name):
+        path = os.path.join(
+            self.root, audit_update_docs.AUDITS_DIR, name)
+        with open(path) as f:
+            return f.read()
+
+    def test_no_spec_carries_a_generated_block(self):
+        offenders = [
+            name for name in self._specs()
+            if audit_update_docs.BEGIN_MARKER in self._body(name)
+        ]
+        self.assertEqual(
+            [], offenders,
+            'these specs carry a generated compliance block, which '
+            'makes them unreviewable; the tables belong on %s'
+            % self.PAGE,
+        )
+
+    def test_measured_specs_link_their_own_anchor(self):
+        """Each measured spec links the anchor named after itself.
+
+        Deliberately not checked against the committed page. The page
+        is generated daily and lags the specs by one run, so a
+        criterion registered today has no section there until tomorrow
+        morning -- which is exactly what the documented "Adding a
+        criterion" recipe produces. An earlier version of this test
+        required the section to exist already and would have failed
+        the first commit of every future criterion.
+
+        The section's existence is guaranteed without consulting the
+        file: test_the_page_has_a_section_for_every_spec asserts the
+        renderer emits one section per spec in AUDIT_METADATA, so an
+        anchor that matches its own basename is an anchor the next run
+        will fill in. What is worth testing here is the typo.
+        """
+        measured = {
+            audit_update_docs.spec_anchor(spec)
+            for spec in audit_update_docs.checks_by_spec()
+        }
+        page = os.path.basename(self.PAGE)
+        broken = []
+        for name in self._specs():
+            anchor = name[:-len('.md')]
+            if anchor not in measured:
                 continue
-            # A page whose check is new carries a placeholder until
-            # the workflow first runs, and has no note to compare.
-            if not any(line.startswith('| Project |') for line in lines):
-                continue
-            checked += 1
-            with self.subTest(spec=spec):
-                self.assertRegex(
-                    lines[lines.index(audit_update_docs.BEGIN_MARKER) + 1],
-                    pattern,
-                )
-        # A pass on nothing is the failure this test exists to avoid.
-        self.assertGreater(checked, 20)
+            link = '(%s#%s)' % (page, anchor)
+            if link not in self._body(name):
+                broken.append('%s does not link %s' % (name, link))
+        self.assertEqual([], broken)
+
+    def test_unmeasured_specs_link_no_section(self):
+        # A compliance link on a criterion nobody measures would point
+        # at a table that is never going to appear.
+        page = os.path.basename(self.PAGE)
+        unmeasured = audit_update_docs.unmeasured_specs()
+        self.assertTrue(unmeasured)
+        for anchor in unmeasured:
+            body = self._body('%s.md' % anchor)
+            self.assertNotIn('(%s#%s)' % (page, anchor), body)
+            # It should still say where it stands, and the page names
+            # it, so the reference to the page itself is expected.
+            self.assertIn(page, body)
+
+    def test_the_render_names_every_unmeasured_spec(self):
+        # Against the renderer rather than the committed page, for the
+        # same lag reason as the test above.
+        section = audit_update_docs.render_page([], True)
+        heading = section.find('## %s' % NO_CHECK_HEADING)
+        self.assertNotEqual(-1, heading)
+        listed = section[heading:]
+        for anchor in audit_update_docs.unmeasured_specs():
+            self.assertIn('(%s.md)' % anchor, listed)
+
+
+class UnmeasuredSpecsTest(unittest.TestCase):
+    """unmeasured_specs() against a fabricated directory.
+
+    Its three callers all treat its output as ground truth, so nothing
+    pinned its filtering against a hand-computed answer: a bug that
+    dropped or added a single anchor would have been caught only
+    incidentally, by another test noticing a real spec's body did not
+    match. This builds the directory instead.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+
+    def _write(self, *names):
+        for name in names:
+            with open(os.path.join(self.tmp, name), 'w') as f:
+                f.write('# %s\n' % name)
+
+    def test_only_specs_with_no_check_are_returned(self):
+        measured = sorted(
+            audit_update_docs.spec_anchor(spec)
+            for spec in audit_update_docs.checks_by_spec()
+        )[:2]
+        self.assertEqual(2, len(measured))
+        self._write(*['%s.md' % m for m in measured])
+        self._write('judged-by-a-person.md', 'also-unmeasured.md')
+        self.assertEqual(
+            ['also-unmeasured.md'[:-3], 'judged-by-a-person.md'[:-3]],
+            audit_update_docs.unmeasured_specs(self.tmp),
+        )
+
+    def test_the_index_and_the_page_are_not_criteria(self):
+        # Both would otherwise be published as criteria nobody
+        # measures, on the page itself.
+        self._write(*audit_update_docs.NOT_A_SPEC)
+        self.assertEqual([], audit_update_docs.unmeasured_specs(self.tmp))
+
+    def test_non_markdown_is_ignored(self):
+        self._write('real.md')
+        with open(os.path.join(self.tmp, 'notes.txt'), 'w') as f:
+            f.write('not a spec')
+        self.assertEqual(
+            ['real'], audit_update_docs.unmeasured_specs(self.tmp))
+
+    def test_a_missing_directory_is_not_an_error(self):
+        # A run with --page somewhere without specs beside it should
+        # render a page without a no-check section, not crash.
+        self.assertEqual(
+            [], audit_update_docs.unmeasured_specs(
+                os.path.join(self.tmp, 'nope')))
+
+
+class UpdateCompliancePageTest(unittest.TestCase):
+    """The one write the privileged bot commits.
+
+    update_compliance_page and main() had no coverage at all, on
+    either side of the split. The whole fleet's compliance output is
+    now a single write, and the marker guard is what turns a mangled
+    page into a loud exit(1) rather than a bad commit pushed to main.
+    """
+
+    BEGIN = audit_update_docs.BEGIN_MARKER
+    END = audit_update_docs.END_MARKER
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.page = os.path.join(self.tmp, 'compliance.md')
+
+    def _write(self, body):
+        with open(self.page, 'w') as f:
+            f.write(body)
+
+    def _read(self):
+        with open(self.page) as f:
+            return f.read()
+
+    def test_the_preamble_outside_the_markers_survives(self):
+        self._write('# Title\n\nPreamble.\n\n%s\nold\n%s\n\nAfter.\n'
+                    % (self.BEGIN, self.END))
+        self.assertTrue(audit_update_docs.update_compliance_page(
+            self.page, '%s\nnew\n%s' % (self.BEGIN, self.END)))
+        body = self._read()
+        self.assertIn('Preamble.', body)
+        self.assertIn('After.', body)
+        self.assertIn('new', body)
+        self.assertNotIn('old', body)
+
+    def test_missing_markers_are_reported_not_guessed(self):
+        self._write('# Title\n\nNo markers here.\n')
+        self.assertFalse(audit_update_docs.update_compliance_page(
+            self.page, 'anything'))
+
+    def test_markers_out_of_order_are_reported(self):
+        self._write('%s\n%s\n' % (self.END, self.BEGIN))
+        self.assertFalse(audit_update_docs.update_compliance_page(
+            self.page, 'anything'))
+
+    def test_a_marker_quoted_in_the_preamble_is_not_the_marker(self):
+        """Whole-line matching, so prose about the markers is prose.
+
+        docs/audits/README.md documents the marker names, and a
+        harvested detail string can carry them too. A substring search
+        spliced at the first mention and left the real block behind.
+        """
+        self._write('Prose naming `%s` inline.\n\n%s\nold\n%s\n'
+                    % (self.END, self.BEGIN, self.END))
+        self.assertTrue(audit_update_docs.update_compliance_page(
+            self.page, '%s\nnew\n%s' % (self.BEGIN, self.END)))
+        body = self._read()
+        self.assertIn('Prose naming', body)
+        self.assertIn('new', body)
+        self.assertNotIn('old', body)
+
+    def test_page_redirects_output_without_moving_the_criteria(self):
+        """--page changes where, never what the page describes.
+
+        The scan was briefly pointed at the output directory so that a
+        redirected page would be "self-consistent". It made a local run
+        with --page publish whatever unrelated .md files sat beside the
+        scratch page as criteria nobody measures, and an empty output
+        directory drop the section entirely -- noise in the diff the
+        plan relies on to check a change before the unattended 06:00
+        run makes it live. Which criteria have no check is a property
+        of this repository.
+        """
+        stray = os.path.join(self.tmp, 'not-a-criterion.md')
+        with open(stray, 'w') as f:
+            f.write('# not a criterion\n')
+        self._write('%s\n%s\n' % (self.BEGIN, self.END))
+        results = os.path.join(self.tmp, 'results')
+        os.makedirs(results)
+        with open(os.path.join(results, 'audit-result-repo.json'), 'w') as f:
+            json.dump({
+                'repo': 'repo', 'org': 'shakenfist', 'timestamp': 'when',
+                'checks': [],
+            }, f)
+        proc = subprocess.run(
+            [sys.executable, SCRIPT, '--results-dir', results,
+             '--no-issues', '--page', self.page],
+            capture_output=True, text=True,
+            cwd=os.path.dirname(os.path.dirname(SCRIPT)))
+        self.assertEqual(0, proc.returncode, proc.stderr)
+        body = self._read()
+        self.assertNotIn('not-a-criterion', body)
+        for anchor in audit_update_docs.unmeasured_specs():
+            self.assertIn('(%s.md)' % anchor, body)
+
+    def test_the_cli_writes_the_page_it_is_given(self):
+        results = os.path.join(self.tmp, 'results')
+        os.makedirs(results)
+        check_id = sorted(audit_update_docs.AUDIT_METADATA)[0]
+        with open(os.path.join(results, 'audit-result-repo.json'), 'w') as f:
+            json.dump({
+                'repo': 'repo', 'org': 'shakenfist', 'timestamp': 'when',
+                'checks': [
+                    {'id': check_id, 'status': 'pass', 'details': ''}],
+            }, f)
+        self._write('Preamble.\n\n%s\n%s\n' % (self.BEGIN, self.END))
+        proc = subprocess.run(
+            [sys.executable, SCRIPT, '--results-dir', results,
+             '--no-issues', '--page', self.page],
+            capture_output=True, text=True,
+            cwd=os.path.dirname(os.path.dirname(SCRIPT)))
+        self.assertEqual(0, proc.returncode, proc.stderr)
+        body = self._read()
+        self.assertIn('Preamble.', body)
+        self.assertIn('*Generated when from', body)
+        self.assertIn('| repo | compliant |', body)
+
+
+class DefuseTest(unittest.TestCase):
+    """Harvested detail strings cannot restructure the page.
+
+    A detail string is whatever a check found in another repository.
+    Reaching the page as-is, it could carry a newline and emit a
+    heading or a table row, or carry the end marker and truncate the
+    next run's splice -- which preserves that run's tables outside the
+    block, and every later run preserves them again.
+    """
+
+    def test_newlines_are_collapsed(self):
+        self.assertEqual(
+            'a b c', audit_update_docs.defuse('a\nb\n\n  c  '))
+
+    def test_a_traceback_becomes_one_line(self):
+        # The accidental route: a check that puts subprocess stderr
+        # into its details.
+        self.assertEqual(
+            'Traceback (most recent call last): File "x" ValueError',
+            audit_update_docs.defuse(
+                'Traceback (most recent call last):\n'
+                '  File "x"\nValueError'))
+
+    def test_the_markers_are_defused(self):
+        for marker in (audit_update_docs.BEGIN_MARKER,
+                       audit_update_docs.END_MARKER):
+            defused = audit_update_docs.defuse('found %s here' % marker)
+            self.assertNotIn(marker, defused)
+            self.assertIn('&lt;!--', defused)
+
+    def test_a_defused_detail_cannot_truncate_the_splice(self):
+        # The end-to-end property, rather than the string shape.
+        section = audit_update_docs.render_page(
+            [{
+                'repo': 'repo', 'org': 'shakenfist', 'timestamp': 'when',
+                'checks': [
+                    {'id': c, 'status': 'fail',
+                     'details': 'bad %s file'
+                                % audit_update_docs.END_MARKER}
+                    for c in audit_update_docs.AUDIT_METADATA
+                ],
+            }],
+            True,
+        )
+        lines = [line.strip() for line in section.split('\n')]
+        self.assertEqual(
+            1, lines.count(audit_update_docs.END_MARKER),
+            'a harvested detail produced a second end marker')
+        self.assertEqual(
+            1, lines.count(audit_update_docs.BEGIN_MARKER))
 
 
 if __name__ == '__main__':

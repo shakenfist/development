@@ -6,7 +6,7 @@ discipline instructions inside each repository's `PUSH-AUDIT.md`.
 Shared prose drifts: each repository mutates its copy slightly, and
 improvements to the wording never propagate. Shared blocks fix that
 with the same begin/end-marker discipline the consistency-audit
-compliance tables already use, plus a version number.
+compliance page already uses, plus a version number.
 
 ## Format
 

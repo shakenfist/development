@@ -13,22 +13,6 @@
       "author": "mikal"
     },
     {
-      "path": ".claude/skills/standards-alignment/SKILL.md",
-      "author": "mikal"
-    },
-    {
-      "path": ".claude/skills/standards-alignment",
-      "author": "mikal"
-    },
-    {
-      "path": ".claude/skills",
-      "author": "mikal"
-    },
-    {
-      "path": ".claude",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/ci.yml",
       "author": "mikal"
     },
@@ -37,19 +21,11 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/consistency-audit.yml",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/export-repo-config.yml",
       "author": "mikal"
     },
     {
       "path": ".github/workflows/pr-retest.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/prune-reviews.yml",
       "author": "mikal"
     },
     {

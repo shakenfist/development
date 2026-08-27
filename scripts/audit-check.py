@@ -461,7 +461,7 @@ def pr_re_review_open_codes_the_trigger(repo_path):
 # "secrets: inherit  # TODO: drop once migrated" than to delete the
 # line. Anchoring on end-of-line let both through, and a security guard
 # reporting pass while the exposure stands is worse than no guard --
-# the compliance table then positively asserts the repository is clean.
+# the compliance page then positively asserts the repository is clean.
 # The explicit mapping form ("secrets:" followed by named entries) is
 # still deliberately not matched: that caller passes what it names.
 SECRETS_INHERIT_RE = re.compile(
@@ -488,8 +488,8 @@ def pr_auto_review_callers_inheriting_secrets(repo_path):
     against fresh clones of the whole matrix on 2026-08-22 it reported
     two of them rather than zero, so it is a guard which has seen real
     repositories and not only fixtures. Which repositories are
-    outstanding today is the compliance table in
-    docs/audits/ci-review-automation.md, which regenerates daily. That is
+    outstanding today is the ci-review-automation section of
+    docs/audits/compliance.md, which regenerates daily. That is
     deliberately not restated here: one of the two the survey named had
     merged its own removal within the day, and this change is the
     other.
@@ -3943,7 +3943,10 @@ def blank_generated_blocks(markdown):
     harvested markdown link would fail docs-external-links, in both
     cases through no commit anyone made in this repository. This
     became reachable when the audits tree moved under docs/ and its
-    36 files entered the scope of both checks.
+    36 files entered the scope of both checks. Those tables are now on
+    one page, docs/audits/compliance.md, which narrows what this has
+    to blank but does not make it optional -- that page is still under
+    docs/ and still full of other repositories' prose.
 
     A marker is recognised only as a whole line, and only in the exact
     spelling audit-update-docs.py emits -- which is why both scripts

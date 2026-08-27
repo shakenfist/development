@@ -9,9 +9,10 @@ projects consistent. It contains no application code.
 - `templates/` -- canonical starting points (workflows, configs) for
   rolling infrastructure out to projects.
 - `docs/` -- longer-form documentation of the automation systems, and
-  `docs/audits/`: one specification file per audit criterion, each
-  with a per-project compliance table regenerated daily by the audit
-  workflow (between the consistency-audit markers).
+  `docs/audits/`: one hand-written specification file per audit
+  criterion, plus `docs/audits/compliance.md`, the per-project
+  compliance page regenerated daily by the audit workflow (between the
+  consistency-audit markers) and the only generated file there.
   `docs/audits/README.md` holds the index, and says which
   repositories are in scope, excluded, or audited for part of it.
 - `tools/` -- the review tracking wrappers: `review-tracking.sh` for
@@ -43,8 +44,8 @@ consistent" into a measurement, in four stages:
    `consistency`-labelled issue on each target repository for each
    failing check, closing issues for checks that now pass or no longer
    apply. Issue titles are the idempotency key.
-3. `scripts/audit-update-docs.py` regenerates the compliance tables in
-   `docs/audits/*.md` from the same results, and
+3. `scripts/audit-update-docs.py` regenerates
+   `docs/audits/compliance.md` from the same results, and
    `scripts/commit-audit-docs.sh` pushes them back to `main`. The
    tables are a rendering of the latest run, never hand-maintained.
 4. On failure, a reporting job files or updates an `audit-failure`

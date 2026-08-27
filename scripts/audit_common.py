@@ -9,8 +9,8 @@ import json
 import subprocess
 
 
-# The markers delimiting the generated compliance table in a spec
-# file. audit-update-docs.py writes them; audit-check.py reads them so
+# The markers delimiting the generated compliance tables on
+# docs/audits/compliance.md. audit-update-docs.py writes them; audit-check.py reads them so
 # that its documentation checks do not judge generated content. Defined
 # here because a writer and a reader that disagree about the marker is
 # the failure that silently exempted half of two plan files.

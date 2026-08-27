@@ -49,10 +49,16 @@ git diff main...HEAD -- '*.py' | grep -nE '^\+[^+].{120,}'
 # the git and gh CLIs only, which is why they run on a bare runner
 git diff main...HEAD -- 'scripts/*.py' | grep -nE '^\+import |^\+from '
 
-# Hand-edited compliance tables. These are regenerated and pushed
-# by the daily workflow; an edit between the markers is reverted
-# tomorrow morning and confuses whoever reads it today
-git diff main...HEAD -- 'docs/audits/*.md' | \
+# Hand-edited compliance data. compliance.md is regenerated and
+# pushed by the daily workflow, so an edit to it is reverted tomorrow
+# morning and confuses whoever reads it today
+git diff main...HEAD -- 'docs/audits/compliance.md' | grep -nE '^\+'
+
+# A generated block, or a status table, appearing in a criterion
+# spec. The specs are hand-written and in scope for human review; one
+# carrying a line the daily run rewrites can never hold a review mark
+# again, which is the regression the compliance page exists to prevent
+git diff main...HEAD -- 'docs/audits/*.md' ':!docs/audits/compliance.md' | \
     grep -nE '^\+.*consistency-audit:(begin|end)|^\+\| .* \| (compliant|non-compliant|N/A) \|'
 
 # Changes to the issue-title interface. ISSUE_TITLES is the
@@ -330,8 +336,10 @@ edit -- the canonical copy lives in shakenfist/development at
   runs. A change to the run itself -- scheduling, scope,
   issue handling, how to test a change -- belongs there.
 - Generated content is not edited by hand: the compliance tables
-  between the `consistency-audit` markers in `docs/audits/*.md`,
-  and `REVIEWS.md`.
+  between the `consistency-audit` markers in
+  `docs/audits/compliance.md`, and `REVIEWS.md`. Everything else
+  under `docs/audits/` is hand-written and reviewed, so a generated
+  block appearing in one of those files is a defect, not an edit.
 
 <!-- shared-block: plan-phase-references v1 -->
 Plan phase references (shared block; do not edit -- the canonical
@@ -463,7 +471,8 @@ After all agents complete:
 - [ ] Any shared-block version bump was deliberate, and the
       fleet-wide consequence is understood.
 - [ ] Generated files are generated, not hand-edited:
-      compliance tables and `REVIEWS.md`.
+      `docs/audits/compliance.md` and `REVIEWS.md`, and no
+      criterion spec has grown a generated block.
 - [ ] Stale review marks pruned, and said so.
 - [ ] Commit history is clean -- no fixups that should be
       squashed, no accidental files, no WIP messages.

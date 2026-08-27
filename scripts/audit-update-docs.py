@@ -1,17 +1,31 @@
 #!/usr/bin/env python3
-"""Regenerate the per-project compliance tables in docs/audits/*.md.
+"""Regenerate the per-project compliance page from the audit results.
 
 Reads the JSON results produced by audit-check.py and rewrites the
-section between the consistency-audit markers in each audit spec
-file that has an automated check. The tables were previously
-maintained by hand and drifted; this makes the daily audit run the
-single source of truth.
+section between the consistency-audit markers in
+docs/audits/compliance.md: one table per audit spec that has an
+automated check, plus a closing list of the criteria that have none.
+
+The tables used to live in the spec files themselves, one generated
+block per criterion. They were moved here because the block opens
+with a timestamp that changes on every run, and a whole-file human
+review mark attests to content by blob SHA -- so a spec carrying a
+generated block could never hold one, and the prose defining what we
+audit for was excluded from review coverage as a result. Everything
+under docs/audits/ is now hand-written except this one page. See
+docs/plans/PLAN-audit-compliance-split.md.
 
 Usage:
     python audit-update-docs.py --results-dir ./audit-results/
 
 With --no-issues the GitHub issue column is omitted from lookups
-(cells show '-'), which allows offline testing without `gh`.
+(cells show '-'), which allows offline testing without `gh`. With
+--page the output goes somewhere other than docs/audits/compliance.md,
+which is how to render a page locally without touching the tree: the
+criterion specifications beside the real one are hand-written, so
+`git restore docs/audits/` is no longer a safe way to clean up after a
+test run. It redirects the output only -- the criteria the page
+describes are always read from docs/audits/.
 """
 
 import argparse
@@ -26,6 +40,18 @@ from audit_common import (
     ISSUE_TITLES,
     gh_search_issues,
 )
+
+# The one generated file under docs/audits/. It is the only path in
+# that directory excluded from human review in
+# .vscode/review-scope.toml, and the only one this script writes.
+COMPLIANCE_PAGE = 'docs/audits/compliance.md'
+
+# The audits directory: where the criterion specifications live, and so
+# where the criteria that have no check are found.
+AUDITS_DIR = os.path.dirname(COMPLIANCE_PAGE)
+
+# Pages in AUDITS_DIR that are not criterion specs.
+NOT_A_SPEC = ('README.md', os.path.basename(COMPLIANCE_PAGE))
 
 # Column headings for specs covered by more than one check. Specs
 # with a single check get a plain 'Status' column.
@@ -53,6 +79,40 @@ def checks_by_spec():
     for check_id, meta in AUDIT_METADATA.items():
         spec_map.setdefault(meta['spec'], []).append(check_id)
     return spec_map
+
+
+def spec_anchor(spec):
+    """The compliance page anchor for a spec file.
+
+    The basename without its extension, which is also the check id for
+    single-check specs. Keeping it derivable from the path is what lets
+    each spec carry a static link to its own section, and lets
+    test_audit_update_docs.py assert every one of those links resolves.
+    """
+    return os.path.basename(spec)[:-len('.md')]
+
+
+def unmeasured_specs(audits_dir=AUDITS_DIR):
+    """Criterion specs with no automated check, by anchor.
+
+    Marker-block absence used to be how a reader told a measured
+    criterion from one judged by a person: a spec with no check had no
+    generated block. Consolidating the blocks onto one page took that
+    tell away, so the page states the set instead, and computes it from
+    the same AUDIT_METADATA the runner uses rather than from prose that
+    would rot the first time one of them was automated.
+    """
+    if not os.path.isdir(audits_dir):
+        return []
+    measured = {spec_anchor(spec) for spec in checks_by_spec()}
+    found = []
+    for filename in sorted(os.listdir(audits_dir)):
+        if not filename.endswith('.md') or filename in NOT_A_SPEC:
+            continue
+        anchor = filename[:-len('.md')]
+        if anchor not in measured:
+            found.append(anchor)
+    return found
 
 
 def load_results(results_dir):
@@ -89,8 +149,13 @@ def column_name(check_id):
     committed, so one missing label stopped every project's table
     from publishing. A run that prints an ugly heading and a warning
     is a better failure than a run that silently publishes nothing.
-    test_audit_update_docs.py fails on the omission, so the fallback
-    should never be reached in a run from a tested tree.
+
+    Consolidating onto one page raised that stake rather than lowering
+    it. The whole fleet's compliance output is now a single write, so a
+    raise here takes out every table at once instead of the tail of an
+    alphabetical walk. test_audit_update_docs.py fails on the omission,
+    so the fallback should never be reached in a run from a tested
+    tree.
     """
     if check_id not in COLUMN_NAMES:
         print(
@@ -101,24 +166,52 @@ def column_name(check_id):
     return COLUMN_NAMES.get(check_id, check_id)
 
 
-def render_section(spec, check_ids, results, no_issues):
-    """Render the generated block for one audit spec file."""
+def defuse(details):
+    """Make a harvested detail string safe to splice into the page.
+
+    A detail string is written by a check in audit-check.py out of what
+    it found in an audited repository, so it can carry that
+    repository's filenames and a tool's output verbatim. It is then
+    rendered as bare prose inside the generated block, which means two
+    things have to be taken away from it before it lands.
+
+    Newlines, because the block's structure is line-based: a detail
+    spanning lines can emit a table row, a `## ` heading, or a bare
+    marker, none of which the renderer intended. A subprocess
+    traceback reaching a detail string is the way this happens by
+    accident.
+
+    The HTML comment opener, because update_compliance_page finds the
+    end marker in order to replace the block. A detail containing the
+    literal end marker would terminate the next run's splice early,
+    leaving the rest of that run's tables outside the block -- where
+    they are preserved, and preserved again by every later run, so the
+    page grows without bound and publishes stale verdicts that
+    blank_generated_blocks no longer exempts from this repository's own
+    docs-external-links and plan-phase-references checks. It takes
+    commit access to an audited repository to do deliberately (a
+    workflow file named for the marker is enough), which is why the
+    marker is defused here rather than the whole string escaped.
+    """
+    return ' '.join(details.split()).replace('<!--', '&lt;!--')
+
+
+def render_table(check_ids, results, no_issues):
+    """Render the compliance table for one audit spec.
+
+    Returns the table lines, followed by the per-project failure
+    details when there are any. The surrounding heading, markers and
+    generation note belong to render_page.
+    """
     columns = (
         ['Status'] if len(check_ids) == 1
         else [column_name(c) for c in check_ids]
     )
 
-    timestamps = sorted(r['timestamp'] for r in results)
-    when = f' {timestamps[-1]}' if timestamps else ''
-
     lines = [
-        BEGIN_MARKER,
-        f'*Generated{when} from `scripts/audit-check.py`; do not edit.*',
-        '',
+        '| Project | ' + ' | '.join(columns) + ' | Issue |',
+        '|---------|' + '--------|' * (len(columns) + 1),
     ]
-
-    lines.append('| Project | ' + ' | '.join(columns) + ' | Issue |')
-    lines.append('|---------|' + '--------|' * (len(columns) + 1))
 
     failures = []
     for result in results:
@@ -137,7 +230,7 @@ def render_section(spec, check_ids, results, no_issues):
                     else column_name(check_id)
                 )
                 failures.append(
-                    f'- **{repo}** ({column}): {check["details"]}'
+                    f'- **{repo}** ({column}): {defuse(check["details"])}'
                 )
         issue = issue_cell(result['org'], repo, check_ids, no_issues)
         lines.append(
@@ -150,36 +243,96 @@ def render_section(spec, check_ids, results, no_issues):
         lines.append('')
         lines.extend(failures)
 
+    return lines
+
+
+def render_page(results, no_issues):
+    """Render the generated block of the whole compliance page."""
+    timestamps = sorted(r['timestamp'] for r in results)
+    when = f' {timestamps[-1]}' if timestamps else ''
+
+    lines = [
+        BEGIN_MARKER,
+        f'*Generated{when} from `scripts/audit-check.py`; do not edit.*',
+    ]
+
+    for spec, check_ids in sorted(checks_by_spec().items()):
+        anchor = spec_anchor(spec)
+        lines.append('')
+        lines.append(f'## {anchor}')
+        lines.append('')
+        lines.append(f'Criterion: [{anchor}.md]({anchor}.md)')
+        lines.append('')
+        lines.extend(render_table(check_ids, results, no_issues))
+
+    # Deliberately the real audits tree rather than wherever --page
+    # writes. Which criteria have no check is a property of this
+    # repository, not of the output location: pointing the scan at the
+    # output directory made a local run with --page /tmp/... publish
+    # whatever unrelated .md files happened to sit beside the scratch
+    # page as criteria nobody measures, which is noise in exactly the
+    # diff the plan relies on to check a change before the unattended
+    # 06:00 run makes it live.
+    unmeasured = unmeasured_specs()
+    if unmeasured:
+        lines.append('')
+        lines.append('## Criteria with no automated check')
+        lines.append('')
+        lines.append(
+            'These criteria are written down and judged by a person, so '
+            'they have no table above. Each says why in its own page:'
+        )
+        lines.append('')
+        for anchor in unmeasured:
+            lines.append(f'- [{anchor}.md]({anchor}.md)')
+
     lines.append(END_MARKER)
     return '\n'.join(lines)
 
 
-def update_spec_file(spec, section):
-    """Replace the marker block in one audit spec file.
+def marker_line(lines, marker):
+    """Index of the line that is exactly `marker`, or -1.
+
+    Whole-line matching, for the same reason blank_generated_blocks in
+    audit-check.py uses it: a substring search finds a marker quoted
+    inside prose, or one carried in a harvested detail string, and
+    splices the page at the wrong offset. defuse() takes the marker out
+    of detail strings, and this makes the splice not depend on that
+    having worked.
+    """
+    for index, line in enumerate(lines):
+        if line.strip() == marker:
+            return index
+    return -1
+
+
+def update_compliance_page(page, section):
+    """Replace the marker block in the compliance page.
 
     Returns True if the file was updated, False if the markers were
     not found.
     """
-    with open(spec) as f:
+    with open(page) as f:
         content = f.read()
 
-    begin = content.find(BEGIN_MARKER)
-    end = content.find(END_MARKER)
+    lines = content.split('\n')
+    begin = marker_line(lines, BEGIN_MARKER)
+    end = marker_line(lines, END_MARKER)
     if begin == -1 or end == -1 or end < begin:
         return False
 
-    updated = (
-        content[:begin] + section + content[end + len(END_MARKER):]
+    updated = '\n'.join(
+        lines[:begin] + section.split('\n') + lines[end + 1:]
     )
     if updated != content:
-        with open(spec, 'w') as f:
+        with open(page, 'w') as f:
             f.write(updated)
     return True
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Regenerate audit compliance tables from results',
+        description='Regenerate the audit compliance page from results',
     )
     parser.add_argument(
         '--results-dir', required=True,
@@ -188,6 +341,10 @@ def main():
     parser.add_argument(
         '--no-issues', action='store_true',
         help='Skip GitHub issue lookups (for offline testing)',
+    )
+    parser.add_argument(
+        '--page', default=COMPLIANCE_PAGE,
+        help=f'Compliance page to rewrite (default: {COMPLIANCE_PAGE})',
     )
     args = parser.parse_args()
 
@@ -203,23 +360,18 @@ def main():
         print('No JSON result files found.')
         sys.exit(0)
 
-    missing_markers = []
-    for spec, check_ids in sorted(checks_by_spec().items()):
-        section = render_section(
-            spec, check_ids, results, args.no_issues,
+    section = render_page(results, args.no_issues)
+    if not update_compliance_page(args.page, section):
+        # The markers are the only thing tying the generated block to
+        # its page. Losing them silently would leave yesterday's
+        # verdicts in place looking current, which is the failure the
+        # generation timestamp exists to make visible.
+        print(
+            f'Error: no consistency-audit markers in {args.page}',
+            file=sys.stderr,
         )
-        if update_spec_file(spec, section):
-            print(f'Updated {spec}')
-        else:
-            missing_markers.append(spec)
-
-    if missing_markers:
-        for spec in missing_markers:
-            print(
-                f'Error: no consistency-audit markers in {spec}',
-                file=sys.stderr,
-            )
         sys.exit(1)
+    print(f'Updated {args.page}')
 
 
 if __name__ == '__main__':

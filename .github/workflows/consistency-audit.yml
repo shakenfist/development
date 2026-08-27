@@ -59,7 +59,7 @@ jobs:
       # so a bare `pip install` is refused with
       # "error: externally-managed-environment" -- which is how every
       # leg of this matrix started failing on 2026-08-20, taking the
-      # compliance tables and issue filing with it.
+      # compliance page and issue filing with it.
       - name: Install skillsaw
         run: |
           python3 -m venv /tmp/audit-venv
@@ -79,7 +79,7 @@ jobs:
       # looks deliberate. Assert it here instead, where the failure is
       # unambiguous, and assert the pinned version rather than just that
       # something answers: the whole point of the pin above is that the
-      # rule set does not move underneath the compliance table.
+      # rule set does not move underneath the compliance page.
       - name: Check skillsaw runs, at the pinned version
         run: |
           set -e
@@ -137,13 +137,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
 
-  # Regenerate the per-project compliance tables in docs/audits/*.md from
-  # the JSON results and commit them back, so the docs cannot drift
-  # from what the audit actually measured. Runs after manage-issues
-  # so the issue links in the tables include issues created by this
-  # run.
+  # Regenerate docs/audits/compliance.md from the JSON results and
+  # commit it back, so the docs cannot drift from what the audit
+  # actually measured. Runs after manage-issues so the issue links in
+  # the tables include issues created by this run. The tables are on
+  # one generated page rather than in the criterion specs so that the
+  # specs, which are hand-written, can hold a human review mark.
   update-docs:
-    name: Update audit compliance tables
+    name: Update the audit compliance page
     needs: [audit, manage-issues]
     runs-on: [self-hosted, static]
     permissions:
@@ -159,14 +160,14 @@ jobs:
           pattern: audit-*
           merge-multiple: true
 
-      - name: Regenerate audit compliance tables
+      - name: Regenerate the audit compliance page
         run: |
           python3 scripts/audit-update-docs.py \
             --results-dir /tmp/consistency-audit-results
         env:
           GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
 
-      - name: Commit and push updated tables
+      - name: Commit and push the updated page
         run: scripts/commit-audit-docs.sh
 
       - name: Clean up
@@ -176,7 +177,7 @@ jobs:
   # A scheduled workflow that fails emails whoever last pushed, which
   # is nobody's inbox in particular and is easy to miss for a workflow
   # that runs at 06:00 UTC. The August 2026 PEP 668 breakage went a full
-  # day that way, with the compliance tables and issue filing stopped
+  # day that way, with the compliance page and issue filing stopped
   # the whole time and the tables still showing the previous run's
   # verdicts -- so the audit looked like it was working. This puts a
   # failure somewhere it will be seen, and updates one issue rather than
@@ -222,7 +223,7 @@ jobs:
               "" \
               "Run: ${RUN_URL}" \
               "" \
-              "While this is failing no compliance tables are being" \
+              "While this is failing no compliance page is being" \
               "regenerated and no consistency issues are being filed or" \
               "closed, across every audited repository. The tables still" \
               "show the previous run's verdicts, so the audit looks" \

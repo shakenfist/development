@@ -5,10 +5,6 @@
       "sha": "8a9af2eaea2b6868cbff0153bba8ca07a43351d0",
       "date": "2026-08-24"
     },
-    ".claude/skills/standards-alignment/SKILL.md": {
-      "sha": "ed308932100bca70f211561e79f5478f76e8cdc1",
-      "date": "2026-08-24"
-    },
     ".github/actionlint.yaml": {
       "sha": "b2d35594ef5f45213fead85f438b0505cc43a4ac",
       "date": "2026-08-24"
@@ -21,20 +17,12 @@
       "sha": "3075c3224ffa9a29f77f42702ecb6f76fcf8c673",
       "date": "2026-08-24"
     },
-    ".github/workflows/consistency-audit.yml": {
-      "sha": "20ef71b6cf9f1b5229e5fb5617097650d9cd3645",
-      "date": "2026-08-24"
-    },
     ".github/workflows/export-repo-config.yml": {
       "sha": "53b5d8eb46e89e228dd88d42d7e1b0c3ea6694cd",
       "date": "2026-08-24"
     },
     ".github/workflows/pr-retest.yml": {
       "sha": "7323bfc33fd3fa04372d51e904b3c01c14f7be2c",
-      "date": "2026-08-24"
-    },
-    ".github/workflows/prune-reviews.yml": {
-      "sha": "38a5b1dbd2c0448f3d3d02025caa9d799fbc9307",
       "date": "2026-08-24"
     },
     ".github/workflows/renovate.yml": {

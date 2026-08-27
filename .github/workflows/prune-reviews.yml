@@ -12,7 +12,7 @@ name: Prune stale review marks
 # Actions app cannot be a bypass actor. This repository's ruleset
 # blocks force-pushes and deletion only, so an ordinary push lands --
 # the same way the consistency audit already commits its regenerated
-# compliance tables. See docs/code-review-tracking.md.
+# compliance page. See docs/code-review-tracking.md.
 
 on:
   push:

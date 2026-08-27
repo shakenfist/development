@@ -653,8 +653,8 @@ class PlanPhaseReferencesTest(unittest.TestCase):
     def test_generated_compliance_block_is_not_scanned(self):
         """A harvested detail must not fail this repository's own audit.
 
-        The compliance tables under docs/audits/ are written by
-        audit-update-docs.py from detail strings collected in other
+        The compliance tables on docs/audits/compliance.md are written
+        by audit-update-docs.py from detail strings collected in other
         repositories, and rendered as bare prose. The plan-index check
         quotes an offending status cell verbatim, and the canonical
         example of one is 'Complete (phases 1-5 and 2b, 2026-08-15)'.
