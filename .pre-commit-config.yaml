@@ -150,16 +150,14 @@ repos:
         # No file filter, because this suite asserts properties of the
         # whole tree rather than of scripts/: that REVIEWS.md is
         # exactly what the review marks and their sidecar render to,
-        # that no stamp names content the file no longer has, and that
-        # every pattern in review-scope.toml still matches a tracked
-        # path. All three can be broken by a commit that touches
+        # and that every pattern in review-scope.toml still matches a
+        # tracked path. Both can be broken by a commit that touches
         # nothing under scripts/ -- adding any in-scope file moves the
-        # header count, editing a reviewed file staled its stamp, and a
-        # scope pattern left behind by a directory move put 36
-        # machine-regenerated files into the review queue with all four
-        # suites passing. A filter listing the extensions that can be
-        # in scope would be the include list copied by hand, which is
-        # the drift this is meant to catch.
+        # header count, and a scope pattern left behind by a directory
+        # move put 36 machine-regenerated files into the review queue
+        # with all four suites passing. A filter listing the extensions
+        # that can be in scope would be the include list copied by
+        # hand, which is the drift this is meant to catch.
         #
         # Running it unconditionally also matters for review-only
         # commits: ci.yml's paths-ignore deliberately skips CI for

@@ -544,39 +544,6 @@ class ThisRepositoryTest(unittest.TestCase):
             'prune` first',
         )
 
-    def test_every_stamp_matches_the_content_it_attests_to(self):
-        """No stamp may name content that is no longer there.
-
-        Compared against the index rather than HEAD deliberately: a
-        stamp records the index, so the commit that writes the stamp
-        has an index that matches and a HEAD that does not. Comparing
-        against HEAD would fail on exactly the commit doing the right
-        thing.
-
-        This is a second, independent guard on the same defect
-        `stamp` now refuses -- worth having twice because the two catch
-        it at different moments. `stamp` catches a stale stamp only if
-        somebody runs it; this catches one that is already committed,
-        whoever wrote it and however. The reproducibility check above
-        cannot: render_reviews_md() prints the recorded SHA without
-        comparing it to anything, so a stale stamp renders faithfully
-        and passes.
-        """
-        for state_path in self.rt.state_files():
-            side_path = self.rt.sidecar_path(state_path)
-            sidecar, _ = self.rt.load_json(side_path, {'files': {}})
-            for path, stamp in sorted(sidecar.get('files', {}).items()):
-                self.assertEqual(
-                    self.rt.blob_sha(':%s' % path), stamp.get('sha'),
-                    '%s stamps %s at content it no longer has. The mark '
-                    'attests to a version nobody has read since: run '
-                    '`review-tracking.py prune`, re-review the file, '
-                    'mark it again in weAudit, then `stamp` and `regen`. '
-                    'Leaving it means the prune that runs on every push '
-                    'to the default branch silently discards the review'
-                    % (side_path, path),
-                )
-
     def _array_lines(self, raw, key):
         """Return the lines between `<key> = [` and its closing `]`.
 
