@@ -33,6 +33,10 @@
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
       "date": "2026-08-24"
     },
+    "docs/audits/README.md": {
+      "sha": "740be6b4b6e887b26f03fdb939d2e1ff1b7ab7d5",
+      "date": "2026-08-29"
+    },
     "docs/audits/ci-review-automation.md": {
       "sha": "b0e5dd33cc1c7e7d845ee3b42e63ec31e35b58da",
       "date": "2026-08-27"
@@ -88,6 +92,70 @@
     "docs/audits/merge-group-cancellation.md": {
       "sha": "9d503ea3881cac8cfea2cca0cc7dcdc789c4a45b",
       "date": "2026-08-27"
+    },
+    "docs/audits/merge-queue-config.md": {
+      "sha": "30339aeda464965fe7fbcc8562edee9249043126",
+      "date": "2026-08-29"
+    },
+    "docs/audits/pin-indirect-dependencies.md": {
+      "sha": "6141c51ac838a8550f1b301e26bfb4c6fb092978",
+      "date": "2026-08-29"
+    },
+    "docs/audits/plan-index.md": {
+      "sha": "4511211109e2092a052c397b25692a22d39102c6",
+      "date": "2026-08-29"
+    },
+    "docs/audits/plan-phase-references.md": {
+      "sha": "4439f2afbeec94f684684393993202a860f411c8",
+      "date": "2026-08-29"
+    },
+    "docs/audits/plan-source-references.md": {
+      "sha": "b60c33917fff4fae03bdb00dda14b72fb5542556",
+      "date": "2026-08-29"
+    },
+    "docs/audits/plan-template.md": {
+      "sha": "20412afc5bcb549b85f559bed5855f2eb7bdcefb",
+      "date": "2026-08-29"
+    },
+    "docs/audits/push-audit.md": {
+      "sha": "f3782ac5470382e48fae441d04310bb39847670e",
+      "date": "2026-08-29"
+    },
+    "docs/audits/pyproject-usage.md": {
+      "sha": "2e09105649a76fab616fc2b03f2cf803f3c4af70",
+      "date": "2026-08-29"
+    },
+    "docs/audits/python-version.md": {
+      "sha": "6666fd792cb17b3f74719115b690388f77d2d63b",
+      "date": "2026-08-29"
+    },
+    "docs/audits/readme-absolute-links.md": {
+      "sha": "7fa029c201998b3407ae3c672959de01ca727e44",
+      "date": "2026-08-29"
+    },
+    "docs/audits/readme-structure.md": {
+      "sha": "8c37a570e596c2bf6b8ea26c8f64bcfe69f0f602",
+      "date": "2026-08-29"
+    },
+    "docs/audits/release-process.md": {
+      "sha": "a4dafad60b86830e3355de4afa35c9af106768bf",
+      "date": "2026-08-29"
+    },
+    "docs/audits/renovate.md": {
+      "sha": "863ba5d1f8dfe8efe1b6100d7cd7cc80ddcc8335",
+      "date": "2026-08-29"
+    },
+    "docs/audits/review-coverage.md": {
+      "sha": "c11e8e126b81545278f015a7580d8eeadcdb55f3",
+      "date": "2026-08-29"
+    },
+    "docs/audits/rust-unwrap-lint.md": {
+      "sha": "ba40d7d57b5567cd25123d1b18f067e7e21815ce",
+      "date": "2026-08-29"
+    },
+    "docs/audits/secret-handling.md": {
+      "sha": "9d43f69848de7d7356f554d9522fdff93d826b08",
+      "date": "2026-08-29"
     },
     "tools/ci-prune-reviews.sh": {
       "sha": "3e10680265c6b885619e8e08bea30a4fb05cb10b",

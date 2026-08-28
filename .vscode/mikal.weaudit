@@ -107,6 +107,74 @@
     {
       "path": "docs/audits/merge-group-cancellation.md",
       "author": "mikal"
+    },
+    {
+      "path": "docs/audits/merge-queue-config.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/pin-indirect-dependencies.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/plan-index.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/plan-phase-references.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/plan-source-references.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/plan-template.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/push-audit.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/pyproject-usage.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/python-version.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/readme-absolute-links.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/readme-structure.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/release-process.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/renovate.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/review-coverage.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/rust-unwrap-lint.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/secret-handling.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
