@@ -26,8 +26,8 @@
       "date": "2026-08-24"
     },
     ".github/workflows/renovate.yml": {
-      "sha": "6de354ace01bd8a848b3ca386987109e32a2a43e",
-      "date": "2026-08-24"
+      "sha": "adf037153d74d5b378281ad3914f42385c351fb5",
+      "date": "2026-08-28"
     },
     ".github/workflows/secret-scan.yml": {
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
