@@ -74,7 +74,12 @@ The development repository runs this on itself: `tools/mermaid-lint.sh`
 and `.github/workflows/mermaid-lint.yml` there are byte-identical
 copies of the two files in this directory, so drift between the
 template and a real deployment shows up as a diff rather than as a
-surprise. Sync from here rather than editing either copy in place.
+surprise. `MermaidLintDeploymentTest` in `scripts/test_audit_check.py`
+asserts it, which matters most for the shell script: `.pre-commit-
+config.yaml` scopes shellcheck to `^(scripts|tools)/`, so the copy in
+this directory -- the one that goes out to the fleet -- is linted only
+by proxy through its `tools/` twin. Sync from here rather than editing
+either copy in place.
 
 ## Using it by hand
 
@@ -83,10 +88,17 @@ tools/mermaid-lint.sh            # every tracked markdown file
 tools/mermaid-lint.sh docs/x.md  # just this one
 ```
 
-Check the exit status directly. Piping the script into `tail` or
-`grep` reports the filter's status, not the script's, and turns every
-failure green -- a mistake worth naming because it is exactly how this
-was first mis-measured.
+A named file is resolved against your current directory, so the second
+form works from anywhere in the tree, and a path that does not resolve
+is an error rather than an empty run. That matters because the
+per-file form is exactly the invocation a typo reaches, and a linter
+that exits zero on a file it never read is the failure this script
+exists to prevent.
+
+For the same reason, check the exit status directly. Piping the script
+into `tail` or `grep` reports the filter's status, not the script's,
+and turns every failure green -- a mistake worth naming because it is
+exactly how this was first mis-measured.
 
 ## The pinned image
 

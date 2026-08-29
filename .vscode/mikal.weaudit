@@ -37,19 +37,11 @@
       "author": "mikal"
     },
     {
-      "path": ".github/actionlint.yaml",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ci-prune-reviews.sh",
       "author": "mikal"
     },
     {
       "path": "tools/review-tracking.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "tools",
       "author": "mikal"
     },
     {
@@ -133,10 +125,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/push-audit.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/pyproject-usage.md",
       "author": "mikal"
     },
@@ -150,10 +138,6 @@
     },
     {
       "path": "docs/audits/readme-structure.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/README.md",
       "author": "mikal"
     },
     {

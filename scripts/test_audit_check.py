@@ -1082,6 +1082,55 @@ class DiagramFormatTest(unittest.TestCase):
         })
         self.assertEqual(result['status'], 'pass')
 
+    def test_audit_ok_marker_survives_a_blank_line(self):
+        """A blank line after an HTML comment is ordinary style.
+
+        A one-line window would mean the natural way to write the
+        exemption is the way that silently does not work.
+        """
+        result = self._check({
+            'docs/x.md': (
+                '# Page\n\n'
+                '<!-- audit-ok: diagram-format -->\n'
+                '\n'
+                '```\n'
+                '+---+     +---+\n'
+                '| a |---->| b |\n'
+                '+---+     +---+\n'
+                '```\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_audit_ok_marker_is_not_inherited_from_a_paragraph_above(self):
+        result = self._check({
+            'docs/x.md': (
+                '# Page\n\n'
+                '<!-- audit-ok: diagram-format -->\n'
+                '\n'
+                'A paragraph about the exempt diagram further up.\n'
+                '\n'
+                '```\n'
+                '+---+     +---+\n'
+                '| a |---->| b |\n'
+                '+---+     +---+\n'
+                '```\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'fail')
+
+    def test_mermaid_fence_with_an_info_string_passes(self):
+        result = self._check({
+            'docs/x.md': (
+                '# Page\n\n'
+                '```mermaid title=flow\n'
+                'flowchart TB\n'
+                '    a --> b\n'
+                '```\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass')
+
     def test_plans_are_out_of_scope(self):
         result = self._check({
             'docs/plans/PLAN-x.md': self._fenced(
@@ -1191,6 +1240,21 @@ class MermaidLintCiTest(unittest.TestCase):
         result = self._check({'docs/plans/PLAN-x.md': self.DIAGRAM})
         self.assertEqual(result['status'], 'fail')
 
+    def test_a_tilde_fence_does_not_make_it_applicable(self):
+        """mmdc recognises backtick fences only.
+
+        It finds no chart in a ~~~mermaid block and exits zero, so
+        calling such a repository applicable would mark it covered for
+        a diagram its linter never renders. The audit matches the same
+        narrow form the script greps for.
+        """
+        result = self._check({
+            'docs/x.md': (
+                '# Page\n\n~~~mermaid\nflowchart TB\n  a --> b\n~~~\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'not_applicable')
+
     def test_vendored_trees_do_not_make_it_applicable(self):
         """A Rust registry cache holds other people's diagrams."""
         result = self._check({
@@ -1198,6 +1262,35 @@ class MermaidLintCiTest(unittest.TestCase):
             '.cargo-cache/registry/src/x/README.md': self.DIAGRAM,
         })
         self.assertEqual(result['status'], 'not_applicable')
+
+
+class MermaidLintDeploymentTest(unittest.TestCase):
+    """This repository's copies must match the template exactly.
+
+    templates/mermaid-lint/README.md promises byte-identity, and the
+    promise is load-bearing for the shell script in particular:
+    .pre-commit-config.yaml scopes shellcheck to ^(scripts|tools)/, so
+    the template copy -- the one that goes out to the fleet -- is only
+    linted by proxy through its tools/ twin. If the two drift, the
+    shipped copy is the one nothing checks.
+    """
+
+    def _repo(self, *parts):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, *parts), 'rb') as f:
+            return f.read()
+
+    def test_script_matches_the_template(self):
+        self.assertEqual(
+            self._repo('tools', 'mermaid-lint.sh'),
+            self._repo('templates', 'mermaid-lint', 'mermaid-lint.sh'),
+        )
+
+    def test_workflow_matches_the_template(self):
+        self.assertEqual(
+            self._repo('.github', 'workflows', 'mermaid-lint.yml'),
+            self._repo('templates', 'mermaid-lint', 'mermaid-lint.yml'),
+        )
 
 
 class CiReviewAutomationSpecTest(unittest.TestCase):

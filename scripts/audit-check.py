@@ -4715,7 +4715,10 @@ def is_ascii_diagram(lang, lines):
     structure *and* an unambiguous edge, and lets the ambiguous cases
     through.
     """
-    if lang.lower() == 'mermaid':
+    # The first word of the info string, so that an attribute after
+    # the language ("```mermaid title=x") is still mermaid source
+    # rather than something to run the ASCII heuristic over.
+    if lang.lower().split()[:1] == ['mermaid']:
         return False
     if sum(1 for line in lines if DIAGRAM_HEX_ROW_RE.match(line)) >= 3:
         return False
@@ -4742,6 +4745,29 @@ def is_ascii_diagram(lang, lines):
     # rather than one, because there is no corner here to corroborate
     # them.
     return box_lines >= 2 and (arrows >= 2 or flows >= 2)
+
+
+def diagram_format_exempt(lines, fence_lineno):
+    """Is this fence marked exempt from the diagram-format audit?
+
+    The marker is accepted on the fence line itself or on the nearest
+    non-blank line above it. Blank lines are skipped because putting
+    one after an HTML comment is ordinary markdown style and what most
+    markdown linters prefer, so a window of exactly one line means the
+    natural way to write the exemption is the way that silently does
+    not work -- and the failure presents as an issue filed against a
+    repository that believes it has already answered.
+
+    Only blank lines are skipped, so the marker cannot be inherited
+    from a paragraph further up that was talking about something else.
+    """
+    index = fence_lineno - 1
+    if index < len(lines) and DIAGRAM_FORMAT_OK in lines[index]:
+        return True
+    index -= 1
+    while index >= 0 and not lines[index].strip():
+        index -= 1
+    return index >= 0 and DIAGRAM_FORMAT_OK in lines[index]
 
 
 def check_diagram_format(repo_path, props):
@@ -4788,8 +4814,7 @@ def check_diagram_format(repo_path, props):
         for lang, start, body in iter_fenced_blocks(content):
             if not is_ascii_diagram(lang, body):
                 continue
-            context = lines[max(0, start - 2):start]
-            if any(DIAGRAM_FORMAT_OK in line for line in context):
+            if diagram_format_exempt(lines, start):
                 continue
             hits.append(f'{rel}:{start}')
 
@@ -4824,7 +4849,12 @@ def check_diagram_format(repo_path, props):
 # script.
 MERMAID_LINT_SCRIPT = 'tools/mermaid-lint.sh'
 
-MERMAID_FENCE_RE = re.compile(r'^\s*(```|~~~)\s*mermaid\b')
+# Backticks, with no space before the language. Deliberately narrower
+# than markdown allows, because mmdc recognises only this form: a
+# ~~~mermaid block renders nothing and exits zero, so treating one as
+# a diagram to lint would call a repository covered for a diagram its
+# linter never sees. tools/mermaid-lint.sh greps for the same shape.
+MERMAID_FENCE_RE = re.compile(r'^\s*```mermaid\b')
 
 
 def repo_has_mermaid(repo_path):

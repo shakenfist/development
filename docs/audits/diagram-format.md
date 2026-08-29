@@ -71,6 +71,12 @@ it:
 <!-- audit-ok: diagram-format -->
 ```
 
+The marker is accepted on the fence line itself or on the nearest
+non-blank line above it, so the conventional blank line between an
+HTML comment and the block it applies to is fine. Only blank lines are
+skipped: a marker cannot be inherited from a paragraph further up that
+was talking about a different diagram.
+
 Say in the surrounding prose why, the way the other `audit-ok` markers
 in this fleet are used. The marker is not a way to close an issue
 without reading the block.

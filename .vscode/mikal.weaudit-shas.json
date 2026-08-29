@@ -5,10 +5,6 @@
       "sha": "8a9af2eaea2b6868cbff0153bba8ca07a43351d0",
       "date": "2026-08-24"
     },
-    ".github/actionlint.yaml": {
-      "sha": "b2d35594ef5f45213fead85f438b0505cc43a4ac",
-      "date": "2026-08-24"
-    },
     ".github/workflows/ci.yml": {
       "sha": "f1ab408ee7c45e13fec2c8ec51169ab6a8135ab5",
       "date": "2026-08-24"
@@ -32,10 +28,6 @@
     ".github/workflows/secret-scan.yml": {
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
       "date": "2026-08-24"
-    },
-    "docs/audits/README.md": {
-      "sha": "740be6b4b6e887b26f03fdb939d2e1ff1b7ab7d5",
-      "date": "2026-08-29"
     },
     "docs/audits/ci-review-automation.md": {
       "sha": "b0e5dd33cc1c7e7d845ee3b42e63ec31e35b58da",
@@ -115,10 +107,6 @@
     },
     "docs/audits/plan-template.md": {
       "sha": "20412afc5bcb549b85f559bed5855f2eb7bdcefb",
-      "date": "2026-08-29"
-    },
-    "docs/audits/push-audit.md": {
-      "sha": "f3782ac5470382e48fae441d04310bb39847670e",
       "date": "2026-08-29"
     },
     "docs/audits/pyproject-usage.md": {

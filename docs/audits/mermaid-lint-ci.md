@@ -18,6 +18,14 @@ invocation of a container -- the point of shipping the wrapper is that
 the docker arguments, the entrypoint override and the exit-status
 handling are written once.
 
+A diagram is recognised by a ```` ```mermaid ```` fence: backticks,
+with no space before the language. That is deliberately narrower than
+markdown allows, because it is what `mmdc` recognises -- a
+`~~~mermaid` block renders nothing and exits zero, so counting one
+would mark a repository covered for a diagram its linter never sees.
+`tools/mermaid-lint.sh` greps for the same shape, and a test asserts
+the two definitions stay together.
+
 Repositories with no mermaid diagrams are N/A. This is a check on
 diagrams that exist, not a requirement that every project have some;
 `diagram-format` is what moves a repository from hand-drawn diagrams
