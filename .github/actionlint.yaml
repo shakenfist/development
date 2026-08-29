@@ -8,12 +8,16 @@
 # fleet, which name the runners their target projects use and are linted
 # here -- this is the fleet's source of truth for files nothing else
 # checks before they are copied into ten repositories.
+#
+# `debian-12-docker` is one of those: the mermaid-lint template needs a
+# docker daemon, and static runners do not have one.
 self-hosted-runner:
   labels:
     - static
     - claude-code
     - vm
     - debian-12
+    - debian-12-docker
     - debian-13
     - s
     - m

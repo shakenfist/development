@@ -903,6 +903,396 @@ class PlanPhaseReferencesTest(unittest.TestCase):
         self.assertEqual(result['status'], 'pass')
 
 
+class DiagramFormatTest(unittest.TestCase):
+    """The interesting cases are the ones that must NOT be flagged.
+
+    Every "passes" case below is a real block from this fleet that an
+    earlier draft of the heuristic reported. They are kept as tests
+    rather than as a note in the spec because each one is a different
+    reason, and a future loosening of the rule will break exactly the
+    one it should.
+    """
+
+    def _check(self, files, props=None):
+        """files maps repo-relative paths to content."""
+        with tempfile.TemporaryDirectory() as tmp:
+            for rel, content in files.items():
+                path = os.path.join(tmp, rel)
+                os.makedirs(os.path.dirname(path) or tmp, exist_ok=True)
+                with open(path, 'w') as f:
+                    f.write(content)
+            return audit_check.check_diagram_format(tmp, props or {})
+
+    def _fenced(self, body):
+        return f'# Page\n\nText.\n\n```\n{body}```\n'
+
+    def test_not_applicable_without_docs(self):
+        self.assertEqual(
+            self._check({})['status'], 'not_applicable'
+        )
+
+    def test_prose_passes(self):
+        result = self._check({
+            'README.md': '# Project\n\nA pitch, with no pictures.\n',
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_mermaid_fence_passes(self):
+        result = self._check({
+            'ARCHITECTURE.md': (
+                '# Shape\n\n'
+                '```mermaid\n'
+                'flowchart TB\n'
+                '    a["One"] --> b["Two"]\n'
+                '```\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_ascii_box_diagram_fails_with_location(self):
+        result = self._check({
+            'ARCHITECTURE.md': self._fenced(
+                '+-------------+     +-------------+\n'
+                '| Config      |---->| Engine      |\n'
+                '+-------------+     +-------------+\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('ARCHITECTURE.md:5', result['details'])
+
+    def test_unicode_box_diagram_fails(self):
+        result = self._check({
+            'docs/design.md': self._fenced(
+                '┌─────────────┐\n'
+                '│  Front end  │\n'
+                '└─────────────┘\n'
+                '       │\n'
+                '       ▼\n'
+                '┌─────────────┐\n'
+                '│  Back end   │\n'
+                '└─────────────┘\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'fail')
+
+    def test_boxless_sequence_diagram_fails(self):
+        """Two parties and labelled arrows, drawn with bare verticals."""
+        result = self._check({
+            'docs/protocol.md': self._fenced(
+                'VMM                          Guest\n'
+                ' │                            │\n'
+                ' │ ──── VmmConfig ──────────> │\n'
+                ' │ <──── InitMessage ──────── │\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'fail')
+
+    def test_file_tree_passes(self):
+        """A tree has tees and elbows but no corner and no edge.
+
+        The arrow in a comment is the trap: ryll's ARCHITECTURE.md
+        annotates a src/ listing with "egui::Key -> LogicalKey", and
+        counting a thin arrow anywhere in the block flagged the whole
+        98-line tree.
+        """
+        result = self._check({
+            'ARCHITECTURE.md': self._fenced(
+                'src/\n'
+                '├── main.rs              # CLI entry\n'
+                '├── app.rs               # egui App, event loop\n'
+                '│                        #   and reconnect\n'
+                '├── input_egui.rs        # egui::Key → LogicalKey\n'
+                '└── web/                 # --web mode\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_memory_map_passes(self):
+        result = self._check({
+            'docs/guest.md': self._fenced(
+                'Address         Size    Region\n'
+                '──────────────  ──────  ──────────────────\n'
+                '0x0000_1000             GDT\n'
+                '0x0000_2000             Page tables\n'
+                '0x0001_0000    128 KiB  core.bin\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_bit_field_with_caret_callouts_passes(self):
+        """A caret points up at a field; it is not a flow connector."""
+        result = self._check({
+            'docs/qcow2.md': self._fenced(
+                ' 63  62  61          csize_shift           0\n'
+                '+---+---+------------+----------------------+\n'
+                '| 0 | 1 | Sectors    |  Compressed Offset   |\n'
+                '+---+---+------------+----------------------+\n'
+                '      ^        ^                ^\n'
+                '      |        |                |\n'
+                '      |        +-- 512B sectors +-- Byte offset\n'
+                '      +-- COMPRESSED = 1\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_ring_buffer_with_thin_arrow_callouts_passes(self):
+        result = self._check({
+            'docs/video.md': self._fenced(
+                '┌───────────────────────────────┐\n'
+                '│          Ring Buffer          │\n'
+                '│  ┌─────┬─────┬─────┬─────┐    │\n'
+                '│  │cmd 1│cmd 2│cmd 3│     │    │\n'
+                '│  └─────┴─────┴─────┴─────┘    │\n'
+                '│     ↑                 ↑       │\n'
+                '│   (tail)            (head)    │\n'
+                '└───────────────────────────────┘\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_register_map_with_thin_arrow_annotations_passes(self):
+        result = self._check({
+            'docs/mmio.md': self._fenced(
+                '┌────────────────────────────────────────┐\n'
+                '│ Control Registers (4KB, MMIO)          │\n'
+                '│   0x00: command (u32)                  │\n'
+                '│   0x08: data_gpa (u64)  ← guest phys   │\n'
+                '│   0x28: doorbell (u32)  ← triggers work│\n'
+                '└────────────────────────────────────────┘\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_audit_ok_marker_exempts_a_block(self):
+        drawn = (
+            '+-------------+     +-------------+\n'
+            '| Config      |---->| Engine      |\n'
+            '+-------------+     +-------------+\n'
+        )
+        self.assertEqual(
+            self._check({'docs/x.md': self._fenced(drawn)})['status'],
+            'fail',
+        )
+        result = self._check({
+            'docs/x.md': (
+                '# Page\n\n'
+                '<!-- audit-ok: diagram-format -->\n'
+                f'```\n{drawn}```\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_audit_ok_marker_survives_a_blank_line(self):
+        """A blank line after an HTML comment is ordinary style.
+
+        A one-line window would mean the natural way to write the
+        exemption is the way that silently does not work.
+        """
+        result = self._check({
+            'docs/x.md': (
+                '# Page\n\n'
+                '<!-- audit-ok: diagram-format -->\n'
+                '\n'
+                '```\n'
+                '+---+     +---+\n'
+                '| a |---->| b |\n'
+                '+---+     +---+\n'
+                '```\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_audit_ok_marker_is_not_inherited_from_a_paragraph_above(self):
+        result = self._check({
+            'docs/x.md': (
+                '# Page\n\n'
+                '<!-- audit-ok: diagram-format -->\n'
+                '\n'
+                'A paragraph about the exempt diagram further up.\n'
+                '\n'
+                '```\n'
+                '+---+     +---+\n'
+                '| a |---->| b |\n'
+                '+---+     +---+\n'
+                '```\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'fail')
+
+    def test_mermaid_fence_with_an_info_string_passes(self):
+        result = self._check({
+            'docs/x.md': (
+                '# Page\n\n'
+                '```mermaid title=flow\n'
+                'flowchart TB\n'
+                '    a --> b\n'
+                '```\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_plans_are_out_of_scope(self):
+        result = self._check({
+            'docs/plans/PLAN-x.md': self._fenced(
+                '+-------------+     +-------------+\n'
+                '| Config      |---->| Engine      |\n'
+                '+-------------+     +-------------+\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'not_applicable')
+
+    def test_doc_content_excludes_are_skipped(self):
+        """shakenfist's docs/components/ is synced from elsewhere.
+
+        Flagging it would file an issue against the repository that
+        cannot fix it: the next sync-external-docs run reverts any
+        conversion made there.
+        """
+        files = {
+            'docs/components/ryll/x.md': self._fenced(
+                '+-------------+     +-------------+\n'
+                '| Config      |---->| Engine      |\n'
+                '+-------------+     +-------------+\n'
+            ),
+        }
+        self.assertEqual(self._check(files)['status'], 'fail')
+        result = self._check(
+            files, {'doc_content_excludes': ['docs/components/']}
+        )
+        self.assertEqual(result['status'], 'not_applicable')
+
+    def test_unterminated_fence_yields_nothing(self):
+        result = self._check({
+            'docs/x.md': (
+                '# Page\n\n```\n'
+                '+---+\n| a |---->\n+---+\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'pass')
+
+
+class MermaidLintCiTest(unittest.TestCase):
+    def _check(self, files):
+        with tempfile.TemporaryDirectory() as tmp:
+            for rel, content in files.items():
+                path = os.path.join(tmp, rel)
+                os.makedirs(os.path.dirname(path) or tmp, exist_ok=True)
+                with open(path, 'w') as f:
+                    f.write(content)
+            return audit_check.check_mermaid_lint_ci(tmp, {})
+
+    DIAGRAM = (
+        '# Shape\n\n```mermaid\nflowchart TB\n  a --> b\n```\n'
+    )
+    WORKFLOW = (
+        'name: Mermaid lint\non:\n  pull_request:\n'
+        'permissions:\n  contents: read\njobs:\n'
+        '  lint:\n    runs-on: [self-hosted, vm, debian-12-docker, s]\n'
+        '    steps:\n      - run: ./tools/mermaid-lint.sh\n'
+    )
+
+    def test_not_applicable_without_mermaid(self):
+        result = self._check({'README.md': '# Project\n\nNo pictures.\n'})
+        self.assertEqual(result['status'], 'not_applicable')
+
+    def test_fails_without_the_script(self):
+        result = self._check({
+            'ARCHITECTURE.md': self.DIAGRAM,
+            '.github/workflows/mermaid-lint.yml': self.WORKFLOW,
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('tools/mermaid-lint.sh', result['details'])
+
+    def test_fails_without_a_workflow(self):
+        result = self._check({
+            'ARCHITECTURE.md': self.DIAGRAM,
+            'tools/mermaid-lint.sh': '#!/bin/bash\n',
+        })
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('CI workflow', result['details'])
+
+    def test_passes_with_both(self):
+        result = self._check({
+            'ARCHITECTURE.md': self.DIAGRAM,
+            'tools/mermaid-lint.sh': '#!/bin/bash\n',
+            '.github/workflows/mermaid-lint.yml': self.WORKFLOW,
+        })
+        self.assertEqual(result['status'], 'pass')
+
+    def test_a_workflow_that_only_mentions_it_in_a_comment_fails(self):
+        """Describing what something else does is not doing it."""
+        result = self._check({
+            'ARCHITECTURE.md': self.DIAGRAM,
+            'tools/mermaid-lint.sh': '#!/bin/bash\n',
+            '.github/workflows/ci.yml': (
+                '# Diagrams are linted by tools/mermaid-lint.sh in\n'
+                '# its own workflow.\nname: CI\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'fail')
+
+    def test_a_diagram_in_a_plan_still_needs_the_linter(self):
+        """The linter renders every tracked markdown file.
+
+        diagram-format ignores plans, but a broken diagram in one
+        still breaks a page, so applicability is the whole tree.
+        """
+        result = self._check({'docs/plans/PLAN-x.md': self.DIAGRAM})
+        self.assertEqual(result['status'], 'fail')
+
+    def test_a_tilde_fence_does_not_make_it_applicable(self):
+        """mmdc recognises backtick fences only.
+
+        It finds no chart in a ~~~mermaid block and exits zero, so
+        calling such a repository applicable would mark it covered for
+        a diagram its linter never renders. The audit matches the same
+        narrow form the script greps for.
+        """
+        result = self._check({
+            'docs/x.md': (
+                '# Page\n\n~~~mermaid\nflowchart TB\n  a --> b\n~~~\n'
+            ),
+        })
+        self.assertEqual(result['status'], 'not_applicable')
+
+    def test_vendored_trees_do_not_make_it_applicable(self):
+        """A Rust registry cache holds other people's diagrams."""
+        result = self._check({
+            'README.md': '# Project\n',
+            '.cargo-cache/registry/src/x/README.md': self.DIAGRAM,
+        })
+        self.assertEqual(result['status'], 'not_applicable')
+
+
+class MermaidLintDeploymentTest(unittest.TestCase):
+    """This repository's copies must match the template exactly.
+
+    templates/mermaid-lint/README.md promises byte-identity, and the
+    promise is load-bearing for the shell script in particular:
+    .pre-commit-config.yaml scopes shellcheck to ^(scripts|tools)/, so
+    the template copy -- the one that goes out to the fleet -- is only
+    linted by proxy through its tools/ twin. If the two drift, the
+    shipped copy is the one nothing checks.
+    """
+
+    def _repo(self, *parts):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, *parts), 'rb') as f:
+            return f.read()
+
+    def test_script_matches_the_template(self):
+        self.assertEqual(
+            self._repo('tools', 'mermaid-lint.sh'),
+            self._repo('templates', 'mermaid-lint', 'mermaid-lint.sh'),
+        )
+
+    def test_workflow_matches_the_template(self):
+        self.assertEqual(
+            self._repo('.github', 'workflows', 'mermaid-lint.yml'),
+            self._repo('templates', 'mermaid-lint', 'mermaid-lint.yml'),
+        )
+
+
 class CiReviewAutomationSpecTest(unittest.TestCase):
     """The check and its spec page name the same requirements.
 
@@ -985,9 +1375,15 @@ class PushAuditTest(unittest.TestCase):
             'Testing wording.\n'
             '<!-- shared-block-end -->\n'
         )
+        self.diagram_block = (
+            '<!-- shared-block: diagram-discipline v1 -->\n'
+            'Diagram wording.\n'
+            '<!-- shared-block-end -->\n'
+        )
         for name, block in (
             ('readme-discipline', self.readme_block),
             ('llm-doc-discipline', self.llm_doc_block),
+            ('diagram-discipline', self.diagram_block),
             ('comment-proportion', self.comment_block),
             ('plan-phase-references', self.phase_block),
             ('path-traversal-review', self.path_block),
@@ -1000,9 +1396,9 @@ class PushAuditTest(unittest.TestCase):
                 f.write(block)
         self.canonical = (
             f'{self.readme_block}\n{self.llm_doc_block}\n'
-            f'{self.comment_block}\n{self.phase_block}\n'
-            f'{self.path_block}\n{self.python_block}\n'
-            f'{self.tests_block}'
+            f'{self.diagram_block}\n{self.comment_block}\n'
+            f'{self.phase_block}\n{self.path_block}\n'
+            f'{self.python_block}\n{self.tests_block}'
         )
 
     def _check(self, files):

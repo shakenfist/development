@@ -36,6 +36,14 @@ AUDIT_METADATA = {
         'spec': 'docs/audits/llm-context-lint-ci.md',
         'template': None,
     },
+    'diagram-format': {
+        'spec': 'docs/audits/diagram-format.md',
+        'template': None,
+    },
+    'mermaid-lint-ci': {
+        'spec': 'docs/audits/mermaid-lint-ci.md',
+        'template': 'templates/mermaid-lint/',
+    },
     'release-process': {
         'spec': 'docs/audits/release-process.md',
         'template': 'templates/release-automation/',
@@ -193,6 +201,8 @@ ISSUE_TITLES = {
     'llm-doc-structure': 'AGENTS.md / ARCHITECTURE.md structure',
     'llm-context-lint': 'LLM context linting',
     'llm-context-lint-ci': 'LLM context linting in pre-commit and CI',
+    'diagram-format': 'Diagram format',
+    'mermaid-lint-ci': 'Mermaid diagrams linted in CI',
     'release-process': 'Release process',
     'ci-review-automation': 'CI review automation',
     'renovate': 'Renovate',

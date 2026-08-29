@@ -164,6 +164,8 @@ attached rather than quietly disappearing from the table.
 | [docs-external-links.md](docs-external-links.md) | Links out of docs/ resolve inside docs/, or else are absolute |
 | [readme-structure.md](readme-structure.md) | Top-level README.md is a pitch, detail lives in docs/ |
 | [plan-phase-references.md](plan-phase-references.md) | Docs describe current behaviour, not plan phase history |
+| [diagram-format.md](diagram-format.md) | Diagrams of structure and flow are mermaid, not drawn in ASCII |
+| [mermaid-lint-ci.md](mermaid-lint-ci.md) | Repositories with mermaid diagrams render them in CI, so a broken one fails the build |
 | [plan-source-references.md](plan-source-references.md) | Plan references in source and configuration still resolve |
 | [plan-index.md](plan-index.md) | docs/plans/index.md layout, date ordering, plan coverage and the status vocabulary |
 | [push-audit.md](push-audit.md) | PUSH-AUDIT.md naming, versioned shared blocks, and an AGENTS.md reference to it |
