@@ -183,6 +183,30 @@
     {
       "path": "docs/audits/README.md",
       "author": "mikal"
+    },
+    {
+      "path": "docs/automated-pr-review.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ci-review-automation.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/code-review-tracking.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consistency-audits.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/release-automation.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit_common.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

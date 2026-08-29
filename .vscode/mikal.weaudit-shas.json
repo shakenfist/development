@@ -169,6 +169,30 @@
       "sha": "653fd7a6de3cbe09fe8ef2fc5489042b94da7d44",
       "date": "2026-08-29"
     },
+    "docs/automated-pr-review.md": {
+      "sha": "d60479307223048db30a9651ee8492b89c8b4049",
+      "date": "2026-08-30"
+    },
+    "docs/ci-review-automation.md": {
+      "sha": "6e9cf7b3ee82bbb2427a5c2ccf09db44d85d0aaf",
+      "date": "2026-08-30"
+    },
+    "docs/code-review-tracking.md": {
+      "sha": "ad212e8212ca1f910673585c66a70f1539934073",
+      "date": "2026-08-30"
+    },
+    "docs/consistency-audits.md": {
+      "sha": "b3253a55e9e9a8e27f27d5e20262d1ff8177835a",
+      "date": "2026-08-30"
+    },
+    "docs/release-automation.md": {
+      "sha": "a92bfdaed278fd448adabc76c8a5904174815ea8",
+      "date": "2026-08-30"
+    },
+    "scripts/audit_common.py": {
+      "sha": "8fdd0a2bbd5366cb2f6117cc1893c7ec036dbc05",
+      "date": "2026-08-30"
+    },
     "tools/ci-prune-reviews.sh": {
       "sha": "3e10680265c6b885619e8e08bea30a4fb05cb10b",
       "date": "2026-08-24"
