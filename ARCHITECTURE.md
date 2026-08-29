@@ -17,7 +17,8 @@ projects consistent. It contains no application code.
   repositories are in scope, excluded, or audited for part of it.
 - `tools/` -- the review tracking wrappers: `review-tracking.sh` for
   local use, and `ci-prune-reviews.sh` which `prune-reviews.yml` runs
-  on every push to main. The pull request automation's helpers used to
+  on every push to main; plus `mermaid-lint.sh`, this repository's
+  deployed copy of `templates/mermaid-lint/`. The pull request automation's helpers used to
   live here too; they went with the retired comment addresser, and what
   the reviewer still needs ships inside
   `shakenfist/actions/review-pr-with-claude`.
@@ -25,6 +26,10 @@ projects consistent. It contains no application code.
 - `.github/workflows/ci.yml` -- this repository's own pull request
   checks: the pre-commit gate, a smoke run of the audit, and the
   automated reviewer gated on both.
+- `.github/workflows/mermaid-lint.yml` -- renders every mermaid
+  diagram on pull requests that touch markdown. It runs on a
+  docker-capable runner rather than `static`, which is why it is a
+  workflow of its own rather than a step in `ci.yml`.
 - `.github/workflows/` also carries the fleet-standard supporting
   workflows: the `pr-re-review.yml` and `pr-retest.yml` bot triggers,
   `secret-scan.yml`, `codeql-analysis.yml`, `renovate.yml` and

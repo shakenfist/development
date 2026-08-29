@@ -68,6 +68,14 @@ Do not simply add `merge_group:` to the trigger list: `paths` is not
 supported on that event, so every merge would spin a virtual machine
 to lint diagrams that the pull request already linted.
 
+## The worked example
+
+The development repository runs this on itself: `tools/mermaid-lint.sh`
+and `.github/workflows/mermaid-lint.yml` there are byte-identical
+copies of the two files in this directory, so drift between the
+template and a real deployment shows up as a diff rather than as a
+surprise. Sync from here rather than editing either copy in place.
+
 ## Using it by hand
 
 ```bash

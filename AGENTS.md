@@ -64,6 +64,15 @@ the pull request, but the local run is faster and quieter.
 The individual test suites, and how to exercise a check against a real
 repository, are in `docs/consistency-audits.md`.
 
+`pre-commit` does not look at diagrams. Mermaid fails at render time,
+so a broken diagram commits cleanly and breaks a page instead: run
+`tools/mermaid-lint.sh` after editing one. It needs docker, which is
+why it is not a hook and why `mermaid-lint.yml` runs on a
+docker-capable runner rather than `static`. Diagrams of structure or
+flow are mermaid rather than ASCII here, enforced by the
+`diagram-format` audit; `templates/shared-blocks/diagram-discipline.md`
+says which drawn blocks are deliberately *not* diagrams.
+
 `PUSH-AUDIT.md` is a runbook followed in place before pushing:
 `pre-commit`, the diff-level greps, then four judgment sub-agents over
 code quality, tests, documentation and security. Its briefs are
