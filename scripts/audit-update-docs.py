@@ -62,6 +62,7 @@ COLUMN_NAMES = {
     'flake8wrap': 'flake8wrap',
     'self-hosted-runners': 'Runners',
     'static-runner-tags': 'Static tags',
+    'vm-runner-size': 'VM size',
     'devpi-fallback': 'devpi fallback',
     'devpi-stale-ip': 'devpi IP',
 }

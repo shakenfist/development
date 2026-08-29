@@ -2491,6 +2491,103 @@ class ExpensiveLanePathFilterTest(unittest.TestCase):
         self.assertEqual(result['status'], 'pass')
 
 
+class VmRunnerSizeTest(unittest.TestCase):
+    """Every 'vm' runs-on has to name a size, and 'xs' is an answer."""
+
+    def _repo(self, tmp, workflows):
+        wdir = os.path.join(tmp, '.github', 'workflows')
+        os.makedirs(wdir)
+        for name, content in workflows.items():
+            with open(os.path.join(wdir, name), 'w') as f:
+                f.write(content)
+        return audit_check.check_vm_runner_size(
+            tmp, {'has_workflows_dir': True}
+        )
+
+    def _job(self, runs_on):
+        return (
+            'on:\n  pull_request:\njobs:\n  build:\n'
+            '    runs-on: %s\n'
+            '    steps:\n      - run: true\n' % runs_on
+        )
+
+    def test_a_sized_vm_job_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {'ci.yml': self._job(
+                '[self-hosted, vm, debian-12, s]')})
+        self.assertEqual('pass', result['status'], result['details'])
+
+    def test_a_sizeless_vm_job_is_a_finding(self):
+        # The defect this check exists for: no size element, so the
+        # conductor falls back to xs and nobody chose it.
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {'ci.yml': self._job(
+                '[self-hosted, vm, debian-12]')})
+        self.assertEqual('fail', result['status'])
+        self.assertIn('ci.yml:5', result['details'])
+
+    def test_a_vm_job_with_no_os_label_is_still_a_finding(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {'ci.yml': self._job(
+                '[self-hosted, vm]')})
+        self.assertEqual('fail', result['status'])
+
+    def test_xs_counts_as_naming_a_size(self):
+        # The rule is that the size is chosen, not that it is large.
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {'ci.yml': self._job(
+                '[self-hosted, vm, debian-12, xs]')})
+        self.assertEqual('pass', result['status'], result['details'])
+
+    def test_bigdisk_variants_count_as_sizes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {'ci.yml': self._job(
+                "[self-hosted, vm, 'debian-13', 'xl-bigdisk']")})
+        self.assertEqual('pass', result['status'], result['details'])
+
+    def test_a_literal_size_beside_a_matrix_expression_passes(self):
+        # kerbside-patches' shape: the OS comes from the matrix, the
+        # size is written literally beside it.
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {'ci.yml': self._job(
+                "[self-hosted, vm, '${{ matrix.test.runs_on }}', 'xl']")})
+        self.assertEqual('pass', result['status'], result['details'])
+
+    def test_a_matrix_expression_alone_does_not_excuse_a_missing_size(self):
+        # The sibling job in the same file writes the size literally,
+        # so an expression here is not evidence a size arrives -- and
+        # skipping the line would hide a real sizeless deploy job.
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {'ci.yml': self._job(
+                "[self-hosted, vm, '${{ matrix.test.runs_on }}']")})
+        self.assertEqual('fail', result['status'])
+
+    def test_static_jobs_are_not_in_scope(self):
+        # A static runner must name no size; that is the complementary
+        # check's business, and this one must not contradict it.
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {'ci.yml': self._job(
+                '[self-hosted, static]')})
+        self.assertEqual('pass', result['status'], result['details'])
+
+    def test_the_offending_line_is_named(self):
+        # A finding has to say where, because the fix is per-line.
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._repo(tmp, {
+                'a.yml': self._job('[self-hosted, vm, debian-12]'),
+                'b.yml': self._job('[self-hosted, vm, debian-12, m]'),
+            })
+        self.assertEqual('fail', result['status'])
+        self.assertIn('a.yml:5', result['details'])
+        self.assertNotIn('b.yml', result['details'])
+
+    def test_a_repository_without_workflows_is_not_applicable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = audit_check.check_vm_runner_size(
+                tmp, {'has_workflows_dir': False})
+        self.assertEqual('not_applicable', result['status'])
+
+
 class WorkflowJobBlocksTest(unittest.TestCase):
     def test_jobs_are_split_at_top_level_keys(self):
         blocks = audit_check.workflow_job_blocks(
