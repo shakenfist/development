@@ -167,6 +167,22 @@
     {
       "path": "docs/audits/workflow-standards.md",
       "author": "mikal"
+    },
+    {
+      "path": "docs/audits/diagram-format.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/mermaid-lint-ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/push-audit.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

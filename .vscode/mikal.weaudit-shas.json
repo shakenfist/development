@@ -17,6 +17,10 @@
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
       "date": "2026-08-24"
     },
+    "docs/audits/README.md": {
+      "sha": "1119d2182414976f98f57260d90c21079731a49c",
+      "date": "2026-08-30"
+    },
     "docs/audits/ci-review-automation.md": {
       "sha": "b0e5dd33cc1c7e7d845ee3b42e63ec31e35b58da",
       "date": "2026-08-27"
@@ -36,6 +40,10 @@
     "docs/audits/dependency-name-normalization.md": {
       "sha": "9cda252fa5e03506f0677c0ec6d07922e5da9e0d",
       "date": "2026-08-27"
+    },
+    "docs/audits/diagram-format.md": {
+      "sha": "878a89164a5f5d80c7997e3981ca8704606fc91c",
+      "date": "2026-08-30"
     },
     "docs/audits/docs-external-links.md": {
       "sha": "9b09c0d4f5d44caa46a3212407f89e8ade0eef11",
@@ -77,6 +85,10 @@
       "sha": "30339aeda464965fe7fbcc8562edee9249043126",
       "date": "2026-08-29"
     },
+    "docs/audits/mermaid-lint-ci.md": {
+      "sha": "2386f28af6064dd22db2766fce2f09427678b327",
+      "date": "2026-08-30"
+    },
     "docs/audits/pin-indirect-dependencies.md": {
       "sha": "6141c51ac838a8550f1b301e26bfb4c6fb092978",
       "date": "2026-08-29"
@@ -96,6 +108,10 @@
     "docs/audits/plan-template.md": {
       "sha": "20412afc5bcb549b85f559bed5855f2eb7bdcefb",
       "date": "2026-08-29"
+    },
+    "docs/audits/push-audit.md": {
+      "sha": "9f8dba7a891b3da0ffc4c0fb36805023cfc51beb",
+      "date": "2026-08-30"
     },
     "docs/audits/pyproject-usage.md": {
       "sha": "2e09105649a76fab616fc2b03f2cf803f3c4af70",
