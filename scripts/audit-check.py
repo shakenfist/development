@@ -111,6 +111,8 @@ CHECK_NAMES = {
     'docs-external-links': 'Links out of docs/ are absolute',
     'readme-structure': 'README structure',
     'plan-phase-references': 'Plan phase references',
+    'diagram-format': 'Diagram format',
+    'mermaid-lint-ci': 'Mermaid diagrams linted in CI',
     'plan-source-references': 'Plan references in source',
     'plan-index': 'Plan index',
     'push-audit': 'Pre-push audit file',
@@ -4624,6 +4626,287 @@ def check_plan_phase_references(repo_path, props):
     }
 
 
+# Diagram format: a picture of structure or flow belongs in a mermaid
+# fence, where GitHub and mkdocs both render it. See
+# docs/audits/diagram-format.md, and
+# templates/shared-blocks/diagram-discipline.md for the policy the
+# push-audit reviewer applies to a diff.
+
+# Box-drawing characters, used to tell a drawn block from prose.
+DIAGRAM_BOX_CHARS = set('─│┌└├┐┘┬┴┼╭╮╰╯━┃')
+
+# The corner of a drawn box, in either character set. A file tree uses
+# tees and elbows but never a top corner, which is most of why this is
+# measured separately from DIAGRAM_BOX_CHARS.
+DIAGRAM_CORNER_RE = re.compile(r'[┌┐╭╮]|\+-{2,}\+')
+
+# An edge between two nodes: a solid triangular arrowhead anywhere, or
+# an ASCII or box rule of at least two characters ending in an angle
+# bracket. Thin single arrows (up, down, left, right) are deliberately
+# absent. In this fleet they are overwhelmingly annotation pointers --
+# "0x08: data_gpa (u64) <- guest phys addr" inside a register map, or
+# the head and tail markers under a ring buffer -- and counting them
+# turns two memory maps into diagrams.
+DIAGRAM_ARROW_RE = re.compile(r'[▼▲▶◀►◄]|[-─━=]{2,}>|<[-─━=]{2,}')
+
+# A flow connector: a line drawn from nothing but connector glyphs,
+# carrying a downward arrowhead, optionally with a parenthetical label
+# ("v  (L2 table offset)"). A file tree's "| # comment" is not one,
+# because it has prose on it. Only the downward forms count: a caret
+# is the callout character in a bit-field diagram, where a row of them
+# points up at the fields above.
+DIAGRAM_FLOW_RE = re.compile(
+    r'^[\s|│+\-─━]*[v▼][\s|│+\-─━v▼]*(\s*\(.*\))?\s*$'
+)
+
+# A row of a memory map or address table: an offset in the first
+# column. Three of them mean the block is a layout, where alignment
+# carries the meaning and mermaid has nothing to offer.
+DIAGRAM_HEX_ROW_RE = re.compile(r'^\s*(0x)?[0-9A-Fa-f]{4}[_ :]')
+
+DIAGRAM_FORMAT_OK = 'audit-ok: diagram-format'
+
+DIAGRAM_MAX_SHOWN = 10
+
+
+def iter_fenced_blocks(content):
+    """Yield (language, start line, body lines) for each code fence.
+
+    Both fence characters are recognised, and a block is closed only
+    by its own marker, so a ``` inside a ~~~ block does not end it.
+    An unterminated fence yields nothing, which is the safe direction:
+    a malformed document is not evidence of a diagram.
+    """
+    fence = None
+    lang = ''
+    start = 0
+    body = []
+    for lineno, line in enumerate(content.splitlines(), 1):
+        stripped = line.lstrip()
+        if stripped.startswith('```'):
+            marker = '```'
+        elif stripped.startswith('~~~'):
+            marker = '~~~'
+        else:
+            marker = None
+
+        if fence is not None:
+            if marker == fence:
+                yield lang, start, body
+                fence = None
+                body = []
+            else:
+                body.append(line)
+        elif marker is not None:
+            fence = marker
+            lang = stripped[3:].strip()
+            start = lineno
+            body = []
+
+
+def is_ascii_diagram(lang, lines):
+    """Is this fenced block a diagram drawn in characters?
+
+    Deliberately conservative. A false positive files an issue against
+    a repository whose documentation is correct, and the only way to
+    close it is to mark the block exempt; a false negative costs
+    nothing, because the diagram-discipline shared block puts a human
+    reviewer in front of every new one. So the rule asks for a drawn
+    structure *and* an unambiguous edge, and lets the ambiguous cases
+    through.
+    """
+    if lang.lower() == 'mermaid':
+        return False
+    if sum(1 for line in lines if DIAGRAM_HEX_ROW_RE.match(line)) >= 3:
+        return False
+
+    corners = sum(
+        1 for line in lines if DIAGRAM_CORNER_RE.search(line)
+    )
+    box_lines = sum(
+        1 for line in lines
+        if any(c in DIAGRAM_BOX_CHARS for c in line)
+    )
+    arrows = sum(1 for line in lines if DIAGRAM_ARROW_RE.search(line))
+    flows = sum(
+        1 for line in lines
+        if line.strip() and DIAGRAM_FLOW_RE.match(line)
+    )
+
+    # Boxes plus any edge at all. The corner is what separates a drawn
+    # diagram from a file tree, which has neither corners nor edges.
+    if corners >= 1 and (arrows >= 1 or flows >= 1):
+        return True
+    # Boxless flows: a sequence diagram drawn with bare verticals, or
+    # a pipeline drawn with arrows and no boxes at all. Two edges
+    # rather than one, because there is no corner here to corroborate
+    # them.
+    return box_lines >= 2 and (arrows >= 2 or flows >= 2)
+
+
+def check_diagram_format(repo_path, props):
+    """Check documentation draws its diagrams in mermaid.
+
+    A diagram of structure or flow -- boxes and the arrows between
+    them, an ordered exchange, a state machine -- renders as a picture
+    on GitHub and on the mkdocs sites when it is written as a mermaid
+    fence, and as a wall of characters when it is drawn by hand. The
+    fleet was split down the middle on this: three repositories used
+    mermaid and the rest had not started.
+
+    Scope is the documentation content files, so plans are out. A plan
+    is a working document read by the people writing it, and sweeping
+    a repository's plan history for diagrams is archaeology rather
+    than maintenance.
+
+    What is *not* a diagram is most of what this had to learn to
+    ignore: file trees, memory maps, register and bit-field layouts
+    with caret callouts, wire-format byte tables. See is_ascii_diagram
+    for how they are told apart, and
+    templates/shared-blocks/diagram-discipline.md for the policy a
+    reviewer applies where a script cannot.
+
+    A block that is genuinely better drawn by hand is exempted by an
+    "audit-ok: diagram-format" comment on the fence line or the line
+    above it.
+    """
+    files = list(iter_doc_content_files(repo_path, props))
+    if not files:
+        return {
+            'id': 'diagram-format',
+            'status': 'not_applicable',
+            'details': 'No documentation content to audit',
+        }
+
+    hits = []
+    for rel in files:
+        with open(
+            os.path.join(repo_path, rel), 'r', errors='replace'
+        ) as f:
+            content = blank_generated_blocks(f.read())
+        lines = content.splitlines()
+        for lang, start, body in iter_fenced_blocks(content):
+            if not is_ascii_diagram(lang, body):
+                continue
+            context = lines[max(0, start - 2):start]
+            if any(DIAGRAM_FORMAT_OK in line for line in context):
+                continue
+            hits.append(f'{rel}:{start}')
+
+    if hits:
+        shown = ', '.join(hits[:DIAGRAM_MAX_SHOWN])
+        more = (
+            '' if len(hits) <= DIAGRAM_MAX_SHOWN
+            else f' (+{len(hits) - DIAGRAM_MAX_SHOWN} more)'
+        )
+        return {
+            'id': 'diagram-format',
+            'status': 'fail',
+            'details': (
+                f'{len(hits)} diagram(s) drawn in ASCII rather than '
+                f'mermaid (convert them, or mark a block that is '
+                f'genuinely better drawn by hand with an '
+                f'"audit-ok: diagram-format" comment above the '
+                f'fence): {shown}{more}'
+            ),
+        }
+    return {
+        'id': 'diagram-format',
+        'status': 'pass',
+        'details': 'No ASCII diagrams in README.md, AGENTS.md, '
+                   'ARCHITECTURE.md or docs/',
+    }
+
+
+# The wrapper an adopting repository copies from
+# templates/mermaid-lint/. Named rather than pattern-matched, because
+# what makes this measurable is that every project runs the same
+# script.
+MERMAID_LINT_SCRIPT = 'tools/mermaid-lint.sh'
+
+MERMAID_FENCE_RE = re.compile(r'^\s*(```|~~~)\s*mermaid\b')
+
+
+def repo_has_mermaid(repo_path):
+    """Does any markdown file here carry a mermaid diagram?
+
+    Walks the whole repository rather than the documentation scope:
+    the linter renders every tracked markdown file, so a diagram in a
+    plan or a template counts for whether the linter is needed even
+    though it is out of scope for diagram-format.
+    """
+    for dirpath, dirnames, filenames in os.walk(repo_path):
+        dirnames[:] = [
+            d for d in dirnames
+            if d not in ('.git', 'node_modules', 'target', 'vendor')
+            and not d.startswith('.cargo')
+        ]
+        for filename in filenames:
+            if not filename.endswith('.md'):
+                continue
+            path = os.path.join(dirpath, filename)
+            with open(path, 'r', errors='replace') as f:
+                for line in f:
+                    if MERMAID_FENCE_RE.match(line):
+                        return True
+    return False
+
+
+def check_mermaid_lint_ci(repo_path, props):
+    """Check repositories with mermaid diagrams lint them in CI.
+
+    Mermaid fails at render time rather than at commit time. A syntax
+    error commits cleanly, passes every linter the fleet runs, and
+    then shows an error box on GitHub and nothing at all on the
+    mkdocs sites, so nothing catches it until a person looks at the
+    page. That is the gap this closes, and it is why the check applies
+    to repositories that *have* diagrams rather than to all of them.
+
+    Both halves are required. The script alone is a thing nobody runs,
+    and a workflow step alone would mean each project inventing its
+    own invocation of a container -- the whole point of shipping the
+    wrapper is that the docker arguments, the entrypoint override and
+    the exit-status handling are written once.
+    """
+    if not repo_has_mermaid(repo_path):
+        return {
+            'id': 'mermaid-lint-ci',
+            'status': 'not_applicable',
+            'details': 'No mermaid diagrams to lint',
+        }
+
+    missing = []
+    if not check_file_exists(repo_path, MERMAID_LINT_SCRIPT):
+        missing.append(MERMAID_LINT_SCRIPT)
+
+    workflows = [
+        os.path.join(repo_path, '.github', 'workflows', workflow)
+        for workflow in list_workflow_files(repo_path)
+    ]
+    if not any(
+        file_mentions(workflow, MERMAID_LINT_SCRIPT)
+        for workflow in workflows
+    ):
+        missing.append('a CI workflow that runs it')
+
+    if missing:
+        return {
+            'id': 'mermaid-lint-ci',
+            'status': 'fail',
+            'details': (
+                f'mermaid diagrams are not linted: missing '
+                f'{" and ".join(missing)} (copy '
+                f'templates/mermaid-lint/ from the development '
+                f'repository)'
+            ),
+        }
+    return {
+        'id': 'mermaid-lint-ci',
+        'status': 'pass',
+        'details': 'mermaid diagrams are rendered by CI',
+    }
+
+
 # Plan source references: a plan pointer written into source or
 # configuration must resolve in this repository, or else be an
 # absolute URL. See docs/audits/plan-source-references.md.
@@ -4892,9 +5175,9 @@ def validate_shared_blocks(content, required=None, blocks_dir=None):
 # fleet issue naming something the page never mentions.
 PUSH_AUDIT_BLOCKS = [
     'readme-discipline', 'llm-doc-discipline',
-    'comment-proportion', 'plan-phase-references',
-    'path-traversal-review', 'python-version-discipline',
-    'functional-test-coverage',
+    'diagram-discipline', 'comment-proportion',
+    'plan-phase-references', 'path-traversal-review',
+    'python-version-discipline', 'functional-test-coverage',
 ]
 
 
@@ -5958,6 +6241,10 @@ def check_calls(repo_path, props, repo_name, org):
          lambda: check_readme_structure(repo_path, props)),
         ('plan-phase-references',
          lambda: check_plan_phase_references(repo_path, props)),
+        ('diagram-format',
+         lambda: check_diagram_format(repo_path, props)),
+        ('mermaid-lint-ci',
+         lambda: check_mermaid_lint_ci(repo_path, props)),
         ('plan-source-references',
          lambda: check_plan_source_references(repo_path, props)),
         ('plan-index',
