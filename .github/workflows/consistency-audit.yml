@@ -42,7 +42,7 @@ jobs:
           - sfui
     steps:
       - name: Checkout development repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Clone target repo
         run: |
@@ -118,7 +118,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout development repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Download all audit results
         uses: actions/download-artifact@v4
@@ -151,7 +151,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout development repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Download all audit results
         uses: actions/download-artifact@v4

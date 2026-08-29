@@ -51,7 +51,7 @@ jobs:
       group: ${{ github.workflow }}-${{ github.ref }}-lint-and-test
       cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # A venv for the same reason consistency-audit.yml uses one: the
       # runners enforce PEP 668 and refuse a bare install.
@@ -82,7 +82,7 @@ jobs:
       group: ${{ github.workflow }}-${{ github.ref }}-audit-smoke
       cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # Deliberately the same install as consistency-audit.yml, on the
       # same runner class. The point of this job is that the scheduled
