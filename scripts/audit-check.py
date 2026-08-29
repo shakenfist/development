@@ -74,55 +74,6 @@ REPO_OVERRIDES = {
     'shakenfist': {'doc_content_excludes': ['docs/components/']},
 }
 
-# Map from check ID to the human-readable name used in issue titles.
-# Must match the titles used in the manually created issues from phase 1.
-CHECK_NAMES = {
-    'llm-tooling': 'LLM tooling',
-    'llm-doc-structure': 'AGENTS.md / ARCHITECTURE.md structure',
-    'llm-context-lint': 'LLM context linting',
-    'llm-context-lint-ci': 'LLM context linting in pre-commit and CI',
-    'release-process': 'Release process',
-    'ci-review-automation': 'CI review automation',
-    'renovate': 'Renovate',
-    'pin-indirect-dependencies': 'Pin indirect dependencies',
-    'dependency-name-normalization': 'Dependency name normalization',
-    'export-repo-config': 'Export repo config',
-    'default-branch-naming': 'Default branch naming',
-    'github-security': 'GitHub security settings',
-    'delete-branch-on-merge': 'Delete branch on merge',
-    'merge-queue-config': 'Merge queue reasonability',
-    'workflow-permissions': 'Workflow standards',
-    'pre-commit-config': 'Workflow standards',
-    'review-marks-pre-commit': 'Workflow standards',
-    'flake8wrap': 'Workflow standards (flake8wrap)',
-    'self-hosted-runners': 'Workflow standards (self-hosted runners)',
-    'static-runner-tags': 'Workflow standards (static runner tags)',
-    'vm-runner-size': 'Workflow standards (vm runner size)',
-    'devpi-fallback': 'Workflow standards (devpi cache fallback)',
-    'devpi-stale-ip': 'Workflow standards (devpi cache address)',
-    'expensive-lane-path-filter': 'Expensive lane path filtering',
-    'merge-group-cancellation': 'Merge group run cancellation',
-    'version-file-gitignore': 'Generated version file',
-    'pyproject-usage': 'pyproject.toml usage',
-    'console-logging': 'Console script logging setup',
-    'header-sanitization': 'HTTP header sanitization',
-    'python-version-targeting': 'Python version targeting',
-    'rust-unwrap-lint': 'Rust unwrap lint',
-    'readme-absolute-links': 'README absolute links',
-    'docs-external-links': 'Links out of docs/ are absolute',
-    'readme-structure': 'README structure',
-    'plan-phase-references': 'Plan phase references',
-    'diagram-format': 'Diagram format',
-    'mermaid-lint-ci': 'Mermaid diagrams linted in CI',
-    'plan-source-references': 'Plan references in source',
-    'plan-index': 'Plan index',
-    'push-audit': 'Pre-push audit file',
-    'plan-template': 'Plan template',
-    'secret-scanning-ci': 'Secret scanning in CI',
-    'review-coverage': 'Human review coverage',
-    'sfui-vendor': 'sfui vendored copy',
-}
-
 
 def detect_repo_properties(repo_path, repo_name):
     """Auto-detect repo type from files present."""

@@ -23,6 +23,8 @@ import sys
 import tempfile
 import unittest
 
+from audit_common import ISSUE_TITLES
+
 
 SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), 'audit-check.py'
@@ -2828,11 +2830,15 @@ class CheckScopeTest(unittest.TestCase):
     def test_every_scheduled_id_is_a_known_check(self):
         # A typo in the id table would make a check unschedulable
         # while still reporting a plausible looking result, so the
-        # table has to agree with the issue title map.
+        # table has to agree with the issue title map. ISSUE_TITLES is
+        # that map itself rather than a copy of it: audit-manage-issues
+        # reads it as .get(check_id, check_id), so an id missing from it
+        # files under the bare check id and orphans every open issue for
+        # that check across the fleet.
         ids = self._ids()
         self.assertEqual(sorted(ids), sorted(set(ids)))
         self.assertEqual(
-            sorted(ids), sorted(audit_check.CHECK_NAMES.keys())
+            sorted(ids), sorted(ISSUE_TITLES.keys())
         )
 
     def test_scoped_repo_runs_only_its_check(self):
@@ -2847,7 +2853,7 @@ class CheckScopeTest(unittest.TestCase):
 
         reason = 'private-ci is audited for sfui-vendor only'
         by_id = {c['id']: c for c in results['checks']}
-        self.assertEqual(len(by_id), len(audit_check.CHECK_NAMES))
+        self.assertEqual(len(by_id), len(ISSUE_TITLES))
 
         for check_id, check in by_id.items():
             if check_id == 'sfui-vendor':
@@ -2859,7 +2865,7 @@ class CheckScopeTest(unittest.TestCase):
         # Nothing is dropped from the results, because a check missing
         # from the JSON renders as "unknown" in the docs/audits/ tables.
         self.assertEqual(
-            results['summary']['total'], len(audit_check.CHECK_NAMES)
+            results['summary']['total'], len(ISSUE_TITLES)
         )
         self.assertEqual(results['summary']['fail'], 0)
 

@@ -43,8 +43,13 @@ elevated permissions. Security is enforced through multiple layers:
    not the PR, preventing execution of malicious PR code
 3. **No credential persistence** -- `persist-credentials: false`
    prevents tokens from being stored in the checkout
-4. **Git hooks disabled** -- `core.hooksPath=/dev/null` prevents
-   malicious git hooks from the PR
+4. **Git hooks disabled** -- the workflows that put a pull request's
+   code on the runner (`pr-re-review.yml`, and `test-drift-fix.yml`
+   behind `pr-fix-tests.yml`) set `core.hooksPath=/dev/null` on the
+   checkout before running anything over it. `pr-retest.yml` never
+   checks out pull request code at all. The setting is repository
+   local rather than `--global`, so it cannot outlive the job on a
+   long-lived static runner
 5. **No pre-commit** -- pre-commit hooks execute repository code and
    are skipped in privileged workflows
 6. **Just-in-time auth** -- `gh auth setup-git` is used only when

@@ -107,6 +107,15 @@ jobs:
         run: |
           git config --global user.name "shakenfist-bot"
           git config --global user.email "bot@shakenfist.com"
+          # The checkout above may be a pull request's head branch, and
+          # the steps below run the project's tests and Claude Code over
+          # it. Hooks are not tracked in a checkout, so this is defence
+          # in depth -- but docs/ci-review-automation.md claims the
+          # control for these workflows, so it is set rather than
+          # merely documented. Repository-local, not --global: a global
+          # setting would outlive the job on a long-lived runner and
+          # disable hooks for everything that followed.
+          git config core.hooksPath /dev/null
 
       - name: Create working branch
         if: env.IS_PR_RUN != 'true'
