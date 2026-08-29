@@ -147,6 +147,26 @@
     {
       "path": "docs/audits/secret-handling.md",
       "author": "mikal"
+    },
+    {
+      "path": "docs/audits/security-sanitization.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/sfui-vendor.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/test-coverage.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/version-file-gitignore.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/workflow-standards.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

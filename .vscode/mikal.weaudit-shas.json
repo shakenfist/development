@@ -133,6 +133,26 @@
       "sha": "9d43f69848de7d7356f554d9522fdff93d826b08",
       "date": "2026-08-29"
     },
+    "docs/audits/security-sanitization.md": {
+      "sha": "e6413c87b8fb1a61c1803bb712a8df9bcd3c21f0",
+      "date": "2026-08-29"
+    },
+    "docs/audits/sfui-vendor.md": {
+      "sha": "027c3e6d7a2a4dccf6063670c5223659ad1bbe20",
+      "date": "2026-08-29"
+    },
+    "docs/audits/test-coverage.md": {
+      "sha": "54f7bfcad8af5ac2edd635cee6d6818e45d30bc0",
+      "date": "2026-08-29"
+    },
+    "docs/audits/version-file-gitignore.md": {
+      "sha": "27a18426ea30541974101ecbb486c3efc61ee48f",
+      "date": "2026-08-29"
+    },
+    "docs/audits/workflow-standards.md": {
+      "sha": "653fd7a6de3cbe09fe8ef2fc5489042b94da7d44",
+      "date": "2026-08-29"
+    },
     "tools/ci-prune-reviews.sh": {
       "sha": "3e10680265c6b885619e8e08bea30a4fb05cb10b",
       "date": "2026-08-24"
