@@ -67,6 +67,10 @@ to Shaken Fist projects:
   Daily workflow to reconcile pinned transitive Python dependencies,
   adding new pins and removing stale ones (applications only --
   libraries deliberately leave resolution to their consumers)
+- [`templates/mermaid-lint/`](https://github.com/shakenfist/development/tree/main/templates/mermaid-lint) --
+  Renders every mermaid diagram in a repository's markdown on pull
+  requests that touch markdown, so a diagram that does not parse fails
+  CI rather than a documentation page
 - [`templates/shared-blocks/`](https://github.com/shakenfist/development/tree/main/templates/shared-blocks) --
   Versioned blocks of canonical wording embedded verbatim across
   repositories, in each one's `PUSH-AUDIT.md` and
@@ -83,6 +87,8 @@ This repository carries project-level Claude Code skills in
 - **review-tracking-adoption** -- deploying the human code review
   tracking tooling to a repository and verifying the deployment,
   including that expensive CI skips review-only pull requests
+- **diagram-conversion** -- converting ASCII-art diagrams to mermaid,
+  and deciding which ones should stay as ASCII
 
 ## Shared GitHub Actions
 
