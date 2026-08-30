@@ -23,7 +23,7 @@ import sys
 import tempfile
 import unittest
 
-from audit_common import ISSUE_TITLES
+from audit_common import AUDIT_METADATA, ISSUE_TITLES
 
 
 SCRIPT = os.path.join(
@@ -2834,11 +2834,22 @@ class CheckScopeTest(unittest.TestCase):
         # that map itself rather than a copy of it: audit-manage-issues
         # reads it as .get(check_id, check_id), so an id missing from it
         # files under the bare check id and orphans every open issue for
-        # that check across the fleet.
+        # that check across the fleet, and audit-update-docs subscripts
+        # it directly, so the same omission raises KeyError during docs
+        # regeneration.
+        #
+        # AUDIT_METADATA is the third corner of the same triangle:
+        # audit-update-docs iterates it to emit one compliance section
+        # per check, and audit-manage-issues reads it for the spec link
+        # in each filed issue. Asserting both closes the loop, so a new
+        # check cannot be scheduled while missing from either map.
         ids = self._ids()
         self.assertEqual(sorted(ids), sorted(set(ids)))
         self.assertEqual(
             sorted(ids), sorted(ISSUE_TITLES.keys())
+        )
+        self.assertEqual(
+            sorted(ids), sorted(AUDIT_METADATA.keys())
         )
 
     def test_scoped_repo_runs_only_its_check(self):
@@ -5207,6 +5218,88 @@ class PrReReviewTriggerTest(unittest.TestCase):
     def test_the_docs_only_path_passes_when_the_action_is_used(self):
         result = self._check(self.USES_ACTION, docs_only=True)
         self.assertEqual(result['status'], 'pass', result['details'])
+
+
+class GitHooksDisabledTest(unittest.TestCase):
+    """The workflows that check out PR code must neuter core.hooksPath.
+
+    Layer 4 of the security model in docs/ci-review-automation.md
+    names these three files and asserts the control is set in them.
+    Nothing in check_ci_review_automation inspects checkout steps, so
+    without this a template edit could drop the step and leave the
+    document claiming a control that is not there -- which is the
+    defect this test's own pull request existed to fix. The assertion
+    is on this repository's files rather than on a synthetic tree
+    because the templates are the fleet's source of truth: a repo that
+    copies them inherits whatever is here.
+    """
+
+    WORKFLOWS = [
+        os.path.join('.github', 'workflows', 'pr-re-review.yml'),
+        os.path.join(
+            'templates', 'ci-review-automation', 'pr-re-review.yml'),
+        os.path.join(
+            'templates', 'test-drift-fix', 'test-drift-fix.yml'),
+    ]
+
+    def test_hooks_path_is_set_after_the_checkout(self):
+        for name in self.WORKFLOWS:
+            with self.subTest(workflow=name):
+                with open(os.path.join(REPO_ROOT, name)) as f:
+                    lines = f.read().splitlines()
+
+                config = [
+                    i for i, line in enumerate(lines)
+                    if 'git config core.hooksPath /dev/null' in line
+                    and not line.lstrip().startswith('#')
+                ]
+                self.assertEqual(
+                    len(config), 1,
+                    f'{name} must set core.hooksPath exactly once')
+
+                # Ordering matters as much as presence: "git config"
+                # outside a work tree fails, and hooks set before the
+                # checkout would be overwritten by it.
+                checkout = [
+                    i for i, line in enumerate(lines)
+                    if 'actions/checkout@' in line
+                ]
+                self.assertTrue(
+                    checkout, f'{name} has no checkout step')
+                self.assertGreater(config[0], checkout[0])
+
+    def test_the_setting_is_repository_local(self):
+        # --global would outlive the job on the shared claude-code
+        # pool and disable hooks for every later job on that machine.
+        for name in self.WORKFLOWS:
+            with self.subTest(workflow=name):
+                with open(os.path.join(REPO_ROOT, name)) as f:
+                    body = f.read()
+                self.assertNotIn(
+                    'git config --global core.hooksPath', body)
+
+    def test_the_document_still_names_these_workflows(self):
+        # The test and the claim have to move together: a workflow
+        # dropped from the list here but left in the document is the
+        # same unbacked claim in the other direction.
+        #
+        # Scoped to layer 4 rather than the whole document on purpose.
+        # "test-drift-fix.yml" also appears under Workflow Templates,
+        # so a document-wide assertIn would stay green after the name
+        # was struck from the security model -- a guard that passes
+        # for a reason unrelated to what it defends.
+        layer = self._security_model_layer_four()
+        self.assertIn('core.hooksPath=/dev/null', layer)
+        for name in self.WORKFLOWS:
+            with self.subTest(workflow=name):
+                self.assertIn(os.path.basename(name), layer)
+
+    def _security_model_layer_four(self):
+        with open(os.path.join(
+                REPO_ROOT, 'docs', 'ci-review-automation.md')) as f:
+            doc = f.read()
+        start = doc.index('4. **Git hooks disabled**')
+        return doc[start:doc.index('5. **', start)]
 
 
 class PrAutoReviewSecretsInheritTest(unittest.TestCase):

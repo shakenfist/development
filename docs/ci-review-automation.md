@@ -48,10 +48,18 @@ elevated permissions. Security is enforced through multiple layers:
    behind `pr-fix-tests.yml`) set `core.hooksPath=/dev/null` on the
    checkout before running anything over it. `pr-retest.yml` never
    checks out pull request code at all. The setting is repository
-   local rather than `--global`, so it cannot outlive the job on a
-   long-lived static runner
+   local rather than `--global`, so it cannot affect any other
+   repository's jobs on the same runner -- these jobs run on the
+   shared, long-lived `claude-code` pool, not on a throwaway VM
 5. **No pre-commit** -- pre-commit hooks execute repository code and
-   are skipped in privileged workflows
+   are skipped in privileged workflows. `test-drift-fix.yml` is the
+   deliberate exception: fixing test drift means running the pull
+   request's own tests, and its prompt asks Claude to run `pre-commit
+   run --all-files` too, so the pull request's hooks do execute in a
+   privileged job. `core.hooksPath` does not cover that -- it stops
+   git-invoked hooks, not an explicit `pre-commit run`. That workflow
+   rests instead on maintainer-only triggering and runner isolation,
+   as its own file header states
 6. **Just-in-time auth** -- `gh auth setup-git` is used only when
    pushing, not during the entire workflow
 
