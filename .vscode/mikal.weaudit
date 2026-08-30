@@ -5,14 +5,6 @@
   "treeEntries": [],
   "auditedFiles": [
     {
-      "path": ".claude/skills/review-tracking-adoption/SKILL.md",
-      "author": "mikal"
-    },
-    {
-      "path": ".claude/skills/review-tracking-adoption",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/export-repo-config.yml",
       "author": "mikal"
     },
@@ -177,15 +169,7 @@
       "author": "mikal"
     },
     {
-      "path": "docs/code-review-tracking.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/release-automation.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit_common.py",
       "author": "mikal"
     },
     {
@@ -197,23 +181,11 @@
       "author": "mikal"
     },
     {
-      "path": "AGENTS.md",
-      "author": "mikal"
-    },
-    {
-      "path": "ARCHITECTURE.md",
-      "author": "mikal"
-    },
-    {
       "path": "PUSH-AUDIT.md",
       "author": "mikal"
     },
     {
       "path": "README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/ci-review-automation/pr-re-review.yml",
       "author": "mikal"
     },
     {
@@ -225,19 +197,7 @@
       "author": "mikal"
     },
     {
-      "path": "templates/ci-review-automation",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/codeql/codeql-analysis.yml",
-      "author": "mikal"
-    },
-    {
       "path": "templates/codeql/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/codeql",
       "author": "mikal"
     },
     {
@@ -281,15 +241,7 @@
       "author": "mikal"
     },
     {
-      "path": "templates/mermaid-lint/mermaid-lint.yml",
-      "author": "mikal"
-    },
-    {
       "path": "templates/mermaid-lint/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/mermaid-lint",
       "author": "mikal"
     },
     {
@@ -317,14 +269,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/release-automation/release.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/release-automation",
-      "author": "mikal"
-    },
-    {
       "path": "templates/renovate/README.md",
       "author": "mikal"
     },
@@ -333,27 +277,11 @@
       "author": "mikal"
     },
     {
-      "path": "templates/renovate/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate",
-      "author": "mikal"
-    },
-    {
       "path": "templates/test-drift-fix/pr-fix-tests.yml",
       "author": "mikal"
     },
     {
       "path": "templates/test-drift-fix/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/test-drift-fix/test-drift-fix.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/test-drift-fix",
       "author": "mikal"
     }
   ],
