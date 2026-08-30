@@ -12,6 +12,12 @@
     "description": "Renovate's pre-commit manager is opt-in. Without this the hook revisions in .pre-commit-config.yaml are the one dependency file nobody is watching.",
     "enabled": true
   },
+  "github-actions": {
+    "description": "The workflow templates under templates/ are shipped to the rest of the fleet, but the github-actions manager only scans .github/workflows and .github/actions by default -- so a template and its deployed twin here drift apart at every bump. These patterns extend the defaults rather than replacing them.",
+    "managerFilePatterns": [
+      "/^templates/.+\\.ya?ml$/"
+    ]
+  },
   "packageRules": [
     {
       "description": "Automatically merge minor and patch-level updates",
