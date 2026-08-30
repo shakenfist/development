@@ -133,10 +133,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/renovate.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/review-coverage.md",
       "author": "mikal"
     },
