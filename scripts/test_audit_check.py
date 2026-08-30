@@ -23,12 +23,16 @@ import sys
 import tempfile
 import unittest
 
-from audit_common import AUDIT_METADATA, ISSUE_TITLES
-
-
 SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), 'audit-check.py'
 )
+
+# audit_common lives beside audit-check.py, which is only on sys.path
+# by accident of how this suite happens to be invoked. Inserted
+# explicitly, the same way test_audit_update_docs.py does it.
+sys.path.insert(0, os.path.dirname(SCRIPT))
+
+from audit_common import AUDIT_METADATA, ISSUE_TITLES  # noqa: E402
 
 # This repository, for the tests that check a check against the spec
 # page or the canonical template it is supposed to agree with.
@@ -5242,6 +5246,13 @@ class GitHooksDisabledTest(unittest.TestCase):
             'templates', 'test-drift-fix', 'test-drift-fix.yml'),
     ]
 
+    # Matched as a pattern rather than as one exact spelling. This
+    # test is the fleet's guard, and its failures are read by people
+    # who did not write it: `git config --local core.hooksPath` sets
+    # the same thing, and reporting it as a missing line would send
+    # them to delete a correct one.
+    HOOKS_PATH = re.compile(r'git config (--local )?core\.hooksPath')
+
     def test_hooks_path_is_set_after_the_checkout(self):
         for name in self.WORKFLOWS:
             with self.subTest(workflow=name):
@@ -5250,7 +5261,7 @@ class GitHooksDisabledTest(unittest.TestCase):
 
                 config = [
                     i for i, line in enumerate(lines)
-                    if 'git config core.hooksPath /dev/null' in line
+                    if self.HOOKS_PATH.search(line)
                     and not line.lstrip().startswith('#')
                 ]
                 self.assertEqual(
@@ -5259,14 +5270,20 @@ class GitHooksDisabledTest(unittest.TestCase):
 
                 # Ordering matters as much as presence: "git config"
                 # outside a work tree fails, and hooks set before the
-                # checkout would be overwritten by it.
+                # checkout would be overwritten by it. Against the
+                # last checkout rather than the first, because a
+                # second one added after the config step would
+                # re-clone the tree and discard .git/config.
                 checkout = [
                     i for i, line in enumerate(lines)
                     if 'actions/checkout@' in line
                 ]
                 self.assertTrue(
                     checkout, f'{name} has no checkout step')
-                self.assertGreater(config[0], checkout[0])
+                self.assertGreater(
+                    config[0], checkout[-1],
+                    f'{name} sets core.hooksPath before its last '
+                    'checkout, which would discard the setting')
 
     def test_the_setting_is_repository_local(self):
         # --global would outlive the job on the shared claude-code
@@ -5294,12 +5311,33 @@ class GitHooksDisabledTest(unittest.TestCase):
             with self.subTest(workflow=name):
                 self.assertIn(os.path.basename(name), layer)
 
+    # AGENTS.md: a document parsed by phrase gets named constants
+    # and an assertion, not a bare index() that raises ValueError
+    # without naming the phrase that stopped matching. Same treatment
+    # as AuditScopeIsStatedOnceTest.bulleted_block(), including the
+    # count assertions -- they report the phrase rather than dumping
+    # the document the way assertIn would.
+    DOC = os.path.join('docs', 'ci-review-automation.md')
+    LAYER_FOUR = '4. **Git hooks disabled**'
+    LAYER_FIVE = '5. **'
+
     def _security_model_layer_four(self):
-        with open(os.path.join(
-                REPO_ROOT, 'docs', 'ci-review-automation.md')) as f:
+        with open(os.path.join(REPO_ROOT, self.DOC)) as f:
             doc = f.read()
-        start = doc.index('4. **Git hooks disabled**')
-        return doc[start:doc.index('5. **', start)]
+        self.assertEqual(
+            doc.count(self.LAYER_FOUR), 1,
+            f'{self.DOC} must contain "{self.LAYER_FOUR}" exactly '
+            f'once: it is where this test starts reading the layer, '
+            f'and a renumbered or reworded security model has to fail '
+            f'as that rather than as a missing control')
+        after = doc.split(self.LAYER_FOUR, 1)[1]
+        self.assertEqual(
+            after.count(self.LAYER_FIVE), 1,
+            f'{self.DOC} must contain "{self.LAYER_FIVE}" exactly '
+            f'once after "{self.LAYER_FOUR}": it is where this test '
+            f'stops reading, and without it the parse runs to the end '
+            f'of the file')
+        return self.LAYER_FOUR + after.split(self.LAYER_FIVE, 1)[0]
 
 
 class PrAutoReviewSecretsInheritTest(unittest.TestCase):

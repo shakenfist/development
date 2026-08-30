@@ -19,9 +19,11 @@
 #   c) GITHUB_TOKEN scope is limited to this repository
 #   d) The job runs on the shared claude-code pool, which is
 #      pre-provisioned and long-lived rather than a throwaway VM, so
-#      it confines itself to its own workspace: the checkout uses
-#      repository-local git config and writes scratch files to
-#      runner.temp
+#      the hooks setting below is made repository-local rather than
+#      --global, and scratch files are written to runner.temp. The
+#      bot commit identity is the exception: it is set --global, as
+#      it is in every other workflow in the fleet, and does outlive
+#      the job on the pool
 #
 # Risk acceptance: The benefit of automated test fixes outweighs the
 # risk because only trusted maintainers can trigger execution.

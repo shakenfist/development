@@ -50,7 +50,12 @@ elevated permissions. Security is enforced through multiple layers:
    checks out pull request code at all. The setting is repository
    local rather than `--global`, so it cannot affect any other
    repository's jobs on the same runner -- these jobs run on the
-   shared, long-lived `claude-code` pool, not on a throwaway VM
+   shared, long-lived `claude-code` pool, not on a throwaway VM.
+   This is a rollout in progress: the setting is in the templates and
+   in this repository, but the repositories that copied
+   `pr-re-review.yml` before it existed do not have it, and
+   `check_ci_review_automation` does not yet look for it, so the
+   daily audit will not tell you which ones
 5. **No pre-commit** -- pre-commit hooks execute repository code and
    are skipped in privileged workflows. `test-drift-fix.yml` is the
    deliberate exception: fixing test drift means running the pull
