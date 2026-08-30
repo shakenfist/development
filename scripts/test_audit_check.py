@@ -1861,6 +1861,94 @@ class ReviewCoverageTest(unittest.TestCase):
                          [f'never reviewed: f{i}.py' for i in range(5)])
 
 
+class ReviewScopeCompletenessTest(unittest.TestCase):
+    """Tests check_review_scope_completeness against fixture repos.
+
+    The check shells out to review-tracking.py scope-orphans, which
+    needs a real repository: the orphan set is computed from git
+    ls-files, so uncommitted files do not count.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = self.tmp.name
+        self.git('init', '-b', 'main')
+        self.git('config', 'user.email', 'test@example.com')
+        self.git('config', 'user.name', 'Test User')
+        self.git('config', 'commit.gpgsign', 'false')
+        os.mkdir(os.path.join(self.repo, '.vscode'))
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def git(self, *args):
+        return subprocess.run(['git'] + list(args), cwd=self.repo, check=True,
+                              capture_output=True, text=True)
+
+    def write(self, path, content):
+        with open(os.path.join(self.repo, path), 'w') as f:
+            f.write(content)
+
+    def commit(self, scope, files):
+        if scope is not None:
+            self.write('.vscode/review-scope.toml', scope)
+        for path in files:
+            self.write(path, f'# {path}\n')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'initial')
+
+    def check(self):
+        return audit_check.check_review_scope_completeness(self.repo, {})
+
+    def test_not_applicable_without_scope_config(self):
+        self.commit(None, ['a.py'])
+        result = self.check()
+        self.assertEqual(result['status'], 'not_applicable')
+        self.assertIn('review-scope.toml', result['details'])
+
+    def test_a_file_no_include_pattern_names_fails(self):
+        self.commit('include = ["*.py"]\n', ['a.py', 'config.json'])
+        result = self.check()
+        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assertEqual(result['missing'], ['config.json'])
+        self.assertIn('1 tracked file(s)', result['details'])
+
+    def test_an_excluded_file_passes(self):
+        # Excluding is a decision. The check is about omission, not
+        # about how much of the repository gets reviewed.
+        self.commit('include = ["*.py"]\nexclude = ["config.json"]\n',
+                    ['a.py', 'config.json'])
+        result = self.check()
+        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assertNotIn('missing', result)
+
+    def test_an_empty_include_passes(self):
+        # An empty include means every tracked file, so there is
+        # nothing left to omit. This is the trivially compliant
+        # configuration the spec offers to small repositories.
+        self.commit('exclude = ["config.json"]\n', ['a.py', 'config.json'])
+        result = self.check()
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_every_orphan_is_listed_not_a_sample(self):
+        # The issue body is the work queue, and the fix is per file.
+        self.commit('include = ["*.py"]\n',
+                    ['a.py'] + [f'f{i}.json' for i in range(9)])
+        result = self.check()
+        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assertEqual(result['missing'],
+                         [f'f{i}.json' for i in range(9)])
+
+    def test_full_coverage_does_not_excuse_a_narrow_scope(self):
+        # The failure mode this check exists for: review-coverage sees
+        # a fully reviewed repository precisely because the scope was
+        # narrowed to the one file that was reviewed.
+        self.commit('include = ["a.py"]\n', ['a.py', 'b.py', 'c.py'])
+        result = self.check()
+        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assertEqual(result['missing'], ['b.py', 'c.py'])
+
+
 class ReviewMarksPreCommitTest(unittest.TestCase):
     """Tests check_review_marks_pre_commit against config fixtures."""
 
