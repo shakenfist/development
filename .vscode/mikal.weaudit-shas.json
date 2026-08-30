@@ -173,6 +173,10 @@
       "sha": "3e10680265c6b885619e8e08bea30a4fb05cb10b",
       "date": "2026-08-24"
     },
+    "tools/mermaid-lint.sh": {
+      "sha": "e9f174d6d54ec1d6e38725a8b0a6de1998945cab",
+      "date": "2026-08-30"
+    },
     "tools/review-tracking.sh": {
       "sha": "fabe2fc68a97b45b5f628f6380893bbfac9d764c",
       "date": "2026-08-24"

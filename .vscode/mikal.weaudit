@@ -183,6 +183,18 @@
     {
       "path": "docs/release-automation.md",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/audit_common.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/mermaid-lint.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
