@@ -211,6 +211,150 @@
     {
       "path": "README.md",
       "author": "mikal"
+    },
+    {
+      "path": "templates/ci-review-automation/pr-re-review.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/ci-review-automation/pr-retest.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/ci-review-automation/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/ci-review-automation",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/codeql/codeql-analysis.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/codeql/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/codeql",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/export-repo-config/export-repo-config.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/export-repo-config/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/export-repo-config",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-fix/claude-model-fallback.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-fix/extract-model-block.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-fix/issue-fix.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-fix/neutralise-pr-body.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-fix/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-fix",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/mermaid-lint/mermaid-lint.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/mermaid-lint/mermaid-lint.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/mermaid-lint/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/mermaid-lint",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/pin-indirect-dependencies/pin-indirect-dependencies.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/pin-indirect-dependencies/pin-indirect-dependencies.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/pin-indirect-dependencies/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/pin-indirect-dependencies",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation/RELEASE-SETUP.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation/release.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate/renovate.json",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/test-drift-fix/pr-fix-tests.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/test-drift-fix/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/test-drift-fix/test-drift-fix.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/test-drift-fix",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
