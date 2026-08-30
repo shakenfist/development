@@ -4718,6 +4718,18 @@ class LlmContextLintCiTest(unittest.TestCase):
     )
     WORKFLOW = 'jobs:\n  lint:\n    steps:\n      - uses: stbenjam/skillsaw@v0\n'
 
+    # kerbside's actual shape: skillsaw installed from PyPI and
+    # invoked directly, naming neither the upstream repository nor
+    # pre-commit in the workflow.
+    DIRECT_RUN_WORKFLOW = (
+        'jobs:\n'
+        '  lint:\n'
+        '    steps:\n'
+        '      - run: |\n'
+        '          uv pip install skillsaw==0.18.0\n'
+        '          skillsaw --no-custom-rules .\n'
+    )
+
     def test_both_present_passes(self):
         with tempfile.TemporaryDirectory() as tmp:
             self._repo(tmp, {
@@ -4816,6 +4828,72 @@ class LlmContextLintCiTest(unittest.TestCase):
             })
             result = audit_check.check_llm_context_lint_ci(tmp, {})
         self.assertEqual(result['status'], 'fail')
+
+    def test_direct_invocation_passes(self):
+        # A workflow can also invoke skillsaw directly after installing
+        # it from PyPI, naming neither the upstream repository nor
+        # pre-commit.
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, {
+                'CLAUDE.md': '# Context\n',
+                '.pre-commit-config.yaml': self.PRE_COMMIT,
+                '.github/workflows/lint.yml': self.DIRECT_RUN_WORKFLOW,
+            })
+            result = audit_check.check_llm_context_lint_ci(tmp, {})
+        self.assertEqual(result['status'], 'pass')
+
+    def test_install_without_invocation_fails(self):
+        # Installing skillsaw is not running it. The anchor in
+        # SKILLSAW_RUN_RE is what separates the two -- without it, this
+        # case would be indistinguishable from a real invocation, since
+        # the bare word "skillsaw" appears on the install line too.
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, {
+                'CLAUDE.md': '# Context\n',
+                '.pre-commit-config.yaml': self.PRE_COMMIT,
+                '.github/workflows/lint.yml': (
+                    'jobs:\n'
+                    '  lint:\n'
+                    '    steps:\n'
+                    '      - run: pip install skillsaw\n'
+                ),
+            })
+            result = audit_check.check_llm_context_lint_ci(tmp, {})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('CI workflow', result['details'])
+
+    def test_direct_invocation_in_a_comment_does_not_count(self):
+        # A full-line comment describes what runs elsewhere; it is not
+        # itself an invocation.
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, {
+                'CLAUDE.md': '# Context\n',
+                '.pre-commit-config.yaml': self.PRE_COMMIT,
+                '.github/workflows/lint.yml': (
+                    'jobs:\n'
+                    '  lint:\n'
+                    '    steps:\n'
+                    '      # skillsaw runs elsewhere\n'
+                    '      - run: true\n'
+                ),
+            })
+            result = audit_check.check_llm_context_lint_ci(tmp, {})
+        self.assertEqual(result['status'], 'fail')
+
+    def test_direct_invocation_without_pre_commit_hook_fails(self):
+        # CI running skillsaw directly does not excuse the pre-commit
+        # side -- the two halves are independent obligations, and the
+        # failure must name the pre-commit half, not the CI half.
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, {
+                'CLAUDE.md': '# Context\n',
+                '.pre-commit-config.yaml': 'repos: []\n',
+                '.github/workflows/lint.yml': self.DIRECT_RUN_WORKFLOW,
+            })
+            result = audit_check.check_llm_context_lint_ci(tmp, {})
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('.pre-commit-config.yaml', result['details'])
+        self.assertNotIn('CI workflow', result['details'])
 
     def test_repo_without_context_is_not_applicable(self):
         with tempfile.TemporaryDirectory() as tmp:
