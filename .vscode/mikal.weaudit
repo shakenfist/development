@@ -161,10 +161,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/workflow-standards.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/diagram-format.md",
       "author": "mikal"
     },
@@ -174,10 +170,6 @@
     },
     {
       "path": "docs/audits/push-audit.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/README.md",
       "author": "mikal"
     },
     {
@@ -198,10 +190,6 @@
     },
     {
       "path": "docs/release-automation.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit_common.py",
       "author": "mikal"
     }
   ],

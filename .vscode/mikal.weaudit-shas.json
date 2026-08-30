@@ -17,10 +17,6 @@
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
       "date": "2026-08-24"
     },
-    "docs/audits/README.md": {
-      "sha": "1119d2182414976f98f57260d90c21079731a49c",
-      "date": "2026-08-30"
-    },
     "docs/audits/ci-review-automation.md": {
       "sha": "b0e5dd33cc1c7e7d845ee3b42e63ec31e35b58da",
       "date": "2026-08-27"
@@ -161,10 +157,6 @@
       "sha": "27a18426ea30541974101ecbb486c3efc61ee48f",
       "date": "2026-08-29"
     },
-    "docs/audits/workflow-standards.md": {
-      "sha": "653fd7a6de3cbe09fe8ef2fc5489042b94da7d44",
-      "date": "2026-08-29"
-    },
     "docs/automated-pr-review.md": {
       "sha": "d60479307223048db30a9651ee8492b89c8b4049",
       "date": "2026-08-30"
@@ -183,10 +175,6 @@
     },
     "docs/release-automation.md": {
       "sha": "a92bfdaed278fd448adabc76c8a5904174815ea8",
-      "date": "2026-08-30"
-    },
-    "scripts/audit_common.py": {
-      "sha": "8fdd0a2bbd5366cb2f6117cc1893c7ec036dbc05",
       "date": "2026-08-30"
     },
     "tools/ci-prune-reviews.sh": {
