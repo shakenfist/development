@@ -73,6 +73,19 @@ otherwise picks for it.
   A job whose size could only arrive through an expression is a
   finding: the fleet writes the size literally even when the operating
   system comes from the matrix.
+* A job which genuinely cannot name a size marks the line
+  `audit-ok: vm-runner-size`, on the `runs-on:` itself or the line
+  above it, with the reason. This is the fleet's usual escape hatch
+  and it is here for consistency with the other runner checks, not
+  because a case is known: writing `xs` costs one word and states the
+  same decision honestly, so a marker whose reason amounts to "we did
+  not choose" is the wrong answer.
+* Only the inline-list (`[self-hosted, vm, l]`) and scalar forms of
+  `runs-on:` are examined. A block sequence spread over the following
+  lines is not matched, so a job written that way is neither passed
+  nor flagged -- it is simply not seen. No repository in scope writes
+  one today, and the sibling runner checks share the blind spot; this
+  is recorded so the coverage claim is honest rather than assumed.
 
 The two failures look nothing alike, which is why this needs its own
 check. An over-labelled `static` job is never scheduled and someone

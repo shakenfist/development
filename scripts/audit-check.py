@@ -1663,6 +1663,33 @@ RUNS_ON_RE = re.compile(r'^\s*runs-on:\s*(.+?)\s*$')
 STATIC_ALLOWED_LABELS = frozenset({'self-hosted', 'static'})
 
 
+# A GitHub Actions expression, which we cannot resolve statically.
+# Non-greedy so two expressions on one line stay two spans.
+EXPRESSION_RE = re.compile(r'\$\{\{.*?\}\}')
+
+
+def split_outside_expressions(text):
+    """Split on the commas which are not inside a '${{ ... }}' span.
+
+    A naive split() breaks "${{ format('{0},{1}', a, b) }}" into
+    fragments, and every fragment after the first has lost the '${{'
+    that marks it unresolvable -- so a caller filtering on that marker
+    would take the fragments for labels.
+    """
+    spans = [match.span() for match in EXPRESSION_RE.finditer(text)]
+    parts = []
+    start = 0
+    for i, char in enumerate(text):
+        if char != ',':
+            continue
+        if any(lo <= i < hi for lo, hi in spans):
+            continue
+        parts.append(text[start:i])
+        start = i + 1
+    parts.append(text[start:])
+    return parts
+
+
 def split_runner_labels(value):
     """Split the value of a `runs-on:` line into its label strings.
 
@@ -1677,7 +1704,7 @@ def split_runner_labels(value):
         inner = value[1:]
         if inner.endswith(']'):
             inner = inner[:-1]
-        parts = inner.split(',')
+        parts = split_outside_expressions(inner)
     else:
         parts = [value]
 
@@ -1697,10 +1724,17 @@ def parse_runner_labels(value):
     '${{ matrix.runner }}') -- for a check which must see every label
     to judge a line, one unresolvable element makes the whole line
     unjudgeable.
+
+    The test is applied to the split labels, not to the raw value, so
+    that an expression named in a trailing comment does not make a
+    perfectly literal `runs-on:` unjudgeable. Both this and
+    literal_runner_labels() must reach the same verdict about which
+    elements are expressions, or the two disagree about the same line.
     """
-    if '${{' in value:
+    labels = split_runner_labels(value)
+    if any('${{' in label for label in labels):
         return None
-    return split_runner_labels(value)
+    return labels
 
 
 def literal_runner_labels(value):
@@ -1802,9 +1836,25 @@ def check_static_runner_tags(repo_path, props):
 # CI_SIZES table when it finds none, which is "xs" -- one vCPU and
 # 2048 MB -- so the omission is a silent downgrade to the smallest
 # runner rather than a job left free to take any runner.
+#
+# The source of truth is CI_SIZES in shakenfist/private-ci's
+# conductor/provisioner.py, which this repository cannot see. A size
+# added there and not added here turns every job which correctly names
+# it into a finding on the next daily run, so the two move together --
+# test_the_size_vocabulary_matches_the_specification keeps this list
+# and the spec page in step, but nothing can reach across to the
+# conductor.
 VM_SIZE_LABELS = frozenset({
     'xs', 's', 'm', 'l', 'xl', 'm-bigdisk', 'xl-bigdisk',
 })
+
+# Marker acknowledging a deliberate exception, placed on the offending
+# line or the line immediately above it. The escape hatch exists
+# because the fleet's other runner checks have one and a repository
+# with a real reason needs an answer other than "edit the workflow";
+# it is not a way to keep an unsized job, since writing "xs" costs one
+# word and states the same decision honestly.
+VM_SIZE_EXCEPTION_RE = re.compile(r'audit-ok:\s*vm-runner-size')
 
 
 def check_vm_runner_size(repo_path, props):
@@ -1826,7 +1876,15 @@ def check_vm_runner_size(repo_path, props):
     statically known, so a line pairing a matrix expression with a
     literal size passes. A line whose size could only arrive through
     an expression is a finding: the fleet writes the size literally
-    even when the operating system comes from the matrix.
+    even when the operating system comes from the matrix. A job which
+    genuinely cannot name a size marks the line 'audit-ok:
+    vm-runner-size'.
+
+    Only the inline-list and scalar forms of 'runs-on:' are examined,
+    because RUNS_ON_RE needs a value on the same line; a block
+    sequence spread over the following lines is invisible here. No
+    repository in scope writes one, and the sibling runner checks have
+    the same blind spot, so this is recorded rather than handled.
     """
     if not props['has_workflows_dir']:
         return {
@@ -1860,7 +1918,11 @@ def check_vm_runner_size(repo_path, props):
                 continue
             if any(label in VM_SIZE_LABELS for label in labels):
                 continue
-            offenders.append(f'{wf}:{i + 1}')
+            if VM_SIZE_EXCEPTION_RE.search(line):
+                continue
+            if i > 0 and VM_SIZE_EXCEPTION_RE.search(lines[i - 1]):
+                continue
+            offenders.append(f'{wf}:{i + 1} ({", ".join(labels)})')
 
     if offenders:
         return {
@@ -1874,8 +1936,11 @@ def check_vm_runner_size(repo_path, props):
                 f'-- when it finds none, so an omitted size is a '
                 f'silent downgrade to the smallest runner rather than '
                 f'a free choice. Add the size the job actually wants '
-                f'(xs/s/m/l/xl); "xs" is a valid answer stated '
-                f'explicitly'
+                f'(xs/s/m/l/xl, or m-bigdisk/xl-bigdisk when the job '
+                f'needs the disk); "xs" is a valid answer stated '
+                f'explicitly. A job which genuinely cannot name one '
+                f'marks the line "audit-ok: vm-runner-size" with the '
+                f'reason'
             ),
         }
     return {
