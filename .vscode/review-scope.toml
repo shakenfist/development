@@ -11,7 +11,21 @@
 # template is copied into ten repositories, so a mistake in one is a
 # mistake ten times over, and nothing in CI reads them as the files
 # they will become.
-include = ['*.py', '*.sh', '*.md', '*.yml', '*.yaml']
+#
+# The extension list is enumerated rather than left empty, so that a
+# file type arriving here fails the review-scope-completeness audit
+# and gets a decision, instead of quietly joining the queue. That
+# audit is also what makes the list safe to enumerate: before it
+# existed, templates/renovate/renovate.json was outside review purely
+# because nobody had thought about JSON, and nothing said so.
+#
+# .flake8 and .gitignore are named individually because they have no
+# extension to match on, and both are hand-written configuration that
+# shapes every other file here.
+include = [
+    '*.py', '*.sh', '*.md', '*.yml', '*.yaml', '*.toml', '*.json',
+    '.flake8', '.gitignore',
+]
 
 # docs/plans/ holds point-in-time records of intended work, not living
 # artifacts, and would swamp the queue. Every plan lives there now --
@@ -48,8 +62,18 @@ include = ['*.py', '*.sh', '*.md', '*.yml', '*.yaml']
 # not on a line of its own, and not up here in the prose, both of
 # which the test suite rejects. That marker is what tells it the
 # difference between a deliberate guard and a stale pattern.
+#
+# .github/exported-config/ is written by the export-repo-config
+# workflow from the GitHub API, so a review mark there would attest to
+# GitHub's state rather than to anything anyone wrote, and the state
+# it records is already checked by the github-security,
+# merge-queue-config, delete-branch-on-merge and default-branch-naming
+# criteria. LICENSE is verbatim upstream text; reviewing it would
+# attest to the Apache Software Foundation.
 exclude = [
     'docs/plans/*',
     'PLAN-*.md',  # unmatched-by-design: a guard against plans returning to the root
     'docs/audits/compliance.md',
+    '.github/exported-config/*',
+    'LICENSE',
 ]
