@@ -5843,6 +5843,14 @@ AGENT_CONTEXT_MARKERS = (
 # identifies either.
 SKILLSAW_SOURCE = 'stbenjam/skillsaw'
 
+# A workflow can also invoke skillsaw directly after installing it from
+# PyPI, naming neither the upstream repository nor pre-commit. The
+# anchor matters: it must match the invocation line ('skillsaw
+# --no-custom-rules .') but not the line that merely installs the
+# package ('uv pip install skillsaw==0.18.0') -- installing a linter
+# is not running it.
+SKILLSAW_RUN_RE = re.compile(r'^\s*skillsaw\b')
+
 # A CI job which runs pre-commit over the tree runs every hook the
 # pre-commit config declares, skillsaw included. Requiring the linter
 # to be named in a workflow as well would report those repositories as
@@ -6027,9 +6035,15 @@ def check_llm_context_lint_ci(repo_path, props):
 
     As with the secret scanner check, how skillsaw is invoked is
     deliberately not pinned. Naming the upstream repository in a
-    pre-commit config and in a workflow is the step change; requiring
-    a particular rev or argument list would make the check brittle
-    against reasonable variation.
+    pre-commit config and in a workflow, running it via a pre-commit
+    step in CI, or invoking the `skillsaw` command directly (installed
+    from PyPI rather than named as the upstream repository) all count
+    -- requiring a particular rev, argument list, or install source
+    would make the check brittle against reasonable variation. The
+    direct-invocation route hinges on an anchored match at the start
+    of the line: a step that installs skillsaw does not thereby run
+    it, so the pattern must not fire on an install command that merely
+    mentions the package name.
     """
     if not has_agent_context(repo_path):
         return {
@@ -6057,7 +6071,12 @@ def check_llm_context_lint_ci(repo_path, props):
     via_pre_commit = in_pre_commit and any(
         file_matches(workflow, PRE_COMMIT_RUN_RE) for workflow in workflows
     )
-    if not named_in_ci and not via_pre_commit:
+    # A workflow can also invoke skillsaw directly, having installed
+    # it from PyPI rather than naming the upstream repository.
+    run_directly = any(
+        file_matches(workflow, SKILLSAW_RUN_RE) for workflow in workflows
+    )
+    if not named_in_ci and not via_pre_commit and not run_directly:
         missing.append('a CI workflow')
 
     if missing:
