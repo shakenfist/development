@@ -108,6 +108,10 @@ AUDIT_METADATA = {
         'spec': 'docs/audits/workflow-standards.md',
         'template': None,
     },
+    'vm-runner-size': {
+        'spec': 'docs/audits/workflow-standards.md',
+        'template': None,
+    },
     'devpi-fallback': {
         'spec': 'docs/audits/workflow-standards.md',
         'template': None,
@@ -219,6 +223,7 @@ ISSUE_TITLES = {
     'flake8wrap': 'Workflow standards (flake8wrap)',
     'self-hosted-runners': 'Workflow standards (self-hosted runners)',
     'static-runner-tags': 'Workflow standards (static runner tags)',
+    'vm-runner-size': 'Workflow standards (vm runner size)',
     'devpi-fallback': 'Workflow standards (devpi cache fallback)',
     'devpi-stale-ip': 'Workflow standards (devpi cache address)',
     'expensive-lane-path-filter': 'Expensive lane path filtering',

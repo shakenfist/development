@@ -97,6 +97,7 @@ CHECK_NAMES = {
     'flake8wrap': 'Workflow standards (flake8wrap)',
     'self-hosted-runners': 'Workflow standards (self-hosted runners)',
     'static-runner-tags': 'Workflow standards (static runner tags)',
+    'vm-runner-size': 'Workflow standards (vm runner size)',
     'devpi-fallback': 'Workflow standards (devpi cache fallback)',
     'devpi-stale-ip': 'Workflow standards (devpi cache address)',
     'expensive-lane-path-filter': 'Expensive lane path filtering',
@@ -1662,24 +1663,48 @@ RUNS_ON_RE = re.compile(r'^\s*runs-on:\s*(.+?)\s*$')
 STATIC_ALLOWED_LABELS = frozenset({'self-hosted', 'static'})
 
 
-def parse_runner_labels(value):
-    """Parse the labels from the value of a `runs-on:` line.
+# A GitHub Actions expression, which we cannot resolve statically.
+# Non-greedy so two expressions on one line stay two spans.
+EXPRESSION_RE = re.compile(r'\$\{\{.*?\}\}')
+
+
+def split_outside_expressions(text):
+    """Split on the commas which are not inside a '${{ ... }}' span.
+
+    A naive split() breaks "${{ format('{0},{1}', a, b) }}" into
+    fragments, and every fragment after the first has lost the '${{'
+    that marks it unresolvable -- so a caller filtering on that marker
+    would take the fragments for labels.
+    """
+    spans = [match.span() for match in EXPRESSION_RE.finditer(text)]
+    parts = []
+    start = 0
+    for i, char in enumerate(text):
+        if char != ',':
+            continue
+        if any(lo <= i < hi for lo, hi in spans):
+            continue
+        parts.append(text[start:i])
+        start = i + 1
+    parts.append(text[start:])
+    return parts
+
+
+def split_runner_labels(value):
+    """Split the value of a `runs-on:` line into its label strings.
 
     Handles the inline-list form ('[self-hosted, static]') and the
-    bare-scalar form ('static'). Returns a list of label strings, or
-    None when the value is a GitHub Actions expression we cannot
-    resolve statically (e.g. '${{ matrix.runner }}').
+    bare-scalar form ('static'). Individual elements may still be
+    GitHub Actions expressions; callers decide what to do with those.
     """
     # Drop a trailing inline comment (runner labels never contain
     # ' #', so this is safe).
     value = re.sub(r'\s+#.*$', '', value).strip()
-    if '${{' in value:
-        return None
     if value.startswith('['):
         inner = value[1:]
         if inner.endswith(']'):
             inner = inner[:-1]
-        parts = inner.split(',')
+        parts = split_outside_expressions(inner)
     else:
         parts = [value]
 
@@ -1689,6 +1714,44 @@ def parse_runner_labels(value):
         if label:
             labels.append(label)
     return labels
+
+
+def parse_runner_labels(value):
+    """Parse the labels from the value of a `runs-on:` line.
+
+    Returns a list of label strings, or None when the value contains a
+    GitHub Actions expression we cannot resolve statically (e.g.
+    '${{ matrix.runner }}') -- for a check which must see every label
+    to judge a line, one unresolvable element makes the whole line
+    unjudgeable.
+
+    The test is applied to the split labels, not to the raw value, so
+    that an expression named in a trailing comment does not make a
+    perfectly literal `runs-on:` unjudgeable. Both this and
+    literal_runner_labels() must reach the same verdict about which
+    elements are expressions, or the two disagree about the same line.
+    """
+    labels = split_runner_labels(value)
+    if any('${{' in label for label in labels):
+        return None
+    return labels
+
+
+def literal_runner_labels(value):
+    """The statically-known labels of a `runs-on:` line.
+
+    Unlike parse_runner_labels() this does not give up when part of
+    the value is an expression; it drops the unresolvable elements and
+    returns the rest. That suits a check asking whether a particular
+    label is *present*, because the fleet writes such labels literally
+    even when a sibling element is a matrix expression -- see
+    kerbside-patches' functional-tests.yml, which pairs
+    "'${{ matrix.test.runs_on }}'" with a literal 'xl'.
+    """
+    return [
+        label for label in split_runner_labels(value)
+        if '${{' not in label
+    ]
 
 
 def check_static_runner_tags(repo_path, props):
@@ -1763,6 +1826,129 @@ def check_static_runner_tags(repo_path, props):
         'details': (
             f'No static runner jobs request impossible labels in '
             f'{len(workflows)} workflow(s)'
+        ),
+    }
+
+
+# The runner sizes the CI conductor knows about. A "vm" job which
+# names none of these has not chosen a size: the conductor matches the
+# size out of the labels and falls back to the first entry in its
+# CI_SIZES table when it finds none, which is "xs" -- one vCPU and
+# 2048 MB -- so the omission is a silent downgrade to the smallest
+# runner rather than a job left free to take any runner.
+#
+# The source of truth is CI_SIZES in shakenfist/private-ci's
+# conductor/provisioner.py, which this repository cannot see. A size
+# added there and not added here turns every job which correctly names
+# it into a finding on the next daily run, so the two move together --
+# test_the_size_vocabulary_matches_the_specification keeps this list
+# and the spec page in step, but nothing can reach across to the
+# conductor.
+VM_SIZE_LABELS = frozenset({
+    'xs', 's', 'm', 'l', 'xl', 'm-bigdisk', 'xl-bigdisk',
+})
+
+# Marker acknowledging a deliberate exception, placed on the offending
+# line or the line immediately above it. The escape hatch exists
+# because the fleet's other runner checks have one and a repository
+# with a real reason needs an answer other than "edit the workflow";
+# it is not a way to keep an unsized job, since writing "xs" costs one
+# word and states the same decision honestly.
+VM_SIZE_EXCEPTION_RE = re.compile(r'audit-ok:\s*vm-runner-size')
+
+
+def check_vm_runner_size(repo_path, props):
+    """Check that every 'vm' runner job names a size.
+
+    This is the complement of check_static_runner_tags(): a static job
+    must name *no* size because the static pool advertises none, and a
+    vm job must name *one* because the conductor otherwise picks for
+    it. The two failures look nothing alike -- an over-labelled static
+    job is never scheduled and is noticed within one run, whereas an
+    under-labelled vm job runs perfectly well on a machine nobody
+    chose, and shakenfist/shakenfist#3696 went months that way.
+
+    'xs' counts as naming a size. The rule is that the size is a
+    decision, not that it is a large one, so a job which genuinely
+    wants the smallest runner says so and passes.
+
+    We scan every 'runs-on:' line and read the labels which are
+    statically known, so a line pairing a matrix expression with a
+    literal size passes. A line whose size could only arrive through
+    an expression is a finding: the fleet writes the size literally
+    even when the operating system comes from the matrix. A job which
+    genuinely cannot name a size marks the line 'audit-ok:
+    vm-runner-size'.
+
+    Only the inline-list and scalar forms of 'runs-on:' are examined,
+    because RUNS_ON_RE needs a value on the same line; a block
+    sequence spread over the following lines is invisible here. No
+    repository in scope writes one, and the sibling runner checks have
+    the same blind spot, so this is recorded rather than handled.
+    """
+    if not props['has_workflows_dir']:
+        return {
+            'id': 'vm-runner-size',
+            'status': 'not_applicable',
+            'details': 'No .github/workflows/ directory',
+        }
+
+    workflows = list_workflow_files(repo_path)
+    if not workflows:
+        return {
+            'id': 'vm-runner-size',
+            'status': 'not_applicable',
+            'details': 'No workflow files found',
+        }
+
+    offenders = []
+    for wf in sorted(workflows):
+        filepath = os.path.join(
+            repo_path, '.github', 'workflows', wf
+        )
+        with open(filepath, 'r', errors='replace') as f:
+            lines = f.read().splitlines()
+
+        for i, line in enumerate(lines):
+            match = RUNS_ON_RE.match(line)
+            if not match:
+                continue
+            labels = literal_runner_labels(match.group(1))
+            if 'vm' not in labels:
+                continue
+            if any(label in VM_SIZE_LABELS for label in labels):
+                continue
+            if VM_SIZE_EXCEPTION_RE.search(line):
+                continue
+            if i > 0 and VM_SIZE_EXCEPTION_RE.search(lines[i - 1]):
+                continue
+            offenders.append(f'{wf}:{i + 1} ({", ".join(labels)})')
+
+    if offenders:
+        return {
+            'id': 'vm-runner-size',
+            'status': 'fail',
+            'details': (
+                f'{len(offenders)} "vm" runner job(s) naming no size: '
+                f'{", ".join(offenders)}. The conductor takes the '
+                f'runner size from the labels and falls back to the '
+                f'first CI_SIZES entry -- "xs", one vCPU and 2048 MB '
+                f'-- when it finds none, so an omitted size is a '
+                f'silent downgrade to the smallest runner rather than '
+                f'a free choice. Add the size the job actually wants '
+                f'(xs/s/m/l/xl, or m-bigdisk/xl-bigdisk when the job '
+                f'needs the disk); "xs" is a valid answer stated '
+                f'explicitly. A job which genuinely cannot name one '
+                f'marks the line "audit-ok: vm-runner-size" with the '
+                f'reason'
+            ),
+        }
+    return {
+        'id': 'vm-runner-size',
+        'status': 'pass',
+        'details': (
+            f'All "vm" runner jobs name a size in '
+            f'{len(workflows)} workflow file(s)'
         ),
     }
 
@@ -6242,6 +6428,8 @@ def check_calls(repo_path, props, repo_name, org):
          lambda: check_self_hosted_runners(repo_path, props)),
         ('static-runner-tags',
          lambda: check_static_runner_tags(repo_path, props)),
+        ('vm-runner-size',
+         lambda: check_vm_runner_size(repo_path, props)),
         ('devpi-fallback',
          lambda: check_devpi_fallback(repo_path, props)),
         ('devpi-stale-ip',
