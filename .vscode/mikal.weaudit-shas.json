@@ -17,6 +17,22 @@
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
       "date": "2026-08-24"
     },
+    "AGENTS.md": {
+      "sha": "394ad77bd0dc44870449ca2eaa7f4e383c67e581",
+      "date": "2026-08-30"
+    },
+    "ARCHITECTURE.md": {
+      "sha": "10a48904e5c29736e348025501a8b38d45daaa8b",
+      "date": "2026-08-30"
+    },
+    "PUSH-AUDIT.md": {
+      "sha": "cf6a23114564cedd4de11bca63cfba73e0431fe4",
+      "date": "2026-08-30"
+    },
+    "README.md": {
+      "sha": "ceac1b9cd637a75e756e074ffa721ac75bd2096e",
+      "date": "2026-08-30"
+    },
     "docs/audits/ci-review-automation.md": {
       "sha": "b0e5dd33cc1c7e7d845ee3b42e63ec31e35b58da",
       "date": "2026-08-27"

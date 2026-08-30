@@ -195,6 +195,22 @@
     {
       "path": "tools",
       "author": "mikal"
+    },
+    {
+      "path": "AGENTS.md",
+      "author": "mikal"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "author": "mikal"
+    },
+    {
+      "path": "PUSH-AUDIT.md",
+      "author": "mikal"
+    },
+    {
+      "path": "README.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
