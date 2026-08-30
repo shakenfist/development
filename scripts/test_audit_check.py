@@ -23,10 +23,16 @@ import sys
 import tempfile
 import unittest
 
-
 SCRIPT = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), 'audit-check.py'
 )
+
+# audit_common lives beside audit-check.py, which is only on sys.path
+# by accident of how this suite happens to be invoked. Inserted
+# explicitly, the same way test_audit_update_docs.py does it.
+sys.path.insert(0, os.path.dirname(SCRIPT))
+
+from audit_common import AUDIT_METADATA, ISSUE_TITLES  # noqa: E402
 
 # This repository, for the tests that check a check against the spec
 # page or the canonical template it is supposed to agree with.
@@ -2828,11 +2834,26 @@ class CheckScopeTest(unittest.TestCase):
     def test_every_scheduled_id_is_a_known_check(self):
         # A typo in the id table would make a check unschedulable
         # while still reporting a plausible looking result, so the
-        # table has to agree with the issue title map.
+        # table has to agree with the issue title map. ISSUE_TITLES is
+        # that map itself rather than a copy of it: audit-manage-issues
+        # reads it as .get(check_id, check_id), so an id missing from it
+        # files under the bare check id and orphans every open issue for
+        # that check across the fleet, and audit-update-docs subscripts
+        # it directly, so the same omission raises KeyError during docs
+        # regeneration.
+        #
+        # AUDIT_METADATA is the third corner of the same triangle:
+        # audit-update-docs iterates it to emit one compliance section
+        # per check, and audit-manage-issues reads it for the spec link
+        # in each filed issue. Asserting both closes the loop, so a new
+        # check cannot be scheduled while missing from either map.
         ids = self._ids()
         self.assertEqual(sorted(ids), sorted(set(ids)))
         self.assertEqual(
-            sorted(ids), sorted(audit_check.CHECK_NAMES.keys())
+            sorted(ids), sorted(ISSUE_TITLES.keys())
+        )
+        self.assertEqual(
+            sorted(ids), sorted(AUDIT_METADATA.keys())
         )
 
     def test_scoped_repo_runs_only_its_check(self):
@@ -2847,7 +2868,7 @@ class CheckScopeTest(unittest.TestCase):
 
         reason = 'private-ci is audited for sfui-vendor only'
         by_id = {c['id']: c for c in results['checks']}
-        self.assertEqual(len(by_id), len(audit_check.CHECK_NAMES))
+        self.assertEqual(len(by_id), len(ISSUE_TITLES))
 
         for check_id, check in by_id.items():
             if check_id == 'sfui-vendor':
@@ -2859,7 +2880,7 @@ class CheckScopeTest(unittest.TestCase):
         # Nothing is dropped from the results, because a check missing
         # from the JSON renders as "unknown" in the docs/audits/ tables.
         self.assertEqual(
-            results['summary']['total'], len(audit_check.CHECK_NAMES)
+            results['summary']['total'], len(ISSUE_TITLES)
         )
         self.assertEqual(results['summary']['fail'], 0)
 
@@ -5201,6 +5222,122 @@ class PrReReviewTriggerTest(unittest.TestCase):
     def test_the_docs_only_path_passes_when_the_action_is_used(self):
         result = self._check(self.USES_ACTION, docs_only=True)
         self.assertEqual(result['status'], 'pass', result['details'])
+
+
+class GitHooksDisabledTest(unittest.TestCase):
+    """The workflows that check out PR code must neuter core.hooksPath.
+
+    Layer 4 of the security model in docs/ci-review-automation.md
+    names these three files and asserts the control is set in them.
+    Nothing in check_ci_review_automation inspects checkout steps, so
+    without this a template edit could drop the step and leave the
+    document claiming a control that is not there -- which is the
+    defect this test's own pull request existed to fix. The assertion
+    is on this repository's files rather than on a synthetic tree
+    because the templates are the fleet's source of truth: a repo that
+    copies them inherits whatever is here.
+    """
+
+    WORKFLOWS = [
+        os.path.join('.github', 'workflows', 'pr-re-review.yml'),
+        os.path.join(
+            'templates', 'ci-review-automation', 'pr-re-review.yml'),
+        os.path.join(
+            'templates', 'test-drift-fix', 'test-drift-fix.yml'),
+    ]
+
+    # Matched as a pattern rather than as one exact spelling. This
+    # test is the fleet's guard, and its failures are read by people
+    # who did not write it: `git config --local core.hooksPath` sets
+    # the same thing, and reporting it as a missing line would send
+    # them to delete a correct one.
+    HOOKS_PATH = re.compile(r'git config (--local )?core\.hooksPath')
+
+    def test_hooks_path_is_set_after_the_checkout(self):
+        for name in self.WORKFLOWS:
+            with self.subTest(workflow=name):
+                with open(os.path.join(REPO_ROOT, name)) as f:
+                    lines = f.read().splitlines()
+
+                config = [
+                    i for i, line in enumerate(lines)
+                    if self.HOOKS_PATH.search(line)
+                    and not line.lstrip().startswith('#')
+                ]
+                self.assertEqual(
+                    len(config), 1,
+                    f'{name} must set core.hooksPath exactly once')
+
+                # Ordering matters as much as presence: "git config"
+                # outside a work tree fails, and hooks set before the
+                # checkout would be overwritten by it. Against the
+                # last checkout rather than the first, because a
+                # second one added after the config step would
+                # re-clone the tree and discard .git/config.
+                checkout = [
+                    i for i, line in enumerate(lines)
+                    if 'actions/checkout@' in line
+                ]
+                self.assertTrue(
+                    checkout, f'{name} has no checkout step')
+                self.assertGreater(
+                    config[0], checkout[-1],
+                    f'{name} sets core.hooksPath before its last '
+                    'checkout, which would discard the setting')
+
+    def test_the_setting_is_repository_local(self):
+        # --global would outlive the job on the shared claude-code
+        # pool and disable hooks for every later job on that machine.
+        for name in self.WORKFLOWS:
+            with self.subTest(workflow=name):
+                with open(os.path.join(REPO_ROOT, name)) as f:
+                    body = f.read()
+                self.assertNotIn(
+                    'git config --global core.hooksPath', body)
+
+    def test_the_document_still_names_these_workflows(self):
+        # The test and the claim have to move together: a workflow
+        # dropped from the list here but left in the document is the
+        # same unbacked claim in the other direction.
+        #
+        # Scoped to layer 4 rather than the whole document on purpose.
+        # "test-drift-fix.yml" also appears under Workflow Templates,
+        # so a document-wide assertIn would stay green after the name
+        # was struck from the security model -- a guard that passes
+        # for a reason unrelated to what it defends.
+        layer = self._security_model_layer_four()
+        self.assertIn('core.hooksPath=/dev/null', layer)
+        for name in self.WORKFLOWS:
+            with self.subTest(workflow=name):
+                self.assertIn(os.path.basename(name), layer)
+
+    # AGENTS.md: a document parsed by phrase gets named constants
+    # and an assertion, not a bare index() that raises ValueError
+    # without naming the phrase that stopped matching. Same treatment
+    # as AuditScopeIsStatedOnceTest.bulleted_block(), including the
+    # count assertions -- they report the phrase rather than dumping
+    # the document the way assertIn would.
+    DOC = os.path.join('docs', 'ci-review-automation.md')
+    LAYER_FOUR = '4. **Git hooks disabled**'
+    LAYER_FIVE = '5. **'
+
+    def _security_model_layer_four(self):
+        with open(os.path.join(REPO_ROOT, self.DOC)) as f:
+            doc = f.read()
+        self.assertEqual(
+            doc.count(self.LAYER_FOUR), 1,
+            f'{self.DOC} must contain "{self.LAYER_FOUR}" exactly '
+            f'once: it is where this test starts reading the layer, '
+            f'and a renumbered or reworded security model has to fail '
+            f'as that rather than as a missing control')
+        after = doc.split(self.LAYER_FOUR, 1)[1]
+        self.assertEqual(
+            after.count(self.LAYER_FIVE), 1,
+            f'{self.DOC} must contain "{self.LAYER_FIVE}" exactly '
+            f'once after "{self.LAYER_FOUR}": it is where this test '
+            f'stops reading, and without it the parse runs to the end '
+            f'of the file')
+        return self.LAYER_FOUR + after.split(self.LAYER_FIVE, 1)[0]
 
 
 class PrAutoReviewSecretsInheritTest(unittest.TestCase):

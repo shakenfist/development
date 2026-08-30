@@ -17,7 +17,13 @@
 #      shakenfist/actions/pr-bot-trigger
 #   b) Self-hosted runners provide isolation from production systems
 #   c) GITHUB_TOKEN scope is limited to this repository
-#   d) The runner is ephemeral/disposable
+#   d) The job runs on the shared claude-code pool, which is
+#      pre-provisioned and long-lived rather than a throwaway VM, so
+#      the hooks setting below is made repository-local rather than
+#      --global, and scratch files are written to runner.temp. The
+#      bot commit identity is the exception: it is set --global, as
+#      it is in every other workflow in the fleet, and does outlive
+#      the job on the pool
 #
 # Risk acceptance: The benefit of automated test fixes outweighs the
 # risk because only trusted maintainers can trigger execution.
@@ -107,6 +113,16 @@ jobs:
         run: |
           git config --global user.name "shakenfist-bot"
           git config --global user.email "bot@shakenfist.com"
+          # The checkout above may be a pull request's head branch, and
+          # the steps below run the project's tests and Claude Code over
+          # it. Hooks are not tracked in a checkout, so this is defence
+          # in depth -- but the security model claims the control for
+          # these workflows, so it is set rather than merely documented.
+          # Repository-local, not --global: this job runs on the shared
+          # claude-code pool, and a global setting would change state
+          # every other repository's jobs on that machine inherit. See
+          # https://github.com/shakenfist/development/blob/main/docs/ci-review-automation.md
+          git config core.hooksPath /dev/null
 
       - name: Create working branch
         if: env.IS_PR_RUN != 'true'

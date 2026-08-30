@@ -116,6 +116,20 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # core.hooksPath=/dev/null because the checkout above put the
+      # pull request's code on the runner and the next step runs over
+      # it. Hooks are not tracked in a checkout, so this is defence in
+      # depth rather than a hole being closed -- but the security model
+      # claims the control, and a claimed control that is not set is
+      # worse than one that was never promised. Set on the repository
+      # rather than --global: this job runs on the shared claude-code
+      # pool, and a global setting would change state every other
+      # repository's jobs on that machine inherit. The security model
+      # is documented at
+      # https://github.com/shakenfist/development/blob/main/docs/ci-review-automation.md
+      - name: Disable git hooks
+        run: git config core.hooksPath /dev/null
+
       - name: Run automated reviewer
         uses: shakenfist/actions/review-pr-with-claude@main
         with:
