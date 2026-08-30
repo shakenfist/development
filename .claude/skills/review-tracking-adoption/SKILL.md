@@ -16,8 +16,17 @@ in `docs/code-review-tracking.md`. Follow it from the doc rather
 than from memory or from this file: the steps move, and several
 encode non-obvious constraints (stale marks must not be blessed at
 current content; the scope config is what opts the repo into the
-`review-coverage` audit). This skill adds the verification pass the
-doc cannot make mechanical.
+`review-coverage` and `review-scope-completeness` audits). This
+skill adds the verification pass the doc cannot make mechanical.
+
+After writing or editing `.vscode/review-scope.toml`, run
+`review-tracking.py scope-orphans` in the target repo. It lists
+tracked files that are out of scope only because no `include`
+pattern names them -- the silent half of how a file leaves the
+review queue, and what `review-scope-completeness` fails on. Each
+one needs either a pattern that covers it or an `exclude` entry
+saying why not. Do not settle it by deleting the `include` list
+unless that is the choice you would have made anyway.
 
 Ground rules match standards-alignment: branch from the target's
 default branch, never create the PR yourself, and run
@@ -90,5 +99,7 @@ The procedure:
 
 - `docs/audits/review-coverage.md` -- the deterministic daily backstop
   for review *backlog*; it does not check CI skipping.
+- `docs/audits/review-scope-completeness.md` -- the daily backstop for
+  the review *scope*: nothing leaves the queue by omission.
 - The `pr-re-review` user skill -- bot re-reviews on PRs, unrelated
   to review-state PRs.

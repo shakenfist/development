@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Code review tracking helpers: stamp, prune, regen, next, and status.
+"""Code review tracking helpers: stamp, prune, regen, next, status, scope-orphans.
 
 This script implements the automation described in
 docs/code-review-tracking.md. It runs in the repository under review,
@@ -28,6 +28,11 @@ development repository and passes through to this script:
   in-scope files carry a currently-valid review mark and which need
   review -- without modifying any state. --json emits a machine
   readable form for the consistency audit's review-coverage check.
+- scope-orphans: list tracked files that are out of review scope only
+  because no include pattern names them, as opposed to because an
+  exclude entry says they should not be reviewed. Exits non-zero when
+  there are any. Also runs from CI, in the consistency audit's
+  review-scope-completeness check.
 
 State read and written:
 
@@ -515,6 +520,68 @@ def cmd_status(args):
     return 0
 
 
+def scope_orphans():
+    """Tracked files that are out of scope without anyone having said so.
+
+    A file leaves the review queue by one of two routes. It can match an
+    `exclude` entry, which is a decision somebody made and can defend in a
+    comment beside it. Or it can simply fail to match anything in
+    `include`, which is not a decision at all -- it is what happens when a
+    file type nobody thought about arrives in the repository. The second
+    route is silent and has no expiry: templates/renovate/renovate.json sat
+    outside review here for as long as the scope config had no JSON
+    pattern, and nothing anywhere said so.
+
+    So this reports the files taking the second route, and only those. A
+    `!` re-include counts as having said so in reverse: a file put back by
+    one and then dropped by an `include` that does not name it is an
+    orphan, because the config asks for it to be reviewed and the file is
+    not being reviewed.
+
+    BUILTIN_EXCLUDE is never an orphan. The review state files cannot
+    attest to themselves whatever the scope config says, so there is
+    nothing for anyone to decide.
+    """
+    include, exclude = load_scope()
+    hard = [pat for pat in exclude if not pat.startswith('!')]
+    soft = [pat[1:] for pat in exclude if pat.startswith('!')]
+
+    orphans = []
+    for path in sorted(tracked_files()):
+        if any(fnmatch.fnmatch(path, pat) for pat in BUILTIN_EXCLUDE):
+            continue
+        if in_scope(path, include, exclude):
+            continue
+        excluded = any(fnmatch.fnmatch(path, pat) for pat in hard)
+        reincluded = any(fnmatch.fnmatch(path, pat) for pat in soft)
+        if excluded and not reincluded:
+            continue
+        orphans.append(path)
+    return {'orphans': orphans, 'orphan_count': len(orphans)}
+
+
+def cmd_scope_orphans(args):
+    result = scope_orphans()
+    # Non-zero whichever form is asked for: the audit reads the JSON
+    # but a developer or a hook reads the exit status, and a --json
+    # run that always succeeded would be a silent way to ask.
+    if args.json:
+        print(json.dumps(result, indent=2))
+        return 1 if result['orphans'] else 0
+    if not result['orphans']:
+        print('review-scope-orphans: every tracked file is either in scope '
+              'or explicitly excluded')
+        return 0
+    print('review-scope-orphans: %d tracked file(s) are out of review scope '
+          'only because %s does not name them:'
+          % (result['orphan_count'], SCOPE_PATH))
+    for path in result['orphans']:
+        print('review-scope-orphans: unnamed: %s' % path)
+    print('review-scope-orphans: add a pattern that covers each, or an '
+          'exclude entry saying why it should not be reviewed.')
+    return 1
+
+
 def cmd_next(args):
     include, exclude = load_scope()
     reviewed = set()
@@ -551,13 +618,18 @@ def main():
     p_next.add_argument('--no-open', action='store_true', help='print the path only, do not open VSCode')
     p_status = sub.add_parser('status', help='report effective review coverage against HEAD')
     p_status.add_argument('--json', action='store_true', help='emit machine-readable JSON')
+    p_orphans = sub.add_parser(
+        'scope-orphans',
+        help='list tracked files out of scope only because include omits them')
+    p_orphans.add_argument('--json', action='store_true', help='emit machine-readable JSON')
     args = parser.parse_args()
 
     top = git('rev-parse', '--show-toplevel').stdout.strip()
     os.chdir(top)
 
     return {'stamp': cmd_stamp, 'prune': cmd_prune, 'regen': cmd_regen,
-            'next': cmd_next, 'status': cmd_status}[args.command](args)
+            'next': cmd_next, 'status': cmd_status,
+            'scope-orphans': cmd_scope_orphans}[args.command](args)
 
 
 if __name__ == '__main__':

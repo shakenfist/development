@@ -98,9 +98,10 @@ version of this an agent can finish alone.
 
 `review-tracking.py` is run by hand in target repositories (via a thin
 wrapper like ryll's `tools/review-tracking.sh`), deliberately not from
-git hooks. Two subcommands also run from CI in steady state: `prune`
+git hooks. Three subcommands also run from CI in steady state: `prune`
 from an adopting repo's `prune-reviews` workflow on pushes to main, and
-`status` from the consistency audit's `review-coverage` check -- see
+`status` and `scope-orphans` from the consistency audit's
+`review-coverage` and `review-scope-completeness` checks -- see
 `docs/code-review-tracking.md`.
 
 ## Working on review tracking

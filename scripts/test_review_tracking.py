@@ -460,6 +460,92 @@ class ReviewTrackingTest(unittest.TestCase):
         self.assertEqual(status['reviewed'], 0)
         self.assertEqual(status['never_reviewed'], ['src/a.py', 'src/b.py'])
 
+    def test_scope_orphans_reports_files_no_include_pattern_names(self):
+        # The fixture scope config has no include list, so nothing is
+        # an orphan: an empty include means every tracked file.
+        p = self.run_tool('scope-orphans', '--json')
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(json.loads(p.stdout)['orphans'], [])
+
+        # Enumerating Python leaves the JSON file nobody thought about
+        # outside review, with nothing anywhere recording that choice.
+        self.write('config.json', '{}\n')
+        self.write('.vscode/review-scope.toml',
+                   'include = ["*.py"]\nexclude = ["*_pb2.py"]\n')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'add config')
+
+        p = self.run_tool('scope-orphans', '--json')
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertEqual(json.loads(p.stdout), {
+            'orphans': ['config.json'],
+            'orphan_count': 1,
+        })
+
+    def test_scope_orphans_accepts_a_file_an_exclude_names(self):
+        # An excluded file is a decision somebody made, whether or not
+        # the include list would otherwise have covered it.
+        self.write('config.json', '{}\n')
+        self.write('.vscode/review-scope.toml',
+                   'include = ["*.py"]\nexclude = ["config.json"]\n')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'add config')
+        p = self.run_tool('scope-orphans', '--json')
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(json.loads(p.stdout)['orphans'], [])
+
+    def test_scope_orphans_ignores_the_tracking_files(self):
+        # .vscode/* and REVIEWS.md can never hold a review mark, so
+        # there is no decision for anyone to record about them and
+        # they must not be reported as needing one.
+        self.mark_reviewed(['src/a.py'])
+        self.run_tool('stamp')
+        self.write('.vscode/review-scope.toml', 'include = ["*.py"]\n')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'reviews')
+        p = self.run_tool('scope-orphans', '--json')
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(json.loads(p.stdout)['orphans'], [])
+
+    def test_scope_orphans_reports_a_re_include_the_include_list_defeats(self):
+        # 'docs/notes.md' is excluded by the directory pattern and then
+        # put back by the negation, so the config asks for it to be
+        # reviewed -- but the include list names only Python, so it is
+        # not. Treating that as a deliberate exclusion would hide a
+        # config contradicting itself.
+        os.mkdir(os.path.join(self.repo, 'docs'))
+        self.write('docs/notes.md', 'notes\n')
+        self.write('.vscode/review-scope.toml',
+                   'include = ["*.py"]\n'
+                   'exclude = ["docs/*", "!docs/notes.md"]\n')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'add docs')
+        p = self.run_tool('scope-orphans', '--json')
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertEqual(json.loads(p.stdout)['orphans'], ['docs/notes.md'])
+
+    def test_scope_orphans_names_every_file_in_its_text_output(self):
+        # The audit issue body is the work queue, so the human-readable
+        # form has to list the files rather than count them.
+        self.write('config.json', '{}\n')
+        self.write('data.yaml', 'k: v\n')
+        self.write('.vscode/review-scope.toml', 'include = ["*.py"]\n')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'add config')
+        p = self.run_tool('scope-orphans')
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn('config.json', p.stdout)
+        self.assertIn('data.yaml', p.stdout)
+
+    def test_scope_orphans_mutates_nothing(self):
+        self.write('config.json', '{}\n')
+        self.write('.vscode/review-scope.toml', 'include = ["*.py"]\n')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'add config')
+        before = self.git('status', '--porcelain').stdout
+        self.run_tool('scope-orphans')
+        self.assertEqual(self.git('status', '--porcelain').stdout, before)
+
     def test_status_mutates_nothing(self):
         self.mark_reviewed(['src/a.py'])
         self.run_tool('stamp')

@@ -6189,6 +6189,111 @@ def find_sfui_vendored_dirs(repo_path):
     return sorted(found)
 
 
+def check_review_scope_completeness(repo_path, props):
+    """Check that nothing leaves the review queue by omission.
+
+    review-coverage measures the backlog against the scope. This
+    measures the scope itself, and the two fail in opposite
+    directions: narrowing `include` is the cheapest way to make a
+    review-coverage issue close, and without this check nothing
+    notices a repository that reaches full coverage by shrinking what
+    counts.
+
+    The rule is that every tracked file is either in scope or named by
+    an `exclude` entry. Excluding a file is fine and often right --
+    generated output, vendored trees, verbatim upstream text -- but it
+    should be a decision with a comment beside it rather than the
+    accident of an `include` list written before that file type
+    existed. An empty `include` satisfies this trivially, which is the
+    intended pressure: a repository either enumerates its file types
+    and keeps doing so, or reviews everything it has not excluded.
+
+    We ask review-tracking.py rather than parsing the scope config
+    here, so that the audit and the tooling cannot disagree about what
+    in-scope means -- the '!' re-include semantics and the built-in
+    exclusion of the review state files both live in that script. As
+    with review-coverage we invoke our sibling copy directly, since
+    the target repo's tools/ wrapper looks for a development clone the
+    runner does not have.
+    """
+    if not check_file_exists(repo_path, '.vscode/review-scope.toml'):
+        return {
+            'id': 'review-scope-completeness',
+            'status': 'not_applicable',
+            'details': (
+                'Human review tracking not deployed '
+                '(no .vscode/review-scope.toml)'
+            ),
+        }
+
+    try:
+        result = subprocess.run(
+            [sys.executable, REVIEW_TRACKING_SCRIPT, 'scope-orphans',
+             '--json'],
+            cwd=repo_path, capture_output=True, text=True, timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        return {
+            'id': 'review-scope-completeness',
+            'status': 'fail',
+            'details': 'review-tracking.py scope-orphans timed out',
+        }
+    # Exit status 1 is the reportable outcome, not an error: the
+    # subcommand exits non-zero precisely when there are orphans, so
+    # only a status outside {0, 1} means the run itself broke.
+    if result.returncode not in (0, 1):
+        return {
+            'id': 'review-scope-completeness',
+            'status': 'fail',
+            'details': (
+                f'review-tracking.py scope-orphans failed: '
+                f'{result.stderr.strip()}'
+            ),
+        }
+    try:
+        report = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        # A crash in the script also exits 1, which is the status
+        # orphans use, so this is where a broken run lands. Carry
+        # stderr through or the report says the output was malformed
+        # when what actually happened was a traceback.
+        return {
+            'id': 'review-scope-completeness',
+            'status': 'fail',
+            'details': (
+                f'review-tracking.py scope-orphans emitted unparseable '
+                f'JSON: {result.stderr.strip()}'
+            ),
+        }
+
+    orphans = report.get('orphans', [])
+    if not orphans:
+        return {
+            'id': 'review-scope-completeness',
+            'status': 'pass',
+            'details': (
+                'Every tracked file is either in review scope or '
+                'explicitly excluded'
+            ),
+        }
+
+    # The whole list in 'missing', which audit-manage-issues.py
+    # renders as bullets: the fix is per file, so a truncated list
+    # would leave someone re-running the tool to find out what the
+    # issue meant. The count alone goes in 'details', which is what
+    # the compliance page prints in a table cell.
+    return {
+        'id': 'review-scope-completeness',
+        'status': 'fail',
+        'details': (
+            f'{len(orphans)} tracked file(s) are out of review scope '
+            f'only because no include pattern in '
+            f'.vscode/review-scope.toml names them'
+        ),
+        'missing': orphans,
+    }
+
+
 def check_sfui_vendor(repo_path, props, canonical_url=None):
     """Check vendored sfui copies are verbatim and current.
 
@@ -6426,6 +6531,8 @@ def check_calls(repo_path, props, repo_name, org):
          lambda: check_secret_scanning_ci(repo_path, props)),
         ('review-coverage',
          lambda: check_review_coverage(repo_path, props)),
+        ('review-scope-completeness',
+         lambda: check_review_scope_completeness(repo_path, props)),
         ('sfui-vendor',
          lambda: check_sfui_vendor(repo_path, props)),
     ]

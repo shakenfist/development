@@ -173,6 +173,7 @@ attached rather than quietly disappearing from the table.
 | [test-coverage.md](test-coverage.md) | Unit and functional test coverage |
 | [secret-handling.md](secret-handling.md) | Secret scanner in CI, credentials kept out of logs |
 | [review-coverage.md](review-coverage.md) | Human review backlog stays under threshold in repos with review tracking |
+| [review-scope-completeness.md](review-scope-completeness.md) | Nothing leaves the human review queue by omission from the scope config |
 | [sfui-vendor.md](sfui-vendor.md) | Vendored sfui copies are verbatim and current |
 
 ## Beyond the audits

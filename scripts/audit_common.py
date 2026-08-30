@@ -192,6 +192,10 @@ AUDIT_METADATA = {
         'spec': 'docs/audits/review-coverage.md',
         'template': None,
     },
+    'review-scope-completeness': {
+        'spec': 'docs/audits/review-scope-completeness.md',
+        'template': None,
+    },
     'sfui-vendor': {
         'spec': 'docs/audits/sfui-vendor.md',
         'template': None,
@@ -244,6 +248,7 @@ ISSUE_TITLES = {
     'plan-template': 'Plan template',
     'secret-scanning-ci': 'Secret scanning in CI',
     'review-coverage': 'Human review coverage',
+    'review-scope-completeness': 'Human review scope completeness',
     'sfui-vendor': 'sfui vendored copy',
 }
 

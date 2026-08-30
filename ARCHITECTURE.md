@@ -85,13 +85,15 @@ in `docs/plans/PLAN-review-coverage.md`. The automation is
 `scripts/review-tracking.py` (stamp reviews with blob SHAs, prune
 stale reviews when files change, regenerate the per-repo
 `REVIEWS.md`, pick the next file to review, report effective
-coverage against HEAD), run by hand in target repositories via a
-thin wrapper (for example ryll's `tools/review-tracking.sh`) --
-deliberately not from git hooks. In steady state two subcommands
-also run from CI: adopting repos prune stale marks on every push
-to main via a `prune-reviews` workflow, and the daily consistency
-audit's `review-coverage` check alerts (via a GitHub issue) when
-five or more in-scope files need review. Tests are in
+coverage against HEAD, list files the scope config silently omits),
+run by hand in target repositories via a thin wrapper (for example
+ryll's `tools/review-tracking.sh`) -- deliberately not from git
+hooks. In steady state three subcommands also run from CI: adopting
+repos prune stale marks on every push to main via a
+`prune-reviews` workflow, and the daily consistency audit alerts
+(via a GitHub issue) when five or more in-scope files need review
+(`review-coverage`) and when the scope config leaves a tracked file
+out without saying so (`review-scope-completeness`). Tests are in
 `scripts/test_review_tracking.py`.
 
 ## Testing the automation
