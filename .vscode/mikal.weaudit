@@ -311,6 +311,62 @@
     {
       "path": ".claude",
       "author": "mikal"
+    },
+    {
+      "path": ".github/exported-config/repository-settings.json",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/exported-config/ruleset-protect-default-branch-history.json",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/exported-config/rulesets-summary.json",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/exported-config",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/codeql-analysis.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/consistency-audit.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/mermaid-lint.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/pr-re-review.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/prune-reviews.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/actionlint.yaml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
