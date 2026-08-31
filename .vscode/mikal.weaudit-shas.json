@@ -1,6 +1,18 @@
 {
   "version": 1,
   "files": {
+    ".claude/skills/diagram-conversion/SKILL.md": {
+      "sha": "535aa1146a05abcb7e267f523cbf142d7118472b",
+      "date": "2026-09-01"
+    },
+    ".claude/skills/review-tracking-adoption/SKILL.md": {
+      "sha": "3987ddabe20a5467ad70ec24fae255c7b304de4a",
+      "date": "2026-09-01"
+    },
+    ".claude/skills/standards-alignment/SKILL.md": {
+      "sha": "098dc512cfb1d4eff9886cd63cc4f66e74c3f9cb",
+      "date": "2026-09-01"
+    },
     ".github/workflows/export-repo-config.yml": {
       "sha": "53b5d8eb46e89e228dd88d42d7e1b0c3ea6694cd",
       "date": "2026-08-24"
