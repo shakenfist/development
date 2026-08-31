@@ -61,10 +61,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/llm-context-lint-ci.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/llm-context-lint.md",
       "author": "mikal"
     },

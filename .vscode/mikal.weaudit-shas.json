@@ -61,10 +61,6 @@
       "sha": "59aa05becc43e1c7b5d4f42240b6c20a8ac53dae",
       "date": "2026-08-27"
     },
-    "docs/audits/llm-context-lint-ci.md": {
-      "sha": "5cee017834ace75783ff7b1b308c5f69bd3b608b",
-      "date": "2026-08-27"
-    },
     "docs/audits/llm-context-lint.md": {
       "sha": "45885eb745a5c98facc5b20681c52d87c1aaf1d5",
       "date": "2026-08-27"
