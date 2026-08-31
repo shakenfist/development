@@ -16,7 +16,7 @@ half is empty.
 from datetime import datetime, timezone
 
 from audit.check import NOT_APPLICABLE
-from audit.checks import llm_docs
+from audit.checks import docs_content, llm_docs
 
 
 #: The order the criteria are reported in. Pinned here because the
@@ -79,6 +79,11 @@ CHECKS = [
     llm_docs.LlmDocStructure(),
     llm_docs.LlmContextLint(),
     llm_docs.LlmContextLintCi(),
+    docs_content.ReadmeStructure(),
+    docs_content.ReadmeAbsoluteLinks(),
+    docs_content.DocsExternalLinks(),
+    docs_content.DiagramFormat(),
+    docs_content.MermaidLintCi(),
 ]
 
 

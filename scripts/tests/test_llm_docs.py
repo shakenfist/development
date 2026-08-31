@@ -21,29 +21,9 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import llm_docs  # noqa: E402
-from audit.github import FakeGitHub  # noqa: E402
-from audit.repo import Repo  # noqa: E402
+from tests.base import run_check  # noqa: E402
 
 LLM_DOC_STRUCTURE_OK = llm_docs.LLM_DOC_STRUCTURE_OK
-
-
-def run_check(check, path, props=None):
-    """Run a check against a directory, the way the scheduler does.
-
-    The tests moved here were written against the old
-    `check_*(repo_path, props)` functions and are kept verbatim: they
-    are the coverage this refactor must not lose, and rewriting five
-    hundred lines of assertions by hand is how coverage goes missing
-    quietly. This adapter is what they call instead, and it goes
-    through applies() and run() so they exercise the real path.
-    """
-    repo = Repo(path, 'testrepo', 'shakenfist', github=FakeGitHub())
-    if props:
-        repo.props.update(props)
-    reason = check.applies(repo)
-    if reason is not None:
-        return check.skip(reason)
-    return check.run(repo)
 
 
 def check_llm_doc_structure(path, props=None):

@@ -17,6 +17,25 @@ from audit.github import FakeGitHub
 from audit.repo import Repo
 
 
+def run_check(check, path, props=None):
+    """Run a check against a directory, the way the scheduler does.
+
+    The adapter the moved tests call. They were written against the old
+    `check_*(repo_path, props)` functions and are kept verbatim -- they
+    are the coverage this refactor must not lose, and rewriting
+    thousands of lines of assertions by hand is how coverage goes
+    missing quietly. This goes through applies() and run(), so they
+    exercise the real path rather than a shortcut around it.
+    """
+    repo = Repo(path, 'testrepo', 'shakenfist', github=FakeGitHub())
+    if props:
+        repo.props.update(props)
+    reason = check.applies(repo)
+    if reason is not None:
+        return check.skip(reason)
+    return check.run(repo)
+
+
 class FixtureRepo:
     """A throwaway checkout to run a check against."""
 

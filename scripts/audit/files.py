@@ -99,3 +99,73 @@ def any_workflow_contains(repo_path, pattern):
             if re.search(pattern, f.read()):
                 return True
     return False
+
+
+def iter_docs_markdown_files(repo_path, props):
+    """Yield repo-relative paths of every .md file under docs/.
+
+    Unlike iter_doc_content_files, plan documents are in scope. Plans
+    are synchronised to the documentation site along with the rest of
+    docs/, so a link that breaks there breaks for a reader whether or
+    not anyone still maintains the file.
+
+    A repository's doc_content_excludes prefixes are skipped for the
+    usual reason: they are imported copies of another repository's
+    documentation, audited at their source.
+    """
+    excludes = [
+        e.strip('/') + '/'
+        for e in props.get('doc_content_excludes', [])
+    ]
+    for dirpath, dirnames, filenames in os.walk(
+        os.path.join(repo_path, 'docs')
+    ):
+        rel_dir = os.path.relpath(dirpath, repo_path).replace(os.sep, '/')
+        dirnames[:] = sorted(
+            d for d in dirnames
+            if not any(f'{rel_dir}/{d}/'.startswith(e) for e in excludes)
+        )
+        for filename in sorted(filenames):
+            if filename.endswith('.md'):
+                yield f'{rel_dir}/{filename}'
+
+
+def iter_doc_content_files(repo_path, props):
+    """Yield repo-relative paths of documentation content to audit.
+
+    The scope is the top-level README.md, AGENTS.md and
+    ARCHITECTURE.md plus every .md file under docs/, minus any file
+    under a plans/ directory at any depth (plan documents
+    legitimately discuss their own phases) and minus the repository's
+    doc_content_excludes prefixes (imported copies of other
+    repositories' documentation, audited at their source).
+
+    AGENTS.md and ARCHITECTURE.md are in scope for the same reason
+    README.md is: they describe the current state of the software to
+    a reader who was not present for its construction, so "wired up
+    in phase 6" is noise there too.
+    """
+    for name in ('README.md', 'AGENTS.md', 'ARCHITECTURE.md'):
+        if os.path.exists(os.path.join(repo_path, name)):
+            yield name
+
+    excludes = [
+        e.strip('/') + '/'
+        for e in props.get('doc_content_excludes', [])
+    ]
+    for dirpath, dirnames, filenames in os.walk(
+        os.path.join(repo_path, 'docs')
+    ):
+        rel_dir = os.path.relpath(dirpath, repo_path).replace(
+            os.sep, '/'
+        )
+        dirnames[:] = sorted(
+            d for d in dirnames
+            if d != 'plans'
+            and not any(
+                f'{rel_dir}/{d}/'.startswith(e) for e in excludes
+            )
+        )
+        for filename in sorted(filenames):
+            if filename.endswith('.md'):
+                yield f'{rel_dir}/{filename}'
