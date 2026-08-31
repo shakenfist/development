@@ -63,17 +63,26 @@ include = [
 # which the test suite rejects. That marker is what tells it the
 # difference between a deliberate guard and a stale pattern.
 #
-# .github/exported-config/ is written by the export-repo-config
-# workflow from the GitHub API, so a review mark there would attest to
-# GitHub's state rather than to anything anyone wrote, and the state
-# it records is already checked by the github-security,
-# merge-queue-config, delete-branch-on-merge and default-branch-naming
-# criteria. LICENSE is verbatim upstream text; reviewing it would
-# attest to the Apache Software Foundation.
+# LICENSE is verbatim upstream text; reviewing it would attest to the
+# Apache Software Foundation.
+#
+# .github/exported-config/ was excluded until 2026-09-01, on the
+# grounds that the export-repo-config workflow writes it from the
+# GitHub API, so a mark there attests to GitHub's state rather than to
+# anything a person wrote here. It is in scope now because that state
+# is still chosen by a person -- one setting at a time, in a web UI
+# that records nothing about why -- and the criteria that read these
+# files (github-security, merge-queue-config, delete-branch-on-merge,
+# default-branch-naming) each look at a handful of named fields, so a
+# setting no criterion was written for is checked by nothing at all.
+# Three short files is a cheap place for a human to notice one. The
+# objection that keeps compliance.md out does not apply here: these
+# carry no timestamp and change only when the configuration does, so
+# a mark survives until someone changes a setting -- and being asked
+# to read them again when that happens is the point.
 exclude = [
     'docs/plans/*',
     'PLAN-*.md',  # unmatched-by-design: a guard against plans returning to the root
     'docs/audits/compliance.md',
-    '.github/exported-config/*',
     'LICENSE',
 ]
