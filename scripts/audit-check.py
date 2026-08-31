@@ -5844,12 +5844,33 @@ AGENT_CONTEXT_MARKERS = (
 SKILLSAW_SOURCE = 'stbenjam/skillsaw'
 
 # A workflow can also invoke skillsaw directly after installing it from
-# PyPI, naming neither the upstream repository nor pre-commit. The
-# anchor matters: it must match the invocation line ('skillsaw
-# --no-custom-rules .') but not the line that merely installs the
-# package ('uv pip install skillsaw==0.18.0') -- installing a linter
-# is not running it.
-SKILLSAW_RUN_RE = re.compile(r'^\s*skillsaw\b')
+# PyPI, naming neither the upstream repository nor pre-commit. Two
+# distinctions are load-bearing, and both are about not mistaking a
+# mention of the package for a run of the linter.
+#
+# Naming it is not running it. The token has to be followed by
+# whitespace or the end of the line, which is why a bare word boundary
+# is not enough: a wrapped install puts '    skillsaw==0.18.0' on a
+# line of its own, as both of this repository's workflows do, and a
+# word boundary sits happily between 'w' and '='. The same rule
+# rejects a YAML key such as 'skillsaw: true'.
+#
+# Probing it is not running it either. 'skillsaw --version', which
+# this repository's consistency-audit.yml uses to assert the pinned
+# release, proves the install worked and nothing more. Excluding the
+# two no-op flags is not the same as pinning an argument list: every
+# other invocation counts, whatever its arguments.
+#
+# What the pattern deliberately does not pin is where the command
+# sits. It may start a line inside a 'run: |' block, follow an inline
+# 'run:', come after a shell operator, or be reached through a runner
+# ('uvx', 'uv run', 'python -m') or an explicit path into a venv.
+# Pinning one YAML formatting choice would fail repositories whose
+# only sin is writing a single-command step on one line.
+SKILLSAW_RUN_RE = re.compile(
+    r'(?:^|[|&;(]|\brun:|\buvx|\buv\s+run|\s-m)\s*'
+    r'(?:[\w./-]*/)?skillsaw(?!\S)(?!\s+(?:--version|--help|-V|-h)(?![\w=-]))'
+)
 
 # A CI job which runs pre-commit over the tree runs every hook the
 # pre-commit config declares, skillsaw included. Requiring the linter
@@ -6039,11 +6060,11 @@ def check_llm_context_lint_ci(repo_path, props):
     step in CI, or invoking the `skillsaw` command directly (installed
     from PyPI rather than named as the upstream repository) all count
     -- requiring a particular rev, argument list, or install source
-    would make the check brittle against reasonable variation. The
-    direct-invocation route hinges on an anchored match at the start
-    of the line: a step that installs skillsaw does not thereby run
-    it, so the pattern must not fire on an install command that merely
-    mentions the package name.
+    would make the check brittle against reasonable variation. What
+    the direct-invocation route does have to separate is running the
+    linter from installing or probing it: see SKILLSAW_RUN_RE, where
+    both distinctions are drawn and neither costs the check any
+    tolerance for how the command is written.
     """
     if not has_agent_context(repo_path):
         return {
