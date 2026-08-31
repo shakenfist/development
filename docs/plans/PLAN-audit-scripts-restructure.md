@@ -654,11 +654,34 @@ progresses, not only at the end.
   the same place.
 * **`PLAN-TEMPLATE.md` arrived with this plan.** It was written
   because this repository holds the fleet to the `plan-template`
-  criterion and had no template of its own. No fleet repository
-  currently passes that check -- every clone inspected was missing
-  `plan-status-vocabulary`, `plan-push-audit-phase` or both -- so
-  the templates elsewhere want a sweep. That is a separate change
-  across eleven repositories.
+  criterion and had no template of its own, so `development` was
+  `N/A` on a standard it enforces. Nothing else here depends on it.
+
+* **Shared blocks propagate to this repository first and lag
+  everywhere else.** Both places a block is required show the same
+  pattern, from `docs/audits/compliance.md` rather than from local
+  clones, which are stale enough to give the opposite answer:
+
+  * `push-audit`: all eight repositories that carry a
+    `PUSH-AUDIT.md` are non-compliant, and every one of them is
+    missing `diagram-discipline` -- added here on 2026-08-29 and
+    nowhere else yet. Five also lack `path-traversal-review`,
+    `python-version-discipline` and `functional-test-coverage`;
+    occystrap and sfui additionally do not reference
+    `PUSH-AUDIT.md` from `AGENTS.md`, so their audit is one nothing
+    points at.
+  * `plan-template`: three of the seven repositories with a
+    template are non-compliant -- divergulent, occystrap and
+    shakenfist -- all missing `plan-push-audit-phase`.
+
+  Every one of these already has an open tracking issue, so the
+  criteria are working as designed and this is a backlog rather
+  than a discovery. It is worth recording here only because adding
+  a required block is a fleet-wide edit that lands as one commit
+  in this repository and eight pull requests elsewhere, and the
+  lag between the two is invisible from inside this repository.
+  Whether the block-refresh should be templated or scripted is a
+  separate question from this plan.
 
 ### Bugs fixed during this work
 
