@@ -253,6 +253,10 @@
       "sha": "a92bfdaed278fd448adabc76c8a5904174815ea8",
       "date": "2026-08-30"
     },
+    "scripts/audit_common.py": {
+      "sha": "9cfd82c3e08ec9a7e34c5106f7770f43ca15204b",
+      "date": "2026-09-01"
+    },
     "templates/ci-review-automation/README.md": {
       "sha": "520bf61a2981c2c9cde6de85cc3d41e75ecda015",
       "date": "2026-08-30"
