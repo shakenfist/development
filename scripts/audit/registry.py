@@ -16,10 +16,70 @@ half is empty.
 from datetime import datetime, timezone
 
 from audit.check import NOT_APPLICABLE
+from audit.checks import llm_docs
+
+
+#: The order the criteria are reported in. Pinned here because the
+#: results JSON is a published artifact and its ordering is part of its
+#: bytes: while the migration runs, some checks come from CHECKS and
+#: some from the legacy table, and without a declared order the JSON
+#: would reshuffle every time a family moved.
+ORDER = [
+    'llm-tooling',
+    'llm-doc-structure',
+    'llm-context-lint',
+    'llm-context-lint-ci',
+    'release-process',
+    'ci-review-automation',
+    'renovate',
+    'pin-indirect-dependencies',
+    'dependency-name-normalization',
+    'export-repo-config',
+    'default-branch-naming',
+    'github-security',
+    'delete-branch-on-merge',
+    'merge-queue-config',
+    'workflow-permissions',
+    'pre-commit-config',
+    'review-marks-pre-commit',
+    'flake8wrap',
+    'self-hosted-runners',
+    'static-runner-tags',
+    'vm-runner-size',
+    'devpi-fallback',
+    'devpi-stale-ip',
+    'expensive-lane-path-filter',
+    'merge-group-cancellation',
+    'pyproject-usage',
+    'version-file-gitignore',
+    'console-logging',
+    'header-sanitization',
+    'python-version-targeting',
+    'rust-unwrap-lint',
+    'readme-absolute-links',
+    'docs-external-links',
+    'readme-structure',
+    'plan-phase-references',
+    'diagram-format',
+    'mermaid-lint-ci',
+    'plan-source-references',
+    'plan-index',
+    'push-audit',
+    'plan-template',
+    'secret-scanning-ci',
+    'review-coverage',
+    'review-scope-completeness',
+    'sfui-vendor',
+]
 
 
 #: Every criterion, as instances. Populated family by family.
-CHECKS = []
+CHECKS = [
+    llm_docs.LlmTooling(),
+    llm_docs.LlmDocStructure(),
+    llm_docs.LlmContextLint(),
+    llm_docs.LlmContextLintCi(),
+]
 
 
 def scheduled(checks=None, legacy=None):
@@ -32,7 +92,10 @@ def scheduled(checks=None, legacy=None):
     pairs = [(check.id, check) for check in (checks
                                              if checks is not None
                                              else CHECKS)]
-    return pairs + list(legacy or [])
+    pairs += list(legacy or [])
+
+    position = {check_id: n for n, check_id in enumerate(ORDER)}
+    return sorted(pairs, key=lambda pair: position.get(pair[0], len(ORDER)))
 
 
 def run_check(entry, repo):

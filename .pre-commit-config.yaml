@@ -171,6 +171,17 @@ repos:
         # later cannot quietly narrow it.
         always_run: true
 
+      - id: audit-package-tests
+        name: audit package check tests
+        entry: python3 -m unittest discover -s scripts/tests -t scripts
+        language: system
+        pass_filenames: false
+        # Markdown and templates as well, for the same reason the
+        # legacy suite watches them: these tests read specification
+        # pages and canonical shared blocks, so the commit that breaks
+        # one of those parses is a documentation commit.
+        files: ^(scripts/(audit|tests)/.*\.py|.*\.md|templates/.*)$
+
       - id: audit-seams-tests
         name: audit package seam tests
         entry: python3 scripts/test_audit_seams.py
