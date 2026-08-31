@@ -249,12 +249,23 @@ Two wrinkles, both real:
 
 * The `timestamp` field moves on every run and is stripped before
   comparison.
-* The five GitHub-API checks are not deterministic across two runs:
-  a repository setting can genuinely change in between. Until the
-  `GitHubClient` seam exists they are advisory in the diff. From
-  phase 2 onward a recording implementation captures the responses
-  on the "before" run and replays them on the "after" run, and they
-  become exact like everything else.
+* Six checks reach the network and so are not deterministic across
+  two runs: a repository setting can genuinely change in between.
+  They are `default-branch-naming`, `github-security`,
+  `delete-branch-on-merge`, `merge-queue-config`,
+  `merge-group-cancellation` (through `merge_queue_is_serial`) and
+  `sfui-vendor` (which clones). Until the `GitHubClient` seam exists
+  they are advisory in the diff. From phase 2 onward a recording
+  implementation captures the responses on the "before" run and
+  replays them on the "after" run, and they become exact like
+  everything else.
+
+  Note that this set is *not* the `github_config` family of phase 3.
+  `export-repo-config` makes no API call, while
+  `merge-group-cancellation` and `sfui-vendor` sit in other families
+  that migrate earlier -- which is why phase 2 routes every `gh`
+  call through `GhCli` rather than leaving it to the family that
+  looks like it owns them.
 
 ### D6. `applies()` is separate from `run()` so scoping stays cheap
 
@@ -331,7 +342,7 @@ this repository's convention.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. Freeze today's behaviour | Not started | |
+| 1. Freeze today's behaviour | Complete | |
 | 2. Introduce the three seams | Not started | |
 | 3. Migrate the checks, one family per commit | Not started | |
 | 4. Make the registry the source of truth | Not started | |
@@ -360,8 +371,10 @@ every morning regardless of what we have finished.
   and an output directory, runs `scripts/audit-check.py` over each
   clone, writes `audit-result-<repo>.json` per repository, and
   strips the `timestamp` field. A `--diff <old> <new>` mode reports
-  per-check differences, listing the five GitHub-API checks
-  separately as advisory until phase 2.
+  per-check differences, listing the six network-dependent checks
+  separately as advisory until phase 2. The advisory list is
+  re-derived from `audit-check.py` by a test, so a check that grows
+  a `gh` call cannot leave it stale.
 * **`docs/consistency-audits.md`** gains a short subsection under
   "Testing a change" describing the before-and-after procedure, so
   it is available to work after this plan as well.
@@ -421,8 +434,11 @@ before it meets the checks that matter most:
    `review-marks-pre-commit`, `sfui-vendor`.
 8. `github_config.py` -- `default-branch-naming`, `github-security`,
    `delete-branch-on-merge`, `merge-queue-config`,
-   `export-repo-config`. Last, because these are the five with no
-   tests, and by now there is a fake to write them against.
+   `export-repo-config`. Last, because all five are untested and
+   four of them query the GitHub API, so by now there is a fake to
+   write them against. `export-repo-config` is in the family for
+   what it is about rather than for how it works; it reads the
+   filesystem.
 
 Each commit moves the checks, moves their shared constants into
 `text/`, moves their tests to `scripts/tests/`, converts those tests
@@ -459,9 +475,10 @@ Detail strings are copied, not rewritten.
 
 Write the missing tests, against the seams rather than around them.
 The 18 checks with no test get one each at minimum -- pass, fail and
-not-applicable -- and the five GitHub ones additionally get the
+not-applicable. The six that reach the network additionally get the
 failure paths that have never been exercised: API error, timeout,
-`gh` absent, private repository.
+`gh` absent, private repository, and for `sfui-vendor` a clone that
+fails.
 
 Then the registry contract tests from D7.
 
@@ -543,7 +560,7 @@ The master plan is high effort. Per phase:
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 1a | medium | sonnet | none | Write `tools/audit-snapshot.sh`: run `scripts/audit-check.py` over each clone in a directory, write one JSON per repo with `timestamp` stripped, and a `--diff` mode reporting per-check differences with the five GitHub checks listed separately |
+| 1a | medium | sonnet | none | Write `tools/audit-snapshot.sh`: run `scripts/audit-check.py` over each clone in a directory, write one JSON per repo with `timestamp` stripped, and a `--diff` mode reporting per-check differences with the six network-dependent checks listed separately, plus a test re-deriving that list from the checker |
 | 1b | low | haiku | none | Add the before-and-after procedure to `docs/consistency-audits.md` under "Testing a change" |
 | 2a | high | opus | worktree | Create `scripts/audit/` with `check.py`, `repo.py`, `github.py`, `registry.py` per D1 and D6. No checks move. `run_all_checks()` keeps its name and signature and runs the empty registry then `check_calls()`; snapshot must be identical |
 | 2b | high | opus | worktree | Add `FakeGitHub` and `RecordingGitHubClient`, and route all 21 `gh` calls through `GhCli` without moving the checks that make them |
@@ -551,7 +568,7 @@ The master plan is high effort. Per phase:
 | 4a | medium | sonnet | none | Derive `AUDIT_METADATA`, `ISSUE_TITLES` and `COLUMN_NAMES` from the registry; add the frozen-snapshot test pinning the first two to today's literal values |
 | 4b | medium | sonnet | none | Update `docs/consistency-audits.md`, `AGENTS.md`, `ARCHITECTURE.md` and `PUSH-AUDIT.md` per phase 4 |
 | 5a | medium | sonnet | none | Tests for the 18 checks with none: pass, fail, not-applicable each |
-| 5b | medium | opus | none | Failure-path tests for the five GitHub checks, and the registry contract tests from D7 |
+| 5b | medium | opus | none | Failure-path tests for the six network-dependent checks, and the registry contract tests from D7 |
 | 6a | high | opus | none | Run `PUSH-AUDIT.md` over the accumulated diff of phases 1-5 against `main` |
 
 A brief that says "move the plan checks" is not enough. Name the
@@ -607,8 +624,8 @@ because the following statements will be true:
   frozen-snapshot test.
 * Every check in `CHECKS` has a test module entry, asserted by a
   contract test; the 18 previously untested checks have pass, fail
-  and not-applicable cases; the five GitHub checks have their
-  failure paths.
+  and not-applicable cases; the six network-dependent checks have
+  their failure paths.
 * `tools/audit-snapshot.sh --diff` over the fleet clones reports no
   differences between the phase 1 baseline and the final tree.
 * `pre-commit run --all-files` passes.

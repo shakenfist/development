@@ -262,6 +262,44 @@ actively dangerous: the other 35 files in that directory are
 hand-written, and a `git restore` of the directory throws away
 whatever you were editing along with the generated page.
 
+### Before and after a change to a check
+
+The tests and a one-repository run both answer "does this do what I
+meant". Neither answers "does everything else still say exactly what
+it said yesterday", and that is the question that matters when a
+change touches shared code: a `details` string is published to
+`docs/audits/compliance.md` and into the body of every issue filed
+fleet-wide, so a rewording is a fleet-wide diff that no test fails on.
+
+Capture a baseline before the change, and compare after it:
+
+```
+tools/audit-snapshot.sh ~/src/shakenfist /tmp/snap/before
+# ... make the change ...
+tools/audit-snapshot.sh ~/src/shakenfist /tmp/snap/after
+tools/audit-snapshot.sh --diff /tmp/snap/before /tmp/snap/after
+```
+
+The capture takes about forty seconds for a dozen clones. It audits
+every checkout in the directory, skipping git worktrees, and strips
+the `timestamp` field so that two runs of an unchanged tree compare
+equal. `--diff` exits non-zero if anything differs and prints the
+status and details on both sides.
+
+Six checks reach the network -- `default-branch-naming`,
+`github-security`, `delete-branch-on-merge`, `merge-queue-config`,
+`merge-group-cancellation` and `sfui-vendor` -- so they can differ
+between two runs because a repository setting changed rather than
+because the code did. They are reported under their own heading and do
+not affect the exit code. `scripts/test_audit_snapshot.py` re-derives
+that list from `audit-check.py` and fails if a check grows a `gh` call
+without joining it.
+
+The snapshots are not committed. Generated JSON under `scripts/` or
+`docs/` would land in review scope and sit permanently stale in the
+review queue; a scratch directory and a repeatable command give the
+same guarantee without that.
+
 `ci.yml` also runs the audit against this repository as a smoke test,
 via `scripts/check-audit-smoke.py`. Linting cannot reach the scheduled
 workflow's runtime assumptions -- the 2026-08-20 outage was a bare

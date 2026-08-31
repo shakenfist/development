@@ -171,6 +171,18 @@ repos:
         # later cannot quietly narrow it.
         always_run: true
 
+      - id: audit-snapshot-tests
+        name: audit snapshot tests
+        entry: python3 scripts/test_audit_snapshot.py
+        language: system
+        pass_filenames: false
+        # audit-check.py as well as the helper, because
+        # NetworkCheckListTest re-derives the advisory list from the
+        # checker's source. A check that grows a `gh` call is a change
+        # to audit-check.py alone, and that is exactly the commit that
+        # must not leave the list stale.
+        files: ^scripts/(audit_snapshot\.py|test_audit_snapshot\.py|audit-check\.py)$
+
       - id: check-audit-smoke-tests
         name: audit smoke checker tests
         entry: python3 scripts/test_check_audit_smoke.py
