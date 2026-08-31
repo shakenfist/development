@@ -16,7 +16,7 @@ half is empty.
 from datetime import datetime, timezone
 
 from audit.check import NOT_APPLICABLE
-from audit.checks import docs_content, llm_docs
+from audit.checks import docs_content, llm_docs, plans
 
 
 #: The order the criteria are reported in. Pinned here because the
@@ -84,6 +84,11 @@ CHECKS = [
     docs_content.DocsExternalLinks(),
     docs_content.DiagramFormat(),
     docs_content.MermaidLintCi(),
+    plans.PlanPhaseReferences(),
+    plans.PlanSourceReferences(),
+    plans.PlanIndex(),
+    plans.PushAudit(),
+    plans.PlanTemplate(),
 ]
 
 
