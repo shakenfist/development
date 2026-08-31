@@ -367,6 +367,26 @@
     {
       "path": ".github",
       "author": "mikal"
+    },
+    {
+      "path": "docs/audits/llm-context-lint-ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/renovate.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/review-scope-completeness.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/workflow-standards.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
