@@ -256,9 +256,19 @@ Two wrinkles, both real:
   `merge-group-cancellation` (through `merge_queue_is_serial`) and
   `sfui-vendor` (which clones). Until the `GitHubClient` seam exists
   they are advisory in the diff. From phase 2 onward a recording
-  implementation captures the responses on the "before" run and
-  replays them on the "after" run, and they become exact like
-  everything else.
+  implementation captures the `gh` responses on the "before" run and
+  replays them on the "after" run, so the five API checks can be made
+  exact.
+
+  `sfui-vendor` cannot, and stays advisory permanently. It does not
+  make a request and read a response; it clones the canonical
+  repository into a temporary directory and runs that repository's
+  own `tools/vendor.sh` against the working tree it produced.
+  Recording a working tree is not the same problem as recording a
+  response, and it already has the seam it needs: `canonical_url` is
+  a parameter, and `SfuiVendorTest` drives it against a local fixture
+  repository. It is among the better tested checks here, not one of
+  the gaps.
 
   Note that this set is *not* the `github_config` family of phase 3.
   `export-repo-config` makes no API call, while
@@ -343,7 +353,7 @@ this repository's convention.
 | Phase | Status | Merged |
 |-------|--------|--------|
 | 1. Freeze today's behaviour | Complete | |
-| 2. Introduce the three seams | Not started | |
+| 2. Introduce the three seams | Complete | |
 | 3. Migrate the checks, one family per commit | Not started | |
 | 4. Make the registry the source of truth | Not started | |
 | 5. Close the coverage gap | Not started | |
@@ -475,10 +485,11 @@ Detail strings are copied, not rewritten.
 
 Write the missing tests, against the seams rather than around them.
 The 18 checks with no test get one each at minimum -- pass, fail and
-not-applicable. The six that reach the network additionally get the
-failure paths that have never been exercised: API error, timeout,
-`gh` absent, private repository, and for `sfui-vendor` a clone that
-fails.
+not-applicable. The five that call the GitHub API additionally get
+the failure paths that have never been exercised: API error,
+timeout, `gh` absent, private repository. `sfui-vendor` is not among
+them -- it reaches the network but already has its own seam and its
+own tests.
 
 Then the registry contract tests from D7.
 
@@ -568,7 +579,7 @@ The master plan is high effort. Per phase:
 | 4a | medium | sonnet | none | Derive `AUDIT_METADATA`, `ISSUE_TITLES` and `COLUMN_NAMES` from the registry; add the frozen-snapshot test pinning the first two to today's literal values |
 | 4b | medium | sonnet | none | Update `docs/consistency-audits.md`, `AGENTS.md`, `ARCHITECTURE.md` and `PUSH-AUDIT.md` per phase 4 |
 | 5a | medium | sonnet | none | Tests for the 18 checks with none: pass, fail, not-applicable each |
-| 5b | medium | opus | none | Failure-path tests for the six network-dependent checks, and the registry contract tests from D7 |
+| 5b | medium | opus | none | Failure-path tests for the five checks that call the GitHub API, and the registry contract tests from D7 |
 | 6a | high | opus | none | Run `PUSH-AUDIT.md` over the accumulated diff of phases 1-5 against `main` |
 
 A brief that says "move the plan checks" is not enough. Name the
@@ -624,8 +635,8 @@ because the following statements will be true:
   frozen-snapshot test.
 * Every check in `CHECKS` has a test module entry, asserted by a
   contract test; the 18 previously untested checks have pass, fail
-  and not-applicable cases; the six network-dependent checks have
-  their failure paths.
+  and not-applicable cases; the five checks that call the GitHub API
+  have their failure paths.
 * `tools/audit-snapshot.sh --diff` over the fleet clones reports no
   differences between the phase 1 baseline and the final tree.
 * `pre-commit run --all-files` passes.

@@ -172,11 +172,16 @@ class ReportTest(unittest.TestCase):
 class NetworkCheckListTest(unittest.TestCase):
     """The advisory list must match what the checker actually does.
 
-    NETWORK_CHECKS is written by hand, and a check that grows a `gh`
-    call later would otherwise silently become a source of spurious
-    diffs. Re-derive it from the source: find every check function
-    whose body invokes `gh` or `git clone`, directly or through a
-    helper it calls, and compare.
+    NETWORK_CHECKS is written by hand, and a check that grows a
+    GitHub call later would otherwise silently become a source of
+    spurious diffs. Re-derive it from the source: find every check
+    function whose body reaches the network -- through the `_github()`
+    client accessor, or by cloning -- directly or through a helper it
+    calls, and compare.
+
+    Matching on `_github(` rather than on a literal `gh` is what makes
+    this survive the client seam: after phase 2 no check spawns `gh`
+    itself, they all go through audit/github.py.
     """
 
     def _source(self):
@@ -207,7 +212,7 @@ class NetworkCheckListTest(unittest.TestCase):
             return False
         seen.add(name)
         body = functions.get(name, '')
-        if re.search(r"'gh'|\"gh\"|'clone'", body):
+        if re.search(r"_github\(|'clone'", body):
             return True
         for other in functions:
             if other != name and re.search(rf'\b{other}\s*\(', body):

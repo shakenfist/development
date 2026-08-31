@@ -5755,7 +5755,7 @@ class MergeGroupCancellationTest(unittest.TestCase):
     def setUp(self):
         self._real_serial = audit_check.merge_queue_is_serial
         audit_check.merge_queue_is_serial = (
-            lambda repo_name, org: self.serial_queue
+            lambda repo_name, org, github=None: self.serial_queue
         )
 
     def tearDown(self):

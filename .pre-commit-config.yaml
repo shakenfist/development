@@ -171,6 +171,13 @@ repos:
         # later cannot quietly narrow it.
         always_run: true
 
+      - id: audit-seams-tests
+        name: audit package seam tests
+        entry: python3 scripts/test_audit_seams.py
+        language: system
+        pass_filenames: false
+        files: ^scripts/(audit/.*\.py|test_audit_seams\.py)$
+
       - id: audit-snapshot-tests
         name: audit snapshot tests
         entry: python3 scripts/test_audit_snapshot.py

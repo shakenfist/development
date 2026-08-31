@@ -16,91 +16,26 @@ import sys
 import tempfile
 import tomllib
 import urllib.parse
-from datetime import datetime, timezone
 
+from audit import registry
+from audit.github import GhCli
+from audit.repo import REPO_OVERRIDES, Repo, detect_repo_properties
 from audit_common import BEGIN_MARKER, END_MARKER
 
-
-# Minimal hardcoded overrides for properties that cannot be detected
-# from a clone alone.
-REPO_OVERRIDES = {
-    'cloudgood': {'is_docs_only': True},
-    # kerbside-patches carries Python helper scripts but is a patch
-    # archive, not a Python project.
-    'kerbside-patches': {'not_python': True},
-    # actions is a library of composite actions, reusable workflows and
-    # their helper scripts. Those helpers include Python, but there is
-    # nothing to package, so the Python packaging checks do not apply.
-    'actions': {
-        'not_python': True,
-        'default_branch_exception': (
-            'every consumer pins to @main, so renaming the default '
-            'branch would break the whole fleet at once'
-        ),
-    },
-    # development holds the audit specifications and the tooling that
-    # enforces them, and is audited by that tooling like everything
-    # else: a standard we exempt ourselves from is a standard we stop
-    # noticing the cost of. Its Python is the audit scripts, run from
-    # a checkout and never packaged. It publishes no releases, so it
-    # has no release branch for "develop" to be the integration branch
-    # against.
-    'development': {
-        'not_python': True,
-        'default_branch_exception': (
-            'publishes no releases, so there is no release branch for '
-            '"develop" to be distinct from'
-        ),
-    },
-    # private-ci is internal tooling and stays outside the conventions
-    # audits: it is a legacy setup.py project with no workflows of its
-    # own, and holding it to the fleet's release, renovate and README
-    # rules would only manufacture issues nobody intends to fix. It
-    # does vendor sfui, though, and drift in a vendored copy is
-    # invisible until somebody thinks to look, so that one check
-    # applies. only_checks scopes a repository to a subset of the
-    # audit rather than excluding it wholesale.
-    'private-ci': {'only_checks': ['sfui-vendor']},
-    # sfui is a CSS/JavaScript design system with no build step. Its
-    # only Python is incidental test tooling (pytest and the
-    # consistency checker), so there is nothing to package and the
-    # Python packaging checks do not apply.
-    'sfui': {'not_python': True},
-    # shakenfist's docs/components/ is an automated import of the
-    # other repositories' documentation directories. Documentation
-    # content checks skip it: the canonical copies are audited in
-    # their source repositories, and flagging the import would
-    # double-report findings that must be fixed at the source.
-    'shakenfist': {'doc_content_excludes': ['docs/components/']},
-}
+# REPO_OVERRIDES and detect_repo_properties now live in audit/repo.py
+# and are re-exported here: test_audit_check.py and several callers
+# reach for them on this module, and moving the code is a separate
+# question from moving the name.
+__all__ = ['REPO_OVERRIDES', 'detect_repo_properties']
 
 
-def detect_repo_properties(repo_path, repo_name):
-    """Auto-detect repo type from files present."""
-    overrides = REPO_OVERRIDES.get(repo_name, {})
-    return {
-        'has_pyproject_toml': os.path.exists(
-            os.path.join(repo_path, 'pyproject.toml')
-        ),
-        'has_cargo_toml': (
-            os.path.exists(os.path.join(repo_path, 'Cargo.toml'))
-            or os.path.exists(os.path.join(repo_path, 'src', 'Cargo.toml'))
-        ),
-        'has_workflows_dir': os.path.exists(
-            os.path.join(repo_path, '.github', 'workflows')
-        ),
-        'has_flake8wrap': os.path.exists(
-            os.path.join(repo_path, 'tools', 'flake8wrap.sh')
-        ),
-        'is_private': overrides.get('is_private', False),
-        'is_docs_only': overrides.get('is_docs_only', False),
-        'not_python': overrides.get('not_python', False),
-        'default_branch_exception': overrides.get(
-            'default_branch_exception', ''
-        ),
-        'only_checks': overrides.get('only_checks', []),
-        'doc_content_excludes': overrides.get('doc_content_excludes', []),
-    }
+def _github(client):
+    """The GitHub client to use, defaulting to the real one.
+
+    Threaded through the checks that query the API rather than reached
+    for globally, so a test can substitute audit.github.FakeGitHub.
+    """
+    return client if client is not None else GhCli()
 
 
 def check_file_exists(repo_path, path):
@@ -920,17 +855,11 @@ def check_export_repo_config(repo_path, props):
     }
 
 
-def check_default_branch(repo_path, props, repo_name, org):
+def check_default_branch(repo_path, props, repo_name, org, github=None):
     """Check default branch is 'develop' via GitHub API."""
     try:
-        result = subprocess.run(
-            [
-                'gh', 'api',
-                f'repos/{org}/{repo_name}',
-                '--jq', '.default_branch',
-            ],
-            capture_output=True, text=True, timeout=30,
-        )
+        result = _github(github).api(
+            f'repos/{org}/{repo_name}', jq='.default_branch')
         if result.returncode != 0:
             return {
                 'id': 'default-branch-naming',
@@ -986,7 +915,7 @@ def check_default_branch(repo_path, props, repo_name, org):
         }
 
 
-def check_github_security(repo_path, props, repo_name, org):
+def check_github_security(repo_path, props, repo_name, org, github=None):
     """Check GitHub security settings and CodeQL workflow."""
     issues = []
 
@@ -997,15 +926,9 @@ def check_github_security(repo_path, props, repo_name, org):
     is_private = props['is_private']
     security = None
     try:
-        result = subprocess.run(
-            [
-                'gh', 'api',
-                f'repos/{org}/{repo_name}',
-                '--jq',
-                '{private: .private, security: .security_and_analysis}',
-            ],
-            capture_output=True, text=True, timeout=30,
-        )
+        result = _github(github).api(
+            f'repos/{org}/{repo_name}',
+            jq='{private: .private, security: .security_and_analysis}')
         if result.returncode == 0 and result.stdout.strip():
             try:
                 repo_info = json.loads(result.stdout.strip())
@@ -1054,17 +977,12 @@ def check_github_security(repo_path, props, repo_name, org):
     }
 
 
-def check_delete_branch_on_merge(repo_path, props, repo_name, org):
+def check_delete_branch_on_merge(repo_path, props, repo_name, org,
+                                 github=None):
     """Check head branches are deleted automatically when a PR merges."""
     try:
-        result = subprocess.run(
-            [
-                'gh', 'api',
-                f'repos/{org}/{repo_name}',
-                '--jq', '.delete_branch_on_merge',
-            ],
-            capture_output=True, text=True, timeout=30,
-        )
+        result = _github(github).api(
+            f'repos/{org}/{repo_name}', jq='.delete_branch_on_merge')
         if result.returncode != 0:
             return {
                 'id': 'delete-branch-on-merge',
@@ -1159,17 +1077,13 @@ def evaluate_merge_queue_rules(rules):
     return problems
 
 
-def check_merge_queue_config(repo_path, props, repo_name, org):
+def check_merge_queue_config(repo_path, props, repo_name, org,
+                             github=None):
     """Check any merge queue on the default branch is serialized."""
+    client = _github(github)
     try:
-        result = subprocess.run(
-            [
-                'gh', 'api',
-                f'repos/{org}/{repo_name}',
-                '--jq', '.default_branch',
-            ],
-            capture_output=True, text=True, timeout=30,
-        )
+        result = client.api(
+            f'repos/{org}/{repo_name}', jq='.default_branch')
         if result.returncode != 0:
             return {
                 'id': 'merge-queue-config',
@@ -1181,13 +1095,8 @@ def check_merge_queue_config(repo_path, props, repo_name, org):
             }
         branch = result.stdout.strip()
 
-        result = subprocess.run(
-            [
-                'gh', 'api',
-                f'repos/{org}/{repo_name}/rules/branches/{branch}',
-            ],
-            capture_output=True, text=True, timeout=30,
-        )
+        result = client.api(
+            f'repos/{org}/{repo_name}/rules/branches/{branch}')
         if result.returncode != 0:
             return {
                 'id': 'merge-queue-config',
@@ -2541,7 +2450,7 @@ def reusable_invocation_offenders(wf, invocations):
     return problems
 
 
-def merge_queue_is_serial(repo_name, org):
+def merge_queue_is_serial(repo_name, org, github=None):
     """Is the default branch's merge queue building one entry at a time?
 
     Returns True, False, or None when GitHub could not be asked. The
@@ -2555,19 +2464,14 @@ def merge_queue_is_serial(repo_name, org):
     rather than failing this one twice.
     """
     try:
-        branch = subprocess.run(
-            ['gh', 'api', f'repos/{org}/{repo_name}',
-             '--jq', '.default_branch'],
-            capture_output=True, text=True, timeout=30,
-        )
+        client = _github(github)
+        branch = client.api(
+            f'repos/{org}/{repo_name}', jq='.default_branch')
         if branch.returncode != 0:
             return None
-        rules = subprocess.run(
-            ['gh', 'api',
-             f'repos/{org}/{repo_name}/rules/branches/'
-             f'{branch.stdout.strip()}'],
-            capture_output=True, text=True, timeout=30,
-        )
+        rules = client.api(
+            f'repos/{org}/{repo_name}/rules/branches/'
+            f'{branch.stdout.strip()}')
         if rules.returncode != 0:
             return None
         parsed = json.loads(rules.stdout)
@@ -2584,7 +2488,8 @@ def merge_queue_is_serial(repo_name, org):
     return all(e == 1 for e in entries)
 
 
-def check_merge_group_cancellation(repo_path, props, repo_name, org):
+def check_merge_group_cancellation(repo_path, props, repo_name, org,
+                                   github=None):
     """Check merge group runs cancel exactly what they should.
 
     A job reachable on a merge_group event that holds a scarce
@@ -2741,7 +2646,8 @@ def check_merge_group_cancellation(repo_path, props, repo_name, org):
             ),
         }
 
-    if keyed_on_base_ref and merge_queue_is_serial(repo_name, org) is False:
+    if (keyed_on_base_ref
+            and merge_queue_is_serial(repo_name, org, github) is False):
         offenders.append(
             'the merge queue on the default branch builds more than '
             'one entry at a time, so a group keyed on '
@@ -6469,7 +6375,7 @@ def check_sfui_vendor(repo_path, props, canonical_url=None):
     }
 
 
-def check_calls(repo_path, props, repo_name, org):
+def check_calls(repo_path, props, repo_name, org, github=None):
     """Pair every check id with the call that produces it.
 
     The calls are deferred so that a repository scoped with
@@ -6504,14 +6410,17 @@ def check_calls(repo_path, props, repo_name, org):
         ('export-repo-config',
          lambda: check_export_repo_config(repo_path, props)),
         ('default-branch-naming',
-         lambda: check_default_branch(repo_path, props, repo_name, org)),
+         lambda: check_default_branch(
+             repo_path, props, repo_name, org, github)),
         ('github-security',
-         lambda: check_github_security(repo_path, props, repo_name, org)),
+         lambda: check_github_security(
+             repo_path, props, repo_name, org, github)),
         ('delete-branch-on-merge',
          lambda: check_delete_branch_on_merge(
-             repo_path, props, repo_name, org)),
+             repo_path, props, repo_name, org, github)),
         ('merge-queue-config',
-         lambda: check_merge_queue_config(repo_path, props, repo_name, org)),
+         lambda: check_merge_queue_config(
+             repo_path, props, repo_name, org, github)),
         ('workflow-permissions',
          lambda: check_workflow_permissions(repo_path, props)),
         ('pre-commit-config',
@@ -6534,7 +6443,7 @@ def check_calls(repo_path, props, repo_name, org):
          lambda: check_expensive_lane_path_filter(repo_path, props)),
         ('merge-group-cancellation',
          lambda: check_merge_group_cancellation(
-             repo_path, props, repo_name, org)),
+             repo_path, props, repo_name, org, github)),
         ('pyproject-usage',
          lambda: check_pyproject_usage(repo_path, props)),
         ('version-file-gitignore',
@@ -6578,48 +6487,19 @@ def check_calls(repo_path, props, repo_name, org):
     ]
 
 
-def run_all_checks(repo_path, repo_name, org):
-    """Run all checks and return results.
+def run_all_checks(repo_path, repo_name, org, github=None):
+    """Run every check against a clone and return the results document.
 
-    A repository scoped with an only_checks override runs just those
-    checks. The rest are reported not_applicable rather than left out
-    of the results: audit-update-docs.py renders a check it cannot
-    find as "unknown", and out of scope is a decision we have made,
-    not something we failed to measure.
+    The scheduling, the only_checks scoping and the summary now live in
+    audit/registry.py. This keeps its name and signature because
+    check-audit-smoke.py, ci.yml and the tests all drive it.
     """
-    props = detect_repo_properties(repo_path, repo_name)
-    only = props['only_checks']
-
-    checks = []
-    for check_id, run_check in check_calls(repo_path, props, repo_name, org):
-        if only and check_id not in only:
-            checks.append({
-                'id': check_id,
-                'status': 'not_applicable',
-                'details': (
-                    f'{repo_name} is audited for '
-                    f'{", ".join(sorted(only))} only'
-                ),
-            })
-            continue
-        checks.append(run_check())
-
-    summary = {
-        'total': len(checks),
-        'pass': sum(1 for c in checks if c['status'] == 'pass'),
-        'fail': sum(1 for c in checks if c['status'] == 'fail'),
-        'not_applicable': sum(
-            1 for c in checks if c['status'] == 'not_applicable'
-        ),
-    }
-
-    return {
-        'repo': repo_name,
-        'org': org,
-        'timestamp': datetime.now(timezone.utc).isoformat(),
-        'checks': checks,
-        'summary': summary,
-    }
+    repo = Repo(repo_path, repo_name, org, github=github)
+    return registry.run_all(
+        repo,
+        legacy=check_calls(repo_path, repo.props, repo_name, org,
+                           repo.github),
+    )
 
 
 def main():
