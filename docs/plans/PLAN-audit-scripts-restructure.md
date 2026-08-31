@@ -1,0 +1,531 @@
+# Plan: restructure the audit scripts into a package of check classes
+
+## Context
+
+`scripts/` is the whole of this repository's code. It has grown by
+accretion, one criterion at a time, and the growth has landed almost
+entirely in two files:
+
+| File | Lines | What is in it |
+|---|---|---|
+| `audit-check.py` | 6,657 | 45 check functions, ~90 helpers, ~40 module-level constant and regex blocks |
+| `test_audit_check.py` | 6,148 | 45 `TestCase` classes, 107 temporary-directory sites, ~40 per-class `_repo`/`_check` helpers |
+| `test_audit_update_docs.py` | 786 | |
+| `test_review_tracking.py` | 736 | |
+| `review-tracking.py` | 636 | a separate CLI, `cmd_*` dispatch |
+| `test_issue_fix_extraction.py` | 530 | |
+| `audit-update-docs.py` | 379 | |
+| `audit-manage-issues.py` | 330 | |
+| `audit_common.py` | 323 | `AUDIT_METADATA`, `ISSUE_TITLES` -- data only |
+| `test_check_audit_smoke.py` | 132 | |
+| `check-audit-smoke.py` | 90 | |
+| `commit-audit-docs.sh` | 31 | |
+
+Size on its own is not a reason to move code. `PUSH-AUDIT.md` says
+as much to reviewers today: "`audit-check.py` is 5,000 lines of check
+functions that resemble each other by design. Flag duplication only
+where a helper already exists and was not used." That guidance is
+right about the check bodies and wrong about what surrounds them.
+Three specific things are wrong, and each is measurable.
+
+**Twenty of the forty-five checks have no direct test.** Counting
+call sites of `audit_check.check_*(` in `test_audit_check.py`:
+
+| Coverage | Checks |
+|---|---|
+| No direct test | `default-branch-naming`, `github-security`, `delete-branch-on-merge`, `merge-queue-config`, `export-repo-config`, `devpi-fallback`, `devpi-stale-ip`, `flake8wrap`, `llm-tooling`, `pre-commit-config`, `pyproject-usage`, `readme-absolute-links`, `release-process`, `rust-unwrap-lint`, `secret-scanning-ci`, `static-runner-tags`, `version-file-gitignore`, `workflow-permissions` (plus the two `check_file_*` helpers) |
+| One or two | 21 checks |
+| Three or more | 6 checks |
+
+The untested set is not random. Every check that queries the GitHub
+API is in it, because there is nothing to fake: `audit-check.py`
+makes 21 direct `subprocess.run(['gh', ...])` calls, each with its
+own copy of the timeout and `FileNotFoundError` handling. The
+workaround already exists, applied by hand and only once:
+`evaluate_merge_queue_rules()` was split out as a pure function so
+`MergeQueueConfigTest` could test the ruleset logic, and the `gh`
+wrapper around it stayed untested. That is the right instinct with
+nowhere to put itself.
+
+**The check id is a string literal repeated two to nine times per
+check.** `'id': 'python-version-targeting'` appears nine times;
+`'id': 'pyproject-usage'` eight. Roughly 180 literals that must all
+agree with each other and with the id registered in `check_calls()`.
+A test asserts the last of those agreements, which is the one that
+would make a check unschedulable; the rest are unguarded.
+
+**A criterion spans four files, and the sync is enforced by tests
+rather than by structure.** `AGENTS.md` opens with it and
+`docs/consistency-audits.md` spells it out over five numbered steps,
+noting that step 4 "is the one that bites" -- its absence broke the
+2026-08-12 run, rewriting every `docs/audits/*.md` before crashing
+without committing any. The tests that now guard it are good tests.
+They are also evidence that the shape is wrong: an invariant needs a
+test because the structure cannot state it.
+
+Underneath all three is the same absence. There is no `Check` type,
+no repository type, and no GitHub client type -- so there is nowhere
+for an id, a spec path, an issue title, a cached file read, or a
+fake API response to live.
+
+## What "good" looks like
+
+* A criterion is a class in one module beside its siblings, and
+  adding one touches that module and its spec page. Not four files.
+* Every check has a test, including the ones that talk to GitHub.
+* The id is written once per check.
+* `python3 scripts/audit-check.py --repo-path ... --repo-name ...`
+  keeps its path, its arguments and its JSON output byte-for-byte.
+  `ci.yml`, `consistency-audit.yml`, `README.md`, `ARCHITECTURE.md`
+  and `docs/consistency-audits.md` all name it.
+* No new dependency. The scripts are stdlib-only and stay that way.
+
+## Decisions
+
+### D1. Classes at three seams, and nowhere else
+
+Three types earn their existence:
+
+* **`Check`** -- an abstract base holding `id`, `spec`, `template`,
+  `issue_title` and an optional `column` as class attributes, with
+  `applies(repo)` returning a skip reason or `None`, and an abstract
+  `run(repo)` returning a `Result`. `self.ok()`, `self.fail()` and
+  `self.skip()` build the result dict, so the id is written once.
+* **`Repo`** -- replaces the `(repo_path, props, repo_name, org)`
+  tuple threaded through every signature, with cached accessors:
+  `exists()`, `read()`, `workflows()`, `docs_markdown()`. Caching is
+  not premature: `list_workflow_files()` is called from 14 places
+  and there are 41 `open()` sites, so a daily run re-reads every
+  workflow file a dozen times.
+* **`GitHubClient`** -- a protocol with a `gh` CLI implementation and
+  a fake. This is the one that buys the missing coverage; the other
+  two are tidying.
+
+Everything else stays a module-level function. `mask_source()`,
+`evaluate_merge_queue_rules()`, `split_runner_labels()`,
+`blank_generated_blocks()` and their kin are already the most
+testable code in the file. They move to new homes unchanged. A
+refactor that turns pure functions into methods to make a diagram
+tidier makes the tests worse, and we would notice that only after
+doing it.
+
+### D2. Modules by spec family, not one file per check
+
+Forty-five files would trade one unnavigable file for a directory
+nobody can hold in their head, and it would fight the code: the plan
+checks share their `PLAN_*` regexes, the runner checks share label
+parsing, the LLM-doc checks share heading iteration. Eight modules
+of four to seven hundred lines each, grouped the way the
+specifications are:
+
+    scripts/audit/
+      check.py            Check, Result, the status vocabulary
+      repo.py             Repo, detect_repo_properties, REPO_OVERRIDES
+      github.py           GitHubClient, GhCli, FakeGitHub
+      registry.py         CHECKS, and the metadata views derived from it
+      text/
+        markdown.py       links, fences, headings, code stripping
+        workflows.py      job blocks, runs-on labels, concurrency
+        python_source.py  mask_source, class parsing, entry points
+        shared_blocks.py  block extraction and validation
+      checks/
+        llm_docs.py  ci_workflows.py  runners.py  packaging.py
+        docs_content.py  plans.py  review.py  github_config.py
+    scripts/audit-check.py   a CLI shim: argument parsing, JSON out
+
+The `text/` split is where the ~40 module-level regex blocks go, and
+it is the part with reuse in it today. It also ends the
+`importlib.util.spec_from_file_location` dance the tests need,
+because `audit-check.py` has a hyphen in its name and cannot be
+imported.
+
+### D3. The registry becomes the source of truth, and the metadata is derived
+
+`registry.py` holds `CHECKS`, a list of instances.
+`audit_common.AUDIT_METADATA` and `ISSUE_TITLES` become views
+computed from it, and `audit-update-docs.py`'s `COLUMN_NAMES`
+derives from `Check.column`. Neither `audit-manage-issues.py` nor
+`audit-update-docs.py` changes: they keep importing the same two
+names from the same module and get the same dicts.
+
+Adding a criterion then means a check class and a spec page. Steps
+2 and 4 of `docs/consistency-audits.md` disappear, and the tests
+that guard them become unnecessary rather than merely passing.
+
+**`ISSUE_TITLES` is an idempotency key, not a label.** A renamed
+entry orphans every open issue for that check across the fleet,
+which is why `AGENTS.md` calls it an interface. Deriving it from
+class attributes puts 45 strings within reach of an accidental
+edit, so the derivation is pinned: a test holds today's
+`AUDIT_METADATA` and `ISSUE_TITLES` as literal frozen dicts and
+asserts the derived views equal them exactly. That test is not
+maintenance -- a new check adds a line, and a changed line is
+supposed to be hard.
+
+### D4. `audit-check.py` keeps its path and its output
+
+The daily workflow, `ci.yml`, `README.md` and three documentation
+pages name the script by path. Making the package importable does
+not require moving the entry point, and moving it would spread this
+change into the workflows for no gain. It becomes a shim that parses
+arguments, builds a `Repo`, runs the registry, and prints the same
+JSON.
+
+The JSON is a contract in a stronger sense than most: `details`
+strings are rendered into `docs/audits/compliance.md` and into issue
+bodies filed fleet-wide. A reworded detail is a diff on the
+compliance page and, worse, is invisible in review.
+
+### D5. The regression net is a local before-and-after diff, not a committed fixture
+
+Correctness here means "the audit says exactly what it said
+yesterday about the real fleet". Synthetic fixtures cannot show
+that; the real clones can.
+
+So the net is `tools/audit-snapshot.sh <clones-dir> <out-dir>`,
+which runs the checker over every clone and writes one JSON file
+each, and a comparison run after each phase. The snapshots are not
+committed. Generated JSON in `scripts/` or `docs/` would land in
+review scope -- `.vscode/review-scope.toml` includes `*.json` -- and
+would either need an exclusion argued for or would sit permanently
+stale in the review queue. A repeatable command in `tools/` and a
+scratch directory get the same guarantee without that.
+
+Two wrinkles, both real:
+
+* The `timestamp` field moves on every run and is stripped before
+  comparison.
+* The five GitHub-API checks are not deterministic across two runs:
+  a repository setting can genuinely change in between. Until the
+  `GitHubClient` seam exists they are advisory in the diff. From
+  phase 2 onward a recording implementation captures the responses
+  on the "before" run and replays them on the "after" run, and they
+  become exact like everything else.
+
+### D6. `applies()` is separate from `run()` so scoping stays cheap
+
+`check_calls()` returns deferred lambdas for a stated reason: a
+repository scoped with `only_checks` must be able to skip a check
+without paying for it, because several checks query the GitHub API
+and those queries fail on a private repository for reasons that have
+nothing to do with compliance. Splitting the cheap applicability
+test from the expensive body preserves that: the scheduler consults
+`only_checks`, then `applies()`, and calls `run()` only if both let
+it through. It also lifts the `not_applicable` preamble out of most
+of the 45 function bodies, which is where a good deal of the
+repetition lives.
+
+### D7. Tests move with their checks, on a shared fixture base
+
+`scripts/tests/` mirrors `scripts/audit/`, one test module per check
+module. Two pieces of shared machinery replace what is currently
+copied per class:
+
+* `FixtureRepo` -- `write()`, `workflow()`, `git()`, `commit()`,
+  wrapping the temporary directory. There are 107 temporary-directory
+  sites and about 40 near-identical `_repo`/`_check` helpers today.
+* `CheckTestCase` -- `assert_pass()`, `assert_fail(containing=...)`,
+  `assert_skip()`.
+
+And one thing that does not exist today: contract tests parametrized
+over the whole registry. Every check has a spec file that exists on
+disk; is registered exactly once; returns one of the three statuses;
+and survives an empty repository, a docs-only repository and a
+directory that is not a git checkout without raising. That last
+group is the one with real value, and it is the kind of test that is
+only writable once the checks are uniform.
+
+The `GIT_*` environment scrub at the top of `test_audit_check.py`
+moves to the shared base. It exists because the pre-commit hook runs
+these tests during `git commit`, when git exports `GIT_INDEX_FILE`
+to hooks and the fixture subprocesses inherit it and write to the
+real index. Losing that in the move would corrupt the index of
+whoever commits next.
+
+### D8. Sequencing against the human review of `scripts/`
+
+A whole-file review mark attests to content by blob SHA and is
+discarded when the file changes, so this restructure discards every
+mark on every file it moves. A review of `scripts/` is in flight
+right now -- `origin/reviews` carries a fresh mark on
+`scripts/audit_common.py`, dated 2026-09-01 -- and `audit_common.py`
+is precisely the file this plan turns into derived views.
+
+The restructure goes first. Attesting to 6,657 lines that are about
+to be split into eight modules spends the scarcest thing here on
+content that will not survive, and the review is more useful against
+the structure we intend to keep. Two consequences to accept openly:
+
+* Review coverage in `REVIEWS.md` drops when this lands, and the
+  `review-coverage` audit may file an issue against this repository.
+  That is the check working. It should not be silenced.
+* Findings from the in-flight review are not wasted and must not be
+  dropped on the floor. Any that are still unaddressed when phase 3
+  starts get carried into this plan under "Bugs fixed during this
+  work" and fixed as part of the module they land in.
+
+## Implementation
+
+Work happens on `audit-scripts-restructure` off `main`; this plan
+file lands with the change (per `CLAUDE.md`). There is no `develop`
+branch here -- `REPO_OVERRIDES` exempts this repository from the
+default-branch convention because it publishes no releases.
+
+### Execution
+
+Phases are the sections below rather than separate files, following
+this repository's convention.
+
+| Phase | Status | Merged |
+|-------|--------|--------|
+| 1. Freeze today's behaviour | Not started | |
+| 2. Introduce the three seams | Not started | |
+| 3. Migrate the checks, one family per commit | Not started | |
+| 4. Make the registry the source of truth | Not started | |
+| 5. Close the coverage gap | Not started | |
+| 6. Push audit | Not started | |
+
+The `Merged` column stays empty until each phase lands.
+
+Phases 1 and 2 are small and ship together as one pull request.
+Phase 3 is the bulk of the work and ships as its own pull request,
+one commit per check family, because a reviewer can read a family in
+one sitting and cannot read eight. Phases 4 and 5 ship together:
+phase 4 deletes the sync tests and phase 5 replaces the coverage
+they were standing in for, and landing the deletion alone would
+leave the repository briefly worse.
+
+Phase 3 has a hard rule: it does not end with the registry and
+`check_calls()` both populated. A half-migrated scheduler is the
+failure mode this plan is most likely to produce, and the audit runs
+every morning regardless of what we have finished.
+
+**Planning effort.** Phases 2 and 3 are high effort -- they are
+design and they carry the fleet-wide risk. Phases 1, 4 and 5 are
+medium: mechanical, or following a pattern phase 2 establishes.
+
+### 1. Freeze today's behaviour
+
+* **`tools/audit-snapshot.sh`** (new). Takes a directory of clones
+  and an output directory, runs `scripts/audit-check.py` over each
+  clone, writes `audit-result-<repo>.json` per repository, and
+  strips the `timestamp` field. A `--diff <old> <new>` mode reports
+  per-check differences, listing the five GitHub-API checks
+  separately as advisory until phase 2.
+* **`docs/consistency-audits.md`** gains a short subsection under
+  "Testing a change" describing the before-and-after procedure, so
+  that it is available to work after this plan as well.
+* Capture the baseline over the fleet clones under `~/src/shakenfist/`
+  and keep it for the duration.
+
+Nothing else changes. This phase is the reason the rest can be
+judged.
+
+### 2. Introduce the three seams
+
+* **`scripts/audit/check.py`** -- `Result`, the status vocabulary,
+  and the `Check` base with `applies()`/`run()` and the `ok`/`fail`/
+  `skip` constructors.
+* **`scripts/audit/repo.py`** -- `Repo` with the cached accessors,
+  plus `detect_repo_properties()` and `REPO_OVERRIDES` moved
+  verbatim. `Repo.props` keeps the existing dict so that migrated
+  and unmigrated checks read the same thing.
+* **`scripts/audit/github.py`** -- `GitHubClient`, `GhCli` holding
+  the timeout and `FileNotFoundError` handling once, `FakeGitHub`
+  taking a dict of responses and able to inject failures, and
+  `RecordingGitHubClient` for the snapshot harness.
+* **`scripts/audit/registry.py`** -- `CHECKS`, empty, and a
+  scheduler that runs the registry and then the surviving
+  `check_calls()` entries.
+* **`scripts/audit-check.py`** becomes the shim. `run_all_checks()`
+  keeps its name and signature; `test_check_audit_smoke.py` and
+  `ci.yml` both drive it.
+
+Behaviour is unchanged and the snapshot must be identical. From here
+the API checks replay recorded responses, so the diff is exact for
+all 45.
+
+### 3. Migrate the checks, one family per commit
+
+Eight commits, in ascending order of risk, so that the pattern is
+settled before it meets the checks that matter most:
+
+1. `llm_docs.py` -- `llm-tooling`, `llm-doc-structure`,
+   `llm-context-lint`, `llm-context-lint-ci`.
+2. `docs_content.py` -- `readme-structure`, `readme-absolute-links`,
+   `docs-external-links`, `diagram-format`, `mermaid-lint-ci`.
+3. `plans.py` -- `plan-index`, `plan-template`,
+   `plan-source-references`, `plan-phase-references`, `push-audit`.
+4. `packaging.py` -- `pyproject-usage`, `version-file-gitignore`,
+   `python-version-targeting`, `pin-indirect-dependencies`,
+   `dependency-name-normalization`, `renovate`, `release-process`,
+   `rust-unwrap-lint`, `flake8wrap`, `console-logging`,
+   `header-sanitization`.
+5. `runners.py` -- `self-hosted-runners`, `static-runner-tags`,
+   `vm-runner-size`.
+6. `ci_workflows.py` -- `workflow-permissions`, `pre-commit-config`,
+   `expensive-lane-path-filter`, `merge-group-cancellation`,
+   `ci-review-automation`, `secret-scanning-ci`, `devpi-fallback`,
+   `devpi-stale-ip`.
+7. `review.py` -- `review-coverage`, `review-scope-completeness`,
+   `review-marks-pre-commit`, `sfui-vendor`.
+8. `github_config.py` -- `default-branch-naming`, `github-security`,
+   `delete-branch-on-merge`, `merge-queue-config`,
+   `export-repo-config`. Last, because these are the five with no
+   tests, and by now there is a fake to write them against.
+
+Each commit moves the checks, moves their shared constants into
+`text/`, moves their tests to `scripts/tests/`, converts those tests
+to the shared fixture base, and empties the corresponding entries
+from `check_calls()`. Each commit runs `pre-commit run --all-files`
+and the snapshot diff, and each is expected to produce an empty
+diff.
+
+Detail strings are copied, not rewritten. Where one is genuinely
+wrong, it changes in its own commit with the compliance-page effect
+stated in the message.
+
+### 4. Make the registry the source of truth
+
+* `AUDIT_METADATA` and `ISSUE_TITLES` become derived views in
+  `audit_common.py`, computed from `registry.CHECKS`. The module
+  keeps its name and its exports.
+* `COLUMN_NAMES` in `audit-update-docs.py` derives from
+  `Check.column`. `column_name()` keeps its warning-and-ugly-heading
+  fallback: a run that publishes a bad label still beats a run that
+  publishes nothing.
+* A frozen-snapshot test pins both derived dicts to today's values.
+* The cross-file sync tests that are now structurally impossible to
+  break are deleted, and the ones that are not are kept and said to
+  be kept.
+* Documentation: `docs/consistency-audits.md` "Adding a criterion"
+  becomes two steps; `AGENTS.md` loses the four-files paragraph and
+  keeps the `ISSUE_TITLES` warning, repointed; `ARCHITECTURE.md`
+  gets the new module inventory; `README.md`'s link to
+  `scripts/audit-check.py` still resolves and stays;
+  `PUSH-AUDIT.md`'s "Duplicated logic" bullet is rewritten, because
+  it currently tells reviewers that these functions resemble each
+  other by design.
+
+### 5. Close the coverage gap
+
+Write the missing tests, against the seams rather than around them.
+The 18 checks with no test get one each at minimum -- pass, fail,
+and not-applicable -- and the five GitHub ones additionally get the
+failure paths that have never been exercised: API error, timeout,
+`gh` absent, private repository.
+
+Then the registry contract tests from D7.
+
+The measure is not a coverage percentage. It is that every check in
+`CHECKS` appears in a test module, asserted by one of the contract
+tests, so the next check cannot arrive untested.
+
+### 6. Push audit
+
+Run `PUSH-AUDIT.md` over the accumulated diff of phases 1 to 5
+against `main`, not phase by phase. Findings land as their own pull
+request; the plan is not complete until each is resolved or declined
+in writing, with the reason recorded here. If the audit finds
+nothing, say so in one sentence.
+
+The brief worth stating in advance: this is a move of roughly 13,000
+lines, and the failure mode of a move is a line that changed while
+looking like it did not. The audit should read for behaviour drift
+in detail strings and in regex constants above everything else, and
+should check that no check lost its `applies()` guard on the way
+into a class.
+
+## Risks and mitigations
+
+* **The daily run files and closes real issues fleet-wide.** A
+  regression does not produce a red build, it produces issues in
+  other people's repositories, or silently closes ones that should
+  be open. Mitigations: the snapshot diff is required to be empty at
+  every commit; `audit-manage-issues.py` is run only with
+  `--dry-run` by hand; each pull request lands with a morning
+  between it and the next, and the first 06:00 UTC run after each
+  landing is checked before the next phase starts.
+* **Review marks on `scripts/` are discarded.** Accepted
+  deliberately in D8. Coverage drops, an issue may be filed, and the
+  re-review is worth more against the new structure. Not silenced.
+* **`ISSUE_TITLES` drifts and orphans open issues.** The frozen
+  snapshot test in phase 4, and the fact that a title change must
+  edit a literal dict to pass.
+* **Detail strings reworded by accident.** The snapshot compares
+  them byte-for-byte, which is the only reason it is worth running
+  against real clones rather than fixtures.
+* **The migration stalls half-done.** The most likely bad outcome:
+  a hybrid scheduler is a working state, so nothing forces the
+  second half. Phase 3 is defined as not complete until
+  `check_calls()` is empty, and the phase ships as one pull request
+  so the stall would be visible as an unlanded branch rather than as
+  a landed half-measure.
+* **The changed reviewer guidance.** `PUSH-AUDIT.md` currently
+  instructs reviewers to expect resemblance between check functions.
+  Phase 4 updates it; until then, a reviewer working from the old
+  wording will argue with the refactor. Phase 3's pull request
+  description says so.
+
+## Definition of done
+
+* `scripts/audit/` holds the package described in D2;
+  `scripts/audit-check.py` is a shim under 100 lines with unchanged
+  arguments and JSON.
+* `check_calls()` no longer exists; `registry.CHECKS` schedules all
+  45 checks.
+* `AUDIT_METADATA` and `ISSUE_TITLES` are derived and pinned by a
+  frozen-snapshot test.
+* Every check in `CHECKS` has a test module entry, asserted by a
+  contract test; the 18 previously untested checks have pass, fail
+  and not-applicable cases; the five GitHub checks have their
+  failure paths.
+* `tools/audit-snapshot.sh --diff` over the fleet clones reports no
+  differences between the phase 1 baseline and the final tree.
+* `pre-commit run --all-files` passes.
+* One 06:00 UTC run has completed after the final landing, and
+  `docs/audits/compliance.md` is unchanged by it apart from its
+  timestamp.
+* `docs/consistency-audits.md`, `AGENTS.md`, `ARCHITECTURE.md` and
+  `PUSH-AUDIT.md` describe the structure that exists.
+* Phase 6's findings are resolved or declined in writing.
+
+## Future work
+
+* **`review-tracking.py`.** 636 lines, a clean `cmd_*` dispatch, and
+  it would read better with a `Scope` and a `ReviewState` object
+  behind the commands. It is not hurting anyone today and it shares
+  nothing with the audit checker but a directory, so it is a
+  separate change. Its tests are also the ones most entangled with
+  real git fixtures, and the `FixtureRepo` helper from D7 is what it
+  would want first.
+* **`check_review_coverage` can put a subprocess traceback into a
+  detail string.** Noted already under Future work in
+  `PLAN-audit-compliance-split.md`. Once `details` construction goes
+  through `Result`, capping and sanitising it is a change in one
+  place, which is the argument for doing it after this plan rather
+  than during.
+* **Parallelising the checks.** Uniform `Check` objects with a
+  declared GitHub dependency make it possible to run the filesystem
+  checks concurrently. The daily run is not slow enough to justify
+  it, and concurrency would make the snapshot diff harder to trust.
+  Recorded because it becomes cheap, not because it is wanted.
+* **A check that has no spec page, or a spec page with no check.**
+  The contract tests in phase 5 catch the first. The second is what
+  `unmeasured_specs()` already does. Worth folding together once
+  both live in the same place.
+
+## Bugs fixed during this work
+
+To be filled in as the work proceeds. Anything still open from the
+in-flight review of `scripts/` on `origin/reviews` when phase 3
+starts is carried here (D8).
+
+## Back brief
+
+Before phase 1 begins, the executing session back briefs Mikal on
+its understanding of this plan. Three things are worth confirming
+before any code moves, because they are cheap now and expensive
+later: the module grouping in D2, the decision in D3 to derive
+`AUDIT_METADATA` and `ISSUE_TITLES` rather than keep them
+hand-written, and the sequencing against the human review in D8.
