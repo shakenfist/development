@@ -4730,6 +4730,16 @@ class LlmContextLintCiTest(unittest.TestCase):
         '          skillsaw --no-custom-rules .\n'
     )
 
+    def _with_workflow(self, workflow):
+        """The verdict for a repository whose only variable is CI."""
+        with tempfile.TemporaryDirectory() as tmp:
+            self._repo(tmp, {
+                'CLAUDE.md': '# Context\n',
+                '.pre-commit-config.yaml': self.PRE_COMMIT,
+                '.github/workflows/lint.yml': workflow,
+            })
+            return audit_check.check_llm_context_lint_ci(tmp, {})
+
     def test_both_present_passes(self):
         with tempfile.TemporaryDirectory() as tmp:
             self._repo(tmp, {
@@ -4862,22 +4872,88 @@ class LlmContextLintCiTest(unittest.TestCase):
         self.assertEqual(result['status'], 'fail')
         self.assertIn('CI workflow', result['details'])
 
+    def test_a_wrapped_install_without_invocation_fails(self):
+        # The shape both of this repository's own workflows use: the
+        # line wrap this project enforces puts the pinned package on a
+        # line of its own, where a bare word boundary sits happily
+        # between 'w' and '=' and reads it as a command. Requiring
+        # whitespace or end of line after the token is what separates
+        # a wrapped install from an invocation.
+        result = self._with_workflow(
+            'jobs:\n'
+            '  lint:\n'
+            '    steps:\n'
+            '      - run: |\n'
+            '          /tmp/venv/bin/pip install --disable-pip-version-check \\\n'
+            '              skillsaw==0.18.0\n'
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('CI workflow', result['details'])
+
+    def test_a_version_probe_is_not_a_lint_run(self):
+        # This repository's consistency-audit.yml asserts the pinned
+        # release exactly this way. It proves the install worked; it
+        # never looks at the tree, so it cannot be the CI half.
+        result = self._with_workflow(
+            'jobs:\n'
+            '  lint:\n'
+            '    steps:\n'
+            '      - run: |\n'
+            "          echo \"reports: $(skillsaw --version)\"\n"
+            "          skillsaw --version | grep -qx 'skillsaw 0.18.0'\n"
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('CI workflow', result['details'])
+
+    def test_a_yaml_key_is_not_an_invocation(self):
+        # instar and ryll both name a 'skillsaw:' job whose steps run
+        # the pre-commit hook. The job key is a label, not a command,
+        # and counting it would credit the CI half to any repository
+        # that merely names a job after the linter.
+        result = self._with_workflow(
+            'jobs:\n'
+            '  skillsaw:\n'
+            '    name: skillsaw\n'
+            '    steps:\n'
+            '      - run: true\n'
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('CI workflow', result['details'])
+
+    def test_the_invocation_form_is_not_pinned(self):
+        # A single-command step is normally written inline rather than
+        # in a block scalar, and a PyPI install pairs naturally with a
+        # runner or an explicit venv path. Matching only one YAML
+        # formatting choice would file a consistency issue against a
+        # repository that does run the linter.
+        for step in (
+            '      - run: skillsaw --no-custom-rules .\n',
+            '      - run: skillsaw .\n',
+            '      - run: uvx skillsaw .\n',
+            '      - run: uv run skillsaw .\n',
+            '      - run: python -m skillsaw .\n',
+            '      - run: /tmp/venv/bin/skillsaw .\n',
+            '      - run: |\n          cd src && skillsaw .\n',
+        ):
+            with self.subTest(step=step.strip()):
+                result = self._with_workflow(
+                    'jobs:\n  lint:\n    steps:\n' + step)
+                self.assertEqual(result['status'], 'pass')
+
     def test_direct_invocation_in_a_comment_does_not_count(self):
         # A full-line comment describes what runs elsewhere; it is not
-        # itself an invocation.
-        with tempfile.TemporaryDirectory() as tmp:
-            self._repo(tmp, {
-                'CLAUDE.md': '# Context\n',
-                '.pre-commit-config.yaml': self.PRE_COMMIT,
-                '.github/workflows/lint.yml': (
-                    'jobs:\n'
-                    '  lint:\n'
-                    '    steps:\n'
-                    '      # skillsaw runs elsewhere\n'
-                    '      - run: true\n'
-                ),
-            })
-            result = audit_check.check_llm_context_lint_ci(tmp, {})
+        # itself an invocation. The fixture is a commented-out step
+        # rather than prose about skillsaw, because prose could not
+        # match the pattern in the first place -- comment stripping
+        # has to be the thing that makes this fail, or the test passes
+        # for a reason unrelated to what it claims to check.
+        result = self._with_workflow(
+            'jobs:\n'
+            '  lint:\n'
+            '    steps:\n'
+            '      # - run: skillsaw --no-custom-rules .\n'
+            '      - run: true\n'
+        )
         self.assertEqual(result['status'], 'fail')
 
     def test_direct_invocation_without_pre_commit_hook_fails(self):
