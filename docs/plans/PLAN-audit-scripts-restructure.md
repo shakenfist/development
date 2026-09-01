@@ -352,15 +352,26 @@ this repository's convention.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. Freeze today's behaviour | Complete | |
-| 2. Introduce the three seams | Complete | |
-| 3. Migrate the checks, one family per commit | Complete | |
-| 4. Make the registry the source of truth | Complete | |
-| 5. Close the coverage gap | Complete | |
-| 6. Push audit | Complete | |
+| 1. Freeze today's behaviour | Complete | 76975d9..42565c2 |
+| 2. Introduce the three seams | Complete | 76975d9..42565c2 |
+| 3. Migrate the checks, one family per commit | Complete | 76975d9..42565c2 |
+| 4. Make the registry the source of truth | Complete | 76975d9..42565c2 |
+| 5. Close the coverage gap | Complete | 76975d9..42565c2 |
+| 6. Push audit | Complete | 76975d9..42565c2 |
 
-The `Merged` column stays empty until each phase lands, and then
-records the merge commit of its pull request.
+All six phases ship as a single pull request, so the `Merged` record
+is one entry rather than six. The merge commit's SHA cannot be known
+before the merge, and the plan is being closed with the work rather
+than reopened afterwards to write it down, so the range is recorded
+in the form `plan-push-audit-phase` allows for a phase that landed
+directly: `76975d9..42565c2`, seventeen commits, the whole of this
+branch. `git log --first-parent 76975d9~1..42565c2` is what a later
+audit reads.
+
+If the branch is squashed or rebased on the way in, those SHAs stop
+resolving. Say so on the pull request if that happens, and replace
+them with the merge commit -- that is the one edit worth a follow-up,
+and it is a one-line one.
 
 Phases 1 and 2 are small and ship together as one pull request.
 Phase 3 is the bulk of the work and ships as its own, one commit per
