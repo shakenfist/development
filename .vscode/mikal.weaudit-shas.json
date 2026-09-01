@@ -37,6 +37,10 @@
       "sha": "c11dc1e33458f31f6da1b87331769aab53c5530e",
       "date": "2026-09-01"
     },
+    ".github/workflows/consistency-audit.yml": {
+      "sha": "0260dd7bcf2fef769561ff5aeb5b8796bc90583a",
+      "date": "2026-09-01"
+    },
     ".github/workflows/export-repo-config.yml": {
       "sha": "53b5d8eb46e89e228dd88d42d7e1b0c3ea6694cd",
       "date": "2026-08-24"
