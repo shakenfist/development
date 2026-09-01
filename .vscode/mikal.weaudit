@@ -389,10 +389,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/consistency-audits.md",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/__init__.py",
       "author": "mikal"
     },

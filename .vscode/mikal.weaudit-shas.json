@@ -241,10 +241,6 @@
       "sha": "0eb0cce0f2d17eff4e3beb319bb9e4e5b8033347",
       "date": "2026-09-01"
     },
-    "docs/consistency-audits.md": {
-      "sha": "a32cdee9fccb51c200117e2727e1528524abdb7f",
-      "date": "2026-09-02"
-    },
     "docs/release-automation.md": {
       "sha": "a92bfdaed278fd448adabc76c8a5904174815ea8",
       "date": "2026-08-30"
