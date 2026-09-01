@@ -357,7 +357,7 @@ this repository's convention.
 | 3. Migrate the checks, one family per commit | Complete | |
 | 4. Make the registry the source of truth | Complete | |
 | 5. Close the coverage gap | Complete | |
-| 6. Push audit | Not started | |
+| 6. Push audit | Complete | |
 
 The `Merged` column stays empty until each phase lands, and then
 records the merge commit of its pull request.
@@ -511,6 +511,43 @@ looking like it did not. The audit should read for behaviour drift
 in detail strings and in regex constants above everything else, and
 should check that no check lost its `applies()` guard on the way
 into a class.
+
+**Outcome.** Wave 1 passed. `pre-commit` clean; no line over 120
+characters; no import outside the standard library and this package;
+no edit to `docs/audits/compliance.md`; no generated block in a
+specification; `templates/shared-blocks/` untouched, so nothing is
+newly non-compliant fleet-wide. Two greps hit and both were looked
+at: `ISSUE_TITLES` changed, which is phase 4's derivation and is
+pinned by `scripts/tests/test_metadata.py`; and two `TODO` matches
+are pre-existing fixture text moved verbatim rather than new debt.
+`REVIEWS.md` is current and every mark on an edited file was pruned
+rather than re-stamped.
+
+The brief's own question was answered directly rather than by
+reading. Seven criteria have neither an `applies()` method nor a
+`skip()` path -- `llm-tooling`, `renovate`, `ci-review-automation`,
+`pre-commit-config`, `export-repo-config`, `github-security` and
+`delete-branch-on-merge`. Checking each against the phase 1 tree:
+none of the seven ever reported `not_applicable`, so no guard was
+lost. They are pass-or-fail criteria by design.
+
+One finding, fixed here rather than deferred because this work
+introduced it: `docs/audits/README.md` still told a reader that
+adding a criterion touches four files. Every other document that
+said so was updated in phase 4; that one was missed because it
+describes the specification directory rather than the tooling.
+
+Two things the audit surfaced that are *not* findings against this
+work, recorded so the next reader does not re-derive them.
+`scripts/check-audit-smoke.py` fails locally because `skillsaw` is
+not installed outside the audit's venv, which is the smoke checker
+working as designed -- `llm-context-lint` reporting `not_applicable`
+for want of its tool is exactly what it exists to catch. And
+`PUSH-AUDIT.md` still writes every diff against `main...HEAD`; this
+audit was run against `origin/main...HEAD` because local `main` was
+four commits stale, which would have silently widened the diff. That
+is the correction already recorded under Future work in
+`PLAN-audit-compliance-split.md` and it is still owed.
 
 ## Risks and mitigations
 
