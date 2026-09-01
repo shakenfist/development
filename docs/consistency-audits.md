@@ -134,45 +134,62 @@ A check that starts passing closes its issue. A check that becomes
 
 ## Adding a criterion
 
-Four files, plus a fifth when the check shares a spec file with
-another, and they have to stay in sync. The invariants that span them
-are the ones that break, so they are the ones under test:
-`scripts/tests/test_registry.py` holds the scheduling test, and
-`scripts/test_audit_update_docs.py` holds the `COLUMN_NAMES` ones.
+Two files: the check and its specification.
 
-1. **`scripts/audit-check.py`** -- add a `check_*()` function returning
-   a dict with `id`, `status` (`pass` / `fail` / `not_applicable`) and
-   `details`. Register it in `check_calls()`. The id written in
-   `check_calls()` must be the id the function returns, and a test
-   asserts it: the calls are deferred so that a scoped repository can
-   skip a check without running it, which means the table is what
-   schedules the check, not the function.
-2. **`scripts/audit_common.py`** -- add the id to `AUDIT_METADATA`
-   (spec file, optional template) and `ISSUE_TITLES`. Both
-   `audit-manage-issues.py` and `audit-update-docs.py` read this
-   module.
-3. **`docs/audits/<check-id>.md`** -- the specification, following the
-   structure in `docs/audits/README.md`. Under `## Projects`, link
-   `compliance.md#<check-id>`; the section appears there at the first
-   run. Do not add a `consistency-audit` marker block -- the tables
-   live on the compliance page so that every specification stays
-   reviewable, and `test_audit_update_docs.py` fails on a marker in a
-   spec.
-4. **`scripts/audit-update-docs.py`** -- only if the check joins an
-   existing spec file rather than getting its own. Add a column heading
-   for the id to `COLUMN_NAMES`.
-5. **`docs/audits/README.md`** -- add the file to the index.
+1. **`scripts/audit/checks/<family>.py`** -- add a `Check` subclass to
+   the module whose specifications it belongs with. It declares what it
+   is as class attributes -- `id`, `spec`, `issue_title`, an optional
+   `template`, and a `column` heading when it shares a specification
+   page with another criterion -- and implements `run(repo)`, returning
+   `self.ok()`, `self.fail()` or `self.skip()`. Register the instance in
+   `CHECKS` in `scripts/audit/registry.py`, and add its id to
+   `ORDER` where you want it reported.
 
-Step 4 is the one that bites. Its absence broke the 2026-08-12 run:
-`review-marks-pre-commit` joined the workflow-standards spec without a
-heading, and rendering crashed *after* rewriting every `docs/audits/*.md`
-but before committing any -- so the whole fleet's tables silently stayed
-a day stale. Both halves of that are now fixed. `column_name()` prints
-an ugly heading and a warning rather than raising, because a run that
-publishes a bad label beats a run that publishes nothing; and
+   Put the applicability test in `applies(repo)` rather than at the top
+   of `run()`. The scheduler asks the cheap question first, which is
+   what lets a repository scoped by `only_checks` skip a criterion
+   without paying for it -- several of them query the GitHub API, and
+   on a private repository those calls fail for reasons that say
+   nothing about compliance.
+
+2. **`docs/audits/<check-id>.md`** -- the specification, following the
+   structure in `docs/audits/README.md`, and a line for it in that
+   index. Under `## Projects`, link `compliance.md#<check-id>`; the
+   section appears there at the first run. Do not add a
+   `consistency-audit` marker block -- the tables live on the
+   compliance page so that every specification stays reviewable, and
+   `test_audit_update_docs.py` fails on a marker in a spec.
+
+`AUDIT_METADATA` and `ISSUE_TITLES` in `scripts/audit_common.py`, and
+`COLUMN_NAMES` in `scripts/audit-update-docs.py`, are views over the
+registry rather than tables to update. There is no longer a way to
+schedule a criterion that is missing from one of them.
+
+They are still an interface, though, which is why
+`scripts/tests/test_metadata.py` freezes all three as literals. An
+issue title is the idempotency key for filing and closing: renaming one
+orphans every open issue for that criterion across the fleet. Adding a
+criterion adds a line to the frozen table; changing an existing line is
+meant to be difficult.
+
+The column heading is the part with history. Before it was a class
+attribute it was a fifth file to remember, and forgetting it broke the
+2026-08-12 run: `review-marks-pre-commit` joined the workflow-standards
+specification without a heading, and rendering crashed *after*
+rewriting every `docs/audits/*.md` but before committing any, so the
+whole fleet's tables silently stayed a day stale. Three things now
+stand between that and a repeat. `column_name()` prints an ugly
+heading and a warning rather than raising, because a run that
+publishes a bad label beats a run that publishes nothing;
 `test_multi_check_specs_have_a_heading_for_every_check` in
-`scripts/test_audit_update_docs.py` fails on the omission, so the
-fallback should never be reached from a tested tree.
+`scripts/test_audit_update_docs.py` fails on the omission; and
+`test_criteria_sharing_a_spec_page_all_declare_a_column` in
+`scripts/tests/test_metadata.py` fails on it from the other direction,
+reading the registry rather than the documentation.
+
+Add tests beside the check, in `scripts/tests/test_<family>.py`. A
+criterion with no test module entry fails the contract tests in
+`scripts/tests/test_metadata.py`.
 
 A new criterion does not require a re-audit of anything else, and does
 not require touching any project repository. The next morning's run

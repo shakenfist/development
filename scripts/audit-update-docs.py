@@ -33,6 +33,7 @@ import json
 import os
 import sys
 
+from audit.registry import CHECKS
 from audit_common import (
     AUDIT_METADATA,
     BEGIN_MARKER,
@@ -55,17 +56,25 @@ NOT_A_SPEC = ('README.md', os.path.basename(COMPLIANCE_PAGE))
 
 # Column headings for specs covered by more than one check. Specs
 # with a single check get a plain 'Status' column.
-COLUMN_NAMES = {
-    'workflow-permissions': 'Permissions',
-    'pre-commit-config': 'Linting',
-    'review-marks-pre-commit': 'Review marks',
-    'flake8wrap': 'flake8wrap',
-    'self-hosted-runners': 'Runners',
-    'static-runner-tags': 'Static tags',
-    'vm-runner-size': 'VM size',
-    'devpi-fallback': 'devpi fallback',
-    'devpi-stale-ip': 'devpi IP',
-}
+
+
+def _column_names():
+    """Column headings for the criteria that share a specification page.
+
+    Derived from Check.column. This was a hand-written table, and step
+    four of "Adding a criterion" -- the step docs/consistency-audits.md
+    called the one that bites. Its absence broke the 2026-08-12 run:
+    review-marks-pre-commit joined the workflow-standards page without
+    a heading, and rendering crashed after rewriting every
+    docs/audits/*.md but before committing any, so the whole fleet's
+    tables silently stayed a day stale. A criterion that shares a page
+    now carries its heading as a class attribute, and cannot arrive
+    without one.
+    """
+    return {check.id: check.column for check in CHECKS if check.column}
+
+
+COLUMN_NAMES = _column_names()
 
 STATUS_LABELS = {
     'pass': 'compliant',

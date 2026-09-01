@@ -13,18 +13,20 @@ anything under `scripts/` or `docs/audits/`.
 
 The parts worth knowing before you start:
 
-- A criterion spans four files (check, metadata, spec, index), plus
-  a column heading if it shares a spec file with another check, and
-  they must stay in sync. `pre-commit` runs the tests that catch
-  the cross-file breakages.
+- A criterion is a `Check` subclass in `scripts/audit/checks/`,
+  registered in `scripts/audit/registry.py`, plus its specification
+  under `docs/audits/`. The metadata tables are views over the
+  registry, so there is nothing to keep in sync by hand.
 - The compliance tables live in `docs/audits/compliance.md` between
   the `consistency-audit` markers, and are regenerated and pushed by
   the daily workflow. Never edit them by hand, and never add a table
   or a marker to a criterion spec: the specs are hand-written so they
   can hold a human review mark.
-- Issue titles are the idempotency key for filing and closing, so
-  `ISSUE_TITLES` in `scripts/audit_common.py` is an interface.
-  Renaming an entry orphans every open issue for that check.
+- Issue titles are the idempotency key for filing and closing, so a
+  check's `issue_title` is an interface. Renaming one orphans every
+  open issue for that check fleet-wide;
+  `scripts/tests/test_metadata.py` freezes all of them for that
+  reason.
 - A check that does not apply must report `not_applicable` with a
   reason rather than being omitted; an omitted check renders as
   `unknown`.
@@ -32,7 +34,7 @@ The parts worth knowing before you start:
   by hand. Without it, it files and closes real issues fleet-wide.
 
 Repo-specific exceptions live in `REPO_OVERRIDES` in
-`scripts/audit-check.py`.
+`scripts/audit/repo.py`.
 
 ## Testing changes
 

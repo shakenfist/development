@@ -6,7 +6,7 @@ be judged as if a person wrote them.
 
 import re
 
-from audit_common import BEGIN_MARKER, END_MARKER
+from audit.markers import BEGIN_MARKER, END_MARKER
 
 
 def iter_markdown_headings(content, levels=(2, 3)):

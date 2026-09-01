@@ -62,15 +62,36 @@ Data flows one way: a clone produces JSON, JSON produces issues and
 tables. Nothing reads the tables back, which is why they can be
 regenerated wholesale.
 
-The shared check-to-spec mapping and issue title conventions live in
-`scripts/audit_common.py`. All the scripts are stdlib-only Python; the
-only external dependencies are the `git` and `gh` CLIs on the
-self-hosted runners, plus a pinned `skillsaw` for one check.
+`scripts/audit-check.py` is an entry point rather than an
+implementation. The criteria live in the `scripts/audit/` package
+beside it:
 
-Repo properties that cannot be detected from a clone are declared in
-`REPO_OVERRIDES` in `scripts/audit-check.py`, which is also where a
-repository is narrowed to a subset of checks. Scope is otherwise
-all-or-nothing: in the matrix means every check applies.
+- `audit/check.py` -- the `Check` base class and the `pass` / `fail` /
+  `not_applicable` vocabulary. A criterion declares its id,
+  specification, template and issue title as class attributes, tests
+  applicability in `applies()`, and measures in `run()`.
+- `audit/repo.py` -- `Repo`, the checkout under audit, with cached
+  reads; and `REPO_OVERRIDES`, the properties that cannot be detected
+  from a clone, which is also where a repository is narrowed to a
+  subset of checks. Scope is otherwise all-or-nothing: in the matrix
+  means every criterion applies.
+- `audit/github.py` -- the seam in front of `gh`, with a fake for the
+  tests and a recorder for before-and-after comparisons.
+- `audit/registry.py` -- `CHECKS` and `ORDER`: what runs, and the
+  sequence the results are reported in.
+- `audit/checks/` -- the criteria, eight modules grouped the way their
+  specifications are.
+- `audit/text/` and `audit/files.py` -- the parsing and file reading
+  they share.
+
+`scripts/audit_common.py` still holds the check-to-spec mapping and
+the issue titles that `audit-manage-issues.py` and
+`audit-update-docs.py` read, but they are views over the registry now
+rather than tables kept in step by hand.
+
+All the scripts are stdlib-only Python; the only external dependencies
+are the `git` and `gh` CLIs on the self-hosted runners, plus a pinned
+`skillsaw` for one check.
 
 `docs/consistency-audits.md` documents all of this in working detail --
 adding a criterion, bringing a repository into scope, and testing a

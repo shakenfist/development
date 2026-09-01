@@ -355,7 +355,7 @@ this repository's convention.
 | 1. Freeze today's behaviour | Complete | |
 | 2. Introduce the three seams | Complete | |
 | 3. Migrate the checks, one family per commit | Complete | |
-| 4. Make the registry the source of truth | Not started | |
+| 4. Make the registry the source of truth | Complete | |
 | 5. Close the coverage gap | Not started | |
 | 6. Push audit | Not started | |
 
