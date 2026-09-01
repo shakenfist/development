@@ -102,26 +102,6 @@ repos:
   # arguments and always test the whole surface.
   - repo: local
     hooks:
-      - id: audit-check-tests
-        name: audit check tests
-        entry: python3 scripts/test_audit_check.py
-        language: system
-        pass_filenames: false
-        # Markdown and workflows as well as scripts/, because this
-        # suite reads all three: the shared-block tests read the
-        # canonical blocks from templates/shared-blocks, and
-        # AuditScopeIsStatedOnceTest reads the audit matrix out of
-        # .github/workflows/consistency-audit.yml and the scope lists
-        # out of docs/audits/README.md by splitting it on phrases in
-        # its prose. The commit that breaks one of those parses is a
-        # documentation commit, so a scripts-only filter never ran the
-        # suite that would catch it -- a wholesale rewrite of the page
-        # holding the lists reworded one anchor and would have gone
-        # unchecked here. Patterns rather than the list of files the
-        # suite happens to read today, so the two cannot drift apart;
-        # the suite is stdlib only and takes under a second.
-        files: ^(scripts/.*\.py|.*\.md|\.github/workflows/.*\.ya?ml)$
-
       - id: audit-update-docs-tests
         name: audit doc rendering tests
         entry: python3 scripts/test_audit_update_docs.py

@@ -318,18 +318,17 @@ lighter the model that can succeed.
 <!-- shared-block-end -->
 
 **In this repository.** A worked brief: instead of "add a check
-that plans are indexed", write "add `check_plan_index()` to
-`scripts/audit-check.py` returning the id `plan-index`, register
-it in `check_calls()`, add the id to `AUDIT_METADATA` and
-`ISSUE_TITLES` in `scripts/audit_common.py`, write
+that plans are indexed", write "add a `PlanIndex` class to
+`scripts/audit/checks/plans.py` with the id `plan-index`, register
+it in `scripts/audit/registry.py`, add the id to `AUDIT_METADATA`
+and `ISSUE_TITLES` in `scripts/audit_common.py`, write
 `docs/audits/plan-index.md` following the structure in
 `docs/audits/README.md` and linking to `compliance.md#plan-index`,
 add the file to `docs/audits/README.md`, and add tests to
-`scripts/test_audit_check.py` covering pass, fail and
+`scripts/tests/test_plans.py` covering pass, fail and
 not-applicable."
 
-The id written in `check_calls()` must be the id the function
-returns; a test asserts it. A check that does not apply reports
+A check that does not apply reports
 `not_applicable` with a reason rather than being omitted, because
 an omitted check renders as `unknown`.
 

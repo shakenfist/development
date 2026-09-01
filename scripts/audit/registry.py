@@ -6,17 +6,16 @@ nothing else registered anywhere: its specification path and its issue
 title are attributes of the class, and `audit_common` derives its
 tables from here rather than repeating them.
 
-During the migration `CHECKS` is populated one family at a time and
-the scheduler also runs whatever is left in `audit-check.py`'s
-`check_calls()`. That hybrid is a working state, which is exactly why
-the plan says the migration phase is not finished until the legacy
-half is empty.
+The `legacy` argument is what remained of `audit-check.py`'s
+`check_calls()` while the migration ran. It is empty now, and kept
+only so that a caller can schedule something that is not a `Check`
+without the registry needing to know what it is.
 """
 
 from datetime import datetime, timezone
 
 from audit.check import NOT_APPLICABLE
-from audit.checks import ci_workflows, docs_content, llm_docs, packaging, plans, review, runners
+from audit.checks import ci_workflows, docs_content, github_config, llm_docs, packaging, plans, review, runners
 
 
 #: The order the criteria are reported in. Pinned here because the
@@ -115,6 +114,11 @@ CHECKS = [
     review.ReviewCoverage(),
     review.ReviewScopeCompleteness(),
     review.SfuiVendor(),
+    github_config.ExportRepoConfig(),
+    github_config.DefaultBranchNaming(),
+    github_config.GithubSecurity(),
+    github_config.DeleteBranchOnMerge(),
+    github_config.MergeQueueConfig(),
 ]
 
 

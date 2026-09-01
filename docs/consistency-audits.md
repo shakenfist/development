@@ -137,9 +137,8 @@ A check that starts passing closes its issue. A check that becomes
 Four files, plus a fifth when the check shares a spec file with
 another, and they have to stay in sync. The invariants that span them
 are the ones that break, so they are the ones under test:
-`scripts/test_audit_check.py` holds the `check_calls()` scheduling
-test, and `scripts/test_audit_update_docs.py` holds the `COLUMN_NAMES`
-ones.
+`scripts/tests/test_registry.py` holds the scheduling test, and
+`scripts/test_audit_update_docs.py` holds the `COLUMN_NAMES` ones.
 
 1. **`scripts/audit-check.py`** -- add a `check_*()` function returning
    a dict with `id`, `status` (`pass` / `fail` / `not_applicable`) and
@@ -213,7 +212,7 @@ and *on* the excluded list on the same page: both statements are true
 of it, because it is excluded from the conventions and audited for one
 thing anyway.
 `test_matrix_matches_the_documented_scope` in
-`scripts/test_audit_check.py` subtracts the scoped repositories before
+`scripts/tests/test_registry.py` subtracts the scoped repositories before
 comparing, so onboarding one the way the steps above say will fail that
 test.
 
@@ -232,7 +231,7 @@ runs only for its own file and the template files it covers.
 Individually, which is quicker while iterating:
 
 ```
-python3 scripts/test_audit_check.py
+python3 -m unittest discover -s scripts/tests -t scripts
 python3 scripts/test_audit_update_docs.py
 python3 scripts/test_review_tracking.py
 python3 scripts/test_check_audit_smoke.py

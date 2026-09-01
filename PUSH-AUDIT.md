@@ -214,7 +214,7 @@ and whether it is blocking or advisory.
 **Brief for sub-agent:**
 
 Review `git diff main...HEAD` for test coverage. The audit
-suites are `test_audit_check.py`, `test_audit_update_docs.py`,
+suites are `scripts/tests/`, `test_audit_update_docs.py`,
 `test_review_tracking.py` and `test_check_audit_smoke.py`, all
 stdlib `unittest`, all run by `pre-commit`. Other suites under
 `scripts/` cover the workflow templates in the same style.

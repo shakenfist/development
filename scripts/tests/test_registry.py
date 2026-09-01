@@ -1,58 +1,36 @@
 #!/usr/bin/env python3
 
-"""Tests for audit-check.py checks.
+"""Repository-wide invariants of the audit: the schedule and its scope.
 
-Run with: python3 scripts/test_audit_check.py
+These are the tests that are about the audit as a whole rather than
+about any one criterion: that everything scheduled has a specification
+and an issue title, that a scoped repository still reports every check,
+that the overrides are documented, and that the workflows checking out
+pull request code neuter core.hooksPath.
+
+Run with: python3 -m unittest tests.test_registry
 """
 
-# audit-ok: plan-reference-file
-#
-# Every plan path in this file is a fixture, not a pointer. The plan
-# checks are tested by writing plans into a temporary directory and
-# naming them, and their failing cases exist precisely to name plans
-# that do not resolve. None of it is a trail a reader would follow
-# into docs/plans/, and marking fifty individual lines would bury the
-# lines the per-line marker is actually meant for.
-
-import importlib.util
 import os
 import re
 import sys
 import tempfile
 import unittest
 
-SCRIPT = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), 'audit-check.py'
-)
-
-# audit_common lives beside audit-check.py, which is only on sys.path
-# by accident of how this suite happens to be invoked. Inserted
-# explicitly, the same way test_audit_update_docs.py does it.
-sys.path.insert(0, os.path.dirname(SCRIPT))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit import registry  # noqa: E402
+from audit.repo import REPO_OVERRIDES, detect_repo_properties  # noqa: E402
 from audit_common import AUDIT_METADATA, ISSUE_TITLES  # noqa: E402
+from tests.base import REPO_ROOT  # noqa: E402
 
-# This repository, for the tests that check a check against the spec
-# page or the canonical template it is supposed to agree with.
-REPO_ROOT = os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__))
-)
+sys.path.insert(0, REPO_ROOT)
 
-# These tests drive fixture git repositories, and the pre-commit hook
-# runs them during `git commit`, when git exports GIT_INDEX_FILE and
-# friends to hooks. Inherited by the fixture git subprocesses, those
-# variables point git at the outer repository's index, so the tests
-# wreck the real index instead of exercising their fixtures. Scrub
-# them from this process so every child starts clean.
-for _variable in [name for name in os.environ if name.startswith('GIT_')]:
-    del os.environ[_variable]
 
-# audit-check.py is not importable by name (the hyphen is not a valid
-# module identifier), so load it from its path.
-_spec = importlib.util.spec_from_file_location('audit_check', SCRIPT)
-audit_check = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(audit_check)
+def run_all_checks(repo_path, repo_name, org, github=None):
+    """The entry point's scheduler, without importing the hyphenated file."""
+    from audit.repo import Repo
+    return registry.run_all(Repo(repo_path, repo_name, org, github=github))
 
 
 class AuditScopeIsStatedOnceTest(unittest.TestCase):
@@ -73,9 +51,7 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
     usable anchor.
     """
 
-    root = os.path.dirname(
-        os.path.dirname(os.path.abspath(__file__))
-    )
+    root = REPO_ROOT
 
     # Each list below is found by splitting a file on a literal phrase:
     # two sentences of prose and one line of YAML indentation, in files
@@ -208,7 +184,7 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
     def partially_scoped(self):
         return {
             name for name, overrides
-            in audit_check.REPO_OVERRIDES.items()
+            in REPO_OVERRIDES.items()
             if overrides.get('only_checks')
         }
 
@@ -342,7 +318,7 @@ class RepoOverridesTest(unittest.TestCase):
         # The actions repository carries Python helper scripts but has
         # nothing to package, and keeps "main" because every consumer
         # pins to @main.
-        props = audit_check.detect_repo_properties(
+        props = detect_repo_properties(
             tempfile.mkdtemp(), 'actions'
         )
         self.assertTrue(props['not_python'])
@@ -354,14 +330,14 @@ class RepoOverridesTest(unittest.TestCase):
         # so it has no release branch for "develop" to be distinct
         # from -- but the exemption has to be a stated reason, not an
         # absence from the matrix.
-        props = audit_check.detect_repo_properties(
+        props = detect_repo_properties(
             tempfile.mkdtemp(), 'development'
         )
         self.assertTrue(props['not_python'])
         self.assertIn('releases', props['default_branch_exception'])
 
     def test_ordinary_repo_has_no_default_branch_exception(self):
-        props = audit_check.detect_repo_properties(
+        props = detect_repo_properties(
             tempfile.mkdtemp(), 'occystrap'
         )
         self.assertEqual(props['default_branch_exception'], '')
@@ -369,7 +345,7 @@ class RepoOverridesTest(unittest.TestCase):
     def test_shakenfist_excludes_imported_docs(self):
         # docs/components/ is an automated import of the other
         # repositories' documentation directories.
-        props = audit_check.detect_repo_properties(
+        props = detect_repo_properties(
             tempfile.mkdtemp(), 'shakenfist'
         )
         self.assertEqual(
@@ -377,7 +353,7 @@ class RepoOverridesTest(unittest.TestCase):
         )
 
     def test_ordinary_repo_has_no_doc_content_excludes(self):
-        props = audit_check.detect_repo_properties(
+        props = detect_repo_properties(
             tempfile.mkdtemp(), 'occystrap'
         )
         self.assertEqual(props['doc_content_excludes'], [])
@@ -385,13 +361,13 @@ class RepoOverridesTest(unittest.TestCase):
     def test_ordinary_repo_is_scoped_to_no_checks(self):
         # An empty only_checks means the whole audit applies, so the
         # override cannot narrow a repository by accident.
-        props = audit_check.detect_repo_properties(
+        props = detect_repo_properties(
             tempfile.mkdtemp(), 'occystrap'
         )
         self.assertEqual(props['only_checks'], [])
 
     def test_private_ci_is_scoped_to_the_sfui_check(self):
-        props = audit_check.detect_repo_properties(
+        props = detect_repo_properties(
             tempfile.mkdtemp(), 'private-ci'
         )
         self.assertEqual(props['only_checks'], ['sfui-vendor'])
@@ -401,16 +377,12 @@ class CheckScopeTest(unittest.TestCase):
     """The only_checks scoping in run_all_checks."""
 
     def _ids(self):
-        # The whole schedule, not just the legacy half. While the
-        # migration runs some criteria come from registry.CHECKS and
-        # some from check_calls(); the invariant this class protects is
-        # about what actually gets scheduled, so it has to read both.
+        # The schedule itself. Every criterion is a registered Check
+        # now, so this reads registry.CHECKS -- but it reads it through
+        # scheduled(), which is what run_all() calls, rather than the
+        # list directly.
         return [
-            check_id for check_id, _ in registry.scheduled(
-                legacy=audit_check.check_calls(
-                    tempfile.mkdtemp(), {}, 'occystrap', 'shakenfist'
-                )
-            )
+            check_id for check_id, _ in registry.scheduled()
         ]
 
     def test_every_scheduled_id_is_a_known_check(self):
@@ -444,7 +416,7 @@ class CheckScopeTest(unittest.TestCase):
         # not have run: a check that ran would have written its own
         # details, and several of them would reach for the network.
         with tempfile.TemporaryDirectory() as tmp:
-            results = audit_check.run_all_checks(
+            results = run_all_checks(
                 tmp, 'private-ci', 'shakenfist'
             )
 
@@ -469,52 +441,10 @@ class CheckScopeTest(unittest.TestCase):
     def test_unscoped_repo_schedules_everything(self):
         # The scoping is opt in: with no override, no check is
         # replaced by the not_applicable stand-in.
-        props = audit_check.detect_repo_properties(
+        props = detect_repo_properties(
             tempfile.mkdtemp(), 'occystrap'
         )
         self.assertFalse(props['only_checks'])
-
-
-class MergeQueueConfigTest(unittest.TestCase):
-    def _rule(self, **params):
-        return {'type': 'merge_queue', 'parameters': params}
-
-    def test_no_merge_queue_rule_returns_none(self):
-        self.assertIsNone(audit_check.evaluate_merge_queue_rules([]))
-        self.assertIsNone(audit_check.evaluate_merge_queue_rules(
-            [{'type': 'deletion'}, {'type': 'non_fast_forward'}]
-        ))
-
-    def test_serialized_queue_passes(self):
-        problems = audit_check.evaluate_merge_queue_rules([
-            {'type': 'pull_request'},
-            self._rule(
-                max_entries_to_build=1, min_entries_to_merge=1,
-                max_entries_to_merge=5,
-                min_entries_to_merge_wait_minutes=5,
-            ),
-        ])
-        self.assertEqual(problems, [])
-
-    def test_speculative_stacking_fails(self):
-        problems = audit_check.evaluate_merge_queue_rules([
-            self._rule(max_entries_to_build=2, min_entries_to_merge=1),
-        ])
-        self.assertEqual(len(problems), 1)
-        self.assertIn('max_entries_to_build is 2', problems[0])
-
-    def test_batched_merging_fails(self):
-        problems = audit_check.evaluate_merge_queue_rules([
-            self._rule(max_entries_to_build=1, min_entries_to_merge=2),
-        ])
-        self.assertEqual(len(problems), 1)
-        self.assertIn('min_entries_to_merge is 2', problems[0])
-
-    def test_missing_parameters_flags_both(self):
-        problems = audit_check.evaluate_merge_queue_rules([
-            {'type': 'merge_queue'},
-        ])
-        self.assertEqual(len(problems), 2)
 
 
 class GitHooksDisabledTest(unittest.TestCase):
@@ -631,3 +561,7 @@ class GitHooksDisabledTest(unittest.TestCase):
             f'stops reading, and without it the parse runs to the end '
             f'of the file')
         return self.LAYER_FOUR + after.split(self.LAYER_FIVE, 1)[0]
+
+
+if __name__ == '__main__':
+    unittest.main()
