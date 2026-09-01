@@ -85,10 +85,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/plan-index.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/plan-phase-references.md",
       "author": "mikal"
     },
@@ -170,14 +166,6 @@
     },
     {
       "path": "tools/mermaid-lint.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "tools",
-      "author": "mikal"
-    },
-    {
-      "path": "PUSH-AUDIT.md",
       "author": "mikal"
     },
     {
@@ -361,10 +349,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/renovate.md",
       "author": "mikal"
     },
@@ -382,14 +366,6 @@
     },
     {
       "path": "docs/code-review-tracking.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/consistency-audits.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit_common.py",
       "author": "mikal"
     }
   ],

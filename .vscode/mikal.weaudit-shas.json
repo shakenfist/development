@@ -65,17 +65,9 @@
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
       "date": "2026-08-24"
     },
-    "PUSH-AUDIT.md": {
-      "sha": "cf6a23114564cedd4de11bca63cfba73e0431fe4",
-      "date": "2026-08-30"
-    },
     "README.md": {
       "sha": "ceac1b9cd637a75e756e074ffa721ac75bd2096e",
       "date": "2026-08-30"
-    },
-    "docs/audits/README.md": {
-      "sha": "e6d19999bd23730f1e4dd129acfddfd3edc21692",
-      "date": "2026-09-01"
     },
     "docs/audits/ci-review-automation.md": {
       "sha": "b0e5dd33cc1c7e7d845ee3b42e63ec31e35b58da",
@@ -147,10 +139,6 @@
     },
     "docs/audits/pin-indirect-dependencies.md": {
       "sha": "6141c51ac838a8550f1b301e26bfb4c6fb092978",
-      "date": "2026-08-29"
-    },
-    "docs/audits/plan-index.md": {
-      "sha": "4511211109e2092a052c397b25692a22d39102c6",
       "date": "2026-08-29"
     },
     "docs/audits/plan-phase-references.md": {
@@ -241,17 +229,9 @@
       "sha": "0eb0cce0f2d17eff4e3beb319bb9e4e5b8033347",
       "date": "2026-09-01"
     },
-    "docs/consistency-audits.md": {
-      "sha": "9ebb525f45ede1efbf06733d9776a7dfc7bc9eb0",
-      "date": "2026-09-01"
-    },
     "docs/release-automation.md": {
       "sha": "a92bfdaed278fd448adabc76c8a5904174815ea8",
       "date": "2026-08-30"
-    },
-    "scripts/audit_common.py": {
-      "sha": "9cfd82c3e08ec9a7e34c5106f7770f43ca15204b",
-      "date": "2026-09-01"
     },
     "templates/ci-review-automation/README.md": {
       "sha": "520bf61a2981c2c9cde6de85cc3d41e75ecda015",
