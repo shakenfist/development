@@ -279,6 +279,130 @@
     {
       "path": "templates/test-drift-fix/README.md",
       "author": "mikal"
+    },
+    {
+      "path": ".claude/skills/diagram-conversion/SKILL.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".claude/skills/diagram-conversion",
+      "author": "mikal"
+    },
+    {
+      "path": ".claude/skills/review-tracking-adoption/SKILL.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".claude/skills/review-tracking-adoption",
+      "author": "mikal"
+    },
+    {
+      "path": ".claude/skills/standards-alignment/SKILL.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".claude/skills/standards-alignment",
+      "author": "mikal"
+    },
+    {
+      "path": ".claude/skills",
+      "author": "mikal"
+    },
+    {
+      "path": ".claude",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/exported-config/repository-settings.json",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/exported-config/ruleset-protect-default-branch-history.json",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/exported-config/rulesets-summary.json",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/exported-config",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/codeql-analysis.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/consistency-audit.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/mermaid-lint.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/pr-re-review.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/prune-reviews.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/actionlint.yaml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/llm-context-lint-ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/renovate.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/review-scope-completeness.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/workflow-standards.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ci-review-automation.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/code-review-tracking.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consistency-audits.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit_common.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
