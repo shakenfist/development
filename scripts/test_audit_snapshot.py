@@ -18,7 +18,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import audit_snapshot  # noqa: E402
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-CHECKER = os.path.join(SCRIPT_DIR, 'audit-check.py')
 
 
 def result(repo, checks, timestamp='2026-09-01T06:00:00+00:00'):
@@ -175,9 +174,9 @@ class NetworkCheckListTest(unittest.TestCase):
     NETWORK_CHECKS is written by hand, and a check that grows a
     GitHub call later would otherwise silently become a source of
     spurious diffs. Re-derive it from the source: find every check
-    function whose body reaches the network -- through the `_github()`
-    client accessor, or by cloning -- directly or through a helper it
-    calls, and compare.
+    whose body reaches the network -- through the `_github()` client
+    accessor, or by cloning -- directly or through a helper it calls,
+    and compare.
 
     Matching on `_github(` rather than on a literal `gh` is what makes
     this survive the client seam: after phase 2 no check spawns `gh`
@@ -186,7 +185,7 @@ class NetworkCheckListTest(unittest.TestCase):
 
     def _sources(self):
         """Every module a scheduled check can be implemented in."""
-        paths = [CHECKER]
+        paths = []
         package = os.path.join(SCRIPT_DIR, 'audit')
         for root, _, names in os.walk(package):
             for name in names:
@@ -197,8 +196,9 @@ class NetworkCheckListTest(unittest.TestCase):
     def _functions(self, sources):
         """Split every module into {symbol name: body}.
 
-        Classes and functions together: a migrated check is a class
-        whose run() makes the call, an unmigrated one is a function.
+        Classes and functions together: a check is a class whose body
+        makes the call, and the module-level helpers it reaches it
+        through are functions.
         """
         bodies = {}
         for source in sources:
@@ -235,8 +235,8 @@ class NetworkCheckListTest(unittest.TestCase):
         sources = self._sources()
         bodies = self._functions(sources)
 
-        # Map check id to the symbol that implements it: a class in
-        # registry.CHECKS, or a function still in check_calls().
+        # Map check id to the class that implements it, which is
+        # every class registry.CHECKS instantiates.
         scheduled = {}
         registry_src = open(
             os.path.join(SCRIPT_DIR, 'audit', 'registry.py'), 'r').read()
@@ -246,10 +246,6 @@ class NetworkCheckListTest(unittest.TestCase):
                     source):
                 if f'{cls}()' in registry_src:
                     scheduled[check_id] = cls
-        for check_id, function in re.findall(
-                r"\('([a-z0-9-]+)',\s*\n\s*lambda: (\w+)\(",
-                open(CHECKER, 'r').read()):
-            scheduled[check_id] = function
 
         self.assertTrue(scheduled, 'could not read the schedule')
         derived = {

@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.check import STATUSES  # noqa: E402
 from audit.github import FakeGitHub  # noqa: E402
-from audit.registry import CHECKS, ORDER  # noqa: E402
+from audit.registry import CHECKS  # noqa: E402
 from audit.repo import Repo  # noqa: E402
 from audit_common import AUDIT_METADATA, ISSUE_TITLES  # noqa: E402
 from tests.base import REPO_ROOT  # noqa: E402
@@ -310,20 +310,19 @@ class DerivationTest(unittest.TestCase):
         self.assertEqual(set(AUDIT_METADATA), ids)
         self.assertEqual(set(ISSUE_TITLES), ids)
 
-    def test_order_lists_exactly_the_registered_checks(self):
-        """ORDER is the last table still written by hand.
+    def test_no_criterion_is_registered_twice(self):
+        """CHECKS is the whole schedule, so it is also the whole order.
 
-        `scheduled()` sorts on `position.get(id, len(ORDER))`, so a
-        criterion added to CHECKS and forgotten here does not fail --
-        it sorts silently to the end of the results JSON and of the
-        compliance page, both of which are published artifacts whose
-        ordering is part of their bytes. That is a quiet enough
-        failure to be worth a loud test.
+        There used to be a second table, ORDER, pinning the sequence
+        the results JSON reports in, and a test that the two listed the
+        same ids. The registry is one list now and its order is the
+        order, so the only way it can disagree with itself is by
+        scheduling the same criterion twice -- which would report the
+        check twice and double-count it in the summary.
         """
-        self.assertEqual(sorted(check.id for check in CHECKS),
-                         sorted(ORDER))
-        self.assertEqual(len(ORDER), len(set(ORDER)),
-                         'ORDER lists an id twice')
+        ids = [check.id for check in CHECKS]
+        self.assertEqual(sorted(ids), sorted(set(ids)),
+                         'a criterion is registered twice in CHECKS')
 
     def test_every_check_declares_a_spec_and_an_issue_title(self):
         for check in CHECKS:
