@@ -373,6 +373,13 @@ resolving. Say so on the pull request if that happens, and replace
 them with the merge commit -- that is the one edit worth a follow-up,
 and it is a one-line one.
 
+The branch also carries a merge of `origin/main`, taken after the push
+audit because `main` moved while this was in flight and `REVIEWS.md`
+conflicted. That is outside the audited range deliberately: the merge
+resolves one generated file by regenerating it, and re-auditing to
+cover a rendering of the review marks would say nothing. The audited
+range is the one recorded above.
+
 Phases 1 and 2 are small and ship together as one pull request.
 Phase 3 is the bulk of the work and ships as its own, one commit per
 check family, because a reviewer can read a family in one sitting
