@@ -102,26 +102,6 @@ repos:
   # arguments and always test the whole surface.
   - repo: local
     hooks:
-      - id: audit-check-tests
-        name: audit check tests
-        entry: python3 scripts/test_audit_check.py
-        language: system
-        pass_filenames: false
-        # Markdown and workflows as well as scripts/, because this
-        # suite reads all three: the shared-block tests read the
-        # canonical blocks from templates/shared-blocks, and
-        # AuditScopeIsStatedOnceTest reads the audit matrix out of
-        # .github/workflows/consistency-audit.yml and the scope lists
-        # out of docs/audits/README.md by splitting it on phrases in
-        # its prose. The commit that breaks one of those parses is a
-        # documentation commit, so a scripts-only filter never ran the
-        # suite that would catch it -- a wholesale rewrite of the page
-        # holding the lists reworded one anchor and would have gone
-        # unchecked here. Patterns rather than the list of files the
-        # suite happens to read today, so the two cannot drift apart;
-        # the suite is stdlib only and takes under a second.
-        files: ^(scripts/.*\.py|.*\.md|\.github/workflows/.*\.ya?ml)$
-
       - id: audit-update-docs-tests
         name: audit doc rendering tests
         entry: python3 scripts/test_audit_update_docs.py
@@ -170,6 +150,59 @@ repos:
         # reads as a decision, and so a top-level `exclude:` added
         # later cannot quietly narrow it.
         always_run: true
+
+      - id: audit-package-tests
+        name: audit package check tests
+        entry: python3 -m unittest discover -s scripts/tests -t scripts
+        language: system
+        pass_filenames: false
+        # Markdown and templates as well, for the same reason the
+        # legacy suite watches them: these tests read specification
+        # pages and canonical shared blocks, so the commit that breaks
+        # one of those parses is a documentation commit.
+        #
+        # Workflows as well, because two of these tests read this
+        # repository's own: AuditScopeIsStatedOnceTest compares the
+        # matrix in consistency-audit.yml against the in-scope list in
+        # docs/audits/README.md, and GitHooksDisabledTest reads
+        # pr-re-review.yml. Bringing a repository into scope is a
+        # commit that touches the workflow and nothing else, and that
+        # is precisely the commit that must not leave the two lists
+        # disagreeing.
+        #
+        # All of scripts/ rather than just the package, because the
+        # suite reaches outside it in three directions: test_metadata
+        # and test_registry import the derived tables from
+        # audit_common.py, test_review shells out to review-tracking.py
+        # the way the check does, and both name audit-check.py. A
+        # pattern listing only the package would be narrower than the
+        # imports, which is the drift these hooks exist to catch.
+        #
+        # And this file, because test_hooks.py reads it to check that
+        # every suite hook fires on what its suite reads -- including
+        # its own. A pattern that did not watch the config would be
+        # the exact defect that test exists to catch.
+        files: ^(scripts/.*\.py|.*\.md|templates/.*|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml)$
+
+      - id: audit-seams-tests
+        name: audit package seam tests
+        entry: python3 scripts/test_audit_seams.py
+        language: system
+        pass_filenames: false
+        files: ^scripts/(audit/.*\.py|test_audit_seams\.py)$
+
+      - id: audit-snapshot-tests
+        name: audit snapshot tests
+        entry: python3 scripts/test_audit_snapshot.py
+        language: system
+        pass_filenames: false
+        # The whole audit package as well as the helper, because
+        # NetworkCheckListTest re-derives the advisory list by walking
+        # every module a scheduled check can live in. A check that
+        # grows a `gh` call is a change to one file under
+        # scripts/audit/checks/, and that is exactly the commit that
+        # must not leave the list stale.
+        files: ^scripts/(audit/.*\.py|audit_snapshot\.py|test_audit_snapshot\.py|audit-check\.py)$
 
       - id: check-audit-smoke-tests
         name: audit smoke checker tests

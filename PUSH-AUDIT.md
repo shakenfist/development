@@ -152,9 +152,18 @@ Then the judgment-level review of `git diff main...HEAD`:
   (`AuditScopeIsStatedOnceTest` splits `docs/audits/README.md` on
   literal phrases). A new parse of a document by phrase must use
   a named constant and an assertion, not a bare `split()`.
-- **Duplicated logic.** `audit-check.py` is 5,000 lines of check
-  functions that resemble each other by design. Flag duplication
-  only where a helper already exists and was not used.
+- **Duplicated logic.** The criteria in `scripts/audit/checks/`
+  resemble each other by design: each reads a checkout and returns a
+  verdict, and the resemblance is the point. Flag duplication only
+  where a helper already exists in `audit/files.py` or `audit/text/`
+  and was not used, or where a criterion builds a result dict by hand
+  instead of calling `self.ok()`, `self.fail()` or `self.skip()`.
+- **Details strings are published.** A criterion's `details` renders
+  into `docs/audits/compliance.md` and into the body of every issue
+  filed for it fleet-wide. A reworded one is a fleet-wide diff that no
+  test fails on, so treat any change to one as intentional or as a
+  bug, never as tidying. `tools/audit-snapshot.sh --diff` against a
+  baseline is how to tell.
 
 <!-- shared-block: comment-proportion v1 -->
 Comment proportion (shared block; do not edit -- the canonical
@@ -214,10 +223,14 @@ and whether it is blocking or advisory.
 **Brief for sub-agent:**
 
 Review `git diff main...HEAD` for test coverage. The audit
-suites are `test_audit_check.py`, `test_audit_update_docs.py`,
+suites are `scripts/tests/`, `test_audit_seams.py`,
+`test_audit_snapshot.py`, `test_audit_update_docs.py`,
 `test_review_tracking.py` and `test_check_audit_smoke.py`, all
 stdlib `unittest`, all run by `pre-commit`. Other suites under
 `scripts/` cover the workflow templates in the same style.
+`test_audit_snapshot.py` is the one to extend when a check grows
+a network call: it re-derives the advisory list from the package
+source, and a stale list makes the snapshot diff lie.
 
 - Does every new or modified check function have cases for each
   status it can return -- `pass`, `fail`, and `not_applicable`?

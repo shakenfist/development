@@ -174,7 +174,7 @@ class DocumentedTestReferencesTest(unittest.TestCase):
     someone who opens the named file, does not find the named test,
     and concludes it was never written is worse off than if the
     sentence had said nothing. It has already happened once -- the
-    COLUMN_NAMES invariant was attributed to test_audit_check.py,
+    COLUMN_NAMES invariant was attributed to the check suite,
     which does not hold it -- and a moved or renamed test is silent
     about every prose reference to it.
     """
@@ -237,13 +237,23 @@ class DocumentedTestReferencesTest(unittest.TestCase):
                 f'{name} is in the documentation set but missing',
             )
 
+    # Where a test suite can live. The criteria's own tests moved into
+    # scripts/tests/ when they became classes; the suites that test the
+    # scripts around them stayed beside those scripts.
+    SUITE_DIRS = ('scripts', os.path.join('scripts', 'tests'))
+
+    def _suite_path(self, filename):
+        for directory in self.SUITE_DIRS:
+            candidate = os.path.join(self.REPO, directory, filename)
+            if os.path.exists(candidate):
+                return candidate
+        return None
+
     def test_named_test_files_exist(self):
         missing = []
         for name, body in self._docs():
             for _, filename in self.TEST_FILE_RE.findall(body):
-                if not os.path.exists(
-                    os.path.join(self.REPO, 'scripts', filename)
-                ):
+                if self._suite_path(filename) is None:
                     missing.append(f'{name} names {filename}')
         self.assertEqual(missing, [])
 
@@ -337,7 +347,7 @@ class UnmeasuredCriteriaTest(unittest.TestCase):
     section is generated from. Three statements of the set are now
     tied together: the metadata, the page, and the prose here.
 
-    Same shape as AuditScopeIsStatedOnceTest in test_audit_check.py,
+    Same shape as AuditScopeIsStatedOnceTest in tests/test_registry.py,
     which ties the audit matrix to the two places that describe it.
     """
 
