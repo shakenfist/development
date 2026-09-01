@@ -379,6 +379,14 @@
     {
       "path": ".github",
       "author": "mikal"
+    },
+    {
+      "path": "docs/audits/plan-index.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
