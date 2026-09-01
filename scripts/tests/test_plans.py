@@ -23,14 +23,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import plans  # noqa: E402
 from audit.text import shared_blocks  # noqa: E402
-from tests.base import run_check  # noqa: E402
+from tests.base import REPO_ROOT, run_check  # noqa: E402
 
-# The repository this suite runs inside, for the tests that check a
-# criterion against the specification page or the canonical template it
-# is supposed to agree with. One level deeper than the old home in
-# scripts/, so the walk up is one longer.
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__))))
 
 PLAN_STATUSES = plans.PLAN_STATUSES
 PLAN_TEMPLATE_BLOCKS = plans.PLAN_TEMPLATE_BLOCKS

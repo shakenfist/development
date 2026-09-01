@@ -16,6 +16,14 @@ import unittest
 from audit.github import FakeGitHub
 from audit.repo import Repo
 
+#: This repository, for the tests that check a criterion against the
+#: specification page or the canonical template it is supposed to agree
+#: with. Shared because every suite that does so would otherwise
+#: recompute the walk up from wherever it happens to sit, and get it
+#: wrong the first time it moved.
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))))
+
 
 def run_check(check, path, props=None):
     """Run a check against a directory, the way the scheduler does.

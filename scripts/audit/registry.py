@@ -16,7 +16,7 @@ half is empty.
 from datetime import datetime, timezone
 
 from audit.check import NOT_APPLICABLE
-from audit.checks import docs_content, llm_docs, packaging, plans
+from audit.checks import docs_content, llm_docs, packaging, plans, runners
 
 
 #: The order the criteria are reported in. Pinned here because the
@@ -100,6 +100,9 @@ CHECKS = [
     packaging.PythonVersionTargeting(),
     packaging.RustUnwrapLint(),
     packaging.Flake8Wrap(),
+    runners.SelfHostedRunners(),
+    runners.StaticRunnerTags(),
+    runners.VmRunnerSize(),
 ]
 
 
