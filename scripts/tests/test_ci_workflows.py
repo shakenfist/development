@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import ci_workflows  # noqa: E402
 from audit.text import workflows  # noqa: E402
-from tests.base import REPO_ROOT, run_check  # noqa: E402
+from tests.base import CheckTestCase, REPO_ROOT, run_check  # noqa: E402
 
 CI_REVIEW_DEVELOPER_WORKFLOWS = ci_workflows.CI_REVIEW_DEVELOPER_WORKFLOWS
 CI_REVIEW_SHARED_ACTION = ci_workflows.CI_REVIEW_SHARED_ACTION
@@ -1107,6 +1107,140 @@ class MergeGroupCancellationTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class WorkflowPermissionsTest(CheckTestCase):
+    check_class = ci_workflows.WorkflowPermissions
+
+    def test_without_workflows_it_does_not_apply(self):
+        self.assert_skip(self.check(), containing='No .github/workflows/')
+
+    def test_an_empty_workflow_directory_does_not_apply(self):
+        os.makedirs(os.path.join(self.fixture.path, '.github', 'workflows'))
+        self.assert_skip(self.check(has_workflows_dir=True),
+                         containing='No workflow files')
+
+    def test_a_top_level_permissions_block_passes(self):
+        self.fixture.workflow('ci.yml', 'permissions:\n  contents: read\n')
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_a_workflow_without_permissions_fails_and_names_it(self):
+        self.fixture.workflow('ci.yml', 'on: push\n')
+        self.assert_fail(self.check(has_workflows_dir=True),
+                         containing='ci.yml')
+
+    def test_a_nested_permissions_block_does_not_count(self):
+        """Job-level permissions do not narrow the default token."""
+        self.fixture.workflow(
+            'ci.yml',
+            'on: push\njobs:\n  a:\n    permissions:\n      contents: read\n')
+        self.assert_fail(self.check(has_workflows_dir=True))
+
+
+class PreCommitConfigTest(CheckTestCase):
+    check_class = ci_workflows.PreCommitConfig
+
+    def test_a_missing_config_fails(self):
+        self.assert_fail(self.check(), containing='.pre-commit-config.yaml')
+
+    def test_a_present_config_passes(self):
+        self.fixture.write('.pre-commit-config.yaml', 'repos: []\n')
+        self.assert_pass(self.check())
+
+
+class DevpiFallbackTest(CheckTestCase):
+    check_class = ci_workflows.DevpiFallback
+
+    WITH_FALLBACK = (
+        'jobs:\n'
+        '  build:\n'
+        '    env:\n'
+        '      PIP_INDEX_URL: http://192.168.1.15:3141/root/pypi/+simple/\n'
+        '      PIP_EXTRA_INDEX_URL: https://pypi.org/simple\n'
+    )
+    WITHOUT_FALLBACK = (
+        'jobs:\n'
+        '  build:\n'
+        '    env:\n'
+        '      PIP_INDEX_URL: http://192.168.1.15:3141/root/pypi/+simple/\n'
+    )
+
+    def test_without_workflows_it_does_not_apply(self):
+        self.assert_skip(self.check(), containing='No .github/workflows/')
+
+    def test_a_workflow_not_using_devpi_does_not_apply(self):
+        self.fixture.workflow('ci.yml', 'on: push\n')
+        self.assert_skip(self.check(has_workflows_dir=True),
+                         containing='No jobs use the local devpi cache')
+
+    def test_a_fallback_beside_the_index_passes(self):
+        self.fixture.workflow('ci.yml', self.WITH_FALLBACK)
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_no_fallback_fails(self):
+        """Without it a devpi outage stops every build."""
+        self.fixture.workflow('ci.yml', self.WITHOUT_FALLBACK)
+        self.assert_fail(self.check(has_workflows_dir=True),
+                         containing='ci.yml')
+
+    def test_the_hostname_form_is_recognised_too(self):
+        self.fixture.workflow('ci.yml', self.WITHOUT_FALLBACK.replace(
+            '192.168.1.15:3141', 'devpi.home.stillhq.com'))
+        self.assert_fail(self.check(has_workflows_dir=True))
+
+
+class DevpiStaleIpTest(CheckTestCase):
+    check_class = ci_workflows.DevpiStaleIp
+
+    def test_without_workflows_it_does_not_apply(self):
+        self.assert_skip(self.check(), containing='No .github/workflows/')
+
+    def test_the_current_address_passes(self):
+        self.fixture.workflow(
+            'ci.yml',
+            'env:\n  PIP_INDEX_URL: http://192.168.1.15:3141/\n')
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_the_retired_address_fails(self):
+        self.fixture.workflow(
+            'ci.yml',
+            'env:\n  PIP_INDEX_URL: http://192.168.1.4:3141/\n')
+        self.assert_fail(self.check(has_workflows_dir=True),
+                         containing='ci.yml')
+
+    def test_a_longer_address_starting_with_the_same_digits_passes(self):
+        """192.168.1.45 is not 192.168.1.4."""
+        self.fixture.workflow(
+            'ci.yml',
+            'env:\n  PIP_INDEX_URL: http://192.168.1.45:3141/\n')
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+
+class SecretScanningCiTest(CheckTestCase):
+    check_class = ci_workflows.SecretScanningCi
+
+    def test_a_docs_only_repository_does_not_apply(self):
+        self.assert_skip(self.check(is_docs_only=True),
+                         containing='Documentation-only')
+
+    def test_without_workflows_it_does_not_apply(self):
+        self.assert_skip(self.check(), containing='No .github/workflows/')
+
+    def test_a_gitleaks_step_passes(self):
+        self.fixture.workflow(
+            'scan.yml',
+            'jobs:\n  scan:\n    steps:\n      - run: gitleaks detect\n')
+        self.assert_pass(self.check(has_workflows_dir=True),)
+
+    def test_an_alternative_scanner_passes(self):
+        self.fixture.workflow(
+            'scan.yml',
+            'jobs:\n  scan:\n    steps:\n      - run: trufflehog git file://.\n')
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_no_scanner_anywhere_fails(self):
+        self.fixture.workflow('ci.yml', 'on: push\njobs:\n  a:\n    steps: []\n')
+        self.assert_fail(self.check(has_workflows_dir=True))
 
 
 if __name__ == '__main__':

@@ -15,7 +15,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import runners  # noqa: E402
 from audit.text import workflows  # noqa: E402
-from tests.base import REPO_ROOT, run_check  # noqa: E402
+from tests.base import (  # noqa: E402
+    CheckTestCase, REPO_ROOT, run_check,
+)
 
 
 VM_SIZE_LABELS = runners.VM_SIZE_LABELS
@@ -371,6 +373,41 @@ class SelfHostedRunnerLabelPositionTest(unittest.TestCase):
             '/nonexistent', {'has_workflows_dir': False}
         )
         self.assertEqual(result['status'], 'not_applicable')
+
+
+class StaticRunnerTagsTest(CheckTestCase):
+    """A 'static' runner request must not also ask for anything else."""
+
+    check_class = runners.StaticRunnerTags
+
+    def test_without_workflows_it_does_not_apply(self):
+        self.assert_skip(self.check(), containing='No .github/workflows/')
+
+    def test_a_bare_static_request_passes(self):
+        self.fixture.workflow(
+            'ci.yml',
+            'jobs:\n  a:\n    runs-on: [self-hosted, static]\n')
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_an_extra_label_beside_static_fails(self):
+        self.fixture.workflow(
+            'ci.yml',
+            'jobs:\n  a:\n    runs-on: [self-hosted, static, debian-12]\n')
+        self.assert_fail(self.check(has_workflows_dir=True),
+                         containing='debian-12')
+
+    def test_a_request_without_static_is_not_this_criterion(self):
+        self.fixture.workflow(
+            'ci.yml',
+            'jobs:\n  a:\n    runs-on: [self-hosted, vm, debian-12]\n')
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_a_label_behind_an_expression_is_not_judged(self):
+        """Nothing in the file says what the expression resolves to."""
+        self.fixture.workflow(
+            'ci.yml',
+            'jobs:\n  a:\n    runs-on: ${{ matrix.runner }}\n')
+        self.assert_pass(self.check(has_workflows_dir=True))
 
 
 if __name__ == '__main__':

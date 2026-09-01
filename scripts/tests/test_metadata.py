@@ -17,12 +17,17 @@ Run with: python3 -m unittest tests.test_metadata
 
 import importlib.util
 import os
+import re
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from audit.check import STATUSES  # noqa: E402
+from audit.github import FakeGitHub  # noqa: E402
 from audit.registry import CHECKS  # noqa: E402
+from audit.repo import Repo  # noqa: E402
 from audit_common import AUDIT_METADATA, ISSUE_TITLES  # noqa: E402
 from tests.base import REPO_ROOT  # noqa: E402
 
@@ -348,6 +353,90 @@ class DerivationTest(unittest.TestCase):
         """Two criteria sharing a title would close each other's issues."""
         titles = [check.issue_title for check in CHECKS]
         self.assertEqual(len(titles), len(set(titles)))
+
+
+class ContractTest(unittest.TestCase):
+    """What must be true of every criterion, whoever writes the next one.
+
+    These read the registry rather than any particular check, so a
+    criterion added next year is held to them without anybody
+    remembering to.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def repo(self, **props):
+        detected = Repo(self.tmp.name, 'testrepo', 'shakenfist').props
+        detected.update(props)
+        return Repo(self.tmp.name, 'testrepo', 'shakenfist',
+                    github=FakeGitHub(), props=detected)
+
+    def results(self, repo):
+        for check in CHECKS:
+            reason = check.applies(repo)
+            yield check, (check.skip(reason) if reason is not None
+                          else check.run(repo))
+
+    def test_every_check_is_registered_exactly_once(self):
+        ids = [check.id for check in CHECKS]
+        self.assertEqual(sorted(ids), sorted(set(ids)))
+
+    def test_every_check_declares_an_id(self):
+        for check in CHECKS:
+            self.assertTrue(check.id, f'{type(check).__name__} has no id')
+
+    def test_an_empty_directory_produces_a_valid_result_from_every_check(self):
+        """The audit meets repositories it was not designed against.
+
+        An empty directory is the cheapest stand-in for one: no git, no
+        workflows, no pyproject. A criterion that raises here reports
+        nothing about the other forty-four.
+        """
+        for check, result in self.results(self.repo()):
+            with self.subTest(check=check.id):
+                self.assertEqual(result['id'], check.id)
+                self.assertIn(result['status'], STATUSES)
+                self.assertTrue(result['details'],
+                                f'{check.id} returned an empty details')
+
+    def test_a_docs_only_repository_produces_a_valid_result(self):
+        for check, result in self.results(self.repo(is_docs_only=True)):
+            with self.subTest(check=check.id):
+                self.assertIn(result['status'], STATUSES)
+
+    def test_a_directory_that_is_not_a_checkout_produces_a_valid_result(self):
+        """Several criteria shell out to git. None may raise when it fails."""
+        for check, result in self.results(self.repo(not_python=True)):
+            with self.subTest(check=check.id):
+                self.assertIn(result['status'], STATUSES)
+
+    def test_every_check_is_reachable_from_a_test_module(self):
+        """The guard that stops the next criterion arriving untested.
+
+        It asserts reachability, not coverage: that some module under
+        scripts/tests/ instantiates the check. A class nobody exercises
+        would still pass, and no cheap test can tell the difference.
+        What it does catch is the common case -- a criterion added to
+        the registry with no test module touching it at all, which is
+        how seventeen of the forty-five came to have none.
+        """
+        here = os.path.dirname(os.path.abspath(__file__))
+        bodies = []
+        for name in sorted(os.listdir(here)):
+            if name.startswith('test_') and name.endswith('.py'):
+                with open(os.path.join(here, name)) as f:
+                    bodies.append(f.read())
+
+        untested = []
+        for check in CHECKS:
+            name = type(check).__name__
+            pattern = re.compile(
+                rf'\.{name}\(|check_class = \w+\.{name}\b')
+            if not any(pattern.search(body) for body in bodies):
+                untested.append(check.id)
+        self.assertEqual(untested, [])
 
 
 if __name__ == '__main__':

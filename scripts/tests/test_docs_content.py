@@ -19,7 +19,8 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import docs_content  # noqa: E402
-from tests.base import run_check  # noqa: E402
+from audit.checks import llm_docs as llm_docs_module  # noqa: E402
+from tests.base import CheckTestCase, run_check  # noqa: E402
 
 
 def check_readme_structure(path, props=None):
@@ -686,6 +687,58 @@ class MermaidLintDeploymentTest(unittest.TestCase):
             self._repo('.github', 'workflows', 'mermaid-lint.yml'),
             self._repo('templates', 'mermaid-lint', 'mermaid-lint.yml'),
         )
+
+
+class ReadmeAbsoluteLinksTest(CheckTestCase):
+    """README.md is rendered off the landing page, where relative breaks."""
+
+    check_class = docs_content.ReadmeAbsoluteLinks
+
+    def test_without_a_readme_it_does_not_apply(self):
+        self.assert_skip(self.check(), containing='No top-level README.md')
+
+    def test_absolute_links_pass(self):
+        self.fixture.write('README.md', (
+            '# Thing\n\n'
+            'See [the docs](https://github.com/shakenfist/x/blob/main/'
+            'docs/usage.md).\n'))
+        self.assert_pass(self.check())
+
+    def test_a_relative_link_fails_and_names_it(self):
+        self.fixture.write('README.md', '# Thing\n\nSee [docs](docs/usage.md).\n')
+        self.assert_fail(self.check(), containing='docs/usage.md')
+
+    def test_a_reference_definition_is_checked_too(self):
+        self.fixture.write('README.md',
+                           '# Thing\n\nSee [docs][d].\n\n[d]: docs/usage.md\n')
+        self.assert_fail(self.check(), containing='docs/usage.md')
+
+    def test_a_link_inside_a_fence_is_a_sample_not_a_link(self):
+        self.fixture.write('README.md',
+                           '# Thing\n\n```\n[docs](docs/usage.md)\n```\n')
+        self.assert_pass(self.check())
+
+    def test_an_anchor_is_not_a_relative_path(self):
+        self.fixture.write('README.md', '# Thing\n\n[top](#thing)\n')
+        self.assert_pass(self.check())
+
+
+class LlmToolingTest(CheckTestCase):
+    check_class = llm_docs_module.LlmTooling
+
+    def test_both_files_present_passes(self):
+        self.fixture.write('AGENTS.md', '# Agents\n')
+        self.fixture.write('ARCHITECTURE.md', '# Architecture\n')
+        self.assert_pass(self.check())
+
+    def test_a_missing_file_is_named(self):
+        self.fixture.write('AGENTS.md', '# Agents\n')
+        result = self.assert_fail(self.check(), containing='ARCHITECTURE.md')
+        self.assertEqual(result['missing'], ['ARCHITECTURE.md'])
+
+    def test_both_missing_are_named(self):
+        result = self.assert_fail(self.check())
+        self.assertEqual(result['missing'], ['AGENTS.md', 'ARCHITECTURE.md'])
 
 
 if __name__ == '__main__':

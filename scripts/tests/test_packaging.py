@@ -15,7 +15,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import packaging  # noqa: E402
-from tests.base import run_check  # noqa: E402
+from tests.base import CheckTestCase, run_check  # noqa: E402
 
 
 def check_dependency_name_normalization(path, props=None):
@@ -1326,6 +1326,226 @@ class PythonVersionTargetingTest(unittest.TestCase):
             'not json at all',
         )
         self.assertEqual(result['status'], 'pass', result['details'])
+
+
+class ReleaseProcessTest(CheckTestCase):
+    check_class = packaging.ReleaseProcess
+
+    def compliant(self):
+        self.fixture.write('pyproject.toml', '[project]\nname = "x"\n')
+        self.fixture.workflow('release.yml', 'on: push\n')
+        self.fixture.write('RELEASE-SETUP.md', '# Setup\n')
+
+    def test_without_pyproject_it_does_not_apply(self):
+        self.assert_skip(self.check(), containing='No pyproject.toml')
+
+    def test_a_compliant_project_passes(self):
+        self.compliant()
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_a_leftover_release_script_fails(self):
+        self.compliant()
+        self.fixture.write('release.sh', '#!/bin/bash\n')
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='release.sh still exists')
+
+    def test_a_leftover_requirements_file_fails(self):
+        self.compliant()
+        self.fixture.write('requirements.txt', 'six\n')
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='requirements.txt still exists')
+
+    def test_a_missing_release_workflow_fails(self):
+        self.fixture.write('pyproject.toml', '[project]\nname = "x"\n')
+        self.fixture.write('RELEASE-SETUP.md', '# Setup\n')
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='release.yml')
+
+    def test_a_missing_setup_document_fails(self):
+        self.fixture.write('pyproject.toml', '[project]\nname = "x"\n')
+        self.fixture.workflow('release.yml', 'on: push\n')
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='RELEASE-SETUP.md')
+
+    def test_every_problem_is_reported_not_just_the_first(self):
+        self.fixture.write('pyproject.toml', '[project]\nname = "x"\n')
+        self.fixture.write('release.sh', '#!/bin/bash\n')
+        result = self.assert_fail(self.check(has_pyproject_toml=True))
+        self.assertIn('release.sh', result['details'])
+        self.assertIn('RELEASE-SETUP.md', result['details'])
+
+
+class Flake8WrapTest(CheckTestCase):
+    check_class = packaging.Flake8Wrap
+
+    COMPLIANT = (
+        '#!/bin/bash\n'
+        '# shellcheck disable=SC2086\n'
+        'flake8 ${filtered_files}\n'
+    )
+
+    def write(self, content):
+        self.fixture.write('tools/flake8wrap.sh', content)
+
+    def test_without_the_script_it_does_not_apply(self):
+        self.assert_skip(self.check(), containing='No tools/flake8wrap.sh')
+
+    def test_a_correct_script_passes(self):
+        self.write(self.COMPLIANT)
+        self.assert_pass(self.check(has_flake8wrap=True))
+
+    def test_a_missing_disable_directive_fails(self):
+        self.write('#!/bin/bash\nflake8 ${filtered_files}\n')
+        self.assert_fail(self.check(has_flake8wrap=True),
+                         containing='SC2086')
+
+    def test_a_quoted_file_list_fails(self):
+        """Quoting it passes one argument containing spaces."""
+        self.write(
+            '#!/bin/bash\n'
+            '# shellcheck disable=SC2086\n'
+            'flake8 "${filtered_files}"\n'
+        )
+        self.assert_fail(self.check(has_flake8wrap=True),
+                         containing='incorrectly quoted')
+
+
+class RustUnwrapLintTest(CheckTestCase):
+    check_class = packaging.RustUnwrapLint
+
+    WORKSPACE = (
+        '[workspace]\n'
+        'members = ["crates/thing"]\n'
+        '\n'
+        '[workspace.lints.clippy]\n'
+        'unwrap_used = "warn"\n'
+    )
+
+    def test_without_cargo_toml_it_does_not_apply(self):
+        self.assert_skip(self.check(), containing='No Cargo.toml')
+
+    def test_a_configured_workspace_passes(self):
+        self.fixture.init_git()
+        self.fixture.write('Cargo.toml', self.WORKSPACE)
+        self.fixture.write('clippy.toml', 'allow-unwrap-in-tests = true\n')
+        self.fixture.write(
+            'crates/thing/Cargo.toml',
+            '[package]\nname = "thing"\n\n[lints]\nworkspace = true\n')
+        self.fixture.commit()
+        self.assert_pass(self.check(has_cargo_toml=True))
+
+    def test_an_unset_lint_fails(self):
+        self.fixture.init_git()
+        self.fixture.write('Cargo.toml', '[workspace]\nmembers = []\n')
+        self.fixture.write('clippy.toml', 'allow-unwrap-in-tests = true\n')
+        self.fixture.commit()
+        self.assert_fail(self.check(has_cargo_toml=True),
+                         containing='unwrap_used')
+
+    def test_a_missing_test_exemption_fails(self):
+        """Without it the lint fires on every test assertion."""
+        self.fixture.init_git()
+        self.fixture.write('Cargo.toml', self.WORKSPACE)
+        self.fixture.commit()
+        self.assert_fail(self.check(has_cargo_toml=True),
+                         containing='clippy.toml')
+
+    def test_a_crate_that_neither_inherits_nor_defines_fails(self):
+        self.fixture.init_git()
+        self.fixture.write('Cargo.toml', self.WORKSPACE)
+        self.fixture.write('clippy.toml', 'allow-unwrap-in-tests = true\n')
+        self.fixture.write('crates/thing/Cargo.toml',
+                           '[package]\nname = "thing"\n')
+        self.fixture.commit()
+        self.assert_fail(self.check(has_cargo_toml=True),
+                         containing='crates/thing/Cargo.toml')
+
+
+class PyprojectUsageTest(CheckTestCase):
+    check_class = packaging.PyprojectUsage
+
+    def test_a_docs_only_repository_does_not_apply(self):
+        self.assert_skip(self.check(is_docs_only=True), containing='Docs-only')
+
+    def test_a_rust_project_does_not_apply(self):
+        self.assert_skip(self.check(has_cargo_toml=True), containing='Rust')
+
+    def test_an_override_can_exclude_a_project(self):
+        self.assert_skip(self.check(not_python=True), containing='overrides')
+
+    def test_pyproject_alone_passes(self):
+        self.fixture.write('pyproject.toml', '[project]\nname = "x"\n')
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_legacy_packaging_alongside_pyproject_fails(self):
+        self.fixture.write('pyproject.toml', '[project]\nname = "x"\n')
+        self.fixture.write('setup.py', 'from setuptools import setup\n')
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='setup.py')
+
+    def test_setup_cfg_counts_as_legacy_too(self):
+        self.fixture.write('pyproject.toml', '[project]\nname = "x"\n')
+        self.fixture.write('setup.cfg', '[metadata]\n')
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='setup.cfg')
+
+    def test_a_repository_with_no_python_does_not_apply(self):
+        self.fixture.init_git()
+        self.fixture.write('README.md', '# Thing\n')
+        self.fixture.commit()
+        self.assert_skip(self.check(), containing='No Python code')
+
+    def test_python_without_pyproject_fails(self):
+        self.fixture.init_git()
+        self.fixture.write('thing.py', 'x = 1\n')
+        self.fixture.commit()
+        self.assert_fail(self.check())
+
+
+class VersionFileGitignoreTest(CheckTestCase):
+    check_class = packaging.VersionFileGitignore
+
+    PYPROJECT = (
+        '[project]\nname = "x"\n\n'
+        '[tool.setuptools_scm]\n'
+        'write_to = "thing/_version.py"\n'
+    )
+
+    def test_without_pyproject_it_does_not_apply(self):
+        self.assert_skip(self.check(), containing='No pyproject.toml')
+
+    def test_a_gitignored_untracked_version_file_passes(self):
+        self.fixture.init_git()
+        self.fixture.write('pyproject.toml', self.PYPROJECT)
+        self.fixture.write('.gitignore', 'thing/_version.py\n')
+        self.fixture.commit()
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_a_tracked_version_file_fails(self):
+        """The failure this criterion exists for."""
+        self.fixture.init_git()
+        self.fixture.write('pyproject.toml', self.PYPROJECT)
+        self.fixture.write('.gitignore', 'thing/_version.py\n')
+        self.fixture.write('thing/_version.py', "__version__ = '1.0'\n")
+        self.fixture.git('add', '-f', 'thing/_version.py')
+        self.fixture.commit()
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='tracked in git')
+
+    def test_a_version_file_that_is_not_ignored_fails(self):
+        self.fixture.init_git()
+        self.fixture.write('pyproject.toml', self.PYPROJECT)
+        self.fixture.write('.gitignore', 'build/\n')
+        self.fixture.commit()
+        self.assert_fail(self.check(has_pyproject_toml=True))
+
+    def test_a_project_not_generating_a_version_file_does_not_apply(self):
+        self.fixture.init_git()
+        self.fixture.write('pyproject.toml', '[project]\nname = "x"\n')
+        self.fixture.commit()
+        result = self.check(has_pyproject_toml=True)
+        self.assertIn(result['status'], ('not_applicable', 'pass'),
+                      result['details'])
 
 
 if __name__ == '__main__':

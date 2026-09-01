@@ -356,7 +356,7 @@ this repository's convention.
 | 2. Introduce the three seams | Complete | |
 | 3. Migrate the checks, one family per commit | Complete | |
 | 4. Make the registry the source of truth | Complete | |
-| 5. Close the coverage gap | Not started | |
+| 5. Close the coverage gap | Complete | |
 | 6. Push audit | Not started | |
 
 The `Merged` column stays empty until each phase lands, and then
