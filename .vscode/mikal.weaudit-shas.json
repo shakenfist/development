@@ -249,6 +249,30 @@
       "sha": "a92bfdaed278fd448adabc76c8a5904174815ea8",
       "date": "2026-08-30"
     },
+    "scripts/audit/__init__.py": {
+      "sha": "86ffeb2a5deffaa05b04df768a1e43d2448435a0",
+      "date": "2026-09-02"
+    },
+    "scripts/audit/check.py": {
+      "sha": "be5df1c1d0ff14250e8f9171c3142fc9fb2dbd4f",
+      "date": "2026-09-02"
+    },
+    "scripts/audit/files.py": {
+      "sha": "10ea3718860849556fb4af30cad0eaf6b5c2076e",
+      "date": "2026-09-02"
+    },
+    "scripts/audit/github.py": {
+      "sha": "19206a7898a0c3cae036e0125280f03ebd894b4c",
+      "date": "2026-09-02"
+    },
+    "scripts/audit/markers.py": {
+      "sha": "ef1d4a20156613830ec787fde806cbf955e9501e",
+      "date": "2026-09-02"
+    },
+    "scripts/audit/repo.py": {
+      "sha": "c832bb1a224784b2fd1ed3ef3006a2b0ff7e54af",
+      "date": "2026-09-02"
+    },
     "templates/ci-review-automation/README.md": {
       "sha": "520bf61a2981c2c9cde6de85cc3d41e75ecda015",
       "date": "2026-08-30"

@@ -391,6 +391,30 @@
     {
       "path": "docs/consistency-audits.md",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/__init__.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/check.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/files.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/github.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/markers.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/repo.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
