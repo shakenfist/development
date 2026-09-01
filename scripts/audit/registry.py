@@ -16,7 +16,7 @@ half is empty.
 from datetime import datetime, timezone
 
 from audit.check import NOT_APPLICABLE
-from audit.checks import ci_workflows, docs_content, llm_docs, packaging, plans, runners
+from audit.checks import ci_workflows, docs_content, llm_docs, packaging, plans, review, runners
 
 
 #: The order the criteria are reported in. Pinned here because the
@@ -111,6 +111,10 @@ CHECKS = [
     ci_workflows.ExpensiveLanePathFilter(),
     ci_workflows.MergeGroupCancellation(),
     ci_workflows.SecretScanningCi(),
+    review.ReviewMarksPreCommit(),
+    review.ReviewCoverage(),
+    review.ReviewScopeCompleteness(),
+    review.SfuiVendor(),
 ]
 
 
