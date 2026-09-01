@@ -184,54 +184,77 @@ class NetworkCheckListTest(unittest.TestCase):
     itself, they all go through audit/github.py.
     """
 
-    def _source(self):
-        with open(CHECKER, 'r') as f:
-            return f.read()
+    def _sources(self):
+        """Every module a scheduled check can be implemented in."""
+        paths = [CHECKER]
+        package = os.path.join(SCRIPT_DIR, 'audit')
+        for root, _, names in os.walk(package):
+            for name in names:
+                if name.endswith('.py'):
+                    paths.append(os.path.join(root, name))
+        return [open(p, 'r').read() for p in paths]
 
-    def _functions(self, source):
-        """Split the module into {function name: body}."""
-        functions = {}
-        name = None
-        body = []
-        for line in source.splitlines():
-            match = re.match(r'^def (\w+)', line)
-            if match:
-                if name:
-                    functions[name] = '\n'.join(body)
-                name = match.group(1)
-                body = []
-            elif name:
-                body.append(line)
-        if name:
-            functions[name] = '\n'.join(body)
-        return functions
+    def _functions(self, sources):
+        """Split every module into {symbol name: body}.
 
-    def _reaches_network(self, functions, name, seen=None):
+        Classes and functions together: a migrated check is a class
+        whose run() makes the call, an unmigrated one is a function.
+        """
+        bodies = {}
+        for source in sources:
+            name = None
+            body = []
+            for line in source.splitlines():
+                match = re.match(r'^(?:def|class) (\w+)', line)
+                if match:
+                    if name:
+                        bodies[name] = '\n'.join(body)
+                    name = match.group(1)
+                    body = []
+                elif name:
+                    body.append(line)
+            if name:
+                bodies[name] = '\n'.join(body)
+        return bodies
+
+    def _reaches_network(self, bodies, name, seen=None):
         seen = seen if seen is not None else set()
         if name in seen:
             return False
         seen.add(name)
-        body = functions.get(name, '')
-        if re.search(r"_github\(|'clone'", body):
+        body = bodies.get(name, '')
+        if re.search(r"_github\(|repo\.github|GhCli\(|'clone'", body):
             return True
-        for other in functions:
+        for other in bodies:
             if other != name and re.search(rf'\b{other}\s*\(', body):
-                if self._reaches_network(functions, other, seen):
+                if self._reaches_network(bodies, other, seen):
                     return True
         return False
 
     def test_network_checks_matches_the_checker(self):
-        source = self._source()
-        functions = self._functions(source)
+        sources = self._sources()
+        bodies = self._functions(sources)
 
-        # Map check id to the function check_calls() schedules for it.
-        scheduled = dict(re.findall(
-            r"\('([a-z0-9-]+)',\s*\n\s*lambda: (\w+)\(", source))
-        self.assertTrue(scheduled, 'could not read check_calls()')
+        # Map check id to the symbol that implements it: a class in
+        # registry.CHECKS, or a function still in check_calls().
+        scheduled = {}
+        registry_src = open(
+            os.path.join(SCRIPT_DIR, 'audit', 'registry.py'), 'r').read()
+        for source in sources:
+            for cls, check_id in re.findall(
+                    r"class (\w+)\(Check\):\n    id = '([a-z0-9-]+)'",
+                    source):
+                if f'{cls}()' in registry_src:
+                    scheduled[check_id] = cls
+        for check_id, function in re.findall(
+                r"\('([a-z0-9-]+)',\s*\n\s*lambda: (\w+)\(",
+                open(CHECKER, 'r').read()):
+            scheduled[check_id] = function
 
+        self.assertTrue(scheduled, 'could not read the schedule')
         derived = {
-            check_id for check_id, function in scheduled.items()
-            if self._reaches_network(functions, function)
+            check_id for check_id, symbol in scheduled.items()
+            if self._reaches_network(bodies, symbol)
         }
         self.assertEqual(
             derived, set(audit_snapshot.NETWORK_CHECKS),

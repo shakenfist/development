@@ -25,7 +25,8 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 
 
-def run_check(check, path, props=None):
+def run_check(check, path, props=None, name='testrepo',
+              org='shakenfist', github=None):
     """Run a check against a directory, the way the scheduler does.
 
     The adapter the moved tests call. They were written against the old
@@ -35,7 +36,8 @@ def run_check(check, path, props=None):
     missing quietly. This goes through applies() and run(), so they
     exercise the real path rather than a shortcut around it.
     """
-    repo = Repo(path, 'testrepo', 'shakenfist', github=FakeGitHub())
+    repo = Repo(path, name, org,
+                github=github if github is not None else FakeGitHub())
     if props:
         repo.props.update(props)
     reason = check.applies(repo)

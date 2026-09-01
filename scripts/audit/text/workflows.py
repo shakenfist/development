@@ -112,3 +112,75 @@ def literal_runner_labels(value):
         label for label in split_runner_labels(value)
         if '${{' not in label
     ]
+
+
+WORKFLOW_JOB_RE = re.compile(r'^  ([A-Za-z_][A-Za-z0-9_-]*):\s*$')
+
+
+def workflow_job_blocks(content):
+    """Split a workflow into (job name, job text) pairs.
+
+    Line-based rather than YAML-parsed, to avoid a PyYAML
+    dependency, and matching how the rest of this module reads
+    workflows. A job is a two-space-indented key under a top-level
+    "jobs:"; the block runs to the next such key or to the end of
+    the file.
+    """
+    lines = content.splitlines()
+    in_jobs = False
+    blocks = []
+    for line in lines:
+        if line and not line[0].isspace():
+            in_jobs = line.startswith('jobs:')
+            continue
+        if not in_jobs:
+            continue
+        match = WORKFLOW_JOB_RE.match(line)
+        if match:
+            blocks.append([match.group(1), []])
+        elif blocks:
+            blocks[-1][1].append(line)
+    return [(name, '\n'.join(body)) for name, body in blocks]
+
+
+def strip_yaml_comments(text):
+    """Drop full-line comments from a block of YAML.
+
+    Concurrency keys and `if:` conditions are routinely explained by
+    a comment directly above them that quotes the very expression
+    being warned about, so matching comment text would read those
+    explanations as the code they describe.
+    """
+    return '\n'.join(
+        line for line in text.splitlines()
+        if not line.lstrip().startswith('#')
+    )
+
+
+def indented_block(body, key):
+    """Extract the `key:` mapping from a job or workflow body.
+
+    Returns the block's text (without the key line), or None when
+    there is none. The block runs from the key to the next line at or
+    below its indentation, which covers both the inline and the
+    folded (`>-`) forms the fleet uses.
+    """
+    lines = strip_yaml_comments(body).splitlines()
+    collected = None
+    indent = None
+    for line in lines:
+        if collected is None:
+            match = re.match(r'^(\s*)' + re.escape(key) + r':\s*$', line)
+            if match:
+                collected = []
+                indent = len(match.group(1))
+            continue
+        if not line.strip():
+            collected.append(line)
+            continue
+        if len(line) - len(line.lstrip()) <= indent:
+            break
+        collected.append(line)
+    if collected is None:
+        return None
+    return '\n'.join(collected)
