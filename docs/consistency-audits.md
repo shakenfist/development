@@ -249,6 +249,8 @@ Individually, which is quicker while iterating:
 
 ```
 python3 -m unittest discover -s scripts/tests -t scripts
+python3 scripts/test_audit_seams.py
+python3 scripts/test_audit_snapshot.py
 python3 scripts/test_audit_update_docs.py
 python3 scripts/test_review_tracking.py
 python3 scripts/test_check_audit_smoke.py

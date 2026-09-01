@@ -160,7 +160,29 @@ repos:
         # legacy suite watches them: these tests read specification
         # pages and canonical shared blocks, so the commit that breaks
         # one of those parses is a documentation commit.
-        files: ^(scripts/(audit|tests)/.*\.py|.*\.md|templates/.*)$
+        #
+        # Workflows as well, because two of these tests read this
+        # repository's own: AuditScopeIsStatedOnceTest compares the
+        # matrix in consistency-audit.yml against the in-scope list in
+        # docs/audits/README.md, and GitHooksDisabledTest reads
+        # pr-re-review.yml. Bringing a repository into scope is a
+        # commit that touches the workflow and nothing else, and that
+        # is precisely the commit that must not leave the two lists
+        # disagreeing.
+        #
+        # All of scripts/ rather than just the package, because the
+        # suite reaches outside it in three directions: test_metadata
+        # and test_registry import the derived tables from
+        # audit_common.py, test_review shells out to review-tracking.py
+        # the way the check does, and both name audit-check.py. A
+        # pattern listing only the package would be narrower than the
+        # imports, which is the drift these hooks exist to catch.
+        #
+        # And this file, because test_hooks.py reads it to check that
+        # every suite hook fires on what its suite reads -- including
+        # its own. A pattern that did not watch the config would be
+        # the exact defect that test exists to catch.
+        files: ^(scripts/.*\.py|.*\.md|templates/.*|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml)$
 
       - id: audit-seams-tests
         name: audit package seam tests
@@ -174,12 +196,13 @@ repos:
         entry: python3 scripts/test_audit_snapshot.py
         language: system
         pass_filenames: false
-        # audit-check.py as well as the helper, because
-        # NetworkCheckListTest re-derives the advisory list from the
-        # checker's source. A check that grows a `gh` call is a change
-        # to audit-check.py alone, and that is exactly the commit that
+        # The whole audit package as well as the helper, because
+        # NetworkCheckListTest re-derives the advisory list by walking
+        # every module a scheduled check can live in. A check that
+        # grows a `gh` call is a change to one file under
+        # scripts/audit/checks/, and that is exactly the commit that
         # must not leave the list stale.
-        files: ^scripts/(audit_snapshot\.py|test_audit_snapshot\.py|audit-check\.py)$
+        files: ^scripts/(audit/.*\.py|audit_snapshot\.py|test_audit_snapshot\.py|audit-check\.py)$
 
       - id: check-audit-smoke-tests
         name: audit smoke checker tests

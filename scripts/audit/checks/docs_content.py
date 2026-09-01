@@ -33,16 +33,10 @@ README_MAX_WORDS = 1200
 # Box-drawing characters, used to tell a drawn block from prose.
 DIAGRAM_BOX_CHARS = set('─│┌└├┐┘┬┴┼╭╮╰╯━┃')
 
-# The corner of a drawn box, i
-
-
 # The corner of a drawn box, in either character set. A file tree uses
 # tees and elbows but never a top corner, which is most of why this is
 # measured separately from DIAGRAM_BOX_CHARS.
 DIAGRAM_CORNER_RE = re.compile(r'[┌┐╭╮]|\+-{2,}\+')
-
-# An e
-
 
 # An edge between two nodes: a solid triangular arrowhead anywhere, or
 # an ASCII or box rule of at least two characters ending in an angle
@@ -52,9 +46,6 @@ DIAGRAM_CORNER_RE = re.compile(r'[┌┐╭╮]|\+-{2,}\+')
 # the head and tail markers under a ring buffer -- and counting them
 # turns two memory maps into diagrams.
 DIAGRAM_ARROW_RE = re.compile(r'[▼▲▶◀►◄]|[-─━=]{2,}>|<[-─━=]{2,}')
-
-# A flow connector
-
 
 # A flow connector: a line drawn from nothing but connector glyphs,
 # carrying a downward arrowhead, optionally with a parenthetical label
@@ -299,7 +290,7 @@ class DocsExternalLinks(Check):
         Links whose target stays inside docs/ are fine and stay relative:
         they move with the tree and resolve in both renderings. Anything
         pointing outside docs/ must be an absolute
-        https://github.com/<repo.org>/<repo>/blob/<branch>/... URL.
+        https://github.com/<org>/<repo>/blob/<branch>/... URL.
 
         A relative target that resolves inside docs/ but names no file
         that exists is reported too. It is nearly always a link out of

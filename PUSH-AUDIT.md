@@ -223,10 +223,14 @@ and whether it is blocking or advisory.
 **Brief for sub-agent:**
 
 Review `git diff main...HEAD` for test coverage. The audit
-suites are `scripts/tests/`, `test_audit_update_docs.py`,
+suites are `scripts/tests/`, `test_audit_seams.py`,
+`test_audit_snapshot.py`, `test_audit_update_docs.py`,
 `test_review_tracking.py` and `test_check_audit_smoke.py`, all
 stdlib `unittest`, all run by `pre-commit`. Other suites under
 `scripts/` cover the workflow templates in the same style.
+`test_audit_snapshot.py` is the one to extend when a check grows
+a network call: it re-derives the advisory list from the package
+source, and a stale list makes the snapshot diff lie.
 
 - Does every new or modified check function have cases for each
   status it can return -- `pass`, `fail`, and `not_applicable`?

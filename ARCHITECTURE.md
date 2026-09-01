@@ -70,11 +70,14 @@ beside it:
   `not_applicable` vocabulary. A criterion declares its id,
   specification, template and issue title as class attributes, tests
   applicability in `applies()`, and measures in `run()`.
-- `audit/repo.py` -- `Repo`, the checkout under audit, with cached
-  reads; and `REPO_OVERRIDES`, the properties that cannot be detected
-  from a clone, which is also where a repository is narrowed to a
-  subset of checks. Scope is otherwise all-or-nothing: in the matrix
-  means every criterion applies.
+- `audit/repo.py` -- `Repo`, the checkout under audit: its path,
+  identity and detected properties, with the workflow listing cached.
+  `read()` caches file contents too, but the checks still open files
+  directly; adopting it is future work. Also `REPO_OVERRIDES`, the
+  properties that cannot be detected from a clone, which is also
+  where a repository is narrowed to a subset of checks. Scope is
+  otherwise all-or-nothing: in the matrix means every criterion
+  applies.
 - `audit/github.py` -- the seam in front of `gh`, with a fake for the
   tests and a recorder for before-and-after comparisons.
 - `audit/registry.py` -- `CHECKS` and `ORDER`: what runs, and the

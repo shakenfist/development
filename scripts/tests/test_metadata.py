@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.check import STATUSES  # noqa: E402
 from audit.github import FakeGitHub  # noqa: E402
-from audit.registry import CHECKS  # noqa: E402
+from audit.registry import CHECKS, ORDER  # noqa: E402
 from audit.repo import Repo  # noqa: E402
 from audit_common import AUDIT_METADATA, ISSUE_TITLES  # noqa: E402
 from tests.base import REPO_ROOT  # noqa: E402
@@ -309,6 +309,21 @@ class DerivationTest(unittest.TestCase):
         ids = {check.id for check in CHECKS}
         self.assertEqual(set(AUDIT_METADATA), ids)
         self.assertEqual(set(ISSUE_TITLES), ids)
+
+    def test_order_lists_exactly_the_registered_checks(self):
+        """ORDER is the last table still written by hand.
+
+        `scheduled()` sorts on `position.get(id, len(ORDER))`, so a
+        criterion added to CHECKS and forgotten here does not fail --
+        it sorts silently to the end of the results JSON and of the
+        compliance page, both of which are published artifacts whose
+        ordering is part of their bytes. That is a quiet enough
+        failure to be worth a loud test.
+        """
+        self.assertEqual(sorted(check.id for check in CHECKS),
+                         sorted(ORDER))
+        self.assertEqual(len(ORDER), len(set(ORDER)),
+                         'ORDER lists an id twice')
 
     def test_every_check_declares_a_spec_and_an_issue_title(self):
         for check in CHECKS:

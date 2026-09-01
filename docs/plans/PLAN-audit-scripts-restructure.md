@@ -726,6 +726,16 @@ progresses, not only at the end.
   through `Result`, capping and sanitising it is a change in one
   place, which is the argument for doing it after this plan rather
   than during.
+* **Adopt `Repo.read()` in the checks.** The content cache exists
+  and is tested, but production does not reach it: the check modules
+  make 35 direct `open()` calls and none go through `read()`, so the
+  only caller is `workflow()`, which only the seam tests use. The
+  directory-listing cache argued for in D2 was realised; the read
+  cache was not. Converting the 21 repository-relative sites is
+  mechanical -- `exists()` then `open()` collapses into one `read()`
+  returning `None` -- but it is 21 behaviour-preserving edits across
+  eight modules, which wants its own snapshot run rather than being
+  bolted onto this one. Raised in review of PR #79.
 * **Parallelising the checks.** Uniform `Check` objects with a
   declared GitHub dependency make it possible to run the filesystem
   checks concurrently. The daily run is not slow enough to justify
