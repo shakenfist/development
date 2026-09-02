@@ -51,6 +51,8 @@ CHECKS = [
     packaging.PythonVersionTargeting(),
     packaging.RustUnwrapLint(),
     packaging.Flake8Wrap(),
+    packaging.UnusedDeclaredDependency(),
+    packaging.RenovateLockstepGroups(),
     runners.SelfHostedRunners(),
     runners.StaticRunnerTags(),
     runners.VmRunnerSize(),

@@ -122,6 +122,14 @@ FROZEN_METADATA = {
         'spec': 'docs/audits/dependency-name-normalization.md',
         'template': None,
     },
+    'unused-declared-dependency': {
+        'spec': 'docs/audits/unused-declared-dependency.md',
+        'template': None,
+    },
+    'renovate-lockstep-groups': {
+        'spec': 'docs/audits/renovate-lockstep-groups.md',
+        'template': None,
+    },
     'pyproject-usage': {
         'spec': 'docs/audits/pyproject-usage.md',
         'template': None,
@@ -241,6 +249,8 @@ FROZEN_ISSUE_TITLES = {
     'renovate': 'Renovate',
     'pin-indirect-dependencies': 'Pin indirect dependencies',
     'dependency-name-normalization': 'Dependency name normalization',
+    'unused-declared-dependency': 'Unused declared dependency',
+    'renovate-lockstep-groups': 'Renovate lockstep groups',
     'export-repo-config': 'Export repo config',
     'default-branch-naming': 'Default branch naming',
     'github-security': 'GitHub security settings',
@@ -406,7 +416,7 @@ class ContractTest(unittest.TestCase):
 
         An empty directory is the cheapest stand-in for one: no git, no
         workflows, no pyproject. A criterion that raises here reports
-        nothing about the other forty-four.
+        nothing about any of the others.
         """
         for check, result in self.results(self.repo()):
             with self.subTest(check=check.id):

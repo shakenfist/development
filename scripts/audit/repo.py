@@ -126,7 +126,7 @@ class Repo:
 
         Decoding errors are replaced rather than raised. An audited
         repository can contain anything, and a check that crashes on
-        one file reports nothing about the other forty-four criteria.
+        one file reports nothing about any of the other criteria.
         """
         if path in self._reads:
             return self._reads[path]

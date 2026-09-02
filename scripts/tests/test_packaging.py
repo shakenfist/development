@@ -1548,5 +1548,283 @@ class VersionFileGitignoreTest(CheckTestCase):
                       result['details'])
 
 
+class UnusedDeclaredDependencyTest(CheckTestCase):
+    check_class = packaging.UnusedDeclaredDependency
+
+    def pyproject(self, dependencies, extra=''):
+        body = '[project]\nname = "x"\ndependencies = [\n'
+        body += ''.join('    %s\n' % line for line in dependencies)
+        body += ']\n' + extra
+        self.fixture.write('pyproject.toml', body)
+
+    def source(self, content, path='thing/main.py'):
+        self.fixture.write(path, content)
+
+    def test_incidental_python_does_not_apply(self):
+        self.assert_skip(self.check(not_python=True),
+                         containing='nothing to import')
+
+    def test_without_pyproject_it_does_not_apply(self):
+        self.assert_skip(self.check(has_pyproject_toml=False),
+                         containing='No pyproject.toml')
+
+    def test_no_declared_dependencies_does_not_apply(self):
+        self.fixture.write('pyproject.toml', '[project]\nname = "x"\n')
+        self.source('import os\n')
+        self.assert_skip(self.check(), containing='nothing declared')
+
+    def test_a_project_with_no_python_source_does_not_apply(self):
+        self.pyproject(['"click==8.4.2",'])
+        self.assert_skip(self.check(), containing='No Python source')
+
+    def test_an_imported_dependency_passes(self):
+        self.pyproject(['"click==8.4.2",'])
+        self.source('import click\n')
+        self.assert_pass(self.check())
+
+    def test_an_unimported_dependency_fails_and_names_its_line(self):
+        self.pyproject(['"click==8.4.2",', '"schedule==1.2.2",'])
+        self.source('import click\n')
+        result = self.assert_fail(self.check(), containing='schedule')
+        self.assertIn('pyproject.toml:5', result['details'])
+        self.assertNotIn('click', result['details'])
+
+    def test_a_from_import_counts_as_a_use(self):
+        self.pyproject(['"click==8.4.2",'])
+        self.source('from click import option\n')
+        self.assert_pass(self.check())
+
+    def test_a_submodule_import_counts_as_a_use(self):
+        self.pyproject(['"oslo.concurrency==7.6.1",'])
+        self.source('from oslo_concurrency import processutils\n')
+        self.assert_pass(self.check())
+
+    def test_one_of_several_names_on_an_import_line_counts(self):
+        self.pyproject(['"click==8.4.2",', '"semver==3.0.4",'])
+        self.source('import os, click, semver\n')
+        self.assert_pass(self.check())
+
+    def test_a_relative_import_is_not_a_dependency(self):
+        self.pyproject(['"click==8.4.2",'])
+        self.source('from . import helpers\n')
+        self.assert_fail(self.check(), containing='click')
+
+    def test_a_commented_out_import_is_not_a_use(self):
+        """The exact shape this criterion exists to find."""
+        self.pyproject(['"click==8.4.2",'])
+        self.source('import os\n# import click\n')
+        self.assert_fail(self.check(), containing='click')
+
+    def test_an_import_inside_a_docstring_is_not_a_use(self):
+        self.pyproject(['"click==8.4.2",'])
+        self.source('"""Usage:\n\nimport click\n"""\nimport os\n')
+        self.assert_fail(self.check(), containing='click')
+
+    def test_a_copy_under_build_is_not_a_use(self):
+        """A stale build directory is what makes a deleted import look alive."""
+        self.pyproject(['"click==8.4.2",'])
+        self.source('import os\n')
+        self.source('import click\n', path='build/lib/thing/main.py')
+        self.assert_fail(self.check(), containing='click')
+
+    def test_a_copy_inside_a_virtualenv_is_not_a_use(self):
+        self.pyproject(['"click==8.4.2",'])
+        self.source('import os\n')
+        self.source('import click\n', path='.tox/py311/lib/click/__init__.py')
+        self.assert_fail(self.check(), containing='click')
+
+    def test_a_py_prefix_is_derived_away(self):
+        self.pyproject(['"PyYAML==6.0.3",'])
+        self.source('import yaml\n')
+        self.assert_pass(self.check())
+
+    def test_a_python_prefix_is_derived_away(self):
+        self.pyproject(['"python-magic==0.4.27",'])
+        self.source('import magic\n')
+        self.assert_pass(self.check())
+
+    def test_an_aliased_import_name_is_known(self):
+        self.pyproject(['"protobuf==7.36.0",', '"grpcio==1.83.1",'])
+        self.source('import grpc\nfrom google.protobuf import descriptor\n')
+        self.assert_pass(self.check())
+
+    def test_the_generated_indirect_block_is_not_read(self):
+        self.pyproject([
+            '"click==8.4.2",',
+            '# START_OF_INDIRECT_DEPS',
+            '"wrapt==2.3.0",',
+            '# END_OF_INDIRECT_DEPS',
+        ])
+        self.source('import click\n')
+        self.assert_pass(self.check())
+
+    def test_optional_dependencies_are_not_read(self):
+        """Test tooling is run, not imported, and would all be flagged."""
+        self.pyproject(
+            ['"click==8.4.2",'],
+            extra=('\n[project.optional-dependencies]\n'
+                   'test = [\n    "tox==4.60.1",\n]\n'))
+        self.source('import click\n')
+        self.assert_pass(self.check())
+
+    def test_a_not_imported_marker_with_a_reason_exempts_it(self):
+        self.pyproject([
+            '# not-imported: uv -- invoked as a subprocess by the fetcher',
+            '"uv>=0.8.0",',
+            '"click==8.4.2",',
+        ])
+        self.source('import click\n')
+        result = self.assert_pass(self.check())
+        self.assertIn('annotated', result['details'])
+
+    def test_a_trailing_not_imported_marker_exempts_it(self):
+        self.pyproject(['"uv>=0.8.0",  # not-imported: uv -- run as a tool'])
+        self.source('import os\n')
+        self.assert_pass(self.check())
+
+    def test_a_marker_with_no_reason_does_not_exempt_it(self):
+        """An unexplained exception is a silenced finding."""
+        self.pyproject(['# not-imported: uv', '"uv>=0.8.0",'])
+        self.source('import os\n')
+        self.assert_fail(self.check(), containing='uv')
+
+    def test_a_marker_naming_another_dependency_does_not_exempt_it(self):
+        self.pyproject([
+            '# not-imported: uv -- run as a tool',
+            '"schedule==1.2.2",',
+        ])
+        self.source('import os\n')
+        self.assert_fail(self.check(), containing='schedule')
+
+    def test_the_finding_names_the_declared_spelling(self):
+        """Canonical names send the reader to grep for a missing string."""
+        self.pyproject(['"oslo.concurrency==7.6.1",'])
+        self.source('import os\n')
+        self.assert_fail(self.check(), containing='oslo.concurrency')
+
+    def test_a_marker_matches_across_spellings(self):
+        self.pyproject([
+            '# not-imported: oslo_concurrency -- kept for a version floor',
+            '"oslo.concurrency==7.6.1",',
+        ])
+        self.source('import os\n')
+        self.assert_pass(self.check())
+
+
+class RenovateLockstepGroupsTest(CheckTestCase):
+    check_class = packaging.RenovateLockstepGroups
+
+    OSLO = ['"oslo.concurrency==7.6.1",', '"oslo.config==10.7.0",']
+
+    def pyproject(self, dependencies, extra=''):
+        body = '[project]\nname = "x"\ndependencies = [\n'
+        body += ''.join('    %s\n' % line for line in dependencies)
+        body += ']\n' + extra
+        self.fixture.write('pyproject.toml', body)
+
+    def renovate(self, *rules):
+        self.fixture.write(
+            'renovate.json',
+            json.dumps({'packageRules': list(rules)}, indent=2) + '\n')
+
+    def test_without_pyproject_it_does_not_apply(self):
+        self.renovate()
+        self.assert_skip(self.check(has_pyproject_toml=False),
+                         containing='No pyproject.toml')
+
+    def test_without_renovate_json_it_does_not_apply(self):
+        self.pyproject(self.OSLO)
+        self.assert_skip(self.check(), containing='No readable renovate.json')
+
+    def test_malformed_renovate_json_does_not_apply(self):
+        self.pyproject(self.OSLO)
+        self.fixture.write('renovate.json', '{not json\n')
+        self.assert_skip(self.check(), containing='No readable renovate.json')
+
+    def test_a_single_family_member_does_not_apply(self):
+        self.pyproject(['"oslo.concurrency==7.6.1",'])
+        self.renovate()
+        self.assert_skip(self.check(), containing='more than one member')
+
+    def test_no_family_members_does_not_apply(self):
+        self.pyproject(['"click==8.4.2",'])
+        self.renovate()
+        self.assert_skip(self.check(), containing='more than one member')
+
+    def test_two_ungrouped_members_fail_and_are_named(self):
+        self.pyproject(self.OSLO)
+        self.renovate()
+        result = self.assert_fail(self.check(), containing='oslo')
+        self.assertIn('oslo.concurrency', result['details'])
+        self.assertIn('oslo.config', result['details'])
+
+    def test_a_regex_group_passes(self):
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'oslo',
+                       'matchPackageNames': ['/^oslo/']})
+        self.assert_pass(self.check())
+
+    def test_a_glob_group_in_the_declared_spelling_passes(self):
+        """Renovate matches the manifest spelling, so "oslo.*" is correct."""
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'oslo',
+                       'matchPackageNames': ['oslo.*']})
+        self.assert_pass(self.check())
+
+    def test_an_exact_name_group_passes(self):
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'oslo',
+                       'matchPackageNames': ['oslo.concurrency',
+                                             'oslo.config']})
+        self.assert_pass(self.check())
+
+    def test_the_deprecated_pattern_field_passes(self):
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'oslo',
+                       'matchPackagePatterns': ['^oslo']})
+        self.assert_pass(self.check())
+
+    def test_a_group_missing_one_member_fails(self):
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'oslo',
+                       'matchPackageNames': ['oslo.concurrency']})
+        self.assert_fail(self.check(), containing='oslo')
+
+    def test_an_excluded_member_fails(self):
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'oslo',
+                       'matchPackageNames': ['/^oslo/', '!oslo.config']})
+        self.assert_fail(self.check(), containing='oslo')
+
+    def test_a_group_restricted_by_update_type_fails(self):
+        """Grouping minor and patch leaves the majors arriving one by one."""
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'oslo',
+                       'matchUpdateTypes': ['minor', 'patch'],
+                       'matchPackageNames': ['/^oslo/']})
+        self.assert_fail(self.check(), containing='oslo')
+
+    def test_a_rule_without_a_group_name_is_not_a_group(self):
+        self.pyproject(self.OSLO)
+        self.renovate({'matchPackageNames': ['/^oslo/'],
+                       'automerge': False})
+        self.assert_fail(self.check(), containing='oslo')
+
+    def test_members_in_an_optional_group_are_counted(self):
+        self.pyproject(
+            ['"click==8.4.2",'],
+            extra=('\n[project.optional-dependencies]\n'
+                   'test = [\n    "oslo.concurrency==7.6.1",\n'
+                   '    "oslo.config==10.7.0",\n]\n'))
+        self.renovate()
+        self.assert_fail(self.check(), containing='oslo')
+
+    def test_oslotest_is_not_an_oslo_library(self):
+        """The family is "oslo.*", not everything starting with oslo."""
+        self.pyproject(['"oslo.concurrency==7.6.1",', '"oslotest==5.0.0",'])
+        self.renovate()
+        self.assert_skip(self.check(), containing='more than one member')
+
+
 if __name__ == '__main__':
     unittest.main()
