@@ -38,6 +38,7 @@ CHECKS = [
     plans.PlanPhaseReferences(),
     plans.PlanSourceReferences(),
     plans.PlanIndex(),
+    plans.PlanAuditPhase(),
     plans.PushAudit(),
     plans.PlanTemplate(),
     packaging.ReleaseProcess(),

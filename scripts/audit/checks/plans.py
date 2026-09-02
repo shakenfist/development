@@ -174,6 +174,351 @@ def plan_index_summarise(label, items):
     return f'{label}: {shown}{more}'
 
 
+# The statuses that carve a plan out of this criterion. A plan
+# deliberately dropped or replaced is no more going to write the diff
+# an audit would read than a finished one is, so all three terminal
+# terms of the status vocabulary carve out and the four live ones
+# bind. The plan-push-audit-phase block still words the carve-out as
+# `Complete` alone: bumping it to v3 restales every embedded copy
+# across the fleet, which is a sweep, and the sweep is phase 4 of
+# docs/plans/PLAN-push-audit-phase.md. The check implements the
+# vocabulary's terminal set meanwhile, and the block catches up there.
+PLAN_TERMINAL_STATUSES = ('Complete', 'Abandoned', 'Superseded')
+
+
+# The runbook a master plan's final phase runs. Named here rather
+# than written into each message so the check and the sentence it
+# files an issue with cannot disagree about the filename.
+PLAN_AUDIT_RUNBOOK = 'PUSH-AUDIT.md'
+
+
+# What a push audit phase calls itself. The rule is about a phase, and
+# a phase names itself in its title -- "8. Push audit" in an Execution
+# table, "### Phase 5: Push audit" as a section -- while the sentence
+# that names PUSH-AUDIT.md sits in the prose under it. Requiring the
+# literal filename inside the phase entry would therefore fail almost
+# every compliant plan in the fleet, so the title is what is matched
+# here and the plan is separately required to name the runbook file
+# somewhere.
+PLAN_AUDIT_PHASE_RE = re.compile(r'push[-\s]?audit', re.IGNORECASE)
+
+
+# A push audit phase written as a trailing section of its own rather
+# than as a numbered phase, which is how a plan whose phases are
+# headings ends when the audit was appended after the numbering was
+# settled. Anchored and terminated so that "Push audit findings",
+# which is a record of a completed audit rather than a phase, does not
+# count as one.
+PLAN_AUDIT_SECTION_RE = re.compile(r'^push[-\s]audit\s*$', re.IGNORECASE)
+
+
+# Where a plan's phases live: a heading naming execution, an
+# implementation, phases, or workstreams. The numbered subsections
+# under such a heading are the plan's phases. The list is empirical
+# rather than principled -- it is the set of headings the fleet has
+# actually been observed to write, and `workstreams` joined it when
+# divergulent's PLAN-release-1.0.md turned out to be carrying eight
+# phases under one. A plan that files its phases under some other
+# heading is reported as unjudged rather than judged wrongly, which
+# is what makes the next shape visible instead of silent.
+PLAN_PHASE_SECTION_RE = re.compile(
+    r'execution|implementation|phase|workstream', re.IGNORECASE)
+
+
+# A heading that is a phase: "### Phase 5: Push audit", or a bare
+# "### 5. Push audit" inside one of the sections above. The bare form
+# is only read inside a phase section because plans also number
+# ordinary subsections -- ryll's follow-up plans are lists of numbered
+# findings -- and reading those as phases would report a plan for not
+# ending its findings list with an audit.
+PLAN_PHASE_HEADING_RE = re.compile(
+    r'^(?:phase\s*)?(\d+)\s*[.:)]\s+(\S.*)$', re.IGNORECASE)
+
+
+PLAN_PHASE_EXPLICIT_HEADING_RE = re.compile(r'^phase\s*\d', re.IGNORECASE)
+
+
+# A phase table's first cell. Looser than the heading form because the
+# cell is a column rather than a sentence: it is written "8", "8.",
+# "8. Push audit" and "Phase 8" across the fleet, and the row's other
+# cells carry the description either way.
+PLAN_PHASE_CELL_RE = re.compile(r'^(?:phase\s*)?(\d+)\b', re.IGNORECASE)
+
+
+# The heading a phase table's first column carries.
+PLAN_PHASE_TABLE_COLUMN = 'phase'
+
+
+PLAN_HEADING_RE = re.compile(r'^(#{1,6})\s+(.*)$')
+
+
+# A plan the check cannot judge because it has no phases at all: a
+# standalone follow-up list, or a plan still in prose. There is no
+# last phase to require anything of, and inventing one would file
+# issues against work that was never phased.
+PLAN_AUDIT_UNPHASED = 'unphased'
+
+
+PLAN_AUDIT_OK = 'ok'
+
+
+PLAN_AUDIT_PROBLEM = 'problem'
+
+
+def plan_index_entries(path):
+    """Every master plan the index links, with the status beside it.
+
+    The index formats differ across the fleet by design -- one
+    repository carries a phase count column, another an inline list of
+    phase names, this one no phase column at all -- so nothing here
+    reads a phase from the index. What is read is the pair the index
+    does agree on: which plan files it links, and what each one's
+    status cell says.
+
+    A link in the Plan column takes that row's status. A link anywhere
+    else -- prose above the table, a bullet list in a repository whose
+    index is not a table yet, another column of the row -- is recorded
+    with no status, and a later row that names the same plan properly
+    fills it in. Statuses are never read from another plan's row,
+    because a Description cell that mentions a second plan would
+    otherwise hand it the first plan's status.
+
+    Returns a list of (filename, status or None) in the order the
+    index introduces them.
+    """
+    with open(path, 'r', errors='replace') as f:
+        lines = f.read().splitlines()
+
+    found = {}
+
+    def record(target, status):
+        name = os.path.basename(target.split('#')[0].strip())
+        if not name.startswith('PLAN-') or not name.endswith('.md'):
+            return
+        if PLAN_PHASE_FILE_RE.search(name):
+            return
+        if name == PLAN_SOURCE_TEMPLATE_NAME:
+            return
+        if name not in found or (found[name] is None and status):
+            found[name] = status
+
+    header = None
+    for offset, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped.startswith('|'):
+            # Prose between tables ends the run of rows, so a row is
+            # never read against the header of an earlier table.
+            header = None
+            for _, target in PLAN_LINK_RE.findall(line):
+                record(target, None)
+            continue
+        if PLAN_TABLE_SEPARATOR_RE.match(stripped):
+            continue
+
+        cells = plan_index_cells(stripped)
+        following = (
+            lines[offset + 1].strip() if offset + 1 < len(lines) else ''
+        )
+        if (following.startswith('|')
+                and PLAN_TABLE_SEPARATOR_RE.match(following)):
+            header = [plan_cell_text(c).lower() for c in cells]
+            continue
+
+        status = None
+        plan_column = None
+        if header:
+            if 'status' in header:
+                column = header.index('status')
+                if column < len(cells):
+                    status = plan_cell_text(cells[column]) or None
+            # The Plan column, which plan-index requires to be the
+            # second one. Found by name where the header names it, so
+            # that a repository carrying an extra leading column is
+            # read correctly rather than silently losing its statuses.
+            plan_column = (
+                header.index('plan') if 'plan' in header
+                else (1 if len(header) > 1 else None)
+            )
+
+        for index, cell in enumerate(cells):
+            for _, target in PLAN_LINK_RE.findall(cell):
+                record(
+                    target,
+                    status if index == plan_column else None,
+                )
+
+    return list(found.items())
+
+
+def plan_phases(content):
+    """The plan's numbered phases, and where any audit section sits.
+
+    Phases are read from whichever of the two shapes the plan uses,
+    and from both where it uses both: the rows of a table whose first
+    column is Phase, and headings that number themselves. They are
+    keyed by phase number rather than by position, because a plan that
+    carries both shapes also carries other tables -- the reconstructed
+    landing commits of a backfilled plan are a Phase table sitting
+    inside the audit phase's own section -- and the phase numbers
+    agree where document order does not.
+
+    Returns a dict of number to (line index, text, label, status),
+    where the text is what a phase is matched against -- a whole table
+    row, because a plan whose Phase column holds a bare number
+    describes the phase in a later column -- the label is the short
+    name a message quotes back, and the status is the phase's own
+    Status cell where its table has one. The status is what separates
+    a plan whose audit has not run yet from one that was reopened
+    after it ran, which want opposite fixes. Also returns the line
+    indexes of any trailing push audit section headings.
+    """
+    lines = content.splitlines()
+    phases = {}
+    sections = []
+    stack = []
+    in_phase_table = False
+    status_column = None
+
+    for offset, line in enumerate(lines):
+        stripped = line.strip()
+
+        heading = PLAN_HEADING_RE.match(stripped)
+        if heading:
+            level = len(heading.group(1))
+            title = plan_cell_text(heading.group(2))
+            while stack and stack[-1][0] >= level:
+                stack.pop()
+            in_phase_table = False
+
+            numbered = PLAN_PHASE_HEADING_RE.match(title)
+            inside = any(
+                PLAN_PHASE_SECTION_RE.search(text) for _, text in stack
+            )
+            explicit = PLAN_PHASE_EXPLICIT_HEADING_RE.match(title)
+            if numbered and (inside or explicit):
+                # A phase written as a section carries no status
+                # cell, so there is none to read.
+                phases.setdefault(
+                    int(numbered.group(1)),
+                    (offset, title, numbered.group(2), None))
+            elif PLAN_AUDIT_SECTION_RE.match(title):
+                sections.append(offset)
+
+            stack.append((level, title))
+            continue
+
+        if not stripped.startswith('|'):
+            in_phase_table = False
+            continue
+        if PLAN_TABLE_SEPARATOR_RE.match(stripped):
+            continue
+
+        cells = plan_index_cells(stripped)
+        following = (
+            lines[offset + 1].strip() if offset + 1 < len(lines) else ''
+        )
+        if (following.startswith('|')
+                and PLAN_TABLE_SEPARATOR_RE.match(following)):
+            columns = [plan_cell_text(c).lower() for c in cells]
+            in_phase_table = bool(
+                columns
+                and columns[0] == PLAN_PHASE_TABLE_COLUMN
+                and any(PLAN_PHASE_SECTION_RE.search(text)
+                        for _, text in stack)
+            )
+            status_column = (
+                columns.index('status') if 'status' in columns else None
+            )
+            continue
+
+        if in_phase_table and cells:
+            label = plan_cell_text(cells[0])
+            numbered = PLAN_PHASE_CELL_RE.match(label)
+            if numbered:
+                status = None
+                if status_column is not None and status_column < len(cells):
+                    status = plan_cell_text(cells[status_column]) or None
+                phases.setdefault(
+                    int(numbered.group(1)),
+                    (offset, plan_cell_text(stripped), label, status))
+
+    return phases, sections
+
+
+def plan_status_is_terminal(status):
+    """Whether a status cell means the work is not going to happen."""
+    return (status or '').lower() in {
+        term.lower() for term in PLAN_TERMINAL_STATUSES
+    }
+
+
+def plan_audit_phase_state(content):
+    """Whether a plan's last phase is the push audit phase.
+
+    Returns (state, detail). The state is PLAN_AUDIT_UNPHASED for a
+    plan with no phases to judge, PLAN_AUDIT_OK for a compliant one,
+    and PLAN_AUDIT_PROBLEM otherwise, in which case the detail says
+    what is wrong in the terms the plan's author would fix it in.
+
+    An audit phase that is not last has two quite different causes,
+    and naming the wrong one sends the author to the wrong edit. A
+    plan whose audit has not run yet simply has its phases in the
+    wrong order, and the fix is to move the audit after them. A plan
+    whose audit ran and was then reopened cannot be fixed that way at
+    all: moving a finished phase to the end would claim it audited
+    work that landed after it. That one needs a second audit phase
+    covering the reopened work, so the phase's own status is what
+    decides which sentence the author is handed.
+    """
+    phases, sections = plan_phases(content)
+    if not phases:
+        return PLAN_AUDIT_UNPHASED, None
+
+    last = max(phases)
+    line, text, label, _ = phases[last]
+    named = PLAN_AUDIT_RUNBOOK in content
+
+    if PLAN_AUDIT_PHASE_RE.search(text) or any(s > line for s in sections):
+        if named:
+            return PLAN_AUDIT_OK, None
+        return PLAN_AUDIT_PROBLEM, (
+            f'ends with a push audit phase that never names '
+            f'{PLAN_AUDIT_RUNBOOK}'
+        )
+
+    summary = label
+    if len(summary) > 60:
+        summary = summary[:57] + '...'
+
+    # An audit phase somewhere earlier, rather than the words
+    # appearing anywhere in the plan: a Future work note mentioning a
+    # push audit is not a phase, and telling an author their phase is
+    # in the wrong place when they never wrote one sends them looking
+    # for something that is not there.
+    audits = [
+        number for number, (_, other, _, _) in phases.items()
+        if PLAN_AUDIT_PHASE_RE.search(other)
+    ]
+    if audits:
+        audit = max(audits)
+        status = phases[audit][3]
+        if plan_status_is_terminal(status):
+            return PLAN_AUDIT_PROBLEM, (
+                f'phase {audit} audited this plan and is {status}, and '
+                f'the plan was reopened after it; append a new push '
+                f'audit phase covering phases up to {last} '
+                f'("{summary}") rather than moving the finished one'
+            )
+    if audits or sections:
+        return PLAN_AUDIT_PROBLEM, (
+            f'push audit phase is not last, so phase {last} '
+            f'("{summary}") is unaudited; move the audit phase after it'
+        )
+    return PLAN_AUDIT_PROBLEM, (
+        f'no push audit phase; phase {last} is "{summary}"'
+    )
+
+
 # Shared blocks every PLAN-TEMPLATE.md must carry. The model roster
 # is deliberately separate from the rest of the step guidance: it
 # churns whenever a model ships or retires, and keeping it apart
@@ -496,6 +841,115 @@ class PlanIndex(Check):
         return self.ok(
             f'docs/plans/index.md lists {len(masters)} plan(s) in date '
             f'order with statuses from the shared vocabulary')
+
+
+class PlanAuditPhase(Check):
+    id = 'plan-audit-phase'
+    spec = 'docs/audits/plan-audit-phase.md'
+    template = None
+    issue_title = 'Push audit phase in master plans'
+
+    def run(self, repo):
+        """Check master plans end with a push audit phase.
+
+        Every master plan's last phase runs the repository's
+        PUSH-AUDIT.md over the accumulated diff of the whole plan.
+        Last is the part of the rule that matters and the part that
+        rots: an audit scheduled in the middle of a plan is outrun by
+        the phases that follow it, and the plan reaches Complete with
+        several phases nothing ever audited. The convention was swept
+        into the fleet's plans by hand, and until this check existed
+        nothing stopped the next plan from omitting it.
+
+        A plan whose status is terminal -- Complete, Abandoned or
+        Superseded -- and that does not carry the phase passes. That
+        is the shared block's carve-out, not an oversight: a plan
+        whose work has landed, or that was dropped or replaced, is not
+        reopened to acquire a phase that would audit a diff nobody is
+        going to write. It also decides the difference between a check
+        that names the handful of plans still able to act on a finding
+        and one that files an issue against every plan the fleet has
+        ever closed. The converse is equally deliberate: such a plan
+        that does carry the phase is not inspected either, because
+        whether the audit was actually run is a judgement about a
+        plan's own record, not something the presence of a heading can
+        settle.
+
+        A plan with no phases the check can read is not judged, but
+        it is named. Follow-up plans, issue lists and single-commit
+        plans are written without an Execution table, and there is no
+        last phase for the rule to bind -- but a plan that keeps its
+        phases under a heading this check does not recognise looks
+        exactly the same from here, and passing it silently is how
+        that stays undiscovered. Naming them in the result is what
+        lets a person check the handful by hand.
+
+        Repositories with no docs/plans/index.md are N/A -- whether
+        every project should plan this way is a separate decision,
+        made by plan-index rather than here.
+        """
+        index_path = os.path.join(repo.path, 'docs', 'plans', 'index.md')
+        if not os.path.exists(index_path):
+            return self.skip('No docs/plans/index.md')
+
+        plans_dir = os.path.dirname(index_path)
+        judged = 0
+        terminal = 0
+        unphased = []
+        problems = []
+        for name, status in plan_index_entries(index_path):
+            path = os.path.join(plans_dir, name)
+            if not os.path.isfile(path):
+                # A link that does not resolve is docs-external-links'
+                # finding, and reporting it twice helps nobody.
+                continue
+            if plan_status_is_terminal(status):
+                terminal += 1
+                continue
+
+            with open(path, 'r', errors='replace') as f:
+                content = f.read()
+            state, detail = plan_audit_phase_state(content)
+            if state == PLAN_AUDIT_UNPHASED:
+                unphased.append(name)
+                continue
+
+            judged += 1
+            if state == PLAN_AUDIT_PROBLEM:
+                problems.append(f'{name} ({detail})')
+
+        if not judged and not terminal and not unphased:
+            return self.skip('docs/plans/index.md links no master plans')
+
+        # The unjudged plans are named on both paths. A plan whose
+        # phases this check cannot find is not the same thing as a
+        # plan that is fine, and a verdict that only counts them
+        # leaves nobody able to tell which was which.
+        unjudged = []
+        if unphased:
+            unjudged.append(plan_index_summarise(
+                f'{len(unphased)} plan(s) with no phases this check can '
+                f'read, not judged', unphased))
+
+        if problems:
+            # The remedy is per plan rather than in the preamble: an
+            # audit that has not run yet is moved, one that ran and was
+            # overtaken is joined by a second, and one sentence cannot
+            # ask for both.
+            found = plan_index_summarise(
+                f'{len(problems)} of {judged} incomplete master plan(s) '
+                f'do not end with a phase running {PLAN_AUDIT_RUNBOOK}, '
+                f'which the plan-push-audit-phase shared block requires; '
+                f'each is named with the fix it needs', problems)
+            return self.fail('; '.join([found] + unjudged))
+
+        parts = [
+            f'{judged} incomplete master plan(s) end with a '
+            f'{PLAN_AUDIT_RUNBOOK} phase'
+        ]
+        if terminal:
+            parts.append(f'{terminal} terminal-status plan(s) not judged')
+        return self.ok('; '.join(parts + unjudged))
 
 
 class PushAudit(Check):
