@@ -245,6 +245,12 @@ PLAN_PHASE_EXPLICIT_HEADING_RE = re.compile(r'^phase\s*\d', re.IGNORECASE)
 PLAN_PHASE_CELL_RE = re.compile(r'^(?:phase\s*)?(\d+)\b', re.IGNORECASE)
 
 
+# The punctuation between a phase cell's number and its name, stripped
+# so that "8." and "8) " are recognised as the bare-number shape while
+# "8. Push audit" is recognised as a named one.
+PLAN_PHASE_CELL_TAIL_RE = re.compile(r'^[\s.:)\u2013\u2014-]+')
+
+
 # The heading a phase table's first column carries.
 PLAN_PHASE_TABLE_COLUMN = 'phase'
 
@@ -283,8 +289,14 @@ def plan_index_entries(path):
     because a Description cell that mentions a second plan would
     otherwise hand it the first plan's status.
 
-    Returns a list of (filename, status or None) in the order the
-    index introduces them.
+    The link target is carried alongside the filename rather than
+    flattened to it. Archived plans are linked from a subdirectory --
+    `completed/PLAN-<name>.md` -- and a caller handed the basename
+    alone would look for a file that is not there and silently drop
+    the plan.
+
+    Returns a list of (filename, link target, status or None) in the
+    order the index introduces them.
     """
     with open(path, 'r', errors='replace') as f:
         lines = f.read().splitlines()
@@ -292,15 +304,16 @@ def plan_index_entries(path):
     found = {}
 
     def record(target, status):
-        name = os.path.basename(target.split('#')[0].strip())
+        cleaned = target.split('#')[0].strip()
+        name = os.path.basename(cleaned)
         if not name.startswith('PLAN-') or not name.endswith('.md'):
             return
         if PLAN_PHASE_FILE_RE.search(name):
             return
         if name == PLAN_SOURCE_TEMPLATE_NAME:
             return
-        if name not in found or (found[name] is None and status):
-            found[name] = status
+        if name not in found or (found[name][1] is None and status):
+            found[name] = (cleaned, status)
 
     header = None
     for offset, line in enumerate(lines):
@@ -347,7 +360,30 @@ def plan_index_entries(path):
                     status if index == plan_column else None,
                 )
 
-    return list(found.items())
+    return [
+        (name, target, status) for name, (target, status) in found.items()
+    ]
+
+
+def plan_index_target_path(plans_dir, target, name):
+    """The plan file an index link names, or None if there is none.
+
+    Resolved as the link is written first, so that a plan linked from
+    docs/plans/completed/ is found where it actually sits. A target
+    that does not resolve that way is searched for by basename
+    anywhere under docs/plans/, which is how plan references resolve
+    elsewhere in this module and covers an index whose links are
+    written from the repository root rather than from beside it.
+    """
+    candidate = os.path.normpath(os.path.join(plans_dir, target))
+    root = os.path.normpath(plans_dir)
+    if (candidate == root or candidate.startswith(root + os.sep)) \
+            and os.path.isfile(candidate):
+        return candidate
+    for dirpath, _dirnames, filenames in os.walk(plans_dir):
+        if name in filenames:
+            return os.path.join(dirpath, name)
+    return None
 
 
 def plan_phases(content):
@@ -362,19 +398,32 @@ def plan_phases(content):
     inside the audit phase's own section -- and the phase numbers
     agree where document order does not.
 
-    Returns a dict of number to (line index, text, label, status),
-    where the text is what a phase is matched against -- a whole table
-    row, because a plan whose Phase column holds a bare number
-    describes the phase in a later column -- the label is the short
-    name a message quotes back, and the status is the phase's own
-    Status cell where its table has one. The status is what separates
-    a plan whose audit has not run yet from one that was reopened
-    after it ran, which want opposite fixes. Also returns the line
-    indexes of any trailing push audit section headings.
+    Returns a dict of number to (line index, text, label, status).
+
+    The line index is where the phase's own content sits: its section
+    heading where the plan writes one for it, and otherwise the table
+    row that introduces it. That distinction is what a trailing audit
+    section is judged against, so it matters that a phase described
+    below the table is anchored below the table.
+
+    The text is what the phase is matched against. A named phase cell
+    ("8. Push audit") answers for itself, because the row's other
+    columns -- a Notes cell mentioning an audit the phase is not --
+    must not answer for it. A bare-number cell ("8", "Phase 8") names
+    nothing, so there the whole row is read, which is where a plan
+    with a numbers-only Phase column describes its phases.
+
+    The label is the short name a message quotes back, and the status
+    is the phase's own Status cell where its table has one. The status
+    is what separates a plan whose audit has not run yet from one
+    carrying phases after a finished audit, which want opposite fixes.
+    Also returns the line indexes of any trailing push audit section
+    headings.
     """
     lines = content.splitlines()
     phases = {}
     sections = []
+    anchors = {}
     stack = []
     in_phase_table = False
     status_column = None
@@ -395,6 +444,18 @@ def plan_phases(content):
                 PLAN_PHASE_SECTION_RE.search(text) for _, text in stack
             )
             explicit = PLAN_PHASE_EXPLICIT_HEADING_RE.match(title)
+            if numbered:
+                # Anchored on every numbered heading, not only the
+                # ones read as phases. The anchor answers "where does
+                # phase N's own prose sit", and a plan that carries
+                # both shapes writes its phase sections wherever the
+                # document reads best -- under the audit's own heading
+                # in the fixture that motivated this -- so a stricter
+                # rule would put the anchor back on the table row and
+                # lose the comparison. First occurrence wins, so a
+                # later numbered heading reusing the number cannot
+                # drag a phase's anchor down the document.
+                anchors.setdefault(int(numbered.group(1)), offset)
             if numbered and (inside or explicit):
                 # A phase written as a section carries no status
                 # cell, so there is none to read.
@@ -438,9 +499,24 @@ def plan_phases(content):
                 status = None
                 if status_column is not None and status_column < len(cells):
                     status = plan_cell_text(cells[status_column]) or None
+                named = PLAN_PHASE_CELL_TAIL_RE.sub(
+                    '', label[numbered.end():]).strip()
                 phases.setdefault(
                     int(numbered.group(1)),
-                    (offset, plan_cell_text(stripped), label, status))
+                    (offset,
+                     label if named else plan_cell_text(stripped),
+                     label,
+                     status))
+
+    # A phase's section heading, where it has one, is later in the
+    # document than the table row that lists it, and it is the section
+    # that says what the phase does. Anchoring on it is what stops a
+    # push audit section written above the last phase's own section
+    # from counting as the plan's final phase.
+    for number, (offset, text, label, status) in list(phases.items()):
+        anchor = anchors.get(number)
+        if anchor is not None and anchor > offset:
+            phases[number] = (anchor, text, label, status)
 
     return phases, sections
 
@@ -464,11 +540,11 @@ def plan_audit_phase_state(content):
     and naming the wrong one sends the author to the wrong edit. A
     plan whose audit has not run yet simply has its phases in the
     wrong order, and the fix is to move the audit after them. A plan
-    whose audit ran and was then reopened cannot be fixed that way at
-    all: moving a finished phase to the end would claim it audited
-    work that landed after it. That one needs a second audit phase
-    covering the reopened work, so the phase's own status is what
-    decides which sentence the author is handed.
+    carrying phases after an audit that has already run cannot be
+    fixed that way at all: moving a finished phase to the end would
+    claim it audited work that landed after it. That one wants a
+    second audit phase covering the later work, so the phase's own
+    status is what decides which sentence the author is handed.
     """
     phases, sections = plan_phases(content)
     if not phases:
@@ -478,6 +554,17 @@ def plan_audit_phase_state(content):
     line, text, label, _ = phases[last]
     named = PLAN_AUDIT_RUNBOOK in content
 
+    # The trailing-section shape: a push audit written as a section of
+    # its own rather than as a numbered phase, which is how a plan
+    # whose phases were numbered before the convention arrived ends.
+    # It counts only when it sits after the last phase's own content
+    # -- its section heading where the plan writes one, its table row
+    # otherwise -- because comparing against the table row alone says
+    # only that the audit heading is somewhere below the plan's index
+    # of phases, which every heading in the document is. That reading
+    # passed a plan whose final phase was described below the audit
+    # section, which is exactly the outrun audit this criterion
+    # exists to catch.
     if PLAN_AUDIT_PHASE_RE.search(text) or any(s > line for s in sections):
         if named:
             return PLAN_AUDIT_OK, None
@@ -503,11 +590,21 @@ def plan_audit_phase_state(content):
         audit = max(audits)
         status = phases[audit][3]
         if plan_status_is_terminal(status):
+            # Stated as what the plan says, not as what happened to
+            # it. The check sees a terminal audit phase with phases
+            # after it; whether those phases were appended after the
+            # audit ran, or were always there, or are simply stale is
+            # not visible from here, and this sentence is filed
+            # verbatim as a GitHub issue on another repository, where
+            # a confident wrong diagnosis costs a round trip. So the
+            # facts are asserted and the remedy is conditional on the
+            # one the author can check.
             return PLAN_AUDIT_PROBLEM, (
-                f'phase {audit} audited this plan and is {status}, and '
-                f'the plan was reopened after it; append a new push '
-                f'audit phase covering phases up to {last} '
-                f'("{summary}") rather than moving the finished one'
+                f'phase {audit} is the push audit phase and is '
+                f'{status}, but phases up to {last} ("{summary}") come '
+                f'after it; if that work landed after the audit ran, '
+                f'append a new push audit phase rather than moving the '
+                f'finished one'
             )
     if audits or sections:
         return PLAN_AUDIT_PROBLEM, (
@@ -884,6 +981,11 @@ class PlanAuditPhase(Check):
         that stays undiscovered. Naming them in the result is what
         lets a person check the handful by hand.
 
+        A plan whose index link names no file under docs/plans/ is
+        named the same way, for the same reason. Whether the link is
+        broken is docs-external-links' finding rather than this one's,
+        but a plan this check walked past has to be visible as one.
+
         Repositories with no docs/plans/index.md are N/A -- whether
         every project should plan this way is a separate decision,
         made by plan-index rather than here.
@@ -896,12 +998,17 @@ class PlanAuditPhase(Check):
         judged = 0
         terminal = 0
         unphased = []
+        unresolved = []
         problems = []
-        for name, status in plan_index_entries(index_path):
-            path = os.path.join(plans_dir, name)
-            if not os.path.isfile(path):
-                # A link that does not resolve is docs-external-links'
-                # finding, and reporting it twice helps nobody.
+        for name, target, status in plan_index_entries(index_path):
+            path = plan_index_target_path(plans_dir, target, name)
+            if path is None:
+                # Whose fault a broken link is stays docs-external-
+                # links' business, and this check does not fail for
+                # one. But a plan it silently walked past is
+                # indistinguishable from a plan it passed, so the name
+                # is carried into the verdict rather than dropped.
+                unresolved.append(name)
                 continue
             if plan_status_is_terminal(status):
                 terminal += 1
@@ -919,6 +1026,10 @@ class PlanAuditPhase(Check):
                 problems.append(f'{name} ({detail})')
 
         if not judged and not terminal and not unphased:
+            if unresolved:
+                return self.skip(plan_index_summarise(
+                    'docs/plans/index.md links no master plan file that '
+                    'resolves', unresolved))
             return self.skip('docs/plans/index.md links no master plans')
 
         # The unjudged plans are named on both paths. A plan whose
@@ -930,6 +1041,10 @@ class PlanAuditPhase(Check):
             unjudged.append(plan_index_summarise(
                 f'{len(unphased)} plan(s) with no phases this check can '
                 f'read, not judged', unphased))
+        if unresolved:
+            unjudged.append(plan_index_summarise(
+                f'{len(unresolved)} plan(s) the index links but no file '
+                f'under docs/plans/ matches, not judged', unresolved))
 
         if problems:
             # The remedy is per plan rather than in the preamble: an
@@ -943,10 +1058,16 @@ class PlanAuditPhase(Check):
                 f'each is named with the fix it needs', problems)
             return self.fail('; '.join([found] + unjudged))
 
-        parts = [
-            f'{judged} incomplete master plan(s) end with a '
-            f'{PLAN_AUDIT_RUNBOOK} phase'
-        ]
+        # The count leads only when there is something behind it. A
+        # repository where every linked plan was carved out or could
+        # not be read has had nothing measured in it, and opening its
+        # verdict with "0 ... end with a PUSH-AUDIT.md phase" reads as
+        # a statement of compliance rather than of silence.
+        parts = []
+        if judged:
+            parts.append(
+                f'{judged} incomplete master plan(s) end with a '
+                f'{PLAN_AUDIT_RUNBOOK} phase')
         if terminal:
             parts.append(f'{terminal} terminal-status plan(s) not judged')
         return self.ok('; '.join(parts + unjudged))

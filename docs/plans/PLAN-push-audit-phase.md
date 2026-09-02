@@ -680,6 +680,20 @@ than only here: the heading list is empirical, there will be another
 shape, and the durable defence is that an unreadable plan is visible
 in the verdict rather than that the list is complete.
 
+One repository outside the table is worth recording. Running the
+criterion over every local clone, rather than over the audited
+fleet, fails `uncalibrated-sextant` on five of five incomplete
+plans. It has a `PLAN-TEMPLATE.md` and a `docs/plans/index.md` and
+no `PUSH-AUDIT.md` at all, which the shared block covers -- the
+phase is carried anyway and says the runbook does not exist yet.
+It is not a verdict, because `uncalibrated-sextant` is not in the
+matrix in `.github/workflows/consistency-audit.yml`, so no daily
+run will ever check it and no issue will be filed. That is the gap
+issue #40 already tracks, "Nothing checks the audit scope against
+the organisation", and this is a concrete instance of it rather
+than a new finding: a repository that plans the way the fleet
+plans, and is invisible to the audit that would say so.
+
 **This is a gap in the survey, not a bug in 3a.** The survey's
 "backfill is partly done" table, above, counted how many master
 plans *carry the phase* against how many *record landing commits*,

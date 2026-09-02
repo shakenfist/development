@@ -31,15 +31,39 @@ the pair every layout agrees on: which plans it links, and what each
 one's status cell says.
 
 A phase is a row of a table whose first column is `Phase`, or a
-numbered heading -- `### Phase 5: Push audit`, or `### 5. Push audit`
-inside a section headed execution, implementation, phases or
-workstreams. Both shapes are read where a plan carries both, keyed by
-phase number rather than by position, because the numbers agree where
+numbered heading. A heading that names itself a phase -- `### Phase 5:
+Push audit` -- is read wherever it sits in the document; a bare
+`### 5. Push audit` is read only inside a section headed execution,
+implementation, phases or workstreams, because plans also number
+ordinary subsections and a list of numbered findings is not a list of
+phases. Both shapes are read where a plan carries both, keyed by phase
+number rather than by position, because the numbers agree where
 document order does not.
+
+Which phase is the audit is read from the phase's own name where it
+has one. A `Phase` column holding a bare number -- `8`, or `Phase 8`
+-- names nothing, and there the whole row is read instead, because
+that is where such a plan describes its phases. So a Notes column
+mentioning a push audit passes a numbers-only table and does not pass
+a table whose phases are named.
+
+There is a third shape the check accepts: a plan that ends with a
+bare `## Push audit` section rather than a numbered phase, which is
+how a plan numbered before the convention arrived carries the audit.
+It counts as the final phase when it sits after the last phase's own
+content -- that phase's section heading where the plan writes one, and
+otherwise the table row that introduces it. A plan whose audit section
+sits above the section describing its final phase is an outrun audit
+like any other and is reported as one.
 
 Repositories with no `docs/plans/index.md` are N/A. Whether every
 project should plan this way is a separate decision, made by the
-`plan-index` criterion rather than here.
+`plan-index` criterion rather than here. So is a repository whose
+index links no master plan file the check can find: there is nothing
+to judge, and the broken links are `docs-external-links`' finding
+rather than this one's. A plan the check could not find is *named* in
+the result either way, because a plan silently walked past looks
+exactly like a plan that passed.
 
 ## What this deliberately does not cover
 
@@ -109,12 +133,17 @@ finding says which:
 * **The audit has not run** -- its own status is not terminal. The
   phases are simply in the wrong order: move the audit phase after the
   ones it must audit, leaving one audit phase.
-* **The audit ran and the plan was then reopened** -- its status is
-  terminal, and phases were appended after it. Append a *new* audit
-  phase covering the reopened work. Moving the finished phase to the
-  end would claim it audited work that landed after it, which is a
-  false record of what was audited; the plan ends up with two audit
-  phases, and that is correct, because there were two bodies of work.
+* **The audit has run** -- its status is terminal, and there are
+  phases after it. The check cannot tell whether that work landed
+  after the audit ran or was always scheduled behind it, so the
+  finding states what it sees and leaves the fix conditional on what
+  you know. Where the work did land afterwards, append a *new* audit
+  phase covering it: moving the finished phase to the end would claim
+  it audited work that landed after it, which is a false record of
+  what was audited, and the plan ending with two audit phases is
+  correct, because there were two bodies of work. Where the work was
+  always behind the audit, the audit was scheduled in the wrong place
+  and the phases want reordering as above.
 
 ## Projects
 
