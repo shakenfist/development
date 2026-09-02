@@ -249,18 +249,11 @@ class RegistryTest(unittest.TestCase):
         self.assertEqual(result['details'], 'No pyproject.toml')
         self.assertEqual(result['id'], 'sample')
 
-    def test_a_legacy_callable_still_runs(self):
-        result = run_check(
-            lambda: {'id': 'old', 'status': PASS, 'details': 'fine'},
-            self.repo)
-        self.assertEqual(result['id'], 'old')
-
     def test_run_all_summarises(self):
         document = run_all(
             self.repo,
-            checks=[Sample(), Sample(outcome='bad')],
-            legacy=[('legacy', lambda: {
-                'id': 'legacy', 'status': NOT_APPLICABLE, 'details': 'n/a'})],
+            checks=[Sample(), Sample(outcome='bad'),
+                    Sample(skip_reason='n/a')],
         )
         self.assertEqual(document['repo'], 'testrepo')
         self.assertEqual(document['org'], 'shakenfist')
@@ -278,7 +271,7 @@ class RegistryTest(unittest.TestCase):
         repo = fixture_repo(self.tmp.name, name='private-ci',
                             only_checks=['sfui-vendor'])
         skipped = Sample()
-        document = run_all(repo, checks=[skipped], legacy=[])
+        document = run_all(repo, checks=[skipped])
 
         self.assertFalse(skipped.ran)
         self.assertEqual(document['checks'][0]['status'], NOT_APPLICABLE)
@@ -289,12 +282,12 @@ class RegistryTest(unittest.TestCase):
         """A check missing from the JSON renders as "unknown"."""
         repo = fixture_repo(self.tmp.name, name='private-ci',
                             only_checks=['nothing-matches'])
-        document = run_all(repo, checks=[Sample()], legacy=[])
+        document = run_all(repo, checks=[Sample()])
         self.assertEqual(document['summary']['total'], 1)
         self.assertEqual(document['summary']['not_applicable'], 1)
 
     def test_the_timestamp_is_present_and_utc(self):
-        document = run_all(self.repo, checks=[], legacy=[])
+        document = run_all(self.repo, checks=[])
         self.assertIn('+00:00', document['timestamp'])
 
 

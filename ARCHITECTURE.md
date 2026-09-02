@@ -80,8 +80,8 @@ beside it:
   applies.
 - `audit/github.py` -- the seam in front of `gh`, with a fake for the
   tests and a recorder for before-and-after comparisons.
-- `audit/registry.py` -- `CHECKS` and `ORDER`: what runs, and the
-  sequence the results are reported in.
+- `audit/registry.py` -- `CHECKS`: what runs, in the sequence the
+  results are reported in.
 - `audit/checks/` -- the criteria, eight modules grouped the way their
   specifications are.
 - `audit/text/` and `audit/files.py` -- the parsing and file reading

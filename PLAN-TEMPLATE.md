@@ -319,9 +319,10 @@ lighter the model that can succeed.
 
 **In this repository.** A worked brief: instead of "add a check
 that plans are indexed", write "add a `PlanIndex` class to
-`scripts/audit/checks/plans.py` with the id `plan-index`, register
-it in `scripts/audit/registry.py`, add the id to `AUDIT_METADATA`
-and `ISSUE_TITLES` in `scripts/audit_common.py`, write
+`scripts/audit/checks/plans.py` declaring the id `plan-index`, its
+`spec` and its `issue_title` as class attributes and implementing
+`run(repo)`, register the instance in `CHECKS` in
+`scripts/audit/registry.py` beside the other plan checks, write
 `docs/audits/plan-index.md` following the structure in
 `docs/audits/README.md` and linking to `compliance.md#plan-index`,
 add the file to `docs/audits/README.md`, and add tests to

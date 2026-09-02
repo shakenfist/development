@@ -387,6 +387,66 @@
     {
       "path": "docs/audits/README.md",
       "author": "mikal"
+    },
+    {
+      "path": "docs/consistency-audits.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/__init__.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/check.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/files.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/github.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/markers.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/repo.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/registry.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/__init__.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/markdown.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/python_source.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/shared_blocks.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/workflows.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/__init__.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/ci_workflows.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
