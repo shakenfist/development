@@ -1093,6 +1093,176 @@ class PlanAuditPhaseTest(unittest.TestCase):
         self.assertIn('not last', result['details'])
         self.assertIn('2. Deploy', result['details'])
 
+    def test_bare_phase_cells_named_by_their_sections_pass(self):
+        """A Phase column of "Phase 1", "Phase 2" and named sections.
+
+        The whole row is read where the Phase cell is a bare number,
+        on the reasoning that such a plan describes its phases in a
+        later column. A plan that describes them in section headings
+        instead was reported as having no audit phase at all -- a
+        false failure whose message denied the phase existed, filed
+        as an issue against a plan that had done everything asked of
+        it.
+        """
+        result = self._check(
+            {
+                'PLAN-one.md': (
+                    '# A plan\n'
+                    '\n'
+                    '## Execution\n'
+                    '\n'
+                    '| Phase | Status |\n'
+                    '|-------|--------|\n'
+                    '| Phase 1 | Complete |\n'
+                    '| Phase 2 | Not started |\n'
+                    '\n'
+                    '### Phase 1: Foundations\n'
+                    '\n'
+                    'Groundwork.\n'
+                    '\n'
+                    '### Phase 2: Push audit\n'
+                    '\n'
+                    'Run `PUSH-AUDIT.md` over the accumulated diff.\n'
+                ),
+            },
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_numbered_findings_below_the_audit_section_pass(self):
+        """A plan that ran its audit and wrote the findings up.
+
+        The findings are numbered from one, exactly as the phases
+        are. Anchoring every numbered heading dragged each phase's
+        anchor below the audit section and reported the plan for
+        putting its audit in the wrong place -- telling an author who
+        had run the audit this criterion asks for to move it below
+        its own findings list.
+        """
+        result = self._check(
+            {
+                'PLAN-one.md': (
+                    '# A plan\n'
+                    '\n'
+                    '## Execution\n'
+                    '\n'
+                    '| Phase | Status |\n'
+                    '|-------|--------|\n'
+                    '| 1. Build | Complete |\n'
+                    '| 2. Ship | Complete |\n'
+                    '\n'
+                    '## Push audit\n'
+                    '\n'
+                    'Run `PUSH-AUDIT.md` over the accumulated diff.\n'
+                    '\n'
+                    '## Findings\n'
+                    '\n'
+                    '### 1. A defect we noticed\n'
+                    '\n'
+                    'Fixed in review.\n'
+                    '\n'
+                    '### 2. Another defect\n'
+                    '\n'
+                    'Filed as an issue.\n'
+                ),
+            },
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+
+    def test_a_plan_linked_by_absolute_url_is_not_judged(self):
+        """An index row pointing at another repository's plan.
+
+        A superseded-by or mirrored plan is linked by URL, and nothing
+        under this repository's docs/plans/ can answer for it. Reading
+        the basename off the URL judged a same-named local file as
+        though the index had linked it -- PLAN-two.md here is not
+        indexed at all and does not carry the phase -- and where no
+        local file matched, named the plan in the verdict as one whose
+        file is missing, which reads as a broken link when the link is
+        fine.
+        """
+        result = self._check(
+            {
+                'PLAN-one.md': self._audit_plan(['Build']),
+                'PLAN-two.md': self._plan(['Build', 'Ship']),
+            },
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
+                '| 2026-01-02 | [Two](https://github.com/shakenfist/ryll/'
+                'blob/main/docs/plans/PLAN-two.md) | Elsewhere '
+                '| In progress |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assertNotIn('PLAN-two.md', result['details'])
+        self.assertNotIn('no file under docs/plans/', result['details'])
+
+    def test_a_near_miss_audit_heading_is_named(self):
+        # "Push audit phase" is not read as a phase, deliberately, so
+        # that "Push audit findings" is not either. Saying the plan
+        # has no push audit phase denied a heading its author can see
+        # on the page; the heading is named and the shapes that are
+        # read are spelled out instead.
+        result = self._check(
+            {
+                'PLAN-one.md': (
+                    '# A plan\n'
+                    '\n'
+                    '## Execution\n'
+                    '\n'
+                    '| Phase | Status |\n'
+                    '|-------|--------|\n'
+                    '| 1. Foundations | Complete |\n'
+                    '\n'
+                    '## Push audit phase\n'
+                    '\n'
+                    'Run `PUSH-AUDIT.md` over the accumulated diff.\n'
+                ),
+            },
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assertIn('"Push audit phase" heading', result['details'])
+        self.assertIn('headed exactly "Push audit"', result['details'])
+
+    def test_a_bare_number_phase_is_quoted_by_its_row(self):
+        # `phase 8 is "8"` tells a reader who has only the issue body
+        # what the phase number already told them. The row names
+        # something.
+        result = self._check(
+            {
+                'PLAN-one.md': (
+                    '# A plan\n'
+                    '\n'
+                    '## Execution\n'
+                    '\n'
+                    '| Phase | Work | Status |\n'
+                    '|-------|------|--------|\n'
+                    '| 1 | Foundations | Complete |\n'
+                    '| 8 | Ship the thing | Not started |\n'
+                ),
+            },
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assertIn('phase 8', result['details'])
+        self.assertIn('Ship the thing', result['details'])
+        self.assertNotIn('phase 8 is "8"', result['details'])
+
     def test_a_later_column_mentioning_an_audit_is_not_a_phase(self):
         # The whole row is read only where the Phase cell is a bare
         # number. A named phase answers for itself, so a Notes column

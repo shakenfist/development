@@ -145,6 +145,19 @@ PLAN_CELL_DECORATION_RE = re.compile(r'[`*_~]')
 PLAN_LINK_RE = re.compile(r'\[([^\]]*)\]\(([^)]+)\)')
 
 
+# A link target that leaves this repository: an absolute URL, or
+# anything else carrying a scheme. An index may point at a plan in
+# another repository -- a superseded-by, or a mirror -- and such a
+# target says nothing about the local tree. Resolved against
+# docs/plans/ it is either judged as a same-named local plan, or
+# reported as a plan whose file is missing, which reads as a broken
+# link when the link is fine. Matching a scheme rather than "://"
+# catches mailto: and friends, and cannot misread a relative link: a
+# relative reference may not carry a colon in its first path segment
+# (RFC 3986 section 4.2), for exactly this reason.
+PLAN_LINK_SCHEME_RE = re.compile(r'^(?:[a-z][a-z0-9+.-]*:|//)', re.IGNORECASE)
+
+
 PLAN_TABLE_SEPARATOR_RE = re.compile(r'^[\s|:-]+$')
 
 
@@ -212,6 +225,15 @@ PLAN_AUDIT_PHASE_RE = re.compile(r'push[-\s]?audit', re.IGNORECASE)
 PLAN_AUDIT_SECTION_RE = re.compile(r'^push[-\s]audit\s*$', re.IGNORECASE)
 
 
+# A heading that all but names the trailing audit section: "Push audit
+# phase", "Push audit (final)", "Push audit findings". None of these is
+# read as a phase, and deliberately so -- but a message saying the plan
+# has no push audit phase denies a heading its author can see on the
+# page. Collected so the message can name the heading it did not read
+# rather than pretending it is not there.
+PLAN_AUDIT_SECTION_NEAR_RE = re.compile(r'^push[-\s]audit\b', re.IGNORECASE)
+
+
 # Where a plan's phases live: a heading naming execution, an
 # implementation, phases, or workstreams. The numbered subsections
 # under such a heading are the plan's phases. The list is empirical
@@ -255,6 +277,53 @@ PLAN_PHASE_CELL_TAIL_RE = re.compile(r'^[\s.:)\u2013\u2014-]+')
 PLAN_PHASE_TABLE_COLUMN = 'phase'
 
 
+# The number a phase entry opens with, in either shape: a table cell
+# ("8", "8.", "8. Push audit", "Phase 8") or a section heading
+# ("Phase 8: Push audit"). Stripped off so that what remains is the
+# phase's name and nothing else.
+PLAN_PHASE_NUMBER_RE = re.compile(
+    r'^(?:phase\s*)?(\d+)\s*[.:)–—-]*\s*', re.IGNORECASE)
+
+
+PLAN_PHASE_WORD_RE = re.compile(r'[^0-9a-z]+')
+
+
+def plan_phase_name(text):
+    """The words a phase entry carries after its number.
+
+    Empty for a bare-number entry -- "8", "8.", "Phase 8" -- which
+    names nothing, and a list of lower-case words otherwise. Reduced
+    to words so that a table row and the section heading describing
+    the same phase can be compared without the punctuation between
+    them mattering: "1. Foundations" and "1. Foundations -- this
+    repository" agree on the word that identifies the phase.
+    """
+    stripped = text.strip()
+    match = PLAN_PHASE_NUMBER_RE.match(stripped)
+    rest = stripped[match.end():] if match else stripped
+    return [word for word in PLAN_PHASE_WORD_RE.split(rest.lower()) if word]
+
+
+def plan_phase_heading_extends(title, label):
+    """Whether a numbered heading is a table row's own section.
+
+    A plan carrying both shapes writes one entry per phase in each,
+    and the heading is where the phase's prose actually sits. But
+    plans number things that are not phases too -- a findings list
+    under a trailing audit section is numbered from one, exactly as
+    the phases are -- and treating such a heading as a phase's section
+    drags the phase's anchor below the audit, which reports a plan
+    that recorded its audit's findings for putting the audit in the
+    wrong place. So a heading is accepted only where its name begins
+    with the row's: "2. Deploy" for the row "2. Deploy", and
+    "1. Foundations -- this repository" for "1. Foundations", but not
+    "1. A defect we noticed" for "1. Build". A row that names nothing
+    has nothing to compare, and is decided by the caller.
+    """
+    name = plan_phase_name(label)
+    return bool(name) and plan_phase_name(title)[:len(name)] == name
+
+
 PLAN_HEADING_RE = re.compile(r'^(#{1,6})\s+(.*)$')
 
 
@@ -295,6 +364,10 @@ def plan_index_entries(path):
     alone would look for a file that is not there and silently drop
     the plan.
 
+    A target carrying a URL scheme is not recorded at all: it names a
+    plan in another repository, and nothing under this repository's
+    docs/plans/ can answer for it either way.
+
     Returns a list of (filename, link target, status or None) in the
     order the index introduces them.
     """
@@ -305,6 +378,8 @@ def plan_index_entries(path):
 
     def record(target, status):
         cleaned = target.split('#')[0].strip()
+        if PLAN_LINK_SCHEME_RE.match(cleaned):
+            return
         name = os.path.basename(cleaned)
         if not name.startswith('PLAN-') or not name.endswith('.md'):
             return
@@ -417,13 +492,18 @@ def plan_phases(content):
     is the phase's own Status cell where its table has one. The status
     is what separates a plan whose audit has not run yet from one
     carrying phases after a finished audit, which want opposite fixes.
-    Also returns the line indexes of any trailing push audit section
-    headings.
+    Returns, alongside the phases, the line indexes of any trailing
+    push audit section headings, and the titles of any headings that
+    all but name one -- "Push audit phase", "Push audit findings" --
+    so that a message can name what it did not read rather than say
+    the plan has no such heading at all.
     """
     lines = content.splitlines()
     phases = {}
     sections = []
+    near = []
     anchors = {}
+    bare = set()
     stack = []
     in_phase_table = False
     status_column = None
@@ -446,16 +526,22 @@ def plan_phases(content):
             explicit = PLAN_PHASE_EXPLICIT_HEADING_RE.match(title)
             if numbered:
                 # Anchored on every numbered heading, not only the
-                # ones read as phases. The anchor answers "where does
-                # phase N's own prose sit", and a plan that carries
-                # both shapes writes its phase sections wherever the
-                # document reads best -- under the audit's own heading
-                # in the fixture that motivated this -- so a stricter
-                # rule would put the anchor back on the table row and
-                # lose the comparison. First occurrence wins, so a
-                # later numbered heading reusing the number cannot
-                # drag a phase's anchor down the document.
-                anchors.setdefault(int(numbered.group(1)), offset)
+                # ones read as phases here. The anchor answers "where
+                # does phase N's own prose sit", and a plan that
+                # carries both shapes writes its phase sections
+                # wherever the document reads best -- under the
+                # audit's own heading in the fixture that motivated
+                # this -- so a rule that only anchored headings this
+                # loop reads as phases would put the anchor back on
+                # the table row and lose the comparison. Which of
+                # these headings actually belongs to a phase is
+                # decided below, once the table rows are known. First
+                # occurrence wins, so a later numbered heading reusing
+                # the number cannot drag a phase's anchor down the
+                # document.
+                anchors.setdefault(
+                    int(numbered.group(1)),
+                    (offset, title, bool(inside or explicit)))
             if numbered and (inside or explicit):
                 # A phase written as a section carries no status
                 # cell, so there is none to read.
@@ -464,6 +550,8 @@ def plan_phases(content):
                     (offset, title, numbered.group(2), None))
             elif PLAN_AUDIT_SECTION_RE.match(title):
                 sections.append(offset)
+            elif PLAN_AUDIT_SECTION_NEAR_RE.match(title):
+                near.append(title)
 
             stack.append((level, title))
             continue
@@ -501,24 +589,53 @@ def plan_phases(content):
                     status = plan_cell_text(cells[status_column]) or None
                 named = PLAN_PHASE_CELL_TAIL_RE.sub(
                     '', label[numbered.end():]).strip()
-                phases.setdefault(
-                    int(numbered.group(1)),
-                    (offset,
-                     label if named else plan_cell_text(stripped),
-                     label,
-                     status))
+                number = int(numbered.group(1))
+                if number not in phases:
+                    phases[number] = (
+                        offset,
+                        label if named else plan_cell_text(stripped),
+                        label,
+                        status)
+                    if not named:
+                        bare.add(number)
 
     # A phase's section heading, where it has one, is later in the
     # document than the table row that lists it, and it is the section
     # that says what the phase does. Anchoring on it is what stops a
     # push audit section written above the last phase's own section
     # from counting as the plan's final phase.
+    #
+    # A heading counts as a phase's own only where this loop already
+    # read it as a phase in its own right, or where its name begins
+    # with the row's. Anchoring on every numbered heading instead
+    # hands a plan that ran its audit and wrote the findings up as a
+    # numbered list -- which is what a plan looks like once the phase
+    # this criterion asks for has done its job -- an anchor below its
+    # own audit section, and reports it for putting the audit in the
+    # wrong place.
     for number, (offset, text, label, status) in list(phases.items()):
         anchor = anchors.get(number)
-        if anchor is not None and anchor > offset:
-            phases[number] = (anchor, text, label, status)
+        if anchor is None:
+            continue
+        anchor_offset, title, heading_is_phase = anchor
+        if not (heading_is_phase
+                or plan_phase_heading_extends(title, label)):
+            continue
+        if number in bare:
+            # The row named nothing, so this heading is where the
+            # phase says what it is, and dropping the title would
+            # leave the plan looking as though the phase were
+            # nameless: a Phase column of "Phase 1", "Phase 2" whose
+            # names live in "### Phase 2: Push audit" sections was
+            # reported as having no audit phase at all. The row is
+            # kept alongside the title rather than replaced, because
+            # a bare row is read whole precisely so that a later
+            # column can answer for the phase too.
+            text = f'{text} {title}'
+            label = title
+        phases[number] = (max(offset, anchor_offset), text, label, status)
 
-    return phases, sections
+    return phases, sections, near
 
 
 def plan_status_is_terminal(status):
@@ -546,7 +663,7 @@ def plan_audit_phase_state(content):
     second audit phase covering the later work, so the phase's own
     status is what decides which sentence the author is handed.
     """
-    phases, sections = plan_phases(content)
+    phases, sections, near = plan_phases(content)
     if not phases:
         return PLAN_AUDIT_UNPHASED, None
 
@@ -574,6 +691,12 @@ def plan_audit_phase_state(content):
         )
 
     summary = label
+    if not plan_phase_name(label):
+        # A bare-number label quotes nothing back: `phase 8 is "8"`
+        # tells a reader who has only the issue body what the phase
+        # number already told them. The row the phase was read from
+        # names something.
+        summary = text
     if len(summary) > 60:
         summary = summary[:57] + '...'
 
@@ -610,6 +733,17 @@ def plan_audit_phase_state(content):
         return PLAN_AUDIT_PROBLEM, (
             f'push audit phase is not last, so phase {last} '
             f'("{summary}") is unaudited; move the audit phase after it'
+        )
+    if near:
+        # A heading the author can see on the page, that this check
+        # deliberately does not read as a phase. Saying the plan has
+        # no push audit phase sends them looking for something they
+        # believe they already wrote, so the heading is named and the
+        # two shapes that are read are spelled out instead.
+        return PLAN_AUDIT_PROBLEM, (
+            f'no push audit phase; the plan has a "{near[-1]}" heading, '
+            f'but that is not read as one -- a push audit phase is a '
+            f'numbered phase, or a section headed exactly "Push audit"'
         )
     return PLAN_AUDIT_PROBLEM, (
         f'no push audit phase; phase {last} is "{summary}"'

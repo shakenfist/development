@@ -30,22 +30,45 @@ unimplementable in half of it. What the check reads from the index is
 the pair every layout agrees on: which plans it links, and what each
 one's status cell says.
 
+Links that leave the repository are not read at all. An index may
+point at a plan elsewhere -- a superseded-by, or a mirror -- and
+nothing under this repository's `docs/plans/` can answer for it.
+Resolving such a link locally judged a same-named local file as though
+the index had linked it, and where no local file matched, named the
+plan in the verdict as one whose file is missing, which reads as a
+broken link when the link is fine.
+
 A phase is a row of a table whose first column is `Phase`, or a
-numbered heading. A heading that names itself a phase -- `### Phase 5:
-Push audit` -- is read wherever it sits in the document; a bare
-`### 5. Push audit` is read only inside a section headed execution,
-implementation, phases or workstreams, because plans also number
-ordinary subsections and a list of numbered findings is not a list of
-phases. Both shapes are read where a plan carries both, keyed by phase
+numbered heading. A heading that names itself a phase, as in
+`### Phase 5: Push audit`, is read wherever it sits in the document;
+a bare `### 5. Push audit` is read only inside a section headed
+execution, implementation, phases or workstreams, because plans also
+number ordinary subsections and a list of numbered findings is not a
+list of phases. Both shapes are read where a plan carries both, keyed by phase
 number rather than by position, because the numbers agree where
 document order does not.
+
+Where a plan carries both, a numbered heading is read as a phase's own
+section only when its name begins with the table row's. The heading
+`### 2. Deploy` belongs to the row `2. Deploy`; the heading
+`### 1. Foundations -- this repository` belongs to the row
+`1. Foundations`; and the heading `### 1. A defect we noticed` belongs
+to neither. What that protects is a plan that has run its audit and
+written the findings up as a numbered list -- the shape a plan takes
+once the phase this criterion asks for has done its job. Its findings
+are numbered from one exactly as its phases are, and reading them as
+phase sections reported the plan for placing its audit above its own
+findings.
 
 Which phase is the audit is read from the phase's own name where it
 has one. A `Phase` column holding a bare number -- `8`, or `Phase 8`
 -- names nothing, and there the whole row is read instead, because
 that is where such a plan describes its phases. So a Notes column
 mentioning a push audit passes a numbers-only table and does not pass
-a table whose phases are named.
+a table whose phases are named. Where such a row has a numbered
+section heading of its own, that heading's title is read alongside the
+row, because a plan whose `Phase` column is bare and whose phase names
+live in its section headings names them nowhere else.
 
 There is a third shape the check accepts: a plan that ends with a
 bare `## Push audit` section rather than a numbered phase, which is
@@ -55,6 +78,13 @@ content -- that phase's section heading where the plan writes one, and
 otherwise the table row that introduces it. A plan whose audit section
 sits above the section describing its final phase is an outrun audit
 like any other and is reported as one.
+
+That heading must read exactly `Push audit`. A section headed
+`Push audit findings` is the record of an audit that ran, rather than
+a phase, and is not counted as one. A heading that merely starts with
+those words is named in the finding instead of passed over, because a
+message saying the plan has no push audit phase would deny a heading
+its author can see on the page.
 
 Repositories with no `docs/plans/index.md` are N/A. Whether every
 project should plan this way is a separate decision, made by the
