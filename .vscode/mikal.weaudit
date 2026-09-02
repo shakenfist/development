@@ -419,6 +419,34 @@
     {
       "path": "scripts/audit/checks/ci_workflows.py",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/docs_content.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/github_config.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/llm_docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/packaging.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/plans.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/runners.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
