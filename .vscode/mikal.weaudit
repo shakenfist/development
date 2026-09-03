@@ -503,6 +503,54 @@
     {
       "path": "docs/audits/unused-declared-dependency.md",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_docs_content.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_github_config.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_hooks.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_llm_docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_markdown.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_metadata.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_packaging.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_plans.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_python_source.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_registry.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_runners.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
