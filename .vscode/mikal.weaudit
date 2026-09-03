@@ -349,10 +349,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/renovate.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/review-scope-completeness.md",
       "author": "mikal"
     },
@@ -385,10 +381,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/consistency-audits.md",
       "author": "mikal"
     },
@@ -413,23 +405,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/repo.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/registry.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/text/__init__.py",
       "author": "mikal"
     },
     {
       "path": "scripts/audit/text/markdown.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/text/python_source.py",
       "author": "mikal"
     },
     {
