@@ -735,6 +735,14 @@
     {
       "path": "templates",
       "author": "mikal"
+    },
+    {
+      "path": "tools/audit-snapshot.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

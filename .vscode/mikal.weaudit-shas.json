@@ -645,6 +645,10 @@
       "sha": "c3d300505da248061f6ab29ef8a754fd665cb2c8",
       "date": "2026-09-04"
     },
+    "tools/audit-snapshot.sh": {
+      "sha": "9d7efbf68a9f510b036f0db47cff860b635bb41f",
+      "date": "2026-09-04"
+    },
     "tools/ci-prune-reviews.sh": {
       "sha": "3e10680265c6b885619e8e08bea30a4fb05cb10b",
       "date": "2026-08-24"
