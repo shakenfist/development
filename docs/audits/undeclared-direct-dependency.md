@@ -79,7 +79,8 @@ Import names are derived from distribution names the same way as in
 [unused-declared-dependency.md](unused-declared-dependency.md), and
 the same masking and directory rules apply -- comments and string
 literals do not count as imports, and `build/`, `dist/`, `.tox/` and
-`.venv/` are not read.
+`.venv/` are not read, along with the rest of the list that page gives
+and explains.
 
 There is deliberately no escape hatch. Unlike a dependency that is
 installed but not imported, which has several legitimate explanations,

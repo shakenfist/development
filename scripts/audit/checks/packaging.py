@@ -176,9 +176,13 @@ def canonical_dependency_name(name):
 
 
 #: Distributions whose import name cannot be derived from the name they
-#: are distributed under. Everything else in the fleet is derivable by
-#: candidate_module_names(); this table is for the cases where the two
-#: names share no letters worth matching on. Keys are canonical.
+#: are distributed under. candidate_module_names() derives everything
+#: else the fleet declares; this table is for the cases where the two
+#: names share no letters worth matching on. Keys are canonical, and
+#: values are lowercase because imported_top_level_modules() lowercases
+#: what it finds. Entries for distributions no repository declares yet
+#: are cheap insurance: without one the first repository to add Pillow
+#: gets an issue asking it to justify a dependency nobody doubted.
 IMPORT_NAME_ALIASES = {
     'attrs': {'attr'},
     'beautifulsoup4': {'bs4'},
@@ -188,8 +192,13 @@ IMPORT_NAME_ALIASES = {
     'grpcio-status': {'grpc_status'},
     'grpcio-tools': {'grpc_tools'},
     'mysqlclient': {'mysqldb'},
+    'pillow': {'pil'},
     'protobuf': {'google'},
     'py-cpuinfo': {'cpuinfo'},
+    'pycryptodome': {'crypto'},
+    'pycryptodomex': {'cryptodome'},
+    'setuptools': {'pkg_resources'},
+    'websocket-client': {'websocket'},
 }
 
 
@@ -274,7 +283,7 @@ def read_dependency_array(repo_path):
         with open(pyproject, 'rb') as f:
             parsed = tomllib.load(f)
     except (OSError, tomllib.TOMLDecodeError):
-        return {}, set(), {}
+        return {}, {}, {}
 
     declared = {
         canonical_dependency_name(
@@ -283,7 +292,7 @@ def read_dependency_array(repo_path):
         if DEP_SPEC_RE.match(dependency)
     }
     if not declared:
-        return {}, set(), {}
+        return {}, {}, {}
 
     with open(pyproject, 'r', errors='replace') as f:
         lines = f.read().splitlines()
@@ -577,6 +586,65 @@ def _match_pattern(entry, spellings):
     return any(canonical_dependency_name(s) == wanted for s in spellings)
 
 
+#: The packageRules fields Renovate rewrites into the two package
+#: matchers it still has, and the entry each one becomes. Renovate
+#: migrates a configuration before it validates or applies it -- see
+#: lib/config/migrations/custom/package-rules-migration.ts -- so
+#: excludePackageNames is not a spelling this module gets to choose
+#: whether to read: by the time Renovate matches anything it is a "!"
+#: entry in matchPackageNames. Migrating here too leaves one
+#: implementation of the matching semantics rather than one per
+#: spelling, and stops a rule written the old way being scored as
+#: covering a family it excludes.
+#:
+#: The prefix forms become a "*" glob rather than Renovate's
+#: "{/,}**". The brace alternation is there to stop a prefix
+#: swallowing a path separator, and a distribution name has none.
+RULE_MATCHER_MIGRATIONS = {
+    'packageNames': ('matchPackageNames', '{}'),
+    'packagePatterns': ('matchPackageNames', '/{}/'),
+    'matchPackagePatterns': ('matchPackageNames', '/{}/'),
+    'matchPackagePrefixes': ('matchPackageNames', '{}*'),
+    'excludePackageNames': ('matchPackageNames', '!{}'),
+    'excludePackagePatterns': ('matchPackageNames', '!/{}/'),
+    'excludePackagePrefixes': ('matchPackageNames', '!{}*'),
+    'matchDepPatterns': ('matchDepNames', '/{}/'),
+    'matchDepPrefixes': ('matchDepNames', '{}*'),
+    'excludeDepNames': ('matchDepNames', '!{}'),
+    'excludeDepPatterns': ('matchDepNames', '!/{}/'),
+    'excludeDepPrefixes': ('matchDepNames', '!{}*'),
+}
+
+#: Renovate's migration leaves a bare "*" as the glob rather than
+#: wrapping it into the "/*/" regex the other entries become, and only
+#: in the package spelling.
+STAR_PATTERN_FIELDS = ('packagePatterns', 'matchPackagePatterns')
+
+
+def migrated_matchers(rule):
+    """A packageRules entry's package matchers, as Renovate sees them.
+
+    Returns the matchPackageNames and matchDepNames entry lists with
+    every deprecated spelling in RULE_MATCHER_MIGRATIONS folded in.
+    Non-string entries are dropped rather than raising: renovate.json
+    is somebody's hand-written file and this criterion should report
+    what it can read, not lose the repository's run.
+    """
+    entries = {'matchPackageNames': [], 'matchDepNames': []}
+    for field in entries:
+        entries[field].extend(
+            e for e in rule.get(field) or [] if isinstance(e, str))
+    for field, (target, template) in RULE_MATCHER_MIGRATIONS.items():
+        for entry in rule.get(field) or []:
+            if not isinstance(entry, str):
+                continue
+            if entry == '*' and field in STAR_PATTERN_FIELDS:
+                entries[target].append('*')
+            else:
+                entries[target].append(template.format(entry))
+    return entries
+
+
 def rule_covers(rule, members):
     """The canonical names a single packageRules entry selects.
 
@@ -584,31 +652,46 @@ def rule_covers(rule, members):
     manifest uses for it. Only the package-name matchers are read: a
     rule narrowed by matchUpdateTypes is not a group for this purpose
     and never reaches here (see grouping_rules()).
+
+    Exclusions are gathered and subtracted once at the end rather than
+    applied where they sit in the list. Renovate drops a package
+    matched by any "!" entry wherever that entry appears, so
+    ["!oslo.config", "/^oslo/"] and ["/^oslo/", "!oslo.config"] are one
+    configuration to it. Reading them in order made the first cover the
+    whole family and pass -- a false pass on exactly the configuration
+    this criterion exists to catch.
+
+    A list holding only exclusions constrains nothing positively, and
+    Renovate reads it as every package bar the ones it names. The two
+    matchers are separate conditions a package must satisfy together,
+    so what a rule setting both covers is the intersection.
+
+    A rule with no package matcher at all covers nothing. Either it is
+    narrowed only by a matcher this module does not model --
+    matchManagers, matchDatasources, matchFileNames -- or it carries no
+    selector whatsoever, which Renovate rejects as a configuration
+    error rather than applying to every package. Neither leaves a
+    family this criterion can call grouped, and both fail visibly.
     """
-    covered = set()
+    entries = migrated_matchers(rule)
+    covered = None
     for field in ('matchPackageNames', 'matchDepNames'):
-        for entry in rule.get(field) or []:
-            if not isinstance(entry, str):
-                continue
+        if not entries[field]:
+            continue
+        included, excluded, positive = set(), set(), False
+        for entry in entries[field]:
             negated = entry.startswith('!')
             body = entry[1:] if negated else entry
             matched = {name for name, spellings in members.items()
                        if _match_pattern(body, spellings)}
             if negated:
-                covered -= matched
+                excluded |= matched
             else:
-                covered |= matched
-    for field in ('matchPackagePatterns', 'matchDepPatterns'):
-        for entry in rule.get(field) or []:
-            if not isinstance(entry, str):
-                continue
-            try:
-                pattern = re.compile(entry)
-            except re.error:
-                continue
-            covered |= {name for name, spellings in members.items()
-                        if any(pattern.search(s) for s in spellings)}
-    return covered
+                positive = True
+                included |= matched
+        selected = (included if positive else set(members)) - excluded
+        covered = selected if covered is None else covered & selected
+    return covered if covered is not None else set()
 
 
 def grouping_rules(config):
@@ -649,7 +732,7 @@ def declared_distributions(repo_path):
         with open(pyproject, 'rb') as f:
             parsed = tomllib.load(f)
     except (OSError, tomllib.TOMLDecodeError):
-        return set()
+        return {}
 
     project = parsed.get('project', {})
     requirements = list(project.get('dependencies') or [])
@@ -711,7 +794,7 @@ class UnusedDeclaredDependency(Check):
                 'No Python source outside build and environment '
                 'directories, so nothing here imports anything')
 
-        imported = imported_top_level_modules(repo.path)
+        imported = imported_top_level_modules(sources)
 
         unused, annotated = [], 0
         for name in sorted(direct):
@@ -772,7 +855,7 @@ class UndeclaredDirectDependency(Check):
         that stops being true -- so an import of one of those names is
         a break with a date on it rather than a style problem.
         """
-        _direct, generated, _markers = read_dependency_array(repo.path)
+        direct, generated, _markers = read_dependency_array(repo.path)
         if not generated:
             return self.skip(
                 'No generated indirect dependency block, so there are no '
@@ -784,7 +867,7 @@ class UndeclaredDirectDependency(Check):
                 'No Python source outside build and environment '
                 'directories, so nothing here imports anything')
 
-        imported = imported_top_level_modules(repo.path)
+        imported = imported_top_level_modules(sources)
 
         # A module a directly declared distribution could equally have
         # provided is not evidence about the transitive one. The
@@ -793,7 +876,7 @@ class UndeclaredDirectDependency(Check):
         # "import google.protobuf" would otherwise report whichever of
         # them happened to land in the generated block.
         declared_modules = set()
-        for name in _direct:
+        for name in direct:
             declared_modules |= candidate_module_names(name)
 
         undeclared = []
