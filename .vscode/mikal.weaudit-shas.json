@@ -265,6 +265,18 @@
       "sha": "a92bfdaed278fd448adabc76c8a5904174815ea8",
       "date": "2026-08-30"
     },
+    "scripts/audit-check.py": {
+      "sha": "97673b9e35622a6049cab81725d8554754e715b5",
+      "date": "2026-09-04"
+    },
+    "scripts/audit-manage-issues.py": {
+      "sha": "f2bcc724f39a1a26304c3511ba59c2c9eca50dfe",
+      "date": "2026-09-04"
+    },
+    "scripts/audit-update-docs.py": {
+      "sha": "61b02d331898fc658e50e818f19a65ec02e4d6eb",
+      "date": "2026-09-04"
+    },
     "scripts/audit/__init__.py": {
       "sha": "86ffeb2a5deffaa05b04df768a1e43d2448435a0",
       "date": "2026-09-02"
@@ -348,6 +360,50 @@
     "scripts/audit/text/workflows.py": {
       "sha": "7a932ed4829c2f8ef9cd4ccc08166458b55f369e",
       "date": "2026-09-02"
+    },
+    "scripts/audit_common.py": {
+      "sha": "768efab3788f1b537c588263f560fd9caae22765",
+      "date": "2026-09-04"
+    },
+    "scripts/audit_snapshot.py": {
+      "sha": "87aed976ae379f91d85cd31647505a69a350bbdf",
+      "date": "2026-09-04"
+    },
+    "scripts/check-audit-smoke.py": {
+      "sha": "d63445626e8f72f9eca58d221ab2de19de7222ec",
+      "date": "2026-09-04"
+    },
+    "scripts/commit-audit-docs.sh": {
+      "sha": "cc6bcdab6674b2c7c135fa9e59bebdb88b8576f6",
+      "date": "2026-09-04"
+    },
+    "scripts/review-tracking.py": {
+      "sha": "05774d1adffadb12e27fef0954cca30da6b6d373",
+      "date": "2026-09-04"
+    },
+    "scripts/test_audit_seams.py": {
+      "sha": "5d77497f72b09ef228fc3ac622565f29f12d0f01",
+      "date": "2026-09-04"
+    },
+    "scripts/test_audit_snapshot.py": {
+      "sha": "f7a0f292cdda3544b0fe38d6a5fa142984496f1f",
+      "date": "2026-09-04"
+    },
+    "scripts/test_audit_update_docs.py": {
+      "sha": "1b4d00f84c5d5ce3ea752e18d9b971f5a3842a1b",
+      "date": "2026-09-04"
+    },
+    "scripts/test_check_audit_smoke.py": {
+      "sha": "5b9a022490b2374655fd20c171d3c08bd8f82f4c",
+      "date": "2026-09-04"
+    },
+    "scripts/test_issue_fix_extraction.py": {
+      "sha": "a65f57fa36a5b208cf744d16dddc0963c7e864a5",
+      "date": "2026-09-04"
+    },
+    "scripts/test_review_tracking.py": {
+      "sha": "a489050462ed7a36957bcda309dff1d5fafc02b6",
+      "date": "2026-09-04"
     },
     "scripts/tests/__init__.py": {
       "sha": "531d26fbe639291831bc7dff3a4959a702b09fe8",

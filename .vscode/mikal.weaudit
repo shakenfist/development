@@ -551,6 +551,62 @@
     {
       "path": "scripts/tests/test_runners.py",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/audit_common.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit_snapshot.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit-check.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit-manage-issues.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit-update-docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/check-audit-smoke.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/commit-audit-docs.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/review-tracking.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/test_audit_seams.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/test_audit_snapshot.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/test_audit_update_docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/test_check_audit_smoke.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/test_issue_fix_extraction.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/test_review_tracking.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
