@@ -265,8 +265,18 @@ PLAN_PHASE_SECTION_RE = re.compile(
 # could read at all. Only the explicit form is allowed to omit it --
 # see where this is matched -- since a heading that is a bare number
 # is exactly the numbered subsection the paragraph above excludes.
+#
+# The punctuation between the number and the title is the same set
+# PLAN_PHASE_NUMBER_RE strips, dashes included. Accepting only "." ":"
+# and ")" here meant "### 2 -- Deploy" matched nothing at all, so a
+# plan writing its headings that way had no phase sections for a
+# trailing audit to be judged against: the audit was compared against
+# the table row instead, and an outrun audit passed. A separator that
+# is only presentation must not decide whether the check can see the
+# phase.
 PLAN_PHASE_HEADING_RE = re.compile(
-    r'^(?:phase\s*)?(\d+)\s*(?:[.:)]\s+(\S.*))?$', re.IGNORECASE)
+    r'^(?:phase\s*)?(\d+)\s*(?:[.:)\u2013\u2014-]+\s+(\S.*))?$',
+    re.IGNORECASE)
 
 
 PLAN_PHASE_EXPLICIT_HEADING_RE = re.compile(r'^phase\s*\d', re.IGNORECASE)
@@ -548,7 +558,9 @@ def plan_phases(content):
     push audit section headings, and the titles of any headings that
     all but name one -- "Push audit phase", "Push audit findings" --
     so that a message can name what it did not read rather than say
-    the plan has no such heading at all.
+    the plan has no such heading at all. Last comes the document with
+    its fenced lines blanked, so that a caller reading the plan's text
+    for anything else reads the same document this did.
     """
     # Fenced code is blanked once, up front. This function reads both
     # the document's headings and its tables, and the two readings
@@ -710,7 +722,7 @@ def plan_phases(content):
             label = title
         phases[number] = (max(offset, anchor_offset), text, label, status)
 
-    return phases, sections, near
+    return phases, sections, near, lines
 
 
 def plan_status_is_terminal(status):
@@ -745,13 +757,19 @@ def plan_audit_phase_state(content):
     reorder there is the guess that costs something: it is exactly the
     false record of what was audited the other branch exists to avoid.
     """
-    phases, sections, near = plan_phases(content)
+    phases, sections, near, blanked = plan_phases(content)
     if not phases:
         return PLAN_AUDIT_UNPHASED, None
 
     last = max(phases)
     line, text, label, _ = phases[last]
-    named = PLAN_AUDIT_RUNBOOK in content
+
+    # Read outside fences, like every other read here. Against the raw
+    # file, a plan whose only mention of the runbook sat in a fenced
+    # example -- which is exactly what a plan *about* the push audit
+    # convention writes -- satisfied this clause without any phase
+    # actually running the runbook.
+    named = PLAN_AUDIT_RUNBOOK in '\n'.join(blanked)
 
     # The trailing-section shape: a push audit written as a section of
     # its own rather than as a numbered phase, which is how a plan

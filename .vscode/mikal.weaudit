@@ -377,10 +377,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/plan-index.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/consistency-audits.md",
       "author": "mikal"
     },
@@ -406,10 +402,6 @@
     },
     {
       "path": "scripts/audit/text/__init__.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/text/markdown.py",
       "author": "mikal"
     },
     {

@@ -145,10 +145,6 @@
       "sha": "6141c51ac838a8550f1b301e26bfb4c6fb092978",
       "date": "2026-08-29"
     },
-    "docs/audits/plan-index.md": {
-      "sha": "8d3539a6e9ffc73c7a8149f2ea36338b3291f2ba",
-      "date": "2026-09-02"
-    },
     "docs/audits/plan-phase-references.md": {
       "sha": "4439f2afbeec94f684684393993202a860f411c8",
       "date": "2026-08-29"
@@ -271,10 +267,6 @@
     },
     "scripts/audit/text/__init__.py": {
       "sha": "dc2515cc9e2cdd5083c39a803bfdbcafb37dbe0d",
-      "date": "2026-09-02"
-    },
-    "scripts/audit/text/markdown.py": {
-      "sha": "495af848884bb1d697ed5e7d90cee1780c687a92",
       "date": "2026-09-02"
     },
     "scripts/audit/text/shared_blocks.py": {

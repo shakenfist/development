@@ -84,6 +84,33 @@ class MarkdownHeadingTest(unittest.TestCase):
         self.assertIsNone(markdown_heading('###nope'))
         self.assertIsNone(markdown_heading('###'))
 
+    def test_strips_a_closing_hash_sequence(self):
+        """Closing hashes are syntax, so every reader drops them.
+
+        They used to be left on, with the two readers in this module
+        disagreeing: iter_markdown_headings stripped them and
+        markdown_heading did not, so a plan headed "## Push audit ##"
+        was reported for lacking a heading it plainly has.
+        """
+        self.assertEqual(markdown_heading('## Push audit ##'),
+                         (2, 'Push audit'))
+        self.assertEqual(markdown_heading('## Push audit   ###  '),
+                         (2, 'Push audit'))
+        self.assertEqual(
+            [text for _, text, _ in iter_markdown_headings('## Real ##\n')],
+            ['Real'],
+        )
+
+    def test_hashes_that_are_not_a_closing_sequence_are_kept(self):
+        """CommonMark requires whitespace before a closing sequence.
+
+        Without that rule a heading naming a channel or an anchor
+        would be silently truncated, which is the mirror image of the
+        bug the stripping fixes.
+        """
+        self.assertEqual(markdown_heading('## C#'), (2, 'C#'))
+        self.assertEqual(markdown_heading('## See #4 ##'), (2, 'See #4'))
+
     def test_a_fenced_heading_is_not_a_heading(self):
         content = '## Real\n\n```\n## Sample\n```\n'
         self.assertEqual(

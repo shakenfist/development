@@ -68,17 +68,29 @@ def iter_lines_outside_fences(lines):
         yield offset, line
 
 
+# An ATX heading's optional closing sequence of hashes, which
+# CommonMark requires to be preceded by whitespace (or to be the whole
+# text) and allows trailing whitespace after. It is syntax rather than
+# content, so it is stripped here rather than left to callers: two
+# readers of the same document disagreeing about whether a heading is
+# named "Push audit" or "Push audit ##" reported a plan for not having
+# a heading it plainly has, and filed that verbatim as an issue on
+# another repository.
+MD_HEADING_CLOSING_RE = re.compile(r'(?:^|\s+)#+[ \t]*$')
+
+
 def markdown_heading(line):
     """Return (level, text) for an ATX heading line, or None.
 
-    The text is what follows the hashes, untouched otherwise: callers
-    differ on whether closing hashes and markdown decoration are
-    noise, so trimming them is left to them.
+    The text is what follows the hashes, with any closing sequence of
+    hashes removed and markdown decoration left alone: closing hashes
+    are never part of a heading's name, whereas callers do differ on
+    whether emphasis and code spans are noise.
     """
     match = MD_HEADING_RE.match(line.lstrip())
     if not match:
         return None
-    return len(match.group(1)), match.group(2)
+    return len(match.group(1)), MD_HEADING_CLOSING_RE.sub('', match.group(2))
 
 
 def markdown_table_cells(line):
@@ -127,7 +139,8 @@ def iter_markdown_table_rows(lines, columns=None):
             continue
 
         cells = markdown_table_cells(stripped)
-        following = blanked[offset + 1].strip() if offset + 1 < len(blanked) else ''
+        nxt = offset + 1
+        following = blanked[nxt].strip() if nxt < len(blanked) else ''
         if (following.startswith('|')
                 and MD_TABLE_SEPARATOR_RE.match(following)):
             header = normalise(cells)
@@ -148,7 +161,7 @@ def iter_markdown_headings(content, levels=(2, 3)):
     for _offset, line in iter_lines_outside_fences(content.splitlines()):
         heading = markdown_heading(line)
         if heading and heading[0] in levels:
-            text = heading[1].strip().rstrip('#').strip()
+            text = heading[1].strip()
             if text:
                 yield heading[0], text, line
 
