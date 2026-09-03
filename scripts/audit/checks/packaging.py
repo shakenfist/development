@@ -176,9 +176,13 @@ def canonical_dependency_name(name):
 
 
 #: Distributions whose import name cannot be derived from the name they
-#: are distributed under. Everything else in the fleet is derivable by
-#: candidate_module_names(); this table is for the cases where the two
-#: names share no letters worth matching on. Keys are canonical.
+#: are distributed under. candidate_module_names() derives everything
+#: else the fleet declares; this table is for the cases where the two
+#: names share no letters worth matching on. Keys are canonical, and
+#: values are lowercase because imported_top_level_modules() lowercases
+#: what it finds. Entries for distributions no repository declares yet
+#: are cheap insurance: without one the first repository to add Pillow
+#: gets an issue asking it to justify a dependency nobody doubted.
 IMPORT_NAME_ALIASES = {
     'attrs': {'attr'},
     'beautifulsoup4': {'bs4'},
@@ -188,8 +192,13 @@ IMPORT_NAME_ALIASES = {
     'grpcio-status': {'grpc_status'},
     'grpcio-tools': {'grpc_tools'},
     'mysqlclient': {'mysqldb'},
+    'pillow': {'pil'},
     'protobuf': {'google'},
     'py-cpuinfo': {'cpuinfo'},
+    'pycryptodome': {'crypto'},
+    'pycryptodomex': {'cryptodome'},
+    'setuptools': {'pkg_resources'},
+    'websocket-client': {'websocket'},
 }
 
 
@@ -274,7 +283,7 @@ def read_dependency_array(repo_path):
         with open(pyproject, 'rb') as f:
             parsed = tomllib.load(f)
     except (OSError, tomllib.TOMLDecodeError):
-        return {}, set(), {}
+        return {}, {}, {}
 
     declared = {
         canonical_dependency_name(
@@ -283,7 +292,7 @@ def read_dependency_array(repo_path):
         if DEP_SPEC_RE.match(dependency)
     }
     if not declared:
-        return {}, set(), {}
+        return {}, {}, {}
 
     with open(pyproject, 'r', errors='replace') as f:
         lines = f.read().splitlines()
@@ -584,8 +593,23 @@ def rule_covers(rule, members):
     manifest uses for it. Only the package-name matchers are read: a
     rule narrowed by matchUpdateTypes is not a group for this purpose
     and never reaches here (see grouping_rules()).
+
+    Exclusions are gathered and subtracted once at the end rather than
+    applied where they sit in the list. Renovate drops a package
+    matched by any "!" entry wherever that entry appears, so
+    ["!oslo.config", "/^oslo/"] and ["/^oslo/", "!oslo.config"] are one
+    configuration to it. Reading them in order made the first cover the
+    whole family and pass -- a false pass on exactly the configuration
+    this criterion exists to catch.
+
+    A rule carrying no match* field at all applies to every package in
+    Renovate, and so covers every member here. A rule narrowed only by
+    a non-package matcher -- matchManagers, say -- is still read as
+    covering nothing, because whether it reaches these packages depends
+    on a manager this module does not model; that is a false failure,
+    but a visible and arguable one, and no fleet repository writes it.
     """
-    covered = set()
+    included, excluded = set(), set()
     for field in ('matchPackageNames', 'matchDepNames'):
         for entry in rule.get(field) or []:
             if not isinstance(entry, str):
@@ -594,10 +618,7 @@ def rule_covers(rule, members):
             body = entry[1:] if negated else entry
             matched = {name for name, spellings in members.items()
                        if _match_pattern(body, spellings)}
-            if negated:
-                covered -= matched
-            else:
-                covered |= matched
+            (excluded if negated else included).update(matched)
     for field in ('matchPackagePatterns', 'matchDepPatterns'):
         for entry in rule.get(field) or []:
             if not isinstance(entry, str):
@@ -606,9 +627,11 @@ def rule_covers(rule, members):
                 pattern = re.compile(entry)
             except re.error:
                 continue
-            covered |= {name for name, spellings in members.items()
-                        if any(pattern.search(s) for s in spellings)}
-    return covered
+            included |= {name for name, spellings in members.items()
+                         if any(pattern.search(s) for s in spellings)}
+    if not any(key.startswith('match') for key in rule):
+        included = set(members)
+    return included - excluded
 
 
 def grouping_rules(config):
@@ -649,7 +672,7 @@ def declared_distributions(repo_path):
         with open(pyproject, 'rb') as f:
             parsed = tomllib.load(f)
     except (OSError, tomllib.TOMLDecodeError):
-        return set()
+        return {}
 
     project = parsed.get('project', {})
     requirements = list(project.get('dependencies') or [])
@@ -711,7 +734,7 @@ class UnusedDeclaredDependency(Check):
                 'No Python source outside build and environment '
                 'directories, so nothing here imports anything')
 
-        imported = imported_top_level_modules(repo.path)
+        imported = imported_top_level_modules(repo.path, sources)
 
         unused, annotated = [], 0
         for name in sorted(direct):
@@ -772,7 +795,7 @@ class UndeclaredDirectDependency(Check):
         that stops being true -- so an import of one of those names is
         a break with a date on it rather than a style problem.
         """
-        _direct, generated, _markers = read_dependency_array(repo.path)
+        direct, generated, _markers = read_dependency_array(repo.path)
         if not generated:
             return self.skip(
                 'No generated indirect dependency block, so there are no '
@@ -784,7 +807,7 @@ class UndeclaredDirectDependency(Check):
                 'No Python source outside build and environment '
                 'directories, so nothing here imports anything')
 
-        imported = imported_top_level_modules(repo.path)
+        imported = imported_top_level_modules(repo.path, sources)
 
         # A module a directly declared distribution could equally have
         # provided is not evidence about the transitive one. The
@@ -793,7 +816,7 @@ class UndeclaredDirectDependency(Check):
         # "import google.protobuf" would otherwise report whichever of
         # them happened to land in the generated block.
         declared_modules = set()
-        for name in _direct:
+        for name in direct:
             declared_modules |= candidate_module_names(name)
 
         undeclared = []

@@ -379,9 +379,10 @@ def python_specifier_clauses(specifier):
 #: dist/ hold copies of it, and a copy is what makes a dead import look
 #: alive: an import deleted from the tree survives in the last build
 #: until somebody runs `git clean`. .tox, .venv and node_modules hold
-#: everybody else's source -- shakenfist's .tox carries 23,286 Python
-#: files against the 501 it wrote -- and cover/ holds annotated
-#: listings that read as source but are output.
+#: everybody else's source, by two orders of magnitude more files than
+#: the project wrote -- docs/audits/unused-declared-dependency.md
+#: counts shakenfist's -- and cover/ holds annotated listings that read
+#: as source but are output.
 NON_SOURCE_DIRS = frozenset((
     '.git', '.tox', '.venv', 'venv', '.eggs', 'build', 'dist', 'cover',
     'node_modules', '__pycache__',
@@ -437,7 +438,7 @@ def python_source_files(repo_path):
     return sorted(found)
 
 
-def imported_top_level_modules(repo_path):
+def imported_top_level_modules(repo_path, sources=None):
     """The set of top-level module names imported anywhere in a checkout.
 
     Lowercased, because the question asked of this set is whether a
@@ -452,9 +453,16 @@ def imported_top_level_modules(repo_path):
     Relative imports (`from . import thing`) contribute nothing: their
     first segment is empty, and they name this project rather than a
     dependency of it.
+
+    `sources` is the file list from a python_source_files() call the
+    caller has already made -- both callers make one to test whether
+    there is any source at all, and walking shakenfist's tree twice to
+    answer the same question twice is work for nothing.
     """
     modules = set()
-    for path in python_source_files(repo_path):
+    if sources is None:
+        sources = python_source_files(repo_path)
+    for path in sources:
         with open(path, 'r', errors='replace') as f:
             code = mask_comments_and_strings(f.read())
         for match in IMPORT_RE.finditer(code):

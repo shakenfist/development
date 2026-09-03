@@ -78,8 +78,8 @@ tested -- so a checkout is always read against its own manifest.
 Import names are derived from distribution names the same way as in
 [unused-declared-dependency.md](unused-declared-dependency.md), and
 the same masking and directory rules apply -- comments and string
-literals do not count as imports, and `build/`, `dist/`, `.tox/` and
-`.venv/` are not read.
+literals do not count as imports, and the build, environment and
+coverage directories that page lists are not read.
 
 There is deliberately no escape hatch. Unlike a dependency that is
 installed but not imported, which has several legitimate explanations,

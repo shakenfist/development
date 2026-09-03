@@ -1648,6 +1648,12 @@ class UnusedDeclaredDependencyTest(CheckTestCase):
         self.source('import grpc\nfrom google.protobuf import descriptor\n')
         self.assert_pass(self.check())
 
+    def test_an_alias_matches_a_capitalised_module(self):
+        """Alias values are lowercase; imports are lowercased to match."""
+        self.pyproject(['"Pillow==12.1.0",'])
+        self.source('from PIL import Image\n')
+        self.assert_pass(self.check())
+
     def test_the_generated_indirect_block_is_not_read(self):
         self.pyproject([
             '"click==8.4.2",',
@@ -1718,6 +1724,29 @@ class UnusedDeclaredDependencyTest(CheckTestCase):
         ])
         self.source('import os\n')
         self.assert_pass(self.check())
+
+    def test_an_import_in_a_tool_script_counts(self):
+        """tools/ is source too, as it is for the sibling criterion."""
+        self.pyproject(['"click==8.4.2",'])
+        self.source('import click\n', path='tools/build-collection.py')
+        self.assert_pass(self.check())
+
+    def test_a_single_line_array_still_gets_a_verdict(self):
+        """The names come from the TOML parse, not the line scan."""
+        self.fixture.write(
+            'pyproject.toml',
+            '[project]\nname = "x"\n'
+            'dependencies = ["click==8.4.2", "schedule==1.2.2"]\n')
+        self.source('import click\n')
+        result = self.assert_fail(self.check(), containing='schedule')
+        self.assertNotIn('pyproject.toml:', result['details'])
+
+    def test_a_malformed_pyproject_does_not_apply(self):
+        """A mid-edit manifest must not lose the whole repository's run."""
+        self.fixture.write(
+            'pyproject.toml', '[project]\nname = "x"\ndependencies = [\n')
+        self.source('import click\n')
+        self.assert_skip(self.check(), containing='unreadable')
 
 
 class UndeclaredDirectDependencyTest(CheckTestCase):
@@ -1825,6 +1854,13 @@ class UndeclaredDirectDependencyTest(CheckTestCase):
         result = self.assert_fail(self.check())
         self.assertIn('wrapt', result['details'])
         self.assertIn('six', result['details'])
+
+    def test_a_malformed_pyproject_does_not_apply(self):
+        """A mid-edit manifest must not lose the whole repository's run."""
+        self.fixture.write(
+            'pyproject.toml', '[project]\nname = "x"\ndependencies = [\n')
+        self.source('import click\n')
+        self.assert_skip(self.check(), containing='No generated indirect')
 
 
 class RenovateLockstepGroupsTest(CheckTestCase):
@@ -1939,6 +1975,59 @@ class RenovateLockstepGroupsTest(CheckTestCase):
         """The family is "oslo.*", not everything starting with oslo."""
         self.pyproject(['"oslo.concurrency==7.6.1",', '"oslotest==5.0.0",'])
         self.renovate()
+        self.assert_skip(self.check(), containing='more than one member')
+
+    def test_an_exclusion_listed_first_still_excludes(self):
+        """Renovate ignores order, so scoring by order is a false pass."""
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'oslo',
+                       'matchPackageNames': ['!oslo.config', '/^oslo/']})
+        self.assert_fail(self.check(), containing='oslo')
+
+    def test_a_dep_name_group_passes(self):
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'oslo',
+                       'matchDepNames': ['oslo.concurrency', 'oslo.config']})
+        self.assert_pass(self.check())
+
+    def test_the_deprecated_dep_pattern_field_passes(self):
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'oslo',
+                       'matchDepPatterns': ['^oslo']})
+        self.assert_pass(self.check())
+
+    def test_a_case_insensitive_regex_passes(self):
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'oslo',
+                       'matchPackageNames': ['/^OSLO/i']})
+        self.assert_pass(self.check())
+
+    def test_a_case_sensitive_regex_that_does_not_match_fails(self):
+        """The flag is read, rather than every regex being folded."""
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'oslo',
+                       'matchPackageNames': ['/^OSLO/']})
+        self.assert_fail(self.check(), containing='oslo')
+
+    def test_a_group_with_no_matchers_covers_everything(self):
+        """Renovate applies an unmatched rule to every package."""
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'everything'})
+        self.assert_pass(self.check())
+
+    def test_a_group_narrowed_by_a_matcher_we_do_not_read_fails(self):
+        """Whether it reaches these packages is not knowable here."""
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'npm things',
+                       'matchManagers': ['npm']})
+        self.assert_fail(self.check(), containing='oslo')
+
+    def test_a_malformed_pyproject_does_not_crash_the_run(self):
+        """A mid-edit manifest must not lose the whole repository's run."""
+        self.fixture.write(
+            'pyproject.toml', '[project]\nname = "x"\ndependencies = [\n')
+        self.renovate({'groupName': 'oslo',
+                       'matchPackageNames': ['/^oslo/']})
         self.assert_skip(self.check(), containing='more than one member')
 
 

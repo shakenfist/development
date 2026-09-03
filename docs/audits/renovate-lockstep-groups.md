@@ -76,8 +76,20 @@ are accepted, along with the deprecated `matchPackagePatterns`:
 }
 ```
 
-A `!`-prefixed entry excludes, and is honoured: a rule matching
-`/oslo/` while excluding `oslo.config` does not cover the family.
+A `!`-prefixed entry excludes, and is honoured wherever it sits in the
+list, because Renovate drops a package matched by any negated entry
+regardless of order: a rule matching `/oslo/` while excluding
+`oslo.config` does not cover the family, written either way round.
+
+A rule carrying a `groupName` and no `match*` field at all applies to
+every package in Renovate, and counts here as covering every member. A
+rule narrowed only by a matcher this criterion does not read --
+`matchManagers`, `matchDatasources`, `matchFileNames` -- is read as
+covering nothing, because whether it reaches these packages depends on
+a manager the audit does not model. No repository in the fleet groups
+a lockstep family that way; if one starts to, the failure says which
+family is ungrouped and the rule can be given an explicit
+`matchPackageNames`.
 
 ## Projects
 
