@@ -305,6 +305,18 @@
       "sha": "7a932ed4829c2f8ef9cd4ccc08166458b55f369e",
       "date": "2026-09-02"
     },
+    "scripts/tests/__init__.py": {
+      "sha": "531d26fbe639291831bc7dff3a4959a702b09fe8",
+      "date": "2026-09-04"
+    },
+    "scripts/tests/base.py": {
+      "sha": "4d2950b341f29852d885b36464eb75373123d398",
+      "date": "2026-09-04"
+    },
+    "scripts/tests/test_ci_workflows.py": {
+      "sha": "bc7508f0e23d5a5b86acfdbabc3f3a1dd8e0ae92",
+      "date": "2026-09-04"
+    },
     "templates/ci-review-automation/README.md": {
       "sha": "520bf61a2981c2c9cde6de85cc3d41e75ecda015",
       "date": "2026-08-30"

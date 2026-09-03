@@ -447,6 +447,18 @@
     {
       "path": "scripts/audit/checks/runners.py",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/__init__.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/base.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_ci_workflows.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
