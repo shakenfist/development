@@ -767,6 +767,10 @@
     {
       "path": "renovate.json",
       "author": "mikal"
+    },
+    {
+      "path": ".gitignore",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
