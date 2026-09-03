@@ -349,6 +349,10 @@
       "author": "mikal"
     },
     {
+      "path": "docs/audits/renovate.md",
+      "author": "mikal"
+    },
+    {
       "path": "docs/audits/review-scope-completeness.md",
       "author": "mikal"
     },
@@ -377,6 +381,14 @@
       "author": "mikal"
     },
     {
+      "path": "docs/audits/plan-index.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
+    },
+    {
       "path": "docs/consistency-audits.md",
       "author": "mikal"
     },
@@ -401,7 +413,23 @@
       "author": "mikal"
     },
     {
+      "path": "scripts/audit/repo.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/registry.py",
+      "author": "mikal"
+    },
+    {
       "path": "scripts/audit/text/__init__.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/markdown.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/python_source.py",
       "author": "mikal"
     },
     {
@@ -433,6 +461,14 @@
       "author": "mikal"
     },
     {
+      "path": "scripts/audit/checks/packaging.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/plans.py",
+      "author": "mikal"
+    },
+    {
       "path": "scripts/audit/checks/review.py",
       "author": "mikal"
     },
@@ -450,6 +486,290 @@
     },
     {
       "path": "scripts/tests/test_ci_workflows.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/plan-audit-phase.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/renovate-lockstep-groups.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/undeclared-direct-dependency.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/unused-declared-dependency.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_docs_content.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_github_config.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_hooks.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_llm_docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_markdown.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_metadata.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_packaging.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_plans.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_python_source.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_registry.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_runners.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit_common.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit_snapshot.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit-check.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit-manage-issues.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit-update-docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/check-audit-smoke.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/commit-audit-docs.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/review-tracking.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/test_audit_seams.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/test_audit_snapshot.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/test_audit_update_docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/test_check_audit_smoke.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/test_issue_fix_extraction.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/test_review_tracking.py",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/ci-review-automation/pr-re-review.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/ci-review-automation",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/codeql/codeql-analysis.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/codeql",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/mermaid-lint/mermaid-lint.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/mermaid-lint",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation/release.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/test-drift-fix/test-drift-fix.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/test-drift-fix",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/comment-proportion.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/diagram-discipline.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/functional-test-coverage.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/llm-doc-discipline.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/path-traversal-review.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/plan-closeout-sections.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/plan-file-conventions.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/plan-phase-references.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/plan-planning-effort.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/plan-push-audit-phase.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/plan-review-checklist.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/plan-status-vocabulary.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/python-version-discipline.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/readme-discipline.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/subagent-execution-model.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/subagent-model-roster.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/subagent-step-guidance.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/audit-snapshot.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools",
+      "author": "mikal"
+    },
+    {
+      "path": ".flake8",
+      "author": "mikal"
+    },
+    {
+      "path": ".pre-commit-config.yaml",
+      "author": "mikal"
+    },
+    {
+      "path": "AGENTS.md",
+      "author": "mikal"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "author": "mikal"
+    },
+    {
+      "path": "PUSH-AUDIT.md",
+      "author": "mikal"
+    },
+    {
+      "path": "renovate.json",
+      "author": "mikal"
+    },
+    {
+      "path": ".gitignore",
       "author": "mikal"
     }
   ],
