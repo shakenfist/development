@@ -11,7 +11,10 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from audit.text.markdown import strip_markdown_code  # noqa: E402
+from audit.text.markdown import (  # noqa: E402
+    iter_lines_outside_fences, iter_markdown_headings,
+    iter_markdown_table_rows, markdown_heading, strip_markdown_code,
+)
 
 
 class StripMarkdownCodeTest(unittest.TestCase):
@@ -42,6 +45,151 @@ class StripMarkdownCodeTest(unittest.TestCase):
             'a stray ` backtick\n\n[real](../README.md)\n'
         )
         self.assertIn('[real](../README.md)', stripped)
+
+
+class IterLinesOutsideFencesTest(unittest.TestCase):
+    """The one fence loop the structure readers share."""
+
+    def test_offsets_survive_a_fence(self):
+        # Blanked rather than dropped, so an offset is still an index
+        # into the caller's own list of lines.
+        lines = ['a', '```', 'b', '```', 'c']
+        self.assertEqual(
+            list(iter_lines_outside_fences(lines)),
+            [(0, 'a'), (1, ''), (2, ''), (3, ''), (4, 'c')],
+        )
+
+    def test_a_fence_is_closed_only_by_its_own_marker(self):
+        lines = ['~~~', '```', '~~~', 'after']
+        self.assertEqual(
+            [line for _, line in iter_lines_outside_fences(lines)],
+            ['', '', '', 'after'],
+        )
+
+    def test_an_unterminated_fence_blanks_the_rest(self):
+        # A malformed file reads as having no structure after the
+        # stray marker, rather than structure invented from its code.
+        lines = ['a', '```', '## Not a heading']
+        self.assertEqual(
+            [line for _, line in iter_lines_outside_fences(lines)],
+            ['a', '', ''],
+        )
+
+
+class MarkdownHeadingTest(unittest.TestCase):
+    def test_reads_level_and_text(self):
+        self.assertEqual(markdown_heading('### Phase 5'), (3, 'Phase 5'))
+
+    def test_requires_whitespace_after_the_hashes(self):
+        self.assertIsNone(markdown_heading('###nope'))
+        self.assertIsNone(markdown_heading('###'))
+
+    def test_strips_a_closing_hash_sequence(self):
+        """Closing hashes are syntax, so every reader drops them.
+
+        They used to be left on, with the two readers in this module
+        disagreeing: iter_markdown_headings stripped them and
+        markdown_heading did not, so a plan headed "## Push audit ##"
+        was reported for lacking a heading it plainly has.
+        """
+        self.assertEqual(markdown_heading('## Push audit ##'),
+                         (2, 'Push audit'))
+        self.assertEqual(markdown_heading('## Push audit   ###  '),
+                         (2, 'Push audit'))
+        self.assertEqual(
+            [text for _, text, _ in iter_markdown_headings('## Real ##\n')],
+            ['Real'],
+        )
+
+    def test_hashes_that_are_not_a_closing_sequence_are_kept(self):
+        """CommonMark requires whitespace before a closing sequence.
+
+        Without that rule a heading naming a channel or an anchor
+        would be silently truncated, which is the mirror image of the
+        bug the stripping fixes.
+        """
+        self.assertEqual(markdown_heading('## C#'), (2, 'C#'))
+        self.assertEqual(markdown_heading('## See #4 ##'), (2, 'See #4'))
+
+    def test_a_fenced_heading_is_not_a_heading(self):
+        content = '## Real\n\n```\n## Sample\n```\n'
+        self.assertEqual(
+            [text for _, text, _ in iter_markdown_headings(content)],
+            ['Real'],
+        )
+
+
+class IterMarkdownTableRowsTest(unittest.TestCase):
+    """Header detection, and the fence handling underneath it."""
+
+    def _rows(self, text):
+        return list(iter_markdown_table_rows(text.splitlines()))
+
+    def test_header_is_the_row_the_separator_underlines(self):
+        rows = self._rows(
+            '| Date | Plan |\n'
+            '|------|------|\n'
+            '| 2026-01-01 | One |\n'
+        )
+        # The separator is consumed, so two records come back.
+        self.assertEqual([r[2] for r in rows], [True, False])
+        self.assertEqual(rows[0][3], ['date', 'plan'])
+        self.assertEqual(rows[1][3], ['date', 'plan'])
+        self.assertEqual(rows[1][4], ['2026-01-01', 'One'])
+
+    def test_prose_ends_the_run_of_rows(self):
+        rows = self._rows(
+            '| Date | Plan |\n'
+            '|------|------|\n'
+            '| 2026-01-01 | One |\n'
+            '\n'
+            '| 2026-01-02 | Two |\n'
+        )
+        self.assertIsNone(rows[2][4])
+        self.assertIsNone(rows[3][3])
+
+    def test_a_fenced_table_is_not_a_table(self):
+        rows = self._rows(
+            'before\n'
+            '```markdown\n'
+            '| Phase | Status |\n'
+            '|-------|--------|\n'
+            '| 1 | Complete |\n'
+            '```\n'
+        )
+        self.assertTrue(all(r[4] is None for r in rows))
+        self.assertTrue(all(r[1] == '' for r in rows[1:]))
+
+    def test_a_fence_breaks_a_run_of_rows(self):
+        # A table either side of an example is two tables, so the
+        # second is never read against the first one's header.
+        rows = self._rows(
+            '| Date | Plan |\n'
+            '|------|------|\n'
+            '| 2026-01-01 | One |\n'
+            '```\n'
+            'x\n'
+            '```\n'
+            '| 2026-01-02 | Two |\n'
+        )
+        self.assertEqual(rows[1][3], ['date', 'plan'])
+        self.assertIsNone(rows[-1][3])
+
+    def test_columns_callable_normalises_the_header(self):
+        rows = self._rows_with_columns(
+            '| **Date** | `Plan` |\n'
+            '|------|------|\n'
+            '| 2026-01-01 | One |\n'
+        )
+        self.assertEqual(rows[0][3], ['date', 'plan'])
+
+    def _rows_with_columns(self, text):
+        return list(iter_markdown_table_rows(
+            text.splitlines(),
+            columns=lambda cells: [
+                c.strip().strip('*`').lower() for c in cells
+            ],
+        ))
 
 
 if __name__ == '__main__':

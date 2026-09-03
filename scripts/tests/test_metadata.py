@@ -98,6 +98,10 @@ FROZEN_METADATA = {
         'spec': 'docs/audits/plan-index.md',
         'template': 'templates/shared-blocks/',
     },
+    'plan-audit-phase': {
+        'spec': 'docs/audits/plan-audit-phase.md',
+        'template': None,
+    },
     'push-audit': {
         'spec': 'docs/audits/push-audit.md',
         'template': 'templates/shared-blocks/',
@@ -284,6 +288,7 @@ FROZEN_ISSUE_TITLES = {
     'plan-phase-references': 'Plan phase references',
     'plan-source-references': 'Plan references in source',
     'plan-index': 'Plan index',
+    'plan-audit-phase': 'Push audit phase in master plans',
     'push-audit': 'Pre-push audit file',
     'plan-template': 'Plan template',
     'secret-scanning-ci': 'Secret scanning in CI',
