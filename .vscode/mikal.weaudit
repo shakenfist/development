@@ -433,14 +433,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/packaging.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/plans.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/review.py",
       "author": "mikal"
     },
