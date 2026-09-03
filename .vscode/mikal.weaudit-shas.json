@@ -561,6 +561,78 @@
       "sha": "e82b97bda5ac8c6f03b5f6bfbdbf2c8d34ff9338",
       "date": "2026-09-04"
     },
+    "templates/shared-blocks/README.md": {
+      "sha": "4508ee6d15fc3b1e514f09b7154c5f63a871badb",
+      "date": "2026-09-04"
+    },
+    "templates/shared-blocks/comment-proportion.md": {
+      "sha": "38c366bd44e111f047e5eb2379451ba9c13d04c6",
+      "date": "2026-09-04"
+    },
+    "templates/shared-blocks/diagram-discipline.md": {
+      "sha": "7f99cb461af28d139e6bc4bd4bc01ba5dc79bfad",
+      "date": "2026-09-04"
+    },
+    "templates/shared-blocks/functional-test-coverage.md": {
+      "sha": "61c3580c1231619389a086403ec03842977b4ecb",
+      "date": "2026-09-04"
+    },
+    "templates/shared-blocks/llm-doc-discipline.md": {
+      "sha": "dd5d5ac09a9b5deeda7c27fb6e1d4f85241ce82c",
+      "date": "2026-09-04"
+    },
+    "templates/shared-blocks/path-traversal-review.md": {
+      "sha": "a61ddf84c108208f46e57d8714c2f39106cfb23e",
+      "date": "2026-09-04"
+    },
+    "templates/shared-blocks/plan-closeout-sections.md": {
+      "sha": "6cb9ee7e7d5d4756bbe598ad9e9f5374518f8ce2",
+      "date": "2026-09-04"
+    },
+    "templates/shared-blocks/plan-file-conventions.md": {
+      "sha": "a83f6ef04c625324c520112c17124090c6a926e5",
+      "date": "2026-09-04"
+    },
+    "templates/shared-blocks/plan-phase-references.md": {
+      "sha": "54ec78285f680869cfbe65280e17ab783f1d44bb",
+      "date": "2026-09-04"
+    },
+    "templates/shared-blocks/plan-planning-effort.md": {
+      "sha": "1e7f1b0747ba292069e22f69a8a6b4a27c0518b1",
+      "date": "2026-09-04"
+    },
+    "templates/shared-blocks/plan-push-audit-phase.md": {
+      "sha": "e56bd649267c7b1115a56d445cdd1892b9aa8605",
+      "date": "2026-09-04"
+    },
+    "templates/shared-blocks/plan-review-checklist.md": {
+      "sha": "797ddae188bc6e38d94ba0ad7c10b18f8fb8ae30",
+      "date": "2026-09-04"
+    },
+    "templates/shared-blocks/plan-status-vocabulary.md": {
+      "sha": "a235e4266971ea4e331920b64427d3e1af7dc068",
+      "date": "2026-09-04"
+    },
+    "templates/shared-blocks/python-version-discipline.md": {
+      "sha": "6040dde51ad3873970e95b34bb1a9e3280bc661e",
+      "date": "2026-09-04"
+    },
+    "templates/shared-blocks/readme-discipline.md": {
+      "sha": "50400365305b95aacedee649285740f5d1d3715c",
+      "date": "2026-09-04"
+    },
+    "templates/shared-blocks/subagent-execution-model.md": {
+      "sha": "f67957bb72bbdc1e7aa893780593204f0995ee94",
+      "date": "2026-09-04"
+    },
+    "templates/shared-blocks/subagent-model-roster.md": {
+      "sha": "c2a8c1130b992d28e3cdc563db9990b8a5ca5b0d",
+      "date": "2026-09-04"
+    },
+    "templates/shared-blocks/subagent-step-guidance.md": {
+      "sha": "add2cdd152a7215c083bdcda91c2cb39d2c4ec8d",
+      "date": "2026-09-04"
+    },
     "templates/test-drift-fix/README.md": {
       "sha": "e3d6692995bb8cfbb8505d470ee09f71576ce214",
       "date": "2026-08-30"

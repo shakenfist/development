@@ -655,6 +655,86 @@
     {
       "path": "templates/test-drift-fix",
       "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/comment-proportion.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/diagram-discipline.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/functional-test-coverage.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/llm-doc-discipline.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/path-traversal-review.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/plan-closeout-sections.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/plan-file-conventions.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/plan-phase-references.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/plan-planning-effort.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/plan-push-audit-phase.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/plan-review-checklist.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/plan-status-vocabulary.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/python-version-discipline.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/readme-discipline.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/subagent-execution-model.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/subagent-model-roster.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/subagent-step-guidance.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
