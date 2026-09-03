@@ -607,6 +607,54 @@
     {
       "path": "scripts/test_review_tracking.py",
       "author": "mikal"
+    },
+    {
+      "path": "templates/ci-review-automation/pr-re-review.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/ci-review-automation",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/codeql/codeql-analysis.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/codeql",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/mermaid-lint/mermaid-lint.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/mermaid-lint",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation/release.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/test-drift-fix/test-drift-fix.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/test-drift-fix",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
