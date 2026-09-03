@@ -254,12 +254,13 @@ def read_dependency_array(repo_path):
       dependencies a human wrote. The spelling is kept because a
       finding that says "oslo-concurrency" sends the reader to grep
       pyproject.toml for a string that is not in it.
-    * `generated` is the canonical names inside the
-      START_OF_INDIRECT_DEPS block. They are transitive by
-      construction, so asking whether the project imports them is the
-      wrong question; tools/pin-indirect-dependencies.sh owns that
-      block and regenerates it from what the direct dependencies
-      resolve to.
+    * `generated` maps the same way for the names inside the
+      START_OF_INDIRECT_DEPS block. tools/pin-indirect-dependencies.sh
+      owns that block and regenerates it from what the direct
+      dependencies resolve to, so asking whether the project *should*
+      import them is the wrong question about a line no human wrote.
+      Asking whether it *does* is a different question, and a useful
+      one -- see UndeclaredDirectDependency.
     * `markers` maps a canonical name to the reason given for a
       `# not-imported:` annotation.
 
@@ -287,7 +288,7 @@ def read_dependency_array(repo_path):
     with open(pyproject, 'r', errors='replace') as f:
         lines = f.read().splitlines()
 
-    entries, generated, markers = {}, set(), {}
+    entries, generated, markers = {}, {}, {}
     section, in_array, in_generated = None, False, False
     for number, line in enumerate(lines, start=1):
         stripped = line.strip()
@@ -319,7 +320,7 @@ def read_dependency_array(repo_path):
         spelling = entry.group('name')
         name = canonical_dependency_name(spelling)
         if in_generated:
-            generated.add(name)
+            generated.setdefault(name, (spelling, number))
         else:
             entries.setdefault(name, (spelling, number))
 
@@ -739,6 +740,80 @@ class UnusedDeclaredDependency(Check):
                 f'dependencies are imported, and {annotated} are '
                 f'annotated as used without being imported')
         return self.ok(detail)
+
+
+class UndeclaredDirectDependency(Check):
+    id = 'undeclared-direct-dependency'
+    spec = 'docs/audits/undeclared-direct-dependency.md'
+    template = None
+    issue_title = 'Undeclared direct dependency'
+
+    def applies(self, repo):
+        if repo.props['not_python']:
+            return 'Python is incidental here, so there is nothing to import'
+        if not repo.props['has_pyproject_toml']:
+            return 'No pyproject.toml (not a Python package)'
+        return None
+
+    def run(self, repo):
+        """Flag imports satisfied only by the generated indirect block.
+
+        A package the project imports but never declares resolves
+        anyway, for as long as something else happens to require it.
+        That is not a dependency, it is a coincidence, and it ends the
+        day the intermediate library drops the requirement: shakenfist
+        imported oslo_concurrency for years on an edge that existed
+        only because shakenfist-utilities declared a dependency it
+        never used.
+
+        The generated block is where the coincidence is visible. Every
+        name in it is there because something resolved to it, and
+        tools/pin-indirect-dependencies.sh will remove it the moment
+        that stops being true -- so an import of one of those names is
+        a break with a date on it rather than a style problem.
+        """
+        _direct, generated, _markers = read_dependency_array(repo.path)
+        if not generated:
+            return self.skip(
+                'No generated indirect dependency block, so there are no '
+                'transitive pins an import could be relying on')
+
+        sources = python_source_files(repo.path)
+        if not sources:
+            return self.skip(
+                'No Python source outside build and environment '
+                'directories, so nothing here imports anything')
+
+        imported = imported_top_level_modules(repo.path)
+
+        # A module a directly declared distribution could equally have
+        # provided is not evidence about the transitive one. The
+        # namespace packages are why: protobuf and
+        # googleapis-common-protos both install into "google", so
+        # "import google.protobuf" would otherwise report whichever of
+        # them happened to land in the generated block.
+        declared_modules = set()
+        for name in _direct:
+            declared_modules |= candidate_module_names(name)
+
+        undeclared = []
+        for name in sorted(generated):
+            modules = candidate_module_names(name) - declared_modules
+            if not modules & imported:
+                continue
+            spelling, line = generated[name]
+            undeclared.append(f'{spelling} (pyproject.toml:{line})')
+
+        if undeclared:
+            return self.fail(
+                f'Imported but declared only as a transitive pin: '
+                f'{", ".join(undeclared)}. Declare each above the '
+                f'# START_OF_INDIRECT_DEPS marker; the reconciler drops '
+                f'the generated copy on its next run',
+                undeclared=undeclared)
+        return self.ok(
+            f'Nothing in the {len(generated)} generated pins is imported '
+            f'directly')
 
 
 class RenovateLockstepGroups(Check):

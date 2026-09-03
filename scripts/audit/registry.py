@@ -52,6 +52,7 @@ CHECKS = [
     packaging.RustUnwrapLint(),
     packaging.Flake8Wrap(),
     packaging.UnusedDeclaredDependency(),
+    packaging.UndeclaredDirectDependency(),
     packaging.RenovateLockstepGroups(),
     runners.SelfHostedRunners(),
     runners.StaticRunnerTags(),

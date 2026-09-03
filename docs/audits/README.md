@@ -148,6 +148,7 @@ attached rather than quietly disappearing from the table.
 | [pin-indirect-dependencies.md](pin-indirect-dependencies.md) | Pinning transitive dependencies |
 | [dependency-name-normalization.md](dependency-name-normalization.md) | One spelling per pinned distribution |
 | [unused-declared-dependency.md](unused-declared-dependency.md) | Declared dependencies are imported, or carry a recorded reason they are not |
+| [undeclared-direct-dependency.md](undeclared-direct-dependency.md) | Nothing imported is left resting on a generated transitive pin |
 | [export-repo-config.md](export-repo-config.md) | Repo configuration export |
 | [default-branch-naming.md](default-branch-naming.md) | Default branch conventions |
 | [github-security.md](github-security.md) | Dependabot, secret scanning, CodeQL |

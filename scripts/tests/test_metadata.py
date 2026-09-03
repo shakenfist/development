@@ -126,6 +126,10 @@ FROZEN_METADATA = {
         'spec': 'docs/audits/unused-declared-dependency.md',
         'template': None,
     },
+    'undeclared-direct-dependency': {
+        'spec': 'docs/audits/undeclared-direct-dependency.md',
+        'template': None,
+    },
     'renovate-lockstep-groups': {
         'spec': 'docs/audits/renovate-lockstep-groups.md',
         'template': None,
@@ -250,6 +254,7 @@ FROZEN_ISSUE_TITLES = {
     'pin-indirect-dependencies': 'Pin indirect dependencies',
     'dependency-name-normalization': 'Dependency name normalization',
     'unused-declared-dependency': 'Unused declared dependency',
+    'undeclared-direct-dependency': 'Undeclared direct dependency',
     'renovate-lockstep-groups': 'Renovate lockstep groups',
     'export-repo-config': 'Export repo config',
     'default-branch-naming': 'Default branch naming',

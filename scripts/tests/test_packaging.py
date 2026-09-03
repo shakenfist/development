@@ -1711,6 +1711,96 @@ class UnusedDeclaredDependencyTest(CheckTestCase):
         self.assert_pass(self.check())
 
 
+class UndeclaredDirectDependencyTest(CheckTestCase):
+    check_class = packaging.UndeclaredDirectDependency
+
+    def pyproject(self, direct=(), generated=()):
+        body = '[project]\nname = "x"\ndependencies = [\n'
+        body += ''.join('    %s\n' % line for line in direct)
+        if generated:
+            body += '    # START_OF_INDIRECT_DEPS\n'
+            body += ''.join('    %s\n' % line for line in generated)
+            body += '    # END_OF_INDIRECT_DEPS\n'
+        body += ']\n'
+        self.fixture.write('pyproject.toml', body)
+
+    def source(self, content, path='thing/main.py'):
+        self.fixture.write(path, content)
+
+    def test_incidental_python_does_not_apply(self):
+        self.assert_skip(self.check(not_python=True),
+                         containing='nothing to import')
+
+    def test_without_pyproject_it_does_not_apply(self):
+        self.assert_skip(self.check(has_pyproject_toml=False),
+                         containing='No pyproject.toml')
+
+    def test_without_a_generated_block_it_does_not_apply(self):
+        self.pyproject(direct=['"click==8.4.2",'])
+        self.source('import click\n')
+        self.assert_skip(self.check(), containing='No generated indirect')
+
+    def test_a_project_with_no_python_source_does_not_apply(self):
+        self.pyproject(direct=['"click==8.4.2",'],
+                       generated=['"wrapt==2.3.0",'])
+        self.assert_skip(self.check(), containing='No Python source')
+
+    def test_an_unimported_transitive_pin_passes(self):
+        self.pyproject(direct=['"click==8.4.2",'],
+                       generated=['"wrapt==2.3.0",'])
+        self.source('import click\n')
+        self.assert_pass(self.check())
+
+    def test_importing_a_transitive_pin_fails_and_names_its_line(self):
+        self.pyproject(direct=['"click==8.4.2",'],
+                       generated=['"wrapt==2.3.0",'])
+        self.source('import click\nimport wrapt\n')
+        result = self.assert_fail(self.check(), containing='wrapt')
+        self.assertIn('pyproject.toml:6', result['details'])
+
+    def test_the_finding_names_the_declared_spelling(self):
+        self.pyproject(direct=['"click==8.4.2",'],
+                       generated=['"PyJWT==2.13.0",'])
+        self.source('import click\nfrom jwt.exceptions import DecodeError\n')
+        self.assert_fail(self.check(), containing='PyJWT')
+
+    def test_a_module_a_direct_dependency_could_provide_is_not_flagged(self):
+        """protobuf and googleapis-common-protos share the google namespace."""
+        self.pyproject(direct=['"protobuf==7.36.0",'],
+                       generated=['"googleapis-common-protos==1.75.2",'])
+        self.source('from google.protobuf import descriptor\n')
+        self.assert_pass(self.check())
+
+    def test_a_commented_out_import_does_not_fail(self):
+        self.pyproject(direct=['"click==8.4.2",'],
+                       generated=['"wrapt==2.3.0",'])
+        self.source('import click\n# import wrapt\n')
+        self.assert_pass(self.check())
+
+    def test_a_copy_under_build_does_not_fail(self):
+        self.pyproject(direct=['"click==8.4.2",'],
+                       generated=['"wrapt==2.3.0",'])
+        self.source('import click\n')
+        self.source('import wrapt\n', path='build/lib/thing/main.py')
+        self.assert_pass(self.check())
+
+    def test_an_import_in_a_tool_script_counts(self):
+        """tools/ is source too: it breaks the same way when the pin goes."""
+        self.pyproject(direct=['"click==8.4.2",'],
+                       generated=['"wrapt==2.3.0",'])
+        self.source('import click\n')
+        self.source('import wrapt\n', path='tools/build-collection.py')
+        self.assert_fail(self.check(), containing='wrapt')
+
+    def test_every_offender_is_reported_not_just_the_first(self):
+        self.pyproject(direct=['"click==8.4.2",'],
+                       generated=['"wrapt==2.3.0",', '"six==1.17.0",'])
+        self.source('import click\nimport wrapt\nimport six\n')
+        result = self.assert_fail(self.check())
+        self.assertIn('wrapt', result['details'])
+        self.assertIn('six', result['details'])
+
+
 class RenovateLockstepGroupsTest(CheckTestCase):
     check_class = packaging.RenovateLockstepGroups
 
