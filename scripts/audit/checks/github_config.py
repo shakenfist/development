@@ -17,6 +17,7 @@ to.
 """
 
 import json
+import re
 import subprocess
 
 from audit import scope
@@ -261,6 +262,26 @@ class MergeQueueConfig(Check):
             return self.fail(f'Error checking merge queue config: {e}')
 
 
+def http_status(stderr):
+    """The HTTP status `gh` reported, or None if it did not.
+
+    `gh api` writes "gh: Not Found (HTTP 404)" on failure. The status
+    is the difference between a repository that is gone and one this
+    token cannot see or ask about, and those want opposite fixes.
+    """
+    match = re.search(r'HTTP (\d{3})', stderr or '')
+    return int(match.group(1)) if match else None
+
+
+def describe_failure(result):
+    """A short reason for a resolution that neither succeeded nor 404ed."""
+    status = http_status(result.stderr)
+    if status is not None:
+        return f'HTTP {status}'
+    return (result.stderr or '').strip().splitlines()[0] if result.stderr \
+        else 'no error reported'
+
+
 #: How many repositories to ask for. `gh repo list` returns 30 by
 #: default, which silently loses eight of the organisation's 38 and
 #: reports them as undecided; the check refuses a listing that reaches
@@ -342,44 +363,71 @@ class ScopeCoverage(Check):
         except json.JSONDecodeError:
             return self.fail(
                 f'Could not parse the {repo.org} organisation listing')
+        # Valid JSON of the wrong shape would raise out of the check,
+        # and registry.run_all() has no per-check exception handling:
+        # an exception here aborts the development leg, which
+        # manage-issues and update-docs are needs-gated on, and stops
+        # issue filing and the compliance page for the whole fleet.
+        if not isinstance(listing, list) or not all(
+                isinstance(entry, dict) and 'name' in entry
+                for entry in listing):
+            return self.fail(
+                f'Could not parse the {repo.org} organisation listing: '
+                f'expected a list of repositories')
+
+        # Counted before deduplication: a duplicate name would leave the
+        # set one short of the limit, and a genuinely truncated listing
+        # would sail through the guard it exists to trip.
+        if len(listing) >= ORG_LISTING_LIMIT:
+            return self.fail(
+                f'The {repo.org} listing returned {len(listing)} '
+                f'repositories, which is the limit asked for: it may '
+                f'have been truncated, and a truncated listing reports '
+                f'repositories as undecided that are merely unlisted')
 
         organisation = {entry['name'] for entry in listing}
-        if len(organisation) >= ORG_LISTING_LIMIT:
-            return self.fail(
-                f'The {repo.org} listing returned '
-                f'{len(organisation)} repositories, which is the limit '
-                f'asked for: it may have been truncated, and a '
-                f'truncated listing reports repositories as undecided '
-                f'that are merely unlisted')
+        # Whether the token can see private repositories at all. GitHub
+        # answers 404 rather than 403 for a private repository a token
+        # cannot see, so a blind token is indistinguishable from a
+        # deletion one name at a time; this is the signal that
+        # distinguishes them in bulk.
+        sees_private = any(entry.get('isPrivate') for entry in listing)
 
         undecided = organisation - matrix - excluded
-        unresolved = sorted((matrix | excluded) - organisation)
+        unlisted = sorted((matrix | excluded) - organisation)
 
-        # A name missing from the listing is not evidence the
-        # repository is gone. A token that cannot see private
-        # repositories produces a listing missing every one of them,
-        # and the fix that finding implies -- deleting the exclusions
-        # -- would be actively harmful. So each one is asked about
-        # directly, which also distinguishes a rename from a deletion:
-        # the API follows a rename redirect and answers under the new
-        # name, while issue listing and search do not, which is the
-        # same trap gh_canonical_repo() exists for.
-        gone, renamed, invisible = [], [], []
+        # A name missing from the listing is not evidence the repository
+        # is gone, and "gone" is the one conclusion whose suggested fix
+        # -- delete the entry -- is destructive. So each one is asked
+        # about directly, and a resolution that fails for any reason
+        # other than a 404 is reported as a failure to resolve rather
+        # than as a deletion. gh_canonical_repo() falls back rather than
+        # concluding anything from a failed call, for the same reason.
+        gone, renamed, invisible, unresolvable = [], [], [], []
         try:
-            for name in unresolved:
+            for name in unlisted:
                 result = repo.github.api(
                     f'repos/{repo.org}/{name}', jq='.full_name')
                 if result.returncode != 0:
-                    gone.append(name)
+                    status = http_status(result.stderr)
+                    if status == 404:
+                        gone.append(name)
+                    else:
+                        unresolvable.append((name, describe_failure(result)))
                     continue
                 canonical = result.stdout.strip()
-                if canonical.lower() != f'{repo.org}/{name}'.lower():
+                if not canonical:
+                    # Exit zero and no answer. gh_canonical_repo() guards
+                    # the same case; without this the finding reads
+                    # "renamed to " and names no destination.
+                    unresolvable.append((name, 'the API returned no name'))
+                elif canonical.lower() != f'{repo.org}/{name}'.lower():
                     renamed.append((name, canonical))
                 else:
                     invisible.append(name)
         except (subprocess.TimeoutExpired, FileNotFoundError) as e:
             return self.fail(
-                f'Could not resolve {len(unresolved)} name(s) in the '
+                f'Could not resolve {len(unlisted)} name(s) in the '
                 f'audit scope: {e}')
 
         problems = []
@@ -388,26 +436,29 @@ class ScopeCoverage(Check):
             problems.append(
                 f'{len(undecided)} repository(s) in the organisation are '
                 f'in neither the audit matrix nor the excluded list')
-            missing.extend(
-                f'{name}: in the {repo.org} organisation, but in neither '
-                f'the audit matrix nor the excluded list'
-                for name in sorted(undecided))
+            missing.extend(f'{name} (in the organisation, decided nowhere)'
+                           for name in sorted(undecided))
         if gone:
+            # The caveat is the difference between a finding and a
+            # trap. A private repository the token cannot see answers
+            # 404 exactly as a deleted one does, so where the listing
+            # showed no private repositories at all, deleting these
+            # entries may be deleting live exclusions.
+            caveat = '' if sees_private else (
+                ', but the listing returned no private repositories at '
+                'all and a private repository this token cannot see '
+                'answers the same 404: check the token before deleting '
+                'anything')
             problems.append(
                 f'{len(gone)} name(s) in the audit matrix or the '
-                f'excluded list no longer exist')
-            missing.extend(
-                f'{name}: named by the audit scope, but there is no '
-                f'{repo.org}/{name}'
-                for name in gone)
+                f'excluded list no longer exist{caveat}')
+            missing.extend(f'{name} (no such repository)' for name in gone)
         if renamed:
             problems.append(
                 f'{len(renamed)} name(s) in the audit scope have been '
                 f'renamed')
-            missing.extend(
-                f'{name}: renamed to {canonical}, which the audit scope '
-                f'does not name'
-                for name, canonical in renamed)
+            missing.extend(f'{name} -> {canonical} (renamed)'
+                           for name, canonical in renamed)
         if invisible:
             # Not a scope finding at all: the lists are right and the
             # listing is short. Reported rather than passed over,
@@ -418,10 +469,14 @@ class ScopeCoverage(Check):
                 f'scope exist but are missing from the organisation '
                 f'listing, which is therefore incomplete -- check the '
                 f'token before trusting anything else here')
-            missing.extend(
-                f'{name}: exists, but the {repo.org} listing did not '
-                f'return it'
-                for name in invisible)
+            missing.extend(f'{name} (exists, but not in the listing)'
+                           for name in invisible)
+        if unresolvable:
+            problems.append(
+                f'{len(unresolvable)} name(s) in the audit scope could '
+                f'not be resolved either way')
+            missing.extend(f'{name} (unresolved: {reason})'
+                           for name, reason in unresolvable)
         if problems:
             return self.fail('; '.join(problems), missing=missing)
 

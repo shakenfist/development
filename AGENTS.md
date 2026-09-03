@@ -132,13 +132,14 @@ content scanner differs per project and takes judgment.
 
 - Python: single quotes, no external dependencies in the audit scripts
   (stdlib plus the `git` and `gh` CLIs only).
-- Some of the prose here is parsed. `AuditScopeIsStatedOnceTest`
-  reads the in-scope and excluded lists out of
-  `docs/audits/README.md` by splitting it on literal phrases, and
-  asserts those phrases still delimit a list of repository names --
-  so reword freely and let the tests say when a phrase mattered. Any
-  new parse of a document by phrase gets the same treatment: a named
-  constant and an assertion, not a bare `split()`.
+- Some of the prose here is parsed. `audit/scope.py` reads the
+  in-scope and excluded lists out of `docs/audits/README.md` by
+  splitting it on literal phrases, and raises `ScopeParseError` unless
+  those phrases still delimit a list of repository names -- so reword
+  freely and let its two consumers, `AuditScopeIsStatedOnceTest` and
+  the `scope-coverage` check, say when a phrase mattered. Any new
+  parse of a document by phrase gets the same treatment: a named
+  constant and a guard, not a bare `split()`.
 - This repository is audited by its own consistency audits. Two checks
   are N/A for stated reasons in `REPO_OVERRIDES` (its Python is never
   packaged, and it keeps `main` because it publishes no releases); see

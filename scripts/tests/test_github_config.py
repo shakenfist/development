@@ -322,10 +322,6 @@ class MergeQueueConfigApiTest(GithubConfigTestCase):
         self.assert_fail(result, containing='Error checking merge queue')
 
 
-if __name__ == '__main__':
-    unittest.main()
-
-
 class ScopeCoverageTest(CheckTestCase):
     """The criterion that measures the fleet rather than one repository."""
 
@@ -405,8 +401,7 @@ class ScopeCoverageTest(CheckTestCase):
                                  'excluded list')
         self.assertEqual(
             result['missing'],
-            ['undecided: in the shakenfist organisation, but in neither '
-             'the audit matrix nor the excluded list'])
+            ['undecided (in the organisation, decided nowhere)'])
 
     def test_a_name_that_no_longer_exists_is_reported(self):
         # The other direction of the same reconciliation. An exclusion
@@ -415,12 +410,10 @@ class ScopeCoverageTest(CheckTestCase):
         self.scope(['development'], ['gone', 'here'])
         result, _ = self.run_with(
             self.listing('development', 'here'),
-            gone=CompletedCommand(returncode=1, stderr='gh: Not Found'))
+            gone=CompletedCommand(
+                returncode=1, stderr='gh: Not Found (HTTP 404)'))
         self.assert_fail(result, 'no longer exist')
-        self.assertEqual(
-            result['missing'],
-            ['gone: named by the audit scope, but there is no '
-             'shakenfist/gone'])
+        self.assertEqual(result['missing'], ['gone (no such repository)'])
 
     def test_a_renamed_repository_is_named_by_its_new_name(self):
         # The API follows a rename redirect while issue listing and
@@ -435,8 +428,7 @@ class ScopeCoverageTest(CheckTestCase):
         self.assert_fail(result, 'have been renamed')
         self.assertEqual(
             result['missing'],
-            ['imago: renamed to shakenfist/instar, which the audit scope '
-             'does not name'])
+            ['imago -> shakenfist/instar (renamed)'])
 
     def test_a_name_the_listing_missed_is_not_called_stale(self):
         # A token that cannot see private repositories produces a
@@ -453,14 +445,14 @@ class ScopeCoverageTest(CheckTestCase):
         self.assert_fail(result, 'listing, which is therefore incomplete')
         self.assertEqual(
             result['missing'],
-            ['a-private-one: exists, but the shakenfist listing did not '
-             'return it'])
+            ['a-private-one (exists, but not in the listing)'])
 
     def test_both_directions_are_reported_together(self):
         self.scope(['development'], ['gone'])
         result, _ = self.run_with(
             self.listing('development', 'undecided'),
-            gone=CompletedCommand(returncode=1, stderr='gh: Not Found'))
+            gone=CompletedCommand(
+                returncode=1, stderr='gh: Not Found (HTTP 404)'))
         self.assert_fail(result)
         self.assertEqual(len(result['missing']), 2)
 
@@ -497,6 +489,74 @@ class ScopeCoverageTest(CheckTestCase):
         result, _ = self.run_with(CompletedCommand(stdout='not json'))
         self.assert_fail(result, 'Could not parse')
 
+    def test_a_failure_that_is_not_a_404_is_not_called_a_deletion(self):
+        # GitHub answers 404 for a private repository the token cannot
+        # see, so the status is the only thing separating "gone" from
+        # "cannot look". Everything else -- an expired token, rate
+        # limiting, a network blip -- must not arrive at a finding
+        # whose suggested fix is to delete the entry.
+        self.scope(['development'], ['maybe-here'])
+        result, _ = self.run_with(
+            self.listing('development'),
+            **{'maybe-here': CompletedCommand(
+                returncode=1, stderr='gh: Bad credentials (HTTP 401)')})
+        self.assert_fail(result, 'could not be resolved either way')
+        self.assertEqual(result['missing'],
+                         ['maybe-here (unresolved: HTTP 401)'])
+
+    def test_a_404_with_no_private_repositories_in_sight_is_qualified(self):
+        # A token blind to private repositories 404s on every one of
+        # them, one name at a time, exactly as a deletion does. The
+        # listing is what tells the two apart in bulk, so where it saw
+        # no private repositories the finding says so rather than
+        # inviting someone to delete live exclusions.
+        self.scope(['development'], ['a-private-one'])
+        result, _ = self.run_with(
+            self.listing('development'),
+            **{'a-private-one': CompletedCommand(
+                returncode=1, stderr='gh: Not Found (HTTP 404)')})
+        self.assert_fail(result, 'check the token before deleting anything')
+
+    def test_a_404_beside_a_visible_private_repository_is_not_qualified(self):
+        self.scope(['development'], ['gone'])
+        result, _ = self.run_with(
+            self.listing('development', 'hidden', private=('hidden',)),
+            gone=CompletedCommand(returncode=1,
+                                  stderr='gh: Not Found (HTTP 404)'))
+        self.assert_fail(result, 'no longer exist')
+        self.assertNotIn('check the token', result['details'])
+
+    def test_a_resolution_that_answers_nothing_is_not_a_rename(self):
+        # Exit zero and empty stdout would compare unequal to the name
+        # asked about, and report a rename to nowhere.
+        self.scope(['development'], ['quiet'])
+        result, _ = self.run_with(
+            self.listing('development'),
+            quiet=CompletedCommand(stdout='\n'))
+        self.assert_fail(result, 'could not be resolved either way')
+        self.assertEqual(result['missing'],
+                         ['quiet (unresolved: the API returned no name)'])
+
+    def test_a_listing_of_the_wrong_shape_fails_rather_than_raising(self):
+        # registry.run_all() has no per-check exception handling, and
+        # manage-issues and update-docs are needs-gated on the audit
+        # job: an exception here would stop issue filing and the
+        # compliance page for the whole fleet for the day.
+        self.scope(['development'], ['old-thing'])
+        for body in ['null', '{"repositories": []}', '[{"nom": "x"}]']:
+            with self.subTest(body=body):
+                result, _ = self.run_with(CompletedCommand(stdout=body))
+                self.assert_fail(result, 'expected a list of repositories')
+
+    def test_a_matrix_that_cannot_be_parsed_fails_the_check(self):
+        # The README rewording route is covered above; this is the same
+        # guard reached through the workflow, which is parsed by a
+        # different function.
+        self.scope(['development'], ['old-thing'])
+        self.fixture.workflow('consistency-audit.yml', 'jobs: {}\n')
+        result, _ = self.run_with(self.listing('development', 'old-thing'))
+        self.assert_fail(result, 'Could not read the audit scope')
+
     def test_a_timeout_resolving_a_name_is_reported(self):
         self.scope(['development'], ['gone'])
         result, _ = self.run_with(
@@ -527,3 +587,7 @@ class ScopeCoverageTest(CheckTestCase):
     def test_a_missing_workflow_fails_rather_than_raising(self):
         result, _ = self.run_with(self.listing('development'))
         self.assert_fail(result, 'Could not read the audit scope')
+
+
+if __name__ == '__main__':
+    unittest.main()

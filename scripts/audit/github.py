@@ -1,8 +1,9 @@
 """The seam between the checks and the GitHub CLI.
 
-Five criteria read repository settings that are not in a clone --
-the default branch, the security features, the merge queue rules --
-by shelling out to `gh`. Before this existed each of them built its
+Six criteria read what is not in a clone --
+the default branch, the security features, the merge queue rules,
+and now the membership of the organisation itself -- by shelling out
+to `gh`. Before this existed each of them built its
 own `subprocess.run`, with its own copy of the timeout and the
 `FileNotFoundError` handling, and none of the five had a test,
 because there was nothing to substitute for the network.

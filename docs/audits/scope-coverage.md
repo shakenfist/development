@@ -64,20 +64,31 @@ For a repository the check names as undecided, one of:
   decision with a reason attached rather than an omission.
 
 For a name that is not in the listing, the check asks GitHub about it
-directly rather than assuming, and says which of three things
-happened:
+directly rather than assuming, and says which of four things happened:
 
-- **It no longer exists.** The entry goes with it.
+- **It no longer exists** -- the API answered 404. The entry goes with
+  it, subject to the caveat below.
 - **It was renamed.** The finding names the new name; write that in
   the matrix or the list. The API follows a rename redirect while
   issue listing and search do not, which is why a stale name is worth
   fixing rather than tolerating: `audit-manage-issues.py` has its own
   warning for the same trap.
 - **It exists but the listing did not return it.** Then the lists are
-  right and the listing is short -- almost always a token that cannot
-  see private repositories. Nothing about the scope is wrong, and the
-  finding says to check the token, because a listing that cannot see
-  part of the organisation cannot answer the first question either.
+  right and the listing is short. Nothing about the scope is wrong,
+  and the finding says to check the token, because a listing that
+  cannot see part of the organisation cannot answer the first question
+  either.
+- **It could not be resolved either way** -- an expired token, rate
+  limiting, a timeout. Reported as exactly that. "Gone" is the one
+  conclusion whose suggested fix is destructive, so nothing arrives at
+  it by accident.
+
+The caveat on 404 matters more than it looks. GitHub answers 404, not
+403, for a private repository the token cannot see, so one name at a
+time a blind token is indistinguishable from a deletion. What tells
+them apart is the listing: where it returned no private repositories
+at all, the finding says so and says to check the token before
+deleting anything, because the exclusions it is naming may be live.
 
 ## What this does not check
 
