@@ -373,3 +373,94 @@ def python_specifier_clauses(specifier):
         if clause:
             clauses.add(re.sub(r'(\.0)+$', '', clause))
     return clauses
+
+
+#: Directories whose Python is not this project's source. build/ and
+#: dist/ hold copies of it, and a copy is what makes a dead import look
+#: alive: an import deleted from the tree survives in the last build
+#: until somebody runs `git clean`. .tox, .venv and node_modules hold
+#: everybody else's source -- shakenfist's .tox carries 23,286 Python
+#: files against the 501 it wrote -- and cover/ holds annotated
+#: listings that read as source but are output.
+NON_SOURCE_DIRS = frozenset((
+    '.git', '.tox', '.venv', 'venv', '.eggs', 'build', 'dist', 'cover',
+    'node_modules', '__pycache__',
+))
+
+
+#: An import statement at the start of a line: `import a.b`,
+#: `import a, b` or `from a.b import c`. Anchored at the left margin
+#: only in the sense that leading whitespace is allowed -- an import
+#: inside a function or a try block is still an import.
+IMPORT_RE = re.compile(
+    r'''^[ \t]*
+        (?:from[ \t]+(?P<from>[A-Za-z0-9_.]+)[ \t]+import
+          |import[ \t]+(?P<import>[A-Za-z0-9_.]+
+                        (?:[ \t]*,[ \t]*[A-Za-z0-9_.]+)*))
+    ''',
+    re.MULTILINE | re.VERBOSE,
+)
+
+
+def python_source_files(repo_path):
+    """The Python files belonging to the checkout's own package.
+
+    NON_SOURCE_DIRS is pruned rather than filtered afterwards, so the
+    walk does not descend into a virtualenv at all.
+
+    A subdirectory carrying its own pyproject.toml is pruned too. It is
+    a separate distribution that happens to live in the same
+    repository, and it declares its own dependencies: reading its
+    imports against the root manifest asks whether one package
+    declares another package's requirements, which is not a question
+    with a right answer. kerbside is why -- its tempest-plugin/ imports
+    oslo_config and declares oslo.config in tempest-plugin/
+    pyproject.toml, and reporting that as an undeclared dependency of
+    kerbside itself was a finding whose only honest remedy was to
+    ignore it.
+
+    The root is never pruned: the walk only tests subdirectories, so a
+    checkout is always read against its own manifest.
+    """
+    found = []
+    for dirpath, dirnames, filenames in os.walk(repo_path):
+        dirnames[:] = [
+            d for d in dirnames
+            if d not in NON_SOURCE_DIRS
+            and not d.endswith('.egg-info')
+            and not os.path.exists(
+                os.path.join(dirpath, d, 'pyproject.toml'))
+        ]
+        for filename in filenames:
+            if filename.endswith('.py'):
+                found.append(os.path.join(dirpath, filename))
+    return sorted(found)
+
+
+def imported_top_level_modules(repo_path):
+    """The set of top-level module names imported anywhere in a checkout.
+
+    Lowercased, because the question asked of this set is whether a
+    distribution's module is among them and distribution names are
+    compared case-insensitively everywhere else in this file.
+
+    Comments and string literals are masked first. A commented-out
+    import is the exact shape the unused-dependency criterion exists
+    to find, and counting one as a use would report the dependency
+    that is most certainly dead as the one still in use.
+
+    Relative imports (`from . import thing`) contribute nothing: their
+    first segment is empty, and they name this project rather than a
+    dependency of it.
+    """
+    modules = set()
+    for path in python_source_files(repo_path):
+        with open(path, 'r', errors='replace') as f:
+            code = mask_comments_and_strings(f.read())
+        for match in IMPORT_RE.finditer(code):
+            targets = match.group('from') or match.group('import')
+            for target in targets.split(','):
+                head = target.strip().split('.')[0]
+                if head:
+                    modules.add(head.lower())
+    return modules

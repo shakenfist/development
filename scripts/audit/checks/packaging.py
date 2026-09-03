@@ -6,6 +6,7 @@ source-level checks that go with them: how a console script sets up
 logging, and whether an HTTP handler sanitises what it logs.
 """
 
+import fnmatch
 import json
 import os
 import re
@@ -18,8 +19,9 @@ from audit.files import (
 )
 from audit.text.python_source import (
     HTTP_HANDLER_BASES, console_entry_point_files, handler_base_names,
-    mask_comments_and_strings, mask_strings, parse_class_statements,
-    python_specifier_clauses, sets_own_logger_propagate,
+    imported_top_level_modules, mask_comments_and_strings, mask_strings,
+    parse_class_statements, python_source_files, python_specifier_clauses,
+    sets_own_logger_propagate,
 )
 
 
@@ -171,6 +173,162 @@ def canonical_dependency_name(name):
     'typing_extensions' and 'typing-extensions' are one package.
     """
     return re.sub(r'[-_.]+', '-', name).lower()
+
+
+#: Distributions whose import name cannot be derived from the name they
+#: are distributed under. Everything else in the fleet is derivable by
+#: candidate_module_names(); this table is for the cases where the two
+#: names share no letters worth matching on. Keys are canonical.
+IMPORT_NAME_ALIASES = {
+    'attrs': {'attr'},
+    'beautifulsoup4': {'bs4'},
+    'googleapis-common-protos': {'google'},
+    'grpcio': {'grpc'},
+    'grpcio-health-checking': {'grpc_health'},
+    'grpcio-status': {'grpc_status'},
+    'grpcio-tools': {'grpc_tools'},
+    'mysqlclient': {'mysqldb'},
+    'protobuf': {'google'},
+    'py-cpuinfo': {'cpuinfo'},
+}
+
+
+def candidate_module_names(name):
+    """The module names a distribution might plausibly install.
+
+    Derivation rather than knowledge: the module a wheel unpacks is in
+    its metadata, and the audit runs against checkouts it does not
+    install. So this generates the spellings the fleet actually uses --
+    the name itself, the name with separators turned into underscores,
+    and the name with a "python" or "py" affix taken off ("PyYAML" ->
+    "yaml", "python-magic" -> "magic") -- and IMPORT_NAME_ALIASES
+    carries the rest.
+
+    Erring towards more candidates is deliberate. A spurious candidate
+    can only make a dependency look used, and this criterion files an
+    issue when one looks unused: a false pass costs a finding we would
+    have got later anyway, while a false failure sends somebody to
+    justify a dependency that was never in question.
+    """
+    candidates = {name.lower(), canonical_dependency_name(name)}
+    for candidate in list(candidates):
+        candidates.add(candidate.replace('-', '_').replace('.', '_'))
+    for candidate in list(candidates):
+        for prefix in ('python_', 'python-'):
+            if candidate.startswith(prefix):
+                candidates.add(candidate[len(prefix):])
+        for suffix in ('_python', '-python'):
+            if candidate.endswith(suffix):
+                candidates.add(candidate[:-len(suffix)])
+        if candidate.startswith('py') and len(candidate) > 4:
+            candidates.add(candidate[2:].lstrip('_-'))
+    candidates |= IMPORT_NAME_ALIASES.get(
+        canonical_dependency_name(name), set())
+    return {c for c in candidates if c}
+
+
+#: A dependency line's assertion that the distribution is used without
+#: being imported, e.g.
+#: `# not-imported: uv -- invoked as a subprocess by the image fetcher`.
+#: The reason is required: an unexplained exception is
+#: indistinguishable from silencing a finding.
+NOT_IMPORTED_RE = re.compile(
+    r'#\s*not-imported:\s*(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)'
+    r'\s*--\s*(?P<reason>\S.*?)\s*$'
+)
+
+
+#: A quoted distribution name at the start of a dependency array entry.
+DEP_ENTRY_NAME_RE = re.compile(
+    r"""^\s*["'](?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)"""
+)
+
+
+def read_dependency_array(repo_path):
+    """Read [project] dependencies, keeping what TOML parsing discards.
+
+    Returns (direct, generated, markers):
+
+    * `direct` maps a canonical distribution name to the spelling the
+      manifest uses and the 1-based line it is declared on -- the
+      dependencies a human wrote. The spelling is kept because a
+      finding that says "oslo-concurrency" sends the reader to grep
+      pyproject.toml for a string that is not in it.
+    * `generated` maps the same way for the names inside the
+      START_OF_INDIRECT_DEPS block. tools/pin-indirect-dependencies.sh
+      owns that block and regenerates it from what the direct
+      dependencies resolve to, so asking whether the project *should*
+      import them is the wrong question about a line no human wrote.
+      Asking whether it *does* is a different question, and a useful
+      one -- see UndeclaredDirectDependency.
+    * `markers` maps a canonical name to the reason given for a
+      `# not-imported:` annotation.
+
+    tomllib is the authority on which names are declared, because it
+    reads every spelling of a TOML array. The line scan is what finds
+    the block boundaries and the annotations, both of which are
+    comments and so are gone by the time tomllib has finished.
+    """
+    pyproject = os.path.join(repo_path, 'pyproject.toml')
+    try:
+        with open(pyproject, 'rb') as f:
+            parsed = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}, set(), {}
+
+    declared = {
+        canonical_dependency_name(
+            DEP_SPEC_RE.match(dependency).group('name'))
+        for dependency in parsed.get('project', {}).get('dependencies', [])
+        if DEP_SPEC_RE.match(dependency)
+    }
+    if not declared:
+        return {}, set(), {}
+
+    with open(pyproject, 'r', errors='replace') as f:
+        lines = f.read().splitlines()
+
+    entries, generated, markers = {}, {}, {}
+    section, in_array, in_generated = None, False, False
+    for number, line in enumerate(lines, start=1):
+        stripped = line.strip()
+        if TOML_SECTION_RE.match(stripped):
+            section, in_array = stripped.strip('[]'), False
+            continue
+        if not in_array:
+            in_array = (section == 'project'
+                        and re.match(r'^dependencies\s*=\s*\[', stripped))
+            continue
+        if stripped.startswith(']'):
+            in_array = False
+            continue
+
+        marker = NOT_IMPORTED_RE.search(line)
+        if marker:
+            markers[canonical_dependency_name(marker.group('name'))] = (
+                marker.group('reason'))
+        if 'START_OF_INDIRECT_DEPS' in stripped:
+            in_generated = True
+            continue
+        if 'END_OF_INDIRECT_DEPS' in stripped:
+            in_generated = False
+            continue
+
+        entry = DEP_ENTRY_NAME_RE.match(line)
+        if not entry:
+            continue
+        spelling = entry.group('name')
+        name = canonical_dependency_name(spelling)
+        if in_generated:
+            generated.setdefault(name, (spelling, number))
+        else:
+            entries.setdefault(name, (spelling, number))
+
+    direct = {
+        name: entries.get(name, (name, None))
+        for name in declared if name not in generated
+    }
+    return direct, generated, markers
 
 
 class ReleaseProcess(Check):
@@ -353,6 +511,372 @@ class DependencyNameNormalization(Check):
                 f'unsatisfiable when one is bumped and cause duplicate '
                 f'Renovate PRs')
         return self.ok('No duplicate dependency pins under PEP 503 normalization')
+
+
+#: Families of distributions whose members are released in lockstep, so
+#: that Renovate raises a pull request per member on the same day for
+#: what upstream published as one coordinated release. Grouping is what
+#: turns that back into one review.
+#:
+#: Each entry is (family name, canonical-name pattern, description).
+#: The pattern is matched against PEP 503 canonical names, so
+#: "oslo.concurrency" is tested as "oslo-concurrency".
+#:
+#: Deliberately seeded with one family. The fleet already groups
+#: pydantic, zope and the grpc stack by hand in the repositories that
+#: carry them, and promoting those to audited requirements is a
+#: separate decision from this one -- adding a family here files an
+#: issue against every repository that pins two of its members.
+LOCKSTEP_FAMILIES = (
+    ('oslo', re.compile(r'^oslo-'), 'the OpenStack oslo libraries'),
+)
+
+
+def renovate_config(repo_path):
+    """Parse renovate.json, or None when it is missing or malformed."""
+    filepath = os.path.join(repo_path, 'renovate.json')
+    if not os.path.exists(filepath):
+        return None
+    try:
+        with open(filepath, 'r', errors='replace') as f:
+            config = json.load(f)
+    except ValueError:
+        return None
+    return config if isinstance(config, dict) else None
+
+
+def _match_pattern(entry, spellings):
+    """Does one Renovate package matcher select this distribution?
+
+    Renovate's matchPackageNames accepts three forms -- an exact name,
+    a glob, and a "/regex/" -- and any of them may be negated with a
+    leading "!". All three are read because the fleet's existing groups
+    use two of them: shakenfist matches "/grpcio/" and the literal
+    "zope.event" in the same file.
+
+    `spellings` is every way the manifest writes the distribution's
+    name, because Renovate matches the spelling while this module
+    compares canonically. A rule saying "oslo.*" is right for Renovate
+    and matches nothing at all against "oslo-concurrency", so testing
+    the canonical form alone would fail a repository that had done
+    exactly what this criterion asks of it.
+    """
+    if entry.startswith('/'):
+        body, _, flags = entry[1:].rpartition('/')
+        if not body:
+            return False
+        try:
+            pattern = re.compile(body, re.IGNORECASE if 'i' in flags else 0)
+        except re.error:
+            return False
+        return any(pattern.search(s) for s in spellings)
+    if '*' in entry or '?' in entry:
+        return any(fnmatch.fnmatchcase(s.lower(), entry.lower())
+                   for s in spellings)
+    wanted = canonical_dependency_name(entry)
+    return any(canonical_dependency_name(s) == wanted for s in spellings)
+
+
+def rule_covers(rule, members):
+    """The canonical names a single packageRules entry selects.
+
+    `members` maps a canonical distribution name to every spelling the
+    manifest uses for it. Only the package-name matchers are read: a
+    rule narrowed by matchUpdateTypes is not a group for this purpose
+    and never reaches here (see grouping_rules()).
+    """
+    covered = set()
+    for field in ('matchPackageNames', 'matchDepNames'):
+        for entry in rule.get(field) or []:
+            if not isinstance(entry, str):
+                continue
+            negated = entry.startswith('!')
+            body = entry[1:] if negated else entry
+            matched = {name for name, spellings in members.items()
+                       if _match_pattern(body, spellings)}
+            if negated:
+                covered -= matched
+            else:
+                covered |= matched
+    for field in ('matchPackagePatterns', 'matchDepPatterns'):
+        for entry in rule.get(field) or []:
+            if not isinstance(entry, str):
+                continue
+            try:
+                pattern = re.compile(entry)
+            except re.error:
+                continue
+            covered |= {name for name, spellings in members.items()
+                        if any(pattern.search(s) for s in spellings)}
+    return covered
+
+
+def grouping_rules(config):
+    """The packageRules entries that put updates into a named group.
+
+    A rule narrowed by matchUpdateTypes is skipped. Grouping only the
+    minor and patch stream leaves the major releases arriving one pull
+    request per package, which for a lockstep family is the whole
+    problem: oslo's coordinated releases bump the major version of
+    every member together.
+    """
+    rules = config.get('packageRules')
+    if not isinstance(rules, list):
+        return []
+    return [
+        rule for rule in rules
+        if isinstance(rule, dict)
+        and isinstance(rule.get('groupName'), str)
+        and rule['groupName']
+        and not rule.get('matchUpdateTypes')
+    ]
+
+
+def declared_distributions(repo_path):
+    """Every distribution named in pyproject.toml, canonically.
+
+    Returns a mapping of canonical name to the spellings the manifest
+    uses for it: Renovate matches the spelling rather than the
+    canonical form.
+
+    Runtime dependencies and every optional-dependencies group, because
+    Renovate's pep621 manager reads both and raises pull requests for
+    both: a lockstep family sitting in a test extra churns exactly as
+    much as one in the runtime set.
+    """
+    pyproject = os.path.join(repo_path, 'pyproject.toml')
+    try:
+        with open(pyproject, 'rb') as f:
+            parsed = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return set()
+
+    project = parsed.get('project', {})
+    requirements = list(project.get('dependencies') or [])
+    for group in (project.get('optional-dependencies') or {}).values():
+        if isinstance(group, list):
+            requirements.extend(group)
+
+    names = {}
+    for requirement in requirements:
+        if not isinstance(requirement, str):
+            continue
+        match = DEP_SPEC_RE.match(requirement)
+        if match:
+            spelling = match.group('name')
+            names.setdefault(
+                canonical_dependency_name(spelling), set()).add(spelling)
+    return names
+
+
+class UnusedDeclaredDependency(Check):
+    id = 'unused-declared-dependency'
+    spec = 'docs/audits/unused-declared-dependency.md'
+    template = None
+    issue_title = 'Unused declared dependency'
+
+    def applies(self, repo):
+        if repo.props['not_python']:
+            return 'Python is incidental here, so there is nothing to import'
+        if not repo.props['has_pyproject_toml']:
+            return 'No pyproject.toml (not a Python package)'
+        return None
+
+    def run(self, repo):
+        """Flag runtime dependencies the project never imports.
+
+        A dependency nobody imports is not free. It carries its own
+        transitive closure into every consumer, and every package in
+        that closure is another stream of Renovate pull requests
+        against a project that would behave identically without it.
+        library-utilities declares oslo.concurrency and imports it
+        nowhere; that one line puts twelve packages into shakenfist's
+        install, which is fifteen percent of its dependency closure and
+        fourteen percent of its dependency bumps.
+
+        Only [project] dependencies are read. An optional-dependencies
+        group is test and build tooling that is meant to be run rather
+        than imported, and reading it would flag every one of tox,
+        stestr, coverage and flake8.
+        """
+        direct, _generated, markers = read_dependency_array(repo.path)
+        if not direct:
+            return self.skip(
+                '[project] dependencies is empty or unreadable, so there '
+                'is nothing declared to use')
+
+        sources = python_source_files(repo.path)
+        if not sources:
+            return self.skip(
+                'No Python source outside build and environment '
+                'directories, so nothing here imports anything')
+
+        imported = imported_top_level_modules(repo.path)
+
+        unused, annotated = [], 0
+        for name in sorted(direct):
+            if candidate_module_names(name) & imported:
+                continue
+            if name in markers:
+                annotated += 1
+                continue
+            spelling, line = direct[name]
+            unused.append(
+                f'{spelling} (pyproject.toml:{line})' if line else spelling)
+
+        if unused:
+            return self.fail(
+                f'Declared but never imported: {", ".join(unused)}. '
+                f'Remove each, or record why it is installed with a '
+                f'"# not-imported: <name> -- <reason>" comment in the '
+                f'dependencies array',
+                unused=unused)
+
+        noun = 'dependency is' if len(direct) == 1 else 'dependencies are'
+        detail = f'All {len(direct)} declared {noun} imported'
+        if annotated:
+            detail = (
+                f'{len(direct) - annotated} of {len(direct)} declared '
+                f'dependencies are imported, and {annotated} are '
+                f'annotated as used without being imported')
+        return self.ok(detail)
+
+
+class UndeclaredDirectDependency(Check):
+    id = 'undeclared-direct-dependency'
+    spec = 'docs/audits/undeclared-direct-dependency.md'
+    template = None
+    issue_title = 'Undeclared direct dependency'
+
+    def applies(self, repo):
+        if repo.props['not_python']:
+            return 'Python is incidental here, so there is nothing to import'
+        if not repo.props['has_pyproject_toml']:
+            return 'No pyproject.toml (not a Python package)'
+        return None
+
+    def run(self, repo):
+        """Flag imports satisfied only by the generated indirect block.
+
+        A package the project imports but never declares resolves
+        anyway, for as long as something else happens to require it.
+        That is not a dependency, it is a coincidence, and it ends the
+        day the intermediate library drops the requirement: shakenfist
+        imported oslo_concurrency for years on an edge that existed
+        only because shakenfist-utilities declared a dependency it
+        never used.
+
+        The generated block is where the coincidence is visible. Every
+        name in it is there because something resolved to it, and
+        tools/pin-indirect-dependencies.sh will remove it the moment
+        that stops being true -- so an import of one of those names is
+        a break with a date on it rather than a style problem.
+        """
+        _direct, generated, _markers = read_dependency_array(repo.path)
+        if not generated:
+            return self.skip(
+                'No generated indirect dependency block, so there are no '
+                'transitive pins an import could be relying on')
+
+        sources = python_source_files(repo.path)
+        if not sources:
+            return self.skip(
+                'No Python source outside build and environment '
+                'directories, so nothing here imports anything')
+
+        imported = imported_top_level_modules(repo.path)
+
+        # A module a directly declared distribution could equally have
+        # provided is not evidence about the transitive one. The
+        # namespace packages are why: protobuf and
+        # googleapis-common-protos both install into "google", so
+        # "import google.protobuf" would otherwise report whichever of
+        # them happened to land in the generated block.
+        declared_modules = set()
+        for name in _direct:
+            declared_modules |= candidate_module_names(name)
+
+        undeclared = []
+        for name in sorted(generated):
+            modules = candidate_module_names(name) - declared_modules
+            if not modules & imported:
+                continue
+            spelling, line = generated[name]
+            undeclared.append(f'{spelling} (pyproject.toml:{line})')
+
+        if undeclared:
+            return self.fail(
+                f'Imported but declared only as a transitive pin: '
+                f'{", ".join(undeclared)}. Declare each above the '
+                f'# START_OF_INDIRECT_DEPS marker; the reconciler drops '
+                f'the generated copy on its next run',
+                undeclared=undeclared)
+        return self.ok(
+            f'Nothing in the {len(generated)} generated pins is imported '
+            f'directly')
+
+
+class RenovateLockstepGroups(Check):
+    id = 'renovate-lockstep-groups'
+    spec = 'docs/audits/renovate-lockstep-groups.md'
+    template = None
+    issue_title = 'Renovate lockstep groups'
+
+    def applies(self, repo):
+        if not repo.props['has_pyproject_toml']:
+            return 'No pyproject.toml (not a Python package)'
+        if renovate_config(repo.path) is None:
+            return (
+                'No readable renovate.json, so there is no grouping '
+                'configuration to hold to this -- the renovate criterion '
+                'is the one that covers its absence')
+        return None
+
+    def run(self, repo):
+        """Require lockstep dependency families to bump as one group.
+
+        Renovate treats every distribution as independent, which is
+        right until upstream stops doing so. The oslo libraries cut
+        coordinated releases: oslo.concurrency, oslo.config, oslo.i18n
+        and oslo.utils go out together, so an ungrouped project gets
+        four pull requests on the same evening for one upstream event,
+        four CI runs, and four chances to land a partial upgrade.
+        """
+        config = renovate_config(repo.path)
+        declared = declared_distributions(repo.path)
+        rules = grouping_rules(config)
+
+        applicable, problems = [], []
+        for family, pattern, description in LOCKSTEP_FAMILIES:
+            members = {name: spellings
+                       for name, spellings in declared.items()
+                       if pattern.search(name)}
+            # One member cannot arrive out of step with itself, and
+            # grouping it would be a rule that changes nothing.
+            if len(members) < 2:
+                continue
+            applicable.append(family)
+            if any(rule_covers(rule, members) >= set(members)
+                   for rule in rules):
+                continue
+            spelled = sorted(
+                s for spellings in members.values() for s in spellings)
+            problems.append(
+                f'{family} ({", ".join(spelled)}) -- {description}')
+
+        if not applicable:
+            return self.skip(
+                'No lockstep dependency family has more than one member '
+                'declared here')
+        if problems:
+            return self.fail(
+                f'Not grouped for Renovate: {"; ".join(problems)}. '
+                f'Add a packageRules entry with a groupName covering '
+                f'every member, unrestricted by matchUpdateTypes',
+                ungrouped=sorted(problems))
+        return self.ok(
+            f'Every lockstep family declared here is grouped: '
+            f'{", ".join(sorted(applicable))}')
 
 
 class PyprojectUsage(Check):
