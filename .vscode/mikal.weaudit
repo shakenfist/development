@@ -337,10 +337,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
       "path": ".github/actionlint.yaml",
       "author": "mikal"
     },
@@ -370,14 +366,6 @@
     },
     {
       "path": ".github/workflows/consistency-audit.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
       "author": "mikal"
     },
     {
@@ -641,14 +629,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/renovate/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate",
-      "author": "mikal"
-    },
-    {
       "path": "templates/test-drift-fix/test-drift-fix.yml",
       "author": "mikal"
     },
@@ -730,10 +710,6 @@
     },
     {
       "path": "templates/shared-blocks",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     },
     {
