@@ -73,6 +73,10 @@
       "sha": "ceac1b9cd637a75e756e074ffa721ac75bd2096e",
       "date": "2026-08-30"
     },
+    "docs/audits/README.md": {
+      "sha": "11cfe1d15a9b20b40cca773dbb17bd57a95e9d08",
+      "date": "2026-09-04"
+    },
     "docs/audits/ci-review-automation.md": {
       "sha": "b0e5dd33cc1c7e7d845ee3b42e63ec31e35b58da",
       "date": "2026-08-27"
@@ -145,6 +149,14 @@
       "sha": "6141c51ac838a8550f1b301e26bfb4c6fb092978",
       "date": "2026-08-29"
     },
+    "docs/audits/plan-audit-phase.md": {
+      "sha": "9ffec73f3d14fdc3050ab579d8517b587a9362fe",
+      "date": "2026-09-04"
+    },
+    "docs/audits/plan-index.md": {
+      "sha": "8fe492a81b938eb86d7e7b792f6ba5c8beb8ce16",
+      "date": "2026-09-04"
+    },
     "docs/audits/plan-phase-references.md": {
       "sha": "4439f2afbeec94f684684393993202a860f411c8",
       "date": "2026-08-29"
@@ -181,6 +193,14 @@
       "sha": "a4dafad60b86830e3355de4afa35c9af106768bf",
       "date": "2026-08-29"
     },
+    "docs/audits/renovate-lockstep-groups.md": {
+      "sha": "cf1d98abe40d2d41db79860c1573d046c671b278",
+      "date": "2026-09-04"
+    },
+    "docs/audits/renovate.md": {
+      "sha": "ce1f4861273d8634c0a9007750585e98637ed38f",
+      "date": "2026-09-04"
+    },
     "docs/audits/review-coverage.md": {
       "sha": "c11e8e126b81545278f015a7580d8eeadcdb55f3",
       "date": "2026-08-29"
@@ -208,6 +228,14 @@
     "docs/audits/test-coverage.md": {
       "sha": "54f7bfcad8af5ac2edd635cee6d6818e45d30bc0",
       "date": "2026-08-29"
+    },
+    "docs/audits/undeclared-direct-dependency.md": {
+      "sha": "480e4ba9a263e00c29c6c49b70ae739c430c385f",
+      "date": "2026-09-04"
+    },
+    "docs/audits/unused-declared-dependency.md": {
+      "sha": "168551d8ecc6bdca8538f300d6b8130922f13f2d",
+      "date": "2026-09-04"
     },
     "docs/audits/version-file-gitignore.md": {
       "sha": "27a18426ea30541974101ecbb486c3efc61ee48f",
@@ -265,6 +293,14 @@
       "sha": "7101c0e2b34d0762641a7e25477bb3839ba1eed2",
       "date": "2026-09-03"
     },
+    "scripts/audit/checks/packaging.py": {
+      "sha": "4ef22db1cd52c75067cbc1d21f96544eba157edc",
+      "date": "2026-09-04"
+    },
+    "scripts/audit/checks/plans.py": {
+      "sha": "2a8b67b6c4727d3f1865ddfdde824cfe6be307c5",
+      "date": "2026-09-04"
+    },
     "scripts/audit/checks/review.py": {
       "sha": "d4306f77753ad6a1bd653905e7ce7c76d05fbfd8",
       "date": "2026-09-03"
@@ -285,9 +321,25 @@
       "sha": "ef1d4a20156613830ec787fde806cbf955e9501e",
       "date": "2026-09-02"
     },
+    "scripts/audit/registry.py": {
+      "sha": "6f294163087e03a901df49a930519c00c6b0a763",
+      "date": "2026-09-04"
+    },
+    "scripts/audit/repo.py": {
+      "sha": "78a1a58aac916457272aec1d5e6158803649984e",
+      "date": "2026-09-04"
+    },
     "scripts/audit/text/__init__.py": {
       "sha": "dc2515cc9e2cdd5083c39a803bfdbcafb37dbe0d",
       "date": "2026-09-02"
+    },
+    "scripts/audit/text/markdown.py": {
+      "sha": "b05356143ac843a162836d7d56fcda23df4b2180",
+      "date": "2026-09-04"
+    },
+    "scripts/audit/text/python_source.py": {
+      "sha": "64876b0c6d78c5a069f5ec15da3c549b0133f139",
+      "date": "2026-09-04"
     },
     "scripts/audit/text/shared_blocks.py": {
       "sha": "100a6bcd559df58c9dc57a27814d3bb846f59aef",

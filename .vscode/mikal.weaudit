@@ -349,6 +349,10 @@
       "author": "mikal"
     },
     {
+      "path": "docs/audits/renovate.md",
+      "author": "mikal"
+    },
+    {
       "path": "docs/audits/review-scope-completeness.md",
       "author": "mikal"
     },
@@ -377,6 +381,14 @@
       "author": "mikal"
     },
     {
+      "path": "docs/audits/plan-index.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
+    },
+    {
       "path": "docs/consistency-audits.md",
       "author": "mikal"
     },
@@ -401,7 +413,23 @@
       "author": "mikal"
     },
     {
+      "path": "scripts/audit/repo.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/registry.py",
+      "author": "mikal"
+    },
+    {
       "path": "scripts/audit/text/__init__.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/markdown.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/python_source.py",
       "author": "mikal"
     },
     {
@@ -433,6 +461,14 @@
       "author": "mikal"
     },
     {
+      "path": "scripts/audit/checks/packaging.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/plans.py",
+      "author": "mikal"
+    },
+    {
       "path": "scripts/audit/checks/review.py",
       "author": "mikal"
     },
@@ -450,6 +486,22 @@
     },
     {
       "path": "scripts/tests/test_ci_workflows.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/plan-audit-phase.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/renovate-lockstep-groups.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/undeclared-direct-dependency.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/unused-declared-dependency.md",
       "author": "mikal"
     }
   ],
