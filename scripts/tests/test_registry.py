@@ -19,7 +19,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from audit import registry  # noqa: E402
+from audit import registry, scope  # noqa: E402
 from audit.repo import REPO_OVERRIDES, detect_repo_properties  # noqa: E402
 from audit_common import AUDIT_METADATA, ISSUE_TITLES  # noqa: E402
 from tests.base import REPO_ROOT  # noqa: E402
@@ -45,141 +45,24 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
     alone silently stops being measured while the documentation says
     it is.
 
-    Reading two of the three means splitting prose on a literal
-    phrase, so this class also holds those phrases to their job. See
-    bulleted_block() for what a phrase has to keep doing to stay a
-    usable anchor.
+    The parse itself lives in audit.scope, because the scope-coverage
+    check needs the same one: this class holds the three lists to each
+    other, that check holds them to the organisation, and a second
+    copy of the parse would let the two disagree about what the lists
+    say. What is tested here is that the anchors still delimit their
+    lists, which is what the comparisons below are worth.
     """
 
     root = REPO_ROOT
 
-    # Each list below is found by splitting a file on a literal phrase:
-    # two sentences of prose and one line of YAML indentation, in files
-    # nobody edits with a parser in mind. A start phrase that gets
-    # reworded away is loud, because the split raises. An end phrase
-    # that gets reworded away is the dangerous one -- the block simply
-    # runs on to the end of the file and collects every bullet after
-    # it, which the comparisons here can still pass on. So the phrases
-    # are named constants and bulleted_block() asserts they still
-    # delimit a list of repository names before anything trusts them.
-    EXCLUDED_DOC = 'docs/audits/README.md'
-    EXCLUDED_START = 'are **excluded**'
-    EXCLUDED_END = 'The `actions` repository'
-    EXCLUDED_BULLET = '* '
-
-    IN_SCOPE_DOC = 'docs/audits/README.md'
-    IN_SCOPE_START = '## In-scope projects'
-    IN_SCOPE_END = 'One project is in scope'
-    IN_SCOPE_BULLET = '- '
-
-    MATRIX_WORKFLOW = '.github/workflows/consistency-audit.yml'
-    MATRIX_START = '        repo:\n'
-    MATRIX_BULLET = '          - '
-
-    # What a GitHub repository in any of these lists looks like. The
-    # point is not to validate the name but to notice a parse that has
-    # started collecting prose: a swallowed paragraph brings back
-    # bullets like "The configured version file path must be covered".
-    #
-    # Anchored at both ends. assertRegex is re.search, so an
-    # end-anchor alone matches any sentence closing on a lowercase
-    # word -- including that exact example, which is what this guard
-    # exists to reject.
-    REPO_NAME = re.compile(r'^[a-z0-9][a-z0-9.-]*$')
-
-    def read(self, relative):
-        with open(os.path.join(self.root, relative)) as f:
-            return f.read()
-
-    def bulleted_block(self, path, start, end, bullet):
-        """Return the bullet list delimited by two literal phrases.
-
-        Every assertion here is about the parse rather than the
-        content, so that a reworded document fails with the phrase it
-        needs to carry rather than with a comparison of two sets of
-        repository names that no longer means anything.
-        """
-        text = self.read(path)
-        self.assertEqual(
-            text.count(start), 1,
-            f'{path} must contain the phrase "{start}" exactly once: '
-            f'it is where this suite starts reading the list that '
-            f'follows it',
-        )
-        after = text.split(start, 1)[1]
-        self.assertEqual(
-            after.count(end), 1,
-            f'{path} must contain the phrase "{end}" exactly once '
-            f'after "{start}": it is where this suite stops reading, '
-            f'and without it the parse runs to the end of the file',
-        )
-        block = after.split(end, 1)[0]
-        # Any heading level, not just '## '. The excluded-projects
-        # list this guards sits under a '### ', so a '###' subsection
-        # inserted inside the block would have slipped past a check
-        # for '## ' alone.
-        self.assertIsNone(
-            re.search(r'^#{1,6} ', block, re.MULTILINE),
-            f'the list after "{start}" in {path} now runs past a '
-            f'heading, so "{end}" is no longer the end of it',
-        )
-        entries = [
-            line[len(bullet):].strip() for line in block.splitlines()
-            if line.startswith(bullet)
-        ]
-        self.assertTrue(
-            entries,
-            f'no "{bullet}" bullets between "{start}" and "{end}" in '
-            f'{path}; the list has moved or changed its bullet style',
-        )
-        for entry in entries:
-            self.assertRegex(
-                entry, self.REPO_NAME,
-                f'"{entry}" was read as a repository name from the '
-                f'list after "{start}" in {path}, so the parse is '
-                f'picking up something that is not that list',
-            )
-        return entries
-
     def matrix_repos(self):
-        text = self.read(self.MATRIX_WORKFLOW)
-        self.assertEqual(
-            text.count(self.MATRIX_START), 1,
-            f'{self.MATRIX_WORKFLOW} must contain the matrix key '
-            f'"{self.MATRIX_START.strip()}" at exactly one '
-            f'indentation this suite recognises',
-        )
-        block = text.split(self.MATRIX_START, 1)[1]
-        repos = []
-        for line in block.splitlines():
-            if line.startswith(self.MATRIX_BULLET):
-                repos.append(line[len(self.MATRIX_BULLET):].strip())
-            elif line.strip() and not line.lstrip().startswith('#'):
-                break
-        self.assertTrue(
-            repos,
-            f'no matrix entries read from {self.MATRIX_WORKFLOW}; the '
-            f'list is indented differently to "{self.MATRIX_BULLET}"',
-        )
-        for repo in repos:
-            self.assertRegex(
-                repo, self.REPO_NAME,
-                f'"{repo}" was read as a repository name from the '
-                f'audit matrix, so the parse has overrun the list',
-            )
-        return repos
+        return scope.matrix_repos(self.root)
 
     def documented_in_scope(self):
-        return self.bulleted_block(
-            self.IN_SCOPE_DOC, self.IN_SCOPE_START, self.IN_SCOPE_END,
-            self.IN_SCOPE_BULLET,
-        )
+        return scope.documented_in_scope(self.root)
 
     def documented_excluded(self):
-        return self.bulleted_block(
-            self.EXCLUDED_DOC, self.EXCLUDED_START, self.EXCLUDED_END,
-            self.EXCLUDED_BULLET,
-        )
+        return scope.documented_excluded(self.root)
 
     def partially_scoped(self):
         return {
@@ -191,10 +74,10 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
     def test_a_parse_that_overruns_its_list_is_rejected(self):
         """The REPO_NAME guard must fire, not merely exist.
 
-        Reading an assertion cannot distinguish one that holds from one
+        Reading a guard cannot distinguish one that holds from one
         that cannot fail, so this hands bulleted_block() the failure it
         was written for. The loud cases are already covered by the
-        count assertions: a start or end phrase that vanishes raises
+        count checks: a start or end phrase that vanishes raises
         naming the phrase. The quiet case is an end phrase that has
         drifted further down the page, so the block still terminates
         but now spans a prose list on the way -- with no heading
@@ -219,29 +102,29 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with open(os.path.join(tmp, 'drifted.md'), 'w') as f:
                 f.write(overrun)
-            self.root = tmp
             with self.assertRaisesRegex(
-                    AssertionError,
+                    scope.ScopeParseError,
                     'The configured version file path must be covered'):
-                self.bulleted_block(
-                    'drifted.md', self.EXCLUDED_START, self.EXCLUDED_END,
-                    self.EXCLUDED_BULLET,
+                scope.bulleted_block(
+                    tmp, 'drifted.md', scope.EXCLUDED_START,
+                    scope.EXCLUDED_END, scope.EXCLUDED_BULLET,
                 )
 
     def test_repo_name_rejects_a_sentence_ending_in_a_word(self):
-        # assertRegex is re.search, so this is the whole point of the
-        # leading anchor. Kept separate from the parse above because it
-        # is the property, not the plumbing: if REPO_NAME ever loses
-        # its '^' again, this is the test that says so in one line.
+        # re.search is what bulleted_block() uses, so this is the whole
+        # point of the leading anchor. Kept separate from the parse
+        # above because it is the property, not the plumbing: if
+        # REPO_NAME ever loses its '^' again, this is the test that
+        # says so in one line.
         self.assertIsNone(
-            self.REPO_NAME.search(
+            scope.REPO_NAME.search(
                 'The configured version file path must be covered'),
             'REPO_NAME matched a sentence, so it is not anchored at '
             'the start and cannot notice a parse collecting prose',
         )
         for name in ['shakenfist', 'client-python', 'kerbside-patches']:
             self.assertIsNotNone(
-                self.REPO_NAME.search(name),
+                scope.REPO_NAME.search(name),
                 f'REPO_NAME no longer matches the repository name '
                 f'"{name}"',
             )
@@ -264,11 +147,11 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with open(os.path.join(tmp, 'drifted.md'), 'w') as f:
                 f.write(drifted)
-            self.root = tmp
-            with self.assertRaisesRegex(AssertionError, 'runs past a heading'):
-                self.bulleted_block(
-                    'drifted.md', self.EXCLUDED_START, self.EXCLUDED_END,
-                    self.EXCLUDED_BULLET,
+            with self.assertRaisesRegex(scope.ScopeParseError,
+                                        'runs past a heading'):
+                scope.bulleted_block(
+                    tmp, 'drifted.md', scope.EXCLUDED_START,
+                    scope.EXCLUDED_END, scope.EXCLUDED_BULLET,
                 )
 
     def test_the_parse_anchors_still_delimit_their_lists(self):
@@ -280,9 +163,9 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
         # them here on their own so that a reworded anchor fails as a
         # reworded anchor, naming the phrase and the file, rather than
         # as a mysterious disagreement about which repositories are
-        # audited. Each parse asserts its own delimiting; this test is
-        # what makes sure all three are exercised even if a comparison
-        # below is one day rewritten not to call them.
+        # audited. Each parse raises on its own delimiting; this test
+        # is what makes sure all three are exercised even if a
+        # comparison below is one day rewritten not to call them.
         self.matrix_repos()
         self.documented_in_scope()
         self.documented_excluded()
