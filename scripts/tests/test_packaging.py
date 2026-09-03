@@ -1654,6 +1654,12 @@ class UnusedDeclaredDependencyTest(CheckTestCase):
         self.source('from PIL import Image\n')
         self.assert_pass(self.check())
 
+    def test_an_alias_adds_to_the_derived_names_rather_than_replacing(self):
+        """setuptools derives its own name and also answers to one alias."""
+        self.pyproject(['"setuptools==80.9.0",'])
+        self.source('from pkg_resources import get_distribution\n')
+        self.assert_pass(self.check())
+
     def test_the_generated_indirect_block_is_not_read(self):
         self.pyproject([
             '"click==8.4.2",',
@@ -2009,11 +2015,61 @@ class RenovateLockstepGroupsTest(CheckTestCase):
                        'matchPackageNames': ['/^OSLO/']})
         self.assert_fail(self.check(), containing='oslo')
 
-    def test_a_group_with_no_matchers_covers_everything(self):
-        """Renovate applies an unmatched rule to every package."""
+    def test_a_group_with_no_selector_fails(self):
+        """Renovate rejects the rule, so the family is grouped nowhere."""
         self.pyproject(self.OSLO)
         self.renovate({'groupName': 'everything'})
+        self.assert_fail(self.check(), containing='oslo')
+
+    def test_a_deprecated_exclusion_of_a_member_fails(self):
+        """Migrated, this reads "!oslo.config" -- it splits the family."""
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'oslo',
+                       'excludePackageNames': ['oslo.config']})
+        self.assert_fail(self.check(), containing='oslo')
+
+    def test_a_deprecated_exclusion_pattern_of_the_family_fails(self):
+        """A rule excluding the whole family covers none of it."""
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'oslo',
+                       'excludePackagePatterns': ['^oslo']})
+        self.assert_fail(self.check(), containing='oslo')
+
+    def test_a_deprecated_exclusion_of_a_non_member_passes(self):
+        """Excluding something else leaves the family covered."""
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'oslo',
+                       'excludePackageNames': ['click']})
         self.assert_pass(self.check())
+
+    def test_a_list_of_only_exclusions_covers_everything_else(self):
+        """Renovate constrains nothing when no entry is positive."""
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'oslo',
+                       'matchPackageNames': ['!click']})
+        self.assert_pass(self.check())
+
+    def test_a_deprecated_prefix_matcher_passes(self):
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'oslo',
+                       'matchPackagePrefixes': ['oslo']})
+        self.assert_pass(self.check())
+
+    def test_a_package_matcher_survives_a_matcher_we_do_not_read(self):
+        """Only a rule with no package matcher at all covers nothing."""
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'oslo',
+                       'matchPackageNames': ['/^oslo/'],
+                       'matchManagers': ['pep621']})
+        self.assert_pass(self.check())
+
+    def test_both_matchers_must_accept_a_member(self):
+        """The two are separate conditions, so the rule covers one."""
+        self.pyproject(self.OSLO)
+        self.renovate({'groupName': 'oslo',
+                       'matchPackageNames': ['/^oslo/'],
+                       'matchDepNames': ['oslo.config']})
+        self.assert_fail(self.check(), containing='oslo')
 
     def test_a_group_narrowed_by_a_matcher_we_do_not_read_fails(self):
         """Whether it reaches these packages is not knowable here."""

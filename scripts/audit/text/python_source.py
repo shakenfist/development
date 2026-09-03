@@ -379,7 +379,7 @@ def python_specifier_clauses(specifier):
 #: dist/ hold copies of it, and a copy is what makes a dead import look
 #: alive: an import deleted from the tree survives in the last build
 #: until somebody runs `git clean`. .tox, .venv and node_modules hold
-#: everybody else's source, by two orders of magnitude more files than
+#: everybody else's source, by a factor of forty-odd more files than
 #: the project wrote -- docs/audits/unused-declared-dependency.md
 #: counts shakenfist's -- and cover/ holds annotated listings that read
 #: as source but are output.
@@ -438,8 +438,8 @@ def python_source_files(repo_path):
     return sorted(found)
 
 
-def imported_top_level_modules(repo_path, sources=None):
-    """The set of top-level module names imported anywhere in a checkout.
+def imported_top_level_modules(sources):
+    """The set of top-level module names imported in a list of files.
 
     Lowercased, because the question asked of this set is whether a
     distribution's module is among them and distribution names are
@@ -454,14 +454,14 @@ def imported_top_level_modules(repo_path, sources=None):
     first segment is empty, and they name this project rather than a
     dependency of it.
 
-    `sources` is the file list from a python_source_files() call the
-    caller has already made -- both callers make one to test whether
-    there is any source at all, and walking shakenfist's tree twice to
-    answer the same question twice is work for nothing.
+    `sources` is a python_source_files() list rather than a checkout to
+    walk. Every caller already makes that call, to test whether there
+    is any source at all before asking what it imports, and walking
+    shakenfist's tree a second time to answer the same question twice
+    is work for nothing. Taking the list is also the only way to be
+    sure the two answers describe the same set of files.
     """
     modules = set()
-    if sources is None:
-        sources = python_source_files(repo_path)
     for path in sources:
         with open(path, 'r', errors='replace') as f:
             code = mask_comments_and_strings(f.read())

@@ -81,15 +81,28 @@ list, because Renovate drops a package matched by any negated entry
 regardless of order: a rule matching `/oslo/` while excluding
 `oslo.config` does not cover the family, written either way round.
 
-A rule carrying a `groupName` and no `match*` field at all applies to
-every package in Renovate, and counts here as covering every member. A
-rule narrowed only by a matcher this criterion does not read --
-`matchManagers`, `matchDatasources`, `matchFileNames` -- is read as
-covering nothing, because whether it reaches these packages depends on
-a manager the audit does not model. No repository in the fleet groups
-a lockstep family that way; if one starts to, the failure says which
-family is ungrouped and the rule can be given an explicit
-`matchPackageNames`.
+The deprecated spellings are read too -- `matchPackagePatterns`,
+`excludePackageNames`, `excludePackagePatterns`, the `Prefixes` and
+`Dep` variants of each, and the ancient `packageNames` and
+`packagePatterns` -- because Renovate reads them. It migrates a
+configuration into `matchPackageNames` and `matchDepNames` before it
+validates or applies it, so `excludePackageNames` is a `!` entry by
+the time any package is matched. This criterion migrates them the same
+way rather than growing a branch per spelling. A list holding only
+exclusions constrains nothing positively and covers every member bar
+the ones it names, which is again how Renovate reads it, and the two
+matchers are separate conditions a package must satisfy together, so a
+rule setting both covers the intersection.
+
+A rule with no package matcher at all covers nothing. Either it is
+narrowed only by a matcher this criterion does not read --
+`matchManagers`, `matchDatasources`, `matchFileNames` -- and whether
+it reaches these packages depends on a manager the audit does not
+model; or it carries no selector whatsoever, which Renovate rejects as
+a configuration error rather than applying to every package, so it
+groups nothing at all. No repository in the fleet groups a lockstep
+family either way; if one starts to, the failure says which family is
+ungrouped and the rule can be given an explicit `matchPackageNames`.
 
 ## Projects
 

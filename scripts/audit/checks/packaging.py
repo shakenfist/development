@@ -586,6 +586,65 @@ def _match_pattern(entry, spellings):
     return any(canonical_dependency_name(s) == wanted for s in spellings)
 
 
+#: The packageRules fields Renovate rewrites into the two package
+#: matchers it still has, and the entry each one becomes. Renovate
+#: migrates a configuration before it validates or applies it -- see
+#: lib/config/migrations/custom/package-rules-migration.ts -- so
+#: excludePackageNames is not a spelling this module gets to choose
+#: whether to read: by the time Renovate matches anything it is a "!"
+#: entry in matchPackageNames. Migrating here too leaves one
+#: implementation of the matching semantics rather than one per
+#: spelling, and stops a rule written the old way being scored as
+#: covering a family it excludes.
+#:
+#: The prefix forms become a "*" glob rather than Renovate's
+#: "{/,}**". The brace alternation is there to stop a prefix
+#: swallowing a path separator, and a distribution name has none.
+RULE_MATCHER_MIGRATIONS = {
+    'packageNames': ('matchPackageNames', '{}'),
+    'packagePatterns': ('matchPackageNames', '/{}/'),
+    'matchPackagePatterns': ('matchPackageNames', '/{}/'),
+    'matchPackagePrefixes': ('matchPackageNames', '{}*'),
+    'excludePackageNames': ('matchPackageNames', '!{}'),
+    'excludePackagePatterns': ('matchPackageNames', '!/{}/'),
+    'excludePackagePrefixes': ('matchPackageNames', '!{}*'),
+    'matchDepPatterns': ('matchDepNames', '/{}/'),
+    'matchDepPrefixes': ('matchDepNames', '{}*'),
+    'excludeDepNames': ('matchDepNames', '!{}'),
+    'excludeDepPatterns': ('matchDepNames', '!/{}/'),
+    'excludeDepPrefixes': ('matchDepNames', '!{}*'),
+}
+
+#: Renovate's migration leaves a bare "*" as the glob rather than
+#: wrapping it into the "/*/" regex the other entries become, and only
+#: in the package spelling.
+STAR_PATTERN_FIELDS = ('packagePatterns', 'matchPackagePatterns')
+
+
+def migrated_matchers(rule):
+    """A packageRules entry's package matchers, as Renovate sees them.
+
+    Returns the matchPackageNames and matchDepNames entry lists with
+    every deprecated spelling in RULE_MATCHER_MIGRATIONS folded in.
+    Non-string entries are dropped rather than raising: renovate.json
+    is somebody's hand-written file and this criterion should report
+    what it can read, not lose the repository's run.
+    """
+    entries = {'matchPackageNames': [], 'matchDepNames': []}
+    for field in entries:
+        entries[field].extend(
+            e for e in rule.get(field) or [] if isinstance(e, str))
+    for field, (target, template) in RULE_MATCHER_MIGRATIONS.items():
+        for entry in rule.get(field) or []:
+            if not isinstance(entry, str):
+                continue
+            if entry == '*' and field in STAR_PATTERN_FIELDS:
+                entries[target].append('*')
+            else:
+                entries[target].append(template.format(entry))
+    return entries
+
+
 def rule_covers(rule, members):
     """The canonical names a single packageRules entry selects.
 
@@ -602,36 +661,37 @@ def rule_covers(rule, members):
     whole family and pass -- a false pass on exactly the configuration
     this criterion exists to catch.
 
-    A rule carrying no match* field at all applies to every package in
-    Renovate, and so covers every member here. A rule narrowed only by
-    a non-package matcher -- matchManagers, say -- is still read as
-    covering nothing, because whether it reaches these packages depends
-    on a manager this module does not model; that is a false failure,
-    but a visible and arguable one, and no fleet repository writes it.
+    A list holding only exclusions constrains nothing positively, and
+    Renovate reads it as every package bar the ones it names. The two
+    matchers are separate conditions a package must satisfy together,
+    so what a rule setting both covers is the intersection.
+
+    A rule with no package matcher at all covers nothing. Either it is
+    narrowed only by a matcher this module does not model --
+    matchManagers, matchDatasources, matchFileNames -- or it carries no
+    selector whatsoever, which Renovate rejects as a configuration
+    error rather than applying to every package. Neither leaves a
+    family this criterion can call grouped, and both fail visibly.
     """
-    included, excluded = set(), set()
+    entries = migrated_matchers(rule)
+    covered = None
     for field in ('matchPackageNames', 'matchDepNames'):
-        for entry in rule.get(field) or []:
-            if not isinstance(entry, str):
-                continue
+        if not entries[field]:
+            continue
+        included, excluded, positive = set(), set(), False
+        for entry in entries[field]:
             negated = entry.startswith('!')
             body = entry[1:] if negated else entry
             matched = {name for name, spellings in members.items()
                        if _match_pattern(body, spellings)}
-            (excluded if negated else included).update(matched)
-    for field in ('matchPackagePatterns', 'matchDepPatterns'):
-        for entry in rule.get(field) or []:
-            if not isinstance(entry, str):
-                continue
-            try:
-                pattern = re.compile(entry)
-            except re.error:
-                continue
-            included |= {name for name, spellings in members.items()
-                         if any(pattern.search(s) for s in spellings)}
-    if not any(key.startswith('match') for key in rule):
-        included = set(members)
-    return included - excluded
+            if negated:
+                excluded |= matched
+            else:
+                positive = True
+                included |= matched
+        selected = (included if positive else set(members)) - excluded
+        covered = selected if covered is None else covered & selected
+    return covered if covered is not None else set()
 
 
 def grouping_rules(config):
@@ -734,7 +794,7 @@ class UnusedDeclaredDependency(Check):
                 'No Python source outside build and environment '
                 'directories, so nothing here imports anything')
 
-        imported = imported_top_level_modules(repo.path, sources)
+        imported = imported_top_level_modules(sources)
 
         unused, annotated = [], 0
         for name in sorted(direct):
@@ -807,7 +867,7 @@ class UndeclaredDirectDependency(Check):
                 'No Python source outside build and environment '
                 'directories, so nothing here imports anything')
 
-        imported = imported_top_level_modules(repo.path, sources)
+        imported = imported_top_level_modules(sources)
 
         # A module a directly declared distribution could equally have
         # provided is not evidence about the transitive one. The

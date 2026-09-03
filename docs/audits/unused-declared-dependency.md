@@ -111,10 +111,11 @@ plugin and a Rust proxy alongside the package itself.
 Comments and string literals are masked before imports are read. A
 commented-out import is the precise shape this criterion exists to
 find, so counting one as a use would report the deadest dependency in
-the tree as the one still in use. `build/`, `dist/`, `cover/`, `.tox/`,
-`.venv/` and `node_modules/` are not read: a copy of the source is what
-makes a deleted import look alive, and shakenfist's `.tox` holds 23,286
-Python files against the 502 it wrote.
+the tree as the one still in use. `.git/`, `.tox/`, `.venv/`, `venv/`,
+`.eggs/`, `build/`, `dist/`, `cover/`, `node_modules/` and
+`__pycache__/` are not read: a copy of the source is what makes a
+deleted import look alive, and shakenfist's `.tox` holds 23,286 Python
+files against the 502 it wrote.
 
 ## Projects
 
