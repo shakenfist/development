@@ -15,7 +15,10 @@ import subprocess
 
 from audit.check import Check
 from audit.files import check_file_contains, iter_doc_content_files
-from audit.text.markdown import blank_generated_blocks
+from audit.text.markdown import (
+    blank_generated_blocks, iter_lines_outside_fences,
+    iter_markdown_table_rows, markdown_heading,
+)
 from audit.text.shared_blocks import validate_shared_blocks
 
 
@@ -158,16 +161,8 @@ PLAN_LINK_RE = re.compile(r'\[([^\]]*)\]\(([^)]+)\)')
 PLAN_LINK_SCHEME_RE = re.compile(r'^(?:[a-z][a-z0-9+.-]*:|//)', re.IGNORECASE)
 
 
-PLAN_TABLE_SEPARATOR_RE = re.compile(r'^[\s|:-]+$')
-
-
 # How many offending items to name before summarising.
 PLAN_INDEX_MAX_SHOWN = 5
-
-
-def plan_index_cells(line):
-    """The cells of a markdown table row, outer empties trimmed."""
-    return [c.strip() for c in line.strip().strip('|').split('|')]
 
 
 def plan_cell_text(cell):
@@ -175,6 +170,17 @@ def plan_cell_text(cell):
     return PLAN_CELL_DECORATION_RE.sub(
         '', PLAN_LINK_RE.sub(r'\1', cell)
     ).strip()
+
+
+def plan_table_columns(cells):
+    """A table header row's cells, folded to comparable column names.
+
+    Handed to iter_markdown_table_rows so that every table this module
+    reads names its columns the same way: a header written `**Plan**`
+    or `` `Status` `` is the column the check is looking for, and the
+    decoration is presentation.
+    """
+    return [plan_cell_text(cell).lower() for cell in cells]
 
 
 def plan_index_summarise(label, items):
@@ -253,8 +259,14 @@ PLAN_PHASE_SECTION_RE = re.compile(
 # ordinary subsections -- ryll's follow-up plans are lists of numbered
 # findings -- and reading those as phases would report a plan for not
 # ending its findings list with an audit.
+#
+# The title is optional, because "### Phase 1", "### Phase 2" is a
+# shape the fleet writes and a plan using it had no phases this check
+# could read at all. Only the explicit form is allowed to omit it --
+# see where this is matched -- since a heading that is a bare number
+# is exactly the numbered subsection the paragraph above excludes.
 PLAN_PHASE_HEADING_RE = re.compile(
-    r'^(?:phase\s*)?(\d+)\s*[.:)]\s+(\S.*)$', re.IGNORECASE)
+    r'^(?:phase\s*)?(\d+)\s*(?:[.:)]\s+(\S.*))?$', re.IGNORECASE)
 
 
 PLAN_PHASE_EXPLICIT_HEADING_RE = re.compile(r'^phase\s*\d', re.IGNORECASE)
@@ -304,6 +316,32 @@ def plan_phase_name(text):
     return [word for word in PLAN_PHASE_WORD_RE.split(rest.lower()) if word]
 
 
+def plan_section_summary(lines, offset):
+    """The first paragraph under a heading, joined into one line.
+
+    What a phase written as a bare "### Phase 5" heading says it is.
+    The heading names nothing, so its prose has to answer for it, and
+    the prose is read the way a bare table cell's row is read: whole,
+    because the plan put the phase's name wherever the document read
+    best. Bounded to the first paragraph and stopped by the next
+    heading, so a cross-reference three paragraphs down cannot name
+    the phase. `lines` is expected to have had fenced code blanked
+    already, so a runbook snippet under the heading contributes
+    nothing.
+    """
+    body = []
+    for line in lines[offset + 1:]:
+        stripped = line.strip()
+        if markdown_heading(stripped):
+            break
+        if not stripped:
+            if body:
+                break
+            continue
+        body.append(stripped)
+    return ' '.join(body)
+
+
 def plan_phase_heading_extends(title, label):
     """Whether a numbered heading is a table row's own section.
 
@@ -322,9 +360,6 @@ def plan_phase_heading_extends(title, label):
     """
     name = plan_phase_name(label)
     return bool(name) and plan_phase_name(title)[:len(name)] == name
-
-
-PLAN_HEADING_RE = re.compile(r'^(#{1,6})\s+(.*)$')
 
 
 # A plan the check cannot judge because it has no phases at all: a
@@ -368,6 +403,12 @@ def plan_index_entries(path):
     plan in another repository, and nothing under this repository's
     docs/plans/ can answer for it either way.
 
+    A link inside a fenced code block is not recorded either. An index
+    that shows what a row looks like -- which is how a repository
+    documents its own conventions -- is showing sample text, not
+    registering the plan it names, and reading it as a registration
+    would hand this criterion a plan file that need not exist.
+
     Returns a list of (filename, link target, status or None) in the
     order the index introduces them.
     """
@@ -390,26 +431,17 @@ def plan_index_entries(path):
         if name not in found or (found[name][1] is None and status):
             found[name] = (cleaned, status)
 
-    header = None
-    for offset, line in enumerate(lines):
-        stripped = line.strip()
-        if not stripped.startswith('|'):
+    for _offset, line, is_header, header, cells in iter_markdown_table_rows(
+            lines, columns=plan_table_columns):
+        if cells is None:
             # Prose between tables ends the run of rows, so a row is
-            # never read against the header of an earlier table.
-            header = None
+            # never read against the header of an earlier table. The
+            # iterator has already blanked fenced code, so an example
+            # index shown in a runbook snippet registers nothing.
             for _, target in PLAN_LINK_RE.findall(line):
                 record(target, None)
             continue
-        if PLAN_TABLE_SEPARATOR_RE.match(stripped):
-            continue
-
-        cells = plan_index_cells(stripped)
-        following = (
-            lines[offset + 1].strip() if offset + 1 < len(lines) else ''
-        )
-        if (following.startswith('|')
-                and PLAN_TABLE_SEPARATOR_RE.match(following)):
-            header = [plan_cell_text(c).lower() for c in cells]
+        if is_header:
             continue
 
         status = None
@@ -440,25 +472,43 @@ def plan_index_entries(path):
     ]
 
 
-def plan_index_target_path(plans_dir, target, name):
+def plan_file_paths(plans_dir):
+    """Basename to path for every markdown file under plans_dir.
+
+    Built once by the caller and handed to plan_index_target_path,
+    the way plan_file_names() is handed to plan_reference_resolves():
+    the by-name fallback fires for every link an index writes from the
+    repository root rather than from beside itself, and walking the
+    tree once per link is a walk per plan for no answer that changes.
+
+    First one wins, in os.walk order, which is the file the fallback
+    used to return when it walked the tree itself.
+    """
+    paths = {}
+    for dirpath, _dirnames, filenames in os.walk(plans_dir):
+        for filename in filenames:
+            if filename.endswith('.md'):
+                paths.setdefault(filename, os.path.join(dirpath, filename))
+    return paths
+
+
+def plan_index_target_path(plans_dir, target, name, paths):
     """The plan file an index link names, or None if there is none.
 
     Resolved as the link is written first, so that a plan linked from
     docs/plans/completed/ is found where it actually sits. A target
-    that does not resolve that way is searched for by basename
-    anywhere under docs/plans/, which is how plan references resolve
-    elsewhere in this module and covers an index whose links are
-    written from the repository root rather than from beside it.
+    that does not resolve that way is looked up by basename in
+    `paths`, the plan_file_paths() map of everything under
+    docs/plans/, which is how plan references resolve elsewhere in
+    this module and covers an index whose links are written from the
+    repository root rather than from beside it.
     """
     candidate = os.path.normpath(os.path.join(plans_dir, target))
     root = os.path.normpath(plans_dir)
     if (candidate == root or candidate.startswith(root + os.sep)) \
             and os.path.isfile(candidate):
         return candidate
-    for dirpath, _dirnames, filenames in os.walk(plans_dir):
-        if name in filenames:
-            return os.path.join(dirpath, name)
-    return None
+    return paths.get(name)
 
 
 def plan_phases(content):
@@ -486,7 +536,9 @@ def plan_phases(content):
     columns -- a Notes cell mentioning an audit the phase is not --
     must not answer for it. A bare-number cell ("8", "Phase 8") names
     nothing, so there the whole row is read, which is where a plan
-    with a numbers-only Phase column describes its phases.
+    with a numbers-only Phase column describes its phases. A heading
+    that names nothing either -- "### Phase 8" -- is answered for by
+    the first paragraph of its own section, for the same reason.
 
     The label is the short name a message quotes back, and the status
     is the phase's own Status cell where its table has one. The status
@@ -498,7 +550,16 @@ def plan_phases(content):
     so that a message can name what it did not read rather than say
     the plan has no such heading at all.
     """
-    lines = content.splitlines()
+    # Fenced code is blanked once, up front. This function reads both
+    # the document's headings and its tables, and the two readings
+    # have to agree about which lines are sample text: a `# comment` in
+    # a shell snippet popped the heading stack and took the phase table
+    # below it out of the plan's Execution section, which reported the
+    # plan as having no phases at all. iter_markdown_table_rows blanks
+    # again below, which is a no-op on an already-blanked list.
+    lines = [
+        line for _, line in iter_lines_outside_fences(content.splitlines())
+    ]
     phases = {}
     sections = []
     near = []
@@ -508,13 +569,14 @@ def plan_phases(content):
     in_phase_table = False
     status_column = None
 
-    for offset, line in enumerate(lines):
+    for offset, line, is_header, columns, cells in iter_markdown_table_rows(
+            lines, columns=plan_table_columns):
         stripped = line.strip()
 
-        heading = PLAN_HEADING_RE.match(stripped)
+        heading = markdown_heading(stripped) if cells is None else None
         if heading:
-            level = len(heading.group(1))
-            title = plan_cell_text(heading.group(2))
+            level, raw = heading
+            title = plan_cell_text(raw)
             while stack and stack[-1][0] >= level:
                 stack.pop()
             in_phase_table = False
@@ -524,6 +586,14 @@ def plan_phases(content):
                 PLAN_PHASE_SECTION_RE.search(text) for _, text in stack
             )
             explicit = PLAN_PHASE_EXPLICIT_HEADING_RE.match(title)
+            if numbered and numbered.group(2) is None and not explicit:
+                # A heading that is a number and nothing else -- "### 5"
+                # -- is not read as a phase. Plans number ordinary
+                # subsections too, and a findings list under a
+                # completed audit is numbered from one exactly as the
+                # phases are. Only the explicit "### Phase 5" form is
+                # unambiguous enough to be read without a title.
+                numbered = None
             if numbered:
                 # Anchored on every numbered heading, not only the
                 # ones read as phases here. The anchor answers "where
@@ -545,9 +615,22 @@ def plan_phases(content):
             if numbered and (inside or explicit):
                 # A phase written as a section carries no status
                 # cell, so there is none to read.
+                name = numbered.group(2)
+                text = title
+                if name is None:
+                    # "### Phase 5" names nothing beyond its number,
+                    # so the phase's own prose answers for it -- the
+                    # same reading a bare "| 5 |" cell gets, where the
+                    # rest of the row answers instead of the cell.
+                    # Without it a plan whose headings are bare is
+                    # judged on titles that say only what the phase
+                    # number already said.
+                    body = plan_section_summary(lines, offset)
+                    if body:
+                        text = f'{title} {body}'
                 phases.setdefault(
                     int(numbered.group(1)),
-                    (offset, title, numbered.group(2), None))
+                    (offset, text, name or title, None))
             elif PLAN_AUDIT_SECTION_RE.match(title):
                 sections.append(offset)
             elif PLAN_AUDIT_SECTION_NEAR_RE.match(title):
@@ -556,19 +639,11 @@ def plan_phases(content):
             stack.append((level, title))
             continue
 
-        if not stripped.startswith('|'):
+        if cells is None:
             in_phase_table = False
             continue
-        if PLAN_TABLE_SEPARATOR_RE.match(stripped):
-            continue
 
-        cells = plan_index_cells(stripped)
-        following = (
-            lines[offset + 1].strip() if offset + 1 < len(lines) else ''
-        )
-        if (following.startswith('|')
-                and PLAN_TABLE_SEPARATOR_RE.match(following)):
-            columns = [plan_cell_text(c).lower() for c in cells]
+        if is_header:
             in_phase_table = bool(
                 columns
                 and columns[0] == PLAN_PHASE_TABLE_COLUMN
@@ -662,6 +737,13 @@ def plan_audit_phase_state(content):
     claim it audited work that landed after it. That one wants a
     second audit phase covering the later work, so the phase's own
     status is what decides which sentence the author is handed.
+
+    Where there is no status to read -- a phase written as a numbered
+    section carries no Status cell, which is how this repository and
+    several others write plans -- neither sentence can be asserted, so
+    the message states what is seen and names both fixes. Guessing the
+    reorder there is the guess that costs something: it is exactly the
+    false record of what was audited the other branch exists to avoid.
     """
     phases, sections, near = plan_phases(content)
     if not phases:
@@ -729,10 +811,43 @@ def plan_audit_phase_state(content):
                 f'append a new push audit phase rather than moving the '
                 f'finished one'
             )
-    if audits or sections:
+        if status is None:
+            # No status to read at all, which is the ordinary case for
+            # a plan whose phases are numbered sections: a heading
+            # carries no Status cell. Asserting "move the audit phase
+            # after it" here is a guess, and it is the guess that is
+            # wrong precisely when the audit has already run --
+            # moving a finished phase to the end is the false record
+            # of what was audited that this criterion exists to
+            # prevent. So the same shape as the terminal branch: the
+            # facts, and a remedy the author picks between.
+            return PLAN_AUDIT_PROBLEM, (
+                f'phase {audit} is the push audit phase, but phases up '
+                f'to {last} ("{summary}") come after it and the plan '
+                f'records no status for the audit phase; move the audit '
+                f'phase after them if it has not run, and append a new '
+                f'one if it has'
+            )
+        # A status the plan states and that is not terminal: the audit
+        # has not run, so the phases are simply in the wrong order and
+        # the remedy can be asserted.
         return PLAN_AUDIT_PROBLEM, (
             f'push audit phase is not last, so phase {last} '
             f'("{summary}") is unaudited; move the audit phase after it'
+        )
+    if sections:
+        # The trailing-section shape, outrun. A section carries no
+        # Status cell at all -- that is what makes it a section rather
+        # than a phase -- so this is the unknown-status case above
+        # with no cell to have read, and it gets the same shape for
+        # the same reason: telling an author to move a section whose
+        # audit has already run asks for the false record of what was
+        # audited that this criterion exists to prevent.
+        return PLAN_AUDIT_PROBLEM, (
+            f'the plan has a push audit section, but phases up to '
+            f'{last} ("{summary}") come after it and the plan records '
+            f'no status for it; move the audit section after them if it '
+            f'has not run, and append a new push audit phase if it has'
         )
     if near:
         # A heading the author can see on the page, that this check
@@ -955,35 +1070,31 @@ class PlanIndex(Check):
         # would be a finding nobody could act on.
         tables = []
         current = None
-        lines = content.splitlines()
-        for offset, line in enumerate(lines):
+        # A header is the row the separator underlines. Recognising it by
+        # its position rather than by "has no links" means a data row that
+        # happens to carry no link cannot be mistaken for the start of a
+        # new table. That reading, and the fence handling that keeps an
+        # example index out of it, are iter_markdown_table_rows' job: this
+        # criterion, plan_index_entries and plan_phases all read the same
+        # markdown, and three copies of the idiom is how a fix reaches two
+        # of them.
+        for offset, line, is_header, columns, cells in \
+                iter_markdown_table_rows(content.splitlines(),
+                                         columns=plan_table_columns):
             lineno = offset + 1
             for _, target in PLAN_LINK_RE.findall(line):
                 name = target.split('#')[0].strip()
                 if name.endswith('.md'):
                     linked.add(os.path.basename(name))
 
-            stripped = line.strip()
-            if not stripped.startswith('|'):
+            if cells is None:
                 # Prose between tables ends the run of rows, so two
                 # adjacent tables never compare dates across the boundary.
                 current = None
                 continue
-            if PLAN_TABLE_SEPARATOR_RE.match(stripped):
-                continue
 
-            cells = plan_index_cells(stripped)
-
-            # A header is the row the separator underlines. Recognising it
-            # by its position rather than by "has no links" means a data
-            # row that happens to carry no link cannot be mistaken for the
-            # start of a new table.
-            following = (
-                lines[offset + 1].strip() if offset + 1 < len(lines) else ''
-            )
-            if (following.startswith('|')
-                    and PLAN_TABLE_SEPARATOR_RE.match(following)):
-                columns = [plan_cell_text(c).lower() for c in cells]
+            stripped = line.strip()
+            if is_header:
                 current = {
                     'columns': columns,
                     'lead_ok': (tuple(columns[:len(PLAN_INDEX_LEAD_COLUMNS)])
@@ -1129,13 +1240,17 @@ class PlanAuditPhase(Check):
             return self.skip('No docs/plans/index.md')
 
         plans_dir = os.path.dirname(index_path)
+        # Built once rather than per link: the by-name fallback fires
+        # for every index whose links are written from the repository
+        # root, and that is a walk of docs/plans/ per plan.
+        paths = plan_file_paths(plans_dir)
         judged = 0
         terminal = 0
         unphased = []
         unresolved = []
         problems = []
         for name, target, status in plan_index_entries(index_path):
-            path = plan_index_target_path(plans_dir, target, name)
+            path = plan_index_target_path(plans_dir, target, name, paths)
             if path is None:
                 # Whose fault a broken link is stays docs-external-
                 # links' business, and this check does not fail for

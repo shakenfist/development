@@ -46,7 +46,23 @@ execution, implementation, phases or workstreams, because plans also
 number ordinary subsections and a list of numbered findings is not a
 list of phases. Both shapes are read where a plan carries both, keyed by phase
 number rather than by position, because the numbers agree where
-document order does not.
+document order does not. A heading that names itself a phase may omit
+its title -- `### Phase 1`, `### Phase 2` is a shape the fleet writes,
+and such a plan had no phases the check could read at all -- and its
+section's first paragraph then says what the phase is, the way the
+rest of the row answers for a bare `Phase` cell. Only that explicit
+form may omit a title: a heading that is a bare number and nothing
+else is the numbered subsection above, not a phase.
+
+Fenced code blocks are not read as document structure. A plan is
+allowed to show what a phase section or an Execution table looks like,
+and a runbook snippet is allowed to contain a `#` comment; none of
+that is the plan's own structure. Reading it as structure invented
+phases out of examples and, worse, silently unphased a plan whose
+Execution section contained a shell snippet -- the comment popped the
+heading stack and took the phase table below it out of the section.
+The same applies to `docs/plans/index.md`: a link shown inside a fence
+registers no plan.
 
 Where a plan carries both, a numbered heading is read as a phase's own
 section only when its name begins with the table row's. The heading
@@ -163,6 +179,16 @@ finding says which:
 * **The audit has not run** -- its own status is not terminal. The
   phases are simply in the wrong order: move the audit phase after the
   ones it must audit, leaving one audit phase.
+* **The plan records no status for the audit.** A phase written as a
+  numbered section carries no Status cell, and a trailing
+  `## Push audit` section carries none either -- that is what makes it
+  a section rather than a phase. For both shapes there is nothing to
+  read and either fix may be the right one. The finding says so and
+  names both rather than asserting the reorder: the reorder is the
+  destructive guess, because a plan whose audit has already run gets a
+  false record of what was audited out of it. Reading the plan settles
+  which applies in a few seconds; guessing wrong costs a round trip on
+  a repository nobody here is watching.
 * **The audit has run** -- its status is terminal, and there are
   phases after it. The check cannot tell whether that work landed
   after the audit ran or was always scheduled behind it, so the

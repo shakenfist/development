@@ -681,6 +681,35 @@ class PlanIndexTest(unittest.TestCase):
         self.assertIn('vocabulary', result['details'])
         self.assertNotIn('not led by Date then Plan', result['details'])
 
+    def test_a_fenced_example_table_is_not_read_as_an_index_table(self):
+        # An index that shows what a row looks like is documenting
+        # itself, not registering a plan. Reading the example as a
+        # table gave a second set of columns to judge, and its link
+        # registered a plan the index never lists.
+        result = self._check(
+            plans=['PLAN-one.md', 'PLAN-two.md'],
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one | Complete |\n'
+                '\n'
+                'Add a row like this one:\n'
+                '\n'
+                '```markdown\n'
+                '| Plan | Date |\n'
+                '|------|------|\n'
+                '| [Two](PLAN-two.md) | whenever |\n'
+                '```\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'fail')
+        # The example's columns are sample text, not a table this
+        # criterion judges.
+        self.assertNotIn('not led by Date then Plan', result['details'])
+        self.assertNotIn('without a YYYY-MM-DD date', result['details'])
+        # And its link is not a registration.
+        self.assertIn('PLAN-two.md', result['details'])
+        self.assertIn('not listed in the index', result['details'])
+
 
 class PlanAuditPhaseTest(unittest.TestCase):
     """Master plans ending with a phase that runs PUSH-AUDIT.md."""
@@ -1058,6 +1087,13 @@ class PlanAuditPhaseTest(unittest.TestCase):
         the table numbers last is described below the audit and
         nothing audits it. Comparing the section against the table row
         rather than against the phase's own section passed this.
+
+        A section carries no Status cell -- that is what makes it a
+        section rather than a phase -- so the remedy is conditional
+        here for the same reason it is for a phase whose status the
+        plan does not record: asserting the reorder tells an author
+        whose audit has already run to write a false record of what
+        was audited.
         """
         result = self._check(
             {
@@ -1090,8 +1126,17 @@ class PlanAuditPhaseTest(unittest.TestCase):
             ),
         )
         self.assertEqual(result['status'], 'fail', result['details'])
-        self.assertIn('not last', result['details'])
+        # The section is seen, and the phase that outran it is named.
+        # Both matter: if the section stopped being read as outrun the
+        # plan would pass, and if it stopped being read at all the
+        # finding would be "no push audit phase" rather than this.
+        self.assertIn('push audit section', result['details'])
+        self.assertIn('come after it', result['details'])
         self.assertIn('2. Deploy', result['details'])
+        # Neither remedy is asserted on its own.
+        self.assertIn('if it has not run', result['details'])
+        self.assertIn('append a new push audit phase if it has',
+                      result['details'])
 
     def test_bare_phase_cells_named_by_their_sections_pass(self):
         """A Phase column of "Phase 1", "Phase 2" and named sections.
@@ -1562,6 +1607,215 @@ class PlanAuditPhaseTest(unittest.TestCase):
             result['details'].startswith('0 '), result['details'])
         self.assertIn('no phases this check can read', result['details'])
         self.assertIn('PLAN-one.md', result['details'])
+
+    ONE_ROW = (
+        '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
+    )
+
+    def test_a_shell_comment_in_a_fence_does_not_end_a_phase_section(self):
+        """A `#` comment in a snippet is not a heading.
+
+        The bare phase table below is only read as a phase table
+        because it sits under a heading naming execution. Popping the
+        heading stack on a shell comment took the table out of that
+        section, and the plan came back with no phases the check could
+        read -- passing in silence, which is the worst of the three.
+        """
+        result = self._check(
+            {
+                'PLAN-one.md': (
+                    '# A plan\n'
+                    '\n'
+                    '## Execution\n'
+                    '\n'
+                    'Regenerate the tables first:\n'
+                    '\n'
+                    '```bash\n'
+                    '# refresh the compliance page\n'
+                    'tools/audit.sh\n'
+                    '```\n'
+                    '\n'
+                    '| Phase | Status |\n'
+                    '|-------|--------|\n'
+                    '| 1. Build | Complete |\n'
+                    '| 2. Push audit | Not started |\n'
+                    '\n'
+                    'Phase 2 runs `PUSH-AUDIT.md`.\n'
+                ),
+            },
+            index=self.HEADER + self.ONE_ROW,
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assertNotIn('no phases this check can read', result['details'])
+        self.assertIn('1 incomplete master plan(s)', result['details'])
+
+    def test_an_example_phase_heading_in_a_fence_is_not_a_phase(self):
+        # A plan showing what a phase section looks like invented a
+        # phase 9, and the plan failed for an audit that is not last.
+        result = self._check(
+            {
+                'PLAN-one.md': self._audit_plan(['Build']) + (
+                    '\n'
+                    'Write a phase section like this:\n'
+                    '\n'
+                    '```markdown\n'
+                    '### 9. Cleanup\n'
+                    '\n'
+                    'Tidy up.\n'
+                    '```\n'
+                ),
+            },
+            index=self.HEADER + self.ONE_ROW,
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assertNotIn('not last', result['details'])
+
+    def test_an_example_phase_table_in_a_fence_adds_no_phase(self):
+        # The same for a fenced example of the Execution table itself,
+        # which is what a plan about plans shows its readers.
+        result = self._check(
+            {
+                'PLAN-one.md': self._audit_plan(['Build']) + (
+                    '\n'
+                    'Write the Execution table like this:\n'
+                    '\n'
+                    '```markdown\n'
+                    '| Phase | Status |\n'
+                    '|-------|--------|\n'
+                    '| 3. Example | Not started |\n'
+                    '```\n'
+                ),
+            },
+            index=self.HEADER + self.ONE_ROW,
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assertNotIn('not last', result['details'])
+
+    def test_a_plan_linked_only_from_a_fenced_index_row_is_not_judged(self):
+        # An index showing an example row is sample text. Reading its
+        # link as a registration judges a plan the index never lists,
+        # and a repository documenting its own index conventions would
+        # be judged on the file its example happens to name.
+        result = self._check(
+            {
+                'PLAN-one.md': self._audit_plan(['Build']),
+                'PLAN-two.md': self._plan(['Build', 'Ship']),
+            },
+            index=(
+                self.HEADER + self.ONE_ROW +
+                '\n'
+                'Add a row like this one:\n'
+                '\n'
+                '```markdown\n'
+                '| 2026-02-02 | [Two](PLAN-two.md) | Do two | Proposed |\n'
+                '```\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assertNotIn('PLAN-two.md', result['details'])
+
+    def test_a_section_audit_with_no_status_leaves_the_remedy_open(self):
+        """A heading-based plan's audit phase carries no status cell.
+
+        Both remedies are still possible, and the wrong one is the
+        expensive one: moving a finished audit phase to the end is the
+        false record of what was audited that this criterion exists to
+        prevent. So the message states what is seen and lets the
+        author pick, the way the terminal-status message does.
+        """
+        result = self._check(
+            {
+                'PLAN-one.md': (
+                    '# A plan\n'
+                    '\n'
+                    '## Execution\n'
+                    '\n'
+                    '### 1. Build\n'
+                    '\n'
+                    'Groundwork.\n'
+                    '\n'
+                    '### 2. Push audit\n'
+                    '\n'
+                    'Ran `PUSH-AUDIT.md` over phases 1 and 2.\n'
+                    '\n'
+                    '### 3. Reopened work\n'
+                    '\n'
+                    'More work arrived after the audit ran.\n'
+                ),
+            },
+            index=self.HEADER + self.ONE_ROW,
+        )
+        self.assertEqual(result['status'], 'fail')
+        self.assertIn('phase 2 is the push audit phase', result['details'])
+        self.assertIn('records no status', result['details'])
+        self.assertIn('Reopened work', result['details'])
+        # Neither remedy is asserted on its own.
+        self.assertIn('if it has not run', result['details'])
+        self.assertIn('append a new one if it has', result['details'])
+
+    def test_bare_phase_headings_are_read(self):
+        # "### Phase 1", "### Phase 2" with no title. The number is
+        # explicit enough to read, and the section's own prose says
+        # what the phase is, so the plan is judged rather than named
+        # as one the check could not read.
+        result = self._check(
+            {
+                'PLAN-one.md': (
+                    '# A plan\n'
+                    '\n'
+                    '## Execution\n'
+                    '\n'
+                    '### Phase 1\n'
+                    '\n'
+                    'Build the thing.\n'
+                    '\n'
+                    '### Phase 2\n'
+                    '\n'
+                    'Run `PUSH-AUDIT.md` over the accumulated diff.\n'
+                ),
+            },
+            index=self.HEADER + self.ONE_ROW,
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assertNotIn('no phases this check can read', result['details'])
+
+    def test_a_bare_numbered_heading_is_still_not_a_phase(self):
+        # Only the explicit "Phase N" form may omit its title. A bare
+        # "### 3" is the numbered subsection that plans write for
+        # findings lists, and reading it as a phase would report a
+        # plan for not ending its findings with an audit.
+        result = self._check(
+            {
+                'PLAN-one.md': self._audit_plan(['Build']) + (
+                    '\n'
+                    '## Push audit findings\n'
+                    '\n'
+                    '### 3\n'
+                    '\n'
+                    'Something the audit turned up.\n'
+                ),
+            },
+            index=self.HEADER + self.ONE_ROW,
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assertNotIn('not last', result['details'])
+
+    def test_two_audit_phases_pass(self):
+        # The shape the specification's fix instructions ask an author
+        # to produce: a finished audit, later work, and a second audit
+        # covering it. The last phase is still the audit phase.
+        result = self._check(
+            {
+                'PLAN-one.md': self._plan([
+                    ('Build', 'Complete'),
+                    ('Push audit', 'Complete'),
+                    ('Reopened work', 'Complete'),
+                    ('Push audit', 'Not started'),
+                ]) + '\nEach audit phase runs `PUSH-AUDIT.md`.\n',
+            },
+            index=self.HEADER + self.ONE_ROW,
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
 
 
 class PushAuditTest(unittest.TestCase):

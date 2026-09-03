@@ -9,16 +9,45 @@ import re
 from audit.markers import BEGIN_MARKER, END_MARKER
 
 
-def iter_markdown_headings(content, levels=(2, 3)):
-    """Yield (level, text, line) for ATX headings outside code fences.
+# An ATX heading: one to six hashes, whitespace, then the title. The
+# whitespace is required, so `###foo` is not a heading and a bare
+# `###` on a line of its own is not one either.
+MD_HEADING_RE = re.compile(r'^(#{1,6})\s+(.*)$')
 
-    A `## foo` inside a fenced block is sample text, not a heading, so
-    fenced regions are skipped the same way strip_markdown_code skips
-    them. The raw line comes back too, so callers can look for an
-    audit-ok marker on it.
+
+# A markdown table's separator row -- |---|, | :--- | ---: |, and the
+# rest of its spellings. Only ever applied to a line that already
+# starts with a pipe, because `---` on its own is a horizontal rule
+# and ends a table rather than continuing one.
+MD_TABLE_SEPARATOR_RE = re.compile(r'^[\s|:-]+$')
+
+
+def iter_lines_outside_fences(lines):
+    """Yield (offset, line) for each line, blanking fenced code.
+
+    The one fence loop the markdown-structure readers in this package
+    share. A `## foo` or a `| Phase |` row inside a fenced block is
+    sample text rather than document structure, and every caller that
+    reads structure has to skip it.
+
+    A fence's opening marker, its body and its closing marker all come
+    back as empty strings rather than being dropped. That keeps an
+    offset usable as an index into the caller's own list of lines, and
+    it makes a fence break a run of table rows instead of silently
+    joining the tables either side of it -- an example table shown
+    between two real ones would otherwise hand its column names to the
+    second. It is the same choice blank_generated_blocks makes, for
+    the same reason.
+
+    Both fence characters are recognised, and a block is closed only
+    by its own marker, so a ``` shown inside a ~~~ block does not end
+    it. An unterminated fence blanks the rest of the document, which
+    is what the heading scan has always done: a malformed file reads
+    as having no structure after the stray marker rather than as
+    having structure invented from its code.
     """
     fence = None
-    for line in content.splitlines():
+    for offset, line in enumerate(lines):
         stripped = line.lstrip()
         marker = None
         if stripped.startswith('```'):
@@ -29,16 +58,99 @@ def iter_markdown_headings(content, levels=(2, 3)):
         if fence is not None:
             if marker == fence:
                 fence = None
+            yield offset, ''
             continue
         if marker is not None:
             fence = marker
+            yield offset, ''
             continue
 
-        match = re.match(r'(#{1,6})\s+(.*)', stripped)
-        if match and len(match.group(1)) in levels:
-            text = match.group(2).strip().rstrip('#').strip()
+        yield offset, line
+
+
+def markdown_heading(line):
+    """Return (level, text) for an ATX heading line, or None.
+
+    The text is what follows the hashes, untouched otherwise: callers
+    differ on whether closing hashes and markdown decoration are
+    noise, so trimming them is left to them.
+    """
+    match = MD_HEADING_RE.match(line.lstrip())
+    if not match:
+        return None
+    return len(match.group(1)), match.group(2)
+
+
+def markdown_table_cells(line):
+    """The cells of a markdown table row, outer empties trimmed."""
+    return [c.strip() for c in line.strip().strip('|').split('|')]
+
+
+def iter_markdown_table_rows(lines, columns=None):
+    """Yield (offset, line, is_header, header, cells) for every line.
+
+    One record per line of the document rather than per table row, so
+    that a caller can walk a file once: the rows of its tables, and
+    the prose, headings and blank lines between them, arrive in
+    document order from a single loop. A line that is not a table row
+    comes back with `cells` None, which is also the signal that any
+    run of rows has ended -- prose between two tables means the second
+    is never read against the first one's header.
+
+    `is_header` marks the row a separator underlines. Recognising a
+    header by its position rather than by what it contains means a
+    data row that happens to carry no link, or no date, cannot be
+    mistaken for the start of a new table. The separator row itself is
+    consumed rather than yielded.
+
+    `header` is the column names of the table the row belongs to, or
+    None outside one. `columns` maps a header row's cells to those
+    names and defaults to stripping and lower-casing them; a caller
+    whose cells carry markdown decoration passes its own.
+
+    Fenced code is blanked by iter_lines_outside_fences, so a fenced
+    line arrives as a non-row whose `line` is empty. Callers that
+    scan the text of non-rows -- for links, for headings -- therefore
+    see nothing there, which is the point.
+    """
+    normalise = columns or (lambda cells: [c.strip().lower() for c in cells])
+    blanked = [line for _, line in iter_lines_outside_fences(lines)]
+
+    header = None
+    for offset, line in enumerate(blanked):
+        stripped = line.strip()
+        if not stripped.startswith('|'):
+            header = None
+            yield offset, line, False, None, None
+            continue
+        if MD_TABLE_SEPARATOR_RE.match(stripped):
+            continue
+
+        cells = markdown_table_cells(stripped)
+        following = blanked[offset + 1].strip() if offset + 1 < len(blanked) else ''
+        if (following.startswith('|')
+                and MD_TABLE_SEPARATOR_RE.match(following)):
+            header = normalise(cells)
+            yield offset, line, True, header, cells
+            continue
+
+        yield offset, line, False, header, cells
+
+
+def iter_markdown_headings(content, levels=(2, 3)):
+    """Yield (level, text, line) for ATX headings outside code fences.
+
+    A `## foo` inside a fenced block is sample text, not a heading, so
+    fenced regions are skipped the same way strip_markdown_code skips
+    them. The raw line comes back too, so callers can look for an
+    audit-ok marker on it.
+    """
+    for _offset, line in iter_lines_outside_fences(content.splitlines()):
+        heading = markdown_heading(line)
+        if heading and heading[0] in levels:
+            text = heading[1].strip().rstrip('#').strip()
             if text:
-                yield len(match.group(1)), text, line
+                yield heading[0], text, line
 
 
 def normalise_heading(text):
