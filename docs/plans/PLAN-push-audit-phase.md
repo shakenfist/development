@@ -809,8 +809,9 @@ measurement and phase 3's estimate of it no longer reproduces.
 **Review effort:** medium.
 
 In scope: recording a landing commit for every merged phase of every
-fleet plan that carries the push audit phase; fixing the three plans
-the criterion now fails; bumping the shared block to v3 so its
+fleet plan that names `PUSH-AUDIT.md`, including the four that
+acquire the phase during this sweep; fixing the three plans the
+criterion now fails; bumping the shared block to v3 so its
 carve-out names all three terminal statuses; and correcting the one
 place where the check disagrees with this plan's own decision 3. Out
 of scope: this plan's own audit, which is phase 5; occystrap's and
@@ -843,9 +844,15 @@ one the criterion enforces:
 | divergulent | 4 incomplete plans need the phase | 0 | 0 | 3 |
 | development | not mentioned | 9 | 0 | 0 |
 
-**The two bases, reconciled.** "Carry the phase" means the plan names
-`PUSH-AUDIT.md`, which is what the criterion reads. The old estimate
-counted plans matching the looser phrase `push[-\s]audit`, and the
+**The two bases, reconciled.** The criterion's own scope is wider
+than either column here: it judges every plan the index links whose
+status is not terminal and whose phases it can read, whether or not
+the plan mentions the runbook at all. Naming `PUSH-AUDIT.md` is what
+the *last phase* must satisfy, and it is the basis this plan chooses
+for the backfill in decision 1 -- which is why divergulent shows no
+plan carrying the phase and three failing the check. "Carry the
+phase" in the table above means the plan names `PUSH-AUDIT.md`. The
+old estimate counted plans matching the looser phrase `push[-\s]audit`, and the
 gap between the two is entirely instar: nine of its plans use the
 phrase, only two name the file, and the other seven are `Complete`
 plans that mention a push audit in prose without carrying the phase.
@@ -869,8 +876,9 @@ extends the cell rather than adding a table row.
 of its judged plans record landing commits. The two that a phrase
 grep flags are both correctly untouched: `PLAN-stestr-testtools.md`
 carries a `## Push audit` section but has no phases, so there is no
-range to record, and `PLAN-llm-doc-structure.md` is `Complete` and
-does not carry the phase, so the carve-out exempts it. The plan-level
+range to record, and `PLAN-llm-doc-structure.md` names
+`PUSH-AUDIT.md` only in prose and is `Complete`, so the carve-out
+exempts it. The plan-level
 Definition of done item asking that this repository's own plans each
 record a landing commit is therefore already met.
 
@@ -896,9 +904,15 @@ argument that the criterion earns its place, and it is exactly the
 case the criterion was built to catch.
 
 **A statusless index entry is read as an incomplete plan, which
-contradicts decision 3.** `plan_index_entries` returns `None` for a
-plan whose index row has no status cell, `plan_status_is_terminal`
-is false for `None`, and the plan is judged. Two consequences, both
+contradicts decision 3.** `plan_index_entries` returns `None`
+wherever the index records no status for a link -- a table row with
+no status cell, but equally a link in prose above the table or in a
+bullet list in a repository whose index is not a table yet
+(`scripts/audit/checks/plans.py:388-421`). `plan_status_is_terminal`
+is false for `None`, so the plan is judged. occystrap is the
+bullet-list case rather than the missing-column one, which is why
+decision 2's wording below is about the index not recording a
+status rather than about a row. Two consequences, both
 measured:
 
 * occystrap fails the criterion on `PLAN-quay-label-search.md`.
@@ -925,7 +939,9 @@ block is at v2 and its carve-out does name `Complete` alone, as the
 section says; `PLAN_TERMINAL_STATUSES` in
 `scripts/audit/checks/plans.py:205` does list all three; kerbside's
 `tools/audit/plan-range.sh` exists and this repository has no
-`tools/audit/` at all.
+`tools/audit/` directory -- it does have `tools/`, including
+`tools/audit-snapshot.sh`, which is what the fleet before/after
+verdict diffs below are produced with.
 
 **Corrected at source, so the next reader does not re-derive it:**
 the Execution table now records phase 3 as `Complete` with its merge
@@ -960,6 +976,14 @@ the way `unphased` and unresolved plans already are, so this
 converts a possibly-wrong failure into a visible silence rather than
 into nothing. It also retires ryll's latent trap without ryll
 changing anything.
+
+The silence is wider than a table row with an empty status cell: a
+plan linked from prose, or from a bullet list in an index that is
+not a table yet, records no status either and stops being judged
+too. That is the occystrap case rather than an edge of it, so the
+verdict wording says the index records no status rather than
+naming a row, and the fleet-wide before/after diff 4a requires is
+read with this in mind rather than as an unexplained regression.
 
 **3. The shared block goes to v3.** Its carve-out names `Complete`
 where `plan-status-vocabulary` gives three terminal statuses, and
@@ -997,18 +1021,22 @@ index becomes a status table.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 4a | medium | opus | worktree | In `scripts/audit/checks/plans.py`, make `PlanAuditPhase.run` treat an index entry whose status cell is absent as unjudgeable rather than incomplete. `plan_index_entries` yields `status=None` for such a row; today that falls through `plan_status_is_terminal` (false) into the judged set. Add a third bucket beside `unphased` and `unresolved`, named in the verdict through `plan_index_summarise` in the same style -- "N plan(s) whose index row records no status, not judged: ..." -- because a plan silently walked past is indistinguishable from one that passed, which is the rule the rest of this check already follows. Do not change `plan_status_is_terminal`; a missing status is not a terminal status, and conflating them would exempt the plan instead of declining to judge it. Tests in `scripts/tests/test_plans.py` in the existing fixture style: an index row with no status cell whose plan lacks the phase is not failed but is named; the same row with a status is failed as before; and a two-table index where one table has a status column and the other does not, which is ryll's actual shape (`## Master plans` with `Date \| Plan \| Intent \| Status \| Phases`, `## Standalone plans` with `Date \| Plan \| Intent`). Verify against the fleet before and after: occystrap must move `fail` to `pass`-with-a-named-plan, and no other repository's verdict may change. Commit subject: "Do not judge plans whose index records no status." |
-| 4b | medium | sonnet | worktree | Bump `templates/shared-blocks/plan-push-audit-phase.md` to v3, changing only the carve-out sentence so it names all three terminal statuses from `plan-status-vocabulary` -- `Complete`, `Abandoned` and `Superseded` -- rather than `Complete` alone. Keep every other line byte-identical: this is a wording gap, not a rule change, and the check has behaved this way since phase 3. Update the version marker in both the opening comment and anywhere `templates/shared-blocks/README.md` records versions, then refresh this repository's own embedded copies so `plan-template` still passes here. Update `docs/audits/plan-audit-phase.md` where it quotes the carve-out. Do not touch other repositories in this step -- the restale is deliberate and each sweep step below refreshes its own copy. Commit subject: "Name every terminal status in the push audit block." |
-| 4c | high | opus | worktree | Sweep shakenfist: the largest and the only one with check failures. Twenty of its twenty-one plans that name `PUSH-AUDIT.md` record no landing commit; add a `Merged` column as the last column of each Execution table (last so a row omitting it still reaches `Status`, per the shared block) and fill it by reconstruction -- `gh pr list --state merged` plus `git rev-list --first-parent`, never a path-filtered `git log` alone, and say in each plan that the range was reconstructed. Where a phase's range is unrecoverable, say so and name the paths, rather than leaving the cell blank. Then fix the three failures the criterion names, with the fix it names: `PLAN-ci-cloud-sizing.md` gains a final push audit phase; `PLAN-kerbside-vdi-tokens.md` has its audit phase moved after phase 11; `PLAN-queue-performance.md` gains a *new* final phase citing phase 8's completed audit as prior coverage of phases 1-8, and does not move phase 8 (decision 4). Refresh the embedded `plan-push-audit-phase` block to v3. shakenfist's pre-commit carries a "plan statuses and index arithmetic agree" hook -- run it, and reconcile any index phase counts the new phases change. One pull request. Commit subjects per plan group, not one commit per plan. |
-| 4d | high | opus | worktree | Sweep divergulent: three incomplete plans (`PLAN-published-cache.md`, `PLAN-release-1.0.md`, `PLAN-patch-classification.md`) that carry no push audit phase at all. Append the phase to each and extend its `index.md` row -- its index tracks phases as an inline `✓`/`◐` list in a `Phases` cell, so the phase is appended in the plan file and the cell extended, not added as a table row (decision 3 of phase 3). divergulent has no `PUSH-AUDIT.md`; per the shared block the phase is still carried, and it says the runbook does not exist yet and what was done instead. `PLAN-curation-cli-ergonomics.md` has no phases the check can read -- leave it, and say in the pull request that it was left and why. Install the `plan-push-audit-phase` v3 block in its `PLAN-TEMPLATE.md`, which closes divergulent#79 as a side effect of being in that file already. One pull request. |
-| 4e | medium | sonnet | worktree | Sweep ryll and instar, one pull request each. ryll: `PLAN-web-frontend.md` (`Complete`) and `PLAN-streaming-test-automation.md` (`Proposed`) carry the phase and record no landing commits; add the `Merged` column and reconstruct. Leave the ten `## Standalone plans` entries alone -- they are deliberately statusless and 4a makes them unjudgeable. instar: `PLAN-release-v0.2.md` (`Complete`) is the single plan needing a record; its other seven push-audit mentions are `Complete` plans that do not carry the phase and must not be reopened (decision 1). Both: refresh the embedded block to v3. kerbside needs no backfill -- verify that and say so in the phase's write-up rather than opening an empty pull request. |
-| 4f | medium | sonnet | worktree | Re-run the criterion across the fleet with `scripts/audit-check.py` over fresh default-branch checkouts, and record the verdicts in this section under a *What the sweep found* heading. Expected after 4a-4e: shakenfist, ryll, instar, kerbside, divergulent and development all pass; occystrap passes with `PLAN-quay-label-search.md` named as unjudged; sfui stays N/A. Any verdict that disagrees is a bug in an earlier step or a gap in this survey -- say which, with the plan and line that decides it. Diff the whole fleet's verdicts before and after, not just the ones expected to move. Do not file issues by hand; the daily workflow does that. Commit subject: "Record what the fleet backfill found." |
+| 4a | medium | opus | worktree | In `scripts/audit/checks/plans.py`, make `PlanAuditPhase.run` treat an index entry whose status cell is absent as unjudgeable rather than incomplete. `plan_index_entries` yields `status=None` for such a row; today that falls through `plan_status_is_terminal` (false) into the judged set. Add a third bucket beside `unphased` and `unresolved`, named in the verdict through `plan_index_summarise` in the same style, because a plan silently walked past is indistinguishable from one that passed, which is the rule the rest of this check already follows. Word it provenance-neutrally -- "N plan(s) the index links without recording a status, not judged: ..." -- because `plan_index_entries` returns `None` for a prose or bullet-list link as well as for a row with no status cell, and occystrap, the repository this change is for, is the bullet-list case. The early return at `scripts/audit/checks/plans.py:1294` (`if not judged and not terminal and not unphased:` -> `skip('docs/plans/index.md links no master plans')`) must account for the new bucket as well: a repository whose only linked plans are statusless links two plans and must report pass-with-them-named, not skip as N/A claiming it links none. That is exactly occystrap once this lands, so getting it wrong silently inverts the step's own verification. Do not change `plan_status_is_terminal`; a missing status is not a terminal status, and conflating them would exempt the plan instead of declining to judge it. Tests in `scripts/tests/test_plans.py` in the existing fixture style: an index row with no status cell whose plan lacks the phase is not failed but is named; the same row with a status is failed as before; an index every one of whose entries is statusless, which must pass with those plans named rather than skip as N/A; a bullet-list index with no table at all, which is occystrap's shape; and a two-table index where one table has a status column and the other does not, which is ryll's actual shape (`## Master plans` with `Date \| Plan \| Intent \| Status \| Phases`, `## Standalone plans` with `Date \| Plan \| Intent`). Produce the before/after fleet comparison with the existing helper rather than a hand-rolled loop: `tools/audit-snapshot.sh <clones-dir> <out-dir>` for each side and `tools/audit-snapshot.sh --diff <old> <new>`. occystrap must move `fail` to `pass` with its plans named, and no other repository's verdict may change. Commit subject: "Do not judge plans whose index records no status." |
+| 4b | medium | sonnet | worktree | Bump `templates/shared-blocks/plan-push-audit-phase.md` to v3. The block's first bullet says `Complete` twice in one sentence and only the first is the carve-out, so quote the change precisely: "a plan that is already `Complete` and does not carry the phase is not reopened to acquire one" becomes "a plan that is already `Complete`, `Abandoned` or `Superseded` and does not carry the phase is not reopened to acquire one", and the trailing clause "and a plan that has the phase runs it even if it reaches `Complete` before the phase does" is left verbatim -- it is about a plan finishing before its own audit runs, and decision 1 of this phase leans on it directly. Keep every other line byte-identical: this is a wording gap, not a rule change, and the check has behaved this way since phase 3. Update the version marker in both the opening comment and anywhere `templates/shared-blocks/README.md` records versions, then refresh this repository's own embedded copies so `plan-template` still passes here. Update `docs/audits/plan-audit-phase.md` where it quotes the carve-out, and the comment above `PLAN_TERMINAL_STATUSES` at `scripts/audit/checks/plans.py:195-204`, which was written to point at this step and says the block "still words the carve-out as `Complete` alone" -- every sentence of it is false once this lands. It should record that the block names all three statuses from v3 onwards. Do not touch other repositories in this step -- the restale is deliberate and each sweep step below refreshes its own copy. Commit subject: "Name every terminal status in the push audit block." |
+| 4c | high | opus | worktree | Sweep shakenfist: the largest and the only one with check failures. Twenty of its twenty-one plans that name `PUSH-AUDIT.md` record no landing commit; add a `Merged` column as the last column of each Execution table (last so a row omitting it still reaches `Status`, per the shared block) and fill it by reconstruction -- `gh pr list --state merged` plus `git rev-list --first-parent`, never a path-filtered `git log` alone, and say in each plan that the range was reconstructed. Where a phase's range is unrecoverable, say so and name the paths, rather than leaving the cell blank. Then fix the three failures the criterion names, with the fix it names: `PLAN-ci-cloud-sizing.md` gains a final push audit phase, and because it then names `PUSH-AUDIT.md` it also joins the backfill set -- reconstruct ranges for its already-merged phases too, which the twenty measured above did not include; `PLAN-kerbside-vdi-tokens.md` has its audit phase moved after phase 11; `PLAN-queue-performance.md` gains a *new* final phase citing phase 8's completed audit as prior coverage of phases 1-8, and does not move phase 8 (decision 4). Refresh the embedded `plan-push-audit-phase` block to v3. List every reconstructed SHA in the pull request body and assert each is a merge commit (`git rev-list --merges -1 <sha>` returns it) or an explicit `first..last` range, since no criterion reads the `Merged` column and review is the only thing that will. shakenfist's pre-commit carries a "plan statuses and index arithmetic agree" hook -- run it, and reconcile any index phase counts the new phases change. One pull request. Commit subjects per plan group, not one commit per plan. |
+| 4d | high | opus | worktree | Sweep divergulent: three incomplete plans (`PLAN-published-cache.md`, `PLAN-release-1.0.md`, `PLAN-patch-classification.md`) that carry no push audit phase at all. Append the phase to each and extend its `index.md` row -- its index tracks phases as an inline `✓`/`◐` list in a `Phases` cell, so the phase is appended in the plan file and the cell extended, not added as a table row (decision 3 of phase 3). divergulent has no `PUSH-AUDIT.md`; per the shared block the phase is still carried, and it says the runbook does not exist yet and what was done instead. All three then name `PUSH-AUDIT.md`, so they join the backfill set: reconstruct a landing commit for each of their already-merged phases by the same rules as 4c, or say per phase that the range is unrecoverable and name the paths. `PLAN-curation-cli-ergonomics.md` has no phases the check can read -- leave it, and say in the pull request that it was left and why. Install the `plan-push-audit-phase` v3 block in its `PLAN-TEMPLATE.md`, which closes divergulent#79 as a side effect of being in that file already. One pull request. |
+| 4e | medium | sonnet | worktree | Sweep ryll and instar, one pull request each. ryll: `PLAN-web-frontend.md` (`Complete`) and `PLAN-streaming-test-automation.md` (`Proposed`) carry the phase and record no landing commits; add the `Merged` column and reconstruct. Leave the ten `## Standalone plans` entries alone -- they are deliberately statusless and 4a makes them unjudgeable. instar: `PLAN-release-v0.2.md` (`Complete`) is the single plan needing a record; its other seven push-audit mentions are `Complete` plans that do not carry the phase and must not be reopened (decision 1). Both: refresh the embedded block to v3, and list the reconstructed SHAs in the pull request body with the same merge-commit assertion 4c makes. kerbside needs no backfill -- verify that and say so in the phase's write-up rather than opening an empty pull request. |
+| 4f | medium | sonnet | worktree | Opens its own pull request in this repository, after the last of 4c-4e has merged. Re-run the criterion across the fleet over fresh default-branch checkouts -- `tools/audit-snapshot.sh <clones-dir> <out-dir>`, then `tools/audit-snapshot.sh --diff <before> <after>` against the baseline 4a captured -- and record the verdicts in this section under a *What the sweep found* heading. Expected after 4a-4e: shakenfist, ryll, instar, kerbside, divergulent and development all pass; occystrap passes with `PLAN-quay-label-search.md` named as unjudged; sfui stays N/A. Any verdict that disagrees is a bug in an earlier step or a gap in this survey -- say which, with the plan and line that decides it. The snapshot diff covers the whole fleet, not just the repositories expected to move; read it that way. Do not file issues by hand; the daily workflow does that. Commit subject: "Record what the fleet backfill found." |
 
-Steps 4a, 4b and 4f run in this repository and land as one pull
-request; 4c, 4d and 4e each land as their own pull request in their
-own repository. 4a must land before 4f so the re-run measures the
-intended scope, and 4b before 4c-4e so the sweeps install v3 rather
-than v2 and then need a second visit.
+Three of the steps run in this repository, and they do not share a
+pull request. 4a and 4b land together first: 4a because the sweeps
+should be measured against the scope the criterion will actually
+have, and 4b because a sweep that installs v2 has to be visited
+again after the bump. 4c, 4d and 4e then each land as their own
+pull request in their own repository. 4f lands last, in a second
+pull request here, once the last sweep has merged -- its whole job
+is to record what the fleet says afterwards, so it cannot ride with
+4b ahead of the sweeps without inventing the verdicts it reports.
 
 #### Risks and mitigations
 
@@ -1024,10 +1052,17 @@ than v2 and then need a second visit.
 * **Twenty backfills in one pull request is a reviewer's worst
   case.** shakenfist's sweep is mostly mechanical and entirely in
   markdown, and a reviewer cannot check twenty reconstructed ranges
-  by reading. Mitigated by 4f: the criterion is re-run over the
-  merged result, and the ranges that matter are the ones phase 5
-  will actually consume. A wrong range is recoverable; a missing
-  column is what blocks phase 5.
+  by reading, and re-running the criterion does not help: no check
+  reads the `Merged` column at all -- `plan-audit-phase` measures
+  only that the last phase names the runbook, and nothing in
+  `scripts/audit/` looks at the column. So the mitigation is the
+  one named in the risk above, made mechanical: 4c and 4e list every
+  reconstructed SHA in their pull request bodies, and each is
+  asserted to be a merge commit (`git rev-list --merges -1 <sha>`
+  returns it) or an explicit `first..last` range. That the column is
+  load-bearing for phase 5 and enforced by no criterion is a real
+  gap; it is recorded in Future work rather than closed here,
+  because a check that reads the column is a criterion of its own.
 * **The v3 bump restales the fleet on a wording change.** Every
   repository embedding the block goes non-compliant the next
   morning, for a sentence that changes no behaviour. Accepted, and
@@ -1052,8 +1087,11 @@ than v2 and then need a second visit.
   re-deriving the in-scope list from each repository's own
   `index.md`, not from this section's table.
 * `plan-audit-phase` passes in shakenfist, ryll, instar, kerbside,
-  divergulent and development, and the fleet-wide before/after
-  verdict diff names every repository that moved and why.
+  divergulent and development, and the `tools/audit-snapshot.sh`
+  before/after diff names every repository that moved and why.
+* Every SHA recorded by a sweep is a merge commit or an explicit
+  `first..last` range, listed in that sweep's pull request body so
+  the assertion can be re-run rather than taken on trust.
 * `PLAN-queue-performance.md` has a push audit phase after phase 11,
   and phase 8's section is unchanged.
 * `templates/shared-blocks/plan-push-audit-phase.md` is v3, its
@@ -1178,6 +1216,15 @@ for.
 
 ## Future work
 
+* **No criterion reads the `Merged` column.** `plan-audit-phase`
+  measures that the last phase names the runbook and nothing in
+  `scripts/audit/` looks at the column at all, so a plan can record
+  an empty column, a wrong SHA, or a commit that arrived under a
+  merge and stay green. Phase 5 is the first consumer that would
+  notice. A criterion that checks each recorded value is a merge
+  commit or a `first..last` range is mechanical and would close it;
+  phase 4 verifies the values in review instead, which is a
+  one-time answer to a recurring question.
 * **`development` has no `PLAN-TEMPLATE.md`**, so its new plans will
   not inherit the phase automatically. Either it gains one or
   `/next-phase` grows the check; deliberately not decided here.
