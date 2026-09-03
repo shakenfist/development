@@ -91,6 +91,12 @@ never in question. When a new distribution's import name cannot be
 derived, add it to the alias table rather than annotating every
 consumer.
 
+A subdirectory carrying its own `pyproject.toml` is not read: it is a
+separate distribution declaring its own dependencies, so an import
+there does not vouch for a declaration here. kerbside is the only
+repository in the fleet shaped that way today, carrying a tempest
+plugin and a Rust proxy alongside the package itself.
+
 Comments and string literals are masked before imports are read. A
 commented-out import is the precise shape this criterion exists to
 find, so counting one as a use would report the deadest dependency in

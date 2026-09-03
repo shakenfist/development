@@ -66,6 +66,15 @@ Namespace packages are the reason: `protobuf` and
 `import google.protobuf` would otherwise report whichever of the two
 happened to land in the generated block.
 
+A subdirectory carrying its own `pyproject.toml` is not read either.
+It is a separate distribution that happens to share a repository, and
+it declares its own dependencies. kerbside is the worked example: its
+`tempest-plugin/` imports `oslo_config` and declares `oslo.config` in
+`tempest-plugin/pyproject.toml`, and reporting that as an undeclared
+dependency of kerbside itself was a finding whose only honest remedy
+was to ignore it. The root is never pruned -- only subdirectories are
+tested -- so a checkout is always read against its own manifest.
+
 Import names are derived from distribution names the same way as in
 [unused-declared-dependency.md](unused-declared-dependency.md), and
 the same masking and directory rules apply -- comments and string

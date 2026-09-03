@@ -403,16 +403,33 @@ IMPORT_RE = re.compile(
 
 
 def python_source_files(repo_path):
-    """Every Python file a checkout wrote, as absolute paths.
+    """The Python files belonging to the checkout's own package.
 
     NON_SOURCE_DIRS is pruned rather than filtered afterwards, so the
     walk does not descend into a virtualenv at all.
+
+    A subdirectory carrying its own pyproject.toml is pruned too. It is
+    a separate distribution that happens to live in the same
+    repository, and it declares its own dependencies: reading its
+    imports against the root manifest asks whether one package
+    declares another package's requirements, which is not a question
+    with a right answer. kerbside is why -- its tempest-plugin/ imports
+    oslo_config and declares oslo.config in tempest-plugin/
+    pyproject.toml, and reporting that as an undeclared dependency of
+    kerbside itself was a finding whose only honest remedy was to
+    ignore it.
+
+    The root is never pruned: the walk only tests subdirectories, so a
+    checkout is always read against its own manifest.
     """
     found = []
     for dirpath, dirnames, filenames in os.walk(repo_path):
         dirnames[:] = [
             d for d in dirnames
-            if d not in NON_SOURCE_DIRS and not d.endswith('.egg-info')
+            if d not in NON_SOURCE_DIRS
+            and not d.endswith('.egg-info')
+            and not os.path.exists(
+                os.path.join(dirpath, d, 'pyproject.toml'))
         ]
         for filename in filenames:
             if filename.endswith('.py'):

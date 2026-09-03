@@ -1702,6 +1702,15 @@ class UnusedDeclaredDependencyTest(CheckTestCase):
         self.source('import os\n')
         self.assert_fail(self.check(), containing='oslo.concurrency')
 
+    def test_a_nested_package_does_not_keep_a_dependency_alive(self):
+        """A sub-package declaring its own deps does not vouch for ours."""
+        self.pyproject(['"click==8.4.2",', '"wrapt==2.3.0",'])
+        self.source('import click\n')
+        self.fixture.write('plugin/pyproject.toml',
+                           '[project]\nname = "p"\ndependencies = ["wrapt"]\n')
+        self.source('import wrapt\n', path='plugin/p/main.py')
+        self.assert_fail(self.check(), containing='wrapt')
+
     def test_a_marker_matches_across_spellings(self):
         self.pyproject([
             '# not-imported: oslo_concurrency -- kept for a version floor',
@@ -1790,6 +1799,23 @@ class UndeclaredDirectDependencyTest(CheckTestCase):
                        generated=['"wrapt==2.3.0",'])
         self.source('import click\n')
         self.source('import wrapt\n', path='tools/build-collection.py')
+        self.assert_fail(self.check(), containing='wrapt')
+
+    def test_a_nested_package_is_not_read(self):
+        """A subdirectory with its own manifest is a separate package."""
+        self.pyproject(direct=['"click==8.4.2",'],
+                       generated=['"wrapt==2.3.0",'])
+        self.source('import click\n')
+        self.fixture.write('plugin/pyproject.toml',
+                           '[project]\nname = "p"\ndependencies = ["wrapt"]\n')
+        self.source('import wrapt\n', path='plugin/p/main.py')
+        self.assert_pass(self.check())
+
+    def test_the_root_package_is_still_read(self):
+        """Only subdirectories are tested, so the root is never pruned."""
+        self.pyproject(direct=['"click==8.4.2",'],
+                       generated=['"wrapt==2.3.0",'])
+        self.source('import click\nimport wrapt\n')
         self.assert_fail(self.check(), containing='wrapt')
 
     def test_every_offender_is_reported_not_just_the_first(self):
