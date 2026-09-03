@@ -182,9 +182,9 @@ already defaulted to `develop`.
 | Phase | Status | Merged |
 |-------|--------|--------|
 | 1. `develop` branches for the onboarding repositories | Complete | n/a -- GitHub settings, no commit |
-| 2. Reconcile the scope lists | Not started | |
-| 3. Lift the scope parsing into `audit/scope.py` | Not started | |
-| 4. Add the `scope-coverage` check | Not started | |
+| 2. Reconcile the scope lists | Complete | |
+| 3. Lift the scope parsing into `audit/scope.py` | Complete | |
+| 4. Add the `scope-coverage` check | Complete | |
 | 5. Push audit | Not started | |
 
 Phases 2 to 4 ship as a single pull request, so the `Merged` record
@@ -278,15 +278,20 @@ Findings land as their own pull request.
   listing at the limit.
 * **A token that cannot see private repositories.** `performance`,
   `private-ci` and `jenkins-private` are private and on the excluded
-  list. A listing without them reports three dead exclusions every
-  morning. If the listing returns no private repositories at all while
-  the lists name some, `fail()` saying the listing looks incomplete
-  rather than naming the three.
+  list. A listing without them would report three dead exclusions
+  every morning, and the fix that implies -- deleting the exclusions
+  -- would be actively harmful. Planned as a heuristic (fail if the
+  listing contains no private repositories at all); built instead as
+  evidence, because the heuristic is wrong in both directions in an
+  organisation that has none. Every name missing from the listing is
+  resolved directly against the API, which answers the question
+  rather than guessing at it.
 * **A renamed repository.** It appears in the listing under its new
-  name and in the matrix under its old one, so the check reports the
-  old name as unresolvable -- which is the correct signal, and
-  complements the rename warning `audit-manage-issues.py` already
-  prints.
+  name and in the matrix under its old one. Resolving the old name
+  follows the rename redirect, so the finding names the new name and
+  says what to write down, rather than reporting a repository that
+  does not exist. This is the same trap `gh_canonical_repo()` exists
+  for: the API follows a rename, issue listing and search do not.
 * **43 issues on the first run.** Expected, per D3. Worth saying out
   loud in the pull request so it is not read as the audit having
   broken.

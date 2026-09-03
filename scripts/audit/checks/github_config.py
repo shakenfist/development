@@ -9,11 +9,17 @@ Four of the five ask the GitHub API rather than the checkout, which is
 why they were the last family to move and why none of them had a test
 before the client seam existed. export-repo-config is here for what it
 is about rather than how it works: it reads the filesystem.
+
+scope-coverage is here because it asks the API too, but it is the odd
+one in the package: every other check measures the repository it was
+handed, and that one measures the organisation the repository belongs
+to.
 """
 
 import json
 import subprocess
 
+from audit import scope
 from audit.check import Check
 from audit.files import check_file_exists
 
@@ -253,3 +259,173 @@ class MergeQueueConfig(Check):
                 f'(max_entries_to_build 1, min_entries_to_merge 1)')
         except (subprocess.TimeoutExpired, FileNotFoundError) as e:
             return self.fail(f'Error checking merge queue config: {e}')
+
+
+#: How many repositories to ask for. `gh repo list` returns 30 by
+#: default, which silently loses eight of the organisation's 38 and
+#: reports them as undecided; the check refuses a listing that reaches
+#: this number rather than trusting a page that may have been cut.
+ORG_LISTING_LIMIT = 1000
+
+
+class ScopeCoverage(Check):
+    id = 'scope-coverage'
+    spec = 'docs/audits/scope-coverage.md'
+    template = None
+    issue_title = 'Audit scope against the organisation'
+
+    #: The repository that states the scope, and so the only one where
+    #: this criterion can be measured.
+    SCOPE_REPO = 'development'
+
+    def applies(self, repo):
+        """Only the repository that holds the lists can be asked.
+
+        Scope is stated in development: the matrix in
+        .github/workflows/consistency-audit.yml and the two lists in
+        docs/audits/README.md. Everywhere else there is nothing to
+        read, and the API call would be paid for an answer that could
+        not be compared to anything.
+        """
+        if repo.name != self.SCOPE_REPO:
+            return (f'Audit scope is stated in the {self.SCOPE_REPO} '
+                    f'repository, and is measured there')
+        return None
+
+    def run(self, repo):
+        """Check the audit scope and the organisation still agree.
+
+        Scope is written down three times and a test holds those three
+        to each other, but until this existed nothing compared any of
+        them to the organisation. A repository in none of them was not
+        audited, not documented as excluded, and produced no finding
+        anywhere: the only signal was a repository missing from a list
+        nobody diffs.
+
+        Two directions, and both are the same missing check. A
+        repository in the organisation and in neither list is one
+        nobody has decided about -- that it should be audited, or that
+        it should not, are both fine, and having made neither decision
+        is what this reports. A name in a list that no longer resolves
+        is harmless in itself, but it is the same reconciliation
+        failing the other way, and it is how a list comes to describe a
+        fleet that has moved on.
+
+        Archived repositories are not exempt. isArchived is the obvious
+        filter and it is deliberately not used: every archived
+        repository is already on the excluded list, so requiring a
+        decision for all of them costs nothing, and a dormant
+        repository that nobody has archived -- which is what the
+        filter would have missed -- is exactly the case worth naming.
+        """
+        try:
+            matrix = set(scope.matrix_repos(repo.path))
+            excluded = set(scope.documented_excluded(repo.path))
+        except scope.ScopeParseError as e:
+            return self.fail(f'Could not read the audit scope: {e}')
+        except OSError as e:
+            return self.fail(f'Could not read the audit scope: {e}')
+
+        try:
+            result = repo.github.run(
+                ['repo', 'list', repo.org, '--limit',
+                 str(ORG_LISTING_LIMIT), '--json', 'name,isPrivate'],
+                timeout=60)
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            return self.fail(f'Could not list the {repo.org} organisation: {e}')
+        if result.returncode != 0:
+            return self.fail(
+                f'Could not list the {repo.org} organisation: '
+                f'{result.stderr.strip()}')
+        try:
+            listing = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            return self.fail(
+                f'Could not parse the {repo.org} organisation listing')
+
+        organisation = {entry['name'] for entry in listing}
+        if len(organisation) >= ORG_LISTING_LIMIT:
+            return self.fail(
+                f'The {repo.org} listing returned '
+                f'{len(organisation)} repositories, which is the limit '
+                f'asked for: it may have been truncated, and a '
+                f'truncated listing reports repositories as undecided '
+                f'that are merely unlisted')
+
+        undecided = organisation - matrix - excluded
+        unresolved = sorted((matrix | excluded) - organisation)
+
+        # A name missing from the listing is not evidence the
+        # repository is gone. A token that cannot see private
+        # repositories produces a listing missing every one of them,
+        # and the fix that finding implies -- deleting the exclusions
+        # -- would be actively harmful. So each one is asked about
+        # directly, which also distinguishes a rename from a deletion:
+        # the API follows a rename redirect and answers under the new
+        # name, while issue listing and search do not, which is the
+        # same trap gh_canonical_repo() exists for.
+        gone, renamed, invisible = [], [], []
+        try:
+            for name in unresolved:
+                result = repo.github.api(
+                    f'repos/{repo.org}/{name}', jq='.full_name')
+                if result.returncode != 0:
+                    gone.append(name)
+                    continue
+                canonical = result.stdout.strip()
+                if canonical.lower() != f'{repo.org}/{name}'.lower():
+                    renamed.append((name, canonical))
+                else:
+                    invisible.append(name)
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            return self.fail(
+                f'Could not resolve {len(unresolved)} name(s) in the '
+                f'audit scope: {e}')
+
+        problems = []
+        missing = []
+        if undecided:
+            problems.append(
+                f'{len(undecided)} repository(s) in the organisation are '
+                f'in neither the audit matrix nor the excluded list')
+            missing.extend(
+                f'{name}: in the {repo.org} organisation, but in neither '
+                f'the audit matrix nor the excluded list'
+                for name in sorted(undecided))
+        if gone:
+            problems.append(
+                f'{len(gone)} name(s) in the audit matrix or the '
+                f'excluded list no longer exist')
+            missing.extend(
+                f'{name}: named by the audit scope, but there is no '
+                f'{repo.org}/{name}'
+                for name in gone)
+        if renamed:
+            problems.append(
+                f'{len(renamed)} name(s) in the audit scope have been '
+                f'renamed')
+            missing.extend(
+                f'{name}: renamed to {canonical}, which the audit scope '
+                f'does not name'
+                for name, canonical in renamed)
+        if invisible:
+            # Not a scope finding at all: the lists are right and the
+            # listing is short. Reported rather than passed over,
+            # because a listing that cannot see part of the
+            # organisation cannot answer the undecided question either.
+            problems.append(
+                f'{len(invisible)} repository(s) named by the audit '
+                f'scope exist but are missing from the organisation '
+                f'listing, which is therefore incomplete -- check the '
+                f'token before trusting anything else here')
+            missing.extend(
+                f'{name}: exists, but the {repo.org} listing did not '
+                f'return it'
+                for name in invisible)
+        if problems:
+            return self.fail('; '.join(problems), missing=missing)
+
+        return self.ok(
+            f'Every one of the {len(organisation)} repositories in '
+            f'{repo.org} is either audited or documented as excluded, '
+            f'and every name in the scope still resolves')
