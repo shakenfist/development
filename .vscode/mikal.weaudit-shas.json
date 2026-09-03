@@ -13,6 +13,10 @@
       "sha": "098dc512cfb1d4eff9886cd63cc4f66e74c3f9cb",
       "date": "2026-09-01"
     },
+    ".flake8": {
+      "sha": "cf7c807de18a9170b83aa2a57d719f8fc3b3935e",
+      "date": "2026-09-04"
+    },
     ".github/actionlint.yaml": {
       "sha": "a409ee86198da56754e6ae2c52cd56ad92e96699",
       "date": "2026-09-01"
@@ -68,6 +72,22 @@
     ".github/workflows/secret-scan.yml": {
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
       "date": "2026-08-24"
+    },
+    ".pre-commit-config.yaml": {
+      "sha": "f158445f81c0c17d217ad8875922e669f0c367b1",
+      "date": "2026-09-04"
+    },
+    "AGENTS.md": {
+      "sha": "5eae3a45d976105fa985bbb1911d87a3169de374",
+      "date": "2026-09-04"
+    },
+    "ARCHITECTURE.md": {
+      "sha": "fb1bf3ffca8f4e7549ed56f5b690866acdd39081",
+      "date": "2026-09-04"
+    },
+    "PUSH-AUDIT.md": {
+      "sha": "554d66fd0768f893fd11edcfd606ca0af673527d",
+      "date": "2026-09-04"
     },
     "README.md": {
       "sha": "ceac1b9cd637a75e756e074ffa721ac75bd2096e",
@@ -264,6 +284,10 @@
     "docs/release-automation.md": {
       "sha": "a92bfdaed278fd448adabc76c8a5904174815ea8",
       "date": "2026-08-30"
+    },
+    "renovate.json": {
+      "sha": "f6014271a98068e8a76fed39387926a8b3fa7034",
+      "date": "2026-09-04"
     },
     "scripts/audit-check.py": {
       "sha": "97673b9e35622a6049cab81725d8554754e715b5",
