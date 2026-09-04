@@ -417,10 +417,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/text/python_source.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/text/shared_blocks.py",
       "author": "mikal"
     },
@@ -446,10 +442,6 @@
     },
     {
       "path": "scripts/audit/checks/llm_docs.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/packaging.py",
       "author": "mikal"
     },
     {
@@ -481,18 +473,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/renovate-lockstep-groups.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/undeclared-direct-dependency.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/unused-declared-dependency.md",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_docs_content.py",
       "author": "mikal"
     },
@@ -514,10 +494,6 @@
     },
     {
       "path": "scripts/tests/test_metadata.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_packaging.py",
       "author": "mikal"
     },
     {
@@ -746,6 +722,54 @@
     },
     {
       "path": ".gitignore",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/packaging.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_packaging.py",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/undeclared-direct-dependency.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/unused-declared-dependency.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/python_source.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/renovate-lockstep-groups.md",
       "author": "mikal"
     }
   ],

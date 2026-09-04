@@ -65,6 +65,10 @@
       "sha": "feb474e2510c2bfdd2011573e57c87976b62f1ad",
       "date": "2026-09-01"
     },
+    ".github/workflows/renovate.yml": {
+      "sha": "953e92065d319575aaea3d1724b01738f64056fd",
+      "date": "2026-09-04"
+    },
     ".github/workflows/secret-scan.yml": {
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
       "date": "2026-08-24"
@@ -214,7 +218,7 @@
       "date": "2026-08-29"
     },
     "docs/audits/renovate-lockstep-groups.md": {
-      "sha": "cf1d98abe40d2d41db79860c1573d046c671b278",
+      "sha": "6c07a2d2badae9066a5715df5a6dbd54860a1ab9",
       "date": "2026-09-04"
     },
     "docs/audits/renovate.md": {
@@ -250,11 +254,11 @@
       "date": "2026-08-29"
     },
     "docs/audits/undeclared-direct-dependency.md": {
-      "sha": "480e4ba9a263e00c29c6c49b70ae739c430c385f",
+      "sha": "a89f44752f2bb5f31d8c0ec298488f1061fd3798",
       "date": "2026-09-04"
     },
     "docs/audits/unused-declared-dependency.md": {
-      "sha": "168551d8ecc6bdca8538f300d6b8130922f13f2d",
+      "sha": "a86255bf61507644bf3ba831072eee1717eac2ec",
       "date": "2026-09-04"
     },
     "docs/audits/version-file-gitignore.md": {
@@ -330,7 +334,7 @@
       "date": "2026-09-03"
     },
     "scripts/audit/checks/packaging.py": {
-      "sha": "4ef22db1cd52c75067cbc1d21f96544eba157edc",
+      "sha": "f5417475bbdff8b16e8363ffa00d39cf213a82c2",
       "date": "2026-09-04"
     },
     "scripts/audit/checks/plans.py": {
@@ -374,7 +378,7 @@
       "date": "2026-09-04"
     },
     "scripts/audit/text/python_source.py": {
-      "sha": "64876b0c6d78c5a069f5ec15da3c549b0133f139",
+      "sha": "28b44d2ca837528bd83bfe2199d347d616e56473",
       "date": "2026-09-04"
     },
     "scripts/audit/text/shared_blocks.py": {
@@ -466,7 +470,7 @@
       "date": "2026-09-04"
     },
     "scripts/tests/test_packaging.py": {
-      "sha": "45b7e6c929cf363f5e38adad05fe4bdf1752071f",
+      "sha": "e4b88bbbf9a9294474a364f7c1150493e8894e61",
       "date": "2026-09-04"
     },
     "scripts/tests/test_plans.py": {
@@ -580,6 +584,10 @@
     "templates/renovate/renovate.json": {
       "sha": "2ddd5e0b8169050eed659789ddcbfb95b6a8f299",
       "date": "2026-08-30"
+    },
+    "templates/renovate/renovate.yml": {
+      "sha": "e282f1064a11fe18116cff3e6f8cae45b7fb815d",
+      "date": "2026-09-04"
     },
     "templates/shared-blocks/README.md": {
       "sha": "4508ee6d15fc3b1e514f09b7154c5f63a871badb",
