@@ -1384,3 +1384,176 @@ class SecretScanningCi(Check):
         return self.fail(
             f'No secret scanner in CI; expected one of '
             f'{", ".join(SECRET_SCANNERS)} in a workflow')
+
+
+# cargo-fuzz's layout is a `fuzz_targets/` directory inside the fuzz
+# crate. Found by walking rather than at a fixed path because projects
+# put that crate wherever their workspace wants it: instar has
+# src/fuzz/, ryll has shakenfist-spice-protocol/fuzz/.
+FUZZ_TARGET_DIR = 'fuzz_targets'
+
+
+# Build output and vendored trees are large, and a fuzz_targets/ inside
+# one belongs to a dependency rather than to the repository being
+# audited.
+FUZZ_WALK_SKIP = frozenset({
+    '.git', 'target', 'node_modules', 'vendor', '.venv', 'venv',
+})
+
+
+# What running the targets looks like in a workflow: cargo-fuzz
+# directly, or through a make target named for it. Matched against the
+# comment-stripped file, so a header explaining that fuzzing moved
+# elsewhere does not count as running it.
+FUZZ_INVOCATION_RE = re.compile(
+    r'cargo\s+fuzz\b|cargo-fuzz\b|\bmake\s+[\w./-]*fuzz[\w./-]*')
+
+
+# The permission that lets a scheduled run tell somebody. Job-level or
+# workflow-level: either reaches the step that files the issue.
+ISSUES_WRITE_RE = re.compile(r'^\s*issues:\s*write\s*$', re.MULTILINE)
+
+
+FILES_AN_ISSUE_RE = re.compile(r'gh\s+issue\s+create\b')
+
+
+# Scripts a workflow hands the reporting to. Followed one level: the
+# reporter is supposed to live in a script rather than inline in YAML,
+# so the workflow itself will not contain `gh issue create`.
+REFERENCED_SCRIPT_RE = re.compile(r'[\w./-]+\.(?:sh|py)\b')
+
+
+# A deliberate exception, ideally with a reason beside it.
+FUZZ_MERGE_QUEUE_EXCEPTION_RE = re.compile(
+    r'audit-ok:\s*fuzz-in-merge-queue')
+
+
+SCHEDULE_TRIGGER_RE = re.compile(r'^\s{1,4}schedule:\s*$', re.MULTILINE)
+
+
+def repo_fuzz_target_dirs(repo_path):
+    """Where the repository keeps cargo-fuzz targets, if anywhere."""
+    found = []
+    for root, dirs, _files in os.walk(repo_path):
+        dirs[:] = [d for d in dirs if d not in FUZZ_WALK_SKIP]
+        if os.path.basename(root) == FUZZ_TARGET_DIR:
+            found.append(os.path.relpath(root, repo_path))
+            # Nothing below a target directory is another one.
+            dirs[:] = []
+    return sorted(found)
+
+
+def workflow_runs_fuzz_targets(content):
+    """Does this workflow actually invoke the fuzz targets?"""
+    return bool(FUZZ_INVOCATION_RE.search(strip_yaml_comments(content)))
+
+
+def fuzz_workflows(repo):
+    """Every workflow that runs the fuzz targets, as (name, content)."""
+    found = []
+    for name in sorted(repo.workflows()):
+        content = repo.workflow(name)
+        if content and workflow_runs_fuzz_targets(content):
+            found.append((name, content))
+    return found
+
+
+def reaches_issue_filing(repo, content):
+    """Can this workflow tell a human, without a red check to do it?
+
+    True when the workflow calls `gh issue create`, or hands off to a
+    script in the repository that does. The indirection is the
+    documented shape rather than an accident -- the reporting logic
+    belongs in something testable -- so a check that only read the YAML
+    would fail exactly the repositories that got it right.
+    """
+    if FILES_AN_ISSUE_RE.search(content):
+        return True
+
+    for match in REFERENCED_SCRIPT_RE.finditer(content):
+        script = repo.read(match.group(0).lstrip('./'))
+        if script and FILES_AN_ISSUE_RE.search(script):
+            return True
+    return False
+
+
+class FuzzNightlyReporting(Check):
+    id = 'fuzz-nightly-reporting'
+    spec = 'docs/audits/fuzz-nightly-reporting.md'
+    template = None
+    issue_title = 'Fuzz nightly reporting'
+
+    def applies(self, repo):
+        if not repo.props['has_workflows_dir']:
+            return 'No .github/workflows/ directory'
+        if not repo_fuzz_target_dirs(repo.path) and not fuzz_workflows(repo):
+            return 'No fuzz targets'
+        return None
+
+    def run(self, repo):
+        """Check fuzzing runs nightly, reports issues, and is off the queue.
+
+        Fuzzing has no natural end: a target runs until you stop it,
+        and what it produces is a crash nobody knew about. That makes
+        it the wrong shape for a merge gate and the right shape for a
+        nightly, which in turn makes reporting the whole problem --
+        nobody reads a scheduled workflow's result, and GitHub's only
+        notification for one is an email to whoever pushed last.
+
+        So: a schedule trigger on a workflow that runs the targets,
+        issues: write plus something that calls `gh issue create` on
+        that workflow, and no merge_group trigger on any of them. A
+        short build-and-smoke on pull_request or push is not what the
+        last one forbids -- charging the fuzz lane's cost against the
+        merge queue's 360-minute timeout is (shakenfist/ryll#329).
+        """
+        targets = repo_fuzz_target_dirs(repo.path)
+        workflows = fuzz_workflows(repo)
+
+        if not workflows:
+            return self.fail(
+                'fuzz targets in %s, but no workflow runs them'
+                % ', '.join(targets))
+
+        queue_gated = [
+            name for name, content in workflows
+            if (MERGE_GROUP_TRIGGER_RE.search(workflow_header(content))
+                or MERGE_GROUP_FLOW_RE.search(content))
+            and not FUZZ_MERGE_QUEUE_EXCEPTION_RE.search(content)
+        ]
+
+        scheduled = [
+            (name, content) for name, content in workflows
+            if SCHEDULE_TRIGGER_RE.search(workflow_header(content))
+        ]
+
+        unreported = [
+            name for name, content in scheduled
+            if not (ISSUES_WRITE_RE.search(content)
+                    and reaches_issue_filing(repo, content))
+        ]
+
+        problems = []
+        if queue_gated:
+            problems.append(
+                'runs fuzz targets on merge_group in %s, where the cost '
+                'is charged against the queue timeout'
+                % ', '.join(queue_gated))
+        if not scheduled:
+            problems.append(
+                'no schedule trigger on %s, so the targets only run when '
+                'somebody dispatches them'
+                % ' or '.join(name for name, _ in workflows))
+        elif unreported:
+            problems.append(
+                '%s runs on a schedule but cannot file an issue for what '
+                'it finds (needs issues: write and a `gh issue create`, '
+                'directly or through a script)'
+                % ', '.join(unreported))
+
+        if problems:
+            return self.fail('; '.join(problems))
+
+        return self.ok(
+            '%s fuzzes on a schedule and files issues for crashes'
+            % ', '.join(name for name, _ in scheduled))
