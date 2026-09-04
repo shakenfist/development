@@ -68,6 +68,12 @@ Do not simply add `merge_group:` to the trigger list: `paths` is not
 supported on that event, so every merge would spin a virtual machine
 to lint diagrams that the pull request already linted.
 
+Left advisory, the job can still fail a pull request while sitting in
+its own workflow file, where another workflow's `needs:` list cannot
+reach it. A repository that writes down which jobs gate a pull request
+should name this one as a deliberate exception; the workflow header
+says so too.
+
 ## The worked example
 
 The development repository runs this on itself: `tools/mermaid-lint.sh`
@@ -100,12 +106,28 @@ into `tail` or `grep` reports the filter's status, not the script's,
 and turns every failure green -- a mistake worth naming because it is
 exactly how this was first mis-measured.
 
+A tilde-fenced diagram is refused rather than skipped. `mmdc` reads
+only a backtick fence, while GitHub renders both, so a broken diagram
+in a `~~~` block would otherwise ship through the exact gap this
+closes with the run reporting "nothing to lint" and exiting zero. The
+script names the file and the fence to use, and exits 1.
+
+The workflow's path filter names the script and the workflow itself
+alongside `**.md`, so a pull request that edits the checker and no
+markdown still runs it. `!REVIEWS.md` is last, because a later pattern
+wins; a repository with no `REVIEWS.md` keeps the line so the
+exclusion is in force from the first commit of one.
+
 ## The pinned image
 
 `mermaid-lint.sh` pins `ghcr.io/mermaid-js/mermaid-cli/mermaid-cli` to
-an exact tag. Renovate's stock managers do not read a docker reference
-out of a shell script, so unlike the rest of the fleet's dependencies
-this one does not move on its own. Bump it deliberately when a mermaid
-feature is missing, and re-run the script over the whole repository
-afterwards: a mermaid major version can reject a diagram its
-predecessor accepted.
+an exact tag *and* to that tag's digest. A tag is mutable and this
+runs a third-party container on a runner with a docker daemon, so the
+digest is what actually pins it; the tag stays for readability.
+Renovate's stock managers do not read a docker reference out of a
+shell script, so unlike the rest of the fleet's dependencies this one
+does not move on its own -- which is also why the digest costs nothing
+in maintenance. Bump both deliberately when a mermaid feature is
+missing, taking the new digest from the pull, and re-run the script
+over the whole repository afterwards: a mermaid major version can
+reject a diagram its predecessor accepted.
