@@ -36,6 +36,10 @@ NETWORK_CHECKS = frozenset({
     'merge-queue-config',
     'merge-group-cancellation',
     'sfui-vendor',
+    # The one that differs for a reason outside this repository
+    # entirely: it lists the organisation, so somebody creating a
+    # repository moves its verdict without a line here changing.
+    'scope-coverage',
 })
 
 # Fields that move on every run regardless of what the checker does.

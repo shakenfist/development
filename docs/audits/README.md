@@ -71,12 +71,15 @@ The following projects are subject to consistency audits:
 - divergulent
 - instar
 - kerbside
+- kerbside-client
 - kerbside-patches
 - library-utilities
 - occystrap
 - ryll
 - shakenfist
 - sfui
+- uncalibrated-sextant
+- visual-digest-rust
 
 One project is in scope for part of the audit only:
 
@@ -91,19 +94,19 @@ One project is in scope for part of the audit only:
 ### Excluded projects
 
 The following projects are **excluded** from these criteria, because
-they are internal only tooling or historical archive repositories:
+they are internal only tooling, historical archive repositories, or
+not projects in the sense these criteria mean:
 
 * ansible-modules
 * client-js
 * client-go
 * client-python-ova
 * deploy
+* divergulent-reviews
+* homebrew-tap
 * images
-* imago-testdata
-* imago-testdata-quarantine
 * jenkins-private
 * loadtest
-* occystrap-testdata
 * ostrich
 * performance
 * private-ci
@@ -179,6 +182,7 @@ attached rather than quietly disappearing from the table.
 | [review-coverage.md](review-coverage.md) | Human review backlog stays under threshold in repos with review tracking |
 | [review-scope-completeness.md](review-scope-completeness.md) | Nothing leaves the human review queue by omission from the scope config |
 | [sfui-vendor.md](sfui-vendor.md) | Vendored sfui copies are verbatim and current |
+| [scope-coverage.md](scope-coverage.md) | Every repository in the organisation is audited or documented as excluded |
 
 ## Beyond the audits
 

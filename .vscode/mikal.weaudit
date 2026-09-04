@@ -169,10 +169,6 @@
       "author": "mikal"
     },
     {
-      "path": "README.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/ci-review-automation/pr-retest.yml",
       "author": "mikal"
     },
@@ -357,23 +353,11 @@
       "author": "mikal"
     },
     {
-      "path": "docs/ci-review-automation.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/code-review-tracking.md",
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/consistency-audit.yml",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/plan-index.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/README.md",
       "author": "mikal"
     },
     {
@@ -393,19 +377,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/github.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/markers.py",
       "author": "mikal"
     },
     {
       "path": "scripts/audit/repo.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/registry.py",
       "author": "mikal"
     },
     {
@@ -434,10 +410,6 @@
     },
     {
       "path": "scripts/audit/checks/docs_content.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/github_config.py",
       "author": "mikal"
     },
     {
@@ -477,10 +449,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_github_config.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_hooks.py",
       "author": "mikal"
     },
@@ -493,19 +461,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_metadata.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_plans.py",
       "author": "mikal"
     },
     {
       "path": "scripts/tests/test_python_source.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_registry.py",
       "author": "mikal"
     },
     {
@@ -518,10 +478,6 @@
     },
     {
       "path": "scripts/audit_common.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit_snapshot.py",
       "author": "mikal"
     },
     {
@@ -705,14 +661,6 @@
       "author": "mikal"
     },
     {
-      "path": "AGENTS.md",
-      "author": "mikal"
-    },
-    {
-      "path": "ARCHITECTURE.md",
-      "author": "mikal"
-    },
-    {
       "path": "PUSH-AUDIT.md",
       "author": "mikal"
     },
@@ -750,14 +698,6 @@
     },
     {
       "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
       "author": "mikal"
     },
     {

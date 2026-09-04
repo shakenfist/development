@@ -223,6 +223,10 @@ FROZEN_METADATA = {
         'template': None,
     },
     'sfui-vendor': {'spec': 'docs/audits/sfui-vendor.md', 'template': None},
+    'scope-coverage': {
+        'spec': 'docs/audits/scope-coverage.md',
+        'template': None,
+    },
     'export-repo-config': {
         'spec': 'docs/audits/export-repo-config.md',
         'template': 'templates/export-repo-config/',
@@ -295,6 +299,7 @@ FROZEN_ISSUE_TITLES = {
     'review-coverage': 'Human review coverage',
     'review-scope-completeness': 'Human review scope completeness',
     'sfui-vendor': 'sfui vendored copy',
+    'scope-coverage': 'Audit scope against the organisation',
 }
 
 FROZEN_COLUMN_NAMES = {

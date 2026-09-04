@@ -322,5 +322,323 @@ class MergeQueueConfigApiTest(GithubConfigTestCase):
         self.assert_fail(result, containing='Error checking merge queue')
 
 
+class ScopeCoverageTest(CheckTestCase):
+    """The criterion that measures the fleet rather than one repository."""
+
+    check_class = github_config.ScopeCoverage
+
+    LISTING = ('repo list shakenfist --limit '
+               f'{github_config.ORG_LISTING_LIMIT} --json name,isPrivate')
+
+    def scope(self, matrix, excluded):
+        """Write the two places the check reads scope from."""
+        self.fixture.workflow('consistency-audit.yml', (
+            'jobs:\n'
+            '  audit:\n'
+            '    strategy:\n'
+            '      matrix:\n'
+            '        repo:\n'
+            + ''.join(f'          - {name}\n' for name in matrix)
+            + '    steps:\n'
+            '      - run: true\n'
+        ))
+        self.fixture.write('docs/audits/README.md', (
+            '## In-scope projects\n'
+            '\n'
+            + ''.join(f'- {name}\n' for name in matrix)
+            + '\n'
+            'One project is in scope for part of the audit only:\n'
+            '\n'
+            '### Excluded projects\n'
+            '\n'
+            'The following projects are **excluded** from these criteria:\n'
+            '\n'
+            + ''.join(f'* {name}\n' for name in excluded)
+            + '\n'
+            'The `actions` repository is audited despite being tooling.\n'
+        ))
+
+    def listing(self, *names, private=()):
+        return CompletedCommand(stdout=json.dumps(
+            [{'name': name, 'isPrivate': name in private} for name in names]))
+
+    def resolve(self, name):
+        """The FakeGitHub key for resolving one unlisted name."""
+        return f'api repos/shakenfist/{name} --jq .full_name'
+
+    def run_with(self, response, name='development', **resolutions):
+        """Run the check with a scripted listing and name resolutions."""
+        responses = {self.LISTING: response}
+        responses.update({self.resolve(unlisted): answer
+                          for unlisted, answer in resolutions.items()})
+        github = FakeGitHub(responses)
+        result = run_check(self.check_class(), self.fixture.path,
+                           name=name, github=github)
+        return result, github
+
+    def test_only_the_repository_holding_the_lists_is_measured(self):
+        # Everywhere else there is nothing to read, and the listing
+        # would be paid for an answer nothing could be compared to --
+        # which is why applies() decides this rather than run().
+        self.scope(['development'], ['old'])
+        github = FakeGitHub({})
+        result = run_check(self.check_class(), self.fixture.path,
+                           name='occystrap', github=github)
+        self.assert_skip(result, 'stated in the development repository')
+        self.assertEqual(github.calls, [])
+
+    def test_a_reconciled_scope_passes(self):
+        self.scope(['development', 'ryll'], ['old-thing'])
+        result, _ = self.run_with(
+            self.listing('development', 'ryll', 'old-thing'))
+        self.assert_pass(result)
+
+    def test_a_repository_in_neither_list_is_reported(self):
+        self.scope(['development'], ['old-thing'])
+        result, _ = self.run_with(
+            self.listing('development', 'old-thing', 'undecided'))
+        self.assert_fail(result, 'in neither the audit matrix nor the '
+                                 'excluded list')
+        self.assertEqual(
+            result['missing'],
+            ['undecided (in the organisation, decided nowhere)'])
+
+    def test_a_name_that_no_longer_exists_is_reported(self):
+        # The other direction of the same reconciliation. An exclusion
+        # for a repository that does not exist excludes nothing, but it
+        # is evidence the list has never been checked against reality.
+        self.scope(['development'], ['gone', 'here'])
+        result, _ = self.run_with(
+            self.listing('development', 'here', private=('here',)),
+            gone=CompletedCommand(
+                returncode=1, stderr='gh: Not Found (HTTP 404)'))
+        self.assert_fail(result, 'no longer exist')
+        self.assertEqual(result['missing'], ['gone (no such repository)'])
+
+    def test_a_renamed_repository_is_named_by_its_new_name(self):
+        # The API follows a rename redirect while issue listing and
+        # search do not, so a scope still naming the old name is the
+        # same trap gh_canonical_repo() exists for -- and the useful
+        # finding is what to write in the list, not that something is
+        # missing from it.
+        self.scope(['development', 'instar'], ['imago'])
+        result, _ = self.run_with(
+            self.listing('development', 'instar'),
+            imago=CompletedCommand(stdout='shakenfist/instar\n'))
+        self.assert_fail(result, 'have been renamed')
+        self.assertEqual(
+            result['missing'],
+            ['imago -> shakenfist/instar (renamed)'])
+
+    def test_a_name_the_listing_missed_is_not_called_stale(self):
+        # A token that cannot see private repositories produces a
+        # listing missing every one of them, which would read as
+        # exclusions naming repositories that no longer exist. The fix
+        # that finding implies -- deleting the exclusions -- would be
+        # actively harmful, so the name is resolved directly and the
+        # listing is what gets blamed.
+        self.scope(['development'], ['a-private-one'])
+        result, _ = self.run_with(
+            self.listing('development'),
+            **{'a-private-one': CompletedCommand(
+                stdout='shakenfist/a-private-one\n')})
+        self.assert_fail(result, 'listing, which is therefore incomplete')
+        self.assertEqual(
+            result['missing'],
+            ['a-private-one (exists, but not in the listing)'])
+
+    def test_both_directions_are_reported_together(self):
+        self.scope(['development'], ['gone'])
+        result, _ = self.run_with(
+            self.listing('development', 'undecided'),
+            gone=CompletedCommand(
+                returncode=1, stderr='gh: Not Found (HTTP 404)'))
+        self.assert_fail(result)
+        self.assertEqual(len(result['missing']), 2)
+
+    def test_the_listing_is_not_filtered_by_archived(self):
+        # isArchived is the obvious filter and is deliberately not
+        # asked for: a repository dormant for years that nobody
+        # archived is exactly the case this criterion exists to name,
+        # and it is indistinguishable from an active one here.
+        self.scope(['development'], ['old-thing'])
+        _, github = self.run_with(
+            self.listing('development', 'old-thing'))
+        self.assertEqual(github.calls, [self.LISTING])
+
+    def test_a_listing_at_the_limit_is_refused(self):
+        # gh repo list returns 30 by default, which loses eight of this
+        # organisation's repositories and reports them as undecided. A
+        # listing that reaches whatever limit was asked for may have
+        # been cut, and a cut listing accuses repositories that are
+        # merely unlisted.
+        self.scope(['development'], ['old-thing'])
+        names = [f'repo-{n}' for n in range(github_config.ORG_LISTING_LIMIT)]
+        result, _ = self.run_with(self.listing(*names))
+        self.assert_fail(result, 'may have been truncated')
+
+    def test_a_failed_listing_is_reported_as_such(self):
+        self.scope(['development'], ['old-thing'])
+        result, _ = self.run_with(
+            CompletedCommand(returncode=1, stderr='gh: HTTP 401'))
+        self.assert_fail(result, 'Could not list the shakenfist '
+                                 'organisation')
+
+    def test_an_unparseable_listing_is_reported_as_such(self):
+        self.scope(['development'], ['old-thing'])
+        result, _ = self.run_with(CompletedCommand(stdout='not json'))
+        self.assert_fail(result, 'Could not parse')
+
+    def test_a_failure_that_is_not_a_404_is_not_called_a_deletion(self):
+        # GitHub answers 404 for a private repository the token cannot
+        # see, so the status is the only thing separating "gone" from
+        # "cannot look". Everything else -- an expired token, rate
+        # limiting, a network blip -- must not arrive at a finding
+        # whose suggested fix is to delete the entry.
+        self.scope(['development'], ['maybe-here'])
+        result, _ = self.run_with(
+            self.listing('development'),
+            **{'maybe-here': CompletedCommand(
+                returncode=1, stderr='gh: Bad credentials (HTTP 401)')})
+        self.assert_fail(result, 'could not be resolved either way')
+        self.assertEqual(result['missing'],
+                         ['maybe-here (unresolved: HTTP 401)'])
+
+    def test_a_404_without_private_repositories_in_sight_is_not_a_deletion(
+            self):
+        # A token blind to private repositories 404s on every one of
+        # them, one name at a time, exactly as a deletion does, so in
+        # that state a 404 carries no information at all. The finding
+        # has to name the token: it is the only edit that can clear it,
+        # and a red row nobody can act on is one people learn to skip.
+        self.scope(['development'], ['a-private-one'])
+        result, _ = self.run_with(
+            self.listing('development'),
+            **{'a-private-one': CompletedCommand(
+                returncode=1, stderr='gh: Not Found (HTTP 404)')})
+        self.assert_fail(result, 'could not be resolved either way')
+        self.assert_fail(result, 'grant it private-repository read')
+        self.assertNotIn('no such repository', str(result['missing']))
+
+    def test_a_404_beside_a_visible_private_repository_is_not_qualified(self):
+        self.scope(['development'], ['gone'])
+        result, _ = self.run_with(
+            self.listing('development', 'hidden', private=('hidden',)),
+            gone=CompletedCommand(returncode=1,
+                                  stderr='gh: Not Found (HTTP 404)'))
+        self.assert_fail(result, 'no longer exist')
+        self.assertNotIn('check the token', result['details'])
+
+    def test_a_resolution_that_answers_nothing_is_not_a_rename(self):
+        # Exit zero and empty stdout would compare unequal to the name
+        # asked about, and report a rename to nowhere.
+        self.scope(['development'], ['quiet'])
+        result, _ = self.run_with(
+            self.listing('development'),
+            quiet=CompletedCommand(stdout='\n'))
+        self.assert_fail(result, 'could not be resolved either way')
+        self.assertEqual(result['missing'],
+                         ['quiet (unresolved: the API returned no name)'])
+
+    def test_a_rename_is_reported_once_not_twice(self):
+        # The new name is also in the organisation and in neither list.
+        # Both findings ask for the same single edit, so only the one
+        # that names the edit is reported.
+        self.scope(['development'], ['imago'])
+        result, _ = self.run_with(
+            self.listing('development', 'instar', private=('instar',)),
+            imago=CompletedCommand(stdout='shakenfist/instar\n'))
+        self.assert_fail(result, 'have been renamed')
+        self.assertEqual(result['missing'],
+                         ['imago -> shakenfist/instar (renamed)'])
+
+    def test_a_blank_stderr_does_not_raise_out_of_the_check(self):
+        # describe_failure() indexed the first line of a stderr that
+        # had one only if it was not whitespace. An IndexError here
+        # aborts the whole development audit leg.
+        self.scope(['development'], ['odd', 'hidden'])
+        result, _ = self.run_with(
+            self.listing('development', 'hidden', private=('hidden',)),
+            odd=CompletedCommand(returncode=1, stderr='   \n'))
+        self.assert_fail(result, 'could not be resolved either way')
+        self.assertEqual(result['missing'],
+                         ['odd (unresolved: no error reported)'])
+
+    def test_an_empty_listing_answers_nothing(self):
+        self.scope(['development'], ['old-thing'])
+        result, _ = self.run_with(self.listing())
+        self.assert_fail(result, 'returned no repositories at all')
+
+    def test_the_truncation_guard_counts_entries_not_unique_names(self):
+        # A duplicated name would leave the deduplicated set one short
+        # of the limit, and a genuinely truncated listing would sail
+        # through the guard that exists to catch it.
+        self.scope(['development'], ['old-thing'])
+        names = [f'repo-{n}'
+                 for n in range(github_config.ORG_LISTING_LIMIT - 1)]
+        result, _ = self.run_with(self.listing(*(names + [names[0]])))
+        self.assert_fail(result, 'may have been truncated')
+
+    def test_a_listing_of_the_wrong_shape_fails_rather_than_raising(self):
+        # registry.run_all() has no per-check exception handling, and
+        # manage-issues and update-docs are needs-gated on the audit
+        # job: an exception here would stop issue filing and the
+        # compliance page for the whole fleet for the day.
+        self.scope(['development'], ['old-thing'])
+        for body in ['null', '{"repositories": []}', '[{"nom": "x"}]']:
+            with self.subTest(body=body):
+                result, _ = self.run_with(CompletedCommand(stdout=body))
+                self.assert_fail(result, 'expected a list of repositories')
+
+    def test_a_matrix_that_cannot_be_parsed_fails_the_check(self):
+        # The README rewording route is covered above; this is the same
+        # guard reached through the workflow, which is parsed by a
+        # different function.
+        self.scope(['development'], ['old-thing'])
+        self.fixture.workflow('consistency-audit.yml', 'jobs: {}\n')
+        result, _ = self.run_with(self.listing('development', 'old-thing'))
+        self.assert_fail(result, 'Could not read the audit scope')
+
+    def test_a_timeout_on_one_name_keeps_the_rest_of_the_finding(self):
+        # The undecided set needs no API access at all, and it is the
+        # half of the check that matters. One slow call must not throw
+        # it away.
+        self.scope(['development'], ['gone', 'hidden'])
+        result, _ = self.run_with(
+            self.listing('development', 'hidden', 'undecided',
+                         private=('hidden',)),
+            gone=subprocess.TimeoutExpired('gh', 30))
+        self.assert_fail(
+            result, 'in neither the audit matrix nor the excluded list')
+        self.assertEqual(
+            result['missing'],
+            ['undecided (in the organisation, decided nowhere)',
+             'gone (unresolved: TimeoutExpired)'])
+
+    def test_a_timeout_is_reported_rather_than_raised(self):
+        github = FakeGitHub({
+            self.LISTING: subprocess.TimeoutExpired('gh', 60)})
+        self.scope(['development'], ['old-thing'])
+        result = run_check(self.check_class(), self.fixture.path,
+                           name='development', github=github)
+        self.assert_fail(result, 'Could not list the shakenfist '
+                                 'organisation')
+
+    def test_a_reworded_anchor_fails_naming_the_phrase(self):
+        # The parse is anchored to phrases in documents that get
+        # rewritten for reasons that have nothing to do with this
+        # check. A reworded anchor has to fail as a reworded anchor
+        # rather than as a scope that suddenly excludes nothing.
+        self.scope(['development'], ['old-thing'])
+        self.fixture.write('docs/audits/README.md', 'No lists here.\n')
+        result, _ = self.run_with(self.listing('development', 'old-thing'))
+        self.assert_fail(result, 'Could not read the audit scope')
+        self.assert_fail(result, 'are **excluded**')
+
+    def test_a_missing_workflow_fails_rather_than_raising(self):
+        result, _ = self.run_with(self.listing('development'))
+        self.assert_fail(result, 'Could not read the audit scope')
+
+
 if __name__ == '__main__':
     unittest.main()

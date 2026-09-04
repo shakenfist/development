@@ -31,6 +31,7 @@ jobs:
           - divergulent
           - instar
           - kerbside
+          - kerbside-client
           - kerbside-patches
           - library-utilities
           - occystrap
@@ -40,6 +41,8 @@ jobs:
           - ryll
           - shakenfist
           - sfui
+          - uncalibrated-sextant
+          - visual-digest-rust
     steps:
       - name: Checkout development repo
         uses: actions/checkout@v7
