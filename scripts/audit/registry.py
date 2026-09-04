@@ -66,6 +66,7 @@ CHECKS = [
     ci_workflows.ExpensiveLanePathFilter(),
     ci_workflows.MergeGroupCancellation(),
     ci_workflows.SecretScanningCi(),
+    ci_workflows.FuzzNightlyReporting(),
     review.ReviewMarksPreCommit(),
     review.ReviewCoverage(),
     review.ReviewScopeCompleteness(),

@@ -161,6 +161,7 @@ attached rather than quietly disappearing from the table.
 | [security-sanitization.md](security-sanitization.md) | HTTP header and file path sanitization |
 | [workflow-standards.md](workflow-standards.md) | Permissions, naming, self-hosted runners, static runner tags, vm runner size, devpi cache fallback, devpi cache address, linting, PIPESTATUS, flake8wrap |
 | [expensive-lane-path-filter.md](expensive-lane-path-filter.md) | Expensive PR lanes skip docs-only and review-marks-only changes |
+| [fuzz-nightly-reporting.md](fuzz-nightly-reporting.md) | Fuzz targets run nightly and file issues for crashes, rather than gating the merge queue |
 | [console-logging.md](console-logging.md) | Console script logging setup |
 | [python-version.md](python-version.md) | Python version targeting and type hints |
 | [pyproject-usage.md](pyproject-usage.md) | Python projects use pyproject.toml |
