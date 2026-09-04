@@ -409,7 +409,7 @@ class ScopeCoverageTest(CheckTestCase):
         # is evidence the list has never been checked against reality.
         self.scope(['development'], ['gone', 'here'])
         result, _ = self.run_with(
-            self.listing('development', 'here'),
+            self.listing('development', 'here', private=('here',)),
             gone=CompletedCommand(
                 returncode=1, stderr='gh: Not Found (HTTP 404)'))
         self.assert_fail(result, 'no longer exist')
@@ -504,18 +504,21 @@ class ScopeCoverageTest(CheckTestCase):
         self.assertEqual(result['missing'],
                          ['maybe-here (unresolved: HTTP 401)'])
 
-    def test_a_404_with_no_private_repositories_in_sight_is_qualified(self):
+    def test_a_404_without_private_repositories_in_sight_is_not_a_deletion(
+            self):
         # A token blind to private repositories 404s on every one of
-        # them, one name at a time, exactly as a deletion does. The
-        # listing is what tells the two apart in bulk, so where it saw
-        # no private repositories the finding says so rather than
-        # inviting someone to delete live exclusions.
+        # them, one name at a time, exactly as a deletion does, so in
+        # that state a 404 carries no information at all. The finding
+        # has to name the token: it is the only edit that can clear it,
+        # and a red row nobody can act on is one people learn to skip.
         self.scope(['development'], ['a-private-one'])
         result, _ = self.run_with(
             self.listing('development'),
             **{'a-private-one': CompletedCommand(
                 returncode=1, stderr='gh: Not Found (HTTP 404)')})
-        self.assert_fail(result, 'check the token before deleting anything')
+        self.assert_fail(result, 'could not be resolved either way')
+        self.assert_fail(result, 'grant it private-repository read')
+        self.assertNotIn('no such repository', str(result['missing']))
 
     def test_a_404_beside_a_visible_private_repository_is_not_qualified(self):
         self.scope(['development'], ['gone'])
@@ -537,6 +540,45 @@ class ScopeCoverageTest(CheckTestCase):
         self.assertEqual(result['missing'],
                          ['quiet (unresolved: the API returned no name)'])
 
+    def test_a_rename_is_reported_once_not_twice(self):
+        # The new name is also in the organisation and in neither list.
+        # Both findings ask for the same single edit, so only the one
+        # that names the edit is reported.
+        self.scope(['development'], ['imago'])
+        result, _ = self.run_with(
+            self.listing('development', 'instar', private=('instar',)),
+            imago=CompletedCommand(stdout='shakenfist/instar\n'))
+        self.assert_fail(result, 'have been renamed')
+        self.assertEqual(result['missing'],
+                         ['imago -> shakenfist/instar (renamed)'])
+
+    def test_a_blank_stderr_does_not_raise_out_of_the_check(self):
+        # describe_failure() indexed the first line of a stderr that
+        # had one only if it was not whitespace. An IndexError here
+        # aborts the whole development audit leg.
+        self.scope(['development'], ['odd', 'hidden'])
+        result, _ = self.run_with(
+            self.listing('development', 'hidden', private=('hidden',)),
+            odd=CompletedCommand(returncode=1, stderr='   \n'))
+        self.assert_fail(result, 'could not be resolved either way')
+        self.assertEqual(result['missing'],
+                         ['odd (unresolved: no error reported)'])
+
+    def test_an_empty_listing_answers_nothing(self):
+        self.scope(['development'], ['old-thing'])
+        result, _ = self.run_with(self.listing())
+        self.assert_fail(result, 'returned no repositories at all')
+
+    def test_the_truncation_guard_counts_entries_not_unique_names(self):
+        # A duplicated name would leave the deduplicated set one short
+        # of the limit, and a genuinely truncated listing would sail
+        # through the guard that exists to catch it.
+        self.scope(['development'], ['old-thing'])
+        names = [f'repo-{n}'
+                 for n in range(github_config.ORG_LISTING_LIMIT - 1)]
+        result, _ = self.run_with(self.listing(*(names + [names[0]])))
+        self.assert_fail(result, 'may have been truncated')
+
     def test_a_listing_of_the_wrong_shape_fails_rather_than_raising(self):
         # registry.run_all() has no per-check exception handling, and
         # manage-issues and update-docs are needs-gated on the audit
@@ -557,12 +599,21 @@ class ScopeCoverageTest(CheckTestCase):
         result, _ = self.run_with(self.listing('development', 'old-thing'))
         self.assert_fail(result, 'Could not read the audit scope')
 
-    def test_a_timeout_resolving_a_name_is_reported(self):
-        self.scope(['development'], ['gone'])
+    def test_a_timeout_on_one_name_keeps_the_rest_of_the_finding(self):
+        # The undecided set needs no API access at all, and it is the
+        # half of the check that matters. One slow call must not throw
+        # it away.
+        self.scope(['development'], ['gone', 'hidden'])
         result, _ = self.run_with(
-            self.listing('development'),
+            self.listing('development', 'hidden', 'undecided',
+                         private=('hidden',)),
             gone=subprocess.TimeoutExpired('gh', 30))
-        self.assert_fail(result, 'Could not resolve 1 name(s)')
+        self.assert_fail(
+            result, 'in neither the audit matrix nor the excluded list')
+        self.assertEqual(
+            result['missing'],
+            ['undecided (in the organisation, decided nowhere)',
+             'gone (unresolved: TimeoutExpired)'])
 
     def test_a_timeout_is_reported_rather_than_raised(self):
         github = FakeGitHub({

@@ -278,8 +278,8 @@ def describe_failure(result):
     status = http_status(result.stderr)
     if status is not None:
         return f'HTTP {status}'
-    return (result.stderr or '').strip().splitlines()[0] if result.stderr \
-        else 'no error reported'
+    lines = (result.stderr or '').strip().splitlines()
+    return lines[0] if lines else 'no error reported'
 
 
 #: How many repositories to ask for. `gh repo list` returns 30 by
@@ -385,6 +385,12 @@ class ScopeCoverage(Check):
                 f'have been truncated, and a truncated listing reports '
                 f'repositories as undecided that are merely unlisted')
 
+        if not listing:
+            return self.fail(
+                f'The {repo.org} listing returned no repositories at '
+                f'all, so nothing here can be reconciled: check the '
+                f'token')
+
         organisation = {entry['name'] for entry in listing}
         # Whether the token can see private repositories at all. GitHub
         # answers 404 rather than 403 for a private repository a token
@@ -403,32 +409,54 @@ class ScopeCoverage(Check):
         # other than a 404 is reported as a failure to resolve rather
         # than as a deletion. gh_canonical_repo() falls back rather than
         # concluding anything from a failed call, for the same reason.
+        #
+        # Where the listing saw no private repositories at all, a 404
+        # carries no information: this token answers 404 for every
+        # private repository in the organisation, exactly as it does
+        # for a deleted one. Nothing is called gone in that state. The
+        # finding names the token instead, which is the only edit that
+        # can clear it -- a red row nobody can act on is one people
+        # learn to skip.
         gone, renamed, invisible, unresolvable = [], [], [], []
-        try:
-            for name in unlisted:
+        for name in unlisted:
+            # Per name rather than around the loop: the undecided set is
+            # already computed and needs no API access, and one slow
+            # call must not discard the finding this criterion exists
+            # for.
+            try:
                 result = repo.github.api(
                     f'repos/{repo.org}/{name}', jq='.full_name')
-                if result.returncode != 0:
-                    status = http_status(result.stderr)
-                    if status == 404:
-                        gone.append(name)
-                    else:
-                        unresolvable.append((name, describe_failure(result)))
-                    continue
-                canonical = result.stdout.strip()
-                if not canonical:
-                    # Exit zero and no answer. gh_canonical_repo() guards
-                    # the same case; without this the finding reads
-                    # "renamed to " and names no destination.
-                    unresolvable.append((name, 'the API returned no name'))
-                elif canonical.lower() != f'{repo.org}/{name}'.lower():
-                    renamed.append((name, canonical))
+            except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+                unresolvable.append((name, f'{type(e).__name__}'))
+                continue
+            if result.returncode != 0:
+                status = http_status(result.stderr)
+                if status != 404:
+                    unresolvable.append((name, describe_failure(result)))
+                elif sees_private:
+                    gone.append(name)
                 else:
-                    invisible.append(name)
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            return self.fail(
-                f'Could not resolve {len(unlisted)} name(s) in the '
-                f'audit scope: {e}')
+                    unresolvable.append(
+                        (name, 'a 404 this token cannot distinguish from '
+                               'a private repository it cannot see'))
+                continue
+            canonical = result.stdout.strip()
+            if not canonical:
+                # Exit zero and no answer. gh_canonical_repo() guards
+                # the same case; without this the finding reads
+                # "renamed to " and names no destination.
+                unresolvable.append((name, 'the API returned no name'))
+            elif canonical.lower() != f'{repo.org}/{name}'.lower():
+                renamed.append((name, canonical))
+            else:
+                invisible.append(name)
+
+        # Item of noise rather than a wrong answer: a repository renamed
+        # from a name the scope still carries is also, under its new
+        # name, in the organisation and in neither list. Both findings
+        # ask for the same single edit, so the rename is the one that
+        # says it.
+        undecided -= {canonical.split('/')[-1] for _, canonical in renamed}
 
         problems = []
         missing = []
@@ -439,19 +467,9 @@ class ScopeCoverage(Check):
             missing.extend(f'{name} (in the organisation, decided nowhere)'
                            for name in sorted(undecided))
         if gone:
-            # The caveat is the difference between a finding and a
-            # trap. A private repository the token cannot see answers
-            # 404 exactly as a deleted one does, so where the listing
-            # showed no private repositories at all, deleting these
-            # entries may be deleting live exclusions.
-            caveat = '' if sees_private else (
-                ', but the listing returned no private repositories at '
-                'all and a private repository this token cannot see '
-                'answers the same 404: check the token before deleting '
-                'anything')
             problems.append(
                 f'{len(gone)} name(s) in the audit matrix or the '
-                f'excluded list no longer exist{caveat}')
+                f'excluded list no longer exist')
             missing.extend(f'{name} (no such repository)' for name in gone)
         if renamed:
             problems.append(
@@ -472,9 +490,13 @@ class ScopeCoverage(Check):
             missing.extend(f'{name} (exists, but not in the listing)'
                            for name in invisible)
         if unresolvable:
+            blind = '' if sees_private else (
+                ', and the listing returned no private repositories at '
+                'all, so this token cannot answer the question: grant '
+                'it private-repository read')
             problems.append(
                 f'{len(unresolvable)} name(s) in the audit scope could '
-                f'not be resolved either way')
+                f'not be resolved either way{blind}')
             missing.extend(f'{name} (unresolved: {reason})'
                            for name, reason in unresolvable)
         if problems:

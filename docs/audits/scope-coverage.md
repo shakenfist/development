@@ -79,16 +79,40 @@ directly rather than assuming, and says which of four things happened:
   cannot see part of the organisation cannot answer the first question
   either.
 - **It could not be resolved either way** -- an expired token, rate
-  limiting, a timeout. Reported as exactly that. "Gone" is the one
-  conclusion whose suggested fix is destructive, so nothing arrives at
-  it by accident.
+  limiting, a timeout, or a 404 this token cannot interpret (see
+  below). Reported as exactly that. "Gone" is the one conclusion whose
+  suggested fix is destructive, so nothing arrives at it by accident.
 
-The caveat on 404 matters more than it looks. GitHub answers 404, not
-403, for a private repository the token cannot see, so one name at a
-time a blind token is indistinguishable from a deletion. What tells
-them apart is the listing: where it returned no private repositories
-at all, the finding says so and says to check the token before
-deleting anything, because the exclusions it is naming may be live.
+Each name is resolved on its own, and a failure on one is recorded
+against that name rather than abandoning the run. The undecided
+question needs no API access at all, and it is the half of the check
+that matters: a slow call must not discard it.
+
+## The 404 that means nothing
+
+GitHub answers 404, not 403, for a private repository the token cannot
+see, so one name at a time a blind token is indistinguishable from a
+deletion. What tells them apart is the listing: if it returned no
+private repositories at all, then this token 404s on every private
+repository in the organisation, and a 404 carries no information.
+
+Nothing is reported as gone in that state. The finding names the token
+instead, because granting it private-repository read is the only edit
+that can clear it -- and a criterion that is permanently red for a
+reason nobody can act on is one people learn to skip past.
+
+## Partially scoped repositories
+
+A repository audited for a subset of the checks -- `private-ci` is the
+worked example -- is decided by being in the matrix and on the excluded
+list at once, which is what
+[docs/consistency-audits.md](../consistency-audits.md) already tells
+you to do when you scope one. The "in scope for part of the audit
+only" paragraph on [README.md](README.md) is prose for a reader; it is
+not one of the lists this check reads. A repository documented only
+there would be reported as undecided, correctly: an `only_checks`
+entry in `REPO_OVERRIDES` narrows what runs, it does not put a
+repository in the audit.
 
 ## What this does not check
 
