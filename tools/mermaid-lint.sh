@@ -73,7 +73,22 @@ else
     # dropped by the -f test below -- another diagram unlinted behind
     # a green run. -z quotes nothing at all, so it subsumes the
     # setting rather than covering one more case than it did.
-    mapfile -d '' -t candidates < <(git ls-files -z '*.md')
+    #
+    # REVIEWS.md is excluded to match the workflow's path filter, which
+    # excludes it so that a review session or a bot prune does not cost
+    # a virtual machine. The two have to agree: a lane that never runs
+    # on the file that changed, but lints it on every other pull
+    # request, reports a broken diagram to whoever next touched an
+    # unrelated markdown file, and to every developer running the
+    # pre-push audit. Excluded here rather than un-excluded there
+    # because a diagram in generated review tracking is not what this
+    # lane is for; name the file on the command line to lint it anyway.
+    #
+    # The pathspec is a literal, so it matches the file at the
+    # repository root and not a docs/REVIEWS.md -- the same scope the
+    # workflow's '!REVIEWS.md' has.
+    mapfile -d '' -t candidates \
+        < <(git ls-files -z '*.md' ':(exclude)REVIEWS.md')
 fi
 
 # Backticks only, and no space before the language: that is what mmdc
@@ -360,7 +375,16 @@ echo "Linting ${#files[@]} file(s) containing mermaid diagrams."
 # would abort here and lose the refusals already counted; taking $?
 # rather than a flat 1 keeps a 125 from a failed image pull
 # distinguishable from a diagram that does not parse.
-docker run --rm -u "$(id -u):$(id -g)" \
+#
+# --network none because rendering a diagram is a local operation and
+# this is a third-party container driving a browser over repository
+# content. Chromium and mmdc talk over loopback, which a none network
+# still provides, so the sandbox is unaffected; what goes away is the
+# ability to fetch a remote font or icon pack, and a diagram that
+# needs one should fail loudly here rather than render differently on
+# a runner with a different egress path. The daemon pulls a missing
+# image before the container starts, so the pin still works.
+docker run --rm --network none -u "$(id -u):$(id -g)" \
     -v "${repo_root}":/src:ro \
     -v "${workdir}":/work \
     --entrypoint /bin/sh "${IMAGE}" -c '

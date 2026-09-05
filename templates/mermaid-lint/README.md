@@ -42,6 +42,18 @@ seconds; ryll and kerbside together, sixteen files, in twenty-two.
 Nearly all of the real cost is the virtual machine, which is why the
 workflow carries a path filter.
 
+The container runs with `--network none`. Rendering a diagram is a
+local operation, and this is third-party code driving a browser over
+repository content on a runner with a docker daemon, so the egress it
+does not need is egress it does not get. Chromium and `mmdc` speak
+over loopback, which a `none` network still provides. What the flag
+costs is a diagram that reaches out for a remote font or icon pack:
+that now fails loudly rather than rendering one way here and another
+way on a runner with a different egress path, which is the trade this
+fleet prefers. The image is still pulled normally -- the daemon
+fetches it before the container starts -- so the digest pin is
+unaffected.
+
 ## The runner label
 
 `[self-hosted, vm, debian-12-docker, s]`, not `static`. Static runners
@@ -67,6 +79,15 @@ them forever. Two ways out, both fine:
 Do not simply add `merge_group:` to the trigger list: `paths` is not
 supported on that event, so every merge would spin a virtual machine
 to lint diagrams that the pull request already linted.
+
+`push` *is* on the trigger list, filtered to `main` and `develop`.
+Left advisory the lane blocks nothing, so a commit that reaches the
+default branch without a pull request -- an admin push, a bot commit
+-- would otherwise never be linted, and would surface later as a
+failure on somebody else's markdown change. Both branch names ship
+because the fleet's default branch is `develop` in some repositories
+and `main` in others; whichever a repository does not have simply
+never matches, so the file stays byte-identical either way.
 
 Left advisory, the job can still fail a pull request while sitting in
 its own workflow file, where another workflow's `needs:` list cannot
@@ -192,6 +213,19 @@ alongside `**.md`, so a pull request that edits the checker and no
 markdown still runs it. `!REVIEWS.md` is last, because a later pattern
 wins; a repository with no `REVIEWS.md` keeps the line so the
 exclusion is in force from the first commit of one.
+
+`mermaid-lint.sh` drops `REVIEWS.md` from its own candidate set for
+the same reason, and the two exclusions have to move together. The
+script lints the whole tree on every run, not the changed files, so a
+file the workflow never triggers on but the script still reads is the
+worst of both: a broken diagram merges green on the pull request that
+introduced it, and then fails whichever unrelated markdown pull
+request comes next, plus every developer's pre-push audit, naming a
+file that author never touched. It is excluded rather than
+un-excluded because a diagram inside generated review tracking is not
+what this lane is for; name the file as an argument to lint it
+anyway. The pathspec is a literal, so like the workflow's pattern it
+means the file at the repository root and not a `docs/REVIEWS.md`.
 
 Those two paths are literals, so a repository that renames the
 workflow, or installs the script somewhere other than `tools/`, must

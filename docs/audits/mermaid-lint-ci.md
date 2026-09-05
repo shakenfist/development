@@ -102,6 +102,32 @@ ryll and kerbside together in twenty-two. Nearly all of the real cost
 is the virtual machine the job needs, which is why the shipped
 workflow is path-filtered to markdown.
 
+The container runs with `--network none`: rendering is local, and
+this is third-party code driving a browser over repository content on
+a runner with a docker daemon. Loopback survives, which is all
+chromium and `mmdc` need; a diagram reaching for a remote font fails
+loudly instead of rendering differently on a runner with a different
+egress path.
+
+### What the lane runs on
+
+`pull_request` and `push` to `main` or `develop`, both filtered to
+markdown plus the script and workflow themselves. The push trigger is
+there because the lane is advisory: a commit that reaches the default
+branch without a pull request would otherwise never be linted, and
+would surface later as a failure on somebody else's markdown change.
+
+`REVIEWS.md` is excluded from that filter, and `mermaid-lint.sh`
+excludes the same file from its own tree walk. The two have to move
+together. The script lints the whole tree rather than the changed
+files, so a file the workflow never triggers on but the script still
+reads is the worst of both: a broken diagram merges green on the pull
+request that introduced it, then fails whichever unrelated markdown
+pull request comes next -- and every developer's pre-push audit --
+naming a file that author never touched. `MermaidLintDeploymentTest`
+asserts the two exclusions agree, and that the two triggers filter on
+the same paths.
+
 ### The runner
 
 `[self-hosted, vm, debian-12-docker, s]`, not `static`. Static runners
