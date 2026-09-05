@@ -31,6 +31,15 @@
   `files` on the release) name the directory the download actually
   filled. Moving one and not the other leaves a step globbing an empty
   directory.
+* A job running a known container action (`pypa/gh-action-pypi-publish`)
+  takes its paths relative to the workspace, and therefore checks out.
+  The runner does mount its directories into the container, but not
+  where the workflow expressions point: `RUNNER_TEMP` appears at
+  `/github/runner_temp` while `${{ runner.temp }}` expands to the host
+  path. An absolute path is rejected even inside the workspace, because
+  host and container disagree about where that is. This criterion takes
+  precedence over the one above, which is why such a job must check out
+  rather than use `runner.temp`.
 
 ## Template
 

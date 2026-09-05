@@ -1625,8 +1625,15 @@ class ReleaseProcessTest(CheckTestCase):
     TEMP = '${{ runner.temp }}/dist/'
 
     def publishing_workflow(self, path=TEMP, subject=None, checkout='',
-                            packages=None):
-        """A publish job, parameterised on where it reads and cleans."""
+                            packages=None, publish=True):
+        """A publish job, parameterised on where it reads and cleans.
+
+        `publish` controls whether the container action is present,
+        because that decides which of the two path criteria owns the
+        job: with it, the container rule; without it, the workspace
+        rule. A fixture carrying it unconditionally would leave the
+        workspace rule untested.
+        """
         subject = self.TEMP + '*' if subject is None else subject
         self.compliant()
         steps = checkout
@@ -1637,11 +1644,12 @@ class ReleaseProcessTest(CheckTestCase):
             f'          path: {path}\n'
             '      - uses: actions/attest-build-provenance@v4\n'
             '        with:\n'
-            f"          subject-path: '{subject}'\n"
-            '      - uses: pypa/gh-action-pypi-publish@release/v1\n')
-        if packages is not None:
-            steps += ('        with:\n'
-                      f'          packages-dir: {packages}\n')
+            f"          subject-path: '{subject}'\n")
+        if publish:
+            steps += '      - uses: pypa/gh-action-pypi-publish@release/v1\n'
+            if packages is not None:
+                steps += ('        with:\n'
+                          f'          packages-dir: {packages}\n')
         self.fixture.workflow(
             'release.yml',
             'name: Release\n'
@@ -1660,7 +1668,8 @@ class ReleaseProcessTest(CheckTestCase):
                       '          clean: false\n')
 
     def test_downloading_into_the_shared_workspace_fails(self):
-        self.publishing_workflow(path='dist/', subject='dist/*')
+        self.publishing_workflow(path='dist/', subject='dist/*',
+                                 publish=False)
         self.assert_fail(self.check(has_pyproject_toml=True),
                          containing='does not start from a cleaned checkout')
 
@@ -1680,14 +1689,14 @@ class ReleaseProcessTest(CheckTestCase):
     def test_a_checkout_which_does_not_clean_earns_nothing(self):
         """clean: false hands back the very workspace at issue."""
         self.publishing_workflow(path='dist/', subject='dist/*',
-                                 checkout=self.DIRTY_CHECKOUT)
+                                 checkout=self.DIRTY_CHECKOUT, publish=False)
         self.assert_fail(self.check(has_pyproject_toml=True),
                          containing='does not start from a cleaned checkout')
 
     def test_a_quoted_clean_false_earns_nothing_either(self):
         """YAML 'false' is the string, which Actions still reads as off."""
         self.publishing_workflow(
-            path='dist/', subject='dist/*',
+            path='dist/', subject='dist/*', publish=False,
             checkout=('      - uses: actions/checkout@v7\n'
                       '        with:\n'
                       "          clean: 'false'\n"))
@@ -1704,7 +1713,7 @@ class ReleaseProcessTest(CheckTestCase):
 
     def test_a_temp_scoped_job_without_checkout_passes(self):
         """The github-release shape: no checkout, everything in temp."""
-        self.publishing_workflow()
+        self.publishing_workflow(publish=False)
         self.assert_pass(self.check(has_pyproject_toml=True))
 
     def test_packages_dir_is_not_required_to_be_absolute(self):
@@ -1738,12 +1747,100 @@ class ReleaseProcessTest(CheckTestCase):
             '          path: dist/\n')
         self.assert_pass(self.check(has_pyproject_toml=True))
 
+    # The container constraint, and the reason it takes precedence over
+    # the rule above. gh-action-pypi-publish delegates to a Docker
+    # container action; the runner mounts RUNNER_TEMP at
+    # /github/runner_temp while "${{ runner.temp }}" expands to the host
+    # path, so a job can satisfy every other criterion here and still
+    # fail every upload. That configuration shipped and had to be found
+    # by running it.
+
+    def test_a_container_action_may_not_be_given_runner_temp(self):
+        self.publishing_workflow(checkout=self.CHECKOUT, packages=self.TEMP)
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='Docker container')
+
+    def test_a_container_action_may_not_be_given_an_absolute_path(self):
+        """Absolute is wrong even when it points into the workspace.
+
+        The host and the container disagree about where the workspace
+        is, so an absolute path is right in at most one of them.
+        """
+        self.publishing_workflow(path='dist/', subject='dist/*',
+                                 checkout=self.CHECKOUT,
+                                 packages='/github/workspace/dist/')
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='relative to the workspace')
+
+    def test_a_container_job_downloading_to_temp_fails(self):
+        """Not just the input: what feeds it has to be readable too."""
+        self.publishing_workflow(checkout=self.CHECKOUT, packages='dist/')
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='cannot read')
+
+    def test_a_container_job_must_check_out(self):
+        self.publishing_workflow(path='dist/', subject='dist/*',
+                                 packages='dist/')
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='does not check out')
+
+    def test_the_proven_good_container_shape_passes(self):
+        self.publishing_workflow(path='dist/', subject='dist/*',
+                                 checkout=self.CHECKOUT, packages='dist/')
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_the_two_path_criteria_never_both_fire(self):
+        """They ask for opposite things, so they must not overlap.
+
+        A job feeding a container action is governed by the container
+        rule; the workspace rule steps aside for it. Otherwise the
+        report would tell a reader to move the download into
+        runner.temp and out of it in the same breath.
+        """
+        for checkout in ('', self.CHECKOUT):
+            for path in ('dist/', self.TEMP):
+                for publish in (True, False):
+                    self.publishing_workflow(
+                        path=path, subject=path + '*', checkout=checkout,
+                        packages=path if publish else None, publish=publish)
+                    workspace = packaging.release_workspace_issues(
+                        self.fixture.path)
+                    container = packaging.release_container_path_issues(
+                        self.fixture.path)
+                    self.assertFalse(
+                        workspace and container,
+                        'both fired for checkout=%r path=%r publish=%r: %s / %s'
+                        % (bool(checkout), path, publish, workspace, container))
+
+    def test_a_javascript_action_is_not_subject_to_the_rule(self):
+        """action-gh-release runs on the host; runner.temp is fine."""
+        self.compliant()
+        self.fixture.workflow(
+            'release.yml',
+            'name: Release\n'
+            'on:\n'
+            '  push:\n'
+            "    tags: ['v*']\n"
+            'jobs:\n'
+            '  github-release:\n'
+            '    runs-on: [self-hosted, static]\n'
+            '    steps:\n'
+            '      - uses: actions/download-artifact@v8\n'
+            '        with:\n'
+            '          name: dist\n'
+            f'          path: {self.TEMP}\n'
+            '      - uses: softprops/action-gh-release@v3\n'
+            '        with:\n'
+            f'          files: {self.TEMP}*\n'
+            '          fail_on_unmatched_files: true\n')
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
     # Where the download goes and where the consumers read are separate
     # questions. The second is asked of every job that downloads,
     # because moving one and not the other is how this breaks.
 
     def test_a_consumer_left_behind_by_the_download_fails(self):
-        self.publishing_workflow(subject='dist/*')
+        self.publishing_workflow(subject='dist/*', publish=False)
         self.assert_fail(self.check(has_pyproject_toml=True),
                          containing='reads somewhere else')
 

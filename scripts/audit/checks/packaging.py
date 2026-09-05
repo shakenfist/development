@@ -371,6 +371,28 @@ DIST_CONSUMING_INPUTS = {
 #: A reference to the per-job temporary directory.
 RUNNER_TEMP_RE = re.compile(r'\$\{\{\s*runner\.temp\s*\}\}')
 
+#: Expressions which expand to a path on the runner's own filesystem.
+#: Inside a container action these name places that either do not
+#: exist or are mounted somewhere else, so a path built from one is
+#: wrong in the container however it is spelled.
+HOST_PATH_EXPRESSION_RE = re.compile(
+    r'\$\{\{\s*(?:runner\.(?:temp|workspace)|github\.workspace)\s*\}\}'
+)
+
+#: Actions which take a path input and run the work inside a Docker
+#: container, so that input must be relative to the workspace.
+#:
+#: A list of names rather than a test for containerisation, because
+#: nothing in the workflow text says whether an action is
+#: containerised -- gh-action-pypi-publish looks like a composite
+#: action and only reveals the container in the generated action it
+#: delegates to. Naming what we know is honest and checkable; a
+#: general rule here would be a guess. Each entry maps the action to
+#: the input naming its directory.
+CONTAINER_PATH_ACTIONS = {
+    'pypa/gh-action-pypi-publish': 'packages-dir',
+}
+
 
 def release_asset_issues(repo_path):
     """Findings for a release.yml which can publish an empty release.
@@ -517,6 +539,12 @@ def release_workspace_issues(repo_path):
                      if step_action(step) == DOWNLOAD_ARTIFACT_ACTION]
         if not downloads or job_checks_out(body):
             continue
+        # A job feeding a container action is governed by the rule
+        # below instead, which requires the opposite: workspace-relative
+        # paths, and therefore a checkout. Reporting both would tell
+        # the reader to do two incompatible things.
+        if job_container_actions(steps):
+            continue
 
         for step in downloads:
             path = step_with_inputs(step).get('path', '')
@@ -529,6 +557,103 @@ def release_workspace_issues(repo_path):
                 f'"{path or "the workspace"}"; either check out (which runs '
                 'git clean -ffdx) or download to "${{ runner.temp }}/dist/", '
                 'so that a stale file cannot join the set being published')
+
+    return issues
+
+
+def job_container_actions(steps):
+    """The container actions a job runs, mapped to their path input."""
+    return {
+        action: CONTAINER_PATH_ACTIONS[action]
+        for action in (step_action(step) for step in steps)
+        if action in CONTAINER_PATH_ACTIONS
+    }
+
+
+def is_workspace_relative(value):
+    """Is this a path a container action can actually follow?
+
+    Absolute paths are rejected even when they point inside the
+    workspace. The host and the container disagree about where the
+    workspace is -- the runner bind-mounts it at /github/workspace --
+    so an absolute path is right in at most one of the two contexts,
+    and which one depends on mount layout that is not part of any
+    action's contract. Relative is the only spelling correct on both
+    sides.
+    """
+    value = value.strip().strip('"').strip("'").strip()
+    if not value:
+        return False
+    return not value.startswith('/') and not HOST_PATH_EXPRESSION_RE.search(value)
+
+
+def release_container_path_issues(repo_path):
+    """Findings for a container action pointed at a runner path.
+
+    gh-action-pypi-publish is a composite action which delegates the
+    upload to a Docker container action. The runner does mount the
+    directories, but not where the workflow expressions say they are:
+
+        docker run --workdir /github/workspace \\
+          -v ".../_work/_temp":"/github/runner_temp" \\
+          -v ".../_work/<repo>/<repo>":"/github/workspace"
+
+    RUNNER_TEMP is there, at /github/runner_temp, while
+    "${{ runner.temp }}" expands to the host path on the left of that
+    mount -- which does not exist inside the container. So a job can
+    satisfy every other criterion here, with a download and its
+    consumers all agreeing on a runner.temp directory, and still fail
+    every upload. That configuration was shipped and had to be found
+    by running it.
+
+    The requirement is therefore the opposite of the workspace rule:
+    workspace-relative paths, and so a checkout to clean the
+    workspace they sit in.
+    """
+    filepath = os.path.join(repo_path, '.github', 'workflows', 'release.yml')
+    if not os.path.exists(filepath):
+        return []
+    with open(filepath, 'r', errors='replace') as f:
+        content = f.read()
+
+    issues = []
+    for name, body in workflow_job_blocks(content):
+        steps = workflow_step_blocks(body)
+        containers = job_container_actions(steps)
+        if not containers:
+            continue
+
+        for step in steps:
+            action = step_action(step)
+            key = containers.get(action)
+            if key is None:
+                continue
+            value = step_with_inputs(step).get(key)
+            if value is not None and not is_workspace_relative(value):
+                issues.append(
+                    f'the {name} job passes "{key}: {value}" to {action}, '
+                    'which does its work in a Docker container where the '
+                    'runner\'s own paths are not where the workflow '
+                    'expressions say; use a path relative to the workspace, '
+                    f'such as "{key}: dist/"')
+
+        for step in steps:
+            if step_action(step) != DOWNLOAD_ARTIFACT_ACTION:
+                continue
+            path = step_with_inputs(step).get('path', '')
+            if path and not is_workspace_relative(path):
+                issues.append(
+                    f'the {name} job downloads to "{path}", which the '
+                    f'container running {sorted(containers)[0]} cannot '
+                    'read; download into the workspace with "path: dist/"')
+
+        if not job_checks_out(body):
+            issues.append(
+                f'the {name} job runs {sorted(containers)[0]} in a '
+                'container, so its paths must be workspace-relative, but it '
+                'does not check out -- and this pool is persistent, so the '
+                'workspace is whatever the last job left. Add '
+                '"actions/checkout", which cleans with git clean -ffdx')
 
     return issues
 
@@ -696,6 +821,7 @@ class ReleaseProcess(Check):
         issues.extend(release_dispatch_guard_issues(repo.path))
         issues.extend(release_workspace_issues(repo.path))
         issues.extend(dist_agreement_issues(repo.path))
+        issues.extend(release_container_path_issues(repo.path))
 
         if issues:
             return self.fail('; '.join(issues))

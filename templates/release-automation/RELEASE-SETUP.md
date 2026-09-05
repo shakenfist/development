@@ -128,13 +128,26 @@ places, which is deliberate.
 
 `publish-pypi` checks out and works in `dist/` inside the workspace.
 `pypa/gh-action-pypi-publish` is a composite action that delegates to a
-Docker container action, and a container is given the workspace at
-`/github/workspace` and nothing else of the runner's filesystem. So
-`packages-dir` has to be relative to the workspace; an absolute path
-fails inside the container however it is written, including one under
-`RUNNER_TEMP`, which is not mounted at all. The action also writes its
-container trampoline into `.github/.tmp/` in the workspace, so it needs
-a real checkout regardless.
+Docker container action, and the container does not see the runner's
+paths where the workflow expressions say they are. From a real release
+run:
+
+```
+docker run --workdir /github/workspace \
+  -v ".../_work/_temp":"/github/runner_temp" \
+  -v ".../_work/<repo>/<repo>":"/github/workspace"
+```
+
+`RUNNER_TEMP` *is* mounted — at `/github/runner_temp` — but
+`${{ runner.temp }}` expands to the host path on the left of that
+mount, which does not exist inside the container. `github.workspace`
+has the same problem. So `packages-dir`, and the download feeding it,
+must be relative to the workspace: that is the one spelling correct on
+both sides of the mount. An absolute path is wrong even when it points
+into the workspace, since host and container disagree about where the
+workspace is. The action also writes its container trampoline into
+`.github/.tmp/` in the workspace, so it needs a real checkout
+regardless.
 
 `github-release` does not check out and downloads into
 `${{ runner.temp }}`. `softprops/action-gh-release` is a JavaScript
