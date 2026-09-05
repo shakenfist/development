@@ -31,8 +31,17 @@ include = [
 # artifacts, and would swamp the queue. Every plan lives there now --
 # the five that used to sit at the repository root were moved in
 # 2026-08. The PLAN-*.md pattern is kept as a guard against them
-# reappearing at the root rather than because it currently matches
-# anything.
+# reappearing at the root.
+#
+# PLAN-TEMPLATE.md is the one root-level PLAN-*.md that is not a plan,
+# and the re-include below puts it back. It is not a point-in-time
+# record of anything: every plan written here starts as a copy of it,
+# and it is where the nine shared blocks the plan-template criterion
+# holds the fleet to are read in the shape they are copied in. That is
+# the same argument that puts templates/ in scope -- a mistake in it is
+# a mistake in every plan written from it, here and in the ten
+# repositories measured against it -- so the guard against real plans
+# returning to the root should not carry it out of scope as well.
 #
 # docs/audits/compliance.md is the one generated file in this
 # repository, and the only reason it is excluded is its first line:
@@ -82,7 +91,8 @@ include = [
 # to read them again when that happens is the point.
 exclude = [
     'docs/plans/*',
-    'PLAN-*.md',  # unmatched-by-design: a guard against plans returning to the root
+    'PLAN-*.md',
+    '!PLAN-TEMPLATE.md',
     'docs/audits/compliance.md',
     'LICENSE',
 ]
