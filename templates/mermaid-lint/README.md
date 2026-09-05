@@ -112,7 +112,19 @@ from the backticks by a space. `mmdc` reads only ```` ```mermaid ````
 hard against the backticks, so a broken diagram in either form would
 otherwise ship through the exact gap this closes, with the run
 reporting "nothing to lint" and exiting zero. The script names the
-file, the line and what to change, and exits 1.
+file, the line and what to change, and exits 1. A fence that is both
+-- `~~~ mermaid` -- gets one remedy naming both faults, because being
+told only to remove the space leaves a tilde fence the next run
+refuses.
+
+A third refusal is about the name rather than the content: a tracked
+path containing a newline. Everything past the scan is line oriented,
+including the loop inside the container, which is POSIX `sh` and has
+no `read -d` to switch. Such a path was silently truncated into a name
+that renders nothing, so it is named and the run made red instead.
+Other awkward names are handled rather than refused -- the listing is
+NUL delimited and so is the scan's own output, so a path holding a
+space, a quote, a backslash or a non-ASCII byte is linted normally.
 
 A refusal does not end the run. If the repository also holds a
 diagram that does not parse, both are reported together, because the

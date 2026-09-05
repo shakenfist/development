@@ -120,7 +120,19 @@ fi
 # is, which is a new rule with a new blind spot. Put a diagram at the
 # top level.
 existing=()
+newline_named=()
 for candidate in "${candidates[@]}"; do
+    # A newline in the name is refused rather than scanned. Everything
+    # downstream of the scan is line oriented -- files.txt, and the
+    # POSIX sh loop inside the container that reads it, which has no
+    # read -d to switch. Such a path would be silently truncated into
+    # a name that renders nothing, so it is named and the run made red
+    # instead. The scan itself is NUL delimited and would carry it
+    # fine; this is the container side that cannot.
+    if [ "${candidate}" != "${candidate%%$'\n'*}" ]; then
+        newline_named+=("${candidate%%$'\n'*}...")
+        continue
+    fi
     # Only reachable on the git ls-files path, where an entry can be
     # staged for deletion; a named file was checked above.
     if [ -f "${candidate}" ]; then
@@ -132,18 +144,30 @@ for candidate in "${candidates[@]}"; do
     fi
 done
 
-# Into a variable rather than through a process substitution, so that
-# an awk that dies takes the script with it under set -e. A scan that
+# The workdir is made here rather than at the render step, because the
+# scan writes into it too.
+workdir=$(mktemp -d)
+trap 'rm -rf "${workdir}"' EXIT
+
+# Into a file rather than through a process substitution, so that an
+# awk that dies takes the script with it under set -e. A scan that
 # failed silently would report no diagrams and exit zero, which is the
 # shape of failure this whole lane exists to prevent.
 #
-# stdin is closed for the same reason. awk with no file operands
-# reads stdin, so a list that somehow reduced to none would not fail
-# -- it would block forever waiting on a terminal, or read whatever
-# CI happened to hand it.
-scan=""
+# A file rather than a variable because the records are NUL delimited
+# and a bash variable cannot hold a NUL byte. NUL is what makes the
+# name unambiguous: a tracked path may begin or end with a space, and
+# a whitespace-delimited protocol here would undo the NUL-delimited
+# listing above one step later, handing the renderer a name that
+# matches no file.
+#
+# stdin is closed for the same reason the status is checked. awk with
+# no file operands reads stdin, so a list that somehow reduced to none
+# would not fail -- it would block forever waiting on a terminal, or
+# read whatever CI happened to hand it.
+: > "${workdir}/scan"
 if [ "${#existing[@]}" -ne 0 ]; then
-    scan=$(awk '
+    awk '
         FNR == 1 {
             fence = ""; flen = 0; backtick = 0
         }
@@ -212,32 +236,56 @@ if [ "${#existing[@]}" -ne 0 ]; then
             # instead, because each name printed there becomes an
             # operand for the renderer and a file listed twice would
             # be rendered twice.
-            if (raw != "mermaid") {
-                print "spaced", FNR, name
+            #
+            # A record is kind, line and name joined by colons and
+            # terminated by a NUL, because a tracked path may begin
+            # or end with a space and a whitespace-delimited protocol
+            # would lose it. kind carries no colon and the line is
+            # digits, so the reader can split the two off the front
+            # and keep everything after as the name.
+            #
+            # The fence character is tested before the info string,
+            # so that a tilde fence with a space gets a remedy that
+            # fixes it. Classified the other way it is told to remove
+            # the space, which yields a tilde fence, which the next
+            # run refuses -- the round trip again.
+            if (ch == "~") {
+                if (raw != "mermaid")
+                    printf "%s:%d:%s%c", "tilde_spaced", FNR, name, 0
+                else
+                    printf "%s:%d:%s%c", "tilde", FNR, name, 0
                 next
             }
-            if (ch == "~") {
-                print "tilde", FNR, name
+            if (raw != "mermaid") {
+                printf "%s:%d:%s%c", "spaced", FNR, name, 0
                 next
             }
             if (!backtick) {
                 backtick = 1
-                print "backtick", FNR, name
+                printf "%s:%d:%s%c", "backtick", FNR, name, 0
             }
         }
-    ' "${existing[@]}" < /dev/null)
+    ' "${existing[@]}" < /dev/null > "${workdir}/scan"
 fi
 
 files=()
 tilde_fenced=()
 spaced_info=()
-while read -r kind lineno scanned_file; do
+tilde_spaced=()
+# IFS emptied and -d '' set, so a name keeping a leading or trailing
+# space arrives intact. The default read would strip both.
+while IFS= read -r -d '' record; do
+    kind=${record%%:*}
+    rest=${record#*:}
+    lineno=${rest%%:*}
+    scanned_file=${rest#*:}
     case "${kind}" in
         backtick) files+=("${scanned_file}") ;;
         tilde) tilde_fenced+=("${scanned_file}:${lineno}") ;;
         spaced) spaced_info+=("${scanned_file}:${lineno}") ;;
+        tilde_spaced) tilde_spaced+=("${scanned_file}:${lineno}") ;;
     esac
-done <<< "${scan}"
+done < "${workdir}/scan"
 
 # Name the file, the line and the remedy. A linter that refuses a page
 # without saying where and what to change turns this into a support
@@ -266,6 +314,23 @@ if [ "${#spaced_info[@]}" -ne 0 ]; then
     rc=1
 fi
 
+# One remedy, not two applied in sequence. Told only to remove the
+# space, the author is left with a tilde fence the next run refuses.
+if [ "${#tilde_spaced[@]}" -ne 0 ]; then
+    both="mermaid in a spaced tilde fence is not linted;"
+    refuse "${both} use a backtick fence with no space" \
+        "${tilde_spaced[@]}"
+    rc=1
+fi
+
+# A path the container's line-oriented loop cannot carry. Named rather
+# than skipped, for the same reason a tilde fence is.
+if [ "${#newline_named[@]}" -ne 0 ]; then
+    refuse "a newline in the path is not linted; rename the file" \
+        "${newline_named[@]}"
+    rc=1
+fi
+
 # Both refusals fall through rather than exiting here. A repository
 # with a refused fence and a diagram that does not parse should learn
 # about both from one run: the virtual machine this lane needs is the
@@ -279,8 +344,6 @@ if [ "${#files[@]}" -eq 0 ]; then
     exit "${rc}"
 fi
 
-workdir=$(mktemp -d)
-trap 'rm -rf "${workdir}"' EXIT
 printf '%s\n' "${files[@]}" > "${workdir}/files.txt"
 
 echo "Linting ${#files[@]} file(s) containing mermaid diagrams."

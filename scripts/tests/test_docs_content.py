@@ -1152,10 +1152,15 @@ class MermaidLintScriptTest(unittest.TestCase):
         the point.
         """
         root = self._root()
-        tracked = subprocess.run(
-            ['git', '-c', 'core.quotePath=false', 'ls-files', '*.md'],
+        # -z and a NUL split, the same listing the script uses. Neither
+        # quotePath nor a whitespace split survives a path with a space
+        # in it, and building the expectation with the weaker of the
+        # two would compare the script against nonsense rather than
+        # against the audit.
+        tracked = [n for n in subprocess.run(
+            ['git', 'ls-files', '-z', '*.md'],
             cwd=root, check=True, stdout=subprocess.PIPE,
-            universal_newlines=True).stdout.split()
+            universal_newlines=True).stdout.split('\0') if n]
 
         expected = []
         for name in tracked:
@@ -1179,6 +1184,53 @@ class MermaidLintScriptTest(unittest.TestCase):
         )})
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn('use a backtick fence', result.stderr)
+
+    def test_a_path_keeping_a_leading_or_trailing_space_is_scanned(self):
+        """The NUL listing is undone if the scan output is not NUL too.
+
+        The scan hands bash `kind:line:name` records, and a default
+        `read` strips leading and trailing IFS whitespace from the
+        name. So a tracked path that begins or ends with a space was
+        listed correctly, scanned correctly, and then handed to the
+        renderer under a name matching no file -- the quoting fix
+        undone one step later.
+        """
+        names = [' lead.md', 'trail .md']
+        result = self._run(dict((n, self.BACKTICK) for n in names))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(sorted(result.rendered), sorted(names))
+
+    def test_a_newline_in_a_path_is_refused_not_truncated(self):
+        """Refused, because the container side cannot carry it.
+
+        files.txt is newline delimited and the loop reading it inside
+        the image is POSIX sh, which has no `read -d` to switch. Such
+        a path was split across two scan records, the first truncated
+        and the second dropped, so the diagram went unlinted and a
+        name matching no file reached the renderer. Naming it makes
+        the run red instead, which is the rule the tilde and spaced
+        refusals follow.
+        """
+        result = self._run({'new\nline.md': self.BACKTICK})
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('a newline in the path', result.stderr)
+        self.assertEqual(result.rendered, [])
+
+    def test_a_spaced_tilde_fence_gets_one_remedy(self):
+        """Both faults at once, or the author fixes it twice.
+
+        Classified as merely spaced, the remedy is "remove the space",
+        which leaves a tilde fence the next run refuses -- the round
+        trip the fall-through design exists to avoid. The fence
+        character is therefore tested before the info string.
+        """
+        result = self._run({'docs/x.md': (
+            '# P\n\n~~~ mermaid\nflowchart TB\n~~~\n'
+        )})
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('spaced tilde fence', result.stderr)
+        self.assertIn('backtick fence with no space', result.stderr)
+        self.assertNotIn('remove the space', result.stderr)
 
     def test_a_blockquoted_fence_is_skipped_and_that_is_deliberate(self):
         """A documented blind spot, pinned so a change to it is seen.
