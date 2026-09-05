@@ -184,3 +184,169 @@ def indented_block(body, key):
     if collected is None:
         return None
     return '\n'.join(collected)
+
+
+STEP_ITEM_RE = re.compile(r'^(\s*)-\s')
+
+
+def workflow_step_blocks(body):
+    """Split a job body's `steps:` list into per-step text.
+
+    Line based, like the rest of this module. A step is a sequence
+    item under the job's `steps:` key, and its block runs from the
+    dash to the next item at the same indentation. Anything indented
+    further -- a `with:` mapping, the lines of a `run:` script --
+    stays part of the step that contains it.
+
+    Returns an empty list for a job with no `steps:`, which is what a
+    job that calls a reusable workflow looks like.
+    """
+    steps = indented_block(body, 'steps')
+    if steps is None:
+        return []
+
+    indent = None
+    blocks = []
+    for line in steps.splitlines():
+        match = STEP_ITEM_RE.match(line)
+        if match and (indent is None or len(match.group(1)) == indent):
+            indent = len(match.group(1))
+            blocks.append([line])
+        elif blocks:
+            blocks[-1].append(line)
+    return ['\n'.join(lines) for lines in blocks]
+
+
+# The action a step invokes. The optional dash covers a `uses:` written
+# as the first key of the step, where the sequence marker shares the
+# line.
+STEP_USES_RE = re.compile(r'^\s*(?:-\s+)?uses:\s*(\S+)\s*$', re.MULTILINE)
+
+
+def step_action(step):
+    """The action a step invokes, without its version.
+
+    Returns None for a step which runs a script rather than an action.
+    The version is dropped because every caller here is asking which
+    action this is, not which release of it -- and the fleet pins
+    majors, so matching on the full string would need updating each
+    time one moves.
+    """
+    match = STEP_USES_RE.search(strip_yaml_comments(step))
+    if not match:
+        return None
+    return match.group(1).strip().strip('"').strip("'").split('@')[0]
+
+
+# One `key: value` pair, captured from a step's `with:` mapping.
+WITH_ENTRY_RE = re.compile(
+    r'^(\s*)([A-Za-z_][A-Za-z0-9_-]*):\s*(.*?)\s*$'
+)
+
+
+def step_with_inputs(step):
+    """The inputs a step passes, as a dict of key to raw value string.
+
+    Only the top level of the `with:` mapping: a nested mapping under
+    one of the inputs describes that input's value, not another
+    input, and folding the two together would let a nested key answer
+    a question asked about a real one.
+
+    A trailing inline comment is dropped, on the same reasoning as
+    split_runner_labels(): the alternative is every caller comparing
+    against a value with an explanation stuck to the end of it, and
+    "fetch-depth: 0  # needed for setuptools_scm" is how the fleet
+    actually writes these.
+    """
+    block = indented_block(step, 'with')
+    if block is None:
+        return {}
+
+    entries = {}
+    indent = None
+    for line in block.splitlines():
+        match = WITH_ENTRY_RE.match(line)
+        if not match:
+            continue
+        depth = len(match.group(1))
+        if indent is None:
+            indent = depth
+        if depth == indent:
+            value = re.sub(r'\s+#.*$', '', match.group(3)).strip()
+            entries[match.group(2)] = value
+    return entries
+
+
+# The three spellings of a manual trigger: a mapping key under `on:`,
+# a flow sequence, and a bare scalar. Matched against the workflow
+# header alone, so an `if:` inside a job which tests for the event
+# cannot be mistaken for the trigger which enables it.
+WORKFLOW_DISPATCH_RE = re.compile(r'^\s+workflow_dispatch:', re.MULTILINE)
+WORKFLOW_DISPATCH_FLOW_RE = re.compile(
+    r'^on:\s*\[[^\]]*\bworkflow_dispatch\b', re.MULTILINE
+)
+WORKFLOW_DISPATCH_SCALAR_RE = re.compile(
+    r'^on:\s*workflow_dispatch\s*$', re.MULTILINE
+)
+
+
+def has_workflow_dispatch(content):
+    """Can this workflow be started by hand?
+
+    The question matters wherever a workflow's jobs assume the ref
+    they were triggered on: a dispatch arrives on a branch, and every
+    assumption about a tag stops holding.
+    """
+    header = strip_yaml_comments(content.split('\njobs:')[0])
+    return bool(
+        WORKFLOW_DISPATCH_RE.search(header)
+        or WORKFLOW_DISPATCH_FLOW_RE.search(header)
+        or WORKFLOW_DISPATCH_SCALAR_RE.search(header)
+    )
+
+
+JOB_KEY_RE = re.compile(r'^(\s*)([A-Za-z_][A-Za-z0-9_-]*):\s*(.*?)\s*$')
+
+
+def job_level_keys(body):
+    """The job's own keys, mapped to their inline value.
+
+    A job body keeps its original indentation, so the job's own keys
+    are the shallowest in it -- everything belonging to a step, or to
+    a mapping inside a step, is indented further. Reading only that
+    level is what stops a step's `if:` answering a question asked
+    about the job's.
+
+    A key which introduces a block rather than a scalar maps to the
+    empty string: present, with its value somewhere below.
+    """
+    lines = [line for line in body.splitlines()
+             if line.strip() and not line.lstrip().startswith('#')]
+    if not lines:
+        return {}
+    indent = min(len(line) - len(line.lstrip()) for line in lines)
+
+    keys = {}
+    for line in lines:
+        match = JOB_KEY_RE.match(line)
+        if match and len(match.group(1)) == indent:
+            keys[match.group(2)] = re.sub(
+                r'\s+#.*$', '', match.group(3)).strip()
+    return keys
+
+
+# An `if:` which confines a job to a tag. The fleet writes the first
+# form; the second is the equivalent GitHub offers, accepted so the
+# criterion is about the property rather than one spelling of it.
+TAG_GUARD_RE = re.compile(
+    r"startsWith\(\s*github\.ref\s*,\s*'refs/tags/"
+    r"|github\.ref_type\s*==\s*'tag'"
+)
+
+
+def job_is_tag_guarded(body):
+    """Is this job confined to runs triggered by a tag?"""
+    condition = job_level_keys(body).get('if')
+    if not condition:
+        return False
+    return bool(TAG_GUARD_RE.search(condition))

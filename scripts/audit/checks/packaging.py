@@ -17,6 +17,10 @@ from audit.check import Check
 from audit.files import (
     check_file_contains, check_file_exists, toml_section_has_key,
 )
+from audit.text.workflows import (
+    has_workflow_dispatch, job_is_tag_guarded, job_level_keys, step_action,
+    step_with_inputs, workflow_job_blocks, workflow_step_blocks,
+)
 from audit.text.python_source import (
     HTTP_HANDLER_BASES, console_entry_point_files, handler_base_names,
     imported_top_level_modules, mask_comments_and_strings, mask_strings,
@@ -340,6 +344,160 @@ def read_dependency_array(repo_path):
     return direct, generated, markers
 
 
+#: The action which pulls build artifacts back into a later job, and
+#: the action which attaches them to the GitHub release.
+DOWNLOAD_ARTIFACT_ACTION = 'actions/download-artifact'
+GH_RELEASE_ACTION = 'softprops/action-gh-release'
+
+
+def release_asset_issues(repo_path):
+    """Findings for a release.yml which can publish an empty release.
+
+    Two defects, and it takes both to make the failure silent.
+
+    `actions/download-artifact` invoked with no inputs downloads every
+    artifact of the run and decides the destination itself, which is
+    not where a later `files: dist/*` looks. The sibling publish job
+    in the same template gets this right -- `name: dist` with
+    `path: dist/` names the destination -- so the two jobs in one file
+    disagreed about where the distribution lives.
+
+    `softprops/action-gh-release` then treats a glob matching nothing
+    as a warning rather than an error (`fail_on_unmatched_files`
+    defaults to false), so the job goes green having attached no
+    files.
+
+    The bug presents as intermittent because the release jobs run on
+    the persistent `[self-hosted, static]` pool. When the release job
+    lands on the same runner as the build it finds the build's
+    leftover `dist/` in the reused workspace and the glob matches --
+    which also means the assets came from unverified files on disk
+    rather than from the download, whose SHA256 nothing then checked.
+    library-utilities v0.8.7 built on shakenfist-static-2, released
+    from shakenfist-static-1, and shipped an empty release; kerbside
+    v0.5.0 did both on shakenfist-static-1 and shipped two files,
+    from identical workflow files.
+
+    Only jobs which actually attach files are judged, so a project
+    that publishes no release assets is not asked to configure how it
+    would.
+    """
+    filepath = os.path.join(repo_path, '.github', 'workflows', 'release.yml')
+    if not os.path.exists(filepath):
+        return []
+    with open(filepath, 'r', errors='replace') as f:
+        content = f.read()
+
+    issues = []
+    for name, body in workflow_job_blocks(content):
+        steps = workflow_step_blocks(body)
+        attaching = [
+            step for step in steps
+            if step_action(step) == GH_RELEASE_ACTION
+            and step_with_inputs(step).get('files')
+        ]
+        if not attaching:
+            continue
+
+        for step in steps:
+            if step_action(step) != DOWNLOAD_ARTIFACT_ACTION:
+                continue
+            inputs = step_with_inputs(step)
+            if inputs.get('name') or inputs.get('merge-multiple') == 'true':
+                continue
+            issues.append(
+                f'the {name} job downloads artifacts without "name:" or '
+                '"merge-multiple: true", so the files do not land where '
+                'its "files:" glob looks and the release is published '
+                'empty; add "name: dist" and "path: dist/" as the '
+                'publish job does')
+
+        for step in attaching:
+            inputs = step_with_inputs(step)
+            if inputs.get('fail_on_unmatched_files') == 'true':
+                continue
+            issues.append(
+                f'the {name} job attaches release assets without '
+                '"fail_on_unmatched_files: true", so a glob which '
+                'matches nothing is a warning and an empty release '
+                'still reports success')
+
+    return issues
+
+
+def job_publishes(body):
+    """Does this job have an effect outside the workflow run?
+
+    Two signals, and between them they separate the publishing jobs
+    from the build jobs across every release.yml in the fleet.
+
+    An `environment:` is the stronger one: the fleet gates sign-tag,
+    publish-pypi, publish-proxy-pypi and publish-collection behind the
+    `release` environment precisely because they publish, and a build
+    job has never had one.
+
+    github-release needs the second signal because it carries no
+    environment -- it is identified by attaching assets, which is the
+    thing it does that a build job does not. Uploading an artifact
+    does not count: that is visible only to later jobs in the same
+    run, which is exactly the distinction being drawn.
+    """
+    if 'environment' in job_level_keys(body):
+        return True
+    return any(
+        step_action(step) == GH_RELEASE_ACTION
+        for step in workflow_step_blocks(body)
+    )
+
+
+def release_dispatch_guard_issues(repo_path):
+    """Findings for publishing jobs a manual dispatch can reach.
+
+    release.yml offers `workflow_dispatch` so that a maintainer can
+    exercise the build and the twine check without cutting a release.
+    That is only true while the publishing jobs decline to run on the
+    resulting ref, because a dispatch arrives on `refs/heads/<branch>`
+    and every job below the build assumes a tag.
+
+    Unguarded, sign-tag computes its tag name from the ref it was
+    given, so `refs/heads/develop` becomes the literal tag name and it
+    force-pushes `refs/tags/refs/heads/develop`. The run then carries
+    on into the PyPI publish. A smoke test turns into a release of
+    whatever happened to be on the branch.
+
+    Build jobs are deliberately left out. They are what the dispatch
+    is for, and requiring the guard on them would remove the feature
+    rather than make it safe.
+    """
+    filepath = os.path.join(repo_path, '.github', 'workflows', 'release.yml')
+    if not os.path.exists(filepath):
+        return []
+    with open(filepath, 'r', errors='replace') as f:
+        content = f.read()
+
+    if not has_workflow_dispatch(content):
+        return []
+
+    unguarded = [
+        name for name, body in workflow_job_blocks(content)
+        if job_publishes(body) and not job_is_tag_guarded(body)
+    ]
+    if not unguarded:
+        return []
+
+    # One unguarded job is the common case once a repository has been
+    # partially fixed, so agree the verb with the list rather than
+    # emitting "publish-pypi lack".
+    lacks = 'lacks' if len(unguarded) == 1 else 'lack'
+    return [
+        'release.yml can be started by hand but its publishing jobs are '
+        f'not confined to tags: {", ".join(unguarded)} {lacks} '
+        '"if: startsWith(github.ref, \'refs/tags/v\')", so a manual '
+        'run on a branch force-pushes a "refs/tags/refs/heads/<branch>" '
+        'tag and proceeds to publish'
+    ]
+
+
 class ReleaseProcess(Check):
     id = 'release-process'
     spec = 'docs/audits/release-process.md'
@@ -362,6 +520,8 @@ class ReleaseProcess(Check):
             issues.append('Missing .github/workflows/release.yml')
         if not repo.exists('RELEASE-SETUP.md'):
             issues.append('Missing RELEASE-SETUP.md')
+        issues.extend(release_asset_issues(repo.path))
+        issues.extend(release_dispatch_guard_issues(repo.path))
 
         if issues:
             return self.fail('; '.join(issues))
