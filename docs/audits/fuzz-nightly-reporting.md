@@ -14,7 +14,9 @@ all of them.
 a workflow that invokes the targets. Fuzzing that only ever happens
 when someone remembers to dispatch it is fuzzing that does not happen;
 a nightly run is what turns the targets from a directory of code into
-a thing that finds bugs.
+a thing that finds bugs. The trigger may sit on a caller instead: a
+`workflow_call` workflow that runs the targets counts as scheduled
+when some workflow with a `schedule:` trigger `uses:` it.
 
 **The scheduled run must report what it finds as GitHub issues.** This
 is the requirement that is easiest to skip and most expensive to skip.
@@ -24,7 +26,19 @@ mark on the Actions tab that nobody is looking at, and GitHub's only
 notification for it is an email to whoever pushed last, which at 04:00
 UTC is nobody's inbox in particular. So a scheduled fuzz lane has to
 carry its own route to a human: `issues: write`, and something that
-calls `gh issue create` when a target crashes.
+files an issue when a target crashes.
+
+What that last one is measured by is a call to `gh issue create`, a
+`gh api` call against an issues endpoint, an `issues.create` through
+`actions/github-script` or Octokit, or the
+`peter-evans/create-issue-from-file` action — in the workflow, or in a
+`.sh` or `.py` script under the repository that the workflow names,
+which is followed one level. Comments do not count on either side: a
+`# TODO: gh issue create` describes reporting rather than doing it.
+The permission is looked for anywhere in the workflow, which does not
+model GitHub replacing a workflow-level `permissions:` block wholesale
+when a job declares its own — a fuzz job that narrows its own
+permissions can pass this and still fail at runtime.
 
 **The fuzz lane must not gate the merge queue.** No `merge_group`
 trigger on a workflow that runs fuzz targets. A short build-and-smoke
@@ -33,6 +47,20 @@ and is not what this forbids — catching a fuzz target that stopped
 compiling is worth ten seconds of a PR. What it forbids is putting the
 fuzz lane in the merge queue's path, where its cost is charged against
 the queue's timeout.
+
+Building the targets rather than running them does not exempt a lane
+from that. What the queue pays for is runners held while its clock
+runs, and the lane that evicted ryll's pull requests three times was
+`make fuzz-build-*` and `make fuzz-smoke-*` — its own comment calls it
+"a build-and-doesn't-panic gate, not a real fuzz campaign". The cost
+was four self-hosted runners, not the fuzzing.
+
+A repository whose merge queue needs a fuzz status check to *report*
+does not need the fuzz job itself in the queue. The queue requires the
+named check to report on the `merge_group` event, which the fleet's
+aggregate gate job does — ryll's `Can merge` runs on `merge_group` and
+treats a skipped dependency as success — leaving the expensive job on
+`pull_request` where it is not on the queue's clock.
 
 ## Why the merge queue in particular
 
@@ -105,7 +133,8 @@ testable; `tools/ci/test-report-fuzz-crash.sh` now covers that case.
 
 A repository whose fuzz lane must run in the merge queue takes an
 `audit-ok: fuzz-in-merge-queue` comment in the workflow, ideally with
-a reason.
+a reason. Anywhere in the file works; its own comment line above the
+trigger is where it belongs, and is where a reader will look for it.
 
 Repositories with no fuzz targets are not applicable.
 

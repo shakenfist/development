@@ -340,8 +340,13 @@ def job_runs_a_scanner(body):
 # therefore unique per rebuild, cancel-in-progress never matches, and
 # superseded runs build whole clouds nobody is waiting on. See
 # docs/audits/merge-group-cancellation.md.
+#
+# The trailing comment is allowed for because a trigger line that
+# carries one is still a trigger: without it, `merge_group:  # note`
+# reads as no merge queue at all, which is a pass for both this
+# criterion and fuzz-nightly-reporting below.
 MERGE_GROUP_TRIGGER_RE = re.compile(
-    r'^\s{1,4}merge_group:\s*$', re.MULTILINE
+    r'^\s{1,4}merge_group:\s*(?:#.*)?$', re.MULTILINE
 )
 
 
@@ -1409,12 +1414,28 @@ FUZZ_INVOCATION_RE = re.compile(
     r'cargo\s+fuzz\b|cargo-fuzz\b|\bmake\s+[\w./-]*fuzz[\w./-]*')
 
 
-# The permission that lets a scheduled run tell somebody. Job-level or
-# workflow-level: either reaches the step that files the issue.
+# The permission that lets a scheduled run tell somebody, matched
+# anywhere in the file. GitHub replaces the workflow-level block
+# wholesale when a job declares its own rather than merging the two, so
+# a fuzz job carrying `permissions: contents: read` cannot file an
+# issue even where the workflow level grants it -- which this
+# deliberately does not model. The error is in the permissive
+# direction: a workflow that would fail at runtime passes, rather than
+# a working one being failed.
 ISSUES_WRITE_RE = re.compile(r'^\s*issues:\s*write\s*$', re.MULTILINE)
 
 
-FILES_AN_ISSUE_RE = re.compile(r'gh\s+issue\s+create\b')
+# Filing the issue. `gh issue create` is what the fleet uses, but the
+# criterion is that the run reaches a human, not that it spells the
+# call one particular way, so a REST call to the issues endpoint and
+# the two common action forms count as well. `gh api .../issues` also
+# matches a workflow that only *reads* the endpoint -- again the
+# permissive direction, and the same shape a dedup step has.
+FILES_AN_ISSUE_RE = re.compile(
+    r'gh\s+issue\s+create\b'
+    r'|gh\s+api\b[^\n]*/issues\b'
+    r'|issues\.create\b'
+    r'|create-issue-from-file@')
 
 
 # Scripts a workflow hands the reporting to. Followed one level: the
@@ -1429,6 +1450,33 @@ FUZZ_MERGE_QUEUE_EXCEPTION_RE = re.compile(
 
 
 SCHEDULE_TRIGGER_RE = re.compile(r'^\s{1,4}schedule:\s*$', re.MULTILINE)
+
+
+def scheduling_caller(repo, name, content):
+    """The workflow that runs this reusable one nightly, if there is one.
+
+    A repository may put the schedule on a caller and the targets in a
+    `workflow_call` callee, which is scheduled fuzzing however it is
+    split across files. Returns the caller's text rather than a
+    boolean because a called workflow takes its permissions from the
+    calling job, so `issues: write` can legitimately sit on either
+    side of the call.
+    """
+    if not WORKFLOW_CALL_TRIGGER_RE.search(workflow_header(content)):
+        return None
+
+    invocation = re.compile(
+        r'uses:\s*\S*\.github/workflows/' + re.escape(name) + r'\b')
+    for other in sorted(repo.workflows()):
+        if other == name:
+            continue
+        text = repo.workflow(other)
+        if not text:
+            continue
+        if (SCHEDULE_TRIGGER_RE.search(workflow_header(text))
+                and invocation.search(strip_yaml_comments(text))):
+            return text
+    return None
 
 
 def repo_fuzz_target_dirs(repo_path):
@@ -1461,18 +1509,30 @@ def fuzz_workflows(repo):
 def reaches_issue_filing(repo, content):
     """Can this workflow tell a human, without a red check to do it?
 
-    True when the workflow calls `gh issue create`, or hands off to a
-    script in the repository that does. The indirection is the
-    documented shape rather than an accident -- the reporting logic
-    belongs in something testable -- so a check that only read the YAML
-    would fail exactly the repositories that got it right.
+    True when the workflow files an issue, or hands off to a script in
+    the repository that does. The indirection is the documented shape
+    rather than an accident -- the reporting logic belongs in something
+    testable -- so a check that only read the YAML would fail exactly
+    the repositories that got it right.
+
+    Comments are stripped from both the workflow and the script, for
+    the reason strip_yaml_comments exists at all: `# TODO: gh issue
+    create` describes reporting rather than doing it.
     """
-    if FILES_AN_ISSUE_RE.search(content):
+    workflow = strip_yaml_comments(content)
+    if FILES_AN_ISSUE_RE.search(workflow):
         return True
 
-    for match in REFERENCED_SCRIPT_RE.finditer(content):
-        script = repo.read(match.group(0).lstrip('./'))
-        if script and FILES_AN_ISSUE_RE.search(script):
+    for match in REFERENCED_SCRIPT_RE.finditer(workflow):
+        path = os.path.normpath(match.group(0).lstrip('./'))
+        # The path comes out of an audited repository's own YAML and is
+        # joined onto its checkout root, so a `..` segment would walk
+        # the audit out of the clone it is reading.
+        if os.path.isabs(path) or path.split(os.sep)[0] == os.pardir:
+            continue
+        script = repo.read(path)
+        # Shell and Python spell a full-line comment the way YAML does.
+        if script and FILES_AN_ISSUE_RE.search(strip_yaml_comments(script)):
             return True
     return False
 
@@ -1501,11 +1561,15 @@ class FuzzNightlyReporting(Check):
         notification for one is an email to whoever pushed last.
 
         So: a schedule trigger on a workflow that runs the targets,
-        issues: write plus something that calls `gh issue create` on
-        that workflow, and no merge_group trigger on any of them. A
-        short build-and-smoke on pull_request or push is not what the
-        last one forbids -- charging the fuzz lane's cost against the
-        merge queue's 360-minute timeout is (shakenfist/ryll#329).
+        issues: write plus something that files an issue on that
+        workflow, and no merge_group trigger on any of them. A short
+        build-and-smoke on pull_request or push is not what the last
+        one forbids -- charging the fuzz lane's cost against the merge
+        queue's 360-minute timeout is (shakenfist/ryll#329). Building
+        the targets rather than running them does not exempt a lane
+        from that: what the queue pays for is runners held while its
+        clock runs, and the lane that evicted ryll's pull requests was
+        a build-and-smoke matrix.
         """
         targets = repo_fuzz_target_dirs(repo.path)
         workflows = fuzz_workflows(repo)
@@ -1522,14 +1586,20 @@ class FuzzNightlyReporting(Check):
             and not FUZZ_MERGE_QUEUE_EXCEPTION_RE.search(content)
         ]
 
-        scheduled = [
-            (name, content) for name, content in workflows
-            if SCHEDULE_TRIGGER_RE.search(workflow_header(content))
-        ]
+        # The caller's text rides along: where the schedule is on a
+        # caller, the permission to file may be there too.
+        scheduled = []
+        for name, content in workflows:
+            if SCHEDULE_TRIGGER_RE.search(workflow_header(content)):
+                scheduled.append((name, content, ''))
+                continue
+            caller = scheduling_caller(repo, name, content)
+            if caller is not None:
+                scheduled.append((name, content, caller))
 
         unreported = [
-            name for name, content in scheduled
-            if not (ISSUES_WRITE_RE.search(content)
+            name for name, content, caller in scheduled
+            if not (ISSUES_WRITE_RE.search(content + '\n' + caller)
                     and reaches_issue_filing(repo, content))
         ]
 
@@ -1547,8 +1617,8 @@ class FuzzNightlyReporting(Check):
         elif unreported:
             problems.append(
                 '%s runs on a schedule but cannot file an issue for what '
-                'it finds (needs issues: write and a `gh issue create`, '
-                'directly or through a script)'
+                'it finds (needs issues: write and a `gh issue create` or '
+                'equivalent, directly or through a script)'
                 % ', '.join(unreported))
 
         if problems:
@@ -1556,4 +1626,4 @@ class FuzzNightlyReporting(Check):
 
         return self.ok(
             '%s fuzzes on a schedule and files issues for crashes'
-            % ', '.join(name for name, _ in scheduled))
+            % ', '.join(name for name, _, _ in scheduled))
