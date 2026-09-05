@@ -56,14 +56,20 @@ jobs:
           path: dist/
 
   # The three publishing jobs are guarded so that a workflow_dispatch
-  # run (which arrives with a refs/heads/* ref) only exercises the
-  # build and twine check. Without the guard, sign-tag would compute a
-  # tag name of the literal string "refs/heads/<branch>" and force-push
-  # a garbage refs/tags/refs/heads/<branch> ref.
+  # run only ever exercises the build and the twine check. The event
+  # is tested as well as the ref because a dispatch can be aimed at a
+  # tag: the ref test alone passes there, and the run re-signs and
+  # force-pushes a tag that already exists, rewriting a signed object
+  # someone may already have verified. Aimed at a branch instead, an
+  # unguarded sign-tag computes a tag name of the literal string
+  # "refs/heads/<branch>" and force-pushes a garbage
+  # refs/tags/refs/heads/<branch> ref. Nothing is lost by requiring
+  # push: re-running a failed release goes through "Re-run jobs",
+  # which keeps the original push event.
   sign-tag:
     name: Sign release tag with Sigstore
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: [self-hosted, debian-12, s]
     environment: release
 
@@ -107,7 +113,7 @@ jobs:
   publish-pypi:
     name: Publish to PyPI
     needs: [build, sign-tag]
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: [self-hosted, static]
     environment: release
 
@@ -116,6 +122,34 @@ jobs:
       attestations: write
 
     steps:
+      # This job works in the checked-out workspace, while
+      # github-release below downloads into runner.temp. The asymmetry
+      # is not an oversight: gh-action-pypi-publish is a composite
+      # action that delegates to a Docker container action, and the
+      # container does not see the runner's paths at the places the
+      # workflow expressions name. From a release run:
+      #
+      #   docker run --workdir /github/workspace \
+      #     -v ".../_work/_temp":"/github/runner_temp" \
+      #     -v ".../_work/<repo>/<repo>":"/github/workspace"
+      #
+      # RUNNER_TEMP is mounted, but at /github/runner_temp, whereas
+      # "${{ runner.temp }}" expands to the host path on the left --
+      # which does not exist inside the container. The same goes for
+      # github.workspace. So every path this job hands the publish
+      # action has to be relative to the workspace, which is the one
+      # spelling that is correct on both sides of the mount. The
+      # action needs a real workspace regardless, since it writes its
+      # container trampoline into .github/.tmp/ before running it.
+      #
+      # Checking out is what makes that workspace safe to use. This
+      # pool is persistent and a job which skips checkout inherits
+      # whatever the last job left behind, but checkout cleans with
+      # "git clean -ffdx", which removes a stale gitignored dist/ --
+      # the same guarantee runner.temp buys the other job.
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
       - name: Download distribution artifacts
         uses: actions/download-artifact@v8
         with:
@@ -129,37 +163,41 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
 
   github-release:
     name: Create GitHub Release
     needs: [build, sign-tag, publish-pypi]
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: [self-hosted, static]
 
     permissions:
       contents: write
 
     steps:
-      # Both halves of this matter. A bare download-artifact decides
-      # the destination itself, which is not where "files: dist/*"
-      # looks, and action-gh-release treats a glob matching nothing as
-      # a warning -- so the job went green having attached no files.
-      # It looked intermittent rather than broken because these jobs
-      # share a persistent runner pool: when the release landed on the
-      # same runner as the build it globbed the build's leftover
-      # dist/, which is also to say it published files nothing had
-      # verified. Name the artifact, name the path, and fail loudly.
+      # Unlike publish-pypi above, this job does not check out, and
+      # does not need to: action-gh-release is a JavaScript action
+      # running on the host, so it reads an absolute path happily.
+      # Downloading into the per-job runner.temp is then the cheaper
+      # way to get a directory nothing else has written to, without
+      # paying for a checkout to clean one.
+      #
+      # fail_on_unmatched_files is the other half -- action-gh-release
+      # treats a glob that matches nothing as a warning, so without it
+      # a release that attached no files at all still reported
+      # success.
       - name: Download artifacts
         uses: actions/download-artifact@v8
         with:
           name: dist
-          path: dist/
+          path: ${{ runner.temp }}/dist/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
-          files: dist/*
+          files: ${{ runner.temp }}/dist/*
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

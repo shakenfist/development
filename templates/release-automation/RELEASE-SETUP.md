@@ -98,6 +98,67 @@ Verification can be done by anyone using `cosign` or `gitsign verify`.
    - Publishes to PyPI using OIDC (no tokens)
    - Creates a GitHub Release with the artifacts
 
+### Running the workflow by hand
+
+The workflow also offers `workflow_dispatch`. A manual run builds the
+package and runs `twine check`, and stops there: it never signs a tag,
+never uploads to PyPI, and never creates a release. Use it to confirm
+the package still builds without cutting a release.
+
+That is enforced by a guard on each publishing job:
+
+```yaml
+if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+```
+
+Both clauses earn their place. Without the ref test, a dispatch aimed at
+a branch would have `sign-tag` treat `refs/heads/<branch>` as a tag name
+and force-push a `refs/tags/refs/heads/<branch>` ref. Without the event
+test, a dispatch aimed at an *existing tag* would re-sign and force-push
+it, rewriting a signed object someone may already have verified.
+
+Nothing is lost by requiring `push`. Re-running a failed release goes
+through GitHub's "Re-run jobs", which replays the original push event
+and so satisfies the guard.
+
+### Where the distribution lives
+
+The two publishing jobs read the built distribution from different
+places, which is deliberate.
+
+`publish-pypi` checks out and works in `dist/` inside the workspace.
+`pypa/gh-action-pypi-publish` is a composite action that delegates to a
+Docker container action, and the container does not see the runner's
+paths where the workflow expressions say they are. From a real release
+run:
+
+```
+docker run --workdir /github/workspace \
+  -v ".../_work/_temp":"/github/runner_temp" \
+  -v ".../_work/<repo>/<repo>":"/github/workspace"
+```
+
+`RUNNER_TEMP` *is* mounted — at `/github/runner_temp` — but
+`${{ runner.temp }}` expands to the host path on the left of that
+mount, which does not exist inside the container. `github.workspace`
+has the same problem. So `packages-dir`, and the download feeding it,
+must be relative to the workspace: that is the one spelling correct on
+both sides of the mount. An absolute path is wrong even when it points
+into the workspace, since host and container disagree about where the
+workspace is. The action also writes its container trampoline into
+`.github/.tmp/` in the workspace, so it needs a real checkout
+regardless.
+
+`github-release` does not check out and downloads into
+`${{ runner.temp }}`. `softprops/action-gh-release` is a JavaScript
+action running on the host, so an absolute path is fine there.
+
+Either way the point is the same: these runners are persistent, and
+`download-artifact` extracts *into* its target rather than replacing
+it, so a job must not read a directory some earlier job may have left
+files in. Checkout gives that guarantee by cleaning
+(`git clean -ffdx`); `runner.temp` gives it by being per job.
+
 ## Verifying Releases
 
 ### Verify Git Tag Signature
