@@ -1358,6 +1358,54 @@ class MermaidLintScriptTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('Linting 1 file(s)', result.stdout)
 
+    def test_a_failed_listing_is_not_an_empty_run(self):
+        """A process substitution loses git's status; a file keeps it.
+
+        Before the listing was written to a file with the status
+        checked, an ls-files that failed after rev-parse had
+        succeeded left the candidate list empty, printed "nothing to
+        lint" and exited 0 -- measured, by giving git a pathspec it
+        rejects. That is the fail-open shape this whole lane exists
+        to prevent, and the awk scan was already guarded this way.
+
+        A truncated index is the break that isolates the two: it does
+        not stop `git rev-parse --show-toplevel`, which reads no
+        index, and it does stop `git ls-files`. Breaking git some
+        other way tends to fail both, which makes the case pass on
+        the earlier exit and assert nothing about this one.
+        """
+        env = dict(os.environ)
+        env['GIT_CONFIG_GLOBAL'] = os.devnull
+        env['GIT_CONFIG_SYSTEM'] = os.devnull
+
+        with tempfile.TemporaryDirectory() as repo:
+            subprocess.run(['git', 'init', '-q', repo],
+                           check=True, env=env)
+            with open(os.path.join(repo, 'x.md'), 'w') as f:
+                f.write(self.BACKTICK)
+            subprocess.run(['git', 'add', '-A'], cwd=repo,
+                           check=True, env=env)
+
+            # Confirm the premise rather than assuming it, so this
+            # cannot quietly become a test of the rev-parse path.
+            with open(os.path.join(repo, '.git', 'index'), 'wb') as f:
+                f.write(b'GARBAGE')
+            self.assertEqual(subprocess.run(
+                ['git', 'rev-parse', '--show-toplevel'], cwd=repo,
+                env=env, stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL).returncode, 0)
+            self.assertNotEqual(subprocess.run(
+                ['git', 'ls-files', '-z', '*.md'], cwd=repo, env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL).returncode, 0)
+
+            result = self._invoke(repo, (), 0, env)
+
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn('could not list', result.stderr)
+        self.assertNotIn('nothing to lint', result.stdout)
+        self.assertFalse(result.docker_ran)
+
     def test_a_four_backtick_fence_is_refused(self):
         """CommonMark opens on three backticks or more; mmdc reads three.
 

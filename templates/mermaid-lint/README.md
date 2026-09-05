@@ -172,6 +172,16 @@ expensive part of this lane is the virtual machine and a second round
 trip to deliver the second half of the same answer is the cost worth
 avoiding.
 
+Three places where a status could be dropped are handled the same
+way, because this lane's characteristic failure is exiting zero
+having looked at nothing. `git ls-files` writes to a file with its
+status checked rather than into a process substitution, which does
+not trip `set -e`; the `awk` scan does the same; and `mmdc` is run
+with stdin closed, because the loop feeding it is reading the file
+list and a renderer that read stdin would swallow the rest of it and
+report success having rendered one file. The pinned image does not
+read stdin -- measured -- but the next one is not ours to choose.
+
 Writing about that rule is safe. The scan tracks fence state rather
 than matching bare lines, so a fence shown *inside* a longer fence is
 an example rather than a diagram -- which is what the page explaining
