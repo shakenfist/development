@@ -18,8 +18,9 @@ from audit.files import (
     check_file_contains, check_file_exists, toml_section_has_key,
 )
 from audit.text.workflows import (
-    has_workflow_dispatch, job_is_tag_guarded, job_level_keys, step_action,
-    step_with_inputs, workflow_job_blocks, workflow_step_blocks,
+    has_workflow_dispatch, job_is_push_guarded, job_is_tag_guarded,
+    job_level_keys, step_action, step_with_inputs, workflow_job_blocks,
+    workflow_step_blocks,
 )
 from audit.text.python_source import (
     HTTP_HANDLER_BASES, console_entry_point_files, handler_base_names,
@@ -349,6 +350,17 @@ def read_dependency_array(repo_path):
 #: the action which attaches them to the GitHub release.
 DOWNLOAD_ARTIFACT_ACTION = 'actions/download-artifact'
 GH_RELEASE_ACTION = 'softprops/action-gh-release'
+CHECKOUT_ACTION = 'actions/checkout'
+PYPI_PUBLISH_ACTION = 'pypa/gh-action-pypi-publish'
+ATTEST_ACTION = 'actions/attest-build-provenance'
+
+#: The step inputs which name the directory a publishing step reads
+#: from. Each has to agree with wherever the download actually put the
+#: distribution, or the step reads somewhere else entirely.
+DIST_CONSUMING_INPUTS = ('subject-path', 'files', 'packages-dir')
+
+#: A reference to the per-job temporary directory.
+RUNNER_TEMP_RE = re.compile(r'\$\{\{\s*runner\.temp\s*\}\}')
 
 
 def release_asset_issues(repo_path):
@@ -426,6 +438,88 @@ def release_asset_issues(repo_path):
     return issues
 
 
+def job_checks_out(body):
+    """Does this job run actions/checkout?
+
+    Which decides whether its workspace can be trusted. Checkout
+    cleans by default -- `git clean -ffdx && git reset --hard HEAD` --
+    and that removes gitignored build output such as dist/, so a job
+    which checks out starts from a known state even on a runner that
+    has built this repository before.
+    """
+    return any(
+        step_action(step) == CHECKOUT_ACTION
+        for step in workflow_step_blocks(body)
+    )
+
+
+def release_workspace_issues(repo_path):
+    """Findings for publishing jobs which trust a shared workspace.
+
+    The static runner pool is persistent and the publishing jobs do
+    not check out, so the directory such a job starts in is whatever
+    the last job on that runner left there. download-artifact then
+    extracts *into* its target rather than replacing it, so a stale
+    file from a previous run survives and joins the set the job goes
+    on to publish. That is not hypothetical: leftover dist/ on these
+    runners is what made the earlier empty-release bug intermittent.
+
+    Downloading into runner.temp settles it, because runner.temp is
+    per job: nothing else can have written there. The requirement is
+    then that everything reading the distribution agrees about where
+    it is. pypa/gh-action-pypi-publish is the trap, since its
+    packages-dir defaults to ./dist and so keeps reading the shared
+    workspace unless it is told not to -- and that is the job whose
+    directory feeds both the attestation and the upload.
+
+    Jobs which check out are not judged: checkout cleans, which is
+    the same guarantee arrived at by a different route.
+    """
+    filepath = os.path.join(repo_path, '.github', 'workflows', 'release.yml')
+    if not os.path.exists(filepath):
+        return []
+    with open(filepath, 'r', errors='replace') as f:
+        content = f.read()
+
+    issues = []
+    for name, body in workflow_job_blocks(content):
+        steps = workflow_step_blocks(body)
+        downloads = [step for step in steps
+                     if step_action(step) == DOWNLOAD_ARTIFACT_ACTION]
+        if not downloads or job_checks_out(body):
+            continue
+
+        for step in downloads:
+            path = step_with_inputs(step).get('path', '')
+            if RUNNER_TEMP_RE.search(path):
+                continue
+            issues.append(
+                f'the {name} job does not check out, so its workspace is '
+                'whatever the previous job on that runner left behind, but '
+                f'it downloads artifacts to "{path or "the workspace"}"; '
+                'download to "${{ runner.temp }}/dist/" so a stale file '
+                'cannot join the set being published')
+
+        for step in steps:
+            inputs = step_with_inputs(step)
+            for key in DIST_CONSUMING_INPUTS:
+                value = inputs.get(key)
+                if value and not RUNNER_TEMP_RE.search(value):
+                    issues.append(
+                        f'the {name} job reads the distribution from '
+                        f'"{key}: {value}", which is not the runner.temp '
+                        'directory the download should be using')
+            if (step_action(step) == PYPI_PUBLISH_ACTION
+                    and 'packages-dir' not in inputs):
+                issues.append(
+                    f'the {name} job publishes to PyPI without setting '
+                    '"packages-dir", so it uploads from ./dist in the '
+                    'shared workspace rather than from the downloaded '
+                    'distribution')
+
+    return issues
+
+
 def job_publishes(body):
     """Does this job have an effect outside the workflow run?
 
@@ -479,24 +573,38 @@ def release_dispatch_guard_issues(repo_path):
     if not has_workflow_dispatch(content):
         return []
 
-    unguarded = [
-        name for name, body in workflow_job_blocks(content)
-        if job_publishes(body) and not job_is_tag_guarded(body)
-    ]
-    if not unguarded:
-        return []
+    publishing = [(name, body) for name, body in workflow_job_blocks(content)
+                  if job_publishes(body)]
+    unguarded = [name for name, body in publishing
+                 if not job_is_tag_guarded(body)]
+    # Jobs testing the ref but not the event are reported apart from
+    # those testing neither. They are a step further along, and saying
+    # so names the clause that is actually missing.
+    ref_only = [name for name, body in publishing
+                if job_is_tag_guarded(body) and not job_is_push_guarded(body)]
 
+    issues = []
     # One unguarded job is the common case once a repository has been
     # partially fixed, so agree the verb with the list rather than
     # emitting "publish-pypi lack".
-    lacks = 'lacks' if len(unguarded) == 1 else 'lack'
-    return [
-        'release.yml can be started by hand but its publishing jobs are '
-        f'not confined to tags: {", ".join(unguarded)} {lacks} '
-        '"if: startsWith(github.ref, \'refs/tags/v\')", so a manual '
-        'run on a branch force-pushes a "refs/tags/refs/heads/<branch>" '
-        'tag and proceeds to publish'
-    ]
+    if unguarded:
+        lacks = 'lacks' if len(unguarded) == 1 else 'lack'
+        issues.append(
+            'release.yml can be started by hand but its publishing jobs are '
+            f'not confined to tags: {", ".join(unguarded)} {lacks} '
+            '"if: startsWith(github.ref, \'refs/tags/v\')", so a manual '
+            'run on a branch force-pushes a "refs/tags/refs/heads/<branch>" '
+            'tag and proceeds to publish')
+    if ref_only:
+        tests = 'tests' if len(ref_only) == 1 else 'test'
+        issues.append(
+            f'the publishing job{"" if len(ref_only) == 1 else "s"} '
+            f'{", ".join(ref_only)} {tests} the ref but not the event, and a '
+            'workflow_dispatch can be aimed at a tag, so a manual run '
+            're-signs and force-pushes an existing tag; require '
+            '"github.event_name == \'push\'" as well, which costs nothing '
+            'because re-running a release keeps the original push event')
+    return issues
 
 
 class ReleaseProcess(Check):
@@ -523,6 +631,7 @@ class ReleaseProcess(Check):
             issues.append('Missing RELEASE-SETUP.md')
         issues.extend(release_asset_issues(repo.path))
         issues.extend(release_dispatch_guard_issues(repo.path))
+        issues.extend(release_workspace_issues(repo.path))
 
         if issues:
             return self.fail('; '.join(issues))

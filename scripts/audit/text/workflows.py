@@ -350,3 +350,27 @@ def job_is_tag_guarded(body):
     if not condition:
         return False
     return bool(TAG_GUARD_RE.search(condition))
+
+
+# The clause which pins a job to the push event. Without it the guard
+# tests only the ref, and a workflow_dispatch aimed at a tag satisfies
+# it.
+PUSH_EVENT_RE = re.compile(r"github\.event_name\s*==\s*'push'")
+
+
+def job_is_push_guarded(body):
+    """Is this job confined to a tag *pushed*, rather than any tag ref?
+
+    A dispatch can be aimed at a tag, so the ref test passes there and
+    the job runs -- re-signing and force-pushing a tag that already
+    exists, rewriting a signed object someone may already have
+    verified. Testing the event as well is what closes that, and costs
+    nothing: re-running a failed release uses "Re-run jobs", which
+    keeps the event of the original run.
+    """
+    condition = job_level_keys(body).get('if')
+    if not condition:
+        return False
+    return bool(
+        TAG_GUARD_RE.search(condition) and PUSH_EVENT_RE.search(condition)
+    )

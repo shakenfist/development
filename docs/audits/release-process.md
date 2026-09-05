@@ -13,12 +13,18 @@
   `fail_on_unmatched_files: true`, so that a glob matching nothing
   fails the job instead of publishing an empty release.
 * Where `release.yml` offers `workflow_dispatch`, its publishing jobs
-  are confined to tags with
-  `if: startsWith(github.ref, 'refs/tags/v')`. A dispatch arrives on a
-  branch ref, so an unguarded `sign-tag` force-pushes a
-  `refs/tags/refs/heads/<branch>` tag and the run carries on into the
-  publish. Build jobs are exempt: running them is what the dispatch is
-  for.
+  are confined to a pushed tag with
+  `if: github.event_name == 'push' && startsWith(github.ref,
+  'refs/tags/v')`. A dispatch aimed at a branch would otherwise have
+  `sign-tag` force-push a `refs/tags/refs/heads/<branch>` tag; one aimed
+  at an existing tag would re-sign and force-push it. Build jobs are
+  exempt: running them is what the dispatch is for.
+* A publishing job which does not check out downloads into
+  `${{ runner.temp }}`, and every input reading the distribution
+  (`subject-path`, `files`, `packages-dir`) points there too. Such a job
+  starts in whatever the previous job left on that runner, and
+  `download-artifact` adds to a directory rather than replacing it.
+  Jobs which do check out are exempt, because checkout cleans.
 
 ## Template
 

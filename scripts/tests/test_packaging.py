@@ -1398,11 +1398,12 @@ class ReleaseProcessTest(CheckTestCase):
 
     NAMED_DOWNLOAD = ('        with:\n'
                       '          name: dist\n'
-                      '          path: dist/\n')
-    GUARDED_FILES = ('          files: dist/*\n'
+                      '          path: ${{ runner.temp }}/dist/\n')
+    GUARDED_FILES = ('          files: ${{ runner.temp }}/dist/*\n'
                      '          fail_on_unmatched_files: true\n')
+    PLAIN_FILES = '          files: ${{ runner.temp }}/dist/*\n'
 
-    def release_workflow(self, download='', release='          files: dist/*\n'):
+    def release_workflow(self, download='', release=PLAIN_FILES):
         self.compliant()
         self.fixture.workflow('release.yml', self.RELEASE_JOB % (download, release))
 
@@ -1424,7 +1425,7 @@ class ReleaseProcessTest(CheckTestCase):
     def test_fail_on_unmatched_files_must_be_true_not_merely_present(self):
         self.release_workflow(
             self.NAMED_DOWNLOAD,
-            '          files: dist/*\n'
+            '          files: ${{ runner.temp }}/dist/*\n'
             '          fail_on_unmatched_files: false\n')
         self.assert_fail(
             self.check(has_pyproject_toml=True),
@@ -1440,7 +1441,7 @@ class ReleaseProcessTest(CheckTestCase):
         self.release_workflow(
             '        with:\n'
             '          merge-multiple: true\n'
-            '          path: dist/\n',
+            '          path: ${{ runner.temp }}/dist/\n',
             self.GUARDED_FILES)
         self.assert_pass(self.check(has_pyproject_toml=True))
 
@@ -1461,7 +1462,7 @@ class ReleaseProcessTest(CheckTestCase):
     def test_an_inline_comment_does_not_hide_the_value(self):
         self.release_workflow(
             self.NAMED_DOWNLOAD,
-            '          files: dist/*\n'
+            '          files: ${{ runner.temp }}/dist/*\n'
             '          fail_on_unmatched_files: true  # else empty\n')
         self.assert_pass(self.check(has_pyproject_toml=True))
 
@@ -1529,13 +1530,13 @@ class ReleaseProcessTest(CheckTestCase):
         self.assertIn('github-release', result['details'])
 
     def test_guarded_publishing_jobs_pass(self):
-        self.dispatch_workflow(sign_guard=self.GUARD,
-                               release_guard=self.GUARD)
+        self.dispatch_workflow(sign_guard=self.PUSH_GUARD,
+                               release_guard=self.PUSH_GUARD)
         self.assert_pass(self.check(has_pyproject_toml=True))
 
     def test_one_unguarded_job_is_named_on_its_own(self):
         """The finding says which job, not merely that one exists."""
-        self.dispatch_workflow(sign_guard=self.GUARD)
+        self.dispatch_workflow(sign_guard=self.PUSH_GUARD)
         result = self.assert_fail(self.check(has_pyproject_toml=True),
                                   containing='github-release')
         self.assertNotIn('sign-tag', result['details'])
@@ -1553,8 +1554,8 @@ class ReleaseProcessTest(CheckTestCase):
         feature rather than make it safe. The build job here is
         unguarded in every other case above too; this states it.
         """
-        self.dispatch_workflow(sign_guard=self.GUARD,
-                               release_guard=self.GUARD)
+        self.dispatch_workflow(sign_guard=self.PUSH_GUARD,
+                               release_guard=self.PUSH_GUARD)
         self.assert_pass(self.check(has_pyproject_toml=True))
 
     def test_uploading_an_artifact_is_not_publishing(self):
@@ -1576,7 +1577,8 @@ class ReleaseProcessTest(CheckTestCase):
 
     def test_ref_type_is_an_accepted_spelling_of_the_guard(self):
         """The criterion is the property, not one way of writing it."""
-        guard = "    if: github.ref_type == 'tag'\n"
+        guard = ("    if: github.event_name == 'push' && "
+                 "github.ref_type == 'tag'\n")
         self.dispatch_workflow(sign_guard=guard, release_guard=guard)
         self.assert_pass(self.check(has_pyproject_toml=True))
 
@@ -1601,6 +1603,147 @@ class ReleaseProcessTest(CheckTestCase):
 
     def test_the_shipped_template_is_guarded(self):
         """The template grew the guards; this pins them there."""
+        self.compliant()
+        with open(os.path.join(
+                REPO_ROOT, 'templates', 'release-automation',
+                'release.yml')) as f:
+            self.fixture.workflow('release.yml', f.read())
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    # The workspace half of the criterion. The publishing jobs do not
+    # check out, the static pool is persistent, and download-artifact
+    # adds to a directory rather than replacing it -- so a job that
+    # downloads into the shared workspace publishes whatever else is
+    # lying there. Checkout cleans, so jobs which do check out are
+    # exempt rather than merely untested.
+
+    TEMP = '${{ runner.temp }}/dist/'
+
+    def publishing_workflow(self, path=TEMP, subject=None, packages=None,
+                            checkout=False):
+        """A checkout-less publish job, parameterised on where it reads."""
+        subject = self.TEMP + '*' if subject is None else subject
+        self.compliant()
+        steps = ''
+        if checkout:
+            steps += ('      - uses: actions/checkout@v7\n')
+        steps += (
+            '      - uses: actions/download-artifact@v8\n'
+            '        with:\n'
+            '          name: dist\n'
+            f'          path: {path}\n'
+            '      - uses: actions/attest-build-provenance@v4\n'
+            '        with:\n'
+            f"          subject-path: '{subject}'\n"
+            '      - uses: pypa/gh-action-pypi-publish@release/v1\n')
+        if packages is not None:
+            steps += ('        with:\n'
+                      f'          packages-dir: {packages}\n')
+        self.fixture.workflow(
+            'release.yml',
+            'name: Release\n'
+            'on:\n'
+            '  push:\n'
+            "    tags: ['v*']\n"
+            'jobs:\n'
+            '  publish-pypi:\n'
+            '    environment: release\n'
+            '    runs-on: [self-hosted, static]\n'
+            '    steps:\n' + steps)
+
+    def test_downloading_into_the_shared_workspace_fails(self):
+        self.publishing_workflow(path='dist/', subject='dist/*',
+                                 packages='dist/')
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='does not check out')
+
+    def test_a_consumer_left_on_the_workspace_fails(self):
+        """The download moved but something reading it did not."""
+        self.publishing_workflow(subject='dist/*', packages=self.TEMP)
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='subject-path')
+
+    def test_publishing_without_packages_dir_fails(self):
+        """The action's own default is ./dist, so silence is a defect."""
+        self.publishing_workflow(packages=None)
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='packages-dir')
+
+    def test_a_fully_temp_scoped_publish_job_passes(self):
+        self.publishing_workflow(packages=self.TEMP)
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_a_job_which_checks_out_may_use_the_workspace(self):
+        """Checkout runs git clean -ffdx, which removes a stale dist/.
+
+        The false positive that matters: demanding runner.temp of every
+        job would flag the build job, which is the one place the
+        workspace is known to be clean.
+        """
+        self.publishing_workflow(path='dist/', subject='dist/*',
+                                 packages='dist/', checkout=True)
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_a_build_job_uploading_to_dist_is_not_judged(self):
+        """Uploading is not downloading, and build jobs check out."""
+        self.compliant()
+        self.fixture.workflow(
+            'release.yml',
+            'name: Release\n'
+            'on:\n'
+            '  workflow_dispatch:\n'
+            'jobs:\n'
+            '  build:\n'
+            '    runs-on: [self-hosted, static]\n'
+            '    steps:\n'
+            '      - uses: actions/checkout@v7\n'
+            '      - uses: actions/upload-artifact@v7\n'
+            '        with:\n'
+            '          name: dist\n'
+            '          path: dist/\n')
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    # The event half of the guard. A dispatch can be aimed at a tag, so
+    # the ref test alone still lets a manual run re-sign and force-push
+    # a tag that already exists.
+
+    PUSH_GUARD = ("    if: github.event_name == 'push' && "
+                  "startsWith(github.ref, 'refs/tags/v')\n")
+
+    def test_a_ref_only_guard_fails(self):
+        self.dispatch_workflow(sign_guard=self.GUARD,
+                               release_guard=self.GUARD)
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='the ref but not the event')
+
+    def test_a_push_and_ref_guard_passes(self):
+        self.dispatch_workflow(sign_guard=self.PUSH_GUARD,
+                               release_guard=self.PUSH_GUARD)
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_the_ref_only_finding_names_only_the_ref_only_jobs(self):
+        self.dispatch_workflow(sign_guard=self.PUSH_GUARD,
+                               release_guard=self.GUARD)
+        result = self.assert_fail(self.check(has_pyproject_toml=True),
+                                  containing='the ref but not the event')
+        self.assertIn('github-release', result['details'])
+        self.assertNotIn('sign-tag', result['details'])
+
+    def test_an_unguarded_job_is_not_also_reported_as_ref_only(self):
+        """The two findings partition the jobs; they do not overlap."""
+        self.dispatch_workflow(sign_guard='', release_guard=self.PUSH_GUARD)
+        result = self.assert_fail(self.check(has_pyproject_toml=True),
+                                  containing='not confined to tags')
+        self.assertNotIn('the ref but not the event', result['details'])
+
+    def test_a_ref_only_guard_passes_without_a_dispatch_trigger(self):
+        """No manual trigger means no event to disambiguate."""
+        self.dispatch_workflow(sign_guard=self.GUARD,
+                               release_guard=self.GUARD, dispatch=False)
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_the_shipped_template_satisfies_every_criterion(self):
+        """One test for the whole file, over all four criteria."""
         self.compliant()
         with open(os.path.join(
                 REPO_ROOT, 'templates', 'release-automation',
