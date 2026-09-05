@@ -193,10 +193,6 @@
       "sha": "8c37a570e596c2bf6b8ea26c8f64bcfe69f0f602",
       "date": "2026-08-29"
     },
-    "docs/audits/release-process.md": {
-      "sha": "a4dafad60b86830e3355de4afa35c9af106768bf",
-      "date": "2026-08-29"
-    },
     "docs/audits/renovate-lockstep-groups.md": {
       "sha": "6c07a2d2badae9066a5715df5a6dbd54860a1ab9",
       "date": "2026-09-04"
@@ -261,10 +257,6 @@
       "sha": "15449e756e41d3351a6301ffe152d11e9962e986",
       "date": "2026-09-02"
     },
-    "docs/release-automation.md": {
-      "sha": "a92bfdaed278fd448adabc76c8a5904174815ea8",
-      "date": "2026-08-30"
-    },
     "renovate.json": {
       "sha": "f6014271a98068e8a76fed39387926a8b3fa7034",
       "date": "2026-09-04"
@@ -305,10 +297,6 @@
       "sha": "7101c0e2b34d0762641a7e25477bb3839ba1eed2",
       "date": "2026-09-03"
     },
-    "scripts/audit/checks/packaging.py": {
-      "sha": "f5417475bbdff8b16e8363ffa00d39cf213a82c2",
-      "date": "2026-09-04"
-    },
     "scripts/audit/checks/plans.py": {
       "sha": "2a8b67b6c4727d3f1865ddfdde824cfe6be307c5",
       "date": "2026-09-04"
@@ -347,10 +335,6 @@
     },
     "scripts/audit/text/shared_blocks.py": {
       "sha": "100a6bcd559df58c9dc57a27814d3bb846f59aef",
-      "date": "2026-09-02"
-    },
-    "scripts/audit/text/workflows.py": {
-      "sha": "7a932ed4829c2f8ef9cd4ccc08166458b55f369e",
       "date": "2026-09-02"
     },
     "scripts/audit_common.py": {
@@ -419,10 +403,6 @@
     },
     "scripts/tests/test_markdown.py": {
       "sha": "004fef9dd4e92af2cd9d20ac8cff8608a4c7cb38",
-      "date": "2026-09-04"
-    },
-    "scripts/tests/test_packaging.py": {
-      "sha": "e4b88bbbf9a9294474a364f7c1150493e8894e61",
       "date": "2026-09-04"
     },
     "scripts/tests/test_plans.py": {
@@ -520,10 +500,6 @@
     "templates/release-automation/RELEASE-SETUP.md": {
       "sha": "cdb4a242421ecf42e1b46c4172f1c91bdfdad1e4",
       "date": "2026-08-30"
-    },
-    "templates/release-automation/release.yml": {
-      "sha": "98204c92c815e76e016e606c1c7898127f582d70",
-      "date": "2026-09-04"
     },
     "templates/renovate/README.md": {
       "sha": "ae88c3ede7ec64844b7e1186cb36432db2f176cd",

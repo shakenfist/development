@@ -113,10 +113,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/release-process.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/review-coverage.md",
       "author": "mikal"
     },
@@ -158,10 +154,6 @@
     },
     {
       "path": "docs/automated-pr-review.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/release-automation.md",
       "author": "mikal"
     },
     {
@@ -397,10 +389,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/text/workflows.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/__init__.py",
       "author": "mikal"
     },
@@ -553,14 +541,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/release-automation/release.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/release-automation",
-      "author": "mikal"
-    },
-    {
       "path": "templates/test-drift-fix/test-drift-fix.yml",
       "author": "mikal"
     },
@@ -673,23 +653,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/packaging.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_packaging.py",
-      "author": "mikal"
-    },
-    {
       "path": "templates/renovate/renovate.yml",
       "author": "mikal"
     },
     {
       "path": "templates/renovate",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     },
     {
