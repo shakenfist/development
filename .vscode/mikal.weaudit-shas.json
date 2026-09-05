@@ -285,10 +285,6 @@
       "sha": "d54faddeed246c3b084571825d542bf04c1bb930",
       "date": "2026-09-02"
     },
-    "scripts/audit/checks/ci_workflows.py": {
-      "sha": "f40318625edd48179e37b5ace78774d27991a116",
-      "date": "2026-09-02"
-    },
     "scripts/audit/checks/docs_content.py": {
       "sha": "69643126da1938928eb12085bec7229af9e0a3b8",
       "date": "2026-09-03"
@@ -383,10 +379,6 @@
     },
     "scripts/tests/base.py": {
       "sha": "4d2950b341f29852d885b36464eb75373123d398",
-      "date": "2026-09-04"
-    },
-    "scripts/tests/test_ci_workflows.py": {
-      "sha": "bc7508f0e23d5a5b86acfdbabc3f3a1dd8e0ae92",
       "date": "2026-09-04"
     },
     "scripts/tests/test_docs_content.py": {

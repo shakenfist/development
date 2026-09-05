@@ -393,10 +393,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/ci_workflows.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/docs_content.py",
       "author": "mikal"
     },
@@ -422,10 +418,6 @@
     },
     {
       "path": "scripts/tests/base.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_ci_workflows.py",
       "author": "mikal"
     },
     {
