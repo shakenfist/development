@@ -19,6 +19,12 @@ the `release.yml` workflow:
 6. **Creates a GitHub Release** with the built artifacts and
    auto-generated release notes
 
+The release job downloads the distribution to a named path and sets
+`fail_on_unmatched_files`, so that a release which attaches nothing
+fails rather than reporting success. Both are load bearing: with a
+bare download and the action's default of warning on an unmatched
+glob, an empty release is indistinguishable from a good one.
+
 ```mermaid
 flowchart TB
     tag["Maintainer pushes v0.6.0 tag"]
