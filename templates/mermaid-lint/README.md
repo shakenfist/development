@@ -80,12 +80,12 @@ The development repository runs this on itself: `tools/mermaid-lint.sh`
 and `.github/workflows/mermaid-lint.yml` there are byte-identical
 copies of the two files in this directory, so drift between the
 template and a real deployment shows up as a diff rather than as a
-surprise. `MermaidLintDeploymentTest` in `scripts/test_audit_check.py`
-asserts it, which matters most for the shell script: `.pre-commit-
-config.yaml` scopes shellcheck to `^(scripts|tools)/`, so the copy in
-this directory -- the one that goes out to the fleet -- is linted only
-by proxy through its `tools/` twin. Sync from here rather than editing
-either copy in place.
+surprise. `MermaidLintDeploymentTest` in
+`scripts/tests/test_docs_content.py` asserts it, which matters most
+for the shell script: `.pre-commit-config.yaml` scopes shellcheck to
+`^(scripts|tools)/`, so the copy in this directory -- the one that
+goes out to the fleet -- is linted only by proxy through its `tools/`
+twin. Sync from here rather than editing either copy in place.
 
 ## Using it by hand
 
@@ -162,6 +162,18 @@ inside a list item than a diagram being quoted, and treating the
 indent as a code block would silently stop linting those -- failing
 open on real content to spare a rarer false positive. Wrap the
 example in a longer fence instead.
+
+A fence inside a blockquote is the one shape that is neither linted
+nor refused. The scan does not look past a leading `>`, so such a
+fence is skipped -- and unlike the indent case this one does fail
+open, because GitHub renders it while `mmdc` reports "No mermaid
+charts found" for the same file. It is left that way deliberately.
+The audit's regex does not see a blockquoted fence either, so the two
+halves agree and no repository is told it is covered for a diagram
+nothing renders; and refusing one would mean deciding what a fence
+nested inside a blockquoted fence is, which is a new rule with a new
+blind spot of its own. Put a diagram at the top level rather than in
+a blockquote.
 
 The workflow's path filter names the script and the workflow itself
 alongside `**.md`, so a pull request that edits the checker and no

@@ -58,6 +58,20 @@ contain a backtick, so a line opening with an inline code span is not
 a fence -- without which such a line would open one that never closes
 and hide every diagram below it.
 
+Blockquotes are the one place the two halves agree and both are
+wrong. Neither the regex nor the script looks past a leading `>`, so
+a diagram inside a blockquote is N/A here and skipped rather than
+refused there, while GitHub renders it and `mmdc` reports "No mermaid
+charts found" for the same file -- measured, not assumed. It is
+therefore the fail-open shape the tilde and spaced refusals exist to
+close, left open deliberately: because the two halves agree, no
+repository is called covered for a diagram nothing renders, and
+refusing a blockquoted fence means deciding what a fence nested
+inside a blockquoted fence is, which is a rule with its own blind
+spot. Blockquoted diagrams are vanishingly rare; a repository that
+grows one should promote it to the top level rather than wait for
+this to be modelled.
+
 The audit's regex is a line match and has no notion of nesting at
 all, which is a divergence with no consequence: a repository whose
 only ```` ```mermaid ```` fence is a nested example is asked for a

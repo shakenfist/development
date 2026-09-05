@@ -66,10 +66,14 @@ else
     # thousands of markdown files nobody here wrote, several of which
     # contain diagrams that are not ours to fix.
     cd "${repo_root}"
-    # quotePath off, or a path with a non-ASCII character comes back
-    # C-quoted, names no file that exists, and is dropped by the -f
-    # test below -- another diagram unlinted behind a green run.
-    mapfile -t candidates < <(git -c core.quotePath=false ls-files '*.md')
+    # NUL-delimited, because git C-quotes a path it cannot print
+    # literally: a non-ASCII byte unless core.quotePath is off, and a
+    # double quote, a backslash or a control character whatever that
+    # setting says. A quoted string names no file that exists and is
+    # dropped by the -f test below -- another diagram unlinted behind
+    # a green run. -z quotes nothing at all, so it subsumes the
+    # setting rather than covering one more case than it did.
+    mapfile -d '' -t candidates < <(git ls-files -z '*.md')
 fi
 
 # Backticks only, and no space before the language: that is what mmdc
@@ -104,6 +108,17 @@ fi
 # indent as a code block would fail open on real diagrams to spare a
 # rarer false positive. Quote a fence inside a longer fence instead;
 # the template README says so.
+#
+# Blockquotes are not modelled either, and that one does fail open: a
+# leading "> " leaves ch=">" and run=0, so the fence is neither
+# selected nor refused, while GitHub renders it and mmdc reports "No
+# mermaid charts found" -- measured against the pinned image, not
+# assumed. It is left that way because the audit's regex does not see
+# such a fence either, so the two halves agree and no repository is
+# called covered for a diagram nothing renders; and because refusing
+# one means deciding what a fence nested inside a blockquoted fence
+# is, which is a new rule with a new blind spot. Put a diagram at the
+# top level.
 existing=()
 for candidate in "${candidates[@]}"; do
     # Only reachable on the git ls-files path, where an entry can be
@@ -130,7 +145,7 @@ scan=""
 if [ "${#existing[@]}" -ne 0 ]; then
     scan=$(awk '
         FNR == 1 {
-            fence = ""; flen = 0; backtick = 0; tilde = 0; spaced = 0
+            fence = ""; flen = 0; backtick = 0
         }
         {
             line = $0
@@ -189,20 +204,25 @@ if [ "${#existing[@]}" -ne 0 ]; then
             name = FILENAME
             sub(/^\.\//, "", name)
 
+            # Every refusal is printed, not just the first of its
+            # kind in the file. Suppressing the rest would make an
+            # author fix one fence, re-run, and be told about the
+            # next -- the same round trip the refusals fall through
+            # to the render step to avoid. The selection is deduped
+            # instead, because each name printed there becomes an
+            # operand for the renderer and a file listed twice would
+            # be rendered twice.
             if (raw != "mermaid") {
-                if (!spaced) {
-                    spaced = 1
-                    print "spaced", FNR, name
-                }
+                print "spaced", FNR, name
                 next
             }
-            if (ch == "`" && !backtick) {
+            if (ch == "~") {
+                print "tilde", FNR, name
+                next
+            }
+            if (!backtick) {
                 backtick = 1
                 print "backtick", FNR, name
-            }
-            if (ch == "~" && !tilde) {
-                tilde = 1
-                print "tilde", FNR, name
             }
         }
     ' "${existing[@]}" < /dev/null)

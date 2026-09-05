@@ -805,8 +805,13 @@ class MermaidLintScriptTest(unittest.TestCase):
                 env['MERMAID_LINT_TEST_ARGV'])
             result.rendered = []
             if os.path.exists(env['MERMAID_LINT_TEST_FILES']):
+                # splitlines, not split: files.txt is newline
+                # delimited and a tracked path may contain a space,
+                # which is one of the shapes these cases exist to
+                # pin. Splitting on whitespace would turn such a path
+                # into two entries and pass the wrong thing.
                 with open(env['MERMAID_LINT_TEST_FILES']) as f:
-                    result.rendered = f.read().split()
+                    result.rendered = f.read().splitlines()
             return result
 
     def test_a_tilde_fence_is_refused(self):
@@ -1076,6 +1081,43 @@ class MermaidLintScriptTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.rendered, ['docs/caf\u00e9.md'])
 
+    def test_awkwardly_named_paths_are_all_scanned(self):
+        """The other half of the quoting bug, which a setting cannot fix.
+
+        `core.quotePath=false` governs non-ASCII bytes only. git
+        C-quotes a double quote, a backslash or a control character
+        whatever that setting says, and each quoted string names no
+        file on disk, fails the -f test and is dropped in silence --
+        the same unlinted diagram behind a green run as the case
+        above. Listing NUL-delimited quotes nothing at all, so these
+        pass for the reason the non-ASCII one does rather than by a
+        second rule.
+
+        The space is here as well because it needs no quoting and so
+        would pass either way; it pins the parsing of the scan output
+        and of files.txt, both of which are whitespace-sensitive in a
+        way the paths above are not.
+        """
+        names = ['docs/back\\slash.md', 'docs/quote".md', 'docs/a b.md',
+                 'docs/caf\u00e9.md']
+        result = self._run(dict((n, self.BACKTICK) for n in names))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(sorted(result.rendered), sorted(names))
+
+    def test_a_backslash_path_carrying_a_tilde_fence_is_refused(self):
+        """Dropping such a path loses a refusal, not just a lint.
+
+        A file the scan never reads cannot be refused either, so the
+        quoting bug hid the tilde and spaced rules as well as the
+        selection. Nothing else in the repository is lintable, so a
+        silent drop here would print "nothing to lint" and exit 0.
+        """
+        result = self._run({'docs/back\\slash.md': self.TILDE})
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('docs/back\\slash.md', result.stderr)
+        self.assertIn('use a backtick fence', result.stderr)
+        self.assertNotIn('nothing to lint', result.stdout)
+
     def test_a_line_starting_with_a_tilde_is_not_a_fence(self):
         """Under three characters is not a fence, tildes included.
 
@@ -1137,6 +1179,77 @@ class MermaidLintScriptTest(unittest.TestCase):
         )})
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn('use a backtick fence', result.stderr)
+
+    def test_a_blockquoted_fence_is_skipped_and_that_is_deliberate(self):
+        """A documented blind spot, pinned so a change to it is seen.
+
+        The scan does not look past a leading ">", so the fence is
+        neither selected nor refused. GitHub renders it and mmdc
+        reports "No mermaid charts found" for the same file, so unlike
+        the indented-list case this one does fail open. It is left
+        that way because the audit's MERMAID_FENCE_RE does not match
+        such a line either -- the two halves agree, so no repository
+        is called covered for a diagram nothing renders -- and because
+        refusing one means ruling on a fence nested inside a
+        blockquoted fence. templates/mermaid-lint/README.md and
+        docs/audits/mermaid-lint-ci.md both say so.
+
+        If this case ever starts failing, the scanner has grown an
+        opinion about blockquotes and those two documents need to
+        stop saying it has not.
+        """
+        result = self._run({'docs/x.md': (
+            '# P\n\n> ```mermaid\n> flowchart TB\n>   a --> b\n> ```\n'
+        )})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.rendered, [])
+        self.assertIn('nothing to lint', result.stdout)
+
+    def test_a_blockquoted_fence_does_not_disturb_a_real_one(self):
+        """Skipping it must not leave a fence open across the file.
+
+        The blockquoted line is dropped before any fence bookkeeping,
+        so a diagram below it is still selected. Were it to open a
+        fence instead, everything after would be read as fence content
+        and go unlinted behind an exit 0.
+        """
+        result = self._run({'docs/x.md': (
+            '# P\n\n> ```mermaid\n> flowchart TB\n> ```\n\n'
+            + self.BACKTICK
+        )})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.rendered, ['docs/x.md'])
+
+    def test_every_refusal_in_a_file_is_reported(self):
+        """One run, every offending fence -- not one per run.
+
+        Reporting only the first would make an author fix a fence,
+        re-run the lane and be told about the next: the same round
+        trip the refusals fall through to the render step to avoid.
+        The selection stays deduped, because each selected name
+        becomes an operand for the renderer.
+        """
+        result = self._run({'docs/x.md': (
+            '# P\n\n~~~mermaid\nflowchart TB\n~~~\n\n'
+            'text\n\n~~~mermaid\nflowchart TB\n~~~\n\n'
+            '``` mermaid\nflowchart TB\n```\n'
+        )})
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('docs/x.md:3:', result.stderr)
+        self.assertIn('docs/x.md:9:', result.stderr)
+        self.assertIn('docs/x.md:13:', result.stderr)
+        self.assertIn('remove the space', result.stderr)
+
+    def test_a_file_with_two_diagrams_is_rendered_once(self):
+        """The dedupe the refusals no longer have.
+
+        files.txt is the renderer's operand list, so a file named
+        twice starts a second render of the same content.
+        """
+        result = self._run({'docs/x.md': self.BACKTICK + '\n' +
+                            self.BACKTICK})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.rendered, ['docs/x.md'])
 
     def test_a_fence_indented_inside_a_list_item_is_still_linted(self):
         """Four spaces is a list item far more often than a quote.

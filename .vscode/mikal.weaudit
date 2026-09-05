@@ -145,19 +145,11 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/mermaid-lint-ci.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/push-audit.md",
       "author": "mikal"
     },
     {
       "path": "docs/automated-pr-review.md",
-      "author": "mikal"
-    },
-    {
-      "path": "tools/mermaid-lint.sh",
       "author": "mikal"
     },
     {
@@ -209,14 +201,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/mermaid-lint/mermaid-lint.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/mermaid-lint/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/pin-indirect-dependencies/pin-indirect-dependencies.sh",
       "author": "mikal"
     },
@@ -257,14 +241,6 @@
       "author": "mikal"
     },
     {
-      "path": ".claude/skills/diagram-conversion/SKILL.md",
-      "author": "mikal"
-    },
-    {
-      "path": ".claude/skills/diagram-conversion",
-      "author": "mikal"
-    },
-    {
       "path": ".claude/skills/review-tracking-adoption/SKILL.md",
       "author": "mikal"
     },
@@ -278,14 +254,6 @@
     },
     {
       "path": ".claude/skills/standards-alignment",
-      "author": "mikal"
-    },
-    {
-      "path": ".claude/skills",
-      "author": "mikal"
-    },
-    {
-      "path": ".claude",
       "author": "mikal"
     },
     {
@@ -310,10 +278,6 @@
     },
     {
       "path": ".github/workflows/codeql-analysis.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/mermaid-lint.yml",
       "author": "mikal"
     },
     {
@@ -397,10 +361,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/docs_content.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/llm_docs.py",
       "author": "mikal"
     },
@@ -430,10 +390,6 @@
     },
     {
       "path": "docs/audits/plan-audit-phase.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_docs_content.py",
       "author": "mikal"
     },
     {
@@ -533,14 +489,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/mermaid-lint/mermaid-lint.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/mermaid-lint",
-      "author": "mikal"
-    },
-    {
       "path": "templates/test-drift-fix/test-drift-fix.yml",
       "author": "mikal"
     },
@@ -626,10 +574,6 @@
     },
     {
       "path": "tools/audit-snapshot.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "tools",
       "author": "mikal"
     },
     {
