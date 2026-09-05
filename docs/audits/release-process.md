@@ -8,6 +8,10 @@
 * If `pyproject.toml` exists, there must be a
   `.github/workflows/release.yml` and a `RELEASE-SETUP.md`.
 * Releases use GitHub signed tags and Sigstore signing.
+* A release job which attaches assets downloads them to a named
+  destination (`name:` or `merge-multiple: true`) and sets
+  `fail_on_unmatched_files: true`, so that a glob matching nothing
+  fails the job instead of publishing an empty release.
 
 ## Template
 

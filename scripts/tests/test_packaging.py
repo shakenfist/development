@@ -15,7 +15,9 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import packaging  # noqa: E402
-from tests.base import CheckTestCase, run_check  # noqa: E402
+from tests.base import (  # noqa: E402
+    REPO_ROOT, CheckTestCase, run_check,
+)
 
 
 def check_dependency_name_normalization(path, props=None):
@@ -1373,6 +1375,108 @@ class ReleaseProcessTest(CheckTestCase):
         result = self.assert_fail(self.check(has_pyproject_toml=True))
         self.assertIn('release.sh', result['details'])
         self.assertIn('RELEASE-SETUP.md', result['details'])
+
+    # The asset-attaching half of the criterion. A release.yml can
+    # satisfy every existence check above and still publish releases
+    # with nothing attached to them, which is how this went unnoticed
+    # across five repositories: the job reports success either way.
+
+    RELEASE_JOB = (
+        'name: Release\n'
+        'jobs:\n'
+        '  github-release:\n'
+        '    runs-on: [self-hosted, static]\n'
+        '    steps:\n'
+        '      - name: Download artifacts\n'
+        '        uses: actions/download-artifact@v8\n'
+        '%s'
+        '      - name: Create GitHub Release\n'
+        '        uses: softprops/action-gh-release@v3\n'
+        '        with:\n'
+        '%s'
+    )
+
+    NAMED_DOWNLOAD = ('        with:\n'
+                      '          name: dist\n'
+                      '          path: dist/\n')
+    GUARDED_FILES = ('          files: dist/*\n'
+                     '          fail_on_unmatched_files: true\n')
+
+    def release_workflow(self, download='', release='          files: dist/*\n'):
+        self.compliant()
+        self.fixture.workflow('release.yml', self.RELEASE_JOB % (download, release))
+
+    def test_a_correctly_wired_release_passes(self):
+        self.release_workflow(self.NAMED_DOWNLOAD, self.GUARDED_FILES)
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_a_bare_download_fails(self):
+        self.release_workflow(release=self.GUARDED_FILES)
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='downloads artifacts without "name:"')
+
+    def test_an_unguarded_glob_fails(self):
+        self.release_workflow(self.NAMED_DOWNLOAD)
+        self.assert_fail(
+            self.check(has_pyproject_toml=True),
+            containing='without "fail_on_unmatched_files: true"')
+
+    def test_fail_on_unmatched_files_must_be_true_not_merely_present(self):
+        self.release_workflow(
+            self.NAMED_DOWNLOAD,
+            '          files: dist/*\n'
+            '          fail_on_unmatched_files: false\n')
+        self.assert_fail(
+            self.check(has_pyproject_toml=True),
+            containing='without "fail_on_unmatched_files: true"')
+
+    def test_merge_multiple_also_names_the_destination(self):
+        """Downloading every artifact is fine when they are merged flat.
+
+        A project which builds more than one distribution cannot name a
+        single artifact, so the criterion is that the destination is
+        determined -- not that it is spelled one particular way.
+        """
+        self.release_workflow(
+            '        with:\n'
+            '          merge-multiple: true\n'
+            '          path: dist/\n',
+            self.GUARDED_FILES)
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_a_release_attaching_no_files_is_not_asked_about_globs(self):
+        """No "files:" means no assets by choice, not a broken glob."""
+        self.release_workflow(
+            self.NAMED_DOWNLOAD,
+            '          generate_release_notes: true\n')
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_a_commented_out_defect_does_not_count(self):
+        self.release_workflow(
+            self.NAMED_DOWNLOAD,
+            self.GUARDED_FILES
+            + '        # uses: actions/download-artifact@v8 bare\n')
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_an_inline_comment_does_not_hide_the_value(self):
+        self.release_workflow(
+            self.NAMED_DOWNLOAD,
+            '          files: dist/*\n'
+            '          fail_on_unmatched_files: true  # else empty\n')
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_the_shipped_template_satisfies_the_criterion(self):
+        """The template we tell projects to copy must itself pass.
+
+        This is the regression that mattered: the template carried the
+        bare download for as long as the criterion did not look at it.
+        """
+        self.compliant()
+        with open(os.path.join(
+                REPO_ROOT, 'templates', 'release-automation',
+                'release.yml')) as f:
+            self.fixture.workflow('release.yml', f.read())
+        self.assert_pass(self.check(has_pyproject_toml=True))
 
 
 class Flake8WrapTest(CheckTestCase):

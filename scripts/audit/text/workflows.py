@@ -184,3 +184,94 @@ def indented_block(body, key):
     if collected is None:
         return None
     return '\n'.join(collected)
+
+
+STEP_ITEM_RE = re.compile(r'^(\s*)-\s')
+
+
+def workflow_step_blocks(body):
+    """Split a job body's `steps:` list into per-step text.
+
+    Line based, like the rest of this module. A step is a sequence
+    item under the job's `steps:` key, and its block runs from the
+    dash to the next item at the same indentation. Anything indented
+    further -- a `with:` mapping, the lines of a `run:` script --
+    stays part of the step that contains it.
+
+    Returns an empty list for a job with no `steps:`, which is what a
+    job that calls a reusable workflow looks like.
+    """
+    steps = indented_block(body, 'steps')
+    if steps is None:
+        return []
+
+    indent = None
+    blocks = []
+    for line in steps.splitlines():
+        match = STEP_ITEM_RE.match(line)
+        if match and (indent is None or len(match.group(1)) == indent):
+            indent = len(match.group(1))
+            blocks.append([line])
+        elif blocks:
+            blocks[-1].append(line)
+    return ['\n'.join(lines) for lines in blocks]
+
+
+# The action a step invokes. The optional dash covers a `uses:` written
+# as the first key of the step, where the sequence marker shares the
+# line.
+STEP_USES_RE = re.compile(r'^\s*(?:-\s+)?uses:\s*(\S+)\s*$', re.MULTILINE)
+
+
+def step_action(step):
+    """The action a step invokes, without its version.
+
+    Returns None for a step which runs a script rather than an action.
+    The version is dropped because every caller here is asking which
+    action this is, not which release of it -- and the fleet pins
+    majors, so matching on the full string would need updating each
+    time one moves.
+    """
+    match = STEP_USES_RE.search(strip_yaml_comments(step))
+    if not match:
+        return None
+    return match.group(1).strip().strip('"').strip("'").split('@')[0]
+
+
+# One `key: value` pair, captured from a step's `with:` mapping.
+WITH_ENTRY_RE = re.compile(
+    r'^(\s*)([A-Za-z_][A-Za-z0-9_-]*):\s*(.*?)\s*$'
+)
+
+
+def step_with_inputs(step):
+    """The inputs a step passes, as a dict of key to raw value string.
+
+    Only the top level of the `with:` mapping: a nested mapping under
+    one of the inputs describes that input's value, not another
+    input, and folding the two together would let a nested key answer
+    a question asked about a real one.
+
+    A trailing inline comment is dropped, on the same reasoning as
+    split_runner_labels(): the alternative is every caller comparing
+    against a value with an explanation stuck to the end of it, and
+    "fetch-depth: 0  # needed for setuptools_scm" is how the fleet
+    actually writes these.
+    """
+    block = indented_block(step, 'with')
+    if block is None:
+        return {}
+
+    entries = {}
+    indent = None
+    for line in block.splitlines():
+        match = WITH_ENTRY_RE.match(line)
+        if not match:
+            continue
+        depth = len(match.group(1))
+        if indent is None:
+            indent = depth
+        if depth == indent:
+            value = re.sub(r'\s+#.*$', '', match.group(3)).strip()
+            entries[match.group(2)] = value
+    return entries

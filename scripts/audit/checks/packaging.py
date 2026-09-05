@@ -17,6 +17,9 @@ from audit.check import Check
 from audit.files import (
     check_file_contains, check_file_exists, toml_section_has_key,
 )
+from audit.text.workflows import (
+    step_action, step_with_inputs, workflow_job_blocks, workflow_step_blocks,
+)
 from audit.text.python_source import (
     HTTP_HANDLER_BASES, console_entry_point_files, handler_base_names,
     imported_top_level_modules, mask_comments_and_strings, mask_strings,
@@ -340,6 +343,87 @@ def read_dependency_array(repo_path):
     return direct, generated, markers
 
 
+#: The action which pulls build artifacts back into a later job, and
+#: the action which attaches them to the GitHub release.
+DOWNLOAD_ARTIFACT_ACTION = 'actions/download-artifact'
+GH_RELEASE_ACTION = 'softprops/action-gh-release'
+
+
+def release_asset_issues(repo_path):
+    """Findings for a release.yml which can publish an empty release.
+
+    Two defects, and it takes both to make the failure silent.
+
+    `actions/download-artifact` invoked with no inputs downloads every
+    artifact of the run and decides the destination itself, which is
+    not where a later `files: dist/*` looks. The sibling publish job
+    in the same template gets this right -- `name: dist` with
+    `path: dist/` names the destination -- so the two jobs in one file
+    disagreed about where the distribution lives.
+
+    `softprops/action-gh-release` then treats a glob matching nothing
+    as a warning rather than an error (`fail_on_unmatched_files`
+    defaults to false), so the job goes green having attached no
+    files.
+
+    The bug presents as intermittent because the release jobs run on
+    the persistent `[self-hosted, static]` pool. When the release job
+    lands on the same runner as the build it finds the build's
+    leftover `dist/` in the reused workspace and the glob matches --
+    which also means the assets came from unverified files on disk
+    rather than from the download, whose SHA256 nothing then checked.
+    library-utilities v0.8.7 built on shakenfist-static-2, released
+    from shakenfist-static-1, and shipped an empty release; kerbside
+    v0.5.0 did both on shakenfist-static-1 and shipped two files,
+    from identical workflow files.
+
+    Only jobs which actually attach files are judged, so a project
+    that publishes no release assets is not asked to configure how it
+    would.
+    """
+    filepath = os.path.join(repo_path, '.github', 'workflows', 'release.yml')
+    if not os.path.exists(filepath):
+        return []
+    with open(filepath, 'r', errors='replace') as f:
+        content = f.read()
+
+    issues = []
+    for name, body in workflow_job_blocks(content):
+        steps = workflow_step_blocks(body)
+        attaching = [
+            step for step in steps
+            if step_action(step) == GH_RELEASE_ACTION
+            and step_with_inputs(step).get('files')
+        ]
+        if not attaching:
+            continue
+
+        for step in steps:
+            if step_action(step) != DOWNLOAD_ARTIFACT_ACTION:
+                continue
+            inputs = step_with_inputs(step)
+            if inputs.get('name') or inputs.get('merge-multiple') == 'true':
+                continue
+            issues.append(
+                f'the {name} job downloads artifacts without "name:" or '
+                '"merge-multiple: true", so the files do not land where '
+                'its "files:" glob looks and the release is published '
+                'empty; add "name: dist" and "path: dist/" as the '
+                'publish job does')
+
+        for step in attaching:
+            inputs = step_with_inputs(step)
+            if inputs.get('fail_on_unmatched_files') == 'true':
+                continue
+            issues.append(
+                f'the {name} job attaches release assets without '
+                '"fail_on_unmatched_files: true", so a glob which '
+                'matches nothing is a warning and an empty release '
+                'still reports success')
+
+    return issues
+
+
 class ReleaseProcess(Check):
     id = 'release-process'
     spec = 'docs/audits/release-process.md'
@@ -362,6 +446,7 @@ class ReleaseProcess(Check):
             issues.append('Missing .github/workflows/release.yml')
         if not repo.exists('RELEASE-SETUP.md'):
             issues.append('Missing RELEASE-SETUP.md')
+        issues.extend(release_asset_issues(repo.path))
 
         if issues:
             return self.fail('; '.join(issues))
