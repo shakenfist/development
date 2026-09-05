@@ -149,10 +149,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/mermaid-lint-ci.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/push-audit.md",
       "author": "mikal"
     },
@@ -162,10 +158,6 @@
     },
     {
       "path": "docs/release-automation.md",
-      "author": "mikal"
-    },
-    {
-      "path": "tools/mermaid-lint.sh",
       "author": "mikal"
     },
     {
@@ -214,14 +206,6 @@
     },
     {
       "path": "templates/issue-fix",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/mermaid-lint/mermaid-lint.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/mermaid-lint/README.md",
       "author": "mikal"
     },
     {
@@ -318,10 +302,6 @@
     },
     {
       "path": ".github/workflows/codeql-analysis.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/mermaid-lint.yml",
       "author": "mikal"
     },
     {
@@ -445,10 +425,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_docs_content.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_hooks.py",
       "author": "mikal"
     },
@@ -542,14 +518,6 @@
     },
     {
       "path": "templates/codeql",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/mermaid-lint/mermaid-lint.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/mermaid-lint",
       "author": "mikal"
     },
     {
@@ -649,10 +617,6 @@
       "author": "mikal"
     },
     {
-      "path": "tools",
-      "author": "mikal"
-    },
-    {
       "path": ".flake8",
       "author": "mikal"
     },
@@ -689,10 +653,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/undeclared-direct-dependency.md",
       "author": "mikal"
     },
@@ -714,14 +674,6 @@
     },
     {
       "path": ".github/workflows/consistency-audit.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
       "author": "mikal"
     },
     {
@@ -770,10 +722,6 @@
     },
     {
       "path": "AGENTS.md",
-      "author": "mikal"
-    },
-    {
-      "path": "ARCHITECTURE.md",
       "author": "mikal"
     },
     {

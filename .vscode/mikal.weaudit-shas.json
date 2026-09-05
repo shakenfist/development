@@ -49,10 +49,6 @@
       "sha": "53b5d8eb46e89e228dd88d42d7e1b0c3ea6694cd",
       "date": "2026-08-24"
     },
-    ".github/workflows/mermaid-lint.yml": {
-      "sha": "19219d41a6fb1296ab03873be316f5d18b2d93f4",
-      "date": "2026-09-06"
-    },
     ".github/workflows/pr-re-review.yml": {
       "sha": "890e9ed0fb8ebffc1976dc66f7ccb3e7a1f166e2",
       "date": "2026-09-01"
@@ -83,10 +79,6 @@
     },
     "AGENTS.md": {
       "sha": "8527c1d114aa36d9ab1159f6a96a5f0234caf6bb",
-      "date": "2026-09-06"
-    },
-    "ARCHITECTURE.md": {
-      "sha": "d1145fd4ddb52dd5003d48ee39e42e830e951611",
       "date": "2026-09-06"
     },
     "PLAN-TEMPLATE.md": {
@@ -168,10 +160,6 @@
     "docs/audits/merge-queue-config.md": {
       "sha": "30339aeda464965fe7fbcc8562edee9249043126",
       "date": "2026-08-29"
-    },
-    "docs/audits/mermaid-lint-ci.md": {
-      "sha": "c17f0a414acab572d11d02d32328a83c2bf64c5c",
-      "date": "2026-09-06"
     },
     "docs/audits/pin-indirect-dependencies.md": {
       "sha": "6141c51ac838a8550f1b301e26bfb4c6fb092978",
@@ -457,10 +445,6 @@
       "sha": "bc7508f0e23d5a5b86acfdbabc3f3a1dd8e0ae92",
       "date": "2026-09-04"
     },
-    "scripts/tests/test_docs_content.py": {
-      "sha": "bed6b40385400bdcff1ce3fe8382c725144a0ab8",
-      "date": "2026-09-06"
-    },
     "scripts/tests/test_github_config.py": {
       "sha": "8a2d78379aad211efc945c369b0a4b2f3b8e8810",
       "date": "2026-09-06"
@@ -552,18 +536,6 @@
     "templates/issue-fix/neutralise-pr-body.sh": {
       "sha": "4248bb512fa54f024a31cc9e838d0a11092f8da1",
       "date": "2026-08-30"
-    },
-    "templates/mermaid-lint/README.md": {
-      "sha": "847e738fd6f2b902508aa3b152883e267029f521",
-      "date": "2026-09-06"
-    },
-    "templates/mermaid-lint/mermaid-lint.sh": {
-      "sha": "9408bb06e921ed21719b350695e2152b9769365f",
-      "date": "2026-09-06"
-    },
-    "templates/mermaid-lint/mermaid-lint.yml": {
-      "sha": "19219d41a6fb1296ab03873be316f5d18b2d93f4",
-      "date": "2026-09-06"
     },
     "templates/pin-indirect-dependencies/README.md": {
       "sha": "c20c7590e1b3311e1696db887296410c95b7183b",
@@ -692,10 +664,6 @@
     "tools/ci-prune-reviews.sh": {
       "sha": "3e10680265c6b885619e8e08bea30a4fb05cb10b",
       "date": "2026-08-24"
-    },
-    "tools/mermaid-lint.sh": {
-      "sha": "9408bb06e921ed21719b350695e2152b9769365f",
-      "date": "2026-09-06"
     },
     "tools/review-tracking.sh": {
       "sha": "fabe2fc68a97b45b5f628f6380893bbfac9d764c",
