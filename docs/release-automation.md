@@ -37,13 +37,15 @@ rewriting a signed object someone may already have verified. Re-running
 a failed release still works, because "Re-run jobs" replays the original
 push event.
 
-The two publishing jobs do not check out, so they start in whatever the
-previous job on that runner left behind -- the static pool is
-persistent, and `download-artifact` adds to a directory rather than
-replacing it. They download into `${{ runner.temp }}`, which is per job,
-and everything reading the distribution is pointed at the same place.
-`pypa/gh-action-pypi-publish` needs `packages-dir` for this reason: its
-own default is `./dist` in the shared workspace.
+These runners are persistent and `download-artifact` extracts into its
+target rather than replacing it, so a publishing job must not read a
+directory an earlier job may have left files in. The two jobs solve
+that differently. `publish-pypi` checks out, which cleans the workspace
+with `git clean -ffdx`, and works in `dist/` -- it has to, because
+`pypa/gh-action-pypi-publish` delegates to a Docker container action
+which sees only the workspace, mounted at `/github/workspace`.
+`github-release` runs a JavaScript action on the host, so it skips the
+checkout and downloads into the per-job `${{ runner.temp }}` instead.
 
 ```mermaid
 flowchart TB

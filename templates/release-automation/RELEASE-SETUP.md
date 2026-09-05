@@ -121,6 +121,31 @@ Nothing is lost by requiring `push`. Re-running a failed release goes
 through GitHub's "Re-run jobs", which replays the original push event
 and so satisfies the guard.
 
+### Where the distribution lives
+
+The two publishing jobs read the built distribution from different
+places, which is deliberate.
+
+`publish-pypi` checks out and works in `dist/` inside the workspace.
+`pypa/gh-action-pypi-publish` is a composite action that delegates to a
+Docker container action, and a container is given the workspace at
+`/github/workspace` and nothing else of the runner's filesystem. So
+`packages-dir` has to be relative to the workspace; an absolute path
+fails inside the container however it is written, including one under
+`RUNNER_TEMP`, which is not mounted at all. The action also writes its
+container trampoline into `.github/.tmp/` in the workspace, so it needs
+a real checkout regardless.
+
+`github-release` does not check out and downloads into
+`${{ runner.temp }}`. `softprops/action-gh-release` is a JavaScript
+action running on the host, so an absolute path is fine there.
+
+Either way the point is the same: these runners are persistent, and
+`download-artifact` extracts *into* its target rather than replacing
+it, so a job must not read a directory some earlier job may have left
+files in. Checkout gives that guarantee by cleaning
+(`git clean -ffdx`); `runner.temp` gives it by being per job.
+
 ## Verifying Releases
 
 ### Verify Git Tag Signature
