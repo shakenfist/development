@@ -1358,6 +1358,89 @@ class MermaidLintScriptTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('Linting 1 file(s)', result.stdout)
 
+    def test_a_four_backtick_fence_is_refused(self):
+        """CommonMark opens on three backticks or more; mmdc reads three.
+
+        GitHub renders a ````mermaid block as a diagram and mmdc finds
+        no chart in it, so the file used to be selected, sent to the
+        renderer, and reported ok inside the "Linting N file(s)"
+        count -- a diagram nobody rendered, wearing the shape of one
+        that rendered cleanly. Worse than a skip, and measured
+        against the pinned image rather than assumed.
+        """
+        result = self._run({'docs/x.md': self.BACKTICK.replace(
+            '```', '````')})
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('docs/x.md:3:', result.stderr)
+        self.assertIn('use exactly three', result.stderr)
+        self.assertEqual(result.rendered, [])
+        self.assertFalse(result.docker_ran)
+
+    def test_a_trailing_info_word_is_refused(self):
+        """GitHub takes the first info word; mmdc matches the whole one.
+
+        So ```mermaid title=x renders on GitHub and reads as nothing
+        in mmdc -- the same silent pass as the four-backtick case,
+        and the same fix.
+        """
+        result = self._run({'docs/x.md': self.BACKTICK.replace(
+            '```mermaid', '```mermaid title=x')})
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('make it exactly mermaid', result.stderr)
+        self.assertEqual(result.rendered, [])
+
+    def test_trailing_whitespace_alone_is_not_an_extra_word(self):
+        """The info string is trimmed at both ends before comparison.
+
+        mmdc reads ```mermaid followed by spaces perfectly well, so
+        refusing one would be a false red on a file a stray editor
+        setting touched.
+        """
+        result = self._run({'docs/x.md': self.BACKTICK.replace(
+            '```mermaid', '```mermaid   ')})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.rendered, ['docs/x.md'])
+
+    def test_two_faults_in_one_fence_get_the_target_form(self):
+        """One remedy that reaches the linted form, not the first of two.
+
+        Told only "use exactly three backticks", the author of a
+        ```` mermaid extra fence re-runs into the next fault in the
+        same fence. The combined case states the target instead.
+        """
+        result = self._run({'docs/x.md': (
+            '# P\n\n```` mermaid extra\nflowchart TB\n  a --> b\n````\n'
+        )})
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('exactly three backticks followed by mermaid',
+                      result.stderr)
+        self.assertNotIn('use exactly three\n', result.stderr)
+        self.assertEqual(result.rendered, [])
+
+    def test_a_long_tilde_fence_gets_the_target_form_too(self):
+        """"Use a backtick fence" alone would yield ````mermaid."""
+        result = self._run({'docs/x.md': (
+            '# P\n\n~~~~mermaid\nflowchart TB\n~~~~\n'
+        )})
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('exactly three backticks followed by mermaid',
+                      result.stderr)
+
+    def test_a_long_outer_fence_still_quotes_an_example(self):
+        """The nesting convention must survive the length rule.
+
+        An outer ````markdown fence carries a non-mermaid info string,
+        so it is never classified and the length rule never sees it.
+        Were it otherwise, every page documenting these rules would
+        refuse itself.
+        """
+        result = self._run({'docs/x.md': (
+            '# P\n\n`````markdown\n````mermaid\nflowchart TB\n````\n'
+            '`````\n\n' + self.BACKTICK
+        )})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.rendered, ['docs/x.md'])
+
     def test_reviews_md_is_skipped_by_the_tree_walk(self):
         """The script's exclusion must match the workflow's.
 

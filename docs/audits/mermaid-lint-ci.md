@@ -26,16 +26,36 @@ would mark a repository covered for a diagram its linter never sees.
 
 The script draws the same line, and then goes further than the audit
 can: where the audit merely declines to count a fence `mmdc` cannot
-read, `tools/mermaid-lint.sh` refuses it. There are two such fences --
-a tilde-fenced block, and one written as ```` ``` mermaid ```` with a
-space before the language. GitHub renders both as diagrams even though
-`mmdc` reads nothing in either, so failing open would ship an unlinted
-diagram through the exact gap the linter exists to close, with the run
-printing "nothing to lint" and exiting zero -- a failure wearing the
-shape of a success. Instead the script names the file, the line and
-what to change and exits 1, alongside any parse errors from the same
-run; a refusal outranks the renderer's status, so a broken diagram is
-never reported under a failed image pull's 125.
+read, `tools/mermaid-lint.sh` refuses it. There are four such fences
+-- a tilde-fenced block, one written as ```` ``` mermaid ```` with a
+space before the language, one opened with four or more backticks, and
+one carrying anything after the language, as in
+```` ```mermaid title=x ````. GitHub renders all four as diagrams even
+though `mmdc` reads nothing in any of them, so failing open would ship
+an unlinted diagram through the exact gap the linter exists to close.
+
+The first two failed open as a skip: the run printed "nothing to
+lint" and exited zero. The last two were worse and were found by the
+automated reviewer on instar#545 rather than by design -- the file was
+*selected*, sent to the renderer, found to contain no chart, and
+reported `ok` inside the "Linting N file(s)" count. A diagram nobody
+rendered, wearing the shape of one that rendered cleanly.
+
+Instead the script names the file, the line and what to change and
+exits 1, alongside any parse errors from the same run; a refusal
+outranks the renderer's status, so a broken diagram is never reported
+under a failed image pull's 125. A fence with more than one fault is
+told the target form outright, since naming the first correction only
+sends the author round again.
+
+The audit's regex and the script disagree about two of the four, and
+in the safe direction both times. `````mermaid` does not match
+`MERMAID_FENCE_RE`, so a repository whose only diagram is written that
+way is N/A here and red in the lane -- the tilde direction again.
+```` ```mermaid title=x ```` does match, so such a repository is
+counted as having diagrams, told it needs the lane, and then told by
+the lane to fix the fence. Neither outcome calls a repository covered
+for a diagram nothing renders, which is the property that matters.
 `MermaidLintScriptTest` in `scripts/tests/` pins that behaviour, and
 pins the audit's narrower answer next to it.
 

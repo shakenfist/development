@@ -127,18 +127,37 @@ into `tail` or `grep` reports the filter's status, not the script's,
 and turns every failure green -- a mistake worth naming because it is
 exactly how this was first mis-measured.
 
-Two fences GitHub renders and `mmdc` does not are refused rather than
-skipped: a tilde-fenced diagram, and one whose language is separated
-from the backticks by a space. `mmdc` reads only ```` ```mermaid ````
-hard against the backticks, so a broken diagram in either form would
-otherwise ship through the exact gap this closes, with the run
-reporting "nothing to lint" and exiting zero. The script names the
-file, the line and what to change, and exits 1. A fence that is both
--- `~~~ mermaid` -- gets one remedy naming both faults, because being
-told only to remove the space leaves a tilde fence the next run
-refuses.
+`mmdc` reads exactly one form: three backticks, then `mermaid`, then
+nothing. GitHub renders a wider family, and every fence in the gap
+between the two is refused rather than skipped. There are four ways
+to land there:
 
-A third refusal is about the name rather than the content: a tracked
+| Fence | Fault |
+|-------|-------|
+| `~~~mermaid` | a tilde fence |
+| ```` ``` mermaid ```` | a space before the language |
+| ```` ````mermaid ```` | more than three backticks |
+| ```` ```mermaid title=x ```` | anything after the language |
+
+A broken diagram in any of them would otherwise ship through the exact
+gap this closes. The first two used to report "nothing to lint" and
+exit zero; the last two were worse, because the file *was* selected,
+sent to the renderer, found to contain no chart, and reported `ok`
+inside the "Linting N file(s)" count -- a diagram nobody rendered,
+wearing the shape of one that rendered cleanly. The script now names
+the file, the line and what to change, and exits 1.
+
+Trailing whitespace after the language is not a fault: `mmdc` reads
+```` ```mermaid ```` followed by spaces perfectly well, so the info
+string is trimmed at both ends before it is compared.
+
+A fence with more than one fault is told the target form outright
+rather than the first of several corrections. Being told only to
+remove the space leaves the author of a `~~~ mermaid` fence with a
+tilde fence, and the next run refuses that -- the round trip every
+remedy here is shaped to avoid.
+
+One more refusal is about the name rather than the content: a tracked
 path containing a newline. Everything past the scan is line oriented,
 including the loop inside the container, which is POSIX `sh` and has
 no `read -d` to switch. Such a path was silently truncated into a name
