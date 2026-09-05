@@ -485,10 +485,14 @@ def release_dispatch_guard_issues(repo_path):
     if not unguarded:
         return []
 
+    # One unguarded job is the common case once a repository has been
+    # partially fixed, so agree the verb with the list rather than
+    # emitting "publish-pypi lack".
+    lacks = 'lacks' if len(unguarded) == 1 else 'lack'
     return [
         'release.yml can be started by hand but its publishing jobs are '
-        f'not confined to tags: {", ".join(unguarded)} '
-        'lack "if: startsWith(github.ref, \'refs/tags/v\')", so a manual '
+        f'not confined to tags: {", ".join(unguarded)} {lacks} '
+        '"if: startsWith(github.ref, \'refs/tags/v\')", so a manual '
         'run on a branch force-pushes a "refs/tags/refs/heads/<branch>" '
         'tag and proceeds to publish'
     ]
