@@ -190,6 +190,7 @@ def canonical_dependency_name(name):
 IMPORT_NAME_ALIASES = {
     'attrs': {'attr'},
     'beautifulsoup4': {'bs4'},
+    'flask-request-id-middleware': {'flask_request_id'},
     'googleapis-common-protos': {'google'},
     'grpcio': {'grpc'},
     'grpcio-health-checking': {'grpc_health'},
