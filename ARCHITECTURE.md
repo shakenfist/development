@@ -27,9 +27,9 @@ projects consistent. It contains no application code.
   checks: the pre-commit gate, a smoke run of the audit, and the
   automated reviewer gated on both.
 - `.github/workflows/mermaid-lint.yml` -- renders every mermaid
-  diagram on pull requests that touch markdown. It runs on a
-  docker-capable runner rather than `static`, which is why it is a
-  workflow of its own rather than a step in `ci.yml`.
+  diagram on pull requests and pushes to main that touch markdown. It
+  runs on a docker-capable runner rather than `static`, which is why it
+  is a workflow of its own rather than a step in `ci.yml`.
 - `.github/workflows/` also carries the fleet-standard supporting
   workflows: the `pr-re-review.yml` and `pr-retest.yml` bot triggers,
   `secret-scan.yml`, `codeql-analysis.yml`, `renovate.yml` and

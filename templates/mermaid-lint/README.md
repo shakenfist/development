@@ -42,6 +42,18 @@ seconds; ryll and kerbside together, sixteen files, in twenty-two.
 Nearly all of the real cost is the virtual machine, which is why the
 workflow carries a path filter.
 
+The container runs with `--network none`. Rendering a diagram is a
+local operation, and this is third-party code driving a browser over
+repository content on a runner with a docker daemon, so the egress it
+does not need is egress it does not get. Chromium and `mmdc` speak
+over loopback, which a `none` network still provides. What the flag
+costs is a diagram that reaches out for a remote font or icon pack:
+that now fails loudly rather than rendering one way here and another
+way on a runner with a different egress path, which is the trade this
+fleet prefers. The image is still pulled normally -- the daemon
+fetches it before the container starts -- so the digest pin is
+unaffected.
+
 ## The runner label
 
 `[self-hosted, vm, debian-12-docker, s]`, not `static`. Static runners
@@ -67,6 +79,15 @@ them forever. Two ways out, both fine:
 Do not simply add `merge_group:` to the trigger list: `paths` is not
 supported on that event, so every merge would spin a virtual machine
 to lint diagrams that the pull request already linted.
+
+`push` *is* on the trigger list, filtered to `main` and `develop`.
+Left advisory the lane blocks nothing, so a commit that reaches the
+default branch without a pull request -- an admin push, a bot commit
+-- would otherwise never be linted, and would surface later as a
+failure on somebody else's markdown change. Both branch names ship
+because the fleet's default branch is `develop` in some repositories
+and `main` in others; whichever a repository does not have simply
+never matches, so the file stays byte-identical either way.
 
 Left advisory, the job can still fail a pull request while sitting in
 its own workflow file, where another workflow's `needs:` list cannot
@@ -106,18 +127,37 @@ into `tail` or `grep` reports the filter's status, not the script's,
 and turns every failure green -- a mistake worth naming because it is
 exactly how this was first mis-measured.
 
-Two fences GitHub renders and `mmdc` does not are refused rather than
-skipped: a tilde-fenced diagram, and one whose language is separated
-from the backticks by a space. `mmdc` reads only ```` ```mermaid ````
-hard against the backticks, so a broken diagram in either form would
-otherwise ship through the exact gap this closes, with the run
-reporting "nothing to lint" and exiting zero. The script names the
-file, the line and what to change, and exits 1. A fence that is both
--- `~~~ mermaid` -- gets one remedy naming both faults, because being
-told only to remove the space leaves a tilde fence the next run
-refuses.
+`mmdc` reads exactly one form: three backticks, then `mermaid`, then
+nothing. GitHub renders a wider family, and every fence in the gap
+between the two is refused rather than skipped. There are four ways
+to land there:
 
-A third refusal is about the name rather than the content: a tracked
+| Fence | Fault |
+|-------|-------|
+| `~~~mermaid` | a tilde fence |
+| ```` ``` mermaid ```` | a space before the language |
+| ```` ````mermaid ```` | more than three backticks |
+| ```` ```mermaid title=x ```` | anything after the language |
+
+A broken diagram in any of them would otherwise ship through the exact
+gap this closes. The first two used to report "nothing to lint" and
+exit zero; the last two were worse, because the file *was* selected,
+sent to the renderer, found to contain no chart, and reported `ok`
+inside the "Linting N file(s)" count -- a diagram nobody rendered,
+wearing the shape of one that rendered cleanly. The script now names
+the file, the line and what to change, and exits 1.
+
+Trailing whitespace after the language is not a fault: `mmdc` reads
+```` ```mermaid ```` followed by spaces perfectly well, so the info
+string is trimmed at both ends before it is compared.
+
+A fence with more than one fault is told the target form outright
+rather than the first of several corrections. Being told only to
+remove the space leaves the author of a `~~~ mermaid` fence with a
+tilde fence, and the next run refuses that -- the round trip every
+remedy here is shaped to avoid.
+
+One more refusal is about the name rather than the content: a tracked
 path containing a newline. Everything past the scan is line oriented,
 including the loop inside the container, which is POSIX `sh` and has
 no `read -d` to switch. Such a path was silently truncated into a name
@@ -131,6 +171,16 @@ diagram that does not parse, both are reported together, because the
 expensive part of this lane is the virtual machine and a second round
 trip to deliver the second half of the same answer is the cost worth
 avoiding.
+
+Three places where a status could be dropped are handled the same
+way, because this lane's characteristic failure is exiting zero
+having looked at nothing. `git ls-files` writes to a file with its
+status checked rather than into a process substitution, which does
+not trip `set -e`; the `awk` scan does the same; and `mmdc` is run
+with stdin closed, because the loop feeding it is reading the file
+list and a renderer that read stdin would swallow the rest of it and
+report success having rendered one file. The pinned image does not
+read stdin -- measured -- but the next one is not ours to choose.
 
 Writing about that rule is safe. The scan tracks fence state rather
 than matching bare lines, so a fence shown *inside* a longer fence is
@@ -192,6 +242,19 @@ alongside `**.md`, so a pull request that edits the checker and no
 markdown still runs it. `!REVIEWS.md` is last, because a later pattern
 wins; a repository with no `REVIEWS.md` keeps the line so the
 exclusion is in force from the first commit of one.
+
+`mermaid-lint.sh` drops `REVIEWS.md` from its own candidate set for
+the same reason, and the two exclusions have to move together. The
+script lints the whole tree on every run, not the changed files, so a
+file the workflow never triggers on but the script still reads is the
+worst of both: a broken diagram merges green on the pull request that
+introduced it, and then fails whichever unrelated markdown pull
+request comes next, plus every developer's pre-push audit, naming a
+file that author never touched. It is excluded rather than
+un-excluded because a diagram inside generated review tracking is not
+what this lane is for; name the file as an argument to lint it
+anyway. The pathspec is a literal, so like the workflow's pattern it
+means the file at the repository root and not a `docs/REVIEWS.md`.
 
 Those two paths are literals, so a repository that renames the
 workflow, or installs the script somewhere other than `tools/`, must

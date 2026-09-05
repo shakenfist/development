@@ -38,6 +38,12 @@ IMAGE="${IMAGE_TAG}@sha256:99c983b3ab4e14033f2880bc1b9de17e5090b4515dabd63fe9cf8
 
 repo_root=$(git rev-parse --show-toplevel)
 
+# The workdir is made up here rather than at the render step, because
+# both the candidate listing and the scan write into it, and both do
+# so because a bash variable cannot hold a NUL byte.
+workdir=$(mktemp -d)
+trap 'rm -rf "${workdir}"' EXIT
+
 # Named files are resolved against the caller's directory and turned
 # into repository-relative paths, because everything below -- the cd,
 # the /src mount, the paths printed in the output -- is relative to
@@ -73,21 +79,57 @@ else
     # dropped by the -f test below -- another diagram unlinted behind
     # a green run. -z quotes nothing at all, so it subsumes the
     # setting rather than covering one more case than it did.
-    mapfile -d '' -t candidates < <(git ls-files -z '*.md')
+    #
+    # REVIEWS.md is excluded to match the workflow's path filter, which
+    # excludes it so that a review session or a bot prune does not cost
+    # a virtual machine. The two have to agree: a lane that never runs
+    # on the file that changed, but lints it on every other pull
+    # request, reports a broken diagram to whoever next touched an
+    # unrelated markdown file, and to every developer running the
+    # pre-push audit. Excluded here rather than un-excluded there
+    # because a diagram in generated review tracking is not what this
+    # lane is for; name the file on the command line to lint it anyway.
+    #
+    # The pathspec is a literal, so it matches the file at the
+    # repository root and not a docs/REVIEWS.md -- the same scope the
+    # workflow's '!REVIEWS.md' has.
+    #
+    # Into a file with the status checked, rather than through a
+    # process substitution. A process substitution does not trip
+    # set -e, so an ls-files that failed after rev-parse had
+    # succeeded -- a corrupt index, or a pathspec a future git
+    # rejects -- would leave the list empty, print "nothing to lint"
+    # and exit 0. That is the fail-open this script exists to
+    # prevent, and the awk scan below is already handled this way for
+    # the same reason. A file rather than a variable because the
+    # listing is NUL delimited and a bash variable cannot hold a NUL.
+    if ! git ls-files -z '*.md' ':(exclude)REVIEWS.md' \
+            > "${workdir}/candidates"; then
+        echo "mermaid-lint: could not list tracked markdown files" >&2
+        exit 1
+    fi
+    mapfile -d '' -t candidates < "${workdir}/candidates"
 fi
 
-# Backticks only, and no space before the language: that is what mmdc
-# recognises. Anything else renders nothing and exits zero, which is
-# why check_mermaid_lint_ci in the development repository matches the
-# same narrow form -- the audit must not call a repository covered for
-# a diagram this script cannot see.
+# Exactly three backticks, then "mermaid", then nothing: that is what
+# mmdc recognises. Anything else renders nothing and exits zero, which
+# is why check_mermaid_lint_ci in the development repository matches
+# the same narrow form -- the audit must not call a repository covered
+# for a diagram this script cannot see.
 #
-# GitHub renders both a tilde fence and a spaced info string as
-# diagrams all the same, so either would otherwise ship unlinted
-# through the exact gap this script exists to close. Rather than fail
-# open, refuse the file and say what to change: the narrow
-# mmdc-compatible form stays the only one that can be committed
-# unnoticed.
+# There are four ways to miss it, and GitHub renders all four as
+# diagrams: a tilde fence, a space between the fence and the language,
+# four or more backticks, and anything after the language in the info
+# string. Any of them would otherwise ship unlinted through the exact
+# gap this script exists to close. Rather than fail open, refuse the
+# file and say what to change: the narrow mmdc-compatible form stays
+# the only one that can be committed unnoticed.
+#
+# Selecting such a fence rather than refusing it is worse than
+# skipping it, which is what the two length and info-string cases used
+# to do. The file reaches the renderer, mmdc finds no chart in it,
+# the run prints "ok" and counts the file in "Linting N file(s)" --
+# a diagram nobody rendered, reported as one that rendered cleanly.
 #
 # Which means the scan has to track fence state rather than match bare
 # lines. A fence shown inside a longer fence is an example being
@@ -144,11 +186,6 @@ for candidate in "${candidates[@]}"; do
     fi
 done
 
-# The workdir is made here rather than at the render step, because the
-# scan writes into it too.
-workdir=$(mktemp -d)
-trap 'rm -rf "${workdir}"' EXIT
-
 # Into a file rather than through a process substitution, so that an
 # awk that dies takes the script with it under set -e. A scan that
 # failed silently would report no diagrams and exit zero, which is the
@@ -199,20 +236,32 @@ if [ "${#existing[@]}" -ne 0 ]; then
             if (ch == "`" && index(substr(line, run + 1), "`"))
                 next
 
-            # Two readings of the info string. CommonMark allows
-            # whitespace before it, and a closing fence is one that
-            # carries nothing else, so the closing test uses the
-            # stripped form. mmdc wants the language hard against the
-            # backticks, so the opening test uses the raw form: `` `
-            # mermaid `` is a fence GitHub renders and mmdc reads
-            # nothing in, which is the same failure as a tilde fence
-            # and is refused the same way.
+            # Three readings of the info string, because mmdc reads
+            # one exact form and GitHub renders a family.
+            #
+            # info is the first word with surrounding whitespace
+            # stripped. It answers "is this fence about mermaid at
+            # all", and it is also the closing test, since a closing
+            # fence is one that carries nothing else.
+            #
+            # raw keeps the leading whitespace, because mmdc wants the
+            # language hard against the backticks: `` ` mermaid `` is
+            # a fence GitHub renders and mmdc reads nothing in.
+            #
+            # full is the whole info string, trimmed at both ends but
+            # not cut at the first word, because mmdc also wants the
+            # language to be all there is: ```` ```mermaid title=x ````
+            # is likewise rendered by GitHub and ignored by mmdc.
             info = substr(line, run + 1)
             sub(/^[ \t]+/, "", info)
             sub(/[ \t].*$/, "", info)
 
             raw = substr(line, run + 1)
             sub(/[ \t].*$/, "", raw)
+
+            full = substr(line, run + 1)
+            sub(/^[ \t]+/, "", full)
+            sub(/[ \t]+$/, "", full)
 
             if (fence != "") {
                 if (ch == fence && run >= flen && info == "")
@@ -244,20 +293,51 @@ if [ "${#existing[@]}" -ne 0 ]; then
             # digits, so the reader can split the two off the front
             # and keep everything after as the name.
             #
-            # The fence character is tested before the info string,
-            # so that a tilde fence with a space gets a remedy that
-            # fixes it. Classified the other way it is told to remove
-            # the space, which yields a tilde fence, which the next
-            # run refuses -- the round trip again.
+            # Exactly one linted form: three backticks, then
+            # "mermaid", then nothing. Each of the three ways to
+            # depart from it is rendered by GitHub and ignored by
+            # mmdc, so each is refused rather than selected -- a
+            # selected fence mmdc cannot read is worse than a skipped
+            # one, because the file is then counted in the "Linting N
+            # file(s)" line and reported ok.
+            spaced_fault = (raw != "mermaid")
+            long_fault = (run > 3)
+            extra_fault = (full != "mermaid")
+
+            # Every remedy has to reach the linted form in one step,
+            # or the author fixes a fence, re-runs, and is told about
+            # the next fault in the same fence -- the round trip the
+            # refusals fall through to the render step to avoid. So a
+            # fence with one fault gets the message for that fault,
+            # and a fence with more than one is told the target form
+            # outright rather than the first of several corrections.
+            #
+            # The fence character is tested first for the same
+            # reason: told only to remove the space, the author of a
+            # spaced tilde fence is left with a tilde fence.
             if (ch == "~") {
-                if (raw != "mermaid")
+                if (long_fault || extra_fault)
+                    printf "%s:%d:%s%c", "noncanonical", FNR, name, 0
+                else if (spaced_fault)
                     printf "%s:%d:%s%c", "tilde_spaced", FNR, name, 0
                 else
                     printf "%s:%d:%s%c", "tilde", FNR, name, 0
                 next
             }
-            if (raw != "mermaid") {
+            if (spaced_fault + long_fault + extra_fault > 1) {
+                printf "%s:%d:%s%c", "noncanonical", FNR, name, 0
+                next
+            }
+            if (spaced_fault) {
                 printf "%s:%d:%s%c", "spaced", FNR, name, 0
+                next
+            }
+            if (long_fault) {
+                printf "%s:%d:%s%c", "long", FNR, name, 0
+                next
+            }
+            if (extra_fault) {
+                printf "%s:%d:%s%c", "extra", FNR, name, 0
                 next
             }
             if (!backtick) {
@@ -272,6 +352,9 @@ files=()
 tilde_fenced=()
 spaced_info=()
 tilde_spaced=()
+long_fenced=()
+extra_info=()
+noncanonical=()
 # IFS emptied and -d '' set, so a name keeping a leading or trailing
 # space arrives intact. The default read would strip both.
 while IFS= read -r -d '' record; do
@@ -284,6 +367,9 @@ while IFS= read -r -d '' record; do
         tilde) tilde_fenced+=("${scanned_file}:${lineno}") ;;
         spaced) spaced_info+=("${scanned_file}:${lineno}") ;;
         tilde_spaced) tilde_spaced+=("${scanned_file}:${lineno}") ;;
+        long) long_fenced+=("${scanned_file}:${lineno}") ;;
+        extra) extra_info+=("${scanned_file}:${lineno}") ;;
+        noncanonical) noncanonical+=("${scanned_file}:${lineno}") ;;
     esac
 done < "${workdir}/scan"
 
@@ -320,6 +406,38 @@ if [ "${#tilde_spaced[@]}" -ne 0 ]; then
     both="mermaid in a spaced tilde fence is not linted;"
     refuse "${both} use a backtick fence with no space" \
         "${tilde_spaced[@]}"
+    rc=1
+fi
+
+# CommonMark opens a fence on three backticks *or more*, and GitHub
+# renders a four-backtick mermaid block as a diagram. mmdc reads only
+# the three-backtick form, so this was the worst shape of all: the
+# file was selected, sent to the renderer, found to contain no chart,
+# and reported ok inside the "Linting N file(s)" count.
+if [ "${#long_fenced[@]}" -ne 0 ]; then
+    long_msg="mermaid in a fence of more than three backticks is not"
+    refuse "${long_msg} linted; use exactly three" \
+        "${long_fenced[@]}"
+    rc=1
+fi
+
+# GitHub takes the first word of the info string as the language, so
+# it renders ```mermaid title=x. mmdc matches the info string whole
+# and reads nothing in it -- the same silent pass as above.
+if [ "${#extra_info[@]}" -ne 0 ]; then
+    extra_msg="mermaid followed by anything else in the info string is"
+    refuse "${extra_msg} not linted; make it exactly mermaid" \
+        "${extra_info[@]}"
+    rc=1
+fi
+
+# More than one fault in the same fence. Naming the first correction
+# would leave the author to discover the rest one run at a time, so
+# this states the target form instead.
+if [ "${#noncanonical[@]}" -ne 0 ]; then
+    nc_msg="this mermaid fence is not the form mmdc reads; write it as"
+    refuse "${nc_msg} exactly three backticks followed by mermaid" \
+        "${noncanonical[@]}"
     rc=1
 fi
 
@@ -360,16 +478,31 @@ echo "Linting ${#files[@]} file(s) containing mermaid diagrams."
 # would abort here and lose the refusals already counted; taking $?
 # rather than a flat 1 keeps a 125 from a failed image pull
 # distinguishable from a diagram that does not parse.
-docker run --rm -u "$(id -u):$(id -g)" \
+#
+# --network none because rendering a diagram is a local operation and
+# this is a third-party container driving a browser over repository
+# content. Chromium and mmdc talk over loopback, which a none network
+# still provides, so the sandbox is unaffected; what goes away is the
+# ability to fetch a remote font or icon pack, and a diagram that
+# needs one should fail loudly here rather than render differently on
+# a runner with a different egress path. The daemon pulls a missing
+# image before the container starts, so the pin still works.
+docker run --rm --network none -u "$(id -u):$(id -g)" \
     -v "${repo_root}":/src:ro \
     -v "${workdir}":/work \
     --entrypoint /bin/sh "${IMAGE}" -c '
         mmdc=/home/mermaidcli/node_modules/.bin/mmdc
         rc=0
         while IFS= read -r f; do
+            # stdin closed, for the reason the awk scan has it
+            # closed: this loop is reading files.txt, so a renderer
+            # that read stdin would swallow the rest of the list and
+            # the run would report success having rendered only the
+            # first file. The pinned image does not, measured rather
+            # than assumed; a future node or puppeteer might.
             if "${mmdc}" -p /puppeteer-config.json \
                     -i "/src/${f}" -o /work/rendered.md \
-                    >/work/log 2>&1; then
+                    </dev/null >/work/log 2>&1; then
                 echo "ok    ${f}"
             else
                 rc=1

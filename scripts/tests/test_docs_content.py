@@ -719,6 +719,45 @@ class MermaidLintDeploymentTest(unittest.TestCase):
         self.assertEqual(len(skill_refs), 1, skill_refs)
         self.assertEqual([(script_tags[0], script_digests[0])], skill_refs)
 
+    def _path_filters(self):
+        """Every `paths:` list in the workflow, in order."""
+        workflow = self._repo('templates', 'mermaid-lint',
+                              'mermaid-lint.yml').decode('utf-8')
+        return [
+            re.findall(r"^\s*-\s*'([^']+)'", block, re.MULTILINE)
+            for block in re.split(r'^\s*paths:\s*$', workflow,
+                                  flags=re.MULTILINE)[1:]
+        ]
+
+    def test_the_triggers_filter_on_the_same_paths(self):
+        """push and pull_request must not drift apart.
+
+        Two hand-maintained copies of the same list is exactly how a
+        lane ends up running on a change under one event and not the
+        other, which is invisible until somebody notices a diagram
+        nothing ever rendered.
+        """
+        filters = self._path_filters()
+        self.assertEqual(len(filters), 2, filters)
+        self.assertTrue(filters[0], filters)
+        self.assertEqual(filters[0], filters[1])
+
+    def test_the_script_excludes_what_the_workflow_excludes(self):
+        """The two halves of the REVIEWS.md exclusion travel together.
+
+        The workflow decides when the lane runs; the script decides
+        what it reads, and it reads the whole tree. A file excluded
+        from one and not the other is a diagram that merges green on
+        its own pull request and then fails somebody else's.
+        """
+        script = self._repo('templates', 'mermaid-lint',
+                            'mermaid-lint.sh').decode('utf-8')
+        negated = [p[1:] for p in self._path_filters()[0]
+                   if p.startswith('!')]
+        self.assertEqual(negated, ['REVIEWS.md'], negated)
+        for name in negated:
+            self.assertIn(':(exclude)%s' % name, script)
+
 
 class MermaidLintScriptTest(unittest.TestCase):
     """The script's own behaviour, run rather than read.
@@ -1158,7 +1197,7 @@ class MermaidLintScriptTest(unittest.TestCase):
         # two would compare the script against nonsense rather than
         # against the audit.
         tracked = [n for n in subprocess.run(
-            ['git', 'ls-files', '-z', '*.md'],
+            ['git', 'ls-files', '-z', '*.md', ':(exclude)REVIEWS.md'],
             cwd=root, check=True, stdout=subprocess.PIPE,
             universal_newlines=True).stdout.split('\0') if n]
 
@@ -1318,6 +1357,184 @@ class MermaidLintScriptTest(unittest.TestCase):
         )})
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('Linting 1 file(s)', result.stdout)
+
+    def test_a_failed_listing_is_not_an_empty_run(self):
+        """A process substitution loses git's status; a file keeps it.
+
+        Before the listing was written to a file with the status
+        checked, an ls-files that failed after rev-parse had
+        succeeded left the candidate list empty, printed "nothing to
+        lint" and exited 0 -- measured, by giving git a pathspec it
+        rejects. That is the fail-open shape this whole lane exists
+        to prevent, and the awk scan was already guarded this way.
+
+        A truncated index is the break that isolates the two: it does
+        not stop `git rev-parse --show-toplevel`, which reads no
+        index, and it does stop `git ls-files`. Breaking git some
+        other way tends to fail both, which makes the case pass on
+        the earlier exit and assert nothing about this one.
+        """
+        env = dict(os.environ)
+        env['GIT_CONFIG_GLOBAL'] = os.devnull
+        env['GIT_CONFIG_SYSTEM'] = os.devnull
+
+        with tempfile.TemporaryDirectory() as repo:
+            subprocess.run(['git', 'init', '-q', repo],
+                           check=True, env=env)
+            with open(os.path.join(repo, 'x.md'), 'w') as f:
+                f.write(self.BACKTICK)
+            subprocess.run(['git', 'add', '-A'], cwd=repo,
+                           check=True, env=env)
+
+            # Confirm the premise rather than assuming it, so this
+            # cannot quietly become a test of the rev-parse path.
+            with open(os.path.join(repo, '.git', 'index'), 'wb') as f:
+                f.write(b'GARBAGE')
+            self.assertEqual(subprocess.run(
+                ['git', 'rev-parse', '--show-toplevel'], cwd=repo,
+                env=env, stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL).returncode, 0)
+            self.assertNotEqual(subprocess.run(
+                ['git', 'ls-files', '-z', '*.md'], cwd=repo, env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL).returncode, 0)
+
+            result = self._invoke(repo, (), 0, env)
+
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn('could not list', result.stderr)
+        self.assertNotIn('nothing to lint', result.stdout)
+        self.assertFalse(result.docker_ran)
+
+    def test_a_four_backtick_fence_is_refused(self):
+        """CommonMark opens on three backticks or more; mmdc reads three.
+
+        GitHub renders a ````mermaid block as a diagram and mmdc finds
+        no chart in it, so the file used to be selected, sent to the
+        renderer, and reported ok inside the "Linting N file(s)"
+        count -- a diagram nobody rendered, wearing the shape of one
+        that rendered cleanly. Worse than a skip, and measured
+        against the pinned image rather than assumed.
+        """
+        result = self._run({'docs/x.md': self.BACKTICK.replace(
+            '```', '````')})
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('docs/x.md:3:', result.stderr)
+        self.assertIn('use exactly three', result.stderr)
+        self.assertEqual(result.rendered, [])
+        self.assertFalse(result.docker_ran)
+
+    def test_a_trailing_info_word_is_refused(self):
+        """GitHub takes the first info word; mmdc matches the whole one.
+
+        So ```mermaid title=x renders on GitHub and reads as nothing
+        in mmdc -- the same silent pass as the four-backtick case,
+        and the same fix.
+        """
+        result = self._run({'docs/x.md': self.BACKTICK.replace(
+            '```mermaid', '```mermaid title=x')})
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('make it exactly mermaid', result.stderr)
+        self.assertEqual(result.rendered, [])
+
+    def test_trailing_whitespace_alone_is_not_an_extra_word(self):
+        """The info string is trimmed at both ends before comparison.
+
+        mmdc reads ```mermaid followed by spaces perfectly well, so
+        refusing one would be a false red on a file a stray editor
+        setting touched.
+        """
+        result = self._run({'docs/x.md': self.BACKTICK.replace(
+            '```mermaid', '```mermaid   ')})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.rendered, ['docs/x.md'])
+
+    def test_two_faults_in_one_fence_get_the_target_form(self):
+        """One remedy that reaches the linted form, not the first of two.
+
+        Told only "use exactly three backticks", the author of a
+        ```` mermaid extra fence re-runs into the next fault in the
+        same fence. The combined case states the target instead.
+        """
+        result = self._run({'docs/x.md': (
+            '# P\n\n```` mermaid extra\nflowchart TB\n  a --> b\n````\n'
+        )})
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('exactly three backticks followed by mermaid',
+                      result.stderr)
+        self.assertNotIn('use exactly three\n', result.stderr)
+        self.assertEqual(result.rendered, [])
+
+    def test_a_long_tilde_fence_gets_the_target_form_too(self):
+        """"Use a backtick fence" alone would yield ````mermaid."""
+        result = self._run({'docs/x.md': (
+            '# P\n\n~~~~mermaid\nflowchart TB\n~~~~\n'
+        )})
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('exactly three backticks followed by mermaid',
+                      result.stderr)
+
+    def test_a_long_outer_fence_still_quotes_an_example(self):
+        """The nesting convention must survive the length rule.
+
+        An outer ````markdown fence carries a non-mermaid info string,
+        so it is never classified and the length rule never sees it.
+        Were it otherwise, every page documenting these rules would
+        refuse itself.
+        """
+        result = self._run({'docs/x.md': (
+            '# P\n\n`````markdown\n````mermaid\nflowchart TB\n````\n'
+            '`````\n\n' + self.BACKTICK
+        )})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.rendered, ['docs/x.md'])
+
+    def test_reviews_md_is_skipped_by_the_tree_walk(self):
+        """The script's exclusion must match the workflow's.
+
+        mermaid-lint.yml filters REVIEWS.md out of its triggers, so
+        the lane never runs on the pull request that changes it. The
+        script lints the whole tree, so without the matching exclusion
+        a diagram landing there merges green and then fails whichever
+        unrelated markdown pull request comes next, naming a file that
+        author never touched -- and fails every developer's pre-push
+        audit the same way.
+        """
+        result = self._run({
+            'REVIEWS.md': self.TILDE,
+            'docs/x.md': self.BACKTICK,
+        })
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.rendered, ['docs/x.md'])
+        self.assertNotIn('REVIEWS.md', result.stderr)
+
+    def test_reviews_md_is_still_linted_when_named(self):
+        """Excluded from the walk, not from the script.
+
+        The exclusion is about what the lane goes looking for, not
+        about what it is able to read: a person who wants the file
+        checked says so, and gets the ordinary answer.
+        """
+        result = self._run({'REVIEWS.md': self.TILDE},
+                           args=('REVIEWS.md',))
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('REVIEWS.md', result.stderr)
+        self.assertIn('use a backtick fence', result.stderr)
+
+    def test_only_the_root_reviews_md_is_skipped(self):
+        """The pathspec is a literal, like the workflow's pattern.
+
+        `!REVIEWS.md` in a GitHub path filter means the file at the
+        root. A pathspec that also swallowed docs/REVIEWS.md would
+        stop linting an ordinary documentation page whose name
+        happened to collide.
+        """
+        result = self._run({
+            'REVIEWS.md': self.BACKTICK,
+            'docs/REVIEWS.md': self.BACKTICK,
+        })
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.rendered, ['docs/REVIEWS.md'])
 
 
 class ReadmeAbsoluteLinksTest(CheckTestCase):
