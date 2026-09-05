@@ -731,7 +731,21 @@ class MermaidLintScriptTest(unittest.TestCase):
     exiting zero cannot be checked by reading it.
     """
 
-    def _run(self, files, args=()):
+    # A stub on PATH rather than the real container. What the script
+    # decides -- which files it selects, and how it combines a refusal
+    # with the renderer's verdict -- is decided before docker is
+    # reached, so stubbing it makes the positive path assertable in a
+    # suite that has no docker. Without it every case here asserts a
+    # refusal or an empty result, and a scanner that selected nothing
+    # at all would pass the lot.
+    STUB = ('#!/bin/sh\n'
+            'printf "%s\\n" "$@" >> "${MERMAID_LINT_TEST_ARGV}"\n'
+            'exit ${MERMAID_LINT_TEST_DOCKER_RC}\n')
+
+    BACKTICK = '# P\n\n```mermaid\nflowchart TB\n  a --> b\n```\n'
+    TILDE = '# P\n\n~~~mermaid\nflowchart TB\n  a --> b\n~~~\n'
+
+    def _run(self, files, args=(), docker_rc=0):
         """Lint a throwaway repository built from {path: content}."""
         env = dict(os.environ)
         # A stray global excludesFile or template would change what
@@ -748,17 +762,32 @@ class MermaidLintScriptTest(unittest.TestCase):
             subprocess.run(['git', 'init', '-q', repo],
                            check=True, env=env)
             for name, content in files.items():
-                path = os.path.join(repo, name)
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-                with open(path, 'w') as f:
-                    f.write(content)
+                target = os.path.join(repo, name)
+                os.makedirs(os.path.dirname(target) or repo, exist_ok=True)
+                # Binary, so that a fixture can carry CRLF endings
+                # without the platform rewriting them.
+                with open(target, 'wb') as f:
+                    f.write(content.encode('utf-8'))
             # Tracked, not merely present: the script walks the index.
             subprocess.run(['git', 'add', '-A'],
                            cwd=repo, check=True, env=env)
-            return subprocess.run(
-                [script, *args], cwd=repo, env=env,
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                universal_newlines=True)
+
+            with tempfile.TemporaryDirectory() as stub_dir:
+                stub = os.path.join(stub_dir, 'docker')
+                with open(stub, 'w') as f:
+                    f.write(self.STUB)
+                os.chmod(stub, 0o755)
+                env['PATH'] = stub_dir + os.pathsep + env['PATH']
+                env['MERMAID_LINT_TEST_ARGV'] = os.path.join(
+                    stub_dir, 'argv')
+                env['MERMAID_LINT_TEST_DOCKER_RC'] = str(docker_rc)
+                result = subprocess.run(
+                    [script, *args], cwd=repo, env=env,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    universal_newlines=True)
+                result.docker_ran = os.path.exists(env[
+                    'MERMAID_LINT_TEST_ARGV'])
+                return result
 
     def test_a_tilde_fence_is_refused(self):
         """Refused, not skipped -- and the message says what to do.
@@ -768,9 +797,7 @@ class MermaidLintScriptTest(unittest.TestCase):
         reports success. The audit's matching half is
         test_a_tilde_fence_does_not_make_it_applicable above.
         """
-        result = self._run({
-            'docs/x.md': '# P\n\n~~~mermaid\nflowchart TB\n  a --> b\n~~~\n',
-        })
+        result = self._run({'docs/x.md': self.TILDE})
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn('docs/x.md', result.stderr)
         self.assertIn('use a backtick fence', result.stderr)
@@ -811,6 +838,178 @@ class MermaidLintScriptTest(unittest.TestCase):
         result = self._run({'docs/x.md': '# P\n'}, args=('docs/nope.md',))
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn('no such file', result.stderr)
+        self.assertFalse(result.docker_ran)
+
+    def test_a_backtick_fence_is_selected_and_rendered(self):
+        """The positive path, which the refusal cases cannot pin.
+
+        A scanner that classified nothing at all would satisfy every
+        other case here while linting nothing, ever, and exiting 0 --
+        which is this lane's defining failure. So assert that the file
+        reaches the renderer.
+        """
+        result = self._run({'docs/x.md': self.BACKTICK})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Linting 1 file(s)', result.stdout)
+        self.assertTrue(result.docker_ran)
+
+    def test_a_crlf_file_is_still_selected(self):
+        """mmdc reads CRLF, so the scanner must too.
+
+        A carriage return left on the line would land in the info
+        string, so no fence would open and none would close, and the
+        whole file would go unlinted behind a green run.
+        """
+        result = self._run(
+            {'docs/x.md': self.BACKTICK.replace('\n', '\r\n')})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Linting 1 file(s)', result.stdout)
+
+    def test_a_crlf_tilde_fence_is_still_refused(self):
+        result = self._run(
+            {'docs/x.md': self.TILDE.replace('\n', '\r\n')})
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('use a backtick fence', result.stderr)
+
+    def test_a_space_before_the_language_is_refused(self):
+        """GitHub renders it and mmdc reads nothing in it.
+
+        That is the same failure as a tilde fence, so it gets the same
+        answer. Selecting the file instead would be worse than the old
+        grep, which at least did not print "ok" for a diagram nothing
+        rendered.
+        """
+        result = self._run({'docs/x.md': self.BACKTICK.replace(
+            '```mermaid', '``` mermaid')})
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('remove the space', result.stderr)
+        self.assertFalse(result.docker_ran)
+
+    def test_a_refusal_and_a_lint_are_reported_together(self):
+        """One virtual machine, both halves of the answer."""
+        result = self._run({
+            'docs/good.md': self.BACKTICK,
+            'docs/bad.md': self.TILDE,
+        })
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('use a backtick fence', result.stderr)
+        self.assertIn('Linting 1 file(s)', result.stdout)
+        self.assertTrue(result.docker_ran)
+
+    def test_a_failing_render_fails_the_run(self):
+        """The renderer's verdict is the point of the script.
+
+        Asserted with 125 rather than 1 so that it also pins the
+        status reaching the caller unchanged: a failed image pull
+        stays distinguishable from a diagram that does not parse, and
+        a pipeline added around the docker call -- the mistake the
+        script's own comment warns about -- would flatten it.
+        """
+        result = self._run({'docs/x.md': self.BACKTICK}, docker_rc=125)
+        self.assertEqual(result.returncode, 125, result.stderr)
+
+    def test_a_refusal_survives_a_clean_render(self):
+        """rc is combined, not overwritten by the renderer's success."""
+        result = self._run({
+            'docs/good.md': self.BACKTICK,
+            'docs/bad.md': self.TILDE,
+        }, docker_rc=0)
+        self.assertEqual(result.returncode, 1, result.stderr)
+
+    def test_a_closed_fence_lets_the_next_one_open(self):
+        """Fence state must clear, or nothing after the first opens.
+
+        A scan that never recognised a closing fence would skip every
+        diagram below the first fence in the file -- and would still
+        satisfy the nesting case above, which asserts only that
+        something is skipped.
+        """
+        result = self._run({'docs/x.md': (
+            '# P\n\n```text\nnot a diagram\n```\n\n' + self.BACKTICK
+        )})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Linting 1 file(s)', result.stdout)
+
+    def test_a_shorter_fence_does_not_close_a_longer_one(self):
+        """CommonMark closes on a run at least as long, not any run.
+
+        Without the length rule the lone ``` below would close the
+        outer fence, putting the tilde example at the top level and
+        refusing a page that is only quoting one.
+        """
+        result = self._run({'docs/x.md': (
+            '# P\n\n````markdown\n```\n~~~mermaid\nflowchart TB\n'
+            '~~~\n````\n'
+        )})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('nothing to lint', result.stdout)
+
+    def test_a_different_character_does_not_close_a_fence(self):
+        """A tilde fence is not closed by backticks, or the reverse.
+
+        Without the character rule the backtick run below would close
+        the tilde fence, and the quoted diagram would be selected and
+        sent to the renderer as though it were real.
+        """
+        result = self._run({'docs/x.md': (
+            '# P\n\n~~~~markdown\n````\n```mermaid\nflowchart TB\n'
+            '```\n~~~~\n'
+        )})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('nothing to lint', result.stdout)
+        self.assertFalse(result.docker_ran)
+
+    def test_a_fence_carrying_an_info_string_does_not_close(self):
+        """Only a bare fence closes, or a quoted example leaks out.
+
+        The ````python line below is content, not a close. Treating it
+        as one would put the tilde example at the top level and refuse
+        a page that is merely showing two fenced blocks.
+        """
+        result = self._run({'docs/x.md': (
+            '# P\n\n````markdown\n````python\n~~~mermaid\n'
+            'flowchart TB\n~~~\n````\n'
+        )})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('nothing to lint', result.stdout)
+
+    def test_inline_code_at_the_start_of_a_line_is_not_a_fence(self):
+        """Under three characters is not a fence, and must not open one.
+
+        A line beginning with a single backtick is ordinary prose. If
+        it opened a fence, every diagram below it in the file would be
+        swallowed as fence content and go unlinted -- silently, and
+        behind a green run.
+        """
+        result = self._run({'docs/x.md': (
+            '# P\n\n`config.yaml` is read at startup.\n\n'
+            + self.BACKTICK
+        )})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Linting 1 file(s)', result.stdout)
+
+    def test_a_closed_tilde_fence_lets_a_diagram_below_it_open(self):
+        result = self._run({'docs/x.md': (
+            '# P\n\n~~~text\nnot a diagram\n~~~\n\n' + self.TILDE
+        )})
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('use a backtick fence', result.stderr)
+
+    def test_a_fence_indented_inside_a_list_item_is_still_linted(self):
+        """Four spaces is a list item far more often than a quote.
+
+        The scan does not model indented code blocks, deliberately: a
+        fence indented under a list item is an ordinary diagram, and
+        skipping it would fail open on real content to spare a rarer
+        false positive. templates/mermaid-lint/README.md documents the
+        consequence -- quote a fence by nesting, not by indenting.
+        """
+        result = self._run({'docs/x.md': (
+            '# P\n\n- item\n\n    ```mermaid\n    flowchart TB\n'
+            '      a --> b\n    ```\n'
+        )})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Linting 1 file(s)', result.stdout)
 
 
 class ReadmeAbsoluteLinksTest(CheckTestCase):

@@ -70,16 +70,17 @@ else
 fi
 
 # Backticks only, and no space before the language: that is what mmdc
-# recognises. A tilde-fenced block renders nothing and exits zero,
-# which is why check_mermaid_lint_ci in the development repository
-# matches the same narrow form -- the audit must not call a repository
-# covered for a diagram this script cannot see.
+# recognises. Anything else renders nothing and exits zero, which is
+# why check_mermaid_lint_ci in the development repository matches the
+# same narrow form -- the audit must not call a repository covered for
+# a diagram this script cannot see.
 #
-# GitHub renders a tilde fence as a diagram all the same, so one would
-# otherwise ship unlinted through the exact gap this script exists to
-# close. Rather than fail open, refuse the file and say which fence to
-# use: the narrow mmdc-compatible form stays the only one that can be
-# committed unnoticed.
+# GitHub renders both a tilde fence and a spaced info string as
+# diagrams all the same, so either would otherwise ship unlinted
+# through the exact gap this script exists to close. Rather than fail
+# open, refuse the file and say what to change: the narrow
+# mmdc-compatible form stays the only one that can be committed
+# unnoticed.
 #
 # Which means the scan has to track fence state rather than match bare
 # lines. A fence shown inside a longer fence is an example being
@@ -93,6 +94,13 @@ fi
 # some other diagram is still rendered whole; what this decides is
 # which files are worth starting a container for, and which are
 # refused outright.
+#
+# Indented code blocks are deliberately not modelled. Four spaces
+# before a fence is far more often a fence inside a list item, which
+# must still be linted, than a fence being quoted -- so treating the
+# indent as a code block would fail open on real diagrams to spare a
+# rarer false positive. Quote a fence inside a longer fence instead;
+# the template README says so.
 existing=()
 for candidate in "${candidates[@]}"; do
     # Only reachable on the git ls-files path, where an entry can be
@@ -109,9 +117,17 @@ done
 scan=""
 if [ "${#existing[@]}" -ne 0 ]; then
     scan=$(awk '
-        FNR == 1 { fence = ""; flen = 0; backtick = 0; tilde = 0 }
+        FNR == 1 {
+            fence = ""; flen = 0; backtick = 0; tilde = 0; spaced = 0
+        }
         {
             line = $0
+            # A markdown file committed with CRLF endings would
+            # otherwise carry the carriage return into the info
+            # string, so no fence would open and none would close.
+            # mmdc reads such a file perfectly well, so the whole
+            # file would go unlinted while the run reported success.
+            sub(/\r$/, "", line)
             sub(/^[ \t]*/, "", line)
             ch = substr(line, 1, 1)
             run = 0
@@ -121,9 +137,20 @@ if [ "${#existing[@]}" -ne 0 ]; then
             if (run < 3)
                 next
 
+            # Two readings of the info string. CommonMark allows
+            # whitespace before it, and a closing fence is one that
+            # carries nothing else, so the closing test uses the
+            # stripped form. mmdc wants the language hard against the
+            # backticks, so the opening test uses the raw form: `` `
+            # mermaid `` is a fence GitHub renders and mmdc reads
+            # nothing in, which is the same failure as a tilde fence
+            # and is refused the same way.
             info = substr(line, run + 1)
             sub(/^[ \t]+/, "", info)
             sub(/[ \t].*$/, "", info)
+
+            raw = substr(line, run + 1)
+            sub(/[ \t].*$/, "", raw)
 
             if (fence != "") {
                 if (ch == fence && run >= flen && info == "")
@@ -135,6 +162,13 @@ if [ "${#existing[@]}" -ne 0 ]; then
             flen = run
             if (info != "mermaid")
                 next
+            if (raw != "mermaid") {
+                if (!spaced) {
+                    spaced = 1
+                    print "spaced", FILENAME
+                }
+                next
+            }
             if (ch == "`" && !backtick) {
                 backtick = 1
                 print "backtick", FILENAME
@@ -148,28 +182,46 @@ if [ "${#existing[@]}" -ne 0 ]; then
 fi
 
 files=()
-unlintable=()
+tilde_fenced=()
+spaced_info=()
 while read -r kind scanned_file; do
     case "${kind}" in
         backtick) files+=("${scanned_file}") ;;
-        tilde) unlintable+=("${scanned_file}") ;;
+        tilde) tilde_fenced+=("${scanned_file}") ;;
+        spaced) spaced_info+=("${scanned_file}") ;;
     esac
 done <<< "${scan}"
 
+# Name the file and the remedy. A linter that refuses a page without
+# saying which character to change turns this into a support burden.
+refuse() {
+    local reason=$1
+    shift
+    local refused
+    for refused in "$@"; do
+        echo "mermaid-lint: ${refused}: ${reason}" >&2
+    done
+}
+
 rc=0
 
-if [ "${#unlintable[@]}" -ne 0 ]; then
-    for unlintable_file in "${unlintable[@]}"; do
-        echo "mermaid-lint: ${unlintable_file}: mermaid in a tilde fence" \
-            "is not linted; use a backtick fence" >&2
-    done
-    # Fall through rather than exiting here. A repository with both a
-    # tilde fence and a diagram that does not parse should learn about
-    # both from one run: the virtual machine this lane needs is the
-    # expensive part, and the path filter exists to avoid spinning a
-    # second one to deliver the second half of the same answer.
+if [ "${#tilde_fenced[@]}" -ne 0 ]; then
+    refuse "mermaid in a tilde fence is not linted; use a backtick fence" \
+        "${tilde_fenced[@]}"
     rc=1
 fi
+
+if [ "${#spaced_info[@]}" -ne 0 ]; then
+    refuse "mermaid after a space is not linted; remove the space" \
+        "${spaced_info[@]}"
+    rc=1
+fi
+
+# Both refusals fall through rather than exiting here. A repository
+# with a refused fence and a diagram that does not parse should learn
+# about both from one run: the virtual machine this lane needs is the
+# expensive part, and the path filter exists to avoid spinning a
+# second one to deliver the second half of the same answer.
 
 if [ "${#files[@]}" -eq 0 ]; then
     if [ "${rc}" -eq 0 ]; then
@@ -192,9 +244,15 @@ echo "Linting ${#files[@]} file(s) containing mermaid diagrams."
 # The exit status of docker run is the inner shell's, and it is the
 # whole point of this script. Do not pipe this into tail or grep: the
 # pipeline would report the filter's status and turn every failure
-# green. It is combined with rc rather than being the script's status
-# directly, so that a refused tilde fence above still fails a run in
-# which every backtick diagram parses.
+# green.
+#
+# It is combined with rc rather than left to set -e. The two give the
+# same status today -- set -e would abort here with docker's own -- so
+# this is for the reader rather than for the shell: the run's verdict
+# is a refused fence or a failed render or both, and the line that
+# says so should look like it. Taking $? rather than a flat 1 keeps
+# docker's status distinguishable, so a 125 from a failed image pull
+# stays an infrastructure problem rather than a broken diagram.
 docker run --rm -u "$(id -u):$(id -g)" \
     -v "${repo_root}":/src:ro \
     -v "${workdir}":/work \
@@ -218,6 +276,6 @@ docker run --rm -u "$(id -u):$(id -g)" \
             fi
         done < /work/files.txt
         exit "${rc}"
-    ' || rc=1
+    ' || rc=$?
 
 exit "${rc}"

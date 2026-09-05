@@ -150,14 +150,15 @@ MERMAID_LINT_SCRIPT = 'tools/mermaid-lint.sh'
 # linter never sees.
 #
 # tools/mermaid-lint.sh draws the same line and then acts on it more
-# strongly: it selects backtick fences to lint and refuses a tilde
-# one outright, because GitHub renders a tilde fence even though mmdc
-# does not. So the two agree about what a diagram is and disagree
-# about what to do with a tilde block -- N/A here, exit 1 there. The
-# script also tracks fence state, so a fence nested inside a longer
-# one is an example rather than a diagram; this regex is a line match
-# and does not, which at worst asks for a linter that then finds
-# nothing to lint. docs/audits/mermaid-lint-ci.md is the spec.
+# strongly: it selects this form to lint and refuses the two forms
+# GitHub renders but mmdc does not -- a tilde fence, and a language
+# separated from the backticks by a space. So the two agree about
+# what a diagram is and disagree about what to do with the rest --
+# N/A here, exit 1 there. The script also tracks fence state, so a
+# fence nested inside a longer one is an example rather than a
+# diagram; this regex is a line match and does not, which at worst
+# asks for a linter that then finds nothing to lint.
+# docs/audits/mermaid-lint-ci.md is the spec.
 MERMAID_FENCE_RE = re.compile(r'^\s*```mermaid\b')
 
 

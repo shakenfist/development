@@ -25,15 +25,17 @@ markdown allows, because it is what `mmdc` recognises -- a
 would mark a repository covered for a diagram its linter never sees.
 
 The script draws the same line, and then goes further than the audit
-can: where the audit merely declines to count a tilde-fenced block,
-`tools/mermaid-lint.sh` refuses it. GitHub renders a tilde fence as a
-diagram even though `mmdc` reads nothing in one, so failing open would
-ship an unlinted diagram through the exact gap the linter exists to
-close, with the run printing "nothing to lint" and exiting zero -- a
-failure wearing the shape of a success. Instead the script names the
-file and the fence to use and exits 1, alongside any parse errors from
-the same run. `MermaidLintScriptTest` in `scripts/tests/` pins that
-behaviour, and pins the audit's narrower answer next to it.
+can: where the audit merely declines to count a fence `mmdc` cannot
+read, `tools/mermaid-lint.sh` refuses it. There are two such fences --
+a tilde-fenced block, and one written as ```` ``` mermaid ```` with a
+space before the language. GitHub renders both as diagrams even though
+`mmdc` reads nothing in either, so failing open would ship an unlinted
+diagram through the exact gap the linter exists to close, with the run
+printing "nothing to lint" and exiting zero -- a failure wearing the
+shape of a success. Instead the script names the file and what to
+change and exits 1, alongside any parse errors from the same run.
+`MermaidLintScriptTest` in `scripts/tests/` pins that behaviour, and
+pins the audit's narrower answer next to it.
 
 The two therefore give deliberately different answers to the same
 input, and a repository whose only diagrams are tilde-fenced sees
@@ -45,10 +47,15 @@ refusing the block removes the diagram rather than the coverage.
 The script classifies fences by tracking fence state rather than by
 matching lines, so a fence shown inside a longer fence is an example
 rather than a diagram -- otherwise a page documenting this rule would
-fail the repository that wrote it. The audit's regex is a line match
-and has no such notion, which is a divergence with no consequence: a
-repository whose only ```` ```mermaid ```` fence is a nested example
-is asked for a linter that then finds nothing to lint, and passes.
+fail the repository that wrote it. Nesting is the only way to quote a
+fence: indented code blocks are deliberately not modelled, because
+four spaces before a fence is far more often a diagram inside a list
+item, which must still be linted, than a diagram being quoted.
+
+The audit's regex is a line match and has no notion of nesting at
+all, which is a divergence with no consequence: a repository whose
+only ```` ```mermaid ```` fence is a nested example is asked for a
+linter that then finds nothing to lint, and passes.
 
 Repositories with no mermaid diagrams are N/A. This is a check on
 diagrams that exist, not a requirement that every project have some;

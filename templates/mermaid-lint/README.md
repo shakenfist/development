@@ -106,11 +106,13 @@ into `tail` or `grep` reports the filter's status, not the script's,
 and turns every failure green -- a mistake worth naming because it is
 exactly how this was first mis-measured.
 
-A tilde-fenced diagram is refused rather than skipped. `mmdc` reads
-only a backtick fence, while GitHub renders both, so a broken diagram
-in a `~~~` block would otherwise ship through the exact gap this
-closes with the run reporting "nothing to lint" and exiting zero. The
-script names the file and the fence to use, and exits 1.
+Two fences GitHub renders and `mmdc` does not are refused rather than
+skipped: a tilde-fenced diagram, and one whose language is separated
+from the backticks by a space. `mmdc` reads only ```` ```mermaid ````
+hard against the backticks, so a broken diagram in either form would
+otherwise ship through the exact gap this closes, with the run
+reporting "nothing to lint" and exiting zero. The script names the
+file and what to change, and exits 1.
 
 A refusal does not end the run. If the repository also holds a
 diagram that does not parse, both are reported together, because the
@@ -140,6 +142,16 @@ classified. Note that `mmdc` itself has no such notion -- it renders
 every mermaid fence it finds, nested or not -- so this decides which
 files are worth starting a container for and which are refused, not
 what gets rendered once a file is selected.
+
+Nesting is the only way to quote a fence. Indenting one by four
+spaces does not work: the scan does not model indented code blocks,
+so an indented `~~~mermaid` is still refused, and an indented
+```` ```mermaid ```` is still linted. That is deliberate rather than
+an oversight. Four spaces before a fence is far more often a diagram
+inside a list item than a diagram being quoted, and treating the
+indent as a code block would silently stop linting those -- failing
+open on real content to spare a rarer false positive. Wrap the
+example in a longer fence instead.
 
 The workflow's path filter names the script and the workflow itself
 alongside `**.md`, so a pull request that edits the checker and no
