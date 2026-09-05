@@ -32,8 +32,10 @@ space before the language. GitHub renders both as diagrams even though
 `mmdc` reads nothing in either, so failing open would ship an unlinted
 diagram through the exact gap the linter exists to close, with the run
 printing "nothing to lint" and exiting zero -- a failure wearing the
-shape of a success. Instead the script names the file and what to
-change and exits 1, alongside any parse errors from the same run.
+shape of a success. Instead the script names the file, the line and
+what to change and exits 1, alongside any parse errors from the same
+run; a refusal outranks the renderer's status, so a broken diagram is
+never reported under a failed image pull's 125.
 `MermaidLintScriptTest` in `scripts/tests/` pins that behaviour, and
 pins the audit's narrower answer next to it.
 
@@ -50,7 +52,11 @@ rather than a diagram -- otherwise a page documenting this rule would
 fail the repository that wrote it. Nesting is the only way to quote a
 fence: indented code blocks are deliberately not modelled, because
 four spaces before a fence is far more often a diagram inside a list
-item, which must still be linted, than a diagram being quoted.
+item, which must still be linted, than a diagram being quoted. Prose
+is safe by a separate rule -- a backtick fence's info string may not
+contain a backtick, so a line opening with an inline code span is not
+a fence -- without which such a line would open one that never closes
+and hide every diagram below it.
 
 The audit's regex is a line match and has no notion of nesting at
 all, which is a divergence with no consequence: a repository whose

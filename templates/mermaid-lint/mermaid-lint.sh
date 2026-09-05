@@ -66,7 +66,10 @@ else
     # thousands of markdown files nobody here wrote, several of which
     # contain diagrams that are not ours to fix.
     cd "${repo_root}"
-    mapfile -t candidates < <(git ls-files '*.md')
+    # quotePath off, or a path with a non-ASCII character comes back
+    # C-quoted, names no file that exists, and is dropped by the -f
+    # test below -- another diagram unlinted behind a green run.
+    mapfile -t candidates < <(git -c core.quotePath=false ls-files '*.md')
 fi
 
 # Backticks only, and no space before the language: that is what mmdc
@@ -106,7 +109,11 @@ for candidate in "${candidates[@]}"; do
     # Only reachable on the git ls-files path, where an entry can be
     # staged for deletion; a named file was checked above.
     if [ -f "${candidate}" ]; then
-        existing+=("${candidate}")
+        # "./" prefixed, because awk reads an operand shaped like
+        # name=value as a variable assignment rather than a file, and
+        # a repository-root "a=b.md" would go unscanned. The prefix
+        # is taken back off FILENAME before anything is printed.
+        existing+=("./${candidate}")
     fi
 done
 
@@ -114,6 +121,11 @@ done
 # an awk that dies takes the script with it under set -e. A scan that
 # failed silently would report no diagrams and exit zero, which is the
 # shape of failure this whole lane exists to prevent.
+#
+# stdin is closed for the same reason. awk with no file operands
+# reads stdin, so a list that somehow reduced to none would not fail
+# -- it would block forever waiting on a terminal, or read whatever
+# CI happened to hand it.
 scan=""
 if [ "${#existing[@]}" -ne 0 ]; then
     scan=$(awk '
@@ -135,6 +147,17 @@ if [ "${#existing[@]}" -ne 0 ]; then
                 while (substr(line, run + 1, 1) == ch)
                     run++
             if (run < 3)
+                next
+
+            # CommonMark: the info string of a backtick fence may
+            # not contain a backtick. That one rule is what separates
+            # an opening fence from a line of prose beginning with an
+            # inline code span -- which is how a sentence quoting a
+            # fence starts, and so how this very rule gets written
+            # about. Miss it and such a line opens a fence nothing
+            # closes, swallowing every diagram below it in the file
+            # behind a "nothing to lint" and an exit 0.
+            if (ch == "`" && index(substr(line, run + 1), "`"))
                 next
 
             # Two readings of the info string. CommonMark allows
@@ -162,38 +185,43 @@ if [ "${#existing[@]}" -ne 0 ]; then
             flen = run
             if (info != "mermaid")
                 next
+
+            name = FILENAME
+            sub(/^\.\//, "", name)
+
             if (raw != "mermaid") {
                 if (!spaced) {
                     spaced = 1
-                    print "spaced", FILENAME
+                    print "spaced", FNR, name
                 }
                 next
             }
             if (ch == "`" && !backtick) {
                 backtick = 1
-                print "backtick", FILENAME
+                print "backtick", FNR, name
             }
             if (ch == "~" && !tilde) {
                 tilde = 1
-                print "tilde", FILENAME
+                print "tilde", FNR, name
             }
         }
-    ' "${existing[@]}")
+    ' "${existing[@]}" < /dev/null)
 fi
 
 files=()
 tilde_fenced=()
 spaced_info=()
-while read -r kind scanned_file; do
+while read -r kind lineno scanned_file; do
     case "${kind}" in
         backtick) files+=("${scanned_file}") ;;
-        tilde) tilde_fenced+=("${scanned_file}") ;;
-        spaced) spaced_info+=("${scanned_file}") ;;
+        tilde) tilde_fenced+=("${scanned_file}:${lineno}") ;;
+        spaced) spaced_info+=("${scanned_file}:${lineno}") ;;
     esac
 done <<< "${scan}"
 
-# Name the file and the remedy. A linter that refuses a page without
-# saying which character to change turns this into a support burden.
+# Name the file, the line and the remedy. A linter that refuses a page
+# without saying where and what to change turns this into a support
+# burden, and the line number is free -- the scan is already there.
 refuse() {
     local reason=$1
     shift
@@ -204,6 +232,7 @@ refuse() {
 }
 
 rc=0
+docker_rc=0
 
 if [ "${#tilde_fenced[@]}" -ne 0 ]; then
     refuse "mermaid in a tilde fence is not linted; use a backtick fence" \
@@ -244,15 +273,10 @@ echo "Linting ${#files[@]} file(s) containing mermaid diagrams."
 # The exit status of docker run is the inner shell's, and it is the
 # whole point of this script. Do not pipe this into tail or grep: the
 # pipeline would report the filter's status and turn every failure
-# green.
-#
-# It is combined with rc rather than left to set -e. The two give the
-# same status today -- set -e would abort here with docker's own -- so
-# this is for the reader rather than for the shell: the run's verdict
-# is a refused fence or a failed render or both, and the line that
-# says so should look like it. Taking $? rather than a flat 1 keeps
-# docker's status distinguishable, so a 125 from a failed image pull
-# stays an infrastructure problem rather than a broken diagram.
+# green. Its status is captured rather than left to set -e, which
+# would abort here and lose the refusals already counted; taking $?
+# rather than a flat 1 keeps a 125 from a failed image pull
+# distinguishable from a diagram that does not parse.
 docker run --rm -u "$(id -u):$(id -g)" \
     -v "${repo_root}":/src:ro \
     -v "${workdir}":/work \
@@ -276,6 +300,14 @@ docker run --rm -u "$(id -u):$(id -g)" \
             fi
         done < /work/files.txt
         exit "${rc}"
-    ' || rc=$?
+    ' || docker_rc=$?
+
+# A refused fence outranks the renderer's status. Both are failures
+# and either alone is reported as itself, but when they coincide the
+# content failure is the one the author has to act on, and reporting
+# it as a 125 would send them looking at the image pull.
+if [ "${rc}" -eq 0 ]; then
+    rc="${docker_rc}"
+fi
 
 exit "${rc}"

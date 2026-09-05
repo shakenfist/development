@@ -112,7 +112,7 @@ from the backticks by a space. `mmdc` reads only ```` ```mermaid ````
 hard against the backticks, so a broken diagram in either form would
 otherwise ship through the exact gap this closes, with the run
 reporting "nothing to lint" and exiting zero. The script names the
-file and what to change, and exits 1.
+file, the line and what to change, and exits 1.
 
 A refusal does not end the run. If the repository also holds a
 diagram that does not parse, both are reported together, because the
@@ -143,8 +143,18 @@ every mermaid fence it finds, nested or not -- so this decides which
 files are worth starting a container for and which are refused, not
 what gets rendered once a file is selected.
 
-Nesting is the only way to quote a fence. Indenting one by four
-spaces does not work: the scan does not model indented code blocks,
+Prose quoting a fence is safe too, and for a rule of its own:
+CommonMark says the info string of a backtick fence may not contain a
+backtick, so a line that *starts* with an inline code span -- the
+usual way to begin a sentence about a fence -- is prose rather than a
+fence. That rule is load-bearing rather than pedantic. Without it such
+a line opens a fence that nothing closes, and every diagram below it
+in the file is read as fence content and never linted, behind a
+"nothing to lint" and an exit 0. This README shipped a live instance
+of exactly that line before the rule was implemented.
+
+Nesting is the only way to quote a fence in a block. Indenting one by
+four spaces does not work: the scan does not model indented code blocks,
 so an indented `~~~mermaid` is still refused, and an indented
 ```` ```mermaid ```` is still linted. That is deliberate rather than
 an oversight. Four spaces before a fence is far more often a diagram

@@ -738,12 +738,26 @@ class MermaidLintScriptTest(unittest.TestCase):
     # suite that has no docker. Without it every case here asserts a
     # refusal or an empty result, and a scanner that selected nothing
     # at all would pass the lot.
+    # It also copies out the selected list. Recording only that the
+    # container ran leaves the identity of what was rendered
+    # unasserted, so a scan that selected the wrong file -- or wrote
+    # an empty list -- would satisfy a count assertion.
     STUB = ('#!/bin/sh\n'
             'printf "%s\\n" "$@" >> "${MERMAID_LINT_TEST_ARGV}"\n'
+            'for a in "$@"; do\n'
+            '  case "${a}" in\n'
+            '    *:/work) cp "${a%:/work}/files.txt" \\\n'
+            '        "${MERMAID_LINT_TEST_FILES}" 2>/dev/null || true ;;\n'
+            '  esac\n'
+            'done\n'
             'exit ${MERMAID_LINT_TEST_DOCKER_RC}\n')
 
     BACKTICK = '# P\n\n```mermaid\nflowchart TB\n  a --> b\n```\n'
     TILDE = '# P\n\n~~~mermaid\nflowchart TB\n  a --> b\n~~~\n'
+
+    def _root(self):
+        return os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))))
 
     def _run(self, files, args=(), docker_rc=0):
         """Lint a throwaway repository built from {path: content}."""
@@ -752,11 +766,6 @@ class MermaidLintScriptTest(unittest.TestCase):
         # git ls-files reports, and the script trusts that list.
         env['GIT_CONFIG_GLOBAL'] = os.devnull
         env['GIT_CONFIG_SYSTEM'] = os.devnull
-
-        script = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(
-                os.path.abspath(__file__)))),
-            'tools', 'mermaid-lint.sh')
 
         with tempfile.TemporaryDirectory() as repo:
             subprocess.run(['git', 'init', '-q', repo],
@@ -772,22 +781,33 @@ class MermaidLintScriptTest(unittest.TestCase):
             subprocess.run(['git', 'add', '-A'],
                            cwd=repo, check=True, env=env)
 
-            with tempfile.TemporaryDirectory() as stub_dir:
-                stub = os.path.join(stub_dir, 'docker')
-                with open(stub, 'w') as f:
-                    f.write(self.STUB)
-                os.chmod(stub, 0o755)
-                env['PATH'] = stub_dir + os.pathsep + env['PATH']
-                env['MERMAID_LINT_TEST_ARGV'] = os.path.join(
-                    stub_dir, 'argv')
-                env['MERMAID_LINT_TEST_DOCKER_RC'] = str(docker_rc)
-                result = subprocess.run(
-                    [script, *args], cwd=repo, env=env,
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                    universal_newlines=True)
-                result.docker_ran = os.path.exists(env[
-                    'MERMAID_LINT_TEST_ARGV'])
-                return result
+            return self._invoke(repo, args, docker_rc, env)
+
+    def _invoke(self, repo, args, docker_rc, env=None):
+        """Run the script in `repo` with a stub docker on PATH."""
+        env = dict(env if env is not None else os.environ)
+        script = os.path.join(self._root(), 'tools', 'mermaid-lint.sh')
+        with tempfile.TemporaryDirectory() as stub_dir:
+            stub = os.path.join(stub_dir, 'docker')
+            with open(stub, 'w') as f:
+                f.write(self.STUB)
+            os.chmod(stub, 0o755)
+            env['PATH'] = stub_dir + os.pathsep + env['PATH']
+            env['MERMAID_LINT_TEST_ARGV'] = os.path.join(stub_dir, 'argv')
+            env['MERMAID_LINT_TEST_FILES'] = os.path.join(
+                stub_dir, 'files')
+            env['MERMAID_LINT_TEST_DOCKER_RC'] = str(docker_rc)
+            result = subprocess.run(
+                [script, *args], cwd=repo, env=env,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                universal_newlines=True)
+            result.docker_ran = os.path.exists(
+                env['MERMAID_LINT_TEST_ARGV'])
+            result.rendered = []
+            if os.path.exists(env['MERMAID_LINT_TEST_FILES']):
+                with open(env['MERMAID_LINT_TEST_FILES']) as f:
+                    result.rendered = f.read().split()
+            return result
 
     def test_a_tilde_fence_is_refused(self):
         """Refused, not skipped -- and the message says what to do.
@@ -851,7 +871,7 @@ class MermaidLintScriptTest(unittest.TestCase):
         result = self._run({'docs/x.md': self.BACKTICK})
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('Linting 1 file(s)', result.stdout)
-        self.assertTrue(result.docker_ran)
+        self.assertEqual(result.rendered, ['docs/x.md'])
 
     def test_a_crlf_file_is_still_selected(self):
         """mmdc reads CRLF, so the scanner must too.
@@ -894,7 +914,8 @@ class MermaidLintScriptTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn('use a backtick fence', result.stderr)
         self.assertIn('Linting 1 file(s)', result.stdout)
-        self.assertTrue(result.docker_ran)
+        # The good one, not whichever the scan happened to reach.
+        self.assertEqual(result.rendered, ['docs/good.md'])
 
     def test_a_failing_render_fails_the_run(self):
         """The renderer's verdict is the point of the script.
@@ -987,6 +1008,128 @@ class MermaidLintScriptTest(unittest.TestCase):
         )})
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('Linting 1 file(s)', result.stdout)
+
+    def test_a_line_initial_code_span_does_not_open_a_fence(self):
+        """CommonMark: a backtick fence's info may hold no backtick.
+
+        A sentence quoting a fence begins with an inline code span, so
+        this is how a page documenting the rule starts a line. Opening
+        a fence there swallows every diagram below it in the file --
+        the exact silent skip this lane exists to prevent, and one the
+        template README shipped a live instance of.
+        """
+        result = self._run({'docs/x.md': (
+            '# P\n\n```` ```mermaid ```` is the only linted form.\n\n'
+            + self.BACKTICK
+        )})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.rendered, ['docs/x.md'])
+
+    def test_a_code_span_does_not_hide_a_tilde_fence_below_it(self):
+        """The same phantom fence would also swallow a refusal."""
+        result = self._run({'docs/x.md': (
+            '# P\n\n```` ```mermaid ```` is the only linted form.\n\n'
+            + self.TILDE
+        )})
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('use a backtick fence', result.stderr)
+
+    def test_a_filename_shaped_like_an_awk_assignment_is_scanned(self):
+        """awk reads a name=value operand as an assignment, not a file.
+
+        Only reachable at the repository root, since a path with a
+        slash cannot match, but the result is a diagram that is never
+        looked at while the run reports success.
+        """
+        result = self._run({'a=b.md': self.BACKTICK})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.rendered, ['a=b.md'])
+
+    def test_a_refusal_outranks_the_renderers_status(self):
+        """A content failure must not be reported as a failed pull."""
+        result = self._run({
+            'docs/good.md': self.BACKTICK,
+            'docs/bad.md': self.TILDE,
+        }, docker_rc=125)
+        self.assertEqual(result.returncode, 1, result.stderr)
+
+    def test_a_refusal_names_the_line(self):
+        """A filename alone is not a location in a long document."""
+        result = self._run({'docs/x.md': '# P\n\n\n\n' + self.TILDE})
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('docs/x.md:7:', result.stderr)
+
+    def test_a_spaced_refusal_names_the_line_too(self):
+        result = self._run({'docs/x.md': '# P\n\n\n\n' + self.BACKTICK
+                            .replace('```mermaid', '``` mermaid')})
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('docs/x.md:7:', result.stderr)
+
+    def test_a_non_ascii_path_is_scanned(self):
+        """git quotes such a path by default, naming no real file.
+
+        The C-quoted string does not exist on disk, so the file is
+        dropped before the scan ever sees it and its diagram is never
+        linted -- with the run reporting success.
+        """
+        result = self._run({'docs/caf\u00e9.md': self.BACKTICK})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.rendered, ['docs/caf\u00e9.md'])
+
+    def test_a_line_starting_with_a_tilde_is_not_a_fence(self):
+        """Under three characters is not a fence, tildes included.
+
+        The backtick side of this is covered by the info-string rule,
+        which rejects a line carrying a code span. A tilde has no such
+        rule, so only the length minimum stops `~/.config` at the
+        start of a line from opening a fence that swallows every
+        diagram below it.
+        """
+        result = self._run({'docs/x.md': (
+            '# P\n\n~/.config is read at startup.\n\n' + self.BACKTICK
+        )})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.rendered, ['docs/x.md'])
+
+    def test_this_repository_is_linted_as_the_audit_expects(self):
+        """Real content, not a fixture, and against a second opinion.
+
+        Every other case here is synthetic, which cannot catch a scan
+        that has stopped seeing this repository's own diagrams -- and
+        these docs are the most exercised instance of the shapes the
+        scan has to get right, because they are where the rules get
+        written about.
+
+        The expectation is the audit's own MERMAID_FENCE_RE rather
+        than a second fence parser, which keeps this from restating
+        the implementation and pins the agreement the spec claims: the
+        audit's line match and the script's stateful scan give the
+        same answer on real content. A file that legitimately made
+        them differ -- a nested example in a file with no other
+        diagram -- would fail here and wants a human to look, which is
+        the point.
+        """
+        root = self._root()
+        tracked = subprocess.run(
+            ['git', '-c', 'core.quotePath=false', 'ls-files', '*.md'],
+            cwd=root, check=True, stdout=subprocess.PIPE,
+            universal_newlines=True).stdout.split()
+
+        expected = []
+        for name in tracked:
+            path = os.path.join(root, name)
+            if not os.path.exists(path):
+                continue
+            with open(path, errors='replace') as f:
+                if any(docs_content.MERMAID_FENCE_RE.match(line)
+                       for line in f):
+                    expected.append(name)
+
+        result = self._invoke(root, (), 0)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, '')
+        self.assertTrue(expected, 'no diagrams found to check against')
+        self.assertEqual(sorted(result.rendered), sorted(expected))
 
     def test_a_closed_tilde_fence_lets_a_diagram_below_it_open(self):
         result = self._run({'docs/x.md': (
