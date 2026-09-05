@@ -465,10 +465,6 @@
       "sha": "1b567888baa5b772742c73256d159780dca8eaca",
       "date": "2026-08-30"
     },
-    "templates/release-automation/RELEASE-SETUP.md": {
-      "sha": "cdb4a242421ecf42e1b46c4172f1c91bdfdad1e4",
-      "date": "2026-08-30"
-    },
     "templates/renovate/README.md": {
       "sha": "ae88c3ede7ec64844b7e1186cb36432db2f176cd",
       "date": "2026-08-30"

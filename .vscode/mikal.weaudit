@@ -221,10 +221,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/release-automation/RELEASE-SETUP.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/renovate/README.md",
       "author": "mikal"
     },
