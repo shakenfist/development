@@ -1478,6 +1478,136 @@ class ReleaseProcessTest(CheckTestCase):
             self.fixture.workflow('release.yml', f.read())
         self.assert_pass(self.check(has_pyproject_toml=True))
 
+    # The dispatch-guard half of the criterion. release.yml offers
+    # workflow_dispatch as a build-and-check smoke test, which is only
+    # true while the publishing jobs decline to run on the branch ref a
+    # dispatch arrives on. Seven of nine repositories never received
+    # the guards the template grew.
+
+    GUARD = "    if: startsWith(github.ref, 'refs/tags/v')\n"
+
+    def dispatch_workflow(self, sign_guard='', release_guard='',
+                          dispatch=True, build_guard=''):
+        """A release.yml with a build job and two publishing jobs."""
+        self.compliant()
+        self.fixture.workflow(
+            'release.yml',
+            'name: Release\n'
+            'on:\n'
+            '  push:\n'
+            "    tags: ['v*']\n"
+            + ('  workflow_dispatch:\n' if dispatch else '')
+            + 'jobs:\n'
+            '  build:\n'
+            + build_guard +
+            '    runs-on: [self-hosted, static]\n'
+            '    steps:\n'
+            '      - uses: actions/upload-artifact@v7\n'
+            '        with:\n'
+            '          name: dist\n'
+            '  sign-tag:\n'
+            + sign_guard +
+            '    environment: release\n'
+            '    runs-on: [self-hosted, static]\n'
+            '    steps:\n'
+            '      - name: Create signed tag\n'
+            '        run: git push origin "${TAG_NAME}" --force\n'
+            '  github-release:\n'
+            + release_guard +
+            '    runs-on: [self-hosted, static]\n'
+            '    steps:\n'
+            '      - uses: softprops/action-gh-release@v3\n'
+            '        with:\n'
+            '          files: dist/*\n'
+            '          fail_on_unmatched_files: true\n')
+
+    def test_unguarded_publishing_jobs_fail_when_dispatchable(self):
+        self.dispatch_workflow()
+        result = self.assert_fail(self.check(has_pyproject_toml=True),
+                                  containing='not confined to tags')
+        self.assertIn('sign-tag', result['details'])
+        self.assertIn('github-release', result['details'])
+
+    def test_guarded_publishing_jobs_pass(self):
+        self.dispatch_workflow(sign_guard=self.GUARD,
+                               release_guard=self.GUARD)
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_one_unguarded_job_is_named_on_its_own(self):
+        """The finding says which job, not merely that one exists."""
+        self.dispatch_workflow(sign_guard=self.GUARD)
+        result = self.assert_fail(self.check(has_pyproject_toml=True),
+                                  containing='github-release')
+        self.assertNotIn('sign-tag', result['details'])
+
+    def test_without_a_dispatch_trigger_the_guards_are_not_required(self):
+        """No manual trigger means no branch ref to defend against."""
+        self.dispatch_workflow(dispatch=False)
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_a_build_job_is_never_required_to_be_guarded(self):
+        """The false positive that would break the smoke test.
+
+        Building on a dispatch is the whole point of offering one, so a
+        criterion which demanded the guard everywhere would remove the
+        feature rather than make it safe. The build job here is
+        unguarded in every other case above too; this states it.
+        """
+        self.dispatch_workflow(sign_guard=self.GUARD,
+                               release_guard=self.GUARD)
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_uploading_an_artifact_is_not_publishing(self):
+        """A job whose only output is visible to later jobs is a build."""
+        self.compliant()
+        self.fixture.workflow(
+            'release.yml',
+            'name: Release\n'
+            'on:\n'
+            '  workflow_dispatch:\n'
+            'jobs:\n'
+            '  build:\n'
+            '    runs-on: [self-hosted, static]\n'
+            '    steps:\n'
+            '      - uses: actions/upload-artifact@v7\n'
+            '        with:\n'
+            '          name: dist\n')
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_ref_type_is_an_accepted_spelling_of_the_guard(self):
+        """The criterion is the property, not one way of writing it."""
+        guard = "    if: github.ref_type == 'tag'\n"
+        self.dispatch_workflow(sign_guard=guard, release_guard=guard)
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_a_step_level_if_does_not_guard_the_job(self):
+        """An `if:` on a step leaves the job itself free to run."""
+        self.compliant()
+        self.fixture.workflow(
+            'release.yml',
+            'name: Release\n'
+            'on:\n'
+            '  workflow_dispatch:\n'
+            'jobs:\n'
+            '  sign-tag:\n'
+            '    environment: release\n'
+            '    runs-on: [self-hosted, static]\n'
+            '    steps:\n'
+            '      - name: Create signed tag\n'
+            "        if: startsWith(github.ref, 'refs/tags/v')\n"
+            '        run: git tag -s\n')
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='sign-tag')
+
+    def test_the_shipped_template_is_guarded(self):
+        """The template grew the guards; this pins them there."""
+        self.compliant()
+        with open(os.path.join(
+                REPO_ROOT, 'templates', 'release-automation',
+                'release.yml')) as f:
+            self.fixture.workflow('release.yml', f.read())
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
 
 class Flake8WrapTest(CheckTestCase):
     check_class = packaging.Flake8Wrap

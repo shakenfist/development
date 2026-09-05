@@ -12,6 +12,13 @@
   destination (`name:` or `merge-multiple: true`) and sets
   `fail_on_unmatched_files: true`, so that a glob matching nothing
   fails the job instead of publishing an empty release.
+* Where `release.yml` offers `workflow_dispatch`, its publishing jobs
+  are confined to tags with
+  `if: startsWith(github.ref, 'refs/tags/v')`. A dispatch arrives on a
+  branch ref, so an unguarded `sign-tag` force-pushes a
+  `refs/tags/refs/heads/<branch>` tag and the run carries on into the
+  publish. Build jobs are exempt: running them is what the dispatch is
+  for.
 
 ## Template
 

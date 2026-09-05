@@ -275,3 +275,78 @@ def step_with_inputs(step):
             value = re.sub(r'\s+#.*$', '', match.group(3)).strip()
             entries[match.group(2)] = value
     return entries
+
+
+# The three spellings of a manual trigger: a mapping key under `on:`,
+# a flow sequence, and a bare scalar. Matched against the workflow
+# header alone, so an `if:` inside a job which tests for the event
+# cannot be mistaken for the trigger which enables it.
+WORKFLOW_DISPATCH_RE = re.compile(r'^\s+workflow_dispatch:', re.MULTILINE)
+WORKFLOW_DISPATCH_FLOW_RE = re.compile(
+    r'^on:\s*\[[^\]]*\bworkflow_dispatch\b', re.MULTILINE
+)
+WORKFLOW_DISPATCH_SCALAR_RE = re.compile(
+    r'^on:\s*workflow_dispatch\s*$', re.MULTILINE
+)
+
+
+def has_workflow_dispatch(content):
+    """Can this workflow be started by hand?
+
+    The question matters wherever a workflow's jobs assume the ref
+    they were triggered on: a dispatch arrives on a branch, and every
+    assumption about a tag stops holding.
+    """
+    header = strip_yaml_comments(content.split('\njobs:')[0])
+    return bool(
+        WORKFLOW_DISPATCH_RE.search(header)
+        or WORKFLOW_DISPATCH_FLOW_RE.search(header)
+        or WORKFLOW_DISPATCH_SCALAR_RE.search(header)
+    )
+
+
+JOB_KEY_RE = re.compile(r'^(\s*)([A-Za-z_][A-Za-z0-9_-]*):\s*(.*?)\s*$')
+
+
+def job_level_keys(body):
+    """The job's own keys, mapped to their inline value.
+
+    A job body keeps its original indentation, so the job's own keys
+    are the shallowest in it -- everything belonging to a step, or to
+    a mapping inside a step, is indented further. Reading only that
+    level is what stops a step's `if:` answering a question asked
+    about the job's.
+
+    A key which introduces a block rather than a scalar maps to the
+    empty string: present, with its value somewhere below.
+    """
+    lines = [line for line in body.splitlines()
+             if line.strip() and not line.lstrip().startswith('#')]
+    if not lines:
+        return {}
+    indent = min(len(line) - len(line.lstrip()) for line in lines)
+
+    keys = {}
+    for line in lines:
+        match = JOB_KEY_RE.match(line)
+        if match and len(match.group(1)) == indent:
+            keys[match.group(2)] = re.sub(
+                r'\s+#.*$', '', match.group(3)).strip()
+    return keys
+
+
+# An `if:` which confines a job to a tag. The fleet writes the first
+# form; the second is the equivalent GitHub offers, accepted so the
+# criterion is about the property rather than one spelling of it.
+TAG_GUARD_RE = re.compile(
+    r"startsWith\(\s*github\.ref\s*,\s*'refs/tags/"
+    r"|github\.ref_type\s*==\s*'tag'"
+)
+
+
+def job_is_tag_guarded(body):
+    """Is this job confined to runs triggered by a tag?"""
+    condition = job_level_keys(body).get('if')
+    if not condition:
+        return False
+    return bool(TAG_GUARD_RE.search(condition))

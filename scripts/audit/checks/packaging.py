@@ -18,7 +18,8 @@ from audit.files import (
     check_file_contains, check_file_exists, toml_section_has_key,
 )
 from audit.text.workflows import (
-    step_action, step_with_inputs, workflow_job_blocks, workflow_step_blocks,
+    has_workflow_dispatch, job_is_tag_guarded, job_level_keys, step_action,
+    step_with_inputs, workflow_job_blocks, workflow_step_blocks,
 )
 from audit.text.python_source import (
     HTTP_HANDLER_BASES, console_entry_point_files, handler_base_names,
@@ -424,6 +425,75 @@ def release_asset_issues(repo_path):
     return issues
 
 
+def job_publishes(body):
+    """Does this job have an effect outside the workflow run?
+
+    Two signals, and between them they separate the publishing jobs
+    from the build jobs across every release.yml in the fleet.
+
+    An `environment:` is the stronger one: the fleet gates sign-tag,
+    publish-pypi, publish-proxy-pypi and publish-collection behind the
+    `release` environment precisely because they publish, and a build
+    job has never had one.
+
+    github-release needs the second signal because it carries no
+    environment -- it is identified by attaching assets, which is the
+    thing it does that a build job does not. Uploading an artifact
+    does not count: that is visible only to later jobs in the same
+    run, which is exactly the distinction being drawn.
+    """
+    if 'environment' in job_level_keys(body):
+        return True
+    return any(
+        step_action(step) == GH_RELEASE_ACTION
+        for step in workflow_step_blocks(body)
+    )
+
+
+def release_dispatch_guard_issues(repo_path):
+    """Findings for publishing jobs a manual dispatch can reach.
+
+    release.yml offers `workflow_dispatch` so that a maintainer can
+    exercise the build and the twine check without cutting a release.
+    That is only true while the publishing jobs decline to run on the
+    resulting ref, because a dispatch arrives on `refs/heads/<branch>`
+    and every job below the build assumes a tag.
+
+    Unguarded, sign-tag computes its tag name from the ref it was
+    given, so `refs/heads/develop` becomes the literal tag name and it
+    force-pushes `refs/tags/refs/heads/develop`. The run then carries
+    on into the PyPI publish. A smoke test turns into a release of
+    whatever happened to be on the branch.
+
+    Build jobs are deliberately left out. They are what the dispatch
+    is for, and requiring the guard on them would remove the feature
+    rather than make it safe.
+    """
+    filepath = os.path.join(repo_path, '.github', 'workflows', 'release.yml')
+    if not os.path.exists(filepath):
+        return []
+    with open(filepath, 'r', errors='replace') as f:
+        content = f.read()
+
+    if not has_workflow_dispatch(content):
+        return []
+
+    unguarded = [
+        name for name, body in workflow_job_blocks(content)
+        if job_publishes(body) and not job_is_tag_guarded(body)
+    ]
+    if not unguarded:
+        return []
+
+    return [
+        'release.yml can be started by hand but its publishing jobs are '
+        f'not confined to tags: {", ".join(unguarded)} '
+        'lack "if: startsWith(github.ref, \'refs/tags/v\')", so a manual '
+        'run on a branch force-pushes a "refs/tags/refs/heads/<branch>" '
+        'tag and proceeds to publish'
+    ]
+
+
 class ReleaseProcess(Check):
     id = 'release-process'
     spec = 'docs/audits/release-process.md'
@@ -447,6 +517,7 @@ class ReleaseProcess(Check):
         if not repo.exists('RELEASE-SETUP.md'):
             issues.append('Missing RELEASE-SETUP.md')
         issues.extend(release_asset_issues(repo.path))
+        issues.extend(release_dispatch_guard_issues(repo.path))
 
         if issues:
             return self.fail('; '.join(issues))

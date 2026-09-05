@@ -25,6 +25,14 @@ fails rather than reporting success. Both are load bearing: with a
 bare download and the action's default of warning on an unmatched
 glob, an empty release is indistinguishable from a good one.
 
+The workflow can also be started by hand, which runs the build and the
+`twine check` as a smoke test and stops there. Everything from the tag
+signing down is confined to tag refs with
+`if: startsWith(github.ref, 'refs/tags/v')`. That guard is what makes
+the manual trigger safe to use: a dispatch arrives on a branch ref, and
+without it `sign-tag` would take `refs/heads/<branch>` for a tag name,
+force-push `refs/tags/refs/heads/<branch>`, and go on to publish.
+
 ```mermaid
 flowchart TB
     tag["Maintainer pushes v0.6.0 tag"]
