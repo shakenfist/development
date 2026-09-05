@@ -1406,12 +1406,20 @@ FUZZ_WALK_SKIP = frozenset({
 })
 
 
-# What running the targets looks like in a workflow: cargo-fuzz
-# directly, or through a make target named for it. Matched against the
-# comment-stripped file, so a header explaining that fuzzing moved
-# elsewhere does not count as running it.
+# What running the targets looks like in a workflow: a cargo-fuzz
+# subcommand, or a make target named for fuzzing. The subcommand is
+# required because the bare crate name also appears in `cargo install
+# cargo-fuzz`, a toolchain setup step that would otherwise pull a
+# repository with no fuzzing at all into scope and fail it. `build`
+# stays in the list deliberately -- a lane that only compiles the
+# targets is still a lane the merge queue pays for. The make arm ends
+# the word, so `make fuzzy-logic-tests` is not fuzzing. Matched
+# against the comment-stripped file, so a header explaining that
+# fuzzing moved elsewhere does not count as running it.
+FUZZ_SUBCOMMANDS = 'run|build|coverage|cmin|tmin|list|fmt'
 FUZZ_INVOCATION_RE = re.compile(
-    r'cargo\s+fuzz\b|cargo-fuzz\b|\bmake\s+[\w./-]*fuzz[\w./-]*')
+    r'cargo(?:\s+\+\S+)?[\s-]+fuzz\s+(?:' + FUZZ_SUBCOMMANDS + r')\b'
+    r'|\bmake\s+[\w./-]*\bfuzz(?![A-Za-z])[\w./-]*')
 
 
 # The permission that lets a scheduled run tell somebody, matched
@@ -1524,10 +1532,14 @@ def reaches_issue_filing(repo, content):
         return True
 
     for match in REFERENCED_SCRIPT_RE.finditer(workflow):
-        path = os.path.normpath(match.group(0).lstrip('./'))
+        # normpath rather than lstrip('./'): lstrip takes a character
+        # set, so it turns `../../x.sh` into `x.sh` and the guard below
+        # never sees the escape it was written for. normpath('./x.sh')
+        # is already 'x.sh'.
+        path = os.path.normpath(match.group(0))
         # The path comes out of an audited repository's own YAML and is
-        # joined onto its checkout root, so a `..` segment would walk
-        # the audit out of the clone it is reading.
+        # joined onto its checkout root, so a leading `/` or a `..`
+        # segment would walk the audit out of the clone it is reading.
         if os.path.isabs(path) or path.split(os.sep)[0] == os.pardir:
             continue
         script = repo.read(path)
@@ -1535,6 +1547,21 @@ def reaches_issue_filing(repo, content):
         if script and FILES_AN_ISSUE_RE.search(strip_yaml_comments(script)):
             return True
     return False
+
+
+def lane_can_report(repo, content, caller):
+    """Can this scheduled lane get a crash in front of a person?
+
+    `caller` is the text of the workflow that runs this one on a
+    schedule, or '' when the schedule is on this one. Both sides are
+    looked at: a callee that fuzzes and uploads while the caller
+    inspects what it uploaded and files the issue is as good a split
+    as the reverse, and either side may hold the permission.
+    """
+    if not ISSUES_WRITE_RE.search(content + '\n' + caller):
+        return False
+    return bool(reaches_issue_filing(repo, content)
+                or (caller and reaches_issue_filing(repo, caller)))
 
 
 class FuzzNightlyReporting(Check):
@@ -1597,10 +1624,14 @@ class FuzzNightlyReporting(Check):
             if caller is not None:
                 scheduled.append((name, content, caller))
 
+        # Every scheduled lane must be able to report, not just one
+        # of them: a second campaign that crashes silently is the
+        # failure this criterion is about, and nothing in the file
+        # distinguishes it from a corpus-minimisation lane that has
+        # nothing to say.
         unreported = [
             name for name, content, caller in scheduled
-            if not (ISSUES_WRITE_RE.search(content + '\n' + caller)
-                    and reaches_issue_filing(repo, content))
+            if not lane_can_report(repo, content, caller)
         ]
 
         problems = []

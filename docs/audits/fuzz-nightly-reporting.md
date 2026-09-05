@@ -10,6 +10,14 @@ it valuable, and it makes it the wrong shape for a merge gate.
 Three things follow, and a repository with fuzz targets is checked for
 all of them.
 
+"Fuzz targets" here means cargo-fuzz: a `fuzz_targets/` directory
+anywhere in the repository, or a cargo-fuzz subcommand or a
+`make *fuzz*` target in a workflow. Nothing else is detected yet, so a
+project fuzzing with atheris, Go's native `FuzzXxx`, or libFuzzer
+directly reads `not_applicable` with "No fuzz targets" — which means
+the audit cannot see its fuzzing, not that it has none. If that is
+your repository, say so and the detection can grow.
+
 **The fuzz targets must run on a schedule.** A `schedule:` trigger on
 a workflow that invokes the targets. Fuzzing that only ever happens
 when someone remembers to dispatch it is fuzzing that does not happen;
@@ -28,12 +36,25 @@ UTC is nobody's inbox in particular. So a scheduled fuzz lane has to
 carry its own route to a human: `issues: write`, and something that
 files an issue when a target crashes.
 
+Every scheduled lane that runs the targets is held to this, not just
+one of them per repository. A second campaign that crashes where
+nobody hears it is the failure this criterion exists to prevent, and
+nothing in a workflow file separates that from a corpus-minimisation
+lane with nothing to report — so the strict reading is the one that
+holds, and a lane that genuinely has nothing to say either files
+nothing because it finds nothing, or carries the permission and the
+call it never reaches.
+
 What that last one is measured by is a call to `gh issue create`, a
 `gh api` call against an issues endpoint, an `issues.create` through
 `actions/github-script` or Octokit, or the
 `peter-evans/create-issue-from-file` action — in the workflow, or in a
 `.sh` or `.py` script under the repository that the workflow names,
-which is followed one level. Comments do not count on either side: a
+which is followed one level. Where the nightly is split across a
+caller and a `workflow_call` callee, either side may hold the
+permission and either may make the call — the callee fuzzing and
+uploading while the caller inspects and files is as good a split as
+the reverse. Comments do not count on either side: a
 `# TODO: gh issue create` describes reporting rather than doing it.
 The permission is looked for anywhere in the workflow, which does not
 model GitHub replacing a workflow-level `permissions:` block wholesale
