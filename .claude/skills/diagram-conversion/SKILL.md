@@ -76,21 +76,29 @@ render time, not at commit time, so an unverified conversion is a
 broken docs page.
 
 `mmdc` reads a markdown file, renders every mermaid fence in it, and
-exits non-zero on a parse error:
+exits non-zero on a parse error.
+
+Projects that have adopted `templates/mermaid-lint/` have this wrapped
+as `tools/mermaid-lint.sh`. Use that where it exists: it is the same
+container with the pin, the entrypoint override and the exit-status
+handling already written down. Elsewhere, run the container by hand:
 
 ```bash
 docker run --rm -u "$(id -u):$(id -g)" \
     -v "$PWD":/src:ro -v /tmp/mermaid-out:/out \
-    ghcr.io/mermaid-js/mermaid-cli/mermaid-cli:11.4.2 \
+    ghcr.io/mermaid-js/mermaid-cli/mermaid-cli:11.4.2@sha256:99c983b3ab4e14033f2880bc1b9de17e5090b4515dabd63fe9cf8c0ae6130956 \
     -i /src/docs/whatever.md -o /out/x.md
 ```
+
+The digest is not decoration. A tag is mutable and this runs a
+third-party container on a machine with a docker daemon, so the
+digest is what pins; it must stay equal to the one in
+`tools/mermaid-lint.sh`, and `MermaidLintDeploymentTest` fails if the
+two drift.
 
 About two seconds per file. Check the exit status directly -- piping
 the run into `tail` or `grep` reports the pipeline's status, not
 `mmdc`'s, which silently turns every failure green.
-
-Projects that have adopted `templates/mermaid-lint/` have this wrapped
-as `tools/mermaid-lint.sh`; use that where it exists.
 
 There is no useful DOM-free shortcut. `mermaid.parse()` under plain
 node throws `DOMPurify.addHook is not a function` for `flowchart` and

@@ -112,11 +112,49 @@ in a `~~~` block would otherwise ship through the exact gap this
 closes with the run reporting "nothing to lint" and exiting zero. The
 script names the file and the fence to use, and exits 1.
 
+A refusal does not end the run. If the repository also holds a
+diagram that does not parse, both are reported together, because the
+expensive part of this lane is the virtual machine and a second round
+trip to deliver the second half of the same answer is the cost worth
+avoiding.
+
+Writing about that rule is safe. The scan tracks fence state rather
+than matching bare lines, so a fence shown *inside* a longer fence is
+an example rather than a diagram -- which is what the page explaining
+the rule inevitably contains. Wrap the counter-example in a longer
+fence of the other character and the lane stays green:
+
+`````markdown
+````markdown
+~~~mermaid
+flowchart TB
+  a --> b
+~~~
+````
+`````
+
+The rules are CommonMark's: a fence opens on three or more backticks
+or tildes and closes on the same character, at least as long, with no
+info string, and only the fences that open at the top level are
+classified. Note that `mmdc` itself has no such notion -- it renders
+every mermaid fence it finds, nested or not -- so this decides which
+files are worth starting a container for and which are refused, not
+what gets rendered once a file is selected.
+
 The workflow's path filter names the script and the workflow itself
 alongside `**.md`, so a pull request that edits the checker and no
 markdown still runs it. `!REVIEWS.md` is last, because a later pattern
 wins; a repository with no `REVIEWS.md` keeps the line so the
 exclusion is in force from the first commit of one.
+
+Those two paths are literals, so a repository that renames the
+workflow, or installs the script somewhere other than `tools/`, must
+update them to match. A path filter that matches nothing looks
+exactly like a path filter that had nothing to match, so the lane
+would silently stop running on changes to itself -- which is the gap
+the two paths were added to close. The same applies to a repository
+that folds the script into an existing gate job rather than taking
+the shipped workflow: that job's own filter needs the script's path.
 
 ## The pinned image
 
@@ -127,7 +165,17 @@ digest is what actually pins it; the tag stays for readability.
 Renovate's stock managers do not read a docker reference out of a
 shell script, so unlike the rest of the fleet's dependencies this one
 does not move on its own -- which is also why the digest costs nothing
-in maintenance. Bump both deliberately when a mermaid feature is
+in maintenance. Bump it deliberately when a mermaid feature is
 missing, taking the new digest from the pull, and re-run the script
 over the whole repository afterwards: a mermaid major version can
 reject a diagram its predecessor accepted.
+
+Three references move together. Two are in `mermaid-lint.sh` and so
+travel to every adopting repository: `IMAGE_TAG`, and the digest
+composed onto it -- two lines rather than one because a digest is 71
+characters and cannot be wrapped. The third is the by-hand `docker
+run` in the development repository's `diagram-conversion` skill,
+which pins the same image so that an agent following the skill does
+not pull a mutable tag. `MermaidLintDeploymentTest` asserts the skill
+and the script name the same tag and digest, so a half-done bump
+fails the suite rather than going unnoticed.

@@ -27,11 +27,14 @@ set -euo pipefail
 
 # Pinned deliberately, by digest as well as by tag: a tag is mutable
 # and this runs a third-party container on a runner with a docker
-# daemon. Renovate's stock managers do not read a docker reference out
-# of a shell script, so this moves when somebody moves it; check for a
-# newer tag when a mermaid feature is missing, and take the new digest
-# from the pull rather than trusting the tag alone.
-IMAGE="ghcr.io/mermaid-js/mermaid-cli/mermaid-cli:11.4.2@sha256:99c983b3ab4e14033f2880bc1b9de17e5090b4515dabd63fe9cf8c0ae6130956"
+# daemon. The tag is for a human reading this; the digest is what
+# actually pins. Renovate's stock managers do not read a docker
+# reference out of a shell script, so this moves when somebody moves
+# it; check for a newer tag when a mermaid feature is missing, and
+# take the new digest from the pull rather than trusting the tag
+# alone.
+IMAGE_TAG="ghcr.io/mermaid-js/mermaid-cli/mermaid-cli:11.4.2"
+IMAGE="${IMAGE_TAG}@sha256:99c983b3ab4e14033f2880bc1b9de17e5090b4515dabd63fe9cf8c0ae6130956"
 
 repo_root=$(git rev-parse --show-toplevel)
 
@@ -77,31 +80,102 @@ fi
 # close. Rather than fail open, refuse the file and say which fence to
 # use: the narrow mmdc-compatible form stays the only one that can be
 # committed unnoticed.
-files=()
-unlintable=()
+#
+# Which means the scan has to track fence state rather than match bare
+# lines. A fence shown inside a longer fence is an example being
+# written about, not a diagram to render, and the page most likely to
+# contain one is the page explaining this very rule -- so a line
+# match would fail the repository for documenting its own linter. The
+# rules are CommonMark's: a fence opens on three or more backticks or
+# tildes and closes on the same character, at least as long, with no
+# info string, and only fences that open at the top level are
+# classified. mmdc reads nested examples too, so a file selected for
+# some other diagram is still rendered whole; what this decides is
+# which files are worth starting a container for, and which are
+# refused outright.
+existing=()
 for candidate in "${candidates[@]}"; do
     # Only reachable on the git ls-files path, where an entry can be
     # staged for deletion; a named file was checked above.
-    [ -f "${candidate}" ] || continue
-    if grep -q '^[[:space:]]*```mermaid' "${candidate}"; then
-        files+=("${candidate}")
-    fi
-    if grep -q '^[[:space:]]*~~~mermaid' "${candidate}"; then
-        unlintable+=("${candidate}")
+    if [ -f "${candidate}" ]; then
+        existing+=("${candidate}")
     fi
 done
+
+# Into a variable rather than through a process substitution, so that
+# an awk that dies takes the script with it under set -e. A scan that
+# failed silently would report no diagrams and exit zero, which is the
+# shape of failure this whole lane exists to prevent.
+scan=""
+if [ "${#existing[@]}" -ne 0 ]; then
+    scan=$(awk '
+        FNR == 1 { fence = ""; flen = 0; backtick = 0; tilde = 0 }
+        {
+            line = $0
+            sub(/^[ \t]*/, "", line)
+            ch = substr(line, 1, 1)
+            run = 0
+            if (ch == "`" || ch == "~")
+                while (substr(line, run + 1, 1) == ch)
+                    run++
+            if (run < 3)
+                next
+
+            info = substr(line, run + 1)
+            sub(/^[ \t]+/, "", info)
+            sub(/[ \t].*$/, "", info)
+
+            if (fence != "") {
+                if (ch == fence && run >= flen && info == "")
+                    fence = ""
+                next
+            }
+
+            fence = ch
+            flen = run
+            if (info != "mermaid")
+                next
+            if (ch == "`" && !backtick) {
+                backtick = 1
+                print "backtick", FILENAME
+            }
+            if (ch == "~" && !tilde) {
+                tilde = 1
+                print "tilde", FILENAME
+            }
+        }
+    ' "${existing[@]}")
+fi
+
+files=()
+unlintable=()
+while read -r kind scanned_file; do
+    case "${kind}" in
+        backtick) files+=("${scanned_file}") ;;
+        tilde) unlintable+=("${scanned_file}") ;;
+    esac
+done <<< "${scan}"
+
+rc=0
 
 if [ "${#unlintable[@]}" -ne 0 ]; then
     for unlintable_file in "${unlintable[@]}"; do
         echo "mermaid-lint: ${unlintable_file}: mermaid in a tilde fence" \
             "is not linted; use a backtick fence" >&2
     done
-    exit 1
+    # Fall through rather than exiting here. A repository with both a
+    # tilde fence and a diagram that does not parse should learn about
+    # both from one run: the virtual machine this lane needs is the
+    # expensive part, and the path filter exists to avoid spinning a
+    # second one to deliver the second half of the same answer.
+    rc=1
 fi
 
 if [ "${#files[@]}" -eq 0 ]; then
-    echo "No markdown files contain mermaid diagrams; nothing to lint."
-    exit 0
+    if [ "${rc}" -eq 0 ]; then
+        echo "No markdown files contain mermaid diagrams; nothing to lint."
+    fi
+    exit "${rc}"
 fi
 
 workdir=$(mktemp -d)
@@ -118,7 +192,9 @@ echo "Linting ${#files[@]} file(s) containing mermaid diagrams."
 # The exit status of docker run is the inner shell's, and it is the
 # whole point of this script. Do not pipe this into tail or grep: the
 # pipeline would report the filter's status and turn every failure
-# green.
+# green. It is combined with rc rather than being the script's status
+# directly, so that a refused tilde fence above still fails a run in
+# which every backtick diagram parses.
 docker run --rm -u "$(id -u):$(id -g)" \
     -v "${repo_root}":/src:ro \
     -v "${workdir}":/work \
@@ -142,4 +218,6 @@ docker run --rm -u "$(id -u):$(id -g)" \
             fi
         done < /work/files.txt
         exit "${rc}"
-    '
+    ' || rc=1
+
+exit "${rc}"

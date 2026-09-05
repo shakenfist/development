@@ -12,6 +12,8 @@ Run with: python3 scripts/tests/test_docs_content.py
 # the file rather than to any one line of it.
 
 import os
+import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -641,7 +643,12 @@ class MermaidLintCiTest(unittest.TestCase):
         It finds no chart in a ~~~mermaid block and exits zero, so
         calling such a repository applicable would mark it covered for
         a diagram its linter never renders. The audit matches the same
-        narrow form the script greps for.
+        narrow form the script selects on.
+
+        The two then part company about what to do with such a block:
+        the audit declines to count it, the script refuses it. See
+        MermaidLintScriptTest.test_a_tilde_fence_is_refused, which
+        pins the other half of that deliberate disagreement.
         """
         result = self._check({
             'docs/x.md': (
@@ -687,6 +694,123 @@ class MermaidLintDeploymentTest(unittest.TestCase):
             self._repo('.github', 'workflows', 'mermaid-lint.yml'),
             self._repo('templates', 'mermaid-lint', 'mermaid-lint.yml'),
         )
+
+    def test_the_skill_pins_the_same_image(self):
+        """The image is named in two places, so it can be bumped in one.
+
+        The skill hands an agent a copy-pasteable docker run. A tag is
+        mutable, so both references carry the digest; a bump that
+        moves only one of them leaves the other pulling something
+        nobody chose, which is the whole reason for pinning.
+        """
+        script = self._repo('tools', 'mermaid-lint.sh').decode('utf-8')
+        skill = self._repo('.claude', 'skills', 'diagram-conversion',
+                           'SKILL.md').decode('utf-8')
+
+        # The script composes the reference from a tag and a digest,
+        # so that neither line has to be 129 characters wide.
+        script_tags = re.findall(r'mermaid-cli:([0-9][^"@\s]*)', script)
+        script_digests = re.findall(r'@(sha256:[0-9a-f]{64})', script)
+        skill_refs = re.findall(
+            r'mermaid-cli:([0-9][^@\s]*)@(sha256:[0-9a-f]{64})', skill)
+
+        self.assertEqual(len(script_tags), 1, script_tags)
+        self.assertEqual(len(script_digests), 1, script_digests)
+        self.assertEqual(len(skill_refs), 1, skill_refs)
+        self.assertEqual([(script_tags[0], script_digests[0])], skill_refs)
+
+
+class MermaidLintScriptTest(unittest.TestCase):
+    """The script's own behaviour, run rather than read.
+
+    Everything here stops short of the container: a repository with
+    nothing lintable, and one the script refuses outright, are both
+    decided before docker is invoked. That is what makes the central
+    behaviour of this lane testable in a suite that has no docker --
+    and it needs testing, because a linter whose failure mode is
+    exiting zero cannot be checked by reading it.
+    """
+
+    def _run(self, files, args=()):
+        """Lint a throwaway repository built from {path: content}."""
+        env = dict(os.environ)
+        # A stray global excludesFile or template would change what
+        # git ls-files reports, and the script trusts that list.
+        env['GIT_CONFIG_GLOBAL'] = os.devnull
+        env['GIT_CONFIG_SYSTEM'] = os.devnull
+
+        script = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(
+                os.path.abspath(__file__)))),
+            'tools', 'mermaid-lint.sh')
+
+        with tempfile.TemporaryDirectory() as repo:
+            subprocess.run(['git', 'init', '-q', repo],
+                           check=True, env=env)
+            for name, content in files.items():
+                path = os.path.join(repo, name)
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, 'w') as f:
+                    f.write(content)
+            # Tracked, not merely present: the script walks the index.
+            subprocess.run(['git', 'add', '-A'],
+                           cwd=repo, check=True, env=env)
+            return subprocess.run(
+                [script, *args], cwd=repo, env=env,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                universal_newlines=True)
+
+    def test_a_tilde_fence_is_refused(self):
+        """Refused, not skipped -- and the message says what to do.
+
+        GitHub renders a ~~~mermaid block and mmdc reads nothing in
+        one, so skipping it ships an unlinted diagram while the run
+        reports success. The audit's matching half is
+        test_a_tilde_fence_does_not_make_it_applicable above.
+        """
+        result = self._run({
+            'docs/x.md': '# P\n\n~~~mermaid\nflowchart TB\n  a --> b\n~~~\n',
+        })
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('docs/x.md', result.stderr)
+        self.assertIn('use a backtick fence', result.stderr)
+        self.assertNotIn('nothing to lint', result.stdout)
+
+    def test_a_named_file_is_refused_the_same_way(self):
+        """The per-file form is the one a person reaches for by hand."""
+        result = self._run(
+            {'docs/x.md': '# P\n\n~~~mermaid\nflowchart TB\n~~~\n'},
+            args=('docs/x.md',))
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('use a backtick fence', result.stderr)
+
+    def test_a_fence_inside_a_longer_fence_is_an_example(self):
+        """Writing about the rule must not fail the repository.
+
+        A page explaining that tilde fences are refused contains a
+        tilde fence, wrapped in a longer one. A line match would
+        refuse that page; the scan tracks fence state instead.
+        templates/mermaid-lint/README.md is a real instance.
+        """
+        result = self._run({
+            'docs/x.md': (
+                '# P\n\n````markdown\n~~~mermaid\n'
+                'flowchart TB\n  a --> b\n~~~\n````\n'
+            ),
+        })
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('nothing to lint', result.stdout)
+
+    def test_a_repository_with_no_diagrams_passes(self):
+        result = self._run({'docs/x.md': '# P\n\nProse only.\n'})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('nothing to lint', result.stdout)
+
+    def test_a_missing_named_file_is_an_error(self):
+        """A typo must not be an empty run that exits zero."""
+        result = self._run({'docs/x.md': '# P\n'}, args=('docs/nope.md',))
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('no such file', result.stderr)
 
 
 class ReadmeAbsoluteLinksTest(CheckTestCase):
