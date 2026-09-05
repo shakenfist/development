@@ -27,11 +27,23 @@ glob, an empty release is indistinguishable from a good one.
 
 The workflow can also be started by hand, which runs the build and the
 `twine check` as a smoke test and stops there. Everything from the tag
-signing down is confined to tag refs with
-`if: startsWith(github.ref, 'refs/tags/v')`. That guard is what makes
-the manual trigger safe to use: a dispatch arrives on a branch ref, and
-without it `sign-tag` would take `refs/heads/<branch>` for a tag name,
-force-push `refs/tags/refs/heads/<branch>`, and go on to publish.
+signing down is confined to a pushed tag with
+`if: github.event_name == 'push' && startsWith(github.ref,
+'refs/tags/v')`. Both clauses are needed: aimed at a branch, an
+unguarded `sign-tag` would take `refs/heads/<branch>` for a tag name and
+force-push `refs/tags/refs/heads/<branch>`; aimed at an existing tag, a
+ref-only guard would let the run re-sign and force-push that tag,
+rewriting a signed object someone may already have verified. Re-running
+a failed release still works, because "Re-run jobs" replays the original
+push event.
+
+The two publishing jobs do not check out, so they start in whatever the
+previous job on that runner left behind -- the static pool is
+persistent, and `download-artifact` adds to a directory rather than
+replacing it. They download into `${{ runner.temp }}`, which is per job,
+and everything reading the distribution is pointed at the same place.
+`pypa/gh-action-pypi-publish` needs `packages-dir` for this reason: its
+own default is `./dist` in the shared workspace.
 
 ```mermaid
 flowchart TB

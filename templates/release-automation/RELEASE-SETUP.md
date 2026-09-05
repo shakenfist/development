@@ -98,6 +98,29 @@ Verification can be done by anyone using `cosign` or `gitsign verify`.
    - Publishes to PyPI using OIDC (no tokens)
    - Creates a GitHub Release with the artifacts
 
+### Running the workflow by hand
+
+The workflow also offers `workflow_dispatch`. A manual run builds the
+package and runs `twine check`, and stops there: it never signs a tag,
+never uploads to PyPI, and never creates a release. Use it to confirm
+the package still builds without cutting a release.
+
+That is enforced by a guard on each publishing job:
+
+```yaml
+if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+```
+
+Both clauses earn their place. Without the ref test, a dispatch aimed at
+a branch would have `sign-tag` treat `refs/heads/<branch>` as a tag name
+and force-push a `refs/tags/refs/heads/<branch>` ref. Without the event
+test, a dispatch aimed at an *existing tag* would re-sign and force-push
+it, rewriting a signed object someone may already have verified.
+
+Nothing is lost by requiring `push`. Re-running a failed release goes
+through GitHub's "Re-run jobs", which replays the original push event
+and so satisfies the guard.
+
 ## Verifying Releases
 
 ### Verify Git Tag Signature
