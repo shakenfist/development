@@ -19,12 +19,18 @@
   `sign-tag` force-push a `refs/tags/refs/heads/<branch>` tag; one aimed
   at an existing tag would re-sign and force-push it. Build jobs are
   exempt: running them is what the dispatch is for.
-* A publishing job which does not check out downloads into
-  `${{ runner.temp }}`, and every input reading the distribution
-  (`subject-path`, `files`, `packages-dir`) points there too. Such a job
-  starts in whatever the previous job left on that runner, and
-  `download-artifact` adds to a directory rather than replacing it.
-  Jobs which do check out are exempt, because checkout cleans.
+* A job which downloads artifacts and does not start from a cleaned
+  checkout downloads into `${{ runner.temp }}`. Such a job inherits
+  whatever the previous job left on that runner, and
+  `download-artifact` adds to a directory rather than replacing it. A
+  checkout earns the exemption only when it cleans, so `clean: false`
+  does not count. `packages-dir` is not judged: the PyPI publish runs
+  in a container that sees only the workspace, so that input must be
+  relative.
+* The steps reading the distribution (`subject-path` on the attestation,
+  `files` on the release) name the directory the download actually
+  filled. Moving one and not the other leaves a step globbing an empty
+  directory.
 
 ## Template
 

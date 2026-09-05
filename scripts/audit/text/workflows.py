@@ -8,6 +8,7 @@ right line, whether a label was written literally or behind an
 expression -- and a parsed document has already thrown that away.
 """
 
+import itertools
 import re
 
 
@@ -307,6 +308,11 @@ def has_workflow_dispatch(content):
 
 JOB_KEY_RE = re.compile(r'^(\s*)([A-Za-z_][A-Za-z0-9_-]*):\s*(.*?)\s*$')
 
+# A YAML block scalar header: '|', '>', with an optional chomping
+# or indentation indicator. It introduces the value rather than
+# being part of it.
+BLOCK_INDICATOR_RE = re.compile(r'^[|>][+-]?\d*$')
+
 
 def job_level_keys(body):
     """The job's own keys, mapped to their inline value.
@@ -327,11 +333,25 @@ def job_level_keys(body):
     indent = min(len(line) - len(line.lstrip()) for line in lines)
 
     keys = {}
-    for line in lines:
+    for position, line in enumerate(lines):
         match = JOB_KEY_RE.match(line)
-        if match and len(match.group(1)) == indent:
-            keys[match.group(2)] = re.sub(
-                r'\s+#.*$', '', match.group(3)).strip()
+        if not match or len(match.group(1)) != indent:
+            continue
+        value = re.sub(r'\s+#.*$', '', match.group(3)).strip()
+        # A value continued over later lines -- a folded "if: >-", or a
+        # plain scalar simply wrapped -- is gathered in, because a
+        # condition read as absent is a criterion that silently passes.
+        # An empty value introduces a block (steps:, permissions:) and
+        # is left alone: its contents are not the key's value.
+        if value:
+            value = ' '.join(
+                [BLOCK_INDICATOR_RE.sub('', value)]
+                + [later.strip() for later in
+                   itertools.takewhile(
+                       lambda text: len(text) - len(text.lstrip()) > indent,
+                       lines[position + 1:])]
+            ).strip()
+        keys[match.group(2)] = value
     return keys
 
 

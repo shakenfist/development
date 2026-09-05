@@ -1601,8 +1601,12 @@ class ReleaseProcessTest(CheckTestCase):
         self.assert_fail(self.check(has_pyproject_toml=True),
                          containing='sign-tag')
 
-    def test_the_shipped_template_is_guarded(self):
-        """The template grew the guards; this pins them there."""
+    def test_the_shipped_template_satisfies_every_criterion(self):
+        """One test for the whole file, over every criterion here.
+
+        This is the regression that keeps mattering: each defect lived
+        in the template for exactly as long as nothing measured it.
+        """
         self.compliant()
         with open(os.path.join(
                 REPO_ROOT, 'templates', 'release-automation',
@@ -1610,23 +1614,22 @@ class ReleaseProcessTest(CheckTestCase):
             self.fixture.workflow('release.yml', f.read())
         self.assert_pass(self.check(has_pyproject_toml=True))
 
-    # The workspace half of the criterion. The publishing jobs do not
-    # check out, the static pool is persistent, and download-artifact
-    # adds to a directory rather than replacing it -- so a job that
-    # downloads into the shared workspace publishes whatever else is
-    # lying there. Checkout cleans, so jobs which do check out are
-    # exempt rather than merely untested.
+    # The workspace half of the criterion. A job which skips checkout
+    # inherits whatever the previous job left on that runner, and
+    # download-artifact adds to a directory rather than replacing it,
+    # so such a job must download into the per-job runner.temp.
+    # Checkout cleans, so a job which checks out is exempt -- which is
+    # how the real publish-pypi qualifies, since gh-action-pypi-publish
+    # runs in a container that can only see the workspace.
 
     TEMP = '${{ runner.temp }}/dist/'
 
-    def publishing_workflow(self, path=TEMP, subject=None, packages=None,
-                            checkout=False):
-        """A checkout-less publish job, parameterised on where it reads."""
+    def publishing_workflow(self, path=TEMP, subject=None, checkout='',
+                            packages=None):
+        """A publish job, parameterised on where it reads and cleans."""
         subject = self.TEMP + '*' if subject is None else subject
         self.compliant()
-        steps = ''
-        if checkout:
-            steps += ('      - uses: actions/checkout@v7\n')
+        steps = checkout
         steps += (
             '      - uses: actions/download-artifact@v8\n'
             '        with:\n'
@@ -1651,37 +1654,69 @@ class ReleaseProcessTest(CheckTestCase):
             '    runs-on: [self-hosted, static]\n'
             '    steps:\n' + steps)
 
+    CHECKOUT = '      - uses: actions/checkout@v7\n'
+    DIRTY_CHECKOUT = ('      - uses: actions/checkout@v7\n'
+                      '        with:\n'
+                      '          clean: false\n')
+
     def test_downloading_into_the_shared_workspace_fails(self):
-        self.publishing_workflow(path='dist/', subject='dist/*',
-                                 packages='dist/')
+        self.publishing_workflow(path='dist/', subject='dist/*')
         self.assert_fail(self.check(has_pyproject_toml=True),
-                         containing='does not check out')
+                         containing='does not start from a cleaned checkout')
 
-    def test_a_consumer_left_on_the_workspace_fails(self):
-        """The download moved but something reading it did not."""
-        self.publishing_workflow(subject='dist/*', packages=self.TEMP)
-        self.assert_fail(self.check(has_pyproject_toml=True),
-                         containing='subject-path')
-
-    def test_publishing_without_packages_dir_fails(self):
-        """The action's own default is ./dist, so silence is a defect."""
-        self.publishing_workflow(packages=None)
-        self.assert_fail(self.check(has_pyproject_toml=True),
-                         containing='packages-dir')
-
-    def test_a_fully_temp_scoped_publish_job_passes(self):
-        self.publishing_workflow(packages=self.TEMP)
-        self.assert_pass(self.check(has_pyproject_toml=True))
-
-    def test_a_job_which_checks_out_may_use_the_workspace(self):
+    def test_a_checkout_out_workspace_may_be_used(self):
         """Checkout runs git clean -ffdx, which removes a stale dist/.
 
-        The false positive that matters: demanding runner.temp of every
-        job would flag the build job, which is the one place the
-        workspace is known to be clean.
+        This is the shape the real publish-pypi has to take: the PyPI
+        publish delegates to a Docker container action, which sees the
+        workspace at /github/workspace and nothing else of the runner's
+        filesystem, so its paths must be relative to a workspace that
+        something has cleaned.
         """
         self.publishing_workflow(path='dist/', subject='dist/*',
-                                 packages='dist/', checkout=True)
+                                 checkout=self.CHECKOUT, packages='dist/')
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_a_checkout_which_does_not_clean_earns_nothing(self):
+        """clean: false hands back the very workspace at issue."""
+        self.publishing_workflow(path='dist/', subject='dist/*',
+                                 checkout=self.DIRTY_CHECKOUT)
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='does not start from a cleaned checkout')
+
+    def test_a_quoted_clean_false_earns_nothing_either(self):
+        """YAML 'false' is the string, which Actions still reads as off."""
+        self.publishing_workflow(
+            path='dist/', subject='dist/*',
+            checkout=('      - uses: actions/checkout@v7\n'
+                      '        with:\n'
+                      "          clean: 'false'\n"))
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='does not start from a cleaned checkout')
+
+    def test_an_explicit_clean_true_is_fine(self):
+        self.publishing_workflow(
+            path='dist/', subject='dist/*',
+            checkout=('      - uses: actions/checkout@v7\n'
+                      '        with:\n'
+                      '          clean: true\n'))
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_a_temp_scoped_job_without_checkout_passes(self):
+        """The github-release shape: no checkout, everything in temp."""
+        self.publishing_workflow()
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_packages_dir_is_not_required_to_be_absolute(self):
+        """The criterion must not ask for what the container forbids.
+
+        packages-dir has to be relative to the workspace, so a job
+        which is otherwise correct is not faulted for it -- nor for
+        omitting it, since the action's own default is a relative
+        ./dist.
+        """
+        self.publishing_workflow(path='dist/', subject='dist/*',
+                                 checkout=self.CHECKOUT, packages=None)
         self.assert_pass(self.check(has_pyproject_toml=True))
 
     def test_a_build_job_uploading_to_dist_is_not_judged(self):
@@ -1701,6 +1736,52 @@ class ReleaseProcessTest(CheckTestCase):
             '        with:\n'
             '          name: dist\n'
             '          path: dist/\n')
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    # Where the download goes and where the consumers read are separate
+    # questions. The second is asked of every job that downloads,
+    # because moving one and not the other is how this breaks.
+
+    def test_a_consumer_left_behind_by_the_download_fails(self):
+        self.publishing_workflow(subject='dist/*')
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='reads somewhere else')
+
+    def test_a_consumer_agreeing_with_the_download_passes(self):
+        self.publishing_workflow(path='dist/', subject='dist/*',
+                                 checkout=self.CHECKOUT)
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_quoting_and_the_glob_are_not_disagreement(self):
+        """'dist/*' and dist/ name the same directory."""
+        self.publishing_workflow(path='dist', subject='dist/*',
+                                 checkout=self.CHECKOUT)
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_a_files_input_on_an_unrelated_step_is_not_judged(self):
+        """"files:" only means the distribution on the release action."""
+        self.compliant()
+        self.fixture.workflow(
+            'release.yml',
+            'name: Release\n'
+            'on:\n'
+            '  push:\n'
+            "    tags: ['v*']\n"
+            'jobs:\n'
+            '  github-release:\n'
+            '    runs-on: [self-hosted, static]\n'
+            '    steps:\n'
+            '      - uses: actions/download-artifact@v8\n'
+            '        with:\n'
+            '          name: dist\n'
+            f'          path: {self.TEMP}\n'
+            '      - uses: some/other-action@v1\n'
+            '        with:\n'
+            '          files: coverage/*\n'
+            '      - uses: softprops/action-gh-release@v3\n'
+            '        with:\n'
+            f'          files: {self.TEMP}*\n'
+            '          fail_on_unmatched_files: true\n')
         self.assert_pass(self.check(has_pyproject_toml=True))
 
     # The event half of the guard. A dispatch can be aimed at a tag, so
@@ -1736,19 +1817,33 @@ class ReleaseProcessTest(CheckTestCase):
                                   containing='not confined to tags')
         self.assertNotIn('the ref but not the event', result['details'])
 
+    def test_a_folded_guard_is_read_as_a_guard(self):
+        """A condition written over several lines is still a condition.
+
+        Read as absent, a folded "if:" would make the guard criterion
+        report a correctly guarded repository as unguarded -- and, worse
+        for a check the fleet is being measured against, would let a
+        repository pass criterion two by writing its guard in a way the
+        parser could not see.
+        """
+        folded = ('    if: >-\n'
+                  "      github.event_name == 'push' &&\n"
+                  "      startsWith(github.ref, 'refs/tags/v')\n")
+        self.dispatch_workflow(sign_guard=folded, release_guard=folded)
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_a_folded_ref_only_guard_is_still_caught(self):
+        """Folding must not hide a missing clause either."""
+        folded = ('    if: >-\n'
+                  "      startsWith(github.ref, 'refs/tags/v')\n")
+        self.dispatch_workflow(sign_guard=folded, release_guard=folded)
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='the ref but not the event')
+
     def test_a_ref_only_guard_passes_without_a_dispatch_trigger(self):
         """No manual trigger means no event to disambiguate."""
         self.dispatch_workflow(sign_guard=self.GUARD,
                                release_guard=self.GUARD, dispatch=False)
-        self.assert_pass(self.check(has_pyproject_toml=True))
-
-    def test_the_shipped_template_satisfies_every_criterion(self):
-        """One test for the whole file, over all four criteria."""
-        self.compliant()
-        with open(os.path.join(
-                REPO_ROOT, 'templates', 'release-automation',
-                'release.yml')) as f:
-            self.fixture.workflow('release.yml', f.read())
         self.assert_pass(self.check(has_pyproject_toml=True))
 
 

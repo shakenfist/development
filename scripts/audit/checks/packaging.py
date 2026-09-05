@@ -351,13 +351,22 @@ def read_dependency_array(repo_path):
 DOWNLOAD_ARTIFACT_ACTION = 'actions/download-artifact'
 GH_RELEASE_ACTION = 'softprops/action-gh-release'
 CHECKOUT_ACTION = 'actions/checkout'
-PYPI_PUBLISH_ACTION = 'pypa/gh-action-pypi-publish'
 ATTEST_ACTION = 'actions/attest-build-provenance'
 
-#: The step inputs which name the directory a publishing step reads
-#: from. Each has to agree with wherever the download actually put the
-#: distribution, or the step reads somewhere else entirely.
-DIST_CONSUMING_INPUTS = ('subject-path', 'files', 'packages-dir')
+#: The inputs which name the directory a step reads the distribution
+#: from, each tied to the action that takes it. Matching on the input
+#: name alone would read any step's "files:" as a claim about the
+#: distribution, which it need not be.
+#:
+#: packages-dir is deliberately absent. gh-action-pypi-publish
+#: delegates to a Docker container action, and a container sees the
+#: workspace at /github/workspace and no more of the runner's
+#: filesystem, so that input must be relative to the workspace -- the
+#: opposite of what this criterion asks of the others.
+DIST_CONSUMING_INPUTS = {
+    ATTEST_ACTION: 'subject-path',
+    GH_RELEASE_ACTION: 'files',
+}
 
 #: A reference to the per-job temporary directory.
 RUNNER_TEMP_RE = re.compile(r'\$\{\{\s*runner\.temp\s*\}\}')
@@ -439,18 +448,38 @@ def release_asset_issues(repo_path):
 
 
 def job_checks_out(body):
-    """Does this job run actions/checkout?
+    """Does this job start from a workspace checkout has cleaned?
 
     Which decides whether its workspace can be trusted. Checkout
     cleans by default -- `git clean -ffdx && git reset --hard HEAD` --
     and that removes gitignored build output such as dist/, so a job
     which checks out starts from a known state even on a runner that
     has built this repository before.
+
+    `clean: false` turns that off and hands back exactly the inherited
+    workspace the exemption exists to rule out, so it does not count.
+    The whole exemption rests on the cleaning, not on the checkout.
     """
-    return any(
-        step_action(step) == CHECKOUT_ACTION
-        for step in workflow_step_blocks(body)
-    )
+    for step in workflow_step_blocks(body):
+        if step_action(step) != CHECKOUT_ACTION:
+            continue
+        clean = step_with_inputs(step).get('clean', '')
+        if clean.strip().strip('"').strip("'").lower() == 'false':
+            continue
+        return True
+    return False
+
+
+def dist_directory(value):
+    """The directory part of a path or glob naming the distribution.
+
+    Quoting and a trailing glob are spelling; what two of these have
+    to agree about is the directory. Returns '' for an empty value.
+    """
+    value = value.strip().strip('"').strip("'").strip()
+    if value.endswith('*'):
+        value = value[:-1]
+    return value.rstrip('/')
 
 
 def release_workspace_issues(repo_path):
@@ -494,28 +523,62 @@ def release_workspace_issues(repo_path):
             if RUNNER_TEMP_RE.search(path):
                 continue
             issues.append(
-                f'the {name} job does not check out, so its workspace is '
-                'whatever the previous job on that runner left behind, but '
-                f'it downloads artifacts to "{path or "the workspace"}"; '
-                'download to "${{ runner.temp }}/dist/" so a stale file '
-                'cannot join the set being published')
+                f'the {name} job does not start from a cleaned checkout, so '
+                'its workspace is whatever the previous job on that runner '
+                f'left behind, but it downloads artifacts to '
+                f'"{path or "the workspace"}"; either check out (which runs '
+                'git clean -ffdx) or download to "${{ runner.temp }}/dist/", '
+                'so that a stale file cannot join the set being published')
+
+    return issues
+
+
+def dist_agreement_issues(repo_path):
+    """Findings for a step reading the distribution from elsewhere.
+
+    Separate from where the download goes, and asked of every job that
+    downloads rather than only the ones which skip checkout: a step
+    pointed at a directory the download did not fill reads an empty
+    glob wherever that directory is. Moving the download and leaving a
+    consumer behind is the way this breaks in practice, because the
+    two are several lines apart and only one of them is obviously
+    about the distribution.
+    """
+    filepath = os.path.join(repo_path, '.github', 'workflows', 'release.yml')
+    if not os.path.exists(filepath):
+        return []
+    with open(filepath, 'r', errors='replace') as f:
+        content = f.read()
+
+    issues = []
+    for name, body in workflow_job_blocks(content):
+        steps = workflow_step_blocks(body)
+        downloads = [step for step in steps
+                     if step_action(step) == DOWNLOAD_ARTIFACT_ACTION]
+        paths = [step_with_inputs(step).get('path') for step in downloads]
+        # A download with no `path:` at all decides the destination
+        # itself, so there is nothing here to agree or disagree with.
+        # The asset criterion already reports that job, and guessing a
+        # destination in order to have something to compare against
+        # would turn one finding into two saying the same thing.
+        if not downloads or any(path is None for path in paths):
+            continue
+        targets = {dist_directory(path) for path in paths}
 
         for step in steps:
-            inputs = step_with_inputs(step)
-            for key in DIST_CONSUMING_INPUTS:
-                value = inputs.get(key)
-                if value and not RUNNER_TEMP_RE.search(value):
-                    issues.append(
-                        f'the {name} job reads the distribution from '
-                        f'"{key}: {value}", which is not the runner.temp '
-                        'directory the download should be using')
-            if (step_action(step) == PYPI_PUBLISH_ACTION
-                    and 'packages-dir' not in inputs):
-                issues.append(
-                    f'the {name} job publishes to PyPI without setting '
-                    '"packages-dir", so it uploads from ./dist in the '
-                    'shared workspace rather than from the downloaded '
-                    'distribution')
+            key = DIST_CONSUMING_INPUTS.get(step_action(step))
+            if key is None:
+                continue
+            value = step_with_inputs(step).get(key)
+            if value is None:
+                continue
+            if dist_directory(value) in targets:
+                continue
+            issues.append(
+                f'the {name} job downloads the distribution to '
+                f'{" or ".join(sorted(repr(t) for t in targets))} but its '
+                f'"{key}: {value}" reads somewhere else, so that step sees '
+                'an empty directory')
 
     return issues
 
@@ -632,6 +695,7 @@ class ReleaseProcess(Check):
         issues.extend(release_asset_issues(repo.path))
         issues.extend(release_dispatch_guard_issues(repo.path))
         issues.extend(release_workspace_issues(repo.path))
+        issues.extend(dist_agreement_issues(repo.path))
 
         if issues:
             return self.fail('; '.join(issues))
