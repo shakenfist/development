@@ -1268,6 +1268,16 @@ jobs:
 """
 
 
+SCHEDULING_CALLER = """\
+on:
+  schedule:
+    - cron: '0 4 * * *'
+jobs:
+  call:
+    uses: ./.github/workflows/fuzz-run.yml
+"""
+
+
 class FuzzNightlyReportingTest(CheckTestCase):
     check_class = ci_workflows.FuzzNightlyReporting
 
@@ -1278,6 +1288,11 @@ class FuzzNightlyReportingTest(CheckTestCase):
     def _reporter(self):
         self.fixture.write('tools/ci/report-fuzz-crash.sh',
                            '#!/bin/bash\ngh issue create --title x\n')
+
+    def _callee(self, trigger):
+        """GOOD_NIGHTLY as a reusable workflow, triggered as given."""
+        return GOOD_NIGHTLY.replace(
+            "  schedule:\n    - cron: '0 4 * * *'", trigger)
 
     def _queue_gated(self, marked):
         """The nightly, also triggered by the merge queue.
@@ -1620,6 +1635,233 @@ class FuzzNightlyReportingTest(CheckTestCase):
         self.fixture.workflow('ci.yml', 'on: push\njobs:\n  a:\n    steps: []\n')
         self.assert_skip(self.check(has_workflows_dir=True),
                          containing='No fuzz targets')
+
+    #: Written out rather than read from FUZZ_WALK_SKIP: a test that
+    #: iterates the constant it is testing shrinks when the constant
+    #: does, so deleting an entry would pass. This list has to be
+    #: edited alongside it, which is the point.
+    SKIPPED_DIRECTORIES = (
+        '.git', '.tox', '.venv', 'build', 'dist', 'node_modules',
+        'target', 'third_party', 'vendor', 'venv',
+    )
+
+    def test_a_repository_with_a_fuzz_lane_is_never_walked(self):
+        """The checkout walk is the expensive half, and is avoidable.
+
+        A repository recognised by its fuzz workflow does not need the
+        target search at all: `applies()` can say yes from the cheap
+        cached read, and the only branch of `run()` that names where
+        the targets are is the one where no workflow runs them. Pinned
+        because it is invisible -- reintroducing the walk changes no
+        verdict, only 100ms per fuzzing repository per nightly.
+        """
+        self._targets()
+        self._reporter()
+        self.fixture.workflow('coverage-fuzz.yml', GOOD_NIGHTLY)
+
+        walked = []
+        real = ci_workflows.repo_fuzz_target_dirs
+
+        def counting(path):
+            walked.append(path)
+            return real(path)
+
+        ci_workflows.repo_fuzz_target_dirs = counting
+        try:
+            self.assert_pass(self.check(has_workflows_dir=True))
+        finally:
+            ci_workflows.repo_fuzz_target_dirs = real
+        self.assertEqual([], walked)
+
+    def test_every_skipped_directory_hides_a_fuzz_target(self):
+        """`target/` is the realistic case; the rest reach it another way."""
+        self.assertEqual(set(self.SKIPPED_DIRECTORIES),
+                         set(ci_workflows.FUZZ_WALK_SKIP))
+        for skipped in self.SKIPPED_DIRECTORIES:
+            with self.subTest(directory=skipped):
+                with tempfile.TemporaryDirectory() as path:
+                    os.makedirs(os.path.join(path, skipped, 'dep',
+                                             'fuzz_targets'))
+                    self.assertEqual(
+                        [], ci_workflows.repo_fuzz_target_dirs(path))
+        with tempfile.TemporaryDirectory() as path:
+            os.makedirs(os.path.join(path, 'src', 'fuzz', 'fuzz_targets'))
+            self.assertEqual(['src/fuzz/fuzz_targets'],
+                             ci_workflows.repo_fuzz_target_dirs(path))
+
+    def test_a_schedule_line_carrying_a_comment_is_still_a_schedule(self):
+        """The mirror of the merge_group case, failing the other way.
+
+        A blind spot here fails a repository whose nightly is exactly
+        right, and the audit files that finding as an issue against
+        somebody else's project.
+        """
+        self._targets()
+        self._reporter()
+        self.fixture.workflow(
+            'fuzz.yml',
+            GOOD_NIGHTLY.replace('  schedule:',
+                                 '  schedule:  # nightly at 04:00'))
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_a_workflow_call_line_carrying_a_comment_is_still_a_trigger(self):
+        self._targets()
+        self._reporter()
+        self.fixture.workflow('fuzz-nightly.yml', SCHEDULING_CALLER)
+        self.fixture.workflow('fuzz-run.yml',
+                              self._callee('  workflow_call:  # reusable'))
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_a_flow_style_workflow_call_is_found(self):
+        """`on: [workflow_call]` needs no sub-keys, so it is written."""
+        self._targets()
+        self._reporter()
+        self.fixture.workflow('fuzz-nightly.yml', SCHEDULING_CALLER)
+        self.fixture.workflow(
+            'fuzz-run.yml',
+            GOOD_NIGHTLY.replace(
+                "on:\n  schedule:\n    - cron: '0 4 * * *'",
+                'on: [workflow_call]'))
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_a_caller_of_another_project_s_workflow_does_not_count(self):
+        """`uses:` naming another repository schedules that one, not this.
+
+        The callee here is the local fuzz-run.yml; the caller
+        schedules a same-named workflow belonging to somebody else,
+        which leaves this repository's targets running only on
+        dispatch.
+        """
+        self._targets()
+        self._reporter()
+        self.fixture.workflow(
+            'fuzz-nightly.yml',
+            SCHEDULING_CALLER.replace(
+                'uses: ./.github/workflows/fuzz-run.yml',
+                'uses: other-org/other-repo/.github/workflows/'
+                'fuzz-run.yml@main'))
+        self.fixture.workflow('fuzz-run.yml', self._callee('  workflow_call:'))
+        self.assert_fail(self.check(has_workflows_dir=True),
+                         containing='no schedule trigger')
+
+    def test_a_caller_naming_this_repository_in_full_counts(self):
+        """The other spelling of a local callee, `owner/repo/...@ref`."""
+        self._targets()
+        self._reporter()
+        self.fixture.workflow(
+            'fuzz-nightly.yml',
+            SCHEDULING_CALLER.replace(
+                'uses: ./.github/workflows/fuzz-run.yml',
+                'uses: shakenfist/testrepo/.github/workflows/'
+                'fuzz-run.yml@main'))
+        self.fixture.workflow('fuzz-run.yml', self._callee('  workflow_call:'))
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_a_reporter_in_a_trailing_yaml_comment_fails(self):
+        """A TODO on the end of a line describes filing, not filing."""
+        self._targets()
+        self.fixture.workflow(
+            'fuzz.yml',
+            GOOD_NIGHTLY.replace(
+                '      - run: tools/ci/report-fuzz-crash.sh '
+                '"$TARGET" "$CRASH" "$LOG"',
+                '      - run: echo crashed  # TODO: gh issue create for this'))
+        self.assert_fail(self.check(has_workflows_dir=True),
+                         containing='cannot file an issue')
+
+    def test_a_reporter_script_commenting_about_filing_inline_fails(self):
+        self._targets()
+        self.fixture.write(
+            'tools/ci/report-fuzz-crash.sh',
+            '#!/bin/bash\necho crashed  # TODO: gh issue create --title x\n')
+        self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
+        self.assert_fail(self.check(has_workflows_dir=True),
+                         containing='cannot file an issue')
+
+    def test_a_hash_glued_to_a_word_is_not_a_comment(self):
+        """`${#crashes[@]}` is how a bash reporter counts what it found.
+
+        A `#` opens a comment only where it follows whitespace. Cut on
+        every `#` instead and the filing call that follows a length
+        expansion on the same line disappears, which fails a reporter
+        that works.
+        """
+        self._targets()
+        self.fixture.write(
+            'tools/ci/report-fuzz-crash.sh',
+            '#!/bin/bash\n'
+            '[ ${#CRASHES[@]} -gt 0 ] && gh issue create --title crash\n')
+        self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_a_hash_inside_a_quoted_argument_is_not_a_comment(self):
+        """Stripping trailing comments must not eat the command itself."""
+        self._targets()
+        self.fixture.workflow(
+            'fuzz.yml',
+            GOOD_NIGHTLY.replace(
+                'tools/ci/report-fuzz-crash.sh "$TARGET" "$CRASH" "$LOG"',
+                'echo "see # below" && gh issue create --title crash'))
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_a_trailing_comment_mentioning_fuzz_does_not_pull_a_repo_in(self):
+        """The mirror of the header-comment guard, on one line.
+
+        A repository that has never fuzzed anything must not be
+        measured, let alone failed, because a build step carries a
+        comment about a make target that used to exist.
+        """
+        self.fixture.workflow(
+            'ci.yml',
+            'on:\n  pull_request:\n  merge_group:\njobs:\n  build:\n'
+            '    steps:\n      - run: make build  '
+            '# replaces the old make fuzz-all target\n')
+        self.assert_skip(self.check(has_workflows_dir=True),
+                         containing='No fuzz targets')
+
+    def test_a_python_reporter_script_counts(self):
+        """The reporter belongs in a script; the language is not the point.
+
+        Both spellings a Python reporter reaches for: `gh` through
+        subprocess as an argv list, where the sub-commands are
+        separated by quotes and commas rather than spaces, and a
+        client library's own call.
+        """
+        for body in (
+                'import subprocess\n'
+                "subprocess.run(['gh', 'issue', 'create', '--title', 'x'])\n",
+                'from github import Github\n'
+                "Github().get_repo(name).create_issue(title='crash')\n"):
+            with self.subTest(body=body.splitlines()[0]):
+                self.setUp()
+                self._targets()
+                self.fixture.write('tools/ci/report-fuzz-crash.py', body)
+                self.fixture.workflow(
+                    'fuzz.yml',
+                    GOOD_NIGHTLY.replace('report-fuzz-crash.sh',
+                                         'report-fuzz-crash.py'))
+                self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_a_second_scheduled_lane_that_cannot_report_fails(self):
+        """Every scheduled lane is held to this, not one of them.
+
+        Nothing in a workflow file separates a silent crash campaign
+        from a corpus-minimisation lane with nothing to say, and the
+        permissive reading loses exactly the crash this criterion
+        exists to surface. An `any()` over the lanes would pass the
+        rest of this suite.
+        """
+        self._targets()
+        self._reporter()
+        self.fixture.workflow('coverage-fuzz.yml', GOOD_NIGHTLY)
+        self.fixture.workflow(
+            'fuzz-min.yml',
+            "on:\n  schedule:\n    - cron: '0 5 * * *'\njobs:\n  min:\n"
+            '    steps:\n      - run: cargo fuzz cmin $TARGET\n')
+        result = self.assert_fail(self.check(has_workflows_dir=True),
+                                  containing='cannot file an issue')
+        self.assertIn('fuzz-min.yml', result['details'])
+        self.assertNotIn('coverage-fuzz.yml', result['details'])
 
 
 if __name__ == '__main__':

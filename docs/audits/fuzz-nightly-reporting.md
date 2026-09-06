@@ -18,13 +18,35 @@ directly reads `not_applicable` with "No fuzz targets" — which means
 the audit cannot see its fuzzing, not that it has none. If that is
 your repository, say so and the detection can grow.
 
+The search for `fuzz_targets/` does not descend into build output,
+vendored trees or virtualenvs — `target/`, `build/`, `dist/`,
+`node_modules/`, `vendor/`, `third_party/`, `.tox/`, `.venv/`,
+`venv/`. A cargo-fuzz corpus lands under `target/`, and a
+`fuzz_targets/` inside any of them belongs to a dependency rather
+than to the repository being audited.
+
+A repository whose workflows already run the targets is never
+searched: the workflow read is cached and the walk is not, so the
+cheap question is asked first, and the only finding that has to name
+where the targets are is the one where no workflow runs them.
+
 **The fuzz targets must run on a schedule.** A `schedule:` trigger on
 a workflow that invokes the targets. Fuzzing that only ever happens
 when someone remembers to dispatch it is fuzzing that does not happen;
 a nightly run is what turns the targets from a directory of code into
 a thing that finds bugs. The trigger may sit on a caller instead: a
 `workflow_call` workflow that runs the targets counts as scheduled
-when some workflow with a `schedule:` trigger `uses:` it.
+when some workflow with a `schedule:` trigger `uses:` it. Both
+triggers are read in block form and in flow form (`on:
+[workflow_call]`), and both may carry a trailing comment — a trigger
+line that is explained is still a trigger.
+
+The caller has to name this repository's own copy of the callee:
+`uses: ./.github/workflows/fuzz-run.yml`, or the full
+`owner/repo/.github/workflows/fuzz-run.yml@ref` form where the owner
+and repository are this one. A caller that schedules a *different*
+project's workflow that happens to share the file name has not
+scheduled anything here.
 
 **The scheduled run must report what it finds as GitHub issues.** This
 is the requirement that is easiest to skip and most expensive to skip.
@@ -54,8 +76,24 @@ which is followed one level. Where the nightly is split across a
 caller and a `workflow_call` callee, either side may hold the
 permission and either may make the call — the callee fuzzing and
 uploading while the caller inspects and files is as good a split as
-the reverse. Comments do not count on either side: a
-`# TODO: gh issue create` describes reporting rather than doing it.
+the reverse.
+
+`gh issue create` is recognised however a script spells the argv —
+`['gh', 'issue', 'create', ...]` through `subprocess` is the same
+call — and a Python client's own `create_issue` counts, because a
+reporter in a script is the shape this criterion recommends and
+recognising only the shell spelling would fail a repository that took
+the advice.
+
+Comments do not count on either side, and that includes a comment at
+the end of a line of code: `- run: echo done  # TODO: gh issue
+create` describes reporting rather than doing it. The same rule runs
+in the other direction when deciding whether a repository fuzzes at
+all — `- run: make build  # replaces the old make fuzz-all target` is
+not an invocation, and reading it as one would pull a project that
+has never fuzzed anything into scope and then fail it. A `#` only
+opens a comment where it follows whitespace and sits outside quotes,
+so `${#crashes[@]}` and `--title "crash # 3"` survive.
 The permission is looked for anywhere in the workflow, which does not
 model GitHub replacing a workflow-level `permissions:` block wholesale
 when a job declares its own — a fuzz job that narrows its own

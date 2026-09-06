@@ -73,10 +73,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/merge-group-cancellation.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/merge-queue-config.md",
       "author": "mikal"
     },
@@ -377,10 +373,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/text/workflows.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/__init__.py",
       "author": "mikal"
     },
@@ -669,10 +661,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/scope-coverage.md",
       "author": "mikal"
     },
@@ -689,19 +677,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/registry.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/scope.py",
       "author": "mikal"
     },
     {
       "path": "scripts/tests/test_github_config.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_metadata.py",
       "author": "mikal"
     },
     {
