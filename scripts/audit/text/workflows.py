@@ -144,18 +144,54 @@ def workflow_job_blocks(content):
     return [(name, '\n'.join(body)) for name, body in blocks]
 
 
-def strip_yaml_comments(text):
-    """Drop full-line comments from a block of YAML.
+def strip_trailing_comment(line):
+    """Cut a line at the `#` that starts a comment, if there is one.
 
-    Concurrency keys and `if:` conditions are routinely explained by
-    a comment directly above them that quotes the very expression
-    being warned about, so matching comment text would read those
-    explanations as the code they describe.
+    A `#` opens a comment in YAML only where it follows whitespace or
+    starts the line, and the shell and Python that a `run:` block
+    scalar carries spell it the same way. Quotes are tracked, so
+    `run: gh issue create --title "crash # 3"` keeps its argument: a
+    `#` inside a string is data rather than a comment. An unbalanced
+    quote leaves the rest of the line alone, which errs towards
+    keeping text rather than discarding code.
     """
-    return '\n'.join(
+    quote = None
+    for index, char in enumerate(line):
+        if quote is not None:
+            if char == quote:
+                quote = None
+        elif char in '"\'':
+            quote = char
+        elif char == '#' and (index == 0 or line[index - 1] in ' \t'):
+            return line[:index].rstrip()
+    return line
+
+
+def strip_yaml_comments(text, trailing=False):
+    """Drop comments from a block of YAML.
+
+    Full-line comments always go. Concurrency keys and `if:`
+    conditions are routinely explained by a comment directly above
+    them that quotes the very expression being warned about, so
+    matching comment text would read those explanations as the code
+    they describe.
+
+    `trailing` extends that to a comment at the end of a line of
+    code, which reads wrong in both directions: `- run: echo done  #
+    TODO: gh issue create` describes filing an issue rather than
+    filing one, and `- run: make build  # replaces make fuzz-all` is
+    not an invocation of the fuzz targets. It is off by default
+    because the criteria written before it are calibrated against the
+    full-line behaviour, and widening what a check cannot see is not
+    a change to make on their behalf without measuring the fleet.
+    """
+    lines = [
         line for line in text.splitlines()
         if not line.lstrip().startswith('#')
-    )
+    ]
+    if trailing:
+        lines = [strip_trailing_comment(line) for line in lines]
+    return '\n'.join(lines)
 
 
 def indented_block(body, key):

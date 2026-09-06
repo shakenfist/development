@@ -210,6 +210,10 @@ FROZEN_METADATA = {
         'spec': 'docs/audits/secret-handling.md',
         'template': None,
     },
+    'fuzz-nightly-reporting': {
+        'spec': 'docs/audits/fuzz-nightly-reporting.md',
+        'template': None,
+    },
     'review-marks-pre-commit': {
         'spec': 'docs/audits/workflow-standards.md',
         'template': None,
@@ -296,6 +300,7 @@ FROZEN_ISSUE_TITLES = {
     'push-audit': 'Pre-push audit file',
     'plan-template': 'Plan template',
     'secret-scanning-ci': 'Secret scanning in CI',
+    'fuzz-nightly-reporting': 'Fuzz nightly reporting',
     'review-coverage': 'Human review coverage',
     'review-scope-completeness': 'Human review scope completeness',
     'sfui-vendor': 'sfui vendored copy',

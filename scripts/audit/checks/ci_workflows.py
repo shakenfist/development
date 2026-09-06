@@ -334,25 +334,45 @@ def job_runs_a_scanner(body):
     return False
 
 
+def trigger_re(name):
+    r"""A block-form `on:` trigger key, as written under `on:`.
+
+    Built rather than spelled out three times because the three
+    triggers this module looks for kept drifting apart: the trailing
+    comment was allowed for on `merge_group` and not on the other two,
+    which made `schedule:  # nightly at 04:00` read as an absence of
+    any schedule. A trigger line that carries a comment is still a
+    trigger, in every direction that matters -- for `merge_group` the
+    blind spot hides a queue lane, for `schedule` and `workflow_call`
+    it fails a repository that got the nightly right.
+
+    `[ \t]` rather than `\s`, which matches a newline and would let
+    the match run off the trigger line onto a comment below it. That
+    produces no wrong answers on today's inputs, because anything it
+    matches has already matched on the trigger line alone, but the
+    regex should mean what it looks like it means.
+    """
+    return re.compile(
+        r'^[ \t]{1,4}' + re.escape(name) + r':[ \t]*(?:#.*)?$', re.MULTILINE)
+
+
+def flow_trigger_re(name):
+    """The same trigger written in flow style, `on: [a, b]`."""
+    return re.compile(
+        r'^on:[ \t]*\[[^\]]*\b' + re.escape(name) + r'\b', re.MULTILINE)
+
+
 # On a merge_group event github.ref is the per-attempt queue branch,
 # gh-readonly-queue/<base>/pr-<N>-<SHA>, and GitHub mints a fresh SHA
 # every time it rebuilds the group. A concurrency group keyed on it is
 # therefore unique per rebuild, cancel-in-progress never matches, and
 # superseded runs build whole clouds nobody is waiting on. See
 # docs/audits/merge-group-cancellation.md.
-MERGE_GROUP_TRIGGER_RE = re.compile(
-    r'^\s{1,4}merge_group:\s*$', re.MULTILINE
-)
+MERGE_GROUP_TRIGGER_RE = trigger_re('merge_group')
+MERGE_GROUP_FLOW_RE = flow_trigger_re('merge_group')
 
-
-MERGE_GROUP_FLOW_RE = re.compile(
-    r'^on:\s*\[[^\]]*\bmerge_group\b', re.MULTILINE
-)
-
-
-WORKFLOW_CALL_TRIGGER_RE = re.compile(
-    r'^\s{1,4}workflow_call:\s*$', re.MULTILINE
-)
+WORKFLOW_CALL_TRIGGER_RE = trigger_re('workflow_call')
+WORKFLOW_CALL_FLOW_RE = flow_trigger_re('workflow_call')
 
 
 # A deliberate exception, ideally with a reason beside it.
@@ -1384,3 +1404,313 @@ class SecretScanningCi(Check):
         return self.fail(
             f'No secret scanner in CI; expected one of '
             f'{", ".join(SECRET_SCANNERS)} in a workflow')
+
+
+# cargo-fuzz's layout is a `fuzz_targets/` directory inside the fuzz
+# crate. Found by walking rather than at a fixed path because projects
+# put that crate wherever their workspace wants it: instar has
+# src/fuzz/, ryll has shakenfist-spice-protocol/fuzz/.
+FUZZ_TARGET_DIR = 'fuzz_targets'
+
+
+# Build output, vendored trees and virtualenvs are large, and a
+# fuzz_targets/ inside one belongs to a dependency rather than to the
+# repository being audited. `target` is the realistic case -- a
+# cargo-fuzz corpus lands there -- and the rest are defence in depth
+# against the same mistake reached by another route.
+FUZZ_WALK_SKIP = frozenset({
+    '.git', '.tox', '.venv', 'build', 'dist', 'node_modules',
+    'target', 'third_party', 'vendor', 'venv',
+})
+
+
+# What running the targets looks like in a workflow: a cargo-fuzz
+# subcommand, or a make target named for fuzzing. The subcommand is
+# required because the bare crate name also appears in `cargo install
+# cargo-fuzz`, a toolchain setup step that would otherwise pull a
+# repository with no fuzzing at all into scope and fail it. `build`
+# stays in the list deliberately -- a lane that only compiles the
+# targets is still a lane the merge queue pays for. The make arm ends
+# the word, so `make fuzzy-logic-tests` is not fuzzing. Matched
+# against the file with its comments stripped, trailing ones
+# included, so neither a header explaining that fuzzing moved
+# elsewhere nor a `# replaces the old make fuzz-all target` beside a
+# build step counts as running it. Being wrong here pulls a
+# repository that has never fuzzed anything into scope and fails it.
+FUZZ_SUBCOMMANDS = 'run|build|coverage|cmin|tmin|list|fmt'
+FUZZ_INVOCATION_RE = re.compile(
+    r'cargo(?:\s+\+\S+)?[\s-]+fuzz\s+(?:' + FUZZ_SUBCOMMANDS + r')\b'
+    r'|\bmake\s+[\w./-]*\bfuzz(?![A-Za-z])[\w./-]*')
+
+
+# The permission that lets a scheduled run tell somebody, matched
+# anywhere in the file. GitHub replaces the workflow-level block
+# wholesale when a job declares its own rather than merging the two, so
+# a fuzz job carrying `permissions: contents: read` cannot file an
+# issue even where the workflow level grants it -- which this
+# deliberately does not model. The error is in the permissive
+# direction: a workflow that would fail at runtime passes, rather than
+# a working one being failed.
+ISSUES_WRITE_RE = re.compile(r'^\s*issues:\s*write\s*$', re.MULTILINE)
+
+
+# Filing the issue. `gh issue create` is what the fleet uses, but the
+# criterion is that the run reaches a human, not that it spells the
+# call one particular way, so a REST call to the issues endpoint, the
+# two common action forms and the two Python client spellings count as
+# well. `gh api .../issues` also matches a workflow that only *reads*
+# the endpoint -- again the permissive direction, and the same shape a
+# dedup step has.
+#
+# The separator between the `gh` sub-commands is `\W{1,4}` rather than
+# whitespace so that the argv form a Python reporter writes them in,
+# `['gh', 'issue', 'create', ...]`, is the same call. A reporter in a
+# script is the shape this criterion recommends, and .py is one of the
+# two extensions it will follow; recognising only the shell spelling
+# fails a repository that took the advice.
+FILES_AN_ISSUE_RE = re.compile(
+    r'gh\W{1,4}issue\W{1,4}create\b'
+    r'|gh\s+api\b[^\n]*/issues\b'
+    r'|issues\.create\b'
+    r'|create_issue\b'
+    r'|create-issue-from-file@')
+
+
+# Scripts a workflow hands the reporting to. Followed one level: the
+# reporter is supposed to live in a script rather than inline in YAML,
+# so the workflow itself will not contain `gh issue create`.
+REFERENCED_SCRIPT_RE = re.compile(r'[\w./-]+\.(?:sh|py)\b')
+
+
+# A deliberate exception, ideally with a reason beside it.
+FUZZ_MERGE_QUEUE_EXCEPTION_RE = re.compile(
+    r'audit-ok:\s*fuzz-in-merge-queue')
+
+
+SCHEDULE_TRIGGER_RE = trigger_re('schedule')
+
+
+def scheduling_caller(repo, name, content):
+    """The workflow that runs this reusable one nightly, if there is one.
+
+    A repository may put the schedule on a caller and the targets in a
+    `workflow_call` callee, which is scheduled fuzzing however it is
+    split across files. Returns the caller's text rather than a
+    boolean because a called workflow takes its permissions from the
+    calling job, so `issues: write` can legitimately sit on either
+    side of the call.
+
+    The invocation has to name this repository's own copy. `uses:`
+    takes `./.github/workflows/x.yml` for a local callee and
+    `owner/repo/.github/workflows/x.yml@ref` for somebody else's, and
+    a pattern loose enough to accept both would credit a caller that
+    schedules a *different* project's workflow of the same name.
+    """
+    header = workflow_header(content)
+    if not (WORKFLOW_CALL_TRIGGER_RE.search(header)
+            or WORKFLOW_CALL_FLOW_RE.search(header)):
+        return None
+
+    invocation = re.compile(
+        r'uses:[ \t]*(?:\./|%s/%s/)\.github/workflows/%s\b'
+        % (re.escape(repo.org), re.escape(repo.name), re.escape(name)))
+    for other in sorted(repo.workflows()):
+        if other == name:
+            continue
+        text = repo.workflow(other)
+        if not text:
+            continue
+        if (SCHEDULE_TRIGGER_RE.search(workflow_header(text))
+                and invocation.search(
+                    strip_yaml_comments(text, trailing=True))):
+            return text
+    return None
+
+
+def repo_fuzz_target_dirs(repo_path):
+    """Where the repository keeps cargo-fuzz targets, if anywhere."""
+    found = []
+    for root, dirs, _files in os.walk(repo_path):
+        dirs[:] = [d for d in dirs if d not in FUZZ_WALK_SKIP]
+        if os.path.basename(root) == FUZZ_TARGET_DIR:
+            found.append(os.path.relpath(root, repo_path))
+            # Nothing below a target directory is another one.
+            dirs[:] = []
+    return sorted(found)
+
+
+def workflow_runs_fuzz_targets(content):
+    """Does this workflow actually invoke the fuzz targets?"""
+    return bool(FUZZ_INVOCATION_RE.search(
+        strip_yaml_comments(content, trailing=True)))
+
+
+def fuzz_workflows(repo):
+    """Every workflow that runs the fuzz targets, as (name, content)."""
+    found = []
+    for name in sorted(repo.workflows()):
+        content = repo.workflow(name)
+        if content and workflow_runs_fuzz_targets(content):
+            found.append((name, content))
+    return found
+
+
+def reaches_issue_filing(repo, content):
+    """Can this workflow tell a human, without a red check to do it?
+
+    True when the workflow files an issue, or hands off to a script in
+    the repository that does. The indirection is the documented shape
+    rather than an accident -- the reporting logic belongs in something
+    testable -- so a check that only read the YAML would fail exactly
+    the repositories that got it right.
+
+    Comments are stripped from both the workflow and the script, for
+    the reason strip_yaml_comments exists at all: `# TODO: gh issue
+    create` describes reporting rather than doing it. Trailing
+    comments go too -- the TODO is at least as likely to sit on the
+    end of the line it is about, and this is the requirement that is
+    easiest to skip.
+    """
+    workflow = strip_yaml_comments(content, trailing=True)
+    if FILES_AN_ISSUE_RE.search(workflow):
+        return True
+
+    for match in REFERENCED_SCRIPT_RE.finditer(workflow):
+        # normpath rather than lstrip('./'): lstrip takes a character
+        # set, so it turns `../../x.sh` into `x.sh` and the guard below
+        # never sees the escape it was written for. normpath('./x.sh')
+        # is already 'x.sh'.
+        path = os.path.normpath(match.group(0))
+        # The path comes out of an audited repository's own YAML and is
+        # joined onto its checkout root, so a leading `/` or a `..`
+        # segment would walk the audit out of the clone it is reading.
+        if os.path.isabs(path) or path.split(os.sep)[0] == os.pardir:
+            continue
+        script = repo.read(path)
+        # Shell and Python spell a comment the way YAML does, at the
+        # end of a line as well as on one of its own.
+        if script and FILES_AN_ISSUE_RE.search(
+                strip_yaml_comments(script, trailing=True)):
+            return True
+    return False
+
+
+def lane_can_report(repo, content, caller):
+    """Can this scheduled lane get a crash in front of a person?
+
+    `caller` is the text of the workflow that runs this one on a
+    schedule, or '' when the schedule is on this one. Both sides are
+    looked at: a callee that fuzzes and uploads while the caller
+    inspects what it uploaded and files the issue is as good a split
+    as the reverse, and either side may hold the permission.
+    """
+    if not ISSUES_WRITE_RE.search(content + '\n' + caller):
+        return False
+    return bool(reaches_issue_filing(repo, content)
+                or (caller and reaches_issue_filing(repo, caller)))
+
+
+class FuzzNightlyReporting(Check):
+    id = 'fuzz-nightly-reporting'
+    spec = 'docs/audits/fuzz-nightly-reporting.md'
+    template = None
+    issue_title = 'Fuzz nightly reporting'
+
+    def applies(self, repo):
+        """Is there fuzzing here to measure?
+
+        The workflow question is asked first because it is the cheap
+        one -- `repo.workflows()` and every read under it are cached,
+        while the target search walks the whole checkout, which is
+        100ms on ryll. Asking it first means the repositories that do
+        fuzz never walk at all: they are recognised by the lane that
+        runs the targets, which `run()` needs anyway.
+        """
+        if not repo.props['has_workflows_dir']:
+            return 'No .github/workflows/ directory'
+        if fuzz_workflows(repo) or repo_fuzz_target_dirs(repo.path):
+            return None
+        return 'No fuzz targets'
+
+    def run(self, repo):
+        """Check fuzzing runs nightly, reports issues, and is off the queue.
+
+        Fuzzing has no natural end: a target runs until you stop it,
+        and what it produces is a crash nobody knew about. That makes
+        it the wrong shape for a merge gate and the right shape for a
+        nightly, which in turn makes reporting the whole problem --
+        nobody reads a scheduled workflow's result, and GitHub's only
+        notification for one is an email to whoever pushed last.
+
+        So: a schedule trigger on a workflow that runs the targets,
+        issues: write plus something that files an issue on that
+        workflow, and no merge_group trigger on any of them. A short
+        build-and-smoke on pull_request or push is not what the last
+        one forbids -- charging the fuzz lane's cost against the merge
+        queue's 360-minute timeout is (shakenfist/ryll#329). Building
+        the targets rather than running them does not exempt a lane
+        from that: what the queue pays for is runners held while its
+        clock runs, and the lane that evicted ryll's pull requests was
+        a build-and-smoke matrix.
+        """
+        workflows = fuzz_workflows(repo)
+
+        if not workflows:
+            # The only branch that needs to name where the targets
+            # are, and so the only one that pays for the walk.
+            return self.fail(
+                'fuzz targets in %s, but no workflow runs them'
+                % ', '.join(repo_fuzz_target_dirs(repo.path)))
+
+        queue_gated = [
+            name for name, content in workflows
+            if (MERGE_GROUP_TRIGGER_RE.search(workflow_header(content))
+                or MERGE_GROUP_FLOW_RE.search(content))
+            and not FUZZ_MERGE_QUEUE_EXCEPTION_RE.search(content)
+        ]
+
+        # The caller's text rides along: where the schedule is on a
+        # caller, the permission to file may be there too.
+        scheduled = []
+        for name, content in workflows:
+            if SCHEDULE_TRIGGER_RE.search(workflow_header(content)):
+                scheduled.append((name, content, ''))
+                continue
+            caller = scheduling_caller(repo, name, content)
+            if caller is not None:
+                scheduled.append((name, content, caller))
+
+        # Every scheduled lane must be able to report, not just one
+        # of them: a second campaign that crashes silently is the
+        # failure this criterion is about, and nothing in the file
+        # distinguishes it from a corpus-minimisation lane that has
+        # nothing to say.
+        unreported = [
+            name for name, content, caller in scheduled
+            if not lane_can_report(repo, content, caller)
+        ]
+
+        problems = []
+        if queue_gated:
+            problems.append(
+                'runs fuzz targets on merge_group in %s, where the cost '
+                'is charged against the queue timeout'
+                % ', '.join(queue_gated))
+        if not scheduled:
+            problems.append(
+                'no schedule trigger on %s, so the targets only run when '
+                'somebody dispatches them'
+                % ' or '.join(name for name, _ in workflows))
+        elif unreported:
+            problems.append(
+                '%s runs on a schedule but cannot file an issue for what '
+                'it finds (needs issues: write and a `gh issue create` or '
+                'equivalent, directly or through a script)'
+                % ', '.join(unreported))
+
+        if problems:
+            return self.fail('; '.join(problems))
+
+        return self.ok(
+            '%s fuzzes on a schedule and files issues for crashes'
+            % ', '.join(name for name, _, _ in scheduled))
