@@ -456,7 +456,19 @@ class ScopeCoverage(Check):
         # name, in the organisation and in neither list. Both findings
         # ask for the same single edit, so the rename is the one that
         # says it.
-        undecided -= {canonical.split('/')[-1] for _, canonical in renamed}
+        #
+        # Only where the canonical name is still in this organisation.
+        # A repository transferred out redirects to its new owner
+        # indefinitely, so `canonical` is then someone else's; matching
+        # on the basename alone would suppress the genuine "decided
+        # nowhere" finding for any repository still here that happens
+        # to share that name, which is exactly the third state this
+        # criterion exists to remove. Compared case-insensitively, the
+        # way the test that built `renamed` is.
+        undecided -= {
+            canonical.split('/')[-1] for _, canonical in renamed
+            if canonical.lower().startswith(f'{repo.org.lower()}/')
+        }
 
         problems = []
         missing = []

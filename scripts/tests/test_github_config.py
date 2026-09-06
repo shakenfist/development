@@ -552,6 +552,22 @@ class ScopeCoverageTest(CheckTestCase):
         self.assertEqual(result['missing'],
                          ['imago -> shakenfist/instar (renamed)'])
 
+    def test_a_move_out_of_the_organisation_suppresses_nothing(self):
+        # The suppression above is owner-blind if it takes the basename
+        # alone. A repository transferred out of the organisation
+        # redirects to its new owner indefinitely, so an unrelated
+        # repository still here under that same name -- and in neither
+        # list -- had its genuine finding silenced, which is the third
+        # state this criterion exists to remove.
+        self.scope(['development'], ['departed'])
+        result, _ = self.run_with(
+            self.listing('development', 'target'),
+            departed=CompletedCommand(stdout='otherowner/target\n'))
+        self.assert_fail(result, 'in neither the audit matrix nor the '
+                                 'excluded list')
+        self.assertIn('target (in the organisation, decided nowhere)',
+                      result['missing'])
+
     def test_a_blank_stderr_does_not_raise_out_of_the_check(self):
         # describe_failure() indexed the first line of a stderr that
         # had one only if it was not whitespace. An IndexError here

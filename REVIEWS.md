@@ -101,7 +101,7 @@ for how this works, including how to verify the attestations.
 | scripts/audit/checks/__init__.py | mikal | 2026-09-02 | d54faddeed24 |
 | scripts/audit/checks/ci_workflows.py | mikal | 2026-09-07 | d852e7d1d959 |
 | scripts/audit/checks/docs_content.py | mikal | 2026-09-06 | b840b72da01f |
-| scripts/audit/checks/github_config.py | mikal | 2026-09-06 | 0b0bd837ba85 |
+| scripts/audit/checks/github_config.py | mikal | - | - |
 | scripts/audit/checks/llm_docs.py | mikal | 2026-09-03 | 7101c0e2b34d |
 | scripts/audit/checks/packaging.py | mikal | 2026-09-06 | a09316ca6f7d |
 | scripts/audit/checks/plans.py | mikal | 2026-09-04 | 2a8b67b6c472 |

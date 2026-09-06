@@ -337,10 +337,6 @@
       "sha": "b840b72da01fdf95bd938993104368dfa42f1111",
       "date": "2026-09-06"
     },
-    "scripts/audit/checks/github_config.py": {
-      "sha": "0b0bd837ba8535012c3cd563a20856a5057d0ae3",
-      "date": "2026-09-06"
-    },
     "scripts/audit/checks/llm_docs.py": {
       "sha": "7101c0e2b34d0762641a7e25477bb3839ba1eed2",
       "date": "2026-09-03"
