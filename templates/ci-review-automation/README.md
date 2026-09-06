@@ -108,6 +108,51 @@ control, including the `AGENTS.md` it reads for context. Closing that
 properly means sandboxing the reviewer or dropping its token to
 read-only, which is a larger piece of work than this section.
 
+### Review feedback from a deployment (2026-09-07)
+
+Both came out of the automated review of shakenfist/shakenfist#4107,
+the deployment adopting the 2026-08-21 rewrite. Neither is behaviour
+that rewrite introduced; they are things it did not fix. Both are in
+these files rather than in that deployment, which is why they land
+here.
+
+* **`pr-re-review.yml` resolves the merge ref instead of naming it.**
+  The finding was that `refs/pull/N/merge` is absent on a conflicted
+  pull request, so naming it fails the checkout with a bare "couldn't
+  find remote ref" *after* the rocket reaction has been posted -- an
+  acknowledgement followed by silence. Checking that against
+  shakenfist/shakenfist found the premise mostly wrong and a worse
+  problem underneath it. Every open pull request in that repository
+  had a merge ref, including the one GitHub reported as `CONFLICTING`:
+  the ref survives a conflict, it is simply not guaranteed to. What it
+  is not guaranteed to be is *current*. GitHub recomputes the merge
+  commit asynchronously after a push, and #4107 was serving a ref one
+  push behind its head -- so a re-review would have produced a real,
+  careful review of superseded code. That is the same class of bug as
+  reviewing the default branch, which is what checking out a merge ref
+  was introduced to fix, arriving again through a different door and
+  just as quietly.
+
+  The step now reads the head sha, confirms the published merge
+  commit's second parent is that head (a merge commit's parents are
+  base then head), retries briefly to let a recomputation catch up,
+  and only then falls back to `refs/pull/N/head` -- saying on the pull
+  request which ref it reviewed. A review of the right code without
+  its base is worth having; a review of the wrong code is not.
+
+  Two details worth keeping if this is ever rewritten. `gh api` writes
+  the error body to *stdout* on a 404 and signals the failure only in
+  its exit status, so a draft of this step which tested the output for
+  emptiness read "Not Found" as a sha and logged "merge ref is behind"
+  for a ref that did not exist. And the retry sleeps run on the scarce
+  `claude-code` runner, which is why there are six of them at five
+  seconds and not more.
+* **`pr-retest.yml` has a concurrency group.** `pr-re-review.yml`
+  gained one in the rewrite and this file did not, so two "please
+  retest" comments dispatched the test suite twice. The dispatched
+  workflow's own groups limit the damage, but they cancel runs which
+  have already started work; not starting them is cheaper.
+
 ### The fork guard
 
 `pr-bot-trigger`'s `pr-ref` output is `.head.ref`: the branch name in the

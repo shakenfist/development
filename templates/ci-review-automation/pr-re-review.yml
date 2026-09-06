@@ -85,11 +85,12 @@ jobs:
       cancel-in-progress: true
 
     steps:
-      # The pull request's merge ref, not the default branch. Without a
-      # ref: this checks out main, and review-pr-with-claude.sh opens
-      # every prompt by reading AGENTS.md, ARCHITECTURE.md and README.md
-      # from the working directory -- so a re-review would judge the
-      # change against the conventions as they were *before* it. The
+      # The pull request's code, not the default branch. Without a ref:
+      # an issue_comment event checks out the default branch, and
+      # review-pr-with-claude.sh opens every prompt by reading
+      # AGENTS.md, ARCHITECTURE.md and README.md from the working
+      # directory -- so a re-review would judge the change against the
+      # conventions as they were *before* it. The
       # diff itself comes from the API and is unaffected, which is what
       # makes the symptom subtle: a real review, calibrated wrongly.
       # shakenfist/actions/.github/workflows/pr-auto-review.yml checks
@@ -109,12 +110,118 @@ jobs:
       # pushes, so it does not need the git credential helper.
       # The retired pr-address-comments.yml always did this; this
       # file did not.
+      #
+      # The merge ref is resolved rather than named, because a named one
+      # is right only when GitHub's copy is both present and current,
+      # and it can be neither.
+      #
+      # Present: refs/pull/N/merge exists only while GitHub can compute
+      # a merge commit, so naming it can fail the checkout with a bare
+      # "couldn't find remote ref" *after* the rocket reaction has been
+      # posted -- an acknowledgement followed by silence. Note that a
+      # conflicted pull request is not reliably that case: measured
+      # against shakenfist/shakenfist on 2026-09-07, every open pull
+      # request had a merge ref including the one GitHub reported as
+      # CONFLICTING. The ref survives a conflict; it is simply not
+      # guaranteed to.
+      #
+      # Current is the case which actually bites, and it is silent.
+      # GitHub recomputes the merge commit asynchronously after a push,
+      # so for a window afterwards the published ref still merges the
+      # *previous* head. Reviewing it then produces a real review of the
+      # wrong commit -- the same class of bug as reviewing the default
+      # branch, which is what checking out a merge ref was introduced to
+      # fix. Measured on the same day, shakenfist/shakenfist#4107 was
+      # serving a merge ref one push behind its head.
+      #
+      # So: confirm the merge commit's second parent is the head this
+      # review is for (a merge commit's parents are base then head),
+      # give the recomputation a bounded moment to catch up, and only
+      # then fall back to the head ref. The fallback is a review of the
+      # right code seen without the base, which is worth having; a
+      # review of superseded code is not.
+      - name: Resolve the ref to review
+        id: ref
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ needs.trigger-re-review.outputs.pr_number }}
+          REPO: ${{ github.repository }}
+        run: |
+          # gh api rather than git ls-remote: this runs before the
+          # checkout, and ls-remote against a private repository would
+          # need the token in the URL, where it lands in the log.
+          if ! head_sha=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" \
+              --jq '.head.sha'); then
+            echo "Cannot read the pull request, so there is no head to"
+            echo "check a merge ref against. Failing rather than"
+            echo "reviewing whatever a fallback would reach."
+            exit 1
+          fi
+          echo "Pull request head is ${head_sha}"
+
+          # gh api writes the error body to *stdout* on a 404 and exits
+          # non-zero, so the exit status is the only thing which says
+          # whether a ref is there. An earlier draft of this step tested
+          # the output for emptiness instead and read the "Not Found"
+          # document as a sha: it still fell back, because that string
+          # matches no head, but it logged "merge ref is behind" for a
+          # ref which did not exist. A diagnostic which cannot tell the
+          # two apart is how this sort of thing stays unnoticed.
+          merged=false
+          for attempt in 1 2 3 4 5 6; do
+            if ! merge_sha=$(gh api \
+                "repos/${REPO}/git/ref/pull/${PR_NUMBER}/merge" \
+                --jq '.object.sha' 2>/dev/null); then
+              echo "Attempt ${attempt}: no merge ref published"
+            elif ! parent=$(gh api "repos/${REPO}/commits/${merge_sha}" \
+                --jq '.parents[1].sha' 2>/dev/null); then
+              echo "Attempt ${attempt}: cannot read merge commit ${merge_sha}"
+            elif [ "${parent}" = "${head_sha}" ]; then
+              merged=true
+              break
+            else
+              echo "Attempt ${attempt}: merge ref merges ${parent}, not the head"
+            fi
+            # Only worth waiting if there is another attempt to wait for.
+            # This step runs on the scarce claude-code runner.
+            [ "${attempt}" = "6" ] || sleep 5
+          done
+
+          if [ "${merged}" = "true" ]; then
+            echo "ref=refs/pull/${PR_NUMBER}/merge" >> $GITHUB_OUTPUT
+            echo "merged=true" >> $GITHUB_OUTPUT
+            echo "Reviewing the merge of ${head_sha} into the base"
+          else
+            echo "ref=refs/pull/${PR_NUMBER}/head" >> $GITHUB_OUTPUT
+            echo "merged=false" >> $GITHUB_OUTPUT
+            echo "Falling back to the pull request head ${head_sha}"
+          fi
+
       - name: Checkout the pull request
         uses: actions/checkout@v7
         with:
-          ref: refs/pull/${{ needs.trigger-re-review.outputs.pr_number }}/merge
+          ref: ${{ steps.ref.outputs.ref }}
           fetch-depth: 0
           persist-credentials: false
+
+      # Which ref was reviewed is a property of the review, so say it on
+      # the pull request rather than only in the run log. A review of the
+      # head is worth having; a reader who thinks it is a review of the
+      # merge result is not. Posted by the bot, so the bot-comment guard
+      # on the trigger job above keeps it from re-firing this workflow.
+      - name: Say that the head was reviewed, not the merge result
+        if: steps.ref.outputs.merged == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ needs.trigger-re-review.outputs.pr_number }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh pr comment "${PR_NUMBER}" --repo "${REPO}" \
+            --body "Reviewing this pull request's head rather than its
+          merge result: GitHub is not currently publishing a merge ref
+          for this head, which usually means the branch conflicts with
+          its base. The review is of the proposed change itself, but it
+          has not seen how that change lands on the base branch."
 
       # core.hooksPath=/dev/null because the checkout above put the
       # pull request's code on the runner and the next step runs over

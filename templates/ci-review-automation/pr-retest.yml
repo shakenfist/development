@@ -33,6 +33,16 @@ jobs:
     runs-on: [self-hosted, static]
     # Just a few gh API calls, so anything beyond this is a hang.
     timeout-minutes: 10
+    # Someone commenting the phrase twice should not dispatch the test
+    # suite twice. The dispatched workflow's own concurrency groups
+    # limit the damage downstream, but they cancel a run that has
+    # already started work; not starting it is cheaper. The last
+    # request wins, which is why cancel-in-progress is true: a
+    # cancelled trigger may have dispatched already, and the request
+    # that cancelled it posts its own confirmation.
+    concurrency:
+      group: pr-retest-${{ github.event.issue.number }}
+      cancel-in-progress: true
 
     steps:
       - name: Handle trigger
