@@ -61,7 +61,19 @@ REPO_NAME = re.compile(r'^[a-z0-9][a-z0-9.-]*$')
 
 
 def read(root, relative):
-    with open(os.path.join(root, relative)) as f:
+    """Read one of the documents a scope list is written in.
+
+    Decoding errors are replaced rather than raised, the same way
+    `Repo.read()` does it and for the same reason one level up: a
+    `UnicodeDecodeError` is a `ValueError` rather than an `OSError`, so
+    it escapes the handler the `scope-coverage` check wraps this parse
+    in, and `registry.run_all()` has no handler at all. One undecodable
+    byte in either document would abort the whole `development` leg of
+    the daily run, taking issue filing and the compliance page with it.
+    Replacing the byte lets the parse proceed and either succeed or
+    raise `ScopeParseError`, which is a `fail()` a reader can act on.
+    """
+    with open(os.path.join(root, relative), 'r', errors='replace') as f:
         return f.read()
 
 

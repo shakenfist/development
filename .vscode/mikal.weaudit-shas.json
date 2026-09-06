@@ -381,10 +381,6 @@
       "sha": "78a1a58aac916457272aec1d5e6158803649984e",
       "date": "2026-09-04"
     },
-    "scripts/audit/scope.py": {
-      "sha": "3c48b8a4f1c80f293d1e06b63098bb7b58f29bad",
-      "date": "2026-09-06"
-    },
     "scripts/audit/text/__init__.py": {
       "sha": "dc2515cc9e2cdd5083c39a803bfdbcafb37dbe0d",
       "date": "2026-09-02"
@@ -464,10 +460,6 @@
     "scripts/tests/test_docs_content.py": {
       "sha": "8e31114ba026c4612650ed0c7c2379a9dd6a39fc",
       "date": "2026-09-07"
-    },
-    "scripts/tests/test_github_config.py": {
-      "sha": "8a2d78379aad211efc945c369b0a4b2f3b8e8810",
-      "date": "2026-09-06"
     },
     "scripts/tests/test_hooks.py": {
       "sha": "5f9c95f3e2a34e1f237e47c345183a0ec2ca3bd1",

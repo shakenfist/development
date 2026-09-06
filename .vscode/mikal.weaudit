@@ -649,14 +649,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/scope.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_github_config.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit_snapshot.py",
       "author": "mikal"
     },

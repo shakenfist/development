@@ -639,6 +639,23 @@ class ScopeCoverageTest(CheckTestCase):
         result, _ = self.run_with(self.listing('development'))
         self.assert_fail(result, 'Could not read the audit scope')
 
+    def test_an_undecodable_byte_does_not_abort_the_audit(self):
+        # UnicodeDecodeError is a ValueError rather than an OSError, so
+        # it escapes the handler around the scope parse, and
+        # registry.run_all() has no handler either: one bad byte in a
+        # scope document would abort the whole development leg and take
+        # issue filing and the compliance page with it. The byte is
+        # replaced instead, so the parse reaches its own guard and the
+        # check returns a finding a reader can act on.
+        self.scope(['development'], ['old-thing'])
+        path = os.path.join(self.fixture.path, 'docs', 'audits', 'README.md')
+        with open(path, 'rb') as f:
+            document = f.read()
+        with open(path, 'wb') as f:
+            f.write(document.replace(b'* old-thing', b'* old-\xffthing'))
+        result, _ = self.run_with(self.listing('development', 'old-thing'))
+        self.assert_fail(result, 'Could not read the audit scope')
+
 
 if __name__ == '__main__':
     unittest.main()
