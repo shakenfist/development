@@ -78,7 +78,7 @@ for how this works, including how to verify the attestations.
 | docs/audits/review-coverage.md | mikal | 2026-08-29 | c11e8e126b81 |
 | docs/audits/review-scope-completeness.md | mikal | 2026-09-01 | 043fcc6e69f9 |
 | docs/audits/rust-unwrap-lint.md | mikal | 2026-08-29 | ba40d7d57b55 |
-| docs/audits/scope-coverage.md | mikal | 2026-09-06 | 847314ca77ed |
+| docs/audits/scope-coverage.md | mikal | - | - |
 | docs/audits/secret-handling.md | mikal | 2026-08-29 | 9d43f69848de |
 | docs/audits/security-sanitization.md | mikal | 2026-08-29 | e6413c87b8fb |
 | docs/audits/sfui-vendor.md | mikal | 2026-08-29 | 027c3e6d7a2a |

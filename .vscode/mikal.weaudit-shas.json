@@ -245,10 +245,6 @@
       "sha": "ba40d7d57b5567cd25123d1b18f067e7e21815ce",
       "date": "2026-08-29"
     },
-    "docs/audits/scope-coverage.md": {
-      "sha": "847314ca77edc95443ef1a50911927f03c547251",
-      "date": "2026-09-06"
-    },
     "docs/audits/secret-handling.md": {
       "sha": "9d43f69848de7d7356f554d9522fdff93d826b08",
       "date": "2026-08-29"

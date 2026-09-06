@@ -568,6 +568,24 @@ class ScopeCoverageTest(CheckTestCase):
         self.assertIn('target (in the organisation, decided nowhere)',
                       result['missing'])
 
+    def test_a_move_out_of_the_organisation_says_to_remove_the_entry(self):
+        # A rename inside the organisation and a transfer out of it are
+        # the same API answer and want opposite edits. Telling a reader
+        # to write otherowner/target into the matrix is advice they
+        # cannot take: consistency-audit.yml clones
+        # shakenfist/${{ matrix.repo }}, so a foreign owner does not fit
+        # there at all. The entry goes instead.
+        self.scope(['development'], ['departed'])
+        result, _ = self.run_with(
+            self.listing('development'),
+            departed=CompletedCommand(stdout='otherowner/departed\n'))
+        self.assert_fail(result, 'have moved out of the shakenfist '
+                                 'organisation')
+        self.assertEqual(
+            result['missing'],
+            ['departed -> otherowner/departed (moved out of shakenfist: '
+             'remove the entry)'])
+
     def test_a_blank_stderr_does_not_raise_out_of_the_check(self):
         # describe_failure() indexed the first line of a stderr that
         # had one only if it was not whitespace. An IndexError here
