@@ -49,6 +49,10 @@
       "sha": "53b5d8eb46e89e228dd88d42d7e1b0c3ea6694cd",
       "date": "2026-08-24"
     },
+    ".github/workflows/mermaid-lint.yml": {
+      "sha": "da5448b0c44cd55b35a0b81f9f17f5c377ae0ef8",
+      "date": "2026-09-07"
+    },
     ".github/workflows/pr-re-review.yml": {
       "sha": "890e9ed0fb8ebffc1976dc66f7ccb3e7a1f166e2",
       "date": "2026-09-01"
@@ -81,6 +85,10 @@
       "sha": "8527c1d114aa36d9ab1159f6a96a5f0234caf6bb",
       "date": "2026-09-06"
     },
+    "ARCHITECTURE.md": {
+      "sha": "e023629d20983065fc05165b5cfab9ab75285942",
+      "date": "2026-09-07"
+    },
     "PLAN-TEMPLATE.md": {
       "sha": "6b5376dc1046a1a8441a48ee2cd7948373bb8234",
       "date": "2026-09-06"
@@ -92,6 +100,10 @@
     "README.md": {
       "sha": "ee972a18a3c9d89f6a79ba73c741eff42d781ff1",
       "date": "2026-09-06"
+    },
+    "docs/audits/README.md": {
+      "sha": "c7192105b0519cf72c4c2a96637c5456ad1c1d83",
+      "date": "2026-09-07"
     },
     "docs/audits/ci-review-automation.md": {
       "sha": "b0e5dd33cc1c7e7d845ee3b42e63ec31e35b58da",
@@ -129,6 +141,10 @@
       "sha": "7fba89f8a3f2ac89ed16118e31c637eafb5567c4",
       "date": "2026-08-27"
     },
+    "docs/audits/fuzz-nightly-reporting.md": {
+      "sha": "e1f4c8dba9b892c0b9cb6f542f563bfa718a12c0",
+      "date": "2026-09-07"
+    },
     "docs/audits/github-security.md": {
       "sha": "59aa05becc43e1c7b5d4f42240b6c20a8ac53dae",
       "date": "2026-08-27"
@@ -149,9 +165,17 @@
       "sha": "d3ea450f3add02f84fc8a21d641aeb7381d1467a",
       "date": "2026-08-27"
     },
+    "docs/audits/merge-group-cancellation.md": {
+      "sha": "7f08a96244d064d8bd5a851f7906109d016cd5af",
+      "date": "2026-09-07"
+    },
     "docs/audits/merge-queue-config.md": {
       "sha": "30339aeda464965fe7fbcc8562edee9249043126",
       "date": "2026-08-29"
+    },
+    "docs/audits/mermaid-lint-ci.md": {
+      "sha": "6702998c42447ebe05370fb42dbcd6aa441dc644",
+      "date": "2026-09-07"
     },
     "docs/audits/pin-indirect-dependencies.md": {
       "sha": "6141c51ac838a8550f1b301e26bfb4c6fb092978",
@@ -305,6 +329,10 @@
       "sha": "d54faddeed246c3b084571825d542bf04c1bb930",
       "date": "2026-09-02"
     },
+    "scripts/audit/checks/ci_workflows.py": {
+      "sha": "d852e7d1d95971f3cdc8dd82159ff54baaf9af1b",
+      "date": "2026-09-07"
+    },
     "scripts/audit/checks/docs_content.py": {
       "sha": "b840b72da01fdf95bd938993104368dfa42f1111",
       "date": "2026-09-06"
@@ -345,6 +373,10 @@
       "sha": "ef1d4a20156613830ec787fde806cbf955e9501e",
       "date": "2026-09-02"
     },
+    "scripts/audit/registry.py": {
+      "sha": "50a0e33b09e71f317d09268ba9d5a7ae4d1a27b6",
+      "date": "2026-09-07"
+    },
     "scripts/audit/repo.py": {
       "sha": "78a1a58aac916457272aec1d5e6158803649984e",
       "date": "2026-09-04"
@@ -368,6 +400,10 @@
     "scripts/audit/text/shared_blocks.py": {
       "sha": "100a6bcd559df58c9dc57a27814d3bb846f59aef",
       "date": "2026-09-02"
+    },
+    "scripts/audit/text/workflows.py": {
+      "sha": "aa8683ed49166a374251ef2305f932d0569c27ff",
+      "date": "2026-09-07"
     },
     "scripts/audit_common.py": {
       "sha": "768efab3788f1b537c588263f560fd9caae22765",
@@ -421,6 +457,14 @@
       "sha": "4d2950b341f29852d885b36464eb75373123d398",
       "date": "2026-09-04"
     },
+    "scripts/tests/test_ci_workflows.py": {
+      "sha": "5ed85f10b66e862d4f85d9d8f25684d2afba8f7e",
+      "date": "2026-09-07"
+    },
+    "scripts/tests/test_docs_content.py": {
+      "sha": "8e31114ba026c4612650ed0c7c2379a9dd6a39fc",
+      "date": "2026-09-07"
+    },
     "scripts/tests/test_github_config.py": {
       "sha": "8a2d78379aad211efc945c369b0a4b2f3b8e8810",
       "date": "2026-09-06"
@@ -436,6 +480,10 @@
     "scripts/tests/test_markdown.py": {
       "sha": "004fef9dd4e92af2cd9d20ac8cff8608a4c7cb38",
       "date": "2026-09-04"
+    },
+    "scripts/tests/test_metadata.py": {
+      "sha": "2be2142fbca1d73b147784118c532228d12730f4",
+      "date": "2026-09-07"
     },
     "scripts/tests/test_packaging.py": {
       "sha": "d708e33060fd73d60591ab293d37ded1615af373",
@@ -508,6 +556,18 @@
     "templates/issue-fix/neutralise-pr-body.sh": {
       "sha": "4248bb512fa54f024a31cc9e838d0a11092f8da1",
       "date": "2026-08-30"
+    },
+    "templates/mermaid-lint/README.md": {
+      "sha": "715aeaded4995bcd14d67bac4df4d61e1c93fbad",
+      "date": "2026-09-07"
+    },
+    "templates/mermaid-lint/mermaid-lint.sh": {
+      "sha": "67eb5c5100835cf244b9d8e905bfc7d31896399e",
+      "date": "2026-09-07"
+    },
+    "templates/mermaid-lint/mermaid-lint.yml": {
+      "sha": "da5448b0c44cd55b35a0b81f9f17f5c377ae0ef8",
+      "date": "2026-09-07"
     },
     "templates/pin-indirect-dependencies/README.md": {
       "sha": "c20c7590e1b3311e1696db887296410c95b7183b",
@@ -636,6 +696,10 @@
     "tools/ci-prune-reviews.sh": {
       "sha": "3e10680265c6b885619e8e08bea30a4fb05cb10b",
       "date": "2026-08-24"
+    },
+    "tools/mermaid-lint.sh": {
+      "sha": "67eb5c5100835cf244b9d8e905bfc7d31896399e",
+      "date": "2026-09-07"
     },
     "tools/review-tracking.sh": {
       "sha": "fabe2fc68a97b45b5f628f6380893bbfac9d764c",
