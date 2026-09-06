@@ -61,11 +61,11 @@ git diff main...HEAD -- 'docs/audits/compliance.md' | grep -nE '^\+'
 git diff main...HEAD -- 'docs/audits/*.md' ':!docs/audits/compliance.md' | \
     grep -nE '^\+.*consistency-audit:(begin|end)|^\+\| .* \| (compliant|non-compliant|N/A) \|'
 
-# Changes to the issue-title interface. ISSUE_TITLES is the
-# idempotency key for filing and closing: renaming an entry
+# Changes to the issue-title interface. FROZEN_ISSUE_TITLES is
+# the idempotency key for filing and closing: renaming an entry
 # orphans every open issue for that check, fleet-wide
-git diff main...HEAD -- 'scripts/audit_common.py' | \
-    grep -nE '^[-+].*ISSUE_TITLES|^-\s+'\''[a-z-]+'\'':'
+git diff main...HEAD -- 'scripts/tests/test_metadata.py' | \
+    grep -nE '^[-+].*FROZEN_ISSUE_TITLES|^-\s+'\''[a-z-]+'\'':'
 
 # A shared block edited without its version bumped. Editing the
 # wording without the bump means every embedding repository keeps
@@ -122,14 +122,21 @@ input, and triage each: blocking or advisory, and why.
 
 Then the judgment-level review of `git diff main...HEAD`:
 
-- **The four-file rule.** A consistency criterion spans a check
-  function in `scripts/audit-check.py`, metadata in
-  `scripts/audit_common.py` (`AUDIT_METADATA` and `ISSUE_TITLES`),
-  a spec in `docs/audits/<name>.md`, and a row in the index in
-  `docs/audits/README.md` -- plus a column heading where a spec
-  file carries more than one check. A new or renamed check that
-  updates three of the four is the characteristic defect here.
-  The tests catch most of it; say which file the diff missed.
+- **The five-file rule.** A consistency criterion spans a
+  `Check` subclass in `scripts/audit/checks/<family>.py`,
+  its registration in `CHECKS` in
+  `scripts/audit/registry.py`, a spec in
+  `docs/audits/<name>.md`, a row in the index in
+  `docs/audits/README.md`, and its frozen lines in
+  `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in
+  `scripts/tests/test_metadata.py` -- plus a column heading
+  where a spec file carries more than one check. The issue
+  title (the check's `issue_title` attribute, frozen there)
+  is the fleet-wide idempotency key: renaming it orphans
+  every open issue for that check across the fleet. A new
+  or renamed check that updates four of the five is the
+  characteristic defect here. The tests catch most of it;
+  say which file the diff missed.
 - **`not_applicable` discipline.** A check that cannot apply to a
   repository must return `not_applicable` with a reason. Omitting
   it renders as `unknown`, which reads as a broken audit rather
@@ -367,10 +374,10 @@ copy lives in shakenfist/development at
   is the shape of the audit pipeline and the review-tracking
   system -- new scripts, new workflows, new data files and how
   they flow. The conventions that reach `AGENTS.md` are the
-  invariants an agent cannot infer: the four-file rule, generated
-  files that must not be hand-edited, `ISSUE_TITLES` as an
-  interface, `--dry-run`. Neither is the place for a criterion's
-  details; those go in `docs/audits/<name>.md`.
+  invariants an agent cannot infer: the five-file rule, generated
+  files that must not be hand-edited, a check's `issue_title` as
+  an interface, `--dry-run`. Neither is the place for a
+  criterion's details; those go in `docs/audits/<name>.md`.
 - A new or changed criterion is documented in its spec file, and
   the spec says both what is checked and *why*, including what
   was rejected. The specs are read by people fixing a
