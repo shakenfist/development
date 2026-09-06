@@ -424,9 +424,3 @@ so the table does not distinguish a repository with the bot triggers
 and no automatic review from one with both. kerbside-patches is that
 case: `@shakenfist-bot please re-review` works there, but nothing
 reviews automatically.
-
-imago is the one to watch when reaping the addresser: it has the
-workflows and it still carries `pr-address-comments.yml`, but it is
-not in the consistency audit matrix, so nothing will ever file an
-issue about it -- and for the same reason it is absent from the table
-above. Everywhere else the audit does the asking.
