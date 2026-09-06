@@ -492,6 +492,135 @@ wrong writes a new wrong rule over an old one, and every later
 audit in the fleet reads it. The rest of the phase is cheap to
 redo, and 5b to 5f produce reports rather than edits.
 
+**Outcome.** Run 2026-09-07 over `8b77b32^1..8b77b32`, the range D5.1
+names. Wave 1 passed and the diffstat matched the figure this section
+recorded in advance -- 20 files, 1,270 insertions, 295 deletions --
+which is the check that the audit read the merged range rather than an
+empty `main...HEAD`. `pre-commit` was clean on a verified-clean tree.
+Of the seven greps, five returned nothing and two hit and were
+accepted: the new imports are stdlib or this repository's own `audit`
+package, and the one `# noqa: E402` is a pre-existing suppression that
+the diff only added a name to. `templates/shared-blocks/` is untouched,
+so nothing in the fleet became non-compliant from this work. `REVIEWS.md`
+was regenerated correctly: 13 stale marks pruned and none re-stamped,
+172 of 174 becoming 159 of 174 as the two newly in-scope files arrived
+unreviewed.
+
+Wave 2 found one blocking defect, five low-severity security findings,
+and four advisories. No critical or high security findings.
+
+**2a-1, blocking: an unhandled `UnicodeDecodeError` in
+`scripts/audit/scope.py:63`.** `scope.read()` opens with a bare
+`open()`. `ScopeCoverage.run()` catches `ScopeParseError` and `OSError`;
+`UnicodeDecodeError` subclasses `ValueError`, so it escapes, and
+`registry.run_all()` has no per-check exception handling. One non-UTF-8
+byte in `docs/audits/README.md` or the audit workflow would abort the
+whole `development` leg of the daily run and take issue filing and the
+compliance page with it. What makes this more than theoretical is that
+`Repo.read()` at `repo.py:124` already reads with `errors='replace'`
+and its docstring gives the reason -- "a check that crashes on one file
+reports nothing about any of the other criteria." The new module did
+not follow the convention its own package had already written down. It
+is the same defect class as the `describe_failure()` `IndexError` the
+review rounds caught, in a second place, which is the argument for
+auditing an accumulated range rather than trusting the review that
+looked at each commit.
+
+**2d-3.1, low, and the one worth more than its rating: the rename
+suppression is owner-blind.** `github_config.py:459` subtracts
+`canonical.split('/')[-1]`, discarding the owner. A repository
+transferred out of the organisation still redirects, so its canonical
+name can be `otherowner/target`; if `shakenfist/target` exists and is
+in neither list, its genuine finding is silently suppressed. That is
+the third state this criterion exists to remove, reappearing inside the
+criterion.
+
+**2d-3.2, low: a transfer out of the organisation is reported as a
+rename**, and told to write the new name into the matrix -- which
+`consistency-audit.yml:52` cannot express, because it clones
+`shakenfist/${{ matrix.repo }}`. The correct advice there is to remove
+the entry.
+
+**Two stale documentation references, found by the sweep 2c was asked
+to run rather than by the diff.** `docs/consistency-audits.md:24` still
+calls a criterion "a function" in `scripts/audit-check.py` and
+contradicts its own "Adding a criterion" section further down the same
+page; and `templates/ci-review-automation/README.md:323` still names
+imago in the present tense, after the rename to instar. Neither was
+introduced by this work. Both are the same staleness class that step 5a
+fixed in `PUSH-AUDIT.md`, which says the restructure's sweep was
+narrower than it looked.
+
+Those four are fixed on `scope-coverage-audit-findings`, branched from
+`main` rather than from this phase's branch, because the shared block
+requires findings to land as their own pull request. Four commits, one
+per fix, each with a regression test confirmed to fail against the
+unfixed code: `scope.read()` now replaces undecodable bytes the way
+`Repo.read()` does; the rename classification sorts three ways --
+invisible, renamed inside the organisation, moved out of it -- which
+makes the suppression safe by construction rather than by a guard, and
+gives a transfer out the advice that fits it; and the two stale
+documentation references are corrected. 871 tests pass, `pre-commit` is
+clean, and `scope-coverage` still passes on this repository. Six review
+marks were pruned, each in the commit that invalidated it, which is why
+`review-coverage` now reports 22 files needing review rather than 16.
+
+The remainder were declined, in writing, here:
+
+* **2d-2.1, private repository names reach a public issue.** When the
+  check fails, the names of undecided repositories -- private ones
+  included -- land in a public issue on this repository, in the public
+  workflow log, and in a 30-day artifact. Contents never leak, only
+  names. Accepted as a deliberate design consequence rather than
+  fixed: the excluded list in `docs/audits/README.md` is itself public
+  and already names `jenkins-private`, `private-ci` and `deploy`, so
+  the edit the check asks for publishes the name anyway. Filtering the
+  names out while keeping the count would make the issue harder to act
+  on and would not change what the fix discloses.
+* **2d-4.1, un-neutralised subprocess stderr into an issue body.**
+  Real, and shared with five pre-existing checks rather than introduced
+  here; the compliance page path is already protected by `defuse()` in
+  `audit-update-docs.py`. Fixing one instance of a fleet-wide pattern
+  inside an audit phase would leave the other five and misrepresent the
+  problem as solved. Declined here and worth its own sweep.
+* **2d-7.1, a fine-grained token can still reach the destructive
+  branch.** `sees_private` is a bulk signal and cannot distinguish a
+  token that sees all private repositories from one that sees some, so
+  a fine-grained PAT scoped to selected repositories would 404 on the
+  rest and report them as deleted. Declined as a code change: it needs
+  someone to rotate `AUDIT_TOKEN` to a fine-grained PAT, no
+  attacker-influenced path reaches it, and `audit-manage-issues.py`
+  acts on none of this -- the destructive recommendation is prose a
+  person reads. Recorded under Future work.
+* **2b, `scripts/audit/scope.py` has no `test_scope.py`.** Declined.
+  Its behaviour is covered across `test_registry.py` and
+  `test_github_config.py`, and 2b confirmed that coverage by mutation
+  rather than by reading. This is a file-naming convention note, not a
+  gap.
+* **2a-2 and 2a-3, two duplicated-logic notes.** Both declined, and 2a
+  argued against acting on them itself. `matrix_repos()` deliberately
+  does not reuse the indentation-agnostic `indented_block()`, because
+  this module wants a reindent to raise rather than to keep working;
+  and `gh_canonical_repo()` cannot be reused because it silently falls
+  back to the input name on any failure, which is precisely the
+  ambiguity between a 404, a rate limit and a deletion that this check
+  exists to resolve.
+
+Two things the audit confirmed that are worth recording because they
+were the plan's own risks. The truncation guard is real: 2b mutated it
+to count unique names instead of raw entries, and only the test written
+for its pre-deduplication property caught the change. And the
+`applies()` guard genuinely costs nothing on the other nineteen
+repositories -- neutering it made the test fail, because `FakeGitHub`
+records every call and the test asserts there were none.
+
+The 179-line reduction in `scripts/tests/test_registry.py` was checked
+assertion by assertion and is a faithful move into
+`scripts/audit/scope.py`, with the phrase-anchoring guards intact and
+now raising `ScopeParseError` rather than asserting. All five
+regression tests from the review rounds kill their mutants. 868 tests
+pass.
+
 ## Risks and mitigations
 
 * **`gh repo list` truncates at 30 by default.** The organisation has
@@ -576,6 +705,21 @@ was wrong, corrected here in phase 5.
   hand. Phase 5 deliberately does not fix it -- D5.3 fixes only the
   two passages that describe this repository incorrectly, and the
   `main...HEAD` question belongs with whoever ports `plan-range.sh`.
+* `sees_private` is a bulk signal. A fine-grained token scoped to
+  selected repositories sees at least one private repository, so the
+  guard passes, and then 404s on every repository it was not scoped
+  to -- which the check reports as deleted. Nobody can reach this from
+  outside; it needs `AUDIT_TOKEN` rotated to a fine-grained PAT. Worth
+  answering before that rotation happens rather than after.
+* Un-neutralised subprocess stderr reaches an issue body from six
+  checks, of which `scope-coverage` is one. The compliance page is
+  already protected by `defuse()` in `audit-update-docs.py`; the issue
+  path is not. A sweep of all six, rather than a fix to one.
+* `REPO_NAME` in `scripts/audit/scope.py` rejects uppercase letters and
+  underscores, both of which are legal in a GitHub repository name. No
+  repository in the organisation uses either today, so the check
+  measures correctly; the first one that does would make the criterion
+  fail and the unit test error rather than report anything useful.
 
 ### Bugs fixed during this work
 
