@@ -418,6 +418,10 @@ class ScopeCoverage(Check):
         # can clear it -- a red row nobody can act on is one people
         # learn to skip.
         gone, renamed, moved, invisible, unresolvable = [], [], [], [], []
+        # Both classification tests below are case-insensitive, and the
+        # trailing '/' is load-bearing: without it 'shakenfist-extra/foo'
+        # reads as a repository still in the organisation.
+        prefix = f'{repo.org}/'.lower()
         for name in unlisted:
             # Per name rather than around the loop: the undecided set is
             # already computed and needs no API access, and one slow
@@ -446,9 +450,9 @@ class ScopeCoverage(Check):
                 # the same case; without this the finding reads
                 # "renamed to " and names no destination.
                 unresolvable.append((name, 'the API returned no name'))
-            elif canonical.lower() == f'{repo.org}/{name}'.lower():
+            elif canonical.lower() == prefix + name.lower():
                 invisible.append(name)
-            elif canonical.lower().startswith(f'{repo.org.lower()}/'):
+            elif canonical.lower().startswith(prefix):
                 renamed.append((name, canonical))
             else:
                 # Transferred out of the organisation rather than

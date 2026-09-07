@@ -690,6 +690,43 @@ class ScopeCoverageTest(CheckTestCase):
         result, _ = self.run_with(self.listing('development', 'old-thing'))
         self.assert_fail(result, 'Could not read the audit scope')
 
+    def test_an_undecodable_byte_in_prose_still_reports_normally(self):
+        # The other half of what replacing the byte buys, and the more
+        # valuable one: the guard above only proves the run is not lost,
+        # while this proves it is not degraded either. U+FFFD outside a
+        # bullet reaches no repository name, so the scope parses and the
+        # check answers as it would have. A future guard that scanned
+        # the whole block rather than the bullets would turn every such
+        # run into a spurious fail, and only this test would object.
+        self.scope(['development'], ['old-thing'])
+        path = os.path.join(self.fixture.path, 'docs', 'audits', 'README.md')
+        with open(path, 'rb') as f:
+            document = f.read()
+        prose = b'The `actions` repository is audited despite being tooling.'
+        self.assertIn(prose, document)
+        with open(path, 'wb') as f:
+            f.write(document.replace(prose, prose.replace(b'tooling', b'too\xffling')))
+        result, _ = self.run_with(self.listing('development', 'old-thing'))
+        self.assert_pass(result)
+
+    def test_an_owner_that_shares_the_prefix_is_still_a_move_out(self):
+        # The organisation test is a prefix match, so the trailing '/'
+        # is what separates 'shakenfist/x' from 'shakenfist-archive/x'.
+        # Without it an archive organisation reads as a rename inside
+        # shakenfist, which both offers an edit the matrix cannot take
+        # and lets the basename back into the undecided suppression.
+        self.scope(['development'], ['departed'])
+        result, _ = self.run_with(
+            self.listing('development'),
+            departed=CompletedCommand(
+                stdout='shakenfist-archive/departed\n'))
+        self.assert_fail(result, 'have moved out of the shakenfist '
+                                 'organisation')
+        self.assertEqual(
+            result['missing'],
+            ['departed -> shakenfist-archive/departed (moved out of '
+             'shakenfist: remove the entry)'])
+
 
 if __name__ == '__main__':
     unittest.main()
