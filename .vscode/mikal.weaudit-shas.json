@@ -429,10 +429,6 @@
       "sha": "a65f57fa36a5b208cf744d16dddc0963c7e864a5",
       "date": "2026-09-04"
     },
-    "scripts/test_review_tracking.py": {
-      "sha": "a489050462ed7a36957bcda309dff1d5fafc02b6",
-      "date": "2026-09-04"
-    },
     "scripts/tests/__init__.py": {
       "sha": "531d26fbe639291831bc7dff3a4959a702b09fe8",
       "date": "2026-09-04"

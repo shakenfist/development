@@ -465,10 +465,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/test_review_tracking.py",
-      "author": "mikal"
-    },
-    {
       "path": "templates/codeql/codeql-analysis.yml",
       "author": "mikal"
     },
@@ -630,14 +626,6 @@
     },
     {
       "path": ".github/workflows/consistency-audit.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/scope-coverage.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/github_config.py",
       "author": "mikal"
     },
     {
