@@ -743,6 +743,26 @@
     {
       "path": "templates/mermaid-lint",
       "author": "mikal"
+    },
+    {
+      "path": "templates/ci-review-automation/pr-re-review.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/ci-review-automation/pr-retest.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/ci-review-automation/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/ci-review-automation",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
