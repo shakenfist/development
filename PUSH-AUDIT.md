@@ -63,9 +63,14 @@ git diff main...HEAD -- 'docs/audits/*.md' ':!docs/audits/compliance.md' | \
 
 # Changes to the issue-title interface. FROZEN_ISSUE_TITLES is
 # the idempotency key for filing and closing: renaming an entry
-# orphans every open issue for that check, fleet-wide
+# orphans every open issue for that check, fleet-wide. The frozen
+# list is the reliable trigger, because a rename cannot merge
+# without updating it; the second line finds the declaration that
+# made the change, which the frozen snapshot cannot point at
 git diff main...HEAD -- 'scripts/tests/test_metadata.py' | \
     grep -nE '^[-+].*FROZEN_ISSUE_TITLES|^-\s+'\''[a-z-]+'\'':'
+git diff main...HEAD -- 'scripts/audit/checks/*.py' | \
+    grep -nE '^[-+].*issue_title'
 
 # A shared block edited without its version bumped. Editing the
 # wording without the bump means every embedding repository keeps
