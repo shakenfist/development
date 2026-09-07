@@ -153,6 +153,66 @@ here.
   workflow's own groups limit the damage, but they cancel runs which
   have already started work; not starting them is cheaper.
 
+  The group sits on a `retest` job gated on `authorized`, not on
+  `trigger-retest`. That job runs for any non-bot comment carrying the
+  phrase and decides authorisation *inside itself*, so a group there
+  would let anyone who can comment cancel an authorised run in flight
+  -- leaving a dispatched test suite whose only trace on the pull
+  request is a refusal. `pr-re-review.yml` already had this shape, for
+  this reason; the dispatch and the confirmation moved into the second
+  job to match it.
+
+The review of the change above added four things to it, all of the
+same kind: the step now says what it actually found rather than what
+was most quotable.
+
+* **The fallback comment names the case it hit.** The first draft said
+  the branch probably conflicts with its base -- the least likely of
+  the three ways into that comment, and the one the measurement above
+  disproved. On a pull request that merges cleanly it sends the reader
+  looking for a conflict which is not there. The resolve step now
+  publishes a `reason` of `absent`, `stale` or `unreadable` and the
+  comment is worded from it. The body is assembled with a heredoc,
+  because a multi-line `--body` argument keeps its newlines and GitHub
+  renders those as line breaks.
+* **The checkout is confirmed against what was validated.** The
+  resolve step validates a *sha* and hands `actions/checkout` a ref
+  *name*. Between the two a push can move the head and GitHub can
+  republish the ref, so a step after the checkout asserts
+  `HEAD^2` is the validated head and fails loudly if it is not. The
+  window is small, but reviewing a commit nobody checked is the exact
+  bug the resolve step exists to close.
+* **The head sha is shape-checked before it is compared.** `--jq` on
+  an absent field prints the literal `null`, at both ends of the
+  comparison: a single-parent commit yields `null` for
+  `.parents[1].sha`, and two absent values agreeing is not a match.
+  The same reasoning as the stdout-on-404 note, applied to the other
+  operand.
+* **`Disable git hooks` immediately follows the checkout.** It had
+  drifted one step down when the fallback comment was inserted above
+  it. Nothing was exposed -- `gh pr comment` runs no git -- but layer
+  4 of the security model in `docs/ci-review-automation.md` is
+  described as holding by construction, and a later step added in that
+  position might not be as inert.
+
+`MergeRefResolutionTest` in `scripts/tests/test_registry.py` holds all
+of this: that the two `pr-re-review.yml` copies stay byte-identical,
+that the resolve step is present and its output is what the checkout
+consumes, and that both `pr-retest.yml` copies carry the group on the
+gated job. It is the same treatment `GitHooksDisabledTest` gives
+`core.hooksPath`, and for the same reason -- a template edit which
+dropped the step would silently restore reviews of superseded code in
+every repository that copied it afterwards.
+
+Two suggestions from that review were not taken. Resolving the ref on
+the `static` runner in `trigger-re-review` would free the retry budget
+from runner scarcity, but it widens the gap between validating a sha
+and checking it out, which is the window the assertion above exists to
+close; and a fallback after ~25 seconds is a correct review that
+announces its own limits, not a failure. And the fallback comment is
+posted fresh on each request rather than edited in place, so the
+notice sits next to the review it describes.
+
 ### The fork guard
 
 `pr-bot-trigger`'s `pr-ref` output is `.head.ref`: the branch name in the

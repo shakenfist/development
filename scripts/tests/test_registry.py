@@ -446,5 +446,111 @@ class GitHooksDisabledTest(unittest.TestCase):
         return self.LAYER_FOUR + after.split(self.LAYER_FIVE, 1)[0]
 
 
+class MergeRefResolutionTest(unittest.TestCase):
+    """The re-review workflows must resolve the merge ref, not name one.
+
+    Naming `refs/pull/N/merge` is right only while GitHub's copy is
+    both present and current, and it is not guaranteed to be either.
+    The case that bites is a merge ref which is present but stale --
+    GitHub recomputes the merge commit asynchronously after a push --
+    because the review that produces is a real, careful review of
+    superseded code. Nothing about the run looks wrong.
+
+    The resolve step is a control the whole fleet inherits from
+    templates/ci-review-automation/, and it is documented in
+    docs/ci-review-automation.md, so it gets the same treatment as
+    core.hooksPath in GitHooksDisabledTest above: a test on this
+    repository's own files, because a template edit that dropped the
+    step would silently restore reviews of the wrong commit in every
+    repository that copies it afterwards.
+    """
+
+    DEPLOYED_RE_REVIEW = os.path.join(
+        '.github', 'workflows', 'pr-re-review.yml')
+    TEMPLATE_RE_REVIEW = os.path.join(
+        'templates', 'ci-review-automation', 'pr-re-review.yml')
+
+    # docs/ci-review-automation.md lists this template's customisation
+    # as "None", which is what makes byte-identical the right
+    # assertion here. pr-retest.yml is deliberately excluded from it:
+    # its ci.yml / functional-tests.yml divergence is documented in
+    # its own header.
+    def test_the_two_copies_are_identical(self):
+        with open(os.path.join(REPO_ROOT, self.DEPLOYED_RE_REVIEW)) as f:
+            deployed = f.read()
+        with open(os.path.join(REPO_ROOT, self.TEMPLATE_RE_REVIEW)) as f:
+            template = f.read()
+        self.assertEqual(
+            deployed, template,
+            f'{self.DEPLOYED_RE_REVIEW} and {self.TEMPLATE_RE_REVIEW} '
+            f'must be byte-identical: docs/ci-review-automation.md '
+            f'tells the fleet this template is copied unmodified')
+
+    # Matched on the step name rather than on any line of its shell,
+    # because the shell is the part expected to change. A rename is a
+    # decision somebody makes; a deletion should not be.
+    RESOLVE_STEP = '- name: Resolve the ref to review'
+    CHECKOUT_REF = 'ref: ${{ steps.ref.outputs.ref }}'
+
+    # A checkout naming the merge ref directly is the shape this
+    # replaced, and re-introducing it would pass every other check in
+    # the tree.
+    NAMED_MERGE_REF = re.compile(r'ref:\s*refs/pull/.*/merge')
+
+    def test_the_merge_ref_is_resolved_rather_than_named(self):
+        for name in [self.DEPLOYED_RE_REVIEW, self.TEMPLATE_RE_REVIEW]:
+            with self.subTest(workflow=name):
+                with open(os.path.join(REPO_ROOT, name)) as f:
+                    body = f.read()
+                self.assertIn(
+                    self.RESOLVE_STEP, body,
+                    f'{name} must carry a "{self.RESOLVE_STEP}" step: '
+                    f'without it a re-review can check out a merge '
+                    f'commit for a superseded head')
+                self.assertIn(
+                    self.CHECKOUT_REF, body,
+                    f'{name} must check out the ref that step '
+                    f'resolved, or resolving it changes nothing')
+                self.assertIsNone(
+                    self.NAMED_MERGE_REF.search(body),
+                    f'{name} names a merge ref in a checkout rather '
+                    f'than resolving one')
+
+    DEPLOYED_RETEST = os.path.join('.github', 'workflows', 'pr-retest.yml')
+    TEMPLATE_RETEST = os.path.join(
+        'templates', 'ci-review-automation', 'pr-retest.yml')
+
+    GROUP = 'group: pr-retest-${{ github.event.issue.number }}'
+    GATE = "if: needs.trigger-retest.outputs.authorized == 'true'"
+
+    def test_retest_dispatch_is_grouped_and_gated(self):
+        # The group has to sit on a job that unauthorised comments
+        # never enter. trigger-retest decides authorisation inside
+        # itself, so a group there lets anyone who can comment cancel
+        # an authorised run mid-flight -- leaving a dispatched test
+        # suite whose only trace on the pull request is a refusal.
+        # Asserting both together because either alone is the bug:
+        # a group with no gate is that cancellation, and a gate with
+        # no group is the double dispatch this fixed.
+        for name in [self.DEPLOYED_RETEST, self.TEMPLATE_RETEST]:
+            with self.subTest(workflow=name):
+                with open(os.path.join(REPO_ROOT, name)) as f:
+                    body = f.read()
+                self.assertIn(
+                    self.GROUP, body,
+                    f'{name} must carry a per-pull-request concurrency '
+                    f'group, or two "please retest" comments dispatch '
+                    f'the test suite twice')
+                self.assertIn(
+                    self.GATE, body,
+                    f'{name} must gate the grouped job on '
+                    f'pr-bot-trigger having authorised the request')
+                self.assertLess(
+                    body.index(self.GATE), body.index(self.GROUP),
+                    f'{name} declares its concurrency group before the '
+                    f'authorisation gate, so the group is not on the '
+                    f'gated job')
+
+
 if __name__ == '__main__':
     unittest.main()
