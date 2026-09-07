@@ -53,6 +53,14 @@
       "sha": "da5448b0c44cd55b35a0b81f9f17f5c377ae0ef8",
       "date": "2026-09-07"
     },
+    ".github/workflows/pr-re-review.yml": {
+      "sha": "983a5e26834fb3f3352613087fcb9ebeeedf560c",
+      "date": "2026-09-07"
+    },
+    ".github/workflows/pr-retest.yml": {
+      "sha": "12fc85a25e351feb1d4f6dd146f89945558a1184",
+      "date": "2026-09-07"
+    },
     ".github/workflows/prune-reviews.yml": {
       "sha": "feb474e2510c2bfdd2011573e57c87976b62f1ad",
       "date": "2026-09-01"
@@ -277,6 +285,10 @@
       "sha": "d60479307223048db30a9651ee8492b89c8b4049",
       "date": "2026-08-30"
     },
+    "docs/ci-review-automation.md": {
+      "sha": "d0ddaacb7265a1071af7a8463b44c8d5cf28a329",
+      "date": "2026-09-07"
+    },
     "docs/code-review-tracking.md": {
       "sha": "0eb0cce0f2d17eff4e3beb319bb9e4e5b8033347",
       "date": "2026-09-01"
@@ -485,6 +497,10 @@
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",
       "date": "2026-09-04"
     },
+    "scripts/tests/test_registry.py": {
+      "sha": "2174f33040f5893d7e6301a564563ac9998c4b65",
+      "date": "2026-09-07"
+    },
     "scripts/tests/test_review.py": {
       "sha": "742e2256f8d2c74cb8a65560d075ee11429c9914",
       "date": "2026-09-04"
@@ -492,6 +508,18 @@
     "scripts/tests/test_runners.py": {
       "sha": "b3d0d28144d510677e07d7edff75a46ecfba84e3",
       "date": "2026-09-04"
+    },
+    "templates/ci-review-automation/README.md": {
+      "sha": "a134f8dfdece6aa5a32cd366726e7d8334cc9418",
+      "date": "2026-09-07"
+    },
+    "templates/ci-review-automation/pr-re-review.yml": {
+      "sha": "983a5e26834fb3f3352613087fcb9ebeeedf560c",
+      "date": "2026-09-07"
+    },
+    "templates/ci-review-automation/pr-retest.yml": {
+      "sha": "5741391a21cfc4dadae16dc05c2734994c9036a1",
+      "date": "2026-09-07"
     },
     "templates/codeql/README.md": {
       "sha": "d8ad7a6bed168b66f51af9e0484ccb84840af7bb",
