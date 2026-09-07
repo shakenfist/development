@@ -285,6 +285,10 @@
       "sha": "d60479307223048db30a9651ee8492b89c8b4049",
       "date": "2026-08-30"
     },
+    "docs/ci-review-automation.md": {
+      "sha": "d0ddaacb7265a1071af7a8463b44c8d5cf28a329",
+      "date": "2026-09-07"
+    },
     "docs/code-review-tracking.md": {
       "sha": "0eb0cce0f2d17eff4e3beb319bb9e4e5b8033347",
       "date": "2026-09-01"

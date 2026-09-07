@@ -783,6 +783,10 @@
     {
       "path": ".github",
       "author": "mikal"
+    },
+    {
+      "path": "docs/ci-review-automation.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
