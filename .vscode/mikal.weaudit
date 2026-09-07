@@ -9,10 +9,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/pr-retest.yml",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/secret-scan.yml",
       "author": "mikal"
     },
@@ -157,14 +153,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/ci-review-automation/pr-retest.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/ci-review-automation/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/codeql/README.md",
       "author": "mikal"
     },
@@ -298,10 +286,6 @@
     },
     {
       "path": ".github/workflows/codeql-analysis.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/pr-re-review.yml",
       "author": "mikal"
     },
     {
@@ -489,14 +473,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/ci-review-automation/pr-re-review.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/ci-review-automation",
-      "author": "mikal"
-    },
-    {
       "path": "templates/codeql/codeql-analysis.yml",
       "author": "mikal"
     },
@@ -665,10 +641,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/ci-review-automation.md",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/github_config.py",
       "author": "mikal"
     },
@@ -682,10 +654,6 @@
     },
     {
       "path": "scripts/tests/test_github_config.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_registry.py",
       "author": "mikal"
     },
     {
@@ -741,14 +709,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
-      "author": "mikal"
-    },
-    {
       "path": "templates/mermaid-lint/mermaid-lint.yml",
       "author": "mikal"
     },
@@ -782,10 +742,6 @@
     },
     {
       "path": "templates/mermaid-lint",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     }
   ],
