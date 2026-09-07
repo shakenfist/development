@@ -485,6 +485,10 @@
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",
       "date": "2026-09-04"
     },
+    "scripts/tests/test_registry.py": {
+      "sha": "2174f33040f5893d7e6301a564563ac9998c4b65",
+      "date": "2026-09-07"
+    },
     "scripts/tests/test_review.py": {
       "sha": "742e2256f8d2c74cb8a65560d075ee11429c9914",
       "date": "2026-09-04"

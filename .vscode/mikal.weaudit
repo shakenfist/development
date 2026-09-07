@@ -763,6 +763,10 @@
     {
       "path": "templates",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_registry.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
