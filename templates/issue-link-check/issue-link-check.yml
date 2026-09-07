@@ -1,0 +1,22 @@
+# Check that a pull request will close the issues it says it fixes.
+#
+# Delegates to the shared reusable workflow in shakenfist/actions. See
+# templates/issue-link-check/README.md for what it checks and why.
+#
+# Repositories which run this as part of a merge queue gate should instead
+# add the job to their existing gate workflow, so that "Can enqueue" depends
+# on it. A standalone workflow like this one reports, but does not gate.
+
+name: Issue link check
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+jobs:
+  issue_link_check:
+    uses: shakenfist/actions/.github/workflows/issue-link-check.yml@main
