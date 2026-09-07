@@ -350,9 +350,11 @@ wave 1 grep at `PUSH-AUDIT.md:64-67`, which watches
 is dead for the same reason -- adding a criterion now touches
 `scripts/audit/checks/`, `scripts/audit/registry.py` and the frozen
 lists in `scripts/tests/test_metadata.py`, and never that file. The
-restructure updated `PUSH-AUDIT.md:155` to say `scripts/audit/checks/`
-and missed these two. This plan added a criterion, so it is the
-work those two paragraphs exist to review.
+restructure updated the **Duplicated logic.** bullet to say
+`scripts/audit/checks/` and missed these two. Line numbers in this
+section are as of `8b77b32`; 5a's edit has since moved them. This
+plan added a criterion, so it is the work those two paragraphs
+exist to review.
 
 Nothing else in the runbook disagreed with the tree.
 `scripts/audit_common.py` still exists, so the grep is not
@@ -416,8 +418,8 @@ rather than at the start.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 5a | medium | sonnet | none | Correct the two stale passages in `PUSH-AUDIT.md`, and nothing else in that file. First, the four-file rule in the 2a brief at lines 125-127: it says a criterion spans a check function in `scripts/audit-check.py` and metadata in `scripts/audit_common.py` (`AUDIT_METADATA` and `ISSUE_TITLES`). Since `PLAN-audit-scripts-restructure` landed, a criterion spans a `Check` subclass in `scripts/audit/checks/<family>.py`, its registration in `CHECKS` in `scripts/audit/registry.py`, a spec in `docs/audits/<name>.md`, a row in `docs/audits/README.md`, and its frozen lines in `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`. Read `scripts/audit_common.py:35-50` before writing: `AUDIT_METADATA` and `ISSUE_TITLES` are now derived from the registry by `_metadata()` and `_issue_titles()`, so they cannot be edited directly and the issue title is still the fleet-wide idempotency key -- keep that warning, move it to where the title is now declared. Second, the wave 1 grep at lines 64-67 watches `scripts/audit_common.py` for `ISSUE_TITLES` changes and can no longer fire for the case it was written for; retarget it at `scripts/tests/test_metadata.py`. Line 155 already says `scripts/audit/checks/` and is correct -- do not touch it. Do not touch any `<!-- shared-block: -->` region: a bump files issues fleet-wide. Wrap at the file's existing width. Commit subject: "Correct the push audit runbook after the restructure." |
-| 5b | medium | sonnet | none | Wave 1 of `PUSH-AUDIT.md`, over the recorded range. Export `AUDIT_BASE=8b77b32^1` and `AUDIT_HEAD=8b77b32` and read every `git diff main...HEAD` in the runbook as `git diff $AUDIT_BASE $AUDIT_HEAD`; a plain `main...HEAD` is empty here because this work is already merged, which would read as a clean audit. Run `pre-commit run --all-files` on the current tree first -- it is the whole of lint and test, and note that it gives a false pass for `test_every_stamp_matches_the_content_it_attests_to` on unstaged edits, because that test reads the git index, so run it with the tree clean. Then run each of the seven greps in the wave 1 block with the substituted range and report every hit with a verdict: hit, looked at, accepted or blocking, and why. Expect and explain rather than ignore: `docs/audits/compliance.md` is not in this range; `REVIEWS.md` is, and the pruning it records is the convention working. Report, do not fix. |
+| 5a | medium | sonnet | none | Correct the two stale passages in `PUSH-AUDIT.md`, and nothing else in that file. First, the four-file rule in the 2a brief at lines 125-127: it says a criterion spans a check function in `scripts/audit-check.py` and metadata in `scripts/audit_common.py` (`AUDIT_METADATA` and `ISSUE_TITLES`). Since `PLAN-audit-scripts-restructure` landed, a criterion spans a `Check` subclass in `scripts/audit/checks/<family>.py`, its registration in `CHECKS` in `scripts/audit/registry.py`, a spec in `docs/audits/<name>.md`, a row in `docs/audits/README.md`, and its frozen lines in `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`. Read `scripts/audit_common.py:35-50` before writing: `AUDIT_METADATA` and `ISSUE_TITLES` are now derived from the registry by `_metadata()` and `_issue_titles()`, so they cannot be edited directly and the issue title is still the fleet-wide idempotency key -- keep that warning, move it to where the title is now declared. Second, the wave 1 grep at lines 64-67 watches `scripts/audit_common.py` for `ISSUE_TITLES` changes and can no longer fire for the case it was written for; retarget it at `scripts/tests/test_metadata.py`. The **Duplicated logic.** bullet already says `scripts/audit/checks/` and is correct -- do not touch it. Every line number in this brief is as of `8b77b32`, before 5a's own edit moved them. Do not touch any `<!-- shared-block: -->` region: a bump files issues fleet-wide. Wrap at the file's existing width. Commit subject: "Correct the push audit runbook after the restructure." |
+| 5b | medium | sonnet | none | Wave 1 of `PUSH-AUDIT.md`, over the recorded range. Export `AUDIT_BASE=8b77b32^1` and `AUDIT_HEAD=8b77b32` and read every `git diff main...HEAD` in the runbook as `git diff $AUDIT_BASE $AUDIT_HEAD`; a plain `main...HEAD` is empty here because this work is already merged, which would read as a clean audit. Run `pre-commit run --all-files` on the current tree first -- it is the whole of lint and test -- and run it with the tree clean, because `review-tracking.py stamp` takes its SHAs from the git **index**: an unstaged edit is attested at the staged content, not at what is on disk. An earlier draft of this caution named `test_every_stamp_matches_the_content_it_attests_to` as what gives the false pass; that assertion was deleted from this repository in `6b132a4` on 2026-08-29 for taxing every Renovate bump, and the name reached this brief from `PLAN-audit-compliance-split`'s record of the round that hit it. The clean-tree advice outlived the test. Then run each of the seven greps in the wave 1 block with the substituted range and report every hit with a verdict: hit, looked at, accepted or blocking, and why. Expect and explain rather than ignore: `docs/audits/compliance.md` is not in this range; `REVIEWS.md` is, and the pruning it records is the convention working. Report, do not fix. |
 | 5c | high | sonnet | none | Wave 2a, code quality, per the brief in `PUSH-AUDIT.md` -- but read the corrected four-file rule from step 5a, not a cached copy. Diff is `git diff 8b77b32^1 8b77b32`. Take 5b's grep report as input and triage each hit. The highest-value reading is `ScopeCoverage.run()` and its name-resolution path in `scripts/audit/checks/github_config.py`: the classification of a failed lookup was rewritten twice under review, once because every non-zero return landed in "no longer exists" whose suggested fix is destructive, and once because a token that cannot see private repositories answers 404 for all of them. Ask what the check reports when the token degrades part-way through the resolution loop rather than before it, and whether the undecided set -- the half that needs no API access -- survives every failure path. Also check `scripts/audit/scope.py` against `scripts/tests/test_registry.py`: D4 says the parse exists once, so a second copy or a divergent guard is a finding. |
 | 5d | high | sonnet | none | Wave 2b, test review, per the brief in `PUSH-AUDIT.md`, over `git diff 8b77b32^1 8b77b32`. `scripts/tests/test_github_config.py` gained 318 lines and `scripts/tests/test_registry.py` lost 179; establish that the second is a move to `scripts/audit/scope.py`'s own tests and not a loss of coverage, naming each assertion that did not survive. The five behaviours D1 and the risks section promised tests for are: a clean scope passes, an unlisted repository fails, a listed name that does not resolve fails, a truncated listing is caught before it is believed, and a repository that is not `development` skips without an API call. Verify each exists and actually tests what its name says on `FakeGitHub`. The truncation test is the one to read hardest -- the risk is a listing cut at the limit being read as eight repositories deleted from the organisation. |
 | 5e | high | sonnet | none | Wave 2c, documentation review, per the brief in `PUSH-AUDIT.md`, over `git diff 8b77b32^1 8b77b32`. Four documents moved together and the question is whether they now say the same thing: `docs/audits/scope-coverage.md` (new, 135 lines), `docs/audits/README.md` (the two scope lists and the criterion index row), `AGENTS.md` (the parsed-prose convention) and `ARCHITECTURE.md` (the `audit/scope.py` entry). Check specifically that the excluded list's widened rationale sentence, per D3, actually covers `divergulent-reviews` and `homebrew-tap` rather than still saying "internal only tooling or historical archive repositories"; that no criterion spec has grown a generated status table; that `docs/consistency-audits.md` really did need no change, as the plan claims, by reading its "Adding a criterion" and "Bringing a repository into scope" sections against what phases 2 to 4 did; and that the `README.md` and `docs/ci-review-automation.md` deletions of the imago claim left no dangling reference. |
@@ -545,7 +547,7 @@ the entry.
 to run rather than by the diff.** `docs/consistency-audits.md:24` still
 calls a criterion "a function" in `scripts/audit-check.py` and
 contradicts its own "Adding a criterion" section further down the same
-page; and `templates/ci-review-automation/README.md:323` still names
+page; and `templates/ci-review-automation/README.md:428` still names
 imago in the present tense, after the rename to instar. Neither was
 introduced by this work. Both are the same staleness class that step 5a
 fixed in `PUSH-AUDIT.md`, which says the restructure's sweep was
@@ -554,16 +556,36 @@ narrower than it looked.
 Those four are fixed on `scope-coverage-audit-findings`, branched from
 `main` rather than from this phase's branch, because the shared block
 requires findings to land as their own pull request. Four commits, one
-per fix, each with a regression test confirmed to fail against the
-unfixed code: `scope.read()` now replaces undecodable bytes the way
+per fix; the three code fixes each carry a regression test confirmed to
+fail against the unfixed code, and the documentation fix carries none,
+being prose. `scope.read()` now replaces undecodable bytes the way
 `Repo.read()` does; the rename classification sorts three ways --
 invisible, renamed inside the organisation, moved out of it -- which
 makes the suppression safe by construction rather than by a guard, and
 gives a transfer out the advice that fits it; and the two stale
-documentation references are corrected. 871 tests pass, `pre-commit` is
-clean, and `scope-coverage` still passes on this repository. Six review
-marks were pruned, each in the commit that invalidated it, which is why
-`review-coverage` now reports 22 files needing review rather than 16.
+documentation references are corrected. At `812d87a`, `pre-commit` was
+clean, `scope-coverage` still passed on this repository, and the audit
+package suite ran 874 tests. The 871 first recorded here was `main`'s
+count rather than the branch's -- the same class of unchecked figure
+this phase exists to catch, found by re-running it. Six review marks
+were pruned, each in the commit that invalidated it, which is why
+`review-coverage` reported 22 files needing review rather than 16.
+
+The automated review of that pull request added three more commits, and
+one of them is a finding in its own right. Two review marks had lost
+their stamps: two of the four fixes pruned by hand, deleting the
+sidecar entry and leaving the `auditedFiles` entry behind. Nothing
+could see it -- `prune` only removes a mark whose stamp is stale and
+there was no stamp to be stale, and `regen` reproduces the blank
+attestation columns faithfully, so the reproducibility test compared
+equal -- while `REVIEWS.md` counted both files as reviewed and
+`review-tracking.py status` counted them as needing review. The marks
+are dropped, and a test now fails when any mark carries no stamp. The
+other two commits take the review's suggestions: the stale
+`REPO_OVERRIDES` reference it found in `docs/consistency-audits.md` is
+corrected together with two more of the same class that a grep turned
+up, and the organisation-prefix comparison and the succeed half of the
+`errors='replace'` promise each gain the test that pins them.
 
 The remainder were declined, in writing, here:
 
@@ -576,7 +598,19 @@ The remainder were declined, in writing, here:
   and already names `jenkins-private`, `private-ci` and `deploy`, so
   the edit the check asks for publishes the name anyway. Filtering the
   names out while keeping the count would make the issue harder to act
-  on and would not change what the fix discloses.
+  on and would not change what the fix discloses. That argument covers
+  a repository already named in a public list; it does not cover the
+  case this criterion exists for, a repository created and in neither
+  list, whose name reaches the public issue automatically at the next
+  06:00 UTC run before anyone has decided anything about it. The
+  declination still holds, because every resolution the criterion can
+  ask for -- a matrix row or an excluded-list entry -- publishes the
+  name in a public document, so the audit shortens the delay rather
+  than creating the disclosure; a repository whose existence must stay
+  quiet needs its decision recorded before it is created. If that ever
+  stops being acceptable, the alternative is reporting undecided
+  repositories by count in the issue and by name only in the workflow
+  log.
 * **2d-4.1, un-neutralised subprocess stderr into an issue body.**
   Real, and shared with five pre-existing checks rather than introduced
   here; the compliance page path is already protected by `defuse()` in
@@ -620,6 +654,15 @@ assertion by assertion and is a faithful move into
 now raising `ScopeParseError` rather than asserting. All five
 regression tests from the review rounds kill their mutants. 868 tests
 pass.
+
+Editing `PUSH-AUDIT.md` staled its own review mark, and 5a did not
+prune it -- the sibling findings branch pruned six marks in the commits
+that invalidated them, and this branch should have done the same.
+Pruned here instead, so `PUSH-AUDIT.md` now needs re-reading.
+`prune-reviews.yml` reaps a stale mark on the next push to `main`
+either way, so the end state was never in doubt; what a missing prune
+costs is that the pull request does not show its reviewer that a
+reviewed file has changed under them.
 
 ## Risks and mitigations
 
