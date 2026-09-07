@@ -101,10 +101,6 @@
       "sha": "ee972a18a3c9d89f6a79ba73c741eff42d781ff1",
       "date": "2026-09-06"
     },
-    "docs/audits/README.md": {
-      "sha": "c7192105b0519cf72c4c2a96637c5456ad1c1d83",
-      "date": "2026-09-07"
-    },
     "docs/audits/ci-review-automation.md": {
       "sha": "b0e5dd33cc1c7e7d845ee3b42e63ec31e35b58da",
       "date": "2026-08-27"
@@ -204,10 +200,6 @@
     "docs/audits/push-audit.md": {
       "sha": "9f8dba7a891b3da0ffc4c0fb36805023cfc51beb",
       "date": "2026-08-30"
-    },
-    "docs/audits/pyproject-usage.md": {
-      "sha": "2e09105649a76fab616fc2b03f2cf803f3c4af70",
-      "date": "2026-08-29"
     },
     "docs/audits/python-version.md": {
       "sha": "6666fd792cb17b3f74719115b690388f77d2d63b",

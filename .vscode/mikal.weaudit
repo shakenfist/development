@@ -89,10 +89,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/pyproject-usage.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/python-version.md",
       "author": "mikal"
     },
@@ -650,10 +646,6 @@
     },
     {
       "path": "templates/mermaid-lint/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/README.md",
       "author": "mikal"
     },
     {

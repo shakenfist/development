@@ -213,7 +213,7 @@ python3 scripts/audit-check.py --repo-path ~/src/shakenfist/<repo> \
 
 Repository properties that cannot be detected from a clone -- docs-only
 repositories, repositories where Python is incidental -- are declared in
-`REPO_OVERRIDES` in `scripts/audit-check.py`.
+`REPO_OVERRIDES` in `scripts/audit/repo.py`.
 
 A repository that should be audited for some checks but not others
 takes an `only_checks` list in the same place. `private-ci` is the
