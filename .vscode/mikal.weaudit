@@ -377,10 +377,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/base.py",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/plan-audit-phase.md",
       "author": "mikal"
     },
@@ -566,10 +562,6 @@
     },
     {
       "path": ".flake8",
-      "author": "mikal"
-    },
-    {
-      "path": ".pre-commit-config.yaml",
       "author": "mikal"
     },
     {
