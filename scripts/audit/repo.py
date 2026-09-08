@@ -56,7 +56,20 @@ REPO_OVERRIDES = {
     # invisible until somebody thinks to look, so that one check
     # applies. only_checks scopes a repository to a subset of the
     # audit rather than excluding it wholesale.
-    'private-ci': {'only_checks': ['sfui-vendor']},
+    #
+    # It plans like the rest of the fleet, though, which the original
+    # scoping did not anticipate: it adopted PLAN-TEMPLATE.md and a
+    # plan index in September 2026, so the two criteria that keep
+    # those honest apply too. plan-audit-phase is deliberately still
+    # out. The eight plans written there before the template predate
+    # the push audit phase rule and track progress as checkpoint
+    # sections rather than as a phase table, so enabling it would file
+    # an issue for a retrofit nobody has decided to do. It goes in
+    # when those plans are revisited, alongside the Status column the
+    # index does not yet carry.
+    'private-ci': {
+        'only_checks': ['sfui-vendor', 'plan-template', 'plan-index'],
+    },
     # sfui is a CSS/JavaScript design system with no build step. Its
     # only Python is incidental test tooling (pytest and the
     # consistency checker), so there is nothing to package and the

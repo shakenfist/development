@@ -249,11 +249,18 @@ class RepoOverridesTest(unittest.TestCase):
         )
         self.assertEqual(props['only_checks'], [])
 
-    def test_private_ci_is_scoped_to_the_sfui_check(self):
+    def test_private_ci_is_scoped_to_sfui_and_the_plan_checks(self):
         props = detect_repo_properties(
             tempfile.mkdtemp(), 'private-ci'
         )
-        self.assertEqual(props['only_checks'], ['sfui-vendor'])
+        self.assertEqual(
+            props['only_checks'],
+            ['sfui-vendor', 'plan-template', 'plan-index'])
+        # plan-audit-phase is deliberately absent: the plans written
+        # there before it adopted the template do not carry a push
+        # audit phase, and enabling the check would file an issue for
+        # a retrofit nobody has decided to do.
+        self.assertNotIn('plan-audit-phase', props['only_checks'])
 
 
 class CheckScopeTest(unittest.TestCase):
@@ -303,12 +310,14 @@ class CheckScopeTest(unittest.TestCase):
                 tmp, 'private-ci', 'shakenfist'
             )
 
-        reason = 'private-ci is audited for sfui-vendor only'
+        reason = ('private-ci is audited for plan-index, '
+                  'plan-template, sfui-vendor only')
+        scoped = {'sfui-vendor', 'plan-template', 'plan-index'}
         by_id = {c['id']: c for c in results['checks']}
         self.assertEqual(len(by_id), len(ISSUE_TITLES))
 
         for check_id, check in by_id.items():
-            if check_id == 'sfui-vendor':
+            if check_id in scoped:
                 self.assertNotEqual(check['details'], reason)
                 continue
             self.assertEqual(check['status'], 'not_applicable')
