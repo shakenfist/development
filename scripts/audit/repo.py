@@ -59,16 +59,37 @@ REPO_OVERRIDES = {
     #
     # It plans like the rest of the fleet, though, which the original
     # scoping did not anticipate: it adopted PLAN-TEMPLATE.md and a
-    # plan index in September 2026, so the two criteria that keep
-    # those honest apply too. plan-audit-phase is deliberately still
-    # out. The eight plans written there before the template predate
-    # the push audit phase rule and track progress as checkpoint
-    # sections rather than as a phase table, so enabling it would file
-    # an issue for a retrofit nobody has decided to do. It goes in
-    # when those plans are revisited, alongside the Status column the
-    # index does not yet carry.
+    # plan index in September 2026, so the criteria that keep plans
+    # honest apply too. The plan family has six members and each is a
+    # separate decision, so each is stated here rather than left to be
+    # inferred from the list:
+    #
+    #  * plan-phase-references, plan-source-references, plan-index and
+    #    plan-template are in. All four report a defect in a plan as
+    #    written -- a reference that does not resolve, a plan missing
+    #    from the index, a shared block that has drifted from
+    #    canonical -- rather than a convention adopted after the plan
+    #    was, so none of them can manufacture a retrofit issue.
+    #  * plan-audit-phase is deliberately out. The eight plans written
+    #    there before the template predate the push audit phase rule
+    #    and track progress as checkpoint sections rather than as a
+    #    phase table, so enabling it would file an issue for a
+    #    retrofit nobody has decided to do. It goes in when those
+    #    plans are revisited, alongside the Status column the index
+    #    does not yet carry.
+    #  * push-audit is out because it would be a no-op either way: it
+    #    reports not_applicable when a repository has no
+    #    PUSH-AUDIT.md, and private-ci has none. It goes in with
+    #    plan-audit-phase, which is what would create one.
+    #
+    # Ordered the way registry.CHECKS orders them, so the two read
+    # side by side. Membership and the rendered reason are both
+    # order-independent.
     'private-ci': {
-        'only_checks': ['sfui-vendor', 'plan-template', 'plan-index'],
+        'only_checks': [
+            'plan-phase-references', 'plan-source-references',
+            'plan-index', 'plan-template', 'sfui-vendor',
+        ],
     },
     # sfui is a CSS/JavaScript design system with no build step. Its
     # only Python is incidental test tooling (pytest and the

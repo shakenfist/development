@@ -13,6 +13,13 @@ This module is where that parse lives, so that there is exactly one of it.
 either would let the two disagree about what the lists say, which is the
 failure the check exists to prevent, one level up.
 
+A repository scoped to a subset of the checks is stated a fourth time, as a
+sentence rather than a list: which criteria it is audited for, in the
+partial-scope paragraph of `docs/audits/README.md`. That one is read against
+`only_checks` in `REPO_OVERRIDES` rather than against the other lists, and it
+is the statement with the worst track record -- `only_checks` was widened once
+with the sentence, and two other documents, left behind and no test noticing.
+
 Every function here raises `ScopeParseError` rather than returning a partial
 list. A start phrase that gets reworded away is loud, because the split
 raises. An end phrase that gets reworded away is the dangerous one -- the
@@ -48,6 +55,56 @@ IN_SCOPE_BULLET = '- '
 MATRIX_WORKFLOW = '.github/workflows/consistency-audit.yml'
 MATRIX_START = '        repo:\n'
 MATRIX_BULLET = '          - '
+
+PARTIAL_SCOPE_DOC = 'docs/audits/README.md'
+PARTIAL_SCOPE_START = ' is audited for the '
+PARTIAL_SCOPE_END = ' checks, and nothing else.'
+
+#: The partially scoped repositories and what the page says each is
+#: measured against, read out of the one sentence per repository that
+#: says so. Unlike the two lists above this is a sentence rather than a
+#: bullet list, because it has to carry the reasoning as well, so the
+#: parse is delimited to the span between the two phrases and every
+#: check id it collects is backticked. Everything after the end phrase
+#: -- including the criteria this repository is *not* audited for, and
+#: why -- is prose the parse deliberately never sees, so that adding a
+#: reason cannot change what the sentence is read as claiming.
+PARTIAL_SCOPE = re.compile(
+    r'([a-z0-9][a-z0-9.-]*)' + re.escape(PARTIAL_SCOPE_START) +
+    r'(.*?)' + re.escape(PARTIAL_SCOPE_END), re.DOTALL)
+
+#: What a check id looks like, used the way REPO_NAME is used above: to
+#: notice a parse that has started collecting prose rather than to
+#: validate the id. Anchored at both ends, so a backticked filename
+#: like `pyproject.toml` -- which the same paragraph carries a few
+#: sentences later -- is rejected rather than read as a criterion.
+CHECK_ID = re.compile(r'^[a-z0-9][a-z0-9-]*$')
+
+#: A backticked token inside the delimited span.
+BACKTICKED = re.compile(r'`([^`]*)`')
+
+#: A run of blank lines, collapsed to exactly one so that a paragraph
+#: break is always the two-newline sequence WRAPPED_LINE is written to
+#: leave alone. Applied first, because a blank line carrying trailing
+#: whitespace is otherwise indistinguishable from a wrapped one.
+PARAGRAPH_BREAK = re.compile(r'\n(?:[ \t]*\n)+')
+
+#: A line break inside a paragraph, as opposed to one between
+#: paragraphs. `docs/` is hand-wrapped at about seventy columns, so
+#: both the start and the end phrase can be split across two lines by a
+#: reflow that changes not one word -- and a split phrase does not
+#: match, which would turn "somebody re-wrapped a paragraph" into a
+#: parse error naming a phrase that is still there. Joining wrapped
+#: lines first makes the parse care about the words rather than the
+#: column they landed in.
+#:
+#: Neither newline of a paragraph break matches: the first is followed
+#: by one and the second preceded by one. That is the whole reason for
+#: the two lookarounds, and it is load-bearing -- a paragraph break
+#: half-joined reads as an ordinary line break, and the guard that
+#: catches a span running past the end of its sentence has nothing
+#: left to notice.
+WRAPPED_LINE = re.compile(r'(?<!\n)\n(?!\n)[ \t]*')
 
 #: What a GitHub repository in any of these lists looks like. The point is not
 #: to validate the name but to notice a parse that has started collecting
@@ -159,3 +216,71 @@ def documented_excluded(root):
     """The repositories the documentation says are excluded."""
     return bulleted_block(
         root, EXCLUDED_DOC, EXCLUDED_START, EXCLUDED_END, EXCLUDED_BULLET)
+
+
+def documented_partial_scope(root):
+    """What the documentation says each partially scoped repo is audited for.
+
+    Returns `{repository: [check id, ...]}`, read from the one sentence
+    per repository in the partial-scope paragraph of
+    `docs/audits/README.md`. `only_checks` in `REPO_OVERRIDES` is what
+    actually runs; this is what a reader is told, and until this parse
+    existed nothing held the two together -- `only_checks` could be
+    widened and the sentence left behind without a single test
+    noticing, which is exactly what happened the first time it was.
+
+    Raises `ScopeParseError` rather than returning a partial mapping,
+    for the same reason the two list parses above do. The dangerous
+    drift here is the end phrase rather than the start: a reworded
+    start phrase simply yields no matches and raises, while a reworded
+    end phrase lets the non-greedy span run on to the *next*
+    repository's sentence, or to the end of the file, silently
+    collecting whatever backticked tokens it passes. So the span is
+    rejected if it crosses a blank line or a heading -- one sentence
+    never does -- before anything trusts what it collected.
+
+    Wrapped lines are joined before any of that, so that re-wrapping
+    the paragraph is not a parse error. Both phrases are long enough
+    to straddle the seventy-odd columns these documents are hand
+    wrapped at, and "the phrase is missing" is the wrong thing to tell
+    somebody whose only edit was a reflow.
+    """
+    text = PARAGRAPH_BREAK.sub('\n\n', read(root, PARTIAL_SCOPE_DOC))
+    text = WRAPPED_LINE.sub(' ', text)
+    matches = PARTIAL_SCOPE.findall(text)
+    if not matches:
+        raise ScopeParseError(
+            f'{PARTIAL_SCOPE_DOC} must say "<repository>'
+            f'{PARTIAL_SCOPE_START}...{PARTIAL_SCOPE_END}" at least '
+            f'once: it is the sentence the scope parse reads to learn '
+            f'which checks a partially scoped repository is audited '
+            f'for')
+    documented = {}
+    for repo, span in matches:
+        if repo in documented:
+            raise ScopeParseError(
+                f'{PARTIAL_SCOPE_DOC} states what "{repo}" is audited '
+                f'for more than once, so a reader can be told two '
+                f'different things depending on which they read')
+        if '\n\n' in span or re.search(r'^#{1,6} ', span, re.MULTILINE):
+            raise ScopeParseError(
+                f'the text read for "{repo}" from {PARTIAL_SCOPE_DOC} '
+                f'runs past the end of its sentence, so "'
+                f'{PARTIAL_SCOPE_END.strip()}" is no longer where the '
+                f'parse stops')
+        ids = BACKTICKED.findall(span)
+        if not ids:
+            raise ScopeParseError(
+                f'no backticked check ids read for "{repo}" from '
+                f'{PARTIAL_SCOPE_DOC}; the sentence names the checks '
+                f'some other way now, and an empty list compares '
+                f'equal to nothing rather than failing loudly')
+        for check_id in ids:
+            if not CHECK_ID.search(check_id):
+                raise ScopeParseError(
+                    f'"{check_id}" was read as a check id from the '
+                    f'sentence about "{repo}" in {PARTIAL_SCOPE_DOC}, '
+                    f'so the parse is picking up something that is '
+                    f'not one')
+        documented[repo] = ids
+    return documented
