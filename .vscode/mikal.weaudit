@@ -717,18 +717,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/ci-review-automation/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/ci-review-automation",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_registry.py",
       "author": "mikal"
     },

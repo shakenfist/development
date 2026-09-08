@@ -135,7 +135,6 @@ for how this works, including how to verify the attestations.
 | scripts/tests/test_registry.py | mikal | 2026-09-07 | 2174f33040f5 |
 | scripts/tests/test_review.py | mikal | 2026-09-04 | 742e2256f8d2 |
 | scripts/tests/test_runners.py | mikal | 2026-09-04 | b3d0d28144d5 |
-| templates/ci-review-automation/README.md | mikal | 2026-09-07 | a134f8dfdece |
 | templates/ci-review-automation/pr-re-review.yml | mikal | 2026-09-07 | 983a5e26834f |
 | templates/ci-review-automation/pr-retest.yml | mikal | 2026-09-07 | 5741391a21cf |
 | templates/codeql/README.md | mikal | 2026-08-30 | d8ad7a6bed16 |
