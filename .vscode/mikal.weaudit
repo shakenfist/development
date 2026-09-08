@@ -637,19 +637,11 @@
       "author": "mikal"
     },
     {
-      "path": "README.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/mermaid-lint/README.md",
       "author": "mikal"
     },
     {
       "path": "scripts/audit/registry.py",
-      "author": "mikal"
-    },
-    {
-      "path": "ARCHITECTURE.md",
       "author": "mikal"
     },
     {
@@ -689,10 +681,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_docs_content.py",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/mermaid-lint-ci.md",
       "author": "mikal"
     },
@@ -726,14 +714,6 @@
     },
     {
       "path": ".github/workflows/pr-re-review.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
       "author": "mikal"
     },
     {
