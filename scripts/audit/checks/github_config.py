@@ -417,7 +417,11 @@ class ScopeCoverage(Check):
         # finding names the token instead, which is the only edit that
         # can clear it -- a red row nobody can act on is one people
         # learn to skip.
-        gone, renamed, invisible, unresolvable = [], [], [], []
+        gone, renamed, moved, invisible, unresolvable = [], [], [], [], []
+        # Both classification tests below are case-insensitive, and the
+        # trailing '/' is load-bearing: without it 'shakenfist-extra/foo'
+        # reads as a repository still in the organisation.
+        prefix = f'{repo.org}/'.lower()
         for name in unlisted:
             # Per name rather than around the loop: the undecided set is
             # already computed and needs no API access, and one slow
@@ -446,16 +450,35 @@ class ScopeCoverage(Check):
                 # the same case; without this the finding reads
                 # "renamed to " and names no destination.
                 unresolvable.append((name, 'the API returned no name'))
-            elif canonical.lower() != f'{repo.org}/{name}'.lower():
+            elif canonical.lower() == prefix + name.lower():
+                invisible.append(name)
+            elif canonical.lower().startswith(prefix):
                 renamed.append((name, canonical))
             else:
-                invisible.append(name)
+                # Transferred out of the organisation rather than
+                # renamed inside it, and the two need different advice.
+                # What a rename says -- write the new name in the matrix
+                # or the list -- is not expressible here: the audit
+                # workflow clones {org}/${{ matrix.repo }}, so a foreign
+                # owner cannot go in the matrix at all. The entry has to
+                # be removed instead.
+                moved.append((name, canonical))
 
         # Item of noise rather than a wrong answer: a repository renamed
         # from a name the scope still carries is also, under its new
         # name, in the organisation and in neither list. Both findings
         # ask for the same single edit, so the rename is the one that
         # says it.
+        #
+        # `renamed` holds only canonical names still in this
+        # organisation, because the classification above sorts a
+        # transfer out into `moved` instead. That distinction is what
+        # keeps this line honest: a repository transferred out
+        # redirects to its new owner indefinitely, and subtracting on
+        # the basename alone silenced the genuine "decided nowhere"
+        # finding for any repository still here that happened to share
+        # that name -- restoring the third state this criterion exists
+        # to remove.
         undecided -= {canonical.split('/')[-1] for _, canonical in renamed}
 
         problems = []
@@ -477,6 +500,13 @@ class ScopeCoverage(Check):
                 f'renamed')
             missing.extend(f'{name} -> {canonical} (renamed)'
                            for name, canonical in renamed)
+        if moved:
+            problems.append(
+                f'{len(moved)} name(s) in the audit scope have moved '
+                f'out of the {repo.org} organisation')
+            missing.extend(
+                f'{name} -> {canonical} (moved out of {repo.org}: '
+                f'remove the entry)' for name, canonical in moved)
         if invisible:
             # Not a scope finding at all: the lists are right and the
             # listing is short. Reported rather than passed over,

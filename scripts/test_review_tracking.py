@@ -630,6 +630,48 @@ class ThisRepositoryTest(unittest.TestCase):
             'prune` first',
         )
 
+    def test_no_review_mark_is_missing_its_stamp(self):
+        """Every committed mark must carry an attestation.
+
+        A mark in `auditedFiles` with no entry in the sidecar is a
+        review nothing can verify: REVIEWS.md counts it in the header
+        and renders its row with '-' for both Date and Blob SHA, while
+        review-tracking.py status -- what the review-coverage audit
+        check reads -- treats it as needing review. The two disagree
+        about the same file.
+
+        The reproducibility test above cannot see this, because regen
+        renders the dashes faithfully and the committed file matches.
+        Nor will prune repair it: prune removes a mark whose stamp has
+        gone stale, and there is no stamp here to be stale. The state
+        is unreachable through the tooling -- stamp writes both halves
+        and prune removes both -- so it means the sidecar was edited by
+        hand, which is what this test exists to catch.
+        """
+        tracked = set(self.rt.tracked_files())
+        for state_path in self.rt.state_files():
+            state, _ = self.rt.load_json(state_path, {})
+            sidecar, _ = self.rt.load_json(
+                self.rt.sidecar_path(state_path), {'version': 1, 'files': {}})
+            stamps = sidecar.get('files', {})
+            audited, _partial = self.rt.marked_paths(state)
+            for path in audited:
+                if self.rt.is_dir_entry(path, tracked):
+                    continue
+                # assertTrue rather than assertIn: the stamp dictionary
+                # holds every reviewed file in the repository, and
+                # assertIn renders it in full ahead of the explanation.
+                self.assertTrue(
+                    path in stamps,
+                    'the review mark on %s in %s has no stamp in %s, so '
+                    'nothing binds it to any content. Either restore the '
+                    'stamp by re-reading the file and running '
+                    '`review-tracking.py stamp`, or drop the mark -- in '
+                    'weAudit, or by removing its auditedFiles entry -- and '
+                    'run `review-tracking.py regen`'
+                    % (path, state_path, self.rt.sidecar_path(state_path)),
+                )
+
     def _array_lines(self, raw, key):
         """Return the lines between `<key> = [` and its closing `]`.
 

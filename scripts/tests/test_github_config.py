@@ -552,6 +552,40 @@ class ScopeCoverageTest(CheckTestCase):
         self.assertEqual(result['missing'],
                          ['imago -> shakenfist/instar (renamed)'])
 
+    def test_a_move_out_of_the_organisation_suppresses_nothing(self):
+        # The suppression above is owner-blind if it takes the basename
+        # alone. A repository transferred out of the organisation
+        # redirects to its new owner indefinitely, so an unrelated
+        # repository still here under that same name -- and in neither
+        # list -- had its genuine finding silenced, which is the third
+        # state this criterion exists to remove.
+        self.scope(['development'], ['departed'])
+        result, _ = self.run_with(
+            self.listing('development', 'target'),
+            departed=CompletedCommand(stdout='otherowner/target\n'))
+        self.assert_fail(result, 'in neither the audit matrix nor the '
+                                 'excluded list')
+        self.assertIn('target (in the organisation, decided nowhere)',
+                      result['missing'])
+
+    def test_a_move_out_of_the_organisation_says_to_remove_the_entry(self):
+        # A rename inside the organisation and a transfer out of it are
+        # the same API answer and want opposite edits. Telling a reader
+        # to write otherowner/target into the matrix is advice they
+        # cannot take: consistency-audit.yml clones
+        # shakenfist/${{ matrix.repo }}, so a foreign owner does not fit
+        # there at all. The entry goes instead.
+        self.scope(['development'], ['departed'])
+        result, _ = self.run_with(
+            self.listing('development'),
+            departed=CompletedCommand(stdout='otherowner/departed\n'))
+        self.assert_fail(result, 'have moved out of the shakenfist '
+                                 'organisation')
+        self.assertEqual(
+            result['missing'],
+            ['departed -> otherowner/departed (moved out of shakenfist: '
+             'remove the entry)'])
+
     def test_a_blank_stderr_does_not_raise_out_of_the_check(self):
         # describe_failure() indexed the first line of a stderr that
         # had one only if it was not whitespace. An IndexError here
@@ -638,6 +672,60 @@ class ScopeCoverageTest(CheckTestCase):
     def test_a_missing_workflow_fails_rather_than_raising(self):
         result, _ = self.run_with(self.listing('development'))
         self.assert_fail(result, 'Could not read the audit scope')
+
+    def test_an_undecodable_byte_does_not_abort_the_audit(self):
+        # UnicodeDecodeError is a ValueError rather than an OSError, so
+        # it escapes the handler around the scope parse, and
+        # registry.run_all() has no handler either: one bad byte in a
+        # scope document would abort the whole development leg and take
+        # issue filing and the compliance page with it. The byte is
+        # replaced instead, so the parse reaches its own guard and the
+        # check returns a finding a reader can act on.
+        self.scope(['development'], ['old-thing'])
+        path = os.path.join(self.fixture.path, 'docs', 'audits', 'README.md')
+        with open(path, 'rb') as f:
+            document = f.read()
+        with open(path, 'wb') as f:
+            f.write(document.replace(b'* old-thing', b'* old-\xffthing'))
+        result, _ = self.run_with(self.listing('development', 'old-thing'))
+        self.assert_fail(result, 'Could not read the audit scope')
+
+    def test_an_undecodable_byte_in_prose_still_reports_normally(self):
+        # The other half of what replacing the byte buys, and the more
+        # valuable one: the guard above only proves the run is not lost,
+        # while this proves it is not degraded either. U+FFFD outside a
+        # bullet reaches no repository name, so the scope parses and the
+        # check answers as it would have. A future guard that scanned
+        # the whole block rather than the bullets would turn every such
+        # run into a spurious fail, and only this test would object.
+        self.scope(['development'], ['old-thing'])
+        path = os.path.join(self.fixture.path, 'docs', 'audits', 'README.md')
+        with open(path, 'rb') as f:
+            document = f.read()
+        prose = b'The `actions` repository is audited despite being tooling.'
+        self.assertIn(prose, document)
+        with open(path, 'wb') as f:
+            f.write(document.replace(prose, prose.replace(b'tooling', b'too\xffling')))
+        result, _ = self.run_with(self.listing('development', 'old-thing'))
+        self.assert_pass(result)
+
+    def test_an_owner_that_shares_the_prefix_is_still_a_move_out(self):
+        # The organisation test is a prefix match, so the trailing '/'
+        # is what separates 'shakenfist/x' from 'shakenfist-archive/x'.
+        # Without it an archive organisation reads as a rename inside
+        # shakenfist, which both offers an edit the matrix cannot take
+        # and lets the basename back into the undecided suppression.
+        self.scope(['development'], ['departed'])
+        result, _ = self.run_with(
+            self.listing('development'),
+            departed=CompletedCommand(
+                stdout='shakenfist-archive/departed\n'))
+        self.assert_fail(result, 'have moved out of the shakenfist '
+                                 'organisation')
+        self.assertEqual(
+            result['missing'],
+            ['departed -> shakenfist-archive/departed (moved out of '
+             'shakenfist: remove the entry)'])
 
 
 if __name__ == '__main__':

@@ -89,10 +89,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/pyproject-usage.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/python-version.md",
       "author": "mikal"
     },
@@ -321,10 +317,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/consistency-audits.md",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/__init__.py",
       "author": "mikal"
     },
@@ -466,10 +458,6 @@
     },
     {
       "path": "scripts/test_issue_fix_extraction.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/test_review_tracking.py",
       "author": "mikal"
     },
     {
@@ -637,23 +625,7 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/scope-coverage.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/github_config.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/github.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/scope.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_github_config.py",
       "author": "mikal"
     },
     {
@@ -674,10 +646,6 @@
     },
     {
       "path": "templates/mermaid-lint/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/README.md",
       "author": "mikal"
     },
     {
