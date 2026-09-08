@@ -25,12 +25,12 @@ GitHub only acts on issue-closing keywords found in a pull request's
   whatsoever.
 
 An audit of shakenfist/shakenfist on 2026-09-07 found five issues left open
-this way across three merged pull requests, in three distinct shapes: a
-backticked stanza, a backticked stanza in a second pull request, and a pull
-request with an entirely empty description whose three stanzas lived only
-in commit messages. Issue #4087 needed *both* failures at once to stay
-open, which is why the incidence looks low while the arrangement is one
-mistake away from failing every time.
+this way across three merged pull requests, in two distinct shapes: a
+backticked stanza, twice, and a pull request with an entirely empty
+description whose three stanzas lived only in commit messages. Issue
+#4087 needed *both* failures at once to stay open, which is why the
+incidence looks low while the arrangement is one mistake away from
+failing every time.
 
 ## What it checks
 
@@ -58,7 +58,7 @@ teaches people to ignore it.
 ## Opting out
 
 A pull request which is only part of the fix for an issue declares that in
-its description:
+its description, on a line of its own:
 
 ```
 X-No-Autoclose: #4087
@@ -66,31 +66,75 @@ X-No-Autoclose: #4087
 
 ## Customisation
 
-The workflow is project-agnostic. Repositories with self-hosted runners
-pass their labels:
+The workflow is project-agnostic. It ships asking for the fleet's `static`
+runners, because the reusable workflow's own default is `ubuntu-latest`
+and
+[the workflow standards audit](https://github.com/shakenfist/development/blob/main/docs/audits/workflow-standards.md)
+prohibits a GitHub-hosted runner without an
+`audit-ok: github-hosted-runner` marker and a reason. A repository with
+no self-hosted runners drops the `with:` block and takes the default:
 
 ```yaml
     uses: shakenfist/actions/.github/workflows/issue-link-check.yml@main
-    with:
-      runs_on: '["self-hosted","static"]'
 ```
+
+That is worth doing deliberately rather than by omission. The
+`ubuntu-latest` string lives in shakenfist/actions, not in the adopting
+repository, so the Runners criterion scanning the adopter's workflows finds
+nothing to flag and the choice never resurfaces.
+
+## Merge queue repositories
 
 Repositories with a merge queue should add the job to the workflow which
 already computes their `Can enqueue` gate, and list it in that job's
 `needs`, rather than installing this standalone file. Gating matters most
 exactly where the merge queue has disabled commit-message parsing.
 
+Two details travel with the job when it moves.
+
+The gate workflow's `pull_request` trigger needs `edited` in its `types:`
+list, for the reason the caller workflow's comment gives. Without it a
+corrected description never re-runs the check, and a merge queue gate is
+the worst place in the fleet to leave a stale red one.
+
+The gate workflow is also almost certainly path-filtered, because
+[the expensive lane path filter audit](https://github.com/shakenfist/development/blob/main/docs/audits/expensive-lane-path-filter.md)
+requires it of anything running `vm` jobs on `pull_request`. Issue-closing
+intent is orthogonal to which files a pull request touched -- a
+documentation-only pull request closes documentation issues -- so the check
+has to stay reachable on a filtered pull request. That means the
+`dorny/paths-filter` shape, with this job deliberately left without the
+`if:` condition the expensive jobs carry. Trigger-level `paths:` skips the
+whole workflow, so the check silently never runs on exactly the pull
+requests nothing else is watching.
+
 ## Prerequisites
 
-- The shared workflow in `shakenfist/actions`
+- The shared workflow in `shakenfist/actions`:
+  [`.github/workflows/issue-link-check.yml`](https://github.com/shakenfist/actions/blob/main/.github/workflows/issue-link-check.yml)
+  and the checker it runs,
+  [`tools/check-issue-links.py`](https://github.com/shakenfist/actions/blob/main/tools/check-issue-links.py).
+  Everything this README describes -- the stanza matching, the `runs_on`
+  input, the `X-No-Autoclose:` spelling -- is implemented there, and none of
+  it is verified from here: actionlint's `could not read reusable workflow
+  file` diagnostic, which is what would catch a wrong input name, is
+  ignored for `templates/`. Renaming the input or the marker is a
+  fleet-visible interface change.
 - `permissions: contents: read, pull-requests: read, issues: read`
 
 ## Projects using this template
 
 | Project | Status |
 |---------|--------|
+| [development](https://github.com/shakenfist/development) | Live (standalone; no merge queue here) |
 | [shakenfist](https://github.com/shakenfist/shakenfist) | Proposed (gated, in `functional-tests.yml`) |
-| [client-python-k3s](https://github.com/shakenfist/client-python-k3s) | Not yet |
-| [instar](https://github.com/shakenfist/instar) | Not yet |
-| [ryll](https://github.com/shakenfist/ryll) | Not yet |
-| [kerbside](https://github.com/shakenfist/kerbside) | Not yet |
+
+Only repositories which actually run it are listed, which is the rule the
+other template rosters here follow. A row reading "not yet" is wrong from
+the moment that repository adopts the template and nothing anywhere fails
+when it is, and this repository has already deleted one roster for exactly
+that -- see the end of `templates/ci-review-automation/README.md`. The four
+other merge queue repositories (client-python-k3s, instar, ryll and
+kerbside) are the obvious candidates, and the durable way to say so is a
+consistency audit criterion and a compliance page section rather than a
+table, once the shape has settled on a live adopter or two.
