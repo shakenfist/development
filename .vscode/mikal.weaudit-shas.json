@@ -49,6 +49,10 @@
       "sha": "53b5d8eb46e89e228dd88d42d7e1b0c3ea6694cd",
       "date": "2026-08-24"
     },
+    ".github/workflows/issue-link-check.yml": {
+      "sha": "6d0ce3ba5bf1008a1139a1a1be27959413f8ad0a",
+      "date": "2026-09-09"
+    },
     ".github/workflows/mermaid-lint.yml": {
       "sha": "da5448b0c44cd55b35a0b81f9f17f5c377ae0ef8",
       "date": "2026-09-07"
@@ -496,6 +500,14 @@
     "templates/issue-fix/neutralise-pr-body.sh": {
       "sha": "4248bb512fa54f024a31cc9e838d0a11092f8da1",
       "date": "2026-08-30"
+    },
+    "templates/issue-link-check/README.md": {
+      "sha": "28489dc2b569f8b645bcf3d80fb027c021a268a6",
+      "date": "2026-09-09"
+    },
+    "templates/issue-link-check/issue-link-check.yml": {
+      "sha": "6d0ce3ba5bf1008a1139a1a1be27959413f8ad0a",
+      "date": "2026-09-09"
     },
     "templates/mermaid-lint/README.md": {
       "sha": "715aeaded4995bcd14d67bac4df4d61e1c93fbad",

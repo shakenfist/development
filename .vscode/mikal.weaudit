@@ -711,6 +711,30 @@
     {
       "path": "docs/ci-review-automation.md",
       "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/issue-link-check.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-link-check/issue-link-check.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-link-check/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-link-check",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
