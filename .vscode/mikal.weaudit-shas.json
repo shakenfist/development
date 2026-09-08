@@ -93,10 +93,6 @@
       "sha": "15d553992a1d137419046403b7087f127ef053d2",
       "date": "2026-09-09"
     },
-    "PLAN-TEMPLATE.md": {
-      "sha": "6b5376dc1046a1a8441a48ee2cd7948373bb8234",
-      "date": "2026-09-06"
-    },
     "PUSH-AUDIT.md": {
       "sha": "30723ce58effe56f458c0b8b7de94cfca2cfb2c1",
       "date": "2026-09-09"
@@ -619,10 +615,6 @@
     },
     "templates/shared-blocks/plan-planning-effort.md": {
       "sha": "1e7f1b0747ba292069e22f69a8a6b4a27c0518b1",
-      "date": "2026-09-04"
-    },
-    "templates/shared-blocks/plan-push-audit-phase.md": {
-      "sha": "e56bd649267c7b1115a56d445cdd1892b9aa8605",
       "date": "2026-09-04"
     },
     "templates/shared-blocks/plan-review-checklist.md": {

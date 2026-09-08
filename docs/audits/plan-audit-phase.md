@@ -130,13 +130,11 @@ opposite of what a reader has to be told.
   the handful of plans still able to act on a finding and one that
   files an issue against every plan the fleet has ever closed.
 
-  The block words the carve-out as `Complete` alone. The check applies
-  it to all three terminal terms of the status vocabulary, because
-  `Abandoned` and `Superseded` are terminal for the same reason and
-  the block's silence about them is a gap rather than a decision.
-  Rewording the block bumps its version and stales every embedded copy
-  across the fleet, which is a sweep; it is scheduled as one, in
-  `docs/plans/PLAN-push-audit-phase.md`.
+  The block names all three terminal terms of the status vocabulary
+  from v3 onwards. The check applied to all three before the block
+  caught up, because `Abandoned` and `Superseded` are terminal for
+  the same reason and the block's earlier silence about them was a
+  gap rather than a decision.
 * **Plans with a terminal status that do carry the phase.** Not
   inspected either. Whether the audit ran is a judgement about the
   plan's own record, and the presence of a heading cannot settle it.

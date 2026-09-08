@@ -497,10 +497,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/shared-blocks/plan-push-audit-phase.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/shared-blocks/plan-review-checklist.md",
       "author": "mikal"
     },
@@ -530,10 +526,6 @@
     },
     {
       "path": "templates/shared-blocks/subagent-step-guidance.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/shared-blocks",
       "author": "mikal"
     },
     {
@@ -602,10 +594,6 @@
     },
     {
       "path": "AGENTS.md",
-      "author": "mikal"
-    },
-    {
-      "path": "PLAN-TEMPLATE.md",
       "author": "mikal"
     },
     {
@@ -738,10 +726,6 @@
     },
     {
       "path": "templates/ci-review-automation",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     },
     {

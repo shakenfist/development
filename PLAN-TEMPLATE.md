@@ -130,7 +130,7 @@ reads that table, and this repository is inside its own audit
 matrix, so a status that drifts out of the vocabulary fails our
 own tooling before it fails anybody else's.
 
-<!-- shared-block: plan-push-audit-phase v2 -->
+<!-- shared-block: plan-push-audit-phase v3 -->
 Push audit phase (shared block; do not edit -- the canonical
 copy lives in shakenfist/development at
 `templates/shared-blocks/plan-push-audit-phase.md`):
@@ -139,9 +139,10 @@ copy lives in shakenfist/development at
   `PUSH-AUDIT.md` over the whole plan's work. It is the last row of
   the Execution table and it is not optional. The rule binds every
   plan that carries the phase, which is decidable from the plan file
-  alone: a plan that is already `Complete` and does not carry the
-  phase is not reopened to acquire one, and a plan that has the
-  phase runs it even if it reaches `Complete` before the phase does.
+  alone: a plan that is already `Complete`, `Abandoned` or
+  `Superseded` and does not carry the phase is not reopened to
+  acquire one, and a plan that has the phase runs it even if it
+  reaches `Complete` before the phase does.
 - That phase audits the accumulated diff of every phase in the plan
   against the default branch, not the diff of the last phase alone.
   Auditing one phase at a time would miss what the phases did to

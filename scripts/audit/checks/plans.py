@@ -197,11 +197,8 @@ def plan_index_summarise(label, items):
 # deliberately dropped or replaced is no more going to write the diff
 # an audit would read than a finished one is, so all three terminal
 # terms of the status vocabulary carve out and the four live ones
-# bind. The plan-push-audit-phase block still words the carve-out as
-# `Complete` alone: bumping it to v3 restales every embedded copy
-# across the fleet, which is a sweep, and the sweep is phase 4 of
-# docs/plans/PLAN-push-audit-phase.md. The check implements the
-# vocabulary's terminal set meanwhile, and the block catches up there.
+# bind. The plan-push-audit-phase block names all three terminal
+# statuses from v3 onwards.
 PLAN_TERMINAL_STATUSES = ('Complete', 'Abandoned', 'Superseded')
 
 
