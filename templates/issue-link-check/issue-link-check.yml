@@ -28,9 +28,23 @@ permissions:
   pull-requests: read
   issues: read
 
+# "edited" fires on every description edit, and the remedy for a failure
+# here is an edit -- so a burst of them queues runs which can finish out
+# of order and leave the pull request red for a description that is
+# already right. Only the newest run matters. The "|| github.ref"
+# fallback keeps the expression valid if a non-pull_request trigger is
+# added later.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   issue-link-check:
     name: Issue link check
+    # A job which calls a reusable workflow cannot set runs-on or
+    # timeout-minutes; the reusable workflow defines both. It sets
+    # timeout-minutes: 5, which is what docs/audits/workflow-standards.md
+    # requires of every job.
     uses: shakenfist/actions/.github/workflows/issue-link-check.yml@main
     with:
       # The reusable workflow defaults to a GitHub-hosted ubuntu runner,

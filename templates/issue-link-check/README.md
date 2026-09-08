@@ -9,6 +9,14 @@ it says it fixes, and fails while the description can still be edited.
 |------|-------------|-------------|
 | `issue-link-check.yml` | `.github/workflows/issue-link-check.yml` | Caller workflow |
 
+This repository's own copy at `.github/workflows/issue-link-check.yml` is
+byte-identical to the template, and `IssueLinkCheckDeploymentTest` in
+`scripts/tests/test_docs_content.py` keeps it that way, so a comment or a
+`runs_on` value fixed in one copy cannot quietly miss the other -- the
+template being the copy which goes to the fleet. No such promise is made
+about an adopter's copy: adopters are expected to edit the `with:` block,
+and the Customisation section below says when to.
+
 ## The problem it solves
 
 GitHub only acts on issue-closing keywords found in a pull request's
@@ -97,6 +105,10 @@ list, for the reason the caller workflow's comment gives. Without it a
 corrected description never re-runs the check, and a merge queue gate is
 the worst place in the fleet to leave a stale red one.
 
+A gate workflow which already carries a concurrency group needs no
+second one; the group in this file exists because a standalone workflow
+has nothing else serialising it.
+
 The gate workflow is also almost certainly path-filtered, because
 [the expensive lane path filter audit](https://github.com/shakenfist/development/blob/main/docs/audits/expensive-lane-path-filter.md)
 requires it of anything running `vm` jobs on `pull_request`. Issue-closing
@@ -115,7 +127,8 @@ requests nothing else is watching.
   and the checker it runs,
   [`tools/check-issue-links.py`](https://github.com/shakenfist/actions/blob/main/tools/check-issue-links.py).
   Everything this README describes -- the stanza matching, the `runs_on`
-  input, the `X-No-Autoclose:` spelling -- is implemented there, and none of
+  input, the `X-No-Autoclose:` spelling, and the `timeout-minutes` a
+  calling job is not permitted to set -- is implemented there, and none of
   it is verified from here: actionlint's `could not read reusable workflow
   file` diagnostic, which is what would catch a wrong input name, is
   ignored for `templates/`. Renaming the input or the marker is a
@@ -127,14 +140,16 @@ requests nothing else is watching.
 | Project | Status |
 |---------|--------|
 | [development](https://github.com/shakenfist/development) | Live (standalone; no merge queue here) |
-| [shakenfist](https://github.com/shakenfist/shakenfist) | Proposed (gated, in `functional-tests.yml`) |
 
 Only repositories which actually run it are listed, which is the rule the
 other template rosters here follow. A row reading "not yet" is wrong from
 the moment that repository adopts the template and nothing anywhere fails
 when it is, and this repository has already deleted one roster for exactly
-that -- see the end of `templates/ci-review-automation/README.md`. The four
-other merge queue repositories (client-python-k3s, instar, ryll and
-kerbside) are the obvious candidates, and the durable way to say so is a
-consistency audit criterion and a compliance page section rather than a
-table, once the shape has settled on a live adopter or two.
+that -- see the end of `templates/ci-review-automation/README.md`. A row
+reading "proposed" is the same row wearing a different word. The five merge
+queue repositories (shakenfist, client-python-k3s, instar, ryll and
+kerbside) are the obvious candidates, shakenfist first as a gated job in
+`functional-tests.yml`, and each earns a row when that job actually lands.
+The durable way to say all this is a consistency audit criterion and a
+compliance page section rather than a table, once the shape has settled on
+a live adopter or two.

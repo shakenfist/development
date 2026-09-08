@@ -666,6 +666,31 @@ class MermaidLintCiTest(unittest.TestCase):
         self.assertEqual(result['status'], 'not_applicable')
 
 
+class IssueLinkCheckDeploymentTest(unittest.TestCase):
+    """This repository's copy must match the template exactly.
+
+    templates/issue-link-check/README.md promises byte-identity for this
+    repository's copy specifically -- not for an adopter's, which is
+    expected to edit the with: block. Both copies are actionlinted, so a
+    syntax error in either is caught either way; what drifts silently is
+    a comment or a runs_on value fixed in one and not the other, and the
+    template is the copy which goes to the fleet.
+    """
+
+    def test_workflow_matches_the_template(self):
+        root = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))))
+
+        def read(*parts):
+            with open(os.path.join(root, *parts), 'rb') as f:
+                return f.read()
+
+        self.assertEqual(
+            read('.github', 'workflows', 'issue-link-check.yml'),
+            read('templates', 'issue-link-check', 'issue-link-check.yml'),
+        )
+
+
 class MermaidLintDeploymentTest(unittest.TestCase):
     """This repository's copies must match the template exactly.
 

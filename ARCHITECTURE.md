@@ -30,6 +30,10 @@ projects consistent. It contains no application code.
   diagram on pull requests and pushes to main that touch markdown. It
   runs on a docker-capable runner rather than `static`, which is why it
   is a workflow of its own rather than a step in `ci.yml`.
+- `.github/workflows/issue-link-check.yml` -- this repository's
+  deployed copy of `templates/issue-link-check/`, checking that a pull
+  request will close the issues it claims to fix. There is no merge
+  queue here, so it reports rather than gates.
 - `.github/workflows/` also carries the fleet-standard supporting
   workflows: the `pr-re-review.yml` and `pr-retest.yml` bot triggers,
   `secret-scan.yml`, `codeql-analysis.yml`, `renovate.yml` and

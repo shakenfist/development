@@ -68,9 +68,11 @@ to Shaken Fist projects:
   adding new pins and removing stale ones (applications only --
   libraries deliberately leave resolution to their consumers)
 - [`templates/issue-link-check/`](https://github.com/shakenfist/development/tree/main/templates/issue-link-check) --
-  Fails a pull request whose issue-closing stanza GitHub will not act on,
-  which is what a backticked stanza or a commit-message-only stanza in a
-  merge queue repository amounts to
+  Reports a pull request whose issue-closing stanza GitHub will not act
+  on, which is what a backticked stanza or a commit-message-only stanza in
+  a merge queue repository amounts to; standalone it goes red without
+  blocking, and merge queue repositories add the job to their existing
+  enqueue gate instead
 - [`templates/mermaid-lint/`](https://github.com/shakenfist/development/tree/main/templates/mermaid-lint) --
   Renders every mermaid diagram in a repository's markdown on pull
   requests that touch markdown, so a diagram that does not parse fails
