@@ -42,10 +42,11 @@ failing every time.
 
 ## What it checks
 
-Intent is read from three places: a branch named `issue-fix-NNNN` (or the
-older `bug-NNNN`), a standalone stanza in the description, and a standalone
-stanza in any commit message. That is compared against
-`closingIssuesReferences`, which is GitHub's own parse of the description.
+Intent is read from three places: a branch named `issue-fix-NNNN`,
+`fix-NNNN` or the older `bug-NNNN`, a standalone stanza in the
+description, and a standalone stanza in any commit message. That is
+compared against `closingIssuesReferences`, which is GitHub's own parse
+of the description.
 
 - **Fails** when something declared as fixed will not be closed. An issue
   which is already closed is not demanded, so a pull request following on
@@ -91,6 +92,18 @@ That is worth doing deliberately rather than by omission. The
 repository, so the Runners criterion scanning the adopter's workflows finds
 nothing to flag and the choice never resurfaces.
 
+A `static` job asks for `self-hosted` and `static` and nothing else, and
+nothing here will tell you if it does not. The labels travel as a JSON
+string input rather than a `runs-on:` line, so actionlint does not see
+them (it never fetches a remote callee) and neither does the
+static-runner-tags criterion, which matches on `runs-on:` lines. A size
+label, a wrong OS or a typo therefore reaches the runner unchallenged,
+and produces the failure the workflow standards audit calls the worse of
+the two: a job which is never scheduled at all and sits queued until
+GitHub expires it about a day later. `timeout-minutes: 5` does not save
+it, because queue time is not job time. In a merge queue gate that is a
+stalled queue rather than a red cross.
+
 ## Merge queue repositories
 
 Repositories with a merge queue should add the job to the workflow which
@@ -98,12 +111,25 @@ already computes their `Can enqueue` gate, and list it in that job's
 `needs`, rather than installing this standalone file. Gating matters most
 exactly where the merge queue has disabled commit-message parsing.
 
-Two details travel with the job when it moves.
+The check GitHub reports is named for both jobs -- the caller's `name:`
+and the reusable workflow's -- composed as `Issue link check / Issue
+links`. That is the string a branch ruleset's required-checks list wants
+typed exactly, and renaming either job changes it.
+
+Three details travel with the job when it moves.
 
 The gate workflow's `pull_request` trigger needs `edited` in its `types:`
 list, for the reason the caller workflow's comment gives. Without it a
 corrected description never re-runs the check, and a merge queue gate is
 the worst place in the fleet to leave a stale red one.
+
+The job needs `if: github.event_name == 'pull_request'`, because a gate
+workflow is triggered by `merge_group` as well. On a queue run
+`github.event.pull_request.number` is empty, and the checker takes
+`--pr` as a required int, so argparse exits 2 and an unguarded job fails
+every single merge queue run. Skipping it there costs nothing: the
+`can_enqueue` and `can_merge` gates count a skipped dependency as
+success, and the description was already checked on the pull request.
 
 A gate workflow which already carries a concurrency group needs no
 second one; the group in this file exists because a standalone workflow
@@ -116,8 +142,9 @@ intent is orthogonal to which files a pull request touched -- a
 documentation-only pull request closes documentation issues -- so the check
 has to stay reachable on a filtered pull request. That means the
 `dorny/paths-filter` shape, with this job deliberately left without the
-`if:` condition the expensive jobs carry. Trigger-level `paths:` skips the
-whole workflow, so the check silently never runs on exactly the pull
+filter `if:` the expensive jobs carry -- it keeps the event guard above
+and takes no condition from `check_paths`. Trigger-level `paths:` skips
+the whole workflow, so the check silently never runs on exactly the pull
 requests nothing else is watching.
 
 ## Prerequisites
@@ -129,9 +156,13 @@ requests nothing else is watching.
   Everything this README describes -- the stanza matching, the `runs_on`
   input, the `X-No-Autoclose:` spelling, and the `timeout-minutes` a
   calling job is not permitted to set -- is implemented there, and none of
-  it is verified from here: actionlint's `could not read reusable workflow
-  file` diagnostic, which is what would catch a wrong input name, is
-  ignored for `templates/`. Renaming the input or the marker is a
+  it is verified from here. actionlint resolves only local reusable
+  workflows and never fetches a remote one, so neither this template nor
+  the deployed copy under `.github/workflows/` has its `with:` inputs
+  checked against the callee -- the `templates/` ignore in
+  `.pre-commit-config.yaml` is for relative `uses:` paths and does not
+  come into it. A renamed input surfaces as a workflow-level failure at
+  run time and nothing sooner, so renaming the input or the marker is a
   fleet-visible interface change.
 - `permissions: contents: read, pull-requests: read, issues: read`
 

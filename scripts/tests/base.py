@@ -25,6 +25,19 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 
 
+def repo_file(*parts):
+    """The bytes of a file in this repository.
+
+    The deployment tests compare a copy this repository runs against
+    the template it was copied from, so they read the real tree rather
+    than a fixture. Shared for the same reason REPO_ROOT is: each of
+    them otherwise carries its own walk up out of scripts/tests/, and
+    the second copy of that chain is the one a move leaves behind.
+    """
+    with open(os.path.join(REPO_ROOT, *parts), 'rb') as f:
+        return f.read()
+
+
 def run_check(check, path, props=None, name='testrepo',
               org='shakenfist', github=None):
     """Run a check against a directory, the way the scheduler does.

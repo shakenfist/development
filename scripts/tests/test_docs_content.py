@@ -22,7 +22,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import docs_content  # noqa: E402
 from audit.checks import llm_docs as llm_docs_module  # noqa: E402
-from tests.base import CheckTestCase, run_check  # noqa: E402
+from tests.base import (  # noqa: E402
+    REPO_ROOT, CheckTestCase, repo_file, run_check,
+)
 
 
 def check_readme_structure(path, props=None):
@@ -678,16 +680,10 @@ class IssueLinkCheckDeploymentTest(unittest.TestCase):
     """
 
     def test_workflow_matches_the_template(self):
-        root = os.path.dirname(os.path.dirname(os.path.dirname(
-            os.path.abspath(__file__))))
-
-        def read(*parts):
-            with open(os.path.join(root, *parts), 'rb') as f:
-                return f.read()
-
         self.assertEqual(
-            read('.github', 'workflows', 'issue-link-check.yml'),
-            read('templates', 'issue-link-check', 'issue-link-check.yml'),
+            repo_file('.github', 'workflows', 'issue-link-check.yml'),
+            repo_file('templates', 'issue-link-check',
+                      'issue-link-check.yml'),
         )
 
 
@@ -702,22 +698,16 @@ class MermaidLintDeploymentTest(unittest.TestCase):
     shipped copy is the one nothing checks.
     """
 
-    def _repo(self, *parts):
-        root = os.path.dirname(os.path.dirname(os.path.dirname(
-            os.path.abspath(__file__))))
-        with open(os.path.join(root, *parts), 'rb') as f:
-            return f.read()
-
     def test_script_matches_the_template(self):
         self.assertEqual(
-            self._repo('tools', 'mermaid-lint.sh'),
-            self._repo('templates', 'mermaid-lint', 'mermaid-lint.sh'),
+            repo_file('tools', 'mermaid-lint.sh'),
+            repo_file('templates', 'mermaid-lint', 'mermaid-lint.sh'),
         )
 
     def test_workflow_matches_the_template(self):
         self.assertEqual(
-            self._repo('.github', 'workflows', 'mermaid-lint.yml'),
-            self._repo('templates', 'mermaid-lint', 'mermaid-lint.yml'),
+            repo_file('.github', 'workflows', 'mermaid-lint.yml'),
+            repo_file('templates', 'mermaid-lint', 'mermaid-lint.yml'),
         )
 
     def test_the_skill_pins_the_same_image(self):
@@ -728,9 +718,9 @@ class MermaidLintDeploymentTest(unittest.TestCase):
         moves only one of them leaves the other pulling something
         nobody chose, which is the whole reason for pinning.
         """
-        script = self._repo('tools', 'mermaid-lint.sh').decode('utf-8')
-        skill = self._repo('.claude', 'skills', 'diagram-conversion',
-                           'SKILL.md').decode('utf-8')
+        script = repo_file('tools', 'mermaid-lint.sh').decode('utf-8')
+        skill = repo_file('.claude', 'skills', 'diagram-conversion',
+                          'SKILL.md').decode('utf-8')
 
         # The script composes the reference from a tag and a digest,
         # so that neither line has to be 129 characters wide.
@@ -746,8 +736,8 @@ class MermaidLintDeploymentTest(unittest.TestCase):
 
     def _path_filters(self):
         """Every `paths:` list in the workflow, in order."""
-        workflow = self._repo('templates', 'mermaid-lint',
-                              'mermaid-lint.yml').decode('utf-8')
+        workflow = repo_file('templates', 'mermaid-lint',
+                             'mermaid-lint.yml').decode('utf-8')
         return [
             re.findall(r"^\s*-\s*'([^']+)'", block, re.MULTILINE)
             for block in re.split(r'^\s*paths:\s*$', workflow,
@@ -775,8 +765,8 @@ class MermaidLintDeploymentTest(unittest.TestCase):
         from one and not the other is a diagram that merges green on
         its own pull request and then fails somebody else's.
         """
-        script = self._repo('templates', 'mermaid-lint',
-                            'mermaid-lint.sh').decode('utf-8')
+        script = repo_file('templates', 'mermaid-lint',
+                           'mermaid-lint.sh').decode('utf-8')
         negated = [p[1:] for p in self._path_filters()[0]
                    if p.startswith('!')]
         self.assertEqual(negated, ['REVIEWS.md'], negated)
@@ -819,10 +809,6 @@ class MermaidLintScriptTest(unittest.TestCase):
     BACKTICK = '# P\n\n```mermaid\nflowchart TB\n  a --> b\n```\n'
     TILDE = '# P\n\n~~~mermaid\nflowchart TB\n  a --> b\n~~~\n'
 
-    def _root(self):
-        return os.path.dirname(os.path.dirname(os.path.dirname(
-            os.path.abspath(__file__))))
-
     def _run(self, files, args=(), docker_rc=0):
         """Lint a throwaway repository built from {path: content}."""
         env = dict(os.environ)
@@ -850,7 +836,7 @@ class MermaidLintScriptTest(unittest.TestCase):
     def _invoke(self, repo, args, docker_rc, env=None):
         """Run the script in `repo` with a stub docker on PATH."""
         env = dict(env if env is not None else os.environ)
-        script = os.path.join(self._root(), 'tools', 'mermaid-lint.sh')
+        script = os.path.join(REPO_ROOT, 'tools', 'mermaid-lint.sh')
         with tempfile.TemporaryDirectory() as stub_dir:
             stub = os.path.join(stub_dir, 'docker')
             with open(stub, 'w') as f:
@@ -1215,7 +1201,7 @@ class MermaidLintScriptTest(unittest.TestCase):
         diagram -- would fail here and wants a human to look, which is
         the point.
         """
-        root = self._root()
+        root = REPO_ROOT
         # -z and a NUL split, the same listing the script uses. Neither
         # quotePath nor a whitespace split survives a path with a space
         # in it, and building the expectation with the weaker of the
