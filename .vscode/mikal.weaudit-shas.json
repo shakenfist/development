@@ -477,10 +477,6 @@
       "sha": "b3d0d28144d510677e07d7edff75a46ecfba84e3",
       "date": "2026-09-04"
     },
-    "templates/ci-review-automation/README.md": {
-      "sha": "a134f8dfdece6aa5a32cd366726e7d8334cc9418",
-      "date": "2026-09-07"
-    },
     "templates/ci-review-automation/pr-re-review.yml": {
       "sha": "983a5e26834fb3f3352613087fcb9ebeeedf560c",
       "date": "2026-09-07"
