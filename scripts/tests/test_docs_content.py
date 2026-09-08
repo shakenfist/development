@@ -11,6 +11,7 @@ Run with: python3 scripts/tests/test_docs_content.py
 # tested by naming plans that do not resolve, so the marker belongs to
 # the file rather than to any one line of it.
 
+import json
 import os
 import re
 import subprocess
@@ -22,7 +23,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import docs_content  # noqa: E402
 from audit.checks import llm_docs as llm_docs_module  # noqa: E402
-from tests.base import CheckTestCase, run_check  # noqa: E402
+from tests.base import (  # noqa: E402
+    REPO_ROOT, CheckTestCase, repo_file, run_check,
+)
 
 
 def check_readme_structure(path, props=None):
@@ -666,6 +669,42 @@ class MermaidLintCiTest(unittest.TestCase):
         self.assertEqual(result['status'], 'not_applicable')
 
 
+class IssueLinkCheckDeploymentTest(unittest.TestCase):
+    """This repository's copy must match the template exactly.
+
+    templates/issue-link-check/README.md promises byte-identity for this
+    repository's copy specifically -- not for an adopter's, which is
+    expected to edit the with: block. Both copies are actionlinted, so a
+    syntax error in either is caught either way; what drifts silently is
+    a comment or a runs_on value fixed in one and not the other, and the
+    template is the copy which goes to the fleet.
+    """
+
+    def test_workflow_matches_the_template(self):
+        self.assertEqual(
+            repo_file('.github', 'workflows', 'issue-link-check.yml'),
+            repo_file('templates', 'issue-link-check',
+                      'issue-link-check.yml'),
+        )
+
+    def test_the_template_asks_for_static_runners(self):
+        """Byte-identity keeps both copies the same, not both right.
+
+        The runner labels are the one risky value in the file and the
+        one nothing else reads: they travel as a JSON string input
+        rather than a runs-on: line, so neither actionlint nor the
+        static-runner-tags criterion sees them, and a typo is not a red
+        cross but a job which sits queued until GitHub expires it about
+        a day later. The template is the copy that goes to the fleet.
+        """
+        workflow = repo_file('templates', 'issue-link-check',
+                             'issue-link-check.yml').decode('utf-8')
+        values = re.findall(r"^\s*runs_on:\s*'(.*)'\s*$", workflow,
+                            re.MULTILINE)
+        self.assertEqual(len(values), 1, values)
+        self.assertEqual(json.loads(values[0]), ['self-hosted', 'static'])
+
+
 class MermaidLintDeploymentTest(unittest.TestCase):
     """This repository's copies must match the template exactly.
 
@@ -677,22 +716,16 @@ class MermaidLintDeploymentTest(unittest.TestCase):
     shipped copy is the one nothing checks.
     """
 
-    def _repo(self, *parts):
-        root = os.path.dirname(os.path.dirname(os.path.dirname(
-            os.path.abspath(__file__))))
-        with open(os.path.join(root, *parts), 'rb') as f:
-            return f.read()
-
     def test_script_matches_the_template(self):
         self.assertEqual(
-            self._repo('tools', 'mermaid-lint.sh'),
-            self._repo('templates', 'mermaid-lint', 'mermaid-lint.sh'),
+            repo_file('tools', 'mermaid-lint.sh'),
+            repo_file('templates', 'mermaid-lint', 'mermaid-lint.sh'),
         )
 
     def test_workflow_matches_the_template(self):
         self.assertEqual(
-            self._repo('.github', 'workflows', 'mermaid-lint.yml'),
-            self._repo('templates', 'mermaid-lint', 'mermaid-lint.yml'),
+            repo_file('.github', 'workflows', 'mermaid-lint.yml'),
+            repo_file('templates', 'mermaid-lint', 'mermaid-lint.yml'),
         )
 
     def test_the_skill_pins_the_same_image(self):
@@ -703,9 +736,9 @@ class MermaidLintDeploymentTest(unittest.TestCase):
         moves only one of them leaves the other pulling something
         nobody chose, which is the whole reason for pinning.
         """
-        script = self._repo('tools', 'mermaid-lint.sh').decode('utf-8')
-        skill = self._repo('.claude', 'skills', 'diagram-conversion',
-                           'SKILL.md').decode('utf-8')
+        script = repo_file('tools', 'mermaid-lint.sh').decode('utf-8')
+        skill = repo_file('.claude', 'skills', 'diagram-conversion',
+                          'SKILL.md').decode('utf-8')
 
         # The script composes the reference from a tag and a digest,
         # so that neither line has to be 129 characters wide.
@@ -721,8 +754,8 @@ class MermaidLintDeploymentTest(unittest.TestCase):
 
     def _path_filters(self):
         """Every `paths:` list in the workflow, in order."""
-        workflow = self._repo('templates', 'mermaid-lint',
-                              'mermaid-lint.yml').decode('utf-8')
+        workflow = repo_file('templates', 'mermaid-lint',
+                             'mermaid-lint.yml').decode('utf-8')
         return [
             re.findall(r"^\s*-\s*'([^']+)'", block, re.MULTILINE)
             for block in re.split(r'^\s*paths:\s*$', workflow,
@@ -750,8 +783,8 @@ class MermaidLintDeploymentTest(unittest.TestCase):
         from one and not the other is a diagram that merges green on
         its own pull request and then fails somebody else's.
         """
-        script = self._repo('templates', 'mermaid-lint',
-                            'mermaid-lint.sh').decode('utf-8')
+        script = repo_file('templates', 'mermaid-lint',
+                           'mermaid-lint.sh').decode('utf-8')
         negated = [p[1:] for p in self._path_filters()[0]
                    if p.startswith('!')]
         self.assertEqual(negated, ['REVIEWS.md'], negated)
@@ -794,10 +827,6 @@ class MermaidLintScriptTest(unittest.TestCase):
     BACKTICK = '# P\n\n```mermaid\nflowchart TB\n  a --> b\n```\n'
     TILDE = '# P\n\n~~~mermaid\nflowchart TB\n  a --> b\n~~~\n'
 
-    def _root(self):
-        return os.path.dirname(os.path.dirname(os.path.dirname(
-            os.path.abspath(__file__))))
-
     def _run(self, files, args=(), docker_rc=0):
         """Lint a throwaway repository built from {path: content}."""
         env = dict(os.environ)
@@ -825,7 +854,7 @@ class MermaidLintScriptTest(unittest.TestCase):
     def _invoke(self, repo, args, docker_rc, env=None):
         """Run the script in `repo` with a stub docker on PATH."""
         env = dict(env if env is not None else os.environ)
-        script = os.path.join(self._root(), 'tools', 'mermaid-lint.sh')
+        script = os.path.join(REPO_ROOT, 'tools', 'mermaid-lint.sh')
         with tempfile.TemporaryDirectory() as stub_dir:
             stub = os.path.join(stub_dir, 'docker')
             with open(stub, 'w') as f:
@@ -1190,7 +1219,7 @@ class MermaidLintScriptTest(unittest.TestCase):
         diagram -- would fail here and wants a human to look, which is
         the point.
         """
-        root = self._root()
+        root = REPO_ROOT
         # -z and a NUL split, the same listing the script uses. Neither
         # quotePath nor a whitespace split survives a path with a space
         # in it, and building the expectation with the weaker of the

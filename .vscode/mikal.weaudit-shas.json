@@ -77,24 +77,12 @@
       "sha": "26a19958e61609c60e1b721594ab8151ddf1634f",
       "date": "2026-09-04"
     },
-    ".pre-commit-config.yaml": {
-      "sha": "f158445f81c0c17d217ad8875922e669f0c367b1",
-      "date": "2026-09-04"
-    },
     "AGENTS.md": {
       "sha": "8527c1d114aa36d9ab1159f6a96a5f0234caf6bb",
       "date": "2026-09-06"
     },
-    "ARCHITECTURE.md": {
-      "sha": "e023629d20983065fc05165b5cfab9ab75285942",
-      "date": "2026-09-07"
-    },
     "PLAN-TEMPLATE.md": {
       "sha": "6b5376dc1046a1a8441a48ee2cd7948373bb8234",
-      "date": "2026-09-06"
-    },
-    "README.md": {
-      "sha": "ee972a18a3c9d89f6a79ba73c741eff42d781ff1",
       "date": "2026-09-06"
     },
     "docs/audits/ci-review-automation.md": {
@@ -421,16 +409,8 @@
       "sha": "531d26fbe639291831bc7dff3a4959a702b09fe8",
       "date": "2026-09-04"
     },
-    "scripts/tests/base.py": {
-      "sha": "4d2950b341f29852d885b36464eb75373123d398",
-      "date": "2026-09-04"
-    },
     "scripts/tests/test_ci_workflows.py": {
       "sha": "5ed85f10b66e862d4f85d9d8f25684d2afba8f7e",
-      "date": "2026-09-07"
-    },
-    "scripts/tests/test_docs_content.py": {
-      "sha": "8e31114ba026c4612650ed0c7c2379a9dd6a39fc",
       "date": "2026-09-07"
     },
     "scripts/tests/test_hooks.py": {

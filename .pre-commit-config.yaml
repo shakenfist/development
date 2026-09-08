@@ -36,7 +36,7 @@ repos:
       # {{PROJECT_NAME}} parses as a mapping, not a string -- so they
       # cannot be linted where they are stored. They are excluded by
       # name rather than by a pattern, so adding a sixth is a decision
-      # somebody makes rather than one that happens quietly. The six
+      # somebody makes rather than one that happens quietly. The seven
       # copy-directly templates, which are the ones the fleet actually
       # runs unmodified, are all checked.
       - id: actionlint
@@ -182,7 +182,17 @@ repos:
         # every suite hook fires on what its suite reads -- including
         # its own. A pattern that did not watch the config would be
         # the exact defect that test exists to catch.
-        files: ^(scripts/.*\.py|.*\.md|templates/.*|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml)$
+        #
+        # And tools/, because the mermaid-lint tests read
+        # tools/mermaid-lint.sh: one pins it byte-identical to the
+        # template copy that goes to the fleet, and another runs it to
+        # check it selects the same files the audit does. Editing only
+        # the script is exactly the commit that breaks either. The
+        # directory rather than the one file, deliberately and in the
+        # shape of every other clause here: the suite reaches into
+        # tools/ and the next thing it reaches for should not need a
+        # pattern edit nobody remembers to make.
+        files: ^(scripts/.*\.py|tools/.*|.*\.md|templates/.*|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml)$
 
       - id: audit-seams-tests
         name: audit package seam tests

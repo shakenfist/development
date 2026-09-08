@@ -1,0 +1,62 @@
+# Check that a pull request will close the issues it says it fixes.
+#
+# Copied from shakenfist/development at templates/issue-link-check/. See that
+# directory's README.md before editing. It delegates to the shared reusable
+# workflow in shakenfist/actions --
+# https://github.com/shakenfist/actions/blob/main/.github/workflows/issue-link-check.yml
+# which is where the stanza matching, the runs_on input and the
+# X-No-Autoclose marker all live.
+#
+# Repositories which run this as part of a merge queue gate should instead
+# add the job to their existing gate workflow, so that "Can enqueue" depends
+# on it. A standalone workflow like this one reports, but does not gate.
+
+name: Issue link check
+
+on:
+  pull_request:
+    # "edited" is the one activity type this check cannot work without, and
+    # the one a later reader is most likely to prune as noise. The remedy
+    # for a failure here is editing the pull request description, and that
+    # fires "edited" and nothing else -- so without it a corrected
+    # description sits behind a red check until somebody pushes an empty
+    # commit or re-runs the workflow by hand.
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+# "edited" fires on every description edit, and the remedy for a failure
+# here is an edit -- so a burst of them queues runs which can finish out
+# of order and leave the pull request red for a description that is
+# already right. Only the newest run matters. The "|| github.ref"
+# fallback keeps the group meaningful on any other trigger, rather than
+# collapsing to a bare workflow name that unrelated runs would share.
+# merge_group is not a trigger to add here: github.ref on a queue run is
+# the per-attempt branch, so it cancels nothing -- see
+# docs/audits/merge-group-cancellation.md. A repository with a merge
+# queue puts this job into its gate workflow instead, as the template
+# README says.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  issue-link-check:
+    name: Issue link check
+    # A job which calls a reusable workflow cannot set runs-on or
+    # timeout-minutes; the reusable workflow defines both. It sets
+    # timeout-minutes: 5, which is what docs/audits/workflow-standards.md
+    # requires of every job.
+    uses: shakenfist/actions/.github/workflows/issue-link-check.yml@main
+    with:
+      # The reusable workflow defaults to a GitHub-hosted ubuntu runner,
+      # which docs/audits/workflow-standards.md prohibits without an
+      # "audit-ok: github-hosted-runner" marker. This job makes a handful
+      # of API calls and changes no runner state, which is what static is
+      # for. A repository with no self-hosted runners drops this "with:"
+      # block -- see the template README, because that choice is invisible
+      # to the Runners criterion afterwards.
+      runs_on: '["self-hosted","static"]'
