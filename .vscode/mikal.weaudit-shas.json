@@ -81,13 +81,33 @@
       "sha": "26a19958e61609c60e1b721594ab8151ddf1634f",
       "date": "2026-09-04"
     },
+    ".pre-commit-config.yaml": {
+      "sha": "c2e7d4e70629107b6bfb363540ed977010ae5a90",
+      "date": "2026-09-09"
+    },
     "AGENTS.md": {
       "sha": "8527c1d114aa36d9ab1159f6a96a5f0234caf6bb",
       "date": "2026-09-06"
     },
+    "ARCHITECTURE.md": {
+      "sha": "15d553992a1d137419046403b7087f127ef053d2",
+      "date": "2026-09-09"
+    },
     "PLAN-TEMPLATE.md": {
       "sha": "6b5376dc1046a1a8441a48ee2cd7948373bb8234",
       "date": "2026-09-06"
+    },
+    "PUSH-AUDIT.md": {
+      "sha": "30723ce58effe56f458c0b8b7de94cfca2cfb2c1",
+      "date": "2026-09-09"
+    },
+    "README.md": {
+      "sha": "5ac5a6754b08642183a1425f5a50f114ea907848",
+      "date": "2026-09-09"
+    },
+    "docs/audits/README.md": {
+      "sha": "8555b549c7657e4d0398015aa8a8be386a8f7ce1",
+      "date": "2026-09-09"
     },
     "docs/audits/ci-review-automation.md": {
       "sha": "b0e5dd33cc1c7e7d845ee3b42e63ec31e35b58da",
@@ -189,6 +209,10 @@
       "sha": "9f8dba7a891b3da0ffc4c0fb36805023cfc51beb",
       "date": "2026-08-30"
     },
+    "docs/audits/pyproject-usage.md": {
+      "sha": "68926e04a9e10b4af2a2fcd73901a444ab563b43",
+      "date": "2026-09-09"
+    },
     "docs/audits/python-version.md": {
       "sha": "6666fd792cb17b3f74719115b690388f77d2d63b",
       "date": "2026-08-29"
@@ -224,6 +248,10 @@
     "docs/audits/rust-unwrap-lint.md": {
       "sha": "ba40d7d57b5567cd25123d1b18f067e7e21815ce",
       "date": "2026-08-29"
+    },
+    "docs/audits/scope-coverage.md": {
+      "sha": "cfce4d8281d169f8a281dc053a95c58d5bf83083",
+      "date": "2026-09-09"
     },
     "docs/audits/secret-handling.md": {
       "sha": "9d43f69848de7d7356f554d9522fdff93d826b08",
@@ -269,6 +297,10 @@
       "sha": "0eb0cce0f2d17eff4e3beb319bb9e4e5b8033347",
       "date": "2026-09-01"
     },
+    "docs/consistency-audits.md": {
+      "sha": "19109fce305682be523363ae8b61526f5be42c2b",
+      "date": "2026-09-09"
+    },
     "docs/release-automation.md": {
       "sha": "8a37bddb0db038f25e1d735df9807f9eb3367aa4",
       "date": "2026-09-06"
@@ -309,6 +341,10 @@
       "sha": "b840b72da01fdf95bd938993104368dfa42f1111",
       "date": "2026-09-06"
     },
+    "scripts/audit/checks/github_config.py": {
+      "sha": "5346495d6285ecac0d9747eab1cecf2cb95467ae",
+      "date": "2026-09-09"
+    },
     "scripts/audit/checks/llm_docs.py": {
       "sha": "7101c0e2b34d0762641a7e25477bb3839ba1eed2",
       "date": "2026-09-03"
@@ -348,6 +384,10 @@
     "scripts/audit/repo.py": {
       "sha": "78a1a58aac916457272aec1d5e6158803649984e",
       "date": "2026-09-04"
+    },
+    "scripts/audit/scope.py": {
+      "sha": "feb3853f4647b1b87d4a1d9905bdcf811797ff23",
+      "date": "2026-09-09"
     },
     "scripts/audit/text/__init__.py": {
       "sha": "dc2515cc9e2cdd5083c39a803bfdbcafb37dbe0d",
@@ -409,13 +449,29 @@
       "sha": "a65f57fa36a5b208cf744d16dddc0963c7e864a5",
       "date": "2026-09-04"
     },
+    "scripts/test_review_tracking.py": {
+      "sha": "b9544dc9a6c1d955974539228ef8d2c20eeac071",
+      "date": "2026-09-09"
+    },
     "scripts/tests/__init__.py": {
       "sha": "531d26fbe639291831bc7dff3a4959a702b09fe8",
       "date": "2026-09-04"
     },
+    "scripts/tests/base.py": {
+      "sha": "b6b807536cef7bdef331a6f25ab9c585aea4d1b6",
+      "date": "2026-09-09"
+    },
     "scripts/tests/test_ci_workflows.py": {
       "sha": "5ed85f10b66e862d4f85d9d8f25684d2afba8f7e",
       "date": "2026-09-07"
+    },
+    "scripts/tests/test_docs_content.py": {
+      "sha": "e6f09aac1973d474d404a3ccea7a1b40c0787c60",
+      "date": "2026-09-09"
+    },
+    "scripts/tests/test_github_config.py": {
+      "sha": "60915542b323e0cf49a245fff06e82d15ffa2a07",
+      "date": "2026-09-09"
     },
     "scripts/tests/test_hooks.py": {
       "sha": "5f9c95f3e2a34e1f237e47c345183a0ec2ca3bd1",
@@ -456,6 +512,10 @@
     "scripts/tests/test_runners.py": {
       "sha": "b3d0d28144d510677e07d7edff75a46ecfba84e3",
       "date": "2026-09-04"
+    },
+    "templates/ci-review-automation/README.md": {
+      "sha": "d885ff92a1036ace07f844d3d948b733a9c8c232",
+      "date": "2026-09-09"
     },
     "templates/ci-review-automation/pr-re-review.yml": {
       "sha": "983a5e26834fb3f3352613087fcb9ebeeedf560c",
