@@ -187,7 +187,11 @@ repos:
         # tools/mermaid-lint.sh: one pins it byte-identical to the
         # template copy that goes to the fleet, and another runs it to
         # check it selects the same files the audit does. Editing only
-        # the script is exactly the commit that breaks either.
+        # the script is exactly the commit that breaks either. The
+        # directory rather than the one file, deliberately and in the
+        # shape of every other clause here: the suite reaches into
+        # tools/ and the next thing it reaches for should not need a
+        # pattern edit nobody remembers to make.
         files: ^(scripts/.*\.py|tools/.*|.*\.md|templates/.*|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml)$
 
       - id: audit-seams-tests

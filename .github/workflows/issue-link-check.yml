@@ -32,8 +32,13 @@ permissions:
 # here is an edit -- so a burst of them queues runs which can finish out
 # of order and leave the pull request red for a description that is
 # already right. Only the newest run matters. The "|| github.ref"
-# fallback keeps the expression valid if a non-pull_request trigger is
-# added later.
+# fallback keeps the group meaningful on any other trigger, rather than
+# collapsing to a bare workflow name that unrelated runs would share.
+# merge_group is not a trigger to add here: github.ref on a queue run is
+# the per-attempt branch, so it cancels nothing -- see
+# docs/audits/merge-group-cancellation.md. A repository with a merge
+# queue puts this job into its gate workflow instead, as the template
+# README says.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true

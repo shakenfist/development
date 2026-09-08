@@ -11,6 +11,7 @@ Run with: python3 scripts/tests/test_docs_content.py
 # tested by naming plans that do not resolve, so the marker belongs to
 # the file rather than to any one line of it.
 
+import json
 import os
 import re
 import subprocess
@@ -685,6 +686,23 @@ class IssueLinkCheckDeploymentTest(unittest.TestCase):
             repo_file('templates', 'issue-link-check',
                       'issue-link-check.yml'),
         )
+
+    def test_the_template_asks_for_static_runners(self):
+        """Byte-identity keeps both copies the same, not both right.
+
+        The runner labels are the one risky value in the file and the
+        one nothing else reads: they travel as a JSON string input
+        rather than a runs-on: line, so neither actionlint nor the
+        static-runner-tags criterion sees them, and a typo is not a red
+        cross but a job which sits queued until GitHub expires it about
+        a day later. The template is the copy that goes to the fleet.
+        """
+        workflow = repo_file('templates', 'issue-link-check',
+                             'issue-link-check.yml').decode('utf-8')
+        values = re.findall(r"^\s*runs_on:\s*'(.*)'\s*$", workflow,
+                            re.MULTILINE)
+        self.assertEqual(len(values), 1, values)
+        self.assertEqual(json.loads(values[0]), ['self-hosted', 'static'])
 
 
 class MermaidLintDeploymentTest(unittest.TestCase):
