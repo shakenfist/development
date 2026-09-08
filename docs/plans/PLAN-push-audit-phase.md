@@ -837,8 +837,10 @@ Measured 2026-09-04 against each repository's committed default
 branch, using the check's own `plan_index_entries` and
 `plan_audit_phase_state` rather than a grep, so that the scope is the
 one the criterion enforces. The `development` row was re-measured on
-2026-09-05 and moved; the bullet below says why, and it is the third
-time this section's arithmetic has been corrected:
+2026-09-05 and moved, then corrected again on 2026-09-09 once
+`PLAN-scope-coverage.md`'s own closeout (PR #107) filled the cells
+this section had counted as missing; the bullet below says why, and
+it is the fourth time this section's arithmetic has been corrected:
 
 | Repository | Names `PUSH-AUDIT.md` | Carries an audit phase | Section estimated | Needs a landing record | Fails the check |
 |------------|----------------------|------------------------|-------------------|------------------------|-----------------|
@@ -847,7 +849,7 @@ time this section's arithmetic has been corrected:
 | ryll | 7 | 5 | 2 | 0 | 0 |
 | kerbside | 2 | 2 | 1 | 0 | 0 |
 | divergulent | 0 | 0 | 4 incomplete plans need the phase | 0 | 3 |
-| development | 10 | 8 | not mentioned | 2 | 0 |
+| development | 10 | 8 | not mentioned | 1 | 0 |
 
 **Three bases, not two, and only one of them is the backfill set.**
 The estimate, the criterion and this phase's own scope each count a
@@ -985,12 +987,16 @@ extends the cell rather than adding a table row.
 
 **development was never listed, and is not compliant yet.** Six of
 its eight carriers record landing commits, one of them in a shape
-decision 8 accepts; `PLAN-audit-compliance-split.md` and
-`PLAN-scope-coverage.md` have landed phases whose `Merged` cells are
-empty, and step 4b fills them. That is why this repository carries a
-backfill of its own rather than only the block bump, and it is the
-one place where this phase's own repository is in the set it sweeps.
-Two plans a phrase grep flags are correctly untouched:
+decision 8 accepts; `PLAN-audit-compliance-split.md` has four landed
+phases whose `Merged` cells are empty, and step 4b fills them. That
+is why this repository carries a backfill of its own rather than
+only the block bump, and it is the one place where this phase's own
+repository is in the set it sweeps. `PLAN-scope-coverage.md` had the
+same gap at measurement time, but its own closeout filled its three
+empty cells in PR #107 (commits `31411ad` and `0cb5a0e`) before step
+4b ran, so it needs nothing further and step 4b leaves it alone --
+one plan and four cells, not two plans and seven. Two plans a phrase
+grep flags are correctly untouched:
 `PLAN-stestr-testtools.md` carries a `## Push audit` section but has
 no phases, so there is no range to record, and
 `PLAN-llm-doc-structure.md` names `PUSH-AUDIT.md` only in prose, has
