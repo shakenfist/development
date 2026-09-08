@@ -9,9 +9,9 @@ holds it in place: the phase reached the fleet's plans as a hand-driven
 sweep, and until this check existed nothing stopped the next plan from
 omitting it.
 
-For every master plan `docs/plans/index.md` links whose status is not
-terminal -- that is, anything other than `Complete`, `Abandoned` or
-`Superseded`:
+For every master plan `docs/plans/index.md` links whose entry records a
+status, and whose status is not terminal -- that is, anything other
+than `Complete`, `Abandoned` or `Superseded`:
 
 * the plan **names `PUSH-AUDIT.md`**, and
 * the **last** of its phases is the push audit phase.
@@ -111,6 +111,11 @@ rather than this one's. A plan the check could not find is *named* in
 the result either way, because a plan silently walked past looks
 exactly like a plan that passed.
 
+A repository whose linked plans are all *statusless* is not N/A,
+though. It links plans, and every one of them is named in the result;
+reporting it as N/A would say the index links none, which is the
+opposite of what a reader has to be told.
+
 ## What this deliberately does not cover
 
 * **Whether the audit was run.** A plan can carry the phase, never run
@@ -156,6 +161,34 @@ exactly like a plan that passed.
   them is how the next `PLAN-release-1.0.md` stays hidden. The names
   are there so a person can read the handful by hand.
 * **Repositories with no plan practice.** No index, no finding.
+* **Plans the index links without recording a status.** They are not
+  judged, and they are named. The carve-out above turns on the status,
+  so a plan the index never placed on either side of it cannot be put
+  there by this check: judging it would demand a push audit phase for a
+  plan nobody has said is still open, and if that plan is finished the
+  shared block's carve-out says explicitly not to reopen it. The check
+  cannot tell which, so it declines rather than guessing, and the
+  decision is recorded as decision 2 of
+  `docs/plans/PLAN-push-audit-phase.md`.
+
+  This covers more than an empty cell in a status table. A plan linked
+  from prose, or from a bullet list in an index that is not a table
+  yet, records no status either, and the verdict says so in those terms
+  -- "N plan(s) the index links without recording a status" -- rather
+  than naming a row that may not exist.
+
+  The criterion that speaks to the index's shape is `plan-index`, and
+  it requires a *table*, not a status column:
+  [`plan-index.md`](plan-index.md) says a `Status` column is optional,
+  because a standalone plan listing that tracks no status is
+  registered, just not tracked. So a repository can
+  satisfy `plan-index` with a `Date | Plan | Intent` table and never
+  enter this criterion's scope, and blanking one cell of an otherwise
+  compliant status table removes that one plan from judgement while
+  every other row keeps working. This exclusion is therefore an opt-out
+  that nothing detects. Naming every statusless plan in the verdict is
+  the whole of the mitigation: a repository opting out says so on the
+  compliance page every morning rather than quietly passing.
 
 ## Template
 

@@ -1249,6 +1249,18 @@ class PlanAuditPhase(Check):
         broken is docs-external-links' finding rather than this one's,
         but a plan this check walked past has to be visible as one.
 
+        A plan the index links without recording a status is not
+        judged either, and is named for the third time for the same
+        reason. The carve-out above turns on the status, so a plan
+        with none cannot be placed on either side of it: judging it
+        would demand a push audit phase for a plan nobody has said is
+        still open, which is the one thing the shared block's
+        carve-out may forbid, and the check cannot tell which. That
+        covers more than an empty cell in a status table -- a plan
+        linked from prose, or from a bullet list in an index that is
+        not a table yet, records no status either -- so the wording
+        says the index records no status rather than naming a row.
+
         Repositories with no docs/plans/index.md are N/A -- whether
         every project should plan this way is a separate decision,
         made by plan-index rather than here.
@@ -1266,6 +1278,7 @@ class PlanAuditPhase(Check):
         terminal = 0
         unphased = []
         unresolved = []
+        statusless = []
         problems = []
         for name, target, status in plan_index_entries(index_path):
             path = plan_index_target_path(plans_dir, target, name, paths)
@@ -1276,6 +1289,18 @@ class PlanAuditPhase(Check):
                 # indistinguishable from a plan it passed, so the name
                 # is carried into the verdict rather than dropped.
                 unresolved.append(name)
+                continue
+            if not status:
+                # No status is not a terminal status, so this is not
+                # the carve-out below; it is a refusal to judge. The
+                # carve-out turns on what the status says, and a plan
+                # the index never placed on either side of it would
+                # otherwise be told to acquire a phase auditing a diff
+                # that may never be written. Tested before the plan is
+                # read so that a statusless plan with no phases lands
+                # here rather than in unphased: not knowing whether a
+                # plan is open is the stronger reason not to judge it.
+                statusless.append(name)
                 continue
             if plan_status_is_terminal(status):
                 terminal += 1
@@ -1292,7 +1317,7 @@ class PlanAuditPhase(Check):
             if state == PLAN_AUDIT_PROBLEM:
                 problems.append(f'{name} ({detail})')
 
-        if not judged and not terminal and not unphased:
+        if not judged and not terminal and not unphased and not statusless:
             if unresolved:
                 return self.skip(plan_index_summarise(
                     'docs/plans/index.md links no master plan file that '
@@ -1308,6 +1333,10 @@ class PlanAuditPhase(Check):
             unjudged.append(plan_index_summarise(
                 f'{len(unphased)} plan(s) with no phases this check can '
                 f'read, not judged', unphased))
+        if statusless:
+            unjudged.append(plan_index_summarise(
+                f'{len(statusless)} plan(s) the index links without '
+                f'recording a status, not judged', statusless))
         if unresolved:
             unjudged.append(plan_index_summarise(
                 f'{len(unresolved)} plan(s) the index links but no file '
