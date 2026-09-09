@@ -711,6 +711,98 @@
     {
       "path": "docs/ci-review-automation.md",
       "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/issue-link-check.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-link-check/issue-link-check.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-link-check/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-link-check",
+      "author": "mikal"
+    },
+    {
+      "path": ".pre-commit-config.yaml",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/scope.py",
+      "author": "mikal"
+    },
+    {
+      "path": "PUSH-AUDIT.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/pyproject-usage.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/scope-coverage.md",
+      "author": "mikal"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/ci-review-automation/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/ci-review-automation",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
+    },
+    {
+      "path": "README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/base.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_github_config.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_docs_content.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consistency-audits.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/test_review_tracking.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/github_config.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
