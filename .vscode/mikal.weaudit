@@ -121,10 +121,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/sfui-vendor.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/test-coverage.md",
       "author": "mikal"
     },
@@ -330,10 +326,6 @@
     },
     {
       "path": "scripts/audit/markers.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/repo.py",
       "author": "mikal"
     },
     {
@@ -697,10 +689,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_registry.py",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/pr-retest.yml",
       "author": "mikal"
     },
@@ -741,19 +729,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/scope.py",
-      "author": "mikal"
-    },
-    {
       "path": "PUSH-AUDIT.md",
       "author": "mikal"
     },
     {
       "path": "docs/audits/pyproject-usage.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/README.md",
       "author": "mikal"
     },
     {
@@ -790,10 +770,6 @@
     },
     {
       "path": "scripts/tests/test_docs_content.py",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/consistency-audits.md",
       "author": "mikal"
     },
     {
