@@ -353,10 +353,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/plans.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/review.py",
       "author": "mikal"
     },
@@ -369,10 +365,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/plan-audit-phase.md",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_hooks.py",
       "author": "mikal"
     },
@@ -382,10 +374,6 @@
     },
     {
       "path": "scripts/tests/test_markdown.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_plans.py",
       "author": "mikal"
     },
     {
@@ -509,10 +497,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/shared-blocks/plan-push-audit-phase.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/shared-blocks/plan-review-checklist.md",
       "author": "mikal"
     },
@@ -542,10 +526,6 @@
     },
     {
       "path": "templates/shared-blocks/subagent-step-guidance.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/shared-blocks",
       "author": "mikal"
     },
     {
@@ -614,10 +594,6 @@
     },
     {
       "path": "AGENTS.md",
-      "author": "mikal"
-    },
-    {
-      "path": "PLAN-TEMPLATE.md",
       "author": "mikal"
     },
     {
@@ -750,10 +726,6 @@
     },
     {
       "path": "templates/ci-review-automation",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     },
     {

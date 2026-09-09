@@ -627,6 +627,34 @@ class PlanIndexTest(unittest.TestCase):
         )
         self.assertEqual(result['status'], 'pass', result['details'])
 
+    def test_blank_status_cell_fails_but_an_omitted_one_does_not(self):
+        # The pair that decides how wide plan-audit-phase's statusless
+        # opt-out really is, asserted here because this criterion is
+        # the half that detects anything. Both rows are unjudgeable
+        # there; only the blank one is caught, because reading the
+        # cell requires the row to reach it. If a later change makes
+        # these two behave alike, the "opt-out that nothing detects"
+        # paragraph in docs/audits/plan-audit-phase.md is wrong, in
+        # one direction or the other.
+        blank = self._check(
+            plans=['PLAN-one.md'],
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one | |\n'
+            ),
+        )
+        self.assertEqual(blank['status'], 'fail', blank['details'])
+        self.assertIn('vocabulary', blank['details'])
+
+        omitted = self._check(
+            plans=['PLAN-one.md'],
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one |\n'
+            ),
+        )
+        self.assertEqual(omitted['status'], 'pass', omitted['details'])
+
     def test_unregistered_master_plan_fails(self):
         result = self._check(
             plans=['PLAN-one.md', 'PLAN-orphan.md'],
@@ -717,6 +745,14 @@ class PlanAuditPhaseTest(unittest.TestCase):
     HEADER = (
         '| Date | Plan | Intent | Status |\n'
         '|------|------|--------|--------|\n'
+    )
+
+    # An index that tracks no status at all. plan-index allows this:
+    # a Status column is optional, so a table of this shape is
+    # registered but not tracked, and every plan in it is unjudgeable.
+    NO_STATUS_HEADER = (
+        '| Date | Plan | Intent |\n'
+        '|------|------|--------|\n'
     )
 
     def _plan(self, phases):
@@ -1656,7 +1692,11 @@ class PlanAuditPhaseTest(unittest.TestCase):
     def test_status_is_not_taken_from_another_plans_row(self):
         # A description cell that mentions a second plan must not hand
         # it the first plan's status, or a Complete row silently
-        # exempts a plan that is still running.
+        # exempts a plan that is still running. The plan linked from
+        # the Intent column records no status of its own, so it is
+        # named as statusless rather than judged -- but it must not be
+        # counted among the terminal-status plans, which is the thing
+        # inheriting a status would do and the thing this test is for.
         result = self._check(
             {
                 'PLAN-one.md': self._audit_plan(['Build']),
@@ -1668,19 +1708,217 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '[Two](PLAN-two.md) | Complete |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('PLAN-two.md', result['details'])
+        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assertIn('1 terminal-status plan(s)', result['details'])
+        self.assertIn(
+            '1 plan(s) the index links without recording a status, not '
+            'judged: PLAN-two.md', result['details'])
 
-    def test_bullet_list_index_without_statuses_is_judged(self):
-        # occystrap's index names some of its plans in a bullet list
-        # and records no status anywhere. A plan with no status is not
-        # a Complete plan, so it is judged rather than exempted.
+    def test_bullet_list_index_records_no_status_and_is_not_judged(self):
+        # occystrap's index names its plans in a bullet list and
+        # records no status anywhere. plan_index_entries returns None
+        # for a prose or bullet link exactly as it does for an empty
+        # cell in a table, so the verdict is worded about the index
+        # rather than about a row -- and this is the shape it is
+        # actually worded for.
         result = self._check(
             {'PLAN-one.md': self._plan(['Build'])},
             index='# Plans\n\n* [One](PLAN-one.md) -- does one thing.\n',
         )
-        self.assertEqual(result['status'], 'fail')
+        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assertIn('without recording a status', result['details'])
         self.assertIn('PLAN-one.md', result['details'])
+        self.assertNotIn('no push audit phase', result['details'])
+
+    def test_table_without_a_status_column_is_not_judged_but_is_named(self):
+        """A plan nobody has said is open is not told to acquire a phase.
+
+        Decision 2 of docs/plans/PLAN-push-audit-phase.md. The
+        carve-out turns on the status, so a plan the index never
+        placed on either side of it cannot be judged: demanding a push
+        audit phase would demand the one thing the shared block's
+        carve-out may forbid, and the check cannot tell which. Named
+        rather than dropped, because a plan walked past silently is
+        indistinguishable from one that passed.
+
+        This is the first of the three ways a table reaches the
+        bucket: no Status column, so plan_index_entries never enters
+        the 'status' in header branch at all. The other two are the
+        two tests below, which use a header that does carry the
+        column.
+        """
+        result = self._check(
+            {'PLAN-one.md': self._plan(['Build'])},
+            index=(
+                self.NO_STATUS_HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assertIn(
+            '1 plan(s) the index links without recording a status, not '
+            'judged: PLAN-one.md', result['details'])
+        self.assertNotIn('no push audit phase', result['details'])
+
+    def test_row_stopping_before_the_status_column_is_not_judged(self):
+        # A separate branch from the test above: the header names the
+        # column, but this row has only three cells, so the column
+        # index is past the end of the row and no status is read
+        # (column < len(cells) is false). This is the shape the
+        # criterion's specification calls an opt-out nothing detects,
+        # and it is undetected precisely because plan-index reads no
+        # cell here either -- see the blank-cell test below, which is
+        # the case that *is* caught.
+        result = self._check(
+            {'PLAN-one.md': self._plan(['Build'])},
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assertIn(
+            '1 plan(s) the index links without recording a status, not '
+            'judged: PLAN-one.md', result['details'])
+        self.assertNotIn('no push audit phase', result['details'])
+
+    def test_blank_status_cell_is_not_judged_here(self):
+        # The third way in: the row reaches the column and the cell is
+        # empty. Two independent normalisations carry it to the same
+        # bucket -- the "or None" on plan_cell_text, and the "if not
+        # status" the run loop tests with -- so this asserts the
+        # property rather than either line, and breaking one alone
+        # leaves it green. That was measured, not assumed.
+        #
+        # Unlike the two shapes above, this one does not escape the
+        # fleet: plan-index fails an empty cell as a status outside
+        # the shared vocabulary. The pair is asserted in PlanIndexTest
+        # so that a change to that half cannot quietly widen the
+        # opt-out the specification describes.
+        result = self._check(
+            {'PLAN-one.md': self._plan(['Build'])},
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one | |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assertIn(
+            '1 plan(s) the index links without recording a status, not '
+            'judged: PLAN-one.md', result['details'])
+        self.assertNotIn('no push audit phase', result['details'])
+
+    def test_the_same_row_with_a_status_is_failed_as_before(self):
+        # The pair to the test above: the same plan, the same index,
+        # one status cell added. Without this, a defect that stopped
+        # judging every plan in the fleet leaves that test green.
+        result = self._check(
+            {'PLAN-one.md': self._plan(['Build'])},
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assertIn('PLAN-one.md', result['details'])
+        self.assertIn('no push audit phase', result['details'])
+
+    def test_an_index_of_only_statusless_plans_is_not_n_a(self):
+        # occystrap's shape once this lands: every plan the index
+        # links is statusless and nothing else is. The early return
+        # that reports "links no master plans" has to account for the
+        # new bucket, or a repository linking two plans is reported as
+        # linking none -- an N/A claiming there is nothing here, when
+        # what there is is a silence somebody has to look at.
+        result = self._check(
+            {
+                'PLAN-one.md': self._plan(['Build']),
+                'PLAN-two.md': self._audit_plan(['Measure']),
+            },
+            index=(
+                self.NO_STATUS_HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one |\n'
+                '| 2026-02-01 | [Two](PLAN-two.md) | Do two |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assertIn(
+            '2 plan(s) the index links without recording a status, not '
+            'judged: PLAN-one.md, PLAN-two.md', result['details'])
+
+    def test_a_statusless_link_to_no_file_is_named_as_unresolved(self):
+        # The file is looked for before the status is read, and the
+        # order is easy to invert. A link naming nothing is a broken
+        # link whatever the index says about its status, and calling
+        # it statusless would send a repository looking for a status
+        # cell to fill in rather than for a file that moved.
+        result = self._check(
+            {'PLAN-one.md': self._audit_plan(['Build'])},
+            index=(
+                self.NO_STATUS_HEADER +
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one |\n'
+                '| 2026-01-02 | [Gone](PLAN-gone.md) | Do two |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assertIn(
+            '1 plan(s) the index links without recording a status, not '
+            'judged: PLAN-one.md', result['details'])
+        self.assertIn(
+            '1 plan(s) the index links but no file under docs/plans/ '
+            'matches, not judged: PLAN-gone.md', result['details'])
+
+    def test_a_statusless_unphased_plan_is_named_as_statusless(self):
+        # Both reasons to decline apply here, and which one is
+        # reported is a decision rather than an accident of where the
+        # bucket happens to sit in the loop. Not knowing whether a
+        # plan is open is the stronger reason: an unphased plan is one
+        # the check could not read, a statusless one is a plan it was
+        # never told it may judge.
+        result = self._check(
+            {'PLAN-loose.md': '# Loose ends\n\n## Steps\n\nProse.\n'},
+            index=(
+                self.NO_STATUS_HEADER +
+                '| 2026-01-01 | [Loose](PLAN-loose.md) | Bits |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assertIn(
+            '1 plan(s) the index links without recording a status, not '
+            'judged: PLAN-loose.md', result['details'])
+        self.assertNotIn('no phases this check can read', result['details'])
+
+    def test_two_table_index_judges_only_the_table_with_statuses(self):
+        # ryll's actual shape: `## Master plans` carries
+        # Date | Plan | Intent | Status | Phases, and
+        # `## Standalone plans` below it carries Date | Plan | Intent.
+        # The standalone entries stop being judged; the master plans
+        # above them are judged exactly as before, in the same index.
+        result = self._check(
+            {
+                'PLAN-one.md': self._plan(['Build']),
+                'PLAN-notes.md': self._plan(['Tidy']),
+            },
+            index=(
+                '## Master plans\n'
+                '\n'
+                '| Date | Plan | Intent | Status | Phases |\n'
+                '|------|------|--------|--------|--------|\n'
+                '| 2026-01-01 | [One](PLAN-one.md) | Do one '
+                '| In progress | 1 |\n'
+                '\n'
+                '## Standalone plans\n'
+                '\n'
+                '| Date | Plan | Intent |\n'
+                '|------|------|--------|\n'
+                '| 2026-02-01 | [Notes](PLAN-notes.md) | Bits |\n'
+            ),
+        )
+        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assertIn('PLAN-one.md (', result['details'])
+        self.assertIn(
+            '1 plan(s) the index links without recording a status, not '
+            'judged: PLAN-notes.md', result['details'])
 
     def test_unresolvable_link_is_left_to_the_link_checks(self):
         # The broken link itself is docs-external-links' finding, so
@@ -2482,6 +2720,34 @@ class PushAuditPhaseBlockTest(unittest.TestCase):
         for rule, phrase in PUSH_AUDIT_BLOCK_RULES.items():
             with self.subTest(rule=rule):
                 self.assertIn(phrase, flat)
+
+    def test_carve_out_names_every_terminal_status(self):
+        # PUSH_AUDIT_BLOCK_RULES freezes the carve-out by the phrase
+        # 'not reopened to acquire', which survives an edit that drops
+        # Abandoned and Superseded back out of the sentence -- the
+        # exact drift v3 was cut to close, since the check has carved
+        # out all three since phase 3 while the block said Complete
+        # alone. Held the way plan-status-vocabulary is held to
+        # PLAN_STATUSES: the block is the wording repositories are
+        # handed, PLAN_TERMINAL_STATUSES is what the audit exempts,
+        # and if they drift a project is told one thing and measured
+        # against another.
+        canonical = load_canonical_block(
+            'plan-push-audit-phase'
+        )
+        self.assertIsNotNone(canonical)
+        _, text = canonical
+        flat = ' '.join(text.split())
+        # Only the carve-out clause, not the block at large. The first
+        # bullet says Complete twice and the trailing clause is about
+        # a plan finishing before its own audit runs, so matching the
+        # whole block would pass on that second mention alone.
+        start = flat.index('a plan that is already')
+        end = flat.index('is not reopened to acquire')
+        carve_out = flat[start:end]
+        for status in plans.PLAN_TERMINAL_STATUSES:
+            with self.subTest(status=status):
+                self.assertIn(f'`{status}`', carve_out)
 
 
 if __name__ == '__main__':
