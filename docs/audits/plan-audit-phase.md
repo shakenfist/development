@@ -179,14 +179,22 @@ opposite of what a reader has to be told.
   it requires a *table*, not a status column:
   [`plan-index.md`](plan-index.md) says a `Status` column is optional,
   because a standalone plan listing that tracks no status is
-  registered, just not tracked. So a repository can
-  satisfy `plan-index` with a `Date | Plan | Intent` table and never
-  enter this criterion's scope, and blanking one cell of an otherwise
-  compliant status table removes that one plan from judgement while
-  every other row keeps working. This exclusion is therefore an opt-out
-  that nothing detects. Naming every statusless plan in the verdict is
-  the whole of the mitigation: a repository opting out says so on the
-  compliance page every morning rather than quietly passing.
+  registered, just not tracked. So a repository can satisfy
+  `plan-index` with a `Date | Plan | Intent` table and never enter
+  this criterion's scope, and a row of a table that *does* carry the
+  column can stop before reaching it -- `| 2026-01-01 |
+  [One](PLAN-one.md) | Do one |` under a four-column header -- which
+  drops that one plan from judgement while every other row keeps
+  working. Those two shapes are an opt-out that nothing detects.
+
+  A cell that is present but empty is not one of them. `plan-index`
+  reads it, and the empty string is not in the shared vocabulary, so
+  `| 2026-01-01 | [One](PLAN-one.md) | Do one | |` fails there as a
+  status cell outside the vocabulary even while this criterion
+  declines to judge the plan. Only the omitted cell and the absent
+  column escape. Naming every statusless plan in the verdict is the
+  whole of the mitigation for those two: a repository opting out says
+  so on the compliance page every morning rather than quietly passing.
 
 ## Template
 
