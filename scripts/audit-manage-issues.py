@@ -142,6 +142,18 @@ def build_issue_body(check_id, check_result):
         for item in check_result['missing']:
             body += f'- `{item}`\n'
 
+    # The sibling of 'missing', for a check whose findings are things
+    # present that should not be rather than things absent. Both carry
+    # a per-item list because the fix is per item, and a truncated one
+    # leaves somebody re-running the audit to learn what the issue
+    # meant; only the heading differs, and calling a list of offending
+    # lines "missing items" sends the reader looking for the wrong
+    # thing.
+    if 'findings' in check_result:
+        body += '\n**Findings:**\n'
+        for item in check_result['findings']:
+            body += f'- `{item}`\n'
+
     body += (
         '\n---\n'
         '*This issue was created automatically by the '

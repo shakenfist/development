@@ -251,6 +251,10 @@ FROZEN_METADATA = {
         'spec': 'docs/audits/merge-queue-config.md',
         'template': None,
     },
+    'eol-distro': {
+        'spec': 'docs/audits/eol-distro.md',
+        'template': None,
+    },
 }
 
 FROZEN_ISSUE_TITLES = {
@@ -305,6 +309,7 @@ FROZEN_ISSUE_TITLES = {
     'review-scope-completeness': 'Human review scope completeness',
     'sfui-vendor': 'sfui vendored copy',
     'scope-coverage': 'Audit scope against the organisation',
+    'eol-distro': 'End-of-life distributions',
 }
 
 FROZEN_COLUMN_NAMES = {

@@ -20,7 +20,9 @@ to keep in step.
 from datetime import datetime, timezone
 
 from audit.check import NOT_APPLICABLE
-from audit.checks import ci_workflows, docs_content, github_config, llm_docs, packaging, plans, review, runners
+from audit.checks import (
+    ci_workflows, distros, docs_content, github_config, llm_docs, packaging, plans, review, runners,
+)
 
 
 #: Every criterion, as instances, grouped family by family. The
@@ -77,6 +79,7 @@ CHECKS = [
     github_config.DeleteBranchOnMerge(),
     github_config.MergeQueueConfig(),
     github_config.ScopeCoverage(),
+    distros.EolDistro(),
 ]
 
 
