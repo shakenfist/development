@@ -553,19 +553,7 @@
       "author": "mikal"
     },
     {
-      "path": "templates/renovate/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/undeclared-direct-dependency.md",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/renovate.yml",
       "author": "mikal"
     },
     {
@@ -678,14 +666,6 @@
     },
     {
       "path": ".github/workflows/issue-link-check.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
       "author": "mikal"
     },
     {
