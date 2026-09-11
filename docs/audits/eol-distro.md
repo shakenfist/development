@@ -28,12 +28,15 @@ sixteen repositories is that noticing was a person's job, and a
 criterion that has to be re-invented per release is the same job
 wearing a hat.
 
-`debian-gnome-12` is listed although no trixie successor image has
-been built yet, so a finding naming it is a request to
-[private-ci](https://github.com/shakenfist/private-ci)'s image builder
-rather than a one-line edit in the repository the issue lands on. It
-is listed anyway, because leaving the fleet's one remaining bookworm
-image off would make this page claim Debian 12 was gone when it was
+`debian-gnome-12` is listed although the CI conductor advertises no
+`debian-gnome-13` label yet. The guest image it is built from exists --
+[images](https://github.com/shakenfist/images) has built
+`debian-gnome:13` since August 2026 -- so what is missing is an entry
+in [private-ci](https://github.com/shakenfist/private-ci)'s `IMAGES`
+table, not an image. A finding naming it is therefore a request there
+rather than a one-line edit in the repository the issue lands on. It is
+listed anyway, because leaving the fleet's one remaining bookworm
+runner off would make this page claim Debian 12 was gone when it was
 not.
 
 ### Where we look

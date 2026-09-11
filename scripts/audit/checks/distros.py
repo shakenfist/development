@@ -58,12 +58,15 @@ EolRelease = collections.namedtuple(
 #: pattern would either miss `debian-gnome-12` or invent labels that do
 #: not exist.
 #:
-#: `debian-gnome-12` has no trixie successor built yet, so a finding
-#: naming it is a request to private-ci rather than a one-line edit in
-#: the repository the issue lands on. It is listed anyway: the point of
-#: the criterion is that the dependency is visible, and leaving the
-#: fleet's one remaining bookworm image off the list would make the
-#: page say Debian 12 was gone when it was not.
+#: `debian-gnome-12` has no `debian-gnome-13` counterpart in the
+#: conductor yet, although shakenfist/images has built the
+#: `debian-gnome:13` guest image it would be based on since August
+#: 2026 -- so a finding naming it is a request to private-ci's IMAGES
+#: table rather than a one-line edit in the repository the issue lands
+#: on. It is listed anyway: the point of the criterion is that the
+#: dependency is visible, and leaving the fleet's one remaining
+#: bookworm runner off the list would make the page say Debian 12 was
+#: gone when it was not.
 EOL_RELEASES = (
     EolRelease(
         name='Ubuntu 20.04 LTS (focal)',
