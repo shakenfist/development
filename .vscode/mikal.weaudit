@@ -561,14 +561,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_ci_workflows.py",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/fuzz-nightly-reporting.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/mermaid-lint-ci.md",
       "author": "mikal"
     },

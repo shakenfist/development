@@ -117,10 +117,6 @@
       "sha": "7fba89f8a3f2ac89ed16118e31c637eafb5567c4",
       "date": "2026-08-27"
     },
-    "docs/audits/fuzz-nightly-reporting.md": {
-      "sha": "e1f4c8dba9b892c0b9cb6f542f563bfa718a12c0",
-      "date": "2026-09-07"
-    },
     "docs/audits/github-security.md": {
       "sha": "59aa05becc43e1c7b5d4f42240b6c20a8ac53dae",
       "date": "2026-08-27"
@@ -396,10 +392,6 @@
     "scripts/tests/base.py": {
       "sha": "b6b807536cef7bdef331a6f25ab9c585aea4d1b6",
       "date": "2026-09-09"
-    },
-    "scripts/tests/test_ci_workflows.py": {
-      "sha": "5ed85f10b66e862d4f85d9d8f25684d2afba8f7e",
-      "date": "2026-09-07"
     },
     "scripts/tests/test_docs_content.py": {
       "sha": "e6f09aac1973d474d404a3ccea7a1b40c0787c60",

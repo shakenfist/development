@@ -160,18 +160,42 @@ class Repo:
 
         Decoding errors are replaced rather than raised. An audited
         repository can contain anything, and a check that crashes on
-        one file reports nothing about any of the other criteria.
+        one file reports nothing about any of the other criteria. The
+        same reasoning covers the two shapes that would raise before a
+        byte is read: isfile rather than exists, because a directory
+        named `helper.sh` opens as an IsADirectoryError, and the
+        realpath containment below, because a symlink is followed by
+        both exists and open.
+
+        Nothing outside the checkout is read. Checks derive the paths
+        they read from the repository's own files -- a workflow names
+        a script, a script names its helper -- so a committed symlink
+        is a path the audited repository chose, and following one out
+        of the clone would let a repository decide what the audit
+        reads. A symlink that stays inside the checkout is fine and is
+        read through.
         """
         if path in self._reads:
             return self._reads[path]
 
         full = self.join(path)
         content = None
-        if os.path.exists(full):
+        if os.path.isfile(full) and self._contains(full):
             with open(full, 'r', errors='replace') as f:
                 content = f.read()
         self._reads[path] = content
         return content
+
+    def _contains(self, full):
+        """Does an absolute path resolve to something in the checkout?
+
+        Both sides are resolved, because the checkout itself is often
+        reached through a symlink and comparing a resolved file to an
+        unresolved root would then reject every file in the
+        repository.
+        """
+        root = os.path.realpath(self.path)
+        return os.path.realpath(full).startswith(root + os.sep)
 
     def workflows(self):
         """Workflow file names under .github/workflows/, cached."""

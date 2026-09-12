@@ -1471,16 +1471,26 @@ ISSUES_WRITE_RE = re.compile(r'^\s*issues:\s*write\s*$', re.MULTILINE)
 # `"${GH}" issue create` -- is doing it so its tests can stub the call,
 # which is the same reason this criterion wants the reporter in a script
 # at all. Requiring the literal `gh` there would fail a repository
-# precisely for making its reporter testable. Only a variable expansion
-# is accepted in that position, so prose about issue creation still does
-# not match. A command and its sub-commands sit on one line, so that
-# alternative is held to one: `[ \t]` rather than `\s`, and the default
-# inside `${...}` stops at a newline as well as at the closing brace.
-# Otherwise a variable ending one line and the words `issue create`
-# beginning the next -- a usage heredoc, say -- would read as a call.
+# precisely for making its reporter testable.
+#
+# What that alternative holds is that the expansion and the sub-commands
+# share a line: `[ \t]` rather than `\s`, and the default inside
+# `${...}` stops at a newline as well as at the closing brace, so a
+# variable ending one line and the words `issue create` beginning the
+# next -- a usage heredoc, say -- does not read as a call. It does not
+# hold that the expansion is the command: any expansion will do, so a
+# same-line usage message naming its own program through a variable,
+# `echo "usage: $PROG issue create <title>"`, is read as one. That is
+# the permissive direction the rest of this module takes, and for the
+# same reason ISSUES_WRITE_RE gives.
+#
+# The braces are a single alternation rather than two independent
+# options so that `${GH issue create` and `$GH} issue create`, neither
+# of which is shell, are not matched.
 FILES_AN_ISSUE_RE = re.compile(
     r'gh\W{1,4}issue\W{1,4}create\b'
-    r'|\$\{?[A-Za-z_]\w*(?::[-=?+][^}\n]*)?\}?["\']?[ \t]+issue[ \t]+create\b'
+    r'|\$(?:\{[A-Za-z_]\w*(?::[-=?+][^}\n]*)?\}|[A-Za-z_]\w*)'
+    r'["\']?[ \t]+issue[ \t]+create\b'
     r'|gh\s+api\b[^\n]*/issues\b'
     r'|issues\.create\b'
     r'|create_issue\b'
@@ -1504,9 +1514,10 @@ REFERENCED_SCRIPT_RE = re.compile(r'[\w./-]+\.(?:sh|py)\b')
 # Bounded rather than unbounded because the paths come out of an
 # audited repository's own files. What bounds the reading is the
 # visited set and Repo.read's cache, which together cost one read per
-# distinct path named; the depth bounds how far a chain of scripts can
-# lead the walk, not how many files a single level can touch. Three
-# leaves a level of headroom over the deepest split in the fleet.
+# distinct candidate path; the depth bounds how far a chain of
+# scripts can lead the walk, not how many files a single level can
+# touch. Three leaves a level of headroom over the deepest split in
+# the fleet.
 MAX_SCRIPT_DEPTH = 3
 
 
@@ -1605,11 +1616,20 @@ def referenced_scripts(text, base):
     """
     for match in REFERENCED_SCRIPT_RE.finditer(text):
         named = match.group(0)
-        # None rather than '' when the match starts the text: the
+        # Quotes come off before the preceding character is read. The
+        # expansion is as often quoted with the rest of the path left
+        # outside it -- `"${SCRIPT_DIR}"/helper.sh`, or the `"$(dirname
+        # "$0")"/helper.sh` that computes the same thing inline -- as it
+        # is written bare, and the spellings mean the same thing.
+        #
+        # None rather than '' when there is nothing before them: the
         # empty string is a member of every string, so `'' in '}$)'`
         # would take a reference with nothing before it for one rooted
         # in a variable.
-        preceding = text[match.start() - 1] if match.start() else None
+        start = match.start()
+        while start and text[start - 1] in '"\'':
+            start -= 1
+        preceding = text[start - 1] if start else None
         # `${SCRIPT_DIR}/report-fuzz-failure.sh`, `$DIR/x.sh`, or
         # `${{ github.workspace }}/tools/ci/x.sh`. The head of the path
         # is computed, so the literal text the pattern can see is its
@@ -1620,16 +1640,24 @@ def referenced_scripts(text, base):
         # preceding character is what separates all of this from a
         # genuine `/etc/x.sh`, which must still be refused.
         #
-        # The basename against the referring file's own directory comes
-        # first because a script computing a directory to find a helper
-        # in is nearly always computing its own. The rest of the tail is
-        # offered too, so that a workflow naming its reporter under a
-        # workspace variable finds tools/ci/x.sh rather than looking for
-        # x.sh at the repository root.
+        # The basename against the referring file's own directory is
+        # offered because a script computing a directory to find a
+        # helper in is nearly always computing its own -- but not when
+        # the tail climbs out of that directory, since
+        # `${TOOLS}/../shared/report.sh` names a file somewhere else,
+        # and a sibling of that name is one the reference never made.
+        # The rest of the tail is offered too, so that a workflow naming
+        # its reporter under a workspace variable finds tools/ci/x.sh
+        # rather than looking for x.sh at the repository root. Order
+        # decides only which read happens first; the caller searches
+        # every candidate it can read.
         if preceding and preceding in '}$)':
             tail = (named.partition('/')[2] if preceding == '$'
                     else named.lstrip('/'))
-            candidates = [os.path.join(base, os.path.basename(named))]
+            candidates = []
+            if os.pardir not in tail.split('/'):
+                candidates.append(
+                    os.path.join(base, os.path.basename(named)))
             if tail:
                 candidates.append(os.path.join(base, tail) if base else tail)
                 candidates.append(tail)
@@ -1671,7 +1699,7 @@ def reaches_issue_filing(repo, content):
     The walk is breadth-first so that the common case, a reporter the
     workflow names directly, is still answered by one read. The
     visited set and Repo.read's cache hold the cost to one read per
-    distinct path named.
+    distinct candidate path.
     """
     def files(frontier):
         return any(FILES_AN_ISSUE_RE.search(text) for _, text in frontier)

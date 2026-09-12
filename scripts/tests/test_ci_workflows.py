@@ -1641,6 +1641,60 @@ class FuzzNightlyReportingTest(CheckTestCase):
         self.assertIsNotNone(ci_workflows.FILES_AN_ISSUE_RE.search(
             'GH="${GH:-gh}"\n"${GH}" issue create --title x\n'))
 
+    def test_the_variable_standing_in_for_the_command_is_an_expansion(self):
+        """What that alternative holds, and what it does not.
+
+        It holds that the position is a balanced expansion: `${GH` and
+        `$GH}` are not shell and are not calls. It does not hold that
+        the expansion is the command -- any expansion sharing the line
+        with the words matches, so a usage message naming its own
+        program through a variable reads as a call. That is the
+        permissive direction the rest of this module takes, and the
+        spec page says so; it is asserted here so that a later tighten
+        of the pattern is a deliberate change rather than a surprise.
+        """
+        for unbalanced in ('${GH issue create --title x\n',
+                           '$GH} issue create --title x\n'):
+            with self.subTest(unbalanced=unbalanced):
+                self.assertIsNone(
+                    ci_workflows.FILES_AN_ISSUE_RE.search(unbalanced))
+        for accepted in ('echo "usage: $PROG issue create <title>"\n',
+                         'echo "we should $TOOL issue create later"\n'):
+            with self.subTest(accepted=accepted):
+                self.assertIsNotNone(
+                    ci_workflows.FILES_AN_ISSUE_RE.search(accepted))
+
+    def test_a_caller_reaches_a_reporter_two_scripts_deep(self):
+        """The caller side is walked as far as the callee side.
+
+        lane_can_report runs the walk twice, once per side, with a
+        visited set each. Every other multi-level test drives the side
+        the schedule is on, so a walk that went deep on one side only
+        would pass all of them.
+        """
+        self._targets()
+        self.fixture.write(
+            'tools/ci/report-fuzz-crash.sh',
+            '#!/bin/bash\ntools/ci/file-fuzz-issue.sh "$1"\n')
+        self.fixture.write('tools/ci/file-fuzz-issue.sh',
+                           '#!/bin/bash\ngh issue create --title x\n')
+        self.fixture.workflow(
+            'fuzz-nightly.yml',
+            "on:\n  schedule:\n    - cron: '0 4 * * *'\n"
+            'permissions:\n  issues: write\njobs:\n'
+            '  call:\n    uses: ./.github/workflows/fuzz-run.yml\n'
+            '  report:\n    needs: [call]\n    steps:\n'
+            '      - run: tools/ci/report-fuzz-crash.sh "$TARGET"\n')
+        self.fixture.workflow(
+            'fuzz-run.yml',
+            GOOD_NIGHTLY.replace(
+                "  schedule:\n    - cron: '0 4 * * *'", '  workflow_call:')
+            .replace('  issues: write\n', '')
+            .replace('      - run: tools/ci/report-fuzz-crash.sh '
+                     '"$TARGET" "$CRASH" "$LOG"\n',
+                     '      - uses: actions/upload-artifact@v4\n'))
+        self.assert_pass(self.check(has_workflows_dir=True))
+
     def test_a_reporter_named_under_a_workspace_variable_is_followed(self):
         """`${{ github.workspace }}/tools/ci/x.sh` names a path.
 
@@ -1700,14 +1754,99 @@ class FuzzNightlyReportingTest(CheckTestCase):
         referring script's own directory is a second way into the same
         guard, and joining a base onto the reference is exactly the
         step that would defeat it.
+
+        Each case names what it yields rather than asserting inside a
+        loop over it. Three of the four yield nothing, so a loop body
+        would not run at all, and the whole test would be satisfied by
+        a referenced_scripts that yielded nothing for anything -- which
+        is a real failure mode for a guard written this way and not one
+        a test pinning the guard should be blind to. The positive
+        control is here for the same reason.
         """
-        for escape in ('../../../../etc/x.sh',
-                       '/etc/x.sh',
-                       '"${SCRIPT_DIR}/../../../../etc/x.sh"',
-                       'tools/../../../etc/x.sh'):
-            for path in ci_workflows.referenced_scripts(escape, 'tools/ci'):
-                self.assertFalse(path.startswith('/'), (escape, path))
-                self.assertNotIn('..', path.split(os.sep), (escape, path))
+        cases = (
+            # Refused outright: absolute, or climbing from the base.
+            ('/etc/x.sh', []),
+            ('../../../../etc/x.sh', []),
+            # Variable-rooted, but the tail climbs: the sibling reading
+            # is not offered for a tail containing `..`, and the two
+            # path readings both leave the clone.
+            ('"${SCRIPT_DIR}/../../../../etc/x.sh"', []),
+            # The base absorbs the climb, so this one stays inside --
+            # at a path the repository did name.
+            ('tools/../../../etc/x.sh', ['etc/x.sh']),
+            # Positive control: the shape the walk exists to follow.
+            ('${SCRIPT_DIR}/helper.sh', ['tools/ci/helper.sh', 'helper.sh']),
+        )
+        for reference, expected in cases:
+            with self.subTest(reference=reference):
+                self.assertEqual(
+                    expected,
+                    list(ci_workflows.referenced_scripts(
+                        reference, 'tools/ci')))
+
+    def test_a_quoted_expansion_before_the_separator_is_followed(self):
+        """`"${SCRIPT_DIR}"/helper.sh` is the same reference.
+
+        Quoting the expansion and leaving the rest of the path outside
+        it is as common as quoting the whole path, and `"$(dirname
+        "$0")"/helper.sh` computes the same thing inline. Reading the
+        single character before the reference finds the quote rather
+        than the `}` or `)`, and the reference then resolves to
+        nothing at all -- so a repository that split its reporter the
+        way this criterion recommends would fail the check.
+        """
+        for spelling in ('"${SCRIPT_DIR}"/helper.sh "$1"',
+                         "'${SCRIPT_DIR}'/helper.sh",
+                         '"$(dirname "$0")"/helper.sh'):
+            with self.subTest(spelling=spelling):
+                self.assertEqual(
+                    ['tools/ci/helper.sh', 'helper.sh'],
+                    list(ci_workflows.referenced_scripts(
+                        spelling, 'tools/ci')))
+        # A quote does not make an absolute path relative.
+        self.assertEqual(
+            [], list(ci_workflows.referenced_scripts(
+                'echo "/etc/x.sh"', 'tools/ci')))
+
+    def test_a_quoted_expansion_reaches_the_reporter(self):
+        """The same spelling, driven through the check."""
+        self._targets()
+        self.fixture.write(
+            'tools/ci/report-fuzz-crash.sh',
+            '#!/bin/bash\nSCRIPT_DIR="$(dirname "$0")"\n'
+            '"${SCRIPT_DIR}"/file-fuzz-issue.sh "$1"\n')
+        self.fixture.write('tools/ci/file-fuzz-issue.sh',
+                           '#!/bin/bash\ngh issue create --title x\n')
+        self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_a_variable_rooted_tail_that_climbs_names_no_sibling(self):
+        """`${TOOLS}/../shared/x.sh` is not a reference to a sibling.
+
+        The sibling reading exists because a script computing a
+        directory is nearly always computing its own. A tail that
+        climbs back out of that directory says otherwise, and offering
+        the basename anyway fabricates a path the repository never
+        named -- which can hand the walk an unrelated file of the same
+        name and turn it into a pass.
+        """
+        self.assertEqual(
+            ['tools/shared/report.sh'],
+            list(ci_workflows.referenced_scripts(
+                '"${TOOLS}/../shared/report.sh"', 'tools/ci')))
+
+    def test_a_bare_sibling_is_resolved_against_its_own_directory(self):
+        """`helper.sh "$1"` inside tools/ci means tools/ci/helper.sh.
+
+        The reading relative to the repository root is offered too,
+        because a script run from the root may well name a path from
+        there, but the sibling is the one a script writing a bare name
+        means.
+        """
+        self.assertEqual(
+            ['tools/ci/helper.sh', 'helper.sh'],
+            list(ci_workflows.referenced_scripts('helper.sh "$1"',
+                                                 'tools/ci')))
 
     def test_filing_the_issue_with_an_action_passes(self):
         """`gh issue create` is the fleet's spelling, not the criterion."""
