@@ -244,7 +244,10 @@ def image_release(reference):
     are in the fleet.
     """
     reference = reference.strip().strip('"').strip("'")
-    if not reference or '${{' in reference or '$' in reference:
+    # An Actions expression or a shell variable: what it resolves to is
+    # not decidable here. '${{' is not tested separately because it
+    # cannot appear without the '$'.
+    if not reference or '$' in reference:
         return None
 
     # A digest pins bytes rather than a tag, and carries its own colon.
@@ -424,12 +427,13 @@ class EolDistro(Check):
 
         Runner labels and container image references only, in this
         repository's own workflows, in the workflow templates the
-        fleet copies from, and in its container build files. All three
-        choose an operating system something then runs on, which is
-        what makes them mechanically checkable and worth failing over; a release merely named in prose, booted as
-        test input, or dispatched to an upstream job by name is not
-        this criterion, and matching whole tokens is what keeps those
-        three out.
+        fleet copies from, and in its container build files. All
+        three choose an operating system something then runs on,
+        which is what makes them mechanically checkable and worth
+        failing over; a release merely named in prose, booted as test
+        input, or dispatched to an upstream job by name is not this
+        criterion, and matching whole tokens is what keeps those three
+        out.
 
         A repository whose subject matter is old distributions marks
         the line 'audit-ok: eol-distro' with the reason, on the line
@@ -462,7 +466,10 @@ class EolDistro(Check):
         return self.fail(
             f'{len(locations)} reference(s) to end-of-life '
             f'distribution releases. {release_guidance(found)}. '
-            f'A reference that must stay -- test input built on the '
-            f'old release, say -- is marked "audit-ok: eol-distro" '
-            f'with the reason, on the line or the line above',
+            f'Moving a runner label also means declaring the new one '
+            f'in .github/actionlint.yaml in the same commit, or the '
+            f'workflow fails actionlint. A reference that must stay '
+            f'-- test input built on the old release, say -- is '
+            f'marked "audit-ok: eol-distro" with the reason, on the '
+            f'line or the line above',
             findings=locations)

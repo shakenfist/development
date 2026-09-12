@@ -58,6 +58,18 @@ class ImageReferenceTest(unittest.TestCase):
         self.assertEqual('Debian 12 (bookworm)',
                          self.release('python:3.13-bookworm'))
 
+    def test_a_codename_is_read_in_any_image_not_only_the_distros(self):
+        """Deliberate, and the reason rust:1.97-bookworm is caught.
+
+        The criterion cannot tell a distribution's own image from
+        something built on one, so it does not try; a project
+        publishing derived artifacts marks them audit-ok instead.
+        """
+        self.assertEqual('Debian 12 (bookworm)',
+                         self.release('myapp:bookworm'))
+        self.assertEqual('Debian 11 (bullseye)',
+                         self.release('internal/tool:bullseye-builder'))
+
     def test_a_version_number_is_only_read_for_the_distribution_itself(self):
         """'12' means bookworm in debian:12 and nothing in rust:1.12."""
         self.assertIsNone(self.release('rust:1.12'))
@@ -203,6 +215,19 @@ class EolDistroTest(CheckTestCase):
         self.assertIn('2026-06-10', result['details'])
         self.assertIn('debian-13', result['details'])
 
+    def test_the_finding_says_the_label_move_is_two_files(self):
+        """Every recipient otherwise rediscovers the actionlint half.
+
+        A repository's .github/actionlint.yaml lists the self-hosted
+        labels its workflows may name, so a label swap that does not
+        touch it trades this finding for a lint failure.
+        """
+        self.fixture.workflow(
+            'ci.yml',
+            'jobs:\n  a:\n    runs-on: [self-hosted, vm, debian-12, s]\n')
+        result = self.check(has_workflows_dir=True)
+        self.assertIn('actionlint.yaml', result['details'])
+
     def test_a_matrix_value_feeding_runs_on_is_caught(self):
         """The label need not sit on the runs-on line to choose the OS."""
         self.fixture.workflow(
@@ -238,6 +263,46 @@ class EolDistroTest(CheckTestCase):
             '    steps:\n'
             '      - run: |\n'
             '          "${setup} ubuntu-2004 /srv/ci/ubuntu:20.04 --shared"\n')
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_a_yaml_extension_workflow_is_scanned(self):
+        """Repo.workflows() returns both spellings; only one was tested."""
+        self.fixture.workflow(
+            'ci.yaml',
+            'jobs:\n  a:\n    runs-on: [self-hosted, vm, debian-12, s]\n')
+        result = self.assert_fail(self.check(has_workflows_dir=True))
+        self.assertEqual(['.github/workflows/ci.yaml:3 (debian-12)'],
+                         result['findings'])
+
+    def test_an_image_key_written_by_a_heredoc_is_still_read(self):
+        """A stated limit, not an accident -- see the spec.
+
+        The key anchoring cannot tell a workflow's own container from
+        one it writes into a compose file, and the dependency on the
+        retired release is real either way.
+        """
+        self.fixture.workflow(
+            'ci.yml',
+            'jobs:\n'
+            '  a:\n'
+            '    runs-on: [self-hosted, static]\n'
+            '    steps:\n'
+            '      - run: |\n'
+            '          cat > compose.yml <<EOF\n'
+            '          image: debian:12\n'
+            '          EOF\n')
+        self.assert_fail(self.check(has_workflows_dir=True),
+                         containing='Debian 12 (bookworm)')
+
+    def test_an_image_run_from_a_shell_command_is_not_read(self):
+        """The other half of the same limit: a gap, and a stated one."""
+        self.fixture.workflow(
+            'ci.yml',
+            'jobs:\n'
+            '  a:\n'
+            '    runs-on: [self-hosted, static]\n'
+            '    steps:\n'
+            '      - run: docker run --rm debian:12 true\n')
         self.assert_pass(self.check(has_workflows_dir=True))
 
     def test_a_container_image_key_fails(self):
@@ -341,6 +406,44 @@ class EolDistroTest(CheckTestCase):
         self.assertEqual(3, len(result['findings']))
         for release in distros.EOL_RELEASES:
             self.assertIn(release.name, result['details'])
+
+
+class DateGateTest(CheckTestCase):
+    """An entry may be written before its date; scan() withholds it.
+
+    retired_releases() is tested directly, but every entry in the table
+    is already past today, so without these the filter in scan() is
+    dead code as far as the suite is concerned and a refactor could
+    drop it silently.
+    """
+
+    check_class = distros.EolDistro
+
+    #: Debian 12's end of standard support, from EOL_RELEASES.
+    BOOKWORM_EOL = datetime.date(2026, 6, 10)
+
+    def setUp(self):
+        super().setUp()
+        self.fixture.workflow(
+            'ci.yml',
+            'jobs:\n  a:\n    runs-on: [self-hosted, vm, debian-12, s]\n')
+
+    def scan(self, today):
+        return distros.scan(self.repo(has_workflows_dir=True), today=today)
+
+    def test_the_day_before_the_date_reports_nothing(self):
+        self.assertEqual(
+            [], self.scan(self.BOOKWORM_EOL - datetime.timedelta(days=1)))
+
+    def test_the_date_itself_reports_the_same_tree(self):
+        found = self.scan(self.BOOKWORM_EOL)
+        self.assertEqual(1, len(found))
+        self.assertEqual('debian-12', found[0][1])
+
+    def test_a_year_earlier_reports_nothing_at_all(self):
+        """Nothing in the table had retired a year before bookworm did."""
+        self.assertEqual(
+            [], self.scan(datetime.date(2025, 1, 1)))
 
 
 class SpecificationTest(unittest.TestCase):

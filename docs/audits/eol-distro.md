@@ -2,7 +2,7 @@
 
 ## What we check
 
-An operating system release stops receiving security updates on a
+An operating system release reaches the end of its support on a
 published date. Everything built on it inherits that, and nothing
 about it breaks: a CI job pinned to a retired runner image keeps
 passing, a container built `FROM` a retired base keeps shipping, and
@@ -16,11 +16,30 @@ every repository still building on it fails until it moves.
 
 ### The retired list
 
-| Release | End of life | Runner labels | Replace with |
-|---------|-------------|---------------|--------------|
-| Ubuntu 20.04 LTS (focal) | 2025-05-31 | `ubuntu-20.04`, `ubuntu-2004` | `ubuntu:24.04` (noble) |
-| Debian 12 (bookworm) | 2026-06-10 | `debian-12`, `debian-12-docker`, `debian-gnome-12` | `debian-13`, `debian-13-docker`, or a `debian:13` (trixie) image |
-| Debian 11 (bullseye) | 2026-08-31 | `debian-11`, `debian-11-docker` | as above |
+Two of these three dates end *standard* support rather than every
+fix: Debian hands a release to the LTS team and Ubuntu moves an LTS
+to ESM, so a machine running one is not instantly unpatched. It is
+being patched by fewer people, for fewer packages, under a policy
+nothing here tracks -- and on a subscription, in Ubuntu's case. The
+fleet's rule is to move at end of standard support rather than ride
+the extension, so those are the dates the table carries, and the
+"then" column says what each one hands over to.
+
+| Release | Support ended | Then | Runner labels | Replace with |
+|---------|---------------|------|---------------|--------------|
+| Ubuntu 20.04 LTS (focal) | 2025-05-31 | Ubuntu Pro ESM | `ubuntu-20.04`, `ubuntu-2004` | `ubuntu:24.04` (noble) |
+| Debian 12 (bookworm) | 2026-06-10 | Debian LTS | `debian-12`, `debian-12-docker`, `debian-gnome-12` | `debian-13`, `debian-13-docker`, or a `debian:13` (trixie) image |
+| Debian 11 (bullseye) | 2026-08-31 | nothing, this is end of LTS | `debian-11`, `debian-11-docker` | as above |
+
+Moving a runner label is a two-file change. The repository's
+`.github/actionlint.yaml` declares the self-hosted labels its
+workflows may name, and actionlint fails a workflow naming one that
+is not declared -- so the replacement goes into that list in the same
+commit, or the fix trades an audit finding for a lint failure. The
+finding text says so too, because that list is per repository: every
+project this criterion files against makes the same two-file change,
+and describing it as a one-line one costs each of them the same
+rediscovery.
 
 Adding the next release is one entry in that table and one row here.
 It is deliberately not a new check: the reason Debian 12 lingered in
@@ -71,6 +90,15 @@ version number is only read when the image *is* the distribution:
 with no tag, or one behind a shell or Actions expression, is not
 judged.
 
+A codename is read as its release in *any* image's tag, not only the
+distribution's own. That is what catches `rust:1.97-bookworm`, and it
+equally catches `myapp:bookworm` or `internal/tool:bullseye-builder`.
+The criterion does not try to tell a distribution's own image from
+something built on one, because it cannot: a project that publishes
+artifacts derived from a retired release marks those lines
+`audit-ok: eol-distro` rather than the check guessing which side of
+the line they are on.
+
 **Workflow templates**, every `.yml` and `.yaml` under a top-level
 `templates/` directory. Only shakenfist/development has one, and what
 is in it is copied verbatim into ten other repositories -- so a
@@ -103,6 +131,17 @@ so `FROM --platform=$BUILDPLATFORM debian:12` is one too.
   conductor. They are the pre-push reviewer's to raise.
 * **Upstream job names.** `kolla-ansible-master-debian-12` names a
   job in somebody else's gate. We do not get to choose its platform.
+* **Images named in shell.** The image surface is the `container:`
+  and `image:` keys and Dockerfile `FROM` lines, each matched on the
+  key at the start of a line, so `docker run --rm debian:12` inside a
+  `run:` block -- the commonest way a workflow actually uses a
+  container -- is not matched. The asymmetry with the runner labels,
+  which are deliberately not read inside `run:` blocks, runs the other
+  way too: an `image: debian:12` line a `run:` block writes into a
+  compose file by heredoc *is* reported. Neither is an accident worth
+  closing with a shell parser. The one that is reported is a true
+  dependency on a retired release however it got there, and the one
+  that is missed would cost more in false positives than it found.
 * **Prose.** A plan describing what was done on bookworm in 2025 is
   history, and rewriting history to please an audit is worse than the
   audit not running.

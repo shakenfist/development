@@ -13,6 +13,7 @@ Run with: python3 scripts/tests/test_manage_issues.py
 
 import importlib.util
 import os
+import re
 import sys
 import unittest
 
@@ -76,6 +77,43 @@ class IssueBodyTest(unittest.TestCase):
         self.assertIn('- `b.yml:1 (debian-12)`', body)
         self.assertLess(body.index('**Missing items:**'),
                         body.index('**Findings:**'))
+
+
+class IssueBodyLimitTest(unittest.TestCase):
+    """The lists are unbounded, and GitHub's issue body is not."""
+
+    #: GitHub rejects a create with a body longer than this.
+    GITHUB_LIMIT = 65536
+
+    def setUp(self):
+        self.module = _manage_issues()
+
+    def body(self, count):
+        return self.module.build_issue_body('eol-distro', {
+            'id': 'eol-distro', 'status': 'fail',
+            'details': 'many references',
+            'findings': ['.github/workflows/ci.yml:%d (debian-12)' % n
+                         for n in range(count)],
+        })
+
+    def test_a_realistic_list_is_rendered_whole(self):
+        """The fleet's worst repository has twenty-one findings."""
+        body = self.body(21)
+        self.assertNotIn('omitted', body)
+        self.assertIn('.github/workflows/ci.yml:20 (debian-12)', body)
+
+    def test_a_pathological_list_still_files_an_issue(self):
+        body = self.body(5000)
+        self.assertLess(len(body), self.GITHUB_LIMIT)
+        self.assertIn('more, omitted', body)
+
+    def test_every_item_is_either_rendered_or_counted(self):
+        """A short list that does not say so is the failure to avoid."""
+        body = self.body(5000)
+        rendered = body.count('(debian-12)')
+        omitted = re.search(r'\.\.\.and (\d+) more', body)
+        self.assertIsNotNone(omitted, body[-500:])
+        self.assertEqual(5000, rendered + int(omitted.group(1)))
 
 
 if __name__ == '__main__':

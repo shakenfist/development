@@ -60,6 +60,7 @@ CHECKS = [
     runners.SelfHostedRunners(),
     runners.StaticRunnerTags(),
     runners.VmRunnerSize(),
+    distros.EolDistro(),
     ci_workflows.CiReviewAutomation(),
     ci_workflows.WorkflowPermissions(),
     ci_workflows.PreCommitConfig(),
@@ -79,7 +80,6 @@ CHECKS = [
     github_config.DeleteBranchOnMerge(),
     github_config.MergeQueueConfig(),
     github_config.ScopeCoverage(),
-    distros.EolDistro(),
 ]
 
 

@@ -14,9 +14,10 @@
 #
 # The bookworm labels are deliberately absent. Debian 12 went end of
 # life on 2026-06-10, and the eol-distro consistency audit fails any
-# workflow or template still naming it -- so a `debian-12` label
-# reappearing here should fail actionlint rather than be waved
-# through.
+# workflow or template still naming it. Leaving them undeclared is
+# what gives actionlint something to say about it: a workflow naming
+# an undeclared label fails, so a `debian-12` that creeps back into a
+# workflow or a template is caught here rather than waved through.
 self-hosted-runner:
   labels:
     - static
