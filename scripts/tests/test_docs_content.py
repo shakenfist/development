@@ -1565,6 +1565,129 @@ class MermaidLintScriptTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.rendered, ['docs/REVIEWS.md'])
 
+    def test_a_repository_local_exclusion_drops_a_tree(self):
+        """The case the file exists for: an imported tree.
+
+        shakenfist/shakenfist syncs 664 markdown files from the
+        sibling repositories into docs/components/ hourly and forbids
+        editing them, so a diagram broken upstream would fail that
+        repository's lane naming a file whose author cannot fix it.
+        The exclusion has to reach everything beneath the directory,
+        not only a file of that name.
+        """
+        result = self._run({
+            'tools/mermaid-lint-exclude': 'docs/components\n',
+            'docs/components/instar/x.md': self.TILDE,
+            'docs/x.md': self.BACKTICK,
+        })
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.rendered, ['docs/x.md'])
+
+    def test_an_excluded_path_is_named_in_the_output(self):
+        """A lane is trusted in proportion to what it says it skipped.
+
+        The exclusion is invisible in a green run otherwise, which is
+        how a tree stays unlinted for a release without anyone
+        choosing that.
+        """
+        result = self._run({
+            'tools/mermaid-lint-exclude': 'docs/components\n',
+            'docs/components/x.md': self.BACKTICK,
+            'docs/x.md': self.BACKTICK,
+        })
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('excluding docs/components', result.stdout)
+
+    def test_an_exclusion_matching_nothing_fails_the_run(self):
+        """A misspelled path excludes nothing and looks identical.
+
+        Deliberately stricter than the built-in REVIEWS.md pathspec,
+        which a repository keeps whether or not the file exists. This
+        file is for a tree that is already here, so a line that drops
+        nothing is a typo rather than an anticipation -- and a typo
+        that merely does nothing leaves the tree linted while the file
+        says it is not.
+        """
+        result = self._run({
+            'tools/mermaid-lint-exclude': 'docs/componets\n',
+            'docs/x.md': self.BACKTICK,
+        })
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('excludes nothing tracked', result.stderr)
+        self.assertIn('docs/componets', result.stderr)
+        self.assertFalse(result.docker_ran)
+
+    def test_comments_and_blank_lines_are_ignored(self):
+        """The file is meant to say why, which needs comments.
+
+        A '#' line read as a path would match nothing and, given the
+        rule above, fail every run of a repository that documented its
+        own exclusion.
+        """
+        result = self._run({
+            'tools/mermaid-lint-exclude': (
+                '# Imported hourly; fixed upstream.\n'
+                '\n'
+                '  docs/components  \n'
+            ),
+            'docs/components/x.md': self.TILDE,
+            'docs/x.md': self.BACKTICK,
+        })
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.rendered, ['docs/x.md'])
+
+    def test_an_excluded_path_is_still_linted_when_named(self):
+        """Excluded from the walk, not from the script.
+
+        The same rule REVIEWS.md follows: somebody who wants the file
+        checked says so and gets the ordinary answer. Fixing a diagram
+        in an imported tree means running the lane over it by hand
+        before pushing the fix to the repository it came from.
+        """
+        result = self._run({
+            'tools/mermaid-lint-exclude': 'docs/components\n',
+            'docs/components/x.md': self.TILDE,
+        }, args=('docs/components/x.md',))
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('use a backtick fence', result.stderr)
+
+    def test_a_crlf_exclude_file_names_the_path_it_looks_like(self):
+        """A carriage return would make every line match nothing.
+
+        And now that a line matching nothing is fatal, a file saved on
+        Windows would fail every run rather than silently linting the
+        excluded tree.
+        """
+        result = self._run({
+            'tools/mermaid-lint-exclude': 'docs/components\r\n',
+            'docs/components/x.md': self.TILDE,
+            'docs/x.md': self.BACKTICK,
+        })
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.rendered, ['docs/x.md'])
+
+    def test_a_final_line_without_a_newline_is_read(self):
+        """An editor that does not terminate the last line.
+
+        `read` returns non-zero on such a line having set it, so a
+        loop conditioned on the status alone drops it -- the whole
+        exclusion, silently, in the direction of linting a tree the
+        repository said not to.
+        """
+        result = self._run({
+            'tools/mermaid-lint-exclude': 'docs/components',
+            'docs/components/x.md': self.TILDE,
+            'docs/x.md': self.BACKTICK,
+        })
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.rendered, ['docs/x.md'])
+
+    def test_no_exclude_file_is_silence_rather_than_an_error(self):
+        """The file is optional; most repositories have nothing to drop."""
+        result = self._run({'docs/x.md': self.BACKTICK})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn('excluding', result.stdout)
+
 
 class ReadmeAbsoluteLinksTest(CheckTestCase):
     """README.md is rendered off the landing page, where relative breaks."""

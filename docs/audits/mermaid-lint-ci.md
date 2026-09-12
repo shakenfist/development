@@ -148,6 +148,15 @@ naming a file that author never touched. `MermaidLintDeploymentTest`
 asserts the two exclusions agree, and that the two triggers filter on
 the same paths.
 
+A repository with a tree of its own to leave alone -- a machine-synced
+import of somebody else's documentation is the case this exists for --
+names it in `tools/mermaid-lint-exclude`, one path per line. The
+script reads that file and the workflow cannot, so the same
+move-together rule applies: a line added there is added to both of the
+workflow's `paths` lists as `!path/**`. A line matching no tracked
+file fails the run, because an exclusion that silently matches nothing
+leaves the tree linted while the file says it is not.
+
 ### The runner
 
 `[self-hosted, vm, debian-12-docker, s]`, not `static`. Static runners
