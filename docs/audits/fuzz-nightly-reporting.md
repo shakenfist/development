@@ -77,20 +77,25 @@ reporter big enough to be worth testing splits, and the shape it
 splits into is a walker that decides what gets reported calling a
 filer that decides what an issue says — which is the structure this
 criterion recommends, one step further along, and it was failing for
-it. The walk keeps a visited set and stops at three so that a
-repository's own files naming each other cannot cost a read apiece.
+it. A visited set keeps a repository's own files naming each other
+from being walked twice, so the reading costs one read per distinct
+path named however the names are tangled; three is how far a chain of
+them is allowed to lead the walk, which is a level of headroom over
+the deepest split in the fleet.
+
 A script may name its helper the way a script does — a bare sibling,
 or `${SCRIPT_DIR}/helper.sh` — so a reference is resolved against the
 referring file's own directory before the repository root, and one
-whose head is a variable is read as a sibling rather than as the
-absolute path its leading `/` would otherwise make it. A genuine
-`/etc/x.sh` is still refused, and nothing outside the clone is ever
-read.
-Where the nightly is split across a
-caller and a `workflow_call` callee, either side may hold the
-permission and either may make the call — the callee fuzzing and
-uploading while the caller inspects and files is as good a split as
-the reverse.
+whose head is a variable is read as a path rooted in that directory
+rather than as the absolute path its leading `/` would otherwise make
+it. `${{ github.workspace }}/tools/ci/report.sh` keeps the directories
+it names. A genuine `/etc/x.sh` is still refused, and nothing outside
+the clone is ever read.
+
+Where the nightly is split across a caller and a `workflow_call`
+callee, either side may hold the permission and either may make the
+call — the callee fuzzing and uploading while the caller inspects and
+files is as good a split as the reverse.
 
 `gh issue create` is recognised however a script spells the argv —
 `['gh', 'issue', 'create', ...]` through `subprocess` is the same
@@ -101,7 +106,9 @@ the advice. For the same reason the command may be held in a shell
 variable: `GH="${GH:-gh}"` and then `"${GH}" issue create` is a test
 seam, there so the reporter's own tests can stub the call and assert
 on what it would have filed. Only a variable expansion is accepted in
-that position, so prose about creating issues still does not count.
+that position, and only on the same line as the words that follow it,
+so prose about creating issues still does not count — a usage message
+ending a line in an expansion is not a call to anything.
 
 Comments do not count on either side, and that includes a comment at
 the end of a line of code: `- run: echo done  # TODO: gh issue

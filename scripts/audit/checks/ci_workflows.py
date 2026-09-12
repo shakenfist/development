@@ -1473,10 +1473,14 @@ ISSUES_WRITE_RE = re.compile(r'^\s*issues:\s*write\s*$', re.MULTILINE)
 # at all. Requiring the literal `gh` there would fail a repository
 # precisely for making its reporter testable. Only a variable expansion
 # is accepted in that position, so prose about issue creation still does
-# not match.
+# not match. A command and its sub-commands sit on one line, so that
+# alternative is held to one: `[ \t]` rather than `\s`, and the default
+# inside `${...}` stops at a newline as well as at the closing brace.
+# Otherwise a variable ending one line and the words `issue create`
+# beginning the next -- a usage heredoc, say -- would read as a call.
 FILES_AN_ISSUE_RE = re.compile(
     r'gh\W{1,4}issue\W{1,4}create\b'
-    r'|\$\{?[A-Za-z_]\w*(?::[-=?+][^}]*)?\}?["\']?\s+issue\s+create\b'
+    r'|\$\{?[A-Za-z_]\w*(?::[-=?+][^}\n]*)?\}?["\']?[ \t]+issue[ \t]+create\b'
     r'|gh\s+api\b[^\n]*/issues\b'
     r'|issues\.create\b'
     r'|create_issue\b'
@@ -1498,10 +1502,11 @@ REFERENCED_SCRIPT_RE = re.compile(r'[\w./-]+\.(?:sh|py)\b')
 # than one script, not a worse one, and it was failing this check.
 #
 # Bounded rather than unbounded because the paths come out of an
-# audited repository's own files: the visited set stops a cycle, and
-# the depth stops a chain of scripts that name each other from costing
-# a read per file in the repository. Three leaves a level of headroom
-# over the deepest split in the fleet.
+# audited repository's own files. What bounds the reading is the
+# visited set and Repo.read's cache, which together cost one read per
+# distinct path named; the depth bounds how far a chain of scripts can
+# lead the walk, not how many files a single level can touch. Three
+# leaves a level of headroom over the deepest split in the fleet.
 MAX_SCRIPT_DEPTH = 3
 
 
@@ -1588,7 +1593,10 @@ def referenced_scripts(text, base):
     reaches its helper -- ryll's report-fuzz-run.sh defaults its
     reporter to `${SCRIPT_DIR}/report-fuzz-failure.sh`, whose only
     literal text is the bare file name -- so both readings are
-    offered, the one relative to `base` first.
+    offered, the one relative to `base` first. A path rooted in a
+    variable keeps whatever directories follow the variable as well,
+    since `${{ github.workspace }}/tools/ci/x.sh` names a path and not
+    a sibling.
 
     Yields repo-relative paths only. The names come out of an audited
     repository's own files and are joined onto its checkout root, so a
@@ -1597,22 +1605,39 @@ def referenced_scripts(text, base):
     """
     for match in REFERENCED_SCRIPT_RE.finditer(text):
         named = match.group(0)
-        # `${SCRIPT_DIR}/report-fuzz-failure.sh`, or `$DIR/x.sh`. The
-        # head of the path is computed, so the literal text the pattern
-        # can see is its tail -- and for `${...}` that tail begins with
-        # a `/`, which the guard below would otherwise read as an
-        # absolute path and refuse. What is usable is the basename,
-        # against the referring file's own directory, because a script
-        # computing a directory to find a helper in is nearly always
-        # computing its own. The preceding character is what separates
-        # this from a genuine `/etc/x.sh`, which must still be refused.
-        if match.start() > 0 and text[match.start() - 1] in '}$)':
+        # None rather than '' when the match starts the text: the
+        # empty string is a member of every string, so `'' in '}$)'`
+        # would take a reference with nothing before it for one rooted
+        # in a variable.
+        preceding = text[match.start() - 1] if match.start() else None
+        # `${SCRIPT_DIR}/report-fuzz-failure.sh`, `$DIR/x.sh`, or
+        # `${{ github.workspace }}/tools/ci/x.sh`. The head of the path
+        # is computed, so the literal text the pattern can see is its
+        # tail -- after a `}` or a `)` that tail begins with a `/`,
+        # which the guard below would otherwise read as an absolute
+        # path and refuse, and after a bare `$` the variable's own name
+        # is inside the match instead and has to come off. The
+        # preceding character is what separates all of this from a
+        # genuine `/etc/x.sh`, which must still be refused.
+        #
+        # The basename against the referring file's own directory comes
+        # first because a script computing a directory to find a helper
+        # in is nearly always computing its own. The rest of the tail is
+        # offered too, so that a workflow naming its reporter under a
+        # workspace variable finds tools/ci/x.sh rather than looking for
+        # x.sh at the repository root.
+        if preceding and preceding in '}$)':
+            tail = (named.partition('/')[2] if preceding == '$'
+                    else named.lstrip('/'))
             candidates = [os.path.join(base, os.path.basename(named))]
+            if tail:
+                candidates.append(os.path.join(base, tail) if base else tail)
+                candidates.append(tail)
         else:
             candidates = [named]
             if base:
                 candidates.insert(0, os.path.join(base, named))
-        for candidate in candidates:
+        for candidate in dict.fromkeys(candidates):
             # normpath rather than lstrip('./'): lstrip takes a
             # character set, so it turns `../../x.sh` into `x.sh` and
             # the guard below never sees the escape it was written
@@ -1644,18 +1669,24 @@ def reaches_issue_filing(repo, content):
     stripper serves for the scripts.
 
     The walk is breadth-first so that the common case, a reporter the
-    workflow names directly, is still answered by one read.
+    workflow names directly, is still answered by one read. The
+    visited set and Repo.read's cache hold the cost to one read per
+    distinct path named.
     """
+    def files(frontier):
+        return any(FILES_AN_ISSUE_RE.search(text) for _, text in frontier)
+
     # (directory the file's references are relative to, its text).
     frontier = [('', strip_yaml_comments(content, trailing=True))]
     seen = set()
-    depth = 0
 
-    while True:
-        if any(FILES_AN_ISSUE_RE.search(text) for _, text in frontier):
+    # MAX_SCRIPT_DEPTH generations are followed, starting from the
+    # workflow, and the last of them is searched after the loop rather
+    # than followed in turn -- so the deepest script the walk reads is
+    # read for what it says, not for what it names.
+    for _ in range(MAX_SCRIPT_DEPTH):
+        if files(frontier):
             return True
-        if depth >= MAX_SCRIPT_DEPTH:
-            return False
 
         following = []
         for base, text in frontier:
@@ -1671,7 +1702,8 @@ def reaches_issue_filing(repo, content):
         if not following:
             return False
         frontier = following
-        depth += 1
+
+    return files(frontier)
 
 
 def lane_can_report(repo, content, caller):
