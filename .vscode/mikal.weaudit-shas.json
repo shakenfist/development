@@ -17,10 +17,6 @@
       "sha": "cf7c807de18a9170b83aa2a57d719f8fc3b3935e",
       "date": "2026-09-04"
     },
-    ".github/actionlint.yaml": {
-      "sha": "a409ee86198da56754e6ae2c52cd56ad92e96699",
-      "date": "2026-09-01"
-    },
     ".github/exported-config/repository-settings.json": {
       "sha": "e1e9f80b8dfc29fbc9440143fd2f804d43bace80",
       "date": "2026-09-01"
@@ -53,10 +49,6 @@
       "sha": "6d0ce3ba5bf1008a1139a1a1be27959413f8ad0a",
       "date": "2026-09-09"
     },
-    ".github/workflows/mermaid-lint.yml": {
-      "sha": "da5448b0c44cd55b35a0b81f9f17f5c377ae0ef8",
-      "date": "2026-09-07"
-    },
     ".github/workflows/pr-re-review.yml": {
       "sha": "983a5e26834fb3f3352613087fcb9ebeeedf560c",
       "date": "2026-09-07"
@@ -81,10 +73,6 @@
       "sha": "8527c1d114aa36d9ab1159f6a96a5f0234caf6bb",
       "date": "2026-09-06"
     },
-    "ARCHITECTURE.md": {
-      "sha": "15d553992a1d137419046403b7087f127ef053d2",
-      "date": "2026-09-09"
-    },
     "PUSH-AUDIT.md": {
       "sha": "30723ce58effe56f458c0b8b7de94cfca2cfb2c1",
       "date": "2026-09-09"
@@ -92,10 +80,6 @@
     "README.md": {
       "sha": "5ac5a6754b08642183a1425f5a50f114ea907848",
       "date": "2026-09-09"
-    },
-    "docs/audits/README.md": {
-      "sha": "860abd8f7da2e443dd6895966521361a8c8a4cfe",
-      "date": "2026-09-10"
     },
     "docs/audits/ci-review-automation.md": {
       "sha": "b0e5dd33cc1c7e7d845ee3b42e63ec31e35b58da",
@@ -281,10 +265,6 @@
       "sha": "0eb0cce0f2d17eff4e3beb319bb9e4e5b8033347",
       "date": "2026-09-01"
     },
-    "docs/consistency-audits.md": {
-      "sha": "40b471534ad62ba1beabe694b0e478bfaa715191",
-      "date": "2026-09-10"
-    },
     "docs/release-automation.md": {
       "sha": "8a37bddb0db038f25e1d735df9807f9eb3367aa4",
       "date": "2026-09-06"
@@ -295,10 +275,6 @@
     },
     "scripts/audit-check.py": {
       "sha": "97673b9e35622a6049cab81725d8554754e715b5",
-      "date": "2026-09-04"
-    },
-    "scripts/audit-manage-issues.py": {
-      "sha": "f2bcc724f39a1a26304c3511ba59c2c9eca50dfe",
       "date": "2026-09-04"
     },
     "scripts/audit-update-docs.py": {
@@ -316,10 +292,6 @@
     "scripts/audit/checks/__init__.py": {
       "sha": "d54faddeed246c3b084571825d542bf04c1bb930",
       "date": "2026-09-02"
-    },
-    "scripts/audit/checks/ci_workflows.py": {
-      "sha": "d852e7d1d95971f3cdc8dd82159ff54baaf9af1b",
-      "date": "2026-09-07"
     },
     "scripts/audit/checks/docs_content.py": {
       "sha": "b840b72da01fdf95bd938993104368dfa42f1111",
@@ -341,14 +313,6 @@
       "sha": "d4306f77753ad6a1bd653905e7ce7c76d05fbfd8",
       "date": "2026-09-03"
     },
-    "scripts/audit/checks/runners.py": {
-      "sha": "b269f646d19d3299031624f66c7f51313f68b3e4",
-      "date": "2026-09-03"
-    },
-    "scripts/audit/files.py": {
-      "sha": "10ea3718860849556fb4af30cad0eaf6b5c2076e",
-      "date": "2026-09-02"
-    },
     "scripts/audit/github.py": {
       "sha": "5fdb28856b27d63920448d38d2d77ae30c7aa061",
       "date": "2026-09-06"
@@ -356,10 +320,6 @@
     "scripts/audit/markers.py": {
       "sha": "ef1d4a20156613830ec787fde806cbf955e9501e",
       "date": "2026-09-02"
-    },
-    "scripts/audit/registry.py": {
-      "sha": "50a0e33b09e71f317d09268ba9d5a7ae4d1a27b6",
-      "date": "2026-09-07"
     },
     "scripts/audit/repo.py": {
       "sha": "a22ef8577e81e44bd0dc367b95e8410bc54c7c7e",
@@ -384,10 +344,6 @@
     "scripts/audit/text/shared_blocks.py": {
       "sha": "100a6bcd559df58c9dc57a27814d3bb846f59aef",
       "date": "2026-09-02"
-    },
-    "scripts/audit/text/workflows.py": {
-      "sha": "aa8683ed49166a374251ef2305f932d0569c27ff",
-      "date": "2026-09-07"
     },
     "scripts/audit_common.py": {
       "sha": "768efab3788f1b537c588263f560fd9caae22765",
@@ -465,10 +421,6 @@
       "sha": "004fef9dd4e92af2cd9d20ac8cff8608a4c7cb38",
       "date": "2026-09-04"
     },
-    "scripts/tests/test_metadata.py": {
-      "sha": "2be2142fbca1d73b147784118c532228d12730f4",
-      "date": "2026-09-07"
-    },
     "scripts/tests/test_packaging.py": {
       "sha": "d708e33060fd73d60591ab293d37ded1615af373",
       "date": "2026-09-06"
@@ -545,16 +497,8 @@
       "sha": "6d0ce3ba5bf1008a1139a1a1be27959413f8ad0a",
       "date": "2026-09-09"
     },
-    "templates/mermaid-lint/README.md": {
-      "sha": "715aeaded4995bcd14d67bac4df4d61e1c93fbad",
-      "date": "2026-09-07"
-    },
     "templates/mermaid-lint/mermaid-lint.sh": {
       "sha": "67eb5c5100835cf244b9d8e905bfc7d31896399e",
-      "date": "2026-09-07"
-    },
-    "templates/mermaid-lint/mermaid-lint.yml": {
-      "sha": "da5448b0c44cd55b35a0b81f9f17f5c377ae0ef8",
       "date": "2026-09-07"
     },
     "templates/pin-indirect-dependencies/README.md": {
@@ -565,20 +509,12 @@
       "sha": "241b462c281d6e33fa1d4023d15762a95d69112a",
       "date": "2026-08-30"
     },
-    "templates/pin-indirect-dependencies/pin-indirect-dependencies.yml": {
-      "sha": "5cc3a3b767fb64b5343103c0ba7f00cee0713cf0",
-      "date": "2026-08-30"
-    },
     "templates/release-automation/README.md": {
       "sha": "1b567888baa5b772742c73256d159780dca8eaca",
       "date": "2026-08-30"
     },
     "templates/release-automation/RELEASE-SETUP.md": {
       "sha": "33f4b4e69c07a1ff84daade84341b3a6591ff501",
-      "date": "2026-09-06"
-    },
-    "templates/release-automation/release.yml": {
-      "sha": "f592fcdcdd4d9873cd390c6432d3c42f5f81bc22",
       "date": "2026-09-06"
     },
     "templates/renovate/README.md": {

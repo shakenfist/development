@@ -189,15 +189,7 @@
       "author": "mikal"
     },
     {
-      "path": "templates/pin-indirect-dependencies/pin-indirect-dependencies.yml",
-      "author": "mikal"
-    },
-    {
       "path": "templates/pin-indirect-dependencies/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/pin-indirect-dependencies",
       "author": "mikal"
     },
     {
@@ -285,10 +277,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/actionlint.yaml",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/llm-context-lint-ci.md",
       "author": "mikal"
     },
@@ -321,10 +309,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/files.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/markers.py",
       "author": "mikal"
     },
@@ -354,10 +338,6 @@
     },
     {
       "path": "scripts/audit/checks/review.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/runners.py",
       "author": "mikal"
     },
     {
@@ -394,10 +374,6 @@
     },
     {
       "path": "scripts/audit-check.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit-manage-issues.py",
       "author": "mikal"
     },
     {
@@ -442,14 +418,6 @@
     },
     {
       "path": "templates/codeql",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/release-automation/release.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/release-automation",
       "author": "mikal"
     },
     {
@@ -585,22 +553,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/mermaid-lint/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/registry.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/ci_workflows.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_metadata.py",
-      "author": "mikal"
-    },
-    {
       "path": "tools/mermaid-lint.sh",
       "author": "mikal"
     },
@@ -609,19 +561,7 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/mermaid-lint.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/mermaid-lint/mermaid-lint.yml",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_ci_workflows.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/text/workflows.py",
       "author": "mikal"
     },
     {
@@ -638,10 +578,6 @@
     },
     {
       "path": "templates/mermaid-lint/mermaid-lint.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/mermaid-lint",
       "author": "mikal"
     },
     {
@@ -693,10 +629,6 @@
       "author": "mikal"
     },
     {
-      "path": "ARCHITECTURE.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/ci-review-automation/README.md",
       "author": "mikal"
     },
@@ -733,19 +665,11 @@
       "author": "mikal"
     },
     {
-      "path": "docs/consistency-audits.md",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_registry.py",
       "author": "mikal"
     },
     {
       "path": "scripts/audit/repo.py",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/README.md",
       "author": "mikal"
     },
     {
