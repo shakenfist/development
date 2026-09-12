@@ -1518,6 +1518,336 @@ class FuzzNightlyReportingTest(CheckTestCase):
                 escape)
             self.assertEqual([], requested, escape)
 
+    def test_a_reporter_that_splits_into_two_scripts_passes(self):
+        """The walker and the filer are allowed to be separate files.
+
+        This is ryll's shape: the workflow names a script that walks
+        the crash markers, and that script hands each one to a second
+        script that decides what the issue says. Stopping at the first
+        script failed a repository for splitting a reporter that the
+        criterion asked to be testable in the first place.
+        """
+        self._targets()
+        self.fixture.write(
+            'tools/ci/report-fuzz-crash.sh',
+            '#!/bin/bash\nfor c in "$@"; do\n'
+            '  tools/ci/file-fuzz-issue.sh "$c"\ndone\n')
+        self.fixture.write('tools/ci/file-fuzz-issue.sh',
+                           '#!/bin/bash\ngh issue create --title x\n')
+        self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_a_sibling_named_through_a_variable_is_followed(self):
+        """`${SCRIPT_DIR}/helper.sh` is how a script finds its helper.
+
+        The literal text a pattern can see there begins at the `/`,
+        which reads as an absolute path and would be refused. ryll's
+        report-fuzz-run.sh defaults its reporter exactly that way.
+        """
+        self._targets()
+        self.fixture.write(
+            'tools/ci/report-fuzz-crash.sh',
+            '#!/bin/bash\nSCRIPT_DIR="$(dirname "$0")"\n'
+            'REPORTER="${REPORTER:-${SCRIPT_DIR}/file-fuzz-issue.sh}"\n'
+            '"${REPORTER}" "$1"\n')
+        self.fixture.write('tools/ci/file-fuzz-issue.sh',
+                           '#!/bin/bash\ngh issue create --title x\n')
+        self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_a_chain_of_scripts_that_never_files_fails(self):
+        """Following further must not turn silence into a pass."""
+        self._targets()
+        self.fixture.write(
+            'tools/ci/report-fuzz-crash.sh',
+            '#!/bin/bash\ntools/ci/file-fuzz-issue.sh "$1"\n')
+        self.fixture.write('tools/ci/file-fuzz-issue.sh',
+                           '#!/bin/bash\necho "would have filed"\n')
+        self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
+        self.assert_fail(self.check(has_workflows_dir=True),
+                         containing='cannot file an issue')
+
+    def test_scripts_that_name_each_other_terminate(self):
+        """A cycle is a repository's own file naming its own caller."""
+        self._targets()
+        self.fixture.write(
+            'tools/ci/report-fuzz-crash.sh',
+            '#!/bin/bash\ntools/ci/file-fuzz-issue.sh "$1"\n')
+        self.fixture.write(
+            'tools/ci/file-fuzz-issue.sh',
+            '#!/bin/bash\ntools/ci/report-fuzz-crash.sh "$1"\n')
+        self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
+        self.assert_fail(self.check(has_workflows_dir=True),
+                         containing='cannot file an issue')
+
+    def test_a_reporter_deeper_than_the_depth_limit_fails(self):
+        """The bound is real, so a repository cannot be walked forever."""
+        self._targets()
+        self.fixture.write('tools/ci/report-fuzz-crash.sh',
+                           '#!/bin/bash\ntools/ci/a.sh\n')
+        self.fixture.write('tools/ci/a.sh', '#!/bin/bash\ntools/ci/b.sh\n')
+        self.fixture.write('tools/ci/b.sh', '#!/bin/bash\ntools/ci/c.sh\n')
+        self.fixture.write('tools/ci/c.sh',
+                           '#!/bin/bash\ngh issue create --title x\n')
+        self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
+        self.assert_fail(self.check(has_workflows_dir=True),
+                         containing='cannot file an issue')
+
+    def test_a_reporter_taking_gh_from_a_variable_passes(self):
+        """`GH="${GH:-gh}"` is a test seam, not an evasion.
+
+        ryll spells the call that way so that
+        tools/test-report-fuzz-failure.sh can stub `gh` and assert on
+        what the reporter would have filed. Requiring the literal
+        command name fails a repository for making its reporter
+        testable, which is what this criterion asked of it.
+        """
+        self._targets()
+        self.fixture.write(
+            'tools/ci/report-fuzz-crash.sh',
+            '#!/bin/bash\nGH="${GH:-gh}"\n'
+            '"${GH}" issue create --title x --body-file b\n')
+        self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_prose_about_creating_an_issue_is_not_a_call(self):
+        """Only a variable expansion stands in for the command."""
+        self._targets()
+        self.fixture.write(
+            'tools/ci/report-fuzz-crash.sh',
+            '#!/bin/bash\necho "somebody should issue create for this"\n')
+        self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
+        self.assert_fail(self.check(has_workflows_dir=True),
+                         containing='cannot file an issue')
+
+    def test_a_variable_at_the_end_of_a_line_is_not_a_call(self):
+        """A command and its sub-commands sit on a single line.
+
+        Whitespace that spans the newline between them would take a
+        usage heredoc ending a line in an expansion, and beginning the
+        next with the words, for a call -- and so would a `${x:-y}`
+        default allowed to run past the line it is written on.
+        Asserted against the pattern because each of these shapes
+        would otherwise cost a whole check to drive from a fixture,
+        and it is the set of them that pins the property.
+        """
+        for prose in ('echo "$MSG"\nissue create is the plan\n',
+                      'echo $FOO\n  issue create would be nice\n',
+                      'TMP=$DIR:-fallback\necho "issue create something"\n',
+                      'cat <<EOF\nusage: $PROG\nissue create <title>\nEOF\n'):
+            self.assertIsNone(
+                ci_workflows.FILES_AN_ISSUE_RE.search(prose), prose)
+        # The seam the alternative exists for still reads as a call.
+        self.assertIsNotNone(ci_workflows.FILES_AN_ISSUE_RE.search(
+            'GH="${GH:-gh}"\n"${GH}" issue create --title x\n'))
+
+    def test_the_variable_standing_in_for_the_command_is_an_expansion(self):
+        """What that alternative holds, and what it does not.
+
+        It holds that the position is a balanced expansion: `${GH` and
+        `$GH}` are not shell and are not calls. It does not hold that
+        the expansion is the command -- any expansion sharing the line
+        with the words matches, so a usage message naming its own
+        program through a variable reads as a call. That is the
+        permissive direction the rest of this module takes, and the
+        spec page says so; it is asserted here so that a later tighten
+        of the pattern is a deliberate change rather than a surprise.
+        """
+        for unbalanced in ('${GH issue create --title x\n',
+                           '$GH} issue create --title x\n'):
+            with self.subTest(unbalanced=unbalanced):
+                self.assertIsNone(
+                    ci_workflows.FILES_AN_ISSUE_RE.search(unbalanced))
+        for accepted in ('echo "usage: $PROG issue create <title>"\n',
+                         'echo "we should $TOOL issue create later"\n'):
+            with self.subTest(accepted=accepted):
+                self.assertIsNotNone(
+                    ci_workflows.FILES_AN_ISSUE_RE.search(accepted))
+
+    def test_a_caller_reaches_a_reporter_two_scripts_deep(self):
+        """The caller side is walked as far as the callee side.
+
+        lane_can_report runs the walk twice, once per side, with a
+        visited set each. Every other multi-level test drives the side
+        the schedule is on, so a walk that went deep on one side only
+        would pass all of them.
+        """
+        self._targets()
+        self.fixture.write(
+            'tools/ci/report-fuzz-crash.sh',
+            '#!/bin/bash\ntools/ci/file-fuzz-issue.sh "$1"\n')
+        self.fixture.write('tools/ci/file-fuzz-issue.sh',
+                           '#!/bin/bash\ngh issue create --title x\n')
+        self.fixture.workflow(
+            'fuzz-nightly.yml',
+            "on:\n  schedule:\n    - cron: '0 4 * * *'\n"
+            'permissions:\n  issues: write\njobs:\n'
+            '  call:\n    uses: ./.github/workflows/fuzz-run.yml\n'
+            '  report:\n    needs: [call]\n    steps:\n'
+            '      - run: tools/ci/report-fuzz-crash.sh "$TARGET"\n')
+        self.fixture.workflow(
+            'fuzz-run.yml',
+            GOOD_NIGHTLY.replace(
+                "  schedule:\n    - cron: '0 4 * * *'", '  workflow_call:')
+            .replace('  issues: write\n', '')
+            .replace('      - run: tools/ci/report-fuzz-crash.sh '
+                     '"$TARGET" "$CRASH" "$LOG"\n',
+                     '      - uses: actions/upload-artifact@v4\n'))
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_a_reporter_named_under_a_workspace_variable_is_followed(self):
+        """`${{ github.workspace }}/tools/ci/x.sh` names a path.
+
+        The directories between the variable and the file are part of
+        the reference. Keeping only the basename looks for the
+        reporter at the repository root, where it is not, and fails a
+        repository for a spelling `run:` blocks use routinely.
+        """
+        self._targets()
+        for rooted in ('${{ github.workspace }}/tools/ci/report-fuzz-crash.sh',
+                       '$GITHUB_WORKSPACE/tools/ci/report-fuzz-crash.sh'):
+            with self.subTest(rooted=rooted):
+                self._reporter()
+                self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY.replace(
+                    'tools/ci/report-fuzz-crash.sh', rooted))
+                self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_a_reporter_at_the_depth_limit_passes(self):
+        """Three scripts from the workflow is inside the bound.
+
+        The limit is only pinned from one side by the test above it: a
+        walk that stopped one short would still fail that one, and
+        nothing here would notice.
+        """
+        self._targets()
+        self.fixture.write('tools/ci/report-fuzz-crash.sh',
+                           '#!/bin/bash\ntools/ci/a.sh\n')
+        self.fixture.write('tools/ci/a.sh', '#!/bin/bash\ntools/ci/b.sh\n')
+        self.fixture.write('tools/ci/b.sh',
+                           '#!/bin/bash\ngh issue create --title x\n')
+        self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_a_python_reporter_is_followed_past_the_first_script(self):
+        """.py is one of the two extensions, at every depth.
+
+        The shell leg carries the multi-level tests, so a walk that
+        only followed .sh past the first script would pass all of
+        them.
+        """
+        self._targets()
+        self.fixture.write(
+            'tools/ci/report-fuzz-crash.sh',
+            '#!/bin/bash\npython3 tools/ci/file_fuzz_issue.py "$1"\n')
+        self.fixture.write(
+            'tools/ci/file_fuzz_issue.py',
+            'import subprocess\n'
+            "subprocess.run(['gh', 'issue', 'create', '--title', 'x'])\n")
+        self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_a_reference_from_a_nested_script_cannot_leave_the_checkout(self):
+        """The guard holds for the directory-relative resolution too.
+
+        The escape test above drives the workflow, whose references
+        are resolved against the repository root. Resolving against a
+        referring script's own directory is a second way into the same
+        guard, and joining a base onto the reference is exactly the
+        step that would defeat it.
+
+        Each case names what it yields rather than asserting inside a
+        loop over it. Three of the four yield nothing, so a loop body
+        would not run at all, and the whole test would be satisfied by
+        a referenced_scripts that yielded nothing for anything -- which
+        is a real failure mode for a guard written this way and not one
+        a test pinning the guard should be blind to. The positive
+        control is here for the same reason.
+        """
+        cases = (
+            # Refused outright: absolute, or climbing from the base.
+            ('/etc/x.sh', []),
+            ('../../../../etc/x.sh', []),
+            # Variable-rooted, but the tail climbs: the sibling reading
+            # is not offered for a tail containing `..`, and the two
+            # path readings both leave the clone.
+            ('"${SCRIPT_DIR}/../../../../etc/x.sh"', []),
+            # The base absorbs the climb, so this one stays inside --
+            # at a path the repository did name.
+            ('tools/../../../etc/x.sh', ['etc/x.sh']),
+            # Positive control: the shape the walk exists to follow.
+            ('${SCRIPT_DIR}/helper.sh', ['tools/ci/helper.sh', 'helper.sh']),
+        )
+        for reference, expected in cases:
+            with self.subTest(reference=reference):
+                self.assertEqual(
+                    expected,
+                    list(ci_workflows.referenced_scripts(
+                        reference, 'tools/ci')))
+
+    def test_a_quoted_expansion_before_the_separator_is_followed(self):
+        """`"${SCRIPT_DIR}"/helper.sh` is the same reference.
+
+        Quoting the expansion and leaving the rest of the path outside
+        it is as common as quoting the whole path, and `"$(dirname
+        "$0")"/helper.sh` computes the same thing inline. Reading the
+        single character before the reference finds the quote rather
+        than the `}` or `)`, and the reference then resolves to
+        nothing at all -- so a repository that split its reporter the
+        way this criterion recommends would fail the check.
+        """
+        for spelling in ('"${SCRIPT_DIR}"/helper.sh "$1"',
+                         "'${SCRIPT_DIR}'/helper.sh",
+                         '"$(dirname "$0")"/helper.sh'):
+            with self.subTest(spelling=spelling):
+                self.assertEqual(
+                    ['tools/ci/helper.sh', 'helper.sh'],
+                    list(ci_workflows.referenced_scripts(
+                        spelling, 'tools/ci')))
+        # A quote does not make an absolute path relative.
+        self.assertEqual(
+            [], list(ci_workflows.referenced_scripts(
+                'echo "/etc/x.sh"', 'tools/ci')))
+
+    def test_a_quoted_expansion_reaches_the_reporter(self):
+        """The same spelling, driven through the check."""
+        self._targets()
+        self.fixture.write(
+            'tools/ci/report-fuzz-crash.sh',
+            '#!/bin/bash\nSCRIPT_DIR="$(dirname "$0")"\n'
+            '"${SCRIPT_DIR}"/file-fuzz-issue.sh "$1"\n')
+        self.fixture.write('tools/ci/file-fuzz-issue.sh',
+                           '#!/bin/bash\ngh issue create --title x\n')
+        self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_a_variable_rooted_tail_that_climbs_names_no_sibling(self):
+        """`${TOOLS}/../shared/x.sh` is not a reference to a sibling.
+
+        The sibling reading exists because a script computing a
+        directory is nearly always computing its own. A tail that
+        climbs back out of that directory says otherwise, and offering
+        the basename anyway fabricates a path the repository never
+        named -- which can hand the walk an unrelated file of the same
+        name and turn it into a pass.
+        """
+        self.assertEqual(
+            ['tools/shared/report.sh'],
+            list(ci_workflows.referenced_scripts(
+                '"${TOOLS}/../shared/report.sh"', 'tools/ci')))
+
+    def test_a_bare_sibling_is_resolved_against_its_own_directory(self):
+        """`helper.sh "$1"` inside tools/ci means tools/ci/helper.sh.
+
+        The reading relative to the repository root is offered too,
+        because a script run from the root may well name a path from
+        there, but the sibling is the one a script writing a bare name
+        means.
+        """
+        self.assertEqual(
+            ['tools/ci/helper.sh', 'helper.sh'],
+            list(ci_workflows.referenced_scripts('helper.sh "$1"',
+                                                 'tools/ci')))
+
     def test_filing_the_issue_with_an_action_passes(self):
         """`gh issue create` is the fleet's spelling, not the criterion."""
         self._targets()

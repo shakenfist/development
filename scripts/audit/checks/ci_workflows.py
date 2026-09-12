@@ -1465,18 +1465,60 @@ ISSUES_WRITE_RE = re.compile(r'^\s*issues:\s*write\s*$', re.MULTILINE)
 # script is the shape this criterion recommends, and .py is one of the
 # two extensions it will follow; recognising only the shell spelling
 # fails a repository that took the advice.
+#
+# A shell variable standing in for the command counts too. A reporter
+# script that takes `gh` from the environment -- `GH="${GH:-gh}"`, then
+# `"${GH}" issue create` -- is doing it so its tests can stub the call,
+# which is the same reason this criterion wants the reporter in a script
+# at all. Requiring the literal `gh` there would fail a repository
+# precisely for making its reporter testable.
+#
+# What that alternative holds is that the expansion and the sub-commands
+# share a line: `[ \t]` rather than `\s`, and the default inside
+# `${...}` stops at a newline as well as at the closing brace, so a
+# variable ending one line and the words `issue create` beginning the
+# next -- a usage heredoc, say -- does not read as a call. It does not
+# hold that the expansion is the command: any expansion will do, so a
+# same-line usage message naming its own program through a variable,
+# `echo "usage: $PROG issue create <title>"`, is read as one. That is
+# the permissive direction the rest of this module takes, and for the
+# same reason ISSUES_WRITE_RE gives.
+#
+# The braces are a single alternation rather than two independent
+# options so that `${GH issue create` and `$GH} issue create`, neither
+# of which is shell, are not matched.
 FILES_AN_ISSUE_RE = re.compile(
     r'gh\W{1,4}issue\W{1,4}create\b'
+    r'|\$(?:\{[A-Za-z_]\w*(?::[-=?+][^}\n]*)?\}|[A-Za-z_]\w*)'
+    r'["\']?[ \t]+issue[ \t]+create\b'
     r'|gh\s+api\b[^\n]*/issues\b'
     r'|issues\.create\b'
     r'|create_issue\b'
     r'|create-issue-from-file@')
 
 
-# Scripts a workflow hands the reporting to. Followed one level: the
-# reporter is supposed to live in a script rather than inline in YAML,
-# so the workflow itself will not contain `gh issue create`.
+# Scripts a workflow hands the reporting to. The reporter is supposed
+# to live in a script rather than inline in YAML, so the workflow
+# itself will not contain `gh issue create`.
 REFERENCED_SCRIPT_RE = re.compile(r'[\w./-]+\.(?:sh|py)\b')
+
+
+# How many scripts deep to follow, counting from the workflow. One was
+# not enough: a reporter large enough to be worth testing tends to
+# split, and the shape it splits into is a walker that decides what
+# gets reported calling a filer that decides what an issue says --
+# ryll's tools/report-fuzz-run.sh and tools/report-fuzz-failure.sh,
+# which is two scripts from the workflow. That is a better structure
+# than one script, not a worse one, and it was failing this check.
+#
+# Bounded rather than unbounded because the paths come out of an
+# audited repository's own files. What bounds the reading is the
+# visited set and Repo.read's cache, which together cost one read per
+# distinct candidate path; the depth bounds how far a chain of
+# scripts can lead the walk, not how many files a single level can
+# touch. Three leaves a level of headroom over the deepest split in
+# the fleet.
+MAX_SCRIPT_DEPTH = 3
 
 
 # A deliberate exception, ideally with a reason beside it.
@@ -1552,44 +1594,144 @@ def fuzz_workflows(repo):
     return found
 
 
+def referenced_scripts(text, base):
+    """The in-repository scripts this text names, as safe paths.
+
+    `base` is the directory the reference is written relative to: the
+    repository root for a workflow, whose `run:` blocks start there,
+    and the referring script's own directory for a script. A sibling
+    named without a path is the common shape and is how a script
+    reaches its helper -- ryll's report-fuzz-run.sh defaults its
+    reporter to `${SCRIPT_DIR}/report-fuzz-failure.sh`, whose only
+    literal text is the bare file name -- so both readings are
+    offered, the one relative to `base` first. A path rooted in a
+    variable keeps whatever directories follow the variable as well,
+    since `${{ github.workspace }}/tools/ci/x.sh` names a path and not
+    a sibling.
+
+    Yields repo-relative paths only. The names come out of an audited
+    repository's own files and are joined onto its checkout root, so a
+    leading `/` or a `..` segment would walk the audit out of the clone
+    it is reading and is dropped here rather than at each caller.
+    """
+    for match in REFERENCED_SCRIPT_RE.finditer(text):
+        named = match.group(0)
+        # Quotes come off before the preceding character is read. The
+        # expansion is as often quoted with the rest of the path left
+        # outside it -- `"${SCRIPT_DIR}"/helper.sh`, or the `"$(dirname
+        # "$0")"/helper.sh` that computes the same thing inline -- as it
+        # is written bare, and the spellings mean the same thing.
+        #
+        # None rather than '' when there is nothing before them: the
+        # empty string is a member of every string, so `'' in '}$)'`
+        # would take a reference with nothing before it for one rooted
+        # in a variable.
+        start = match.start()
+        while start and text[start - 1] in '"\'':
+            start -= 1
+        preceding = text[start - 1] if start else None
+        # `${SCRIPT_DIR}/report-fuzz-failure.sh`, `$DIR/x.sh`, or
+        # `${{ github.workspace }}/tools/ci/x.sh`. The head of the path
+        # is computed, so the literal text the pattern can see is its
+        # tail -- after a `}` or a `)` that tail begins with a `/`,
+        # which the guard below would otherwise read as an absolute
+        # path and refuse, and after a bare `$` the variable's own name
+        # is inside the match instead and has to come off. The
+        # preceding character is what separates all of this from a
+        # genuine `/etc/x.sh`, which must still be refused.
+        #
+        # The basename against the referring file's own directory is
+        # offered because a script computing a directory to find a
+        # helper in is nearly always computing its own -- but not when
+        # the tail climbs out of that directory, since
+        # `${TOOLS}/../shared/report.sh` names a file somewhere else,
+        # and a sibling of that name is one the reference never made.
+        # The rest of the tail is offered too, so that a workflow naming
+        # its reporter under a workspace variable finds tools/ci/x.sh
+        # rather than looking for x.sh at the repository root. Order
+        # decides only which read happens first; the caller searches
+        # every candidate it can read.
+        if preceding and preceding in '}$)':
+            tail = (named.partition('/')[2] if preceding == '$'
+                    else named.lstrip('/'))
+            candidates = []
+            if os.pardir not in tail.split('/'):
+                candidates.append(
+                    os.path.join(base, os.path.basename(named)))
+            if tail:
+                candidates.append(os.path.join(base, tail) if base else tail)
+                candidates.append(tail)
+        else:
+            candidates = [named]
+            if base:
+                candidates.insert(0, os.path.join(base, named))
+        for candidate in dict.fromkeys(candidates):
+            # normpath rather than lstrip('./'): lstrip takes a
+            # character set, so it turns `../../x.sh` into `x.sh` and
+            # the guard below never sees the escape it was written
+            # for. normpath('./x.sh') is already 'x.sh'.
+            path = os.path.normpath(candidate)
+            if os.path.isabs(path) or path.split(os.sep)[0] == os.pardir:
+                continue
+            yield path
+
+
 def reaches_issue_filing(repo, content):
     """Can this workflow tell a human, without a red check to do it?
 
     True when the workflow files an issue, or hands off to a script in
-    the repository that does. The indirection is the documented shape
-    rather than an accident -- the reporting logic belongs in something
-    testable -- so a check that only read the YAML would fail exactly
-    the repositories that got it right.
+    the repository that does -- directly, or through another script it
+    hands off to in turn, up to MAX_SCRIPT_DEPTH. The indirection is
+    the documented shape rather than an accident -- the reporting logic
+    belongs in something testable -- so a check that only read the YAML
+    would fail exactly the repositories that got it right, and one that
+    stopped at the first script would fail the ones that got it right
+    twice.
 
-    Comments are stripped from both the workflow and the script, for
-    the reason strip_yaml_comments exists at all: `# TODO: gh issue
-    create` describes reporting rather than doing it. Trailing
-    comments go too -- the TODO is at least as likely to sit on the
-    end of the line it is about, and this is the requirement that is
-    easiest to skip.
+    Comments are stripped from every file read, for the reason
+    strip_yaml_comments exists at all: `# TODO: gh issue create`
+    describes reporting rather than doing it. Trailing comments go too
+    -- the TODO is at least as likely to sit on the end of the line it
+    is about, and this is the requirement that is easiest to skip.
+    Shell and Python spell a comment the way YAML does, so the same
+    stripper serves for the scripts.
+
+    The walk is breadth-first so that the common case, a reporter the
+    workflow names directly, is still answered by one read. The
+    visited set and Repo.read's cache hold the cost to one read per
+    distinct candidate path.
     """
-    workflow = strip_yaml_comments(content, trailing=True)
-    if FILES_AN_ISSUE_RE.search(workflow):
-        return True
+    def files(frontier):
+        return any(FILES_AN_ISSUE_RE.search(text) for _, text in frontier)
 
-    for match in REFERENCED_SCRIPT_RE.finditer(workflow):
-        # normpath rather than lstrip('./'): lstrip takes a character
-        # set, so it turns `../../x.sh` into `x.sh` and the guard below
-        # never sees the escape it was written for. normpath('./x.sh')
-        # is already 'x.sh'.
-        path = os.path.normpath(match.group(0))
-        # The path comes out of an audited repository's own YAML and is
-        # joined onto its checkout root, so a leading `/` or a `..`
-        # segment would walk the audit out of the clone it is reading.
-        if os.path.isabs(path) or path.split(os.sep)[0] == os.pardir:
-            continue
-        script = repo.read(path)
-        # Shell and Python spell a comment the way YAML does, at the
-        # end of a line as well as on one of its own.
-        if script and FILES_AN_ISSUE_RE.search(
-                strip_yaml_comments(script, trailing=True)):
+    # (directory the file's references are relative to, its text).
+    frontier = [('', strip_yaml_comments(content, trailing=True))]
+    seen = set()
+
+    # MAX_SCRIPT_DEPTH generations are followed, starting from the
+    # workflow, and the last of them is searched after the loop rather
+    # than followed in turn -- so the deepest script the walk reads is
+    # read for what it says, not for what it names.
+    for _ in range(MAX_SCRIPT_DEPTH):
+        if files(frontier):
             return True
-    return False
+
+        following = []
+        for base, text in frontier:
+            for path in referenced_scripts(text, base):
+                if path in seen:
+                    continue
+                seen.add(path)
+                script = repo.read(path)
+                if script:
+                    following.append(
+                        (os.path.dirname(path),
+                         strip_yaml_comments(script, trailing=True)))
+        if not following:
+            return False
+        frontier = following
+
+    return files(frontier)
 
 
 def lane_can_report(repo, content, caller):
