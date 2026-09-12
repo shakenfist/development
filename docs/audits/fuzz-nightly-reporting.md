@@ -72,7 +72,21 @@ What that last one is measured by is a call to `gh issue create`, a
 `actions/github-script` or Octokit, or the
 `peter-evans/create-issue-from-file` action — in the workflow, or in a
 `.sh` or `.py` script under the repository that the workflow names,
-which is followed one level. Where the nightly is split across a
+and those are followed up to three deep. One level was not enough: a
+reporter big enough to be worth testing splits, and the shape it
+splits into is a walker that decides what gets reported calling a
+filer that decides what an issue says — which is the structure this
+criterion recommends, one step further along, and it was failing for
+it. The walk keeps a visited set and stops at three so that a
+repository's own files naming each other cannot cost a read apiece.
+A script may name its helper the way a script does — a bare sibling,
+or `${SCRIPT_DIR}/helper.sh` — so a reference is resolved against the
+referring file's own directory before the repository root, and one
+whose head is a variable is read as a sibling rather than as the
+absolute path its leading `/` would otherwise make it. A genuine
+`/etc/x.sh` is still refused, and nothing outside the clone is ever
+read.
+Where the nightly is split across a
 caller and a `workflow_call` callee, either side may hold the
 permission and either may make the call — the callee fuzzing and
 uploading while the caller inspects and files is as good a split as
@@ -83,7 +97,11 @@ the reverse.
 call — and a Python client's own `create_issue` counts, because a
 reporter in a script is the shape this criterion recommends and
 recognising only the shell spelling would fail a repository that took
-the advice.
+the advice. For the same reason the command may be held in a shell
+variable: `GH="${GH:-gh}"` and then `"${GH}" issue create` is a test
+seam, there so the reporter's own tests can stub the call and assert
+on what it would have filed. Only a variable expansion is accepted in
+that position, so prose about creating issues still does not count.
 
 Comments do not count on either side, and that includes a comment at
 the end of a line of code: `- run: echo done  # TODO: gh issue

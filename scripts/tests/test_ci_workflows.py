@@ -1518,6 +1518,108 @@ class FuzzNightlyReportingTest(CheckTestCase):
                 escape)
             self.assertEqual([], requested, escape)
 
+    def test_a_reporter_that_splits_into_two_scripts_passes(self):
+        """The walker and the filer are allowed to be separate files.
+
+        This is ryll's shape: the workflow names a script that walks
+        the crash markers, and that script hands each one to a second
+        script that decides what the issue says. Stopping at the first
+        script failed a repository for splitting a reporter that the
+        criterion asked to be testable in the first place.
+        """
+        self._targets()
+        self.fixture.write(
+            'tools/ci/report-fuzz-crash.sh',
+            '#!/bin/bash\nfor c in "$@"; do\n'
+            '  tools/ci/file-fuzz-issue.sh "$c"\ndone\n')
+        self.fixture.write('tools/ci/file-fuzz-issue.sh',
+                           '#!/bin/bash\ngh issue create --title x\n')
+        self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_a_sibling_named_through_a_variable_is_followed(self):
+        """`${SCRIPT_DIR}/helper.sh` is how a script finds its helper.
+
+        The literal text a pattern can see there begins at the `/`,
+        which reads as an absolute path and would be refused. ryll's
+        report-fuzz-run.sh defaults its reporter exactly that way.
+        """
+        self._targets()
+        self.fixture.write(
+            'tools/ci/report-fuzz-crash.sh',
+            '#!/bin/bash\nSCRIPT_DIR="$(dirname "$0")"\n'
+            'REPORTER="${REPORTER:-${SCRIPT_DIR}/file-fuzz-issue.sh}"\n'
+            '"${REPORTER}" "$1"\n')
+        self.fixture.write('tools/ci/file-fuzz-issue.sh',
+                           '#!/bin/bash\ngh issue create --title x\n')
+        self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_a_chain_of_scripts_that_never_files_fails(self):
+        """Following further must not turn silence into a pass."""
+        self._targets()
+        self.fixture.write(
+            'tools/ci/report-fuzz-crash.sh',
+            '#!/bin/bash\ntools/ci/file-fuzz-issue.sh "$1"\n')
+        self.fixture.write('tools/ci/file-fuzz-issue.sh',
+                           '#!/bin/bash\necho "would have filed"\n')
+        self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
+        self.assert_fail(self.check(has_workflows_dir=True),
+                         containing='cannot file an issue')
+
+    def test_scripts_that_name_each_other_terminate(self):
+        """A cycle is a repository's own file naming its own caller."""
+        self._targets()
+        self.fixture.write(
+            'tools/ci/report-fuzz-crash.sh',
+            '#!/bin/bash\ntools/ci/file-fuzz-issue.sh "$1"\n')
+        self.fixture.write(
+            'tools/ci/file-fuzz-issue.sh',
+            '#!/bin/bash\ntools/ci/report-fuzz-crash.sh "$1"\n')
+        self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
+        self.assert_fail(self.check(has_workflows_dir=True),
+                         containing='cannot file an issue')
+
+    def test_a_reporter_deeper_than_the_depth_limit_fails(self):
+        """The bound is real, so a repository cannot be walked forever."""
+        self._targets()
+        self.fixture.write('tools/ci/report-fuzz-crash.sh',
+                           '#!/bin/bash\ntools/ci/a.sh\n')
+        self.fixture.write('tools/ci/a.sh', '#!/bin/bash\ntools/ci/b.sh\n')
+        self.fixture.write('tools/ci/b.sh', '#!/bin/bash\ntools/ci/c.sh\n')
+        self.fixture.write('tools/ci/c.sh',
+                           '#!/bin/bash\ngh issue create --title x\n')
+        self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
+        self.assert_fail(self.check(has_workflows_dir=True),
+                         containing='cannot file an issue')
+
+    def test_a_reporter_taking_gh_from_a_variable_passes(self):
+        """`GH="${GH:-gh}"` is a test seam, not an evasion.
+
+        ryll spells the call that way so that
+        tools/test-report-fuzz-failure.sh can stub `gh` and assert on
+        what the reporter would have filed. Requiring the literal
+        command name fails a repository for making its reporter
+        testable, which is what this criterion asked of it.
+        """
+        self._targets()
+        self.fixture.write(
+            'tools/ci/report-fuzz-crash.sh',
+            '#!/bin/bash\nGH="${GH:-gh}"\n'
+            '"${GH}" issue create --title x --body-file b\n')
+        self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
+        self.assert_pass(self.check(has_workflows_dir=True))
+
+    def test_prose_about_creating_an_issue_is_not_a_call(self):
+        """Only a variable expansion stands in for the command."""
+        self._targets()
+        self.fixture.write(
+            'tools/ci/report-fuzz-crash.sh',
+            '#!/bin/bash\necho "somebody should issue create for this"\n')
+        self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
+        self.assert_fail(self.check(has_workflows_dir=True),
+                         containing='cannot file an issue')
+
     def test_filing_the_issue_with_an_action_passes(self):
         """`gh issue create` is the fleet's spelling, not the criterion."""
         self._targets()

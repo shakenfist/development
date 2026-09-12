@@ -1465,18 +1465,44 @@ ISSUES_WRITE_RE = re.compile(r'^\s*issues:\s*write\s*$', re.MULTILINE)
 # script is the shape this criterion recommends, and .py is one of the
 # two extensions it will follow; recognising only the shell spelling
 # fails a repository that took the advice.
+#
+# A shell variable standing in for the command counts too. A reporter
+# script that takes `gh` from the environment -- `GH="${GH:-gh}"`, then
+# `"${GH}" issue create` -- is doing it so its tests can stub the call,
+# which is the same reason this criterion wants the reporter in a script
+# at all. Requiring the literal `gh` there would fail a repository
+# precisely for making its reporter testable. Only a variable expansion
+# is accepted in that position, so prose about issue creation still does
+# not match.
 FILES_AN_ISSUE_RE = re.compile(
     r'gh\W{1,4}issue\W{1,4}create\b'
+    r'|\$\{?[A-Za-z_]\w*(?::[-=?+][^}]*)?\}?["\']?\s+issue\s+create\b'
     r'|gh\s+api\b[^\n]*/issues\b'
     r'|issues\.create\b'
     r'|create_issue\b'
     r'|create-issue-from-file@')
 
 
-# Scripts a workflow hands the reporting to. Followed one level: the
-# reporter is supposed to live in a script rather than inline in YAML,
-# so the workflow itself will not contain `gh issue create`.
+# Scripts a workflow hands the reporting to. The reporter is supposed
+# to live in a script rather than inline in YAML, so the workflow
+# itself will not contain `gh issue create`.
 REFERENCED_SCRIPT_RE = re.compile(r'[\w./-]+\.(?:sh|py)\b')
+
+
+# How many scripts deep to follow, counting from the workflow. One was
+# not enough: a reporter large enough to be worth testing tends to
+# split, and the shape it splits into is a walker that decides what
+# gets reported calling a filer that decides what an issue says --
+# ryll's tools/report-fuzz-run.sh and tools/report-fuzz-failure.sh,
+# which is two scripts from the workflow. That is a better structure
+# than one script, not a worse one, and it was failing this check.
+#
+# Bounded rather than unbounded because the paths come out of an
+# audited repository's own files: the visited set stops a cycle, and
+# the depth stops a chain of scripts that name each other from costing
+# a read per file in the repository. Three leaves a level of headroom
+# over the deepest split in the fleet.
+MAX_SCRIPT_DEPTH = 3
 
 
 # A deliberate exception, ideally with a reason beside it.
@@ -1552,44 +1578,100 @@ def fuzz_workflows(repo):
     return found
 
 
+def referenced_scripts(text, base):
+    """The in-repository scripts this text names, as safe paths.
+
+    `base` is the directory the reference is written relative to: the
+    repository root for a workflow, whose `run:` blocks start there,
+    and the referring script's own directory for a script. A sibling
+    named without a path is the common shape and is how a script
+    reaches its helper -- ryll's report-fuzz-run.sh defaults its
+    reporter to `${SCRIPT_DIR}/report-fuzz-failure.sh`, whose only
+    literal text is the bare file name -- so both readings are
+    offered, the one relative to `base` first.
+
+    Yields repo-relative paths only. The names come out of an audited
+    repository's own files and are joined onto its checkout root, so a
+    leading `/` or a `..` segment would walk the audit out of the clone
+    it is reading and is dropped here rather than at each caller.
+    """
+    for match in REFERENCED_SCRIPT_RE.finditer(text):
+        named = match.group(0)
+        # `${SCRIPT_DIR}/report-fuzz-failure.sh`, or `$DIR/x.sh`. The
+        # head of the path is computed, so the literal text the pattern
+        # can see is its tail -- and for `${...}` that tail begins with
+        # a `/`, which the guard below would otherwise read as an
+        # absolute path and refuse. What is usable is the basename,
+        # against the referring file's own directory, because a script
+        # computing a directory to find a helper in is nearly always
+        # computing its own. The preceding character is what separates
+        # this from a genuine `/etc/x.sh`, which must still be refused.
+        if match.start() > 0 and text[match.start() - 1] in '}$)':
+            candidates = [os.path.join(base, os.path.basename(named))]
+        else:
+            candidates = [named]
+            if base:
+                candidates.insert(0, os.path.join(base, named))
+        for candidate in candidates:
+            # normpath rather than lstrip('./'): lstrip takes a
+            # character set, so it turns `../../x.sh` into `x.sh` and
+            # the guard below never sees the escape it was written
+            # for. normpath('./x.sh') is already 'x.sh'.
+            path = os.path.normpath(candidate)
+            if os.path.isabs(path) or path.split(os.sep)[0] == os.pardir:
+                continue
+            yield path
+
+
 def reaches_issue_filing(repo, content):
     """Can this workflow tell a human, without a red check to do it?
 
     True when the workflow files an issue, or hands off to a script in
-    the repository that does. The indirection is the documented shape
-    rather than an accident -- the reporting logic belongs in something
-    testable -- so a check that only read the YAML would fail exactly
-    the repositories that got it right.
+    the repository that does -- directly, or through another script it
+    hands off to in turn, up to MAX_SCRIPT_DEPTH. The indirection is
+    the documented shape rather than an accident -- the reporting logic
+    belongs in something testable -- so a check that only read the YAML
+    would fail exactly the repositories that got it right, and one that
+    stopped at the first script would fail the ones that got it right
+    twice.
 
-    Comments are stripped from both the workflow and the script, for
-    the reason strip_yaml_comments exists at all: `# TODO: gh issue
-    create` describes reporting rather than doing it. Trailing
-    comments go too -- the TODO is at least as likely to sit on the
-    end of the line it is about, and this is the requirement that is
-    easiest to skip.
+    Comments are stripped from every file read, for the reason
+    strip_yaml_comments exists at all: `# TODO: gh issue create`
+    describes reporting rather than doing it. Trailing comments go too
+    -- the TODO is at least as likely to sit on the end of the line it
+    is about, and this is the requirement that is easiest to skip.
+    Shell and Python spell a comment the way YAML does, so the same
+    stripper serves for the scripts.
+
+    The walk is breadth-first so that the common case, a reporter the
+    workflow names directly, is still answered by one read.
     """
-    workflow = strip_yaml_comments(content, trailing=True)
-    if FILES_AN_ISSUE_RE.search(workflow):
-        return True
+    # (directory the file's references are relative to, its text).
+    frontier = [('', strip_yaml_comments(content, trailing=True))]
+    seen = set()
+    depth = 0
 
-    for match in REFERENCED_SCRIPT_RE.finditer(workflow):
-        # normpath rather than lstrip('./'): lstrip takes a character
-        # set, so it turns `../../x.sh` into `x.sh` and the guard below
-        # never sees the escape it was written for. normpath('./x.sh')
-        # is already 'x.sh'.
-        path = os.path.normpath(match.group(0))
-        # The path comes out of an audited repository's own YAML and is
-        # joined onto its checkout root, so a leading `/` or a `..`
-        # segment would walk the audit out of the clone it is reading.
-        if os.path.isabs(path) or path.split(os.sep)[0] == os.pardir:
-            continue
-        script = repo.read(path)
-        # Shell and Python spell a comment the way YAML does, at the
-        # end of a line as well as on one of its own.
-        if script and FILES_AN_ISSUE_RE.search(
-                strip_yaml_comments(script, trailing=True)):
+    while True:
+        if any(FILES_AN_ISSUE_RE.search(text) for _, text in frontier):
             return True
-    return False
+        if depth >= MAX_SCRIPT_DEPTH:
+            return False
+
+        following = []
+        for base, text in frontier:
+            for path in referenced_scripts(text, base):
+                if path in seen:
+                    continue
+                seen.add(path)
+                script = repo.read(path)
+                if script:
+                    following.append(
+                        (os.path.dirname(path),
+                         strip_yaml_comments(script, trailing=True)))
+        if not following:
+            return False
+        frontier = following
+        depth += 1
 
 
 def lane_can_report(repo, content, caller):
