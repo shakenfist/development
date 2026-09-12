@@ -93,10 +93,12 @@ place the fleet actually *produces* an end-of-life image is
 invisible to it:
 
 * **shakenfist/images** decides which releases get built at all.
-  It is on the audit's excluded list as a historical archive,
-  which it demonstrably is not.
+  It sits on the audit's excluded list, whose stated reasons are
+  internal tooling, historical archives and non-projects; none of
+  the three fits a repository built from nightly that the fleet's
+  CI depends on.
 * **private-ci** decides which images become runner labels, in
-  `IMAGE_BUILDS` and `CI_IMAGES`. It is in scope for five plan
+  `IMAGE_BUILDS` and `CI_IMAGES`. It is in scope for four plan
   criteria and `sfui-vendor`, and nothing else.
 * **33fl's static runners** advertise only `self-hosted` and
   `static`, so no workflow anywhere names an operating system. A
@@ -120,6 +122,26 @@ carried in shakenfist/images, and whether the fleet should consume
 these images at all. 33fl is a different organisation with its own
 conventions, so this plan tracks its one issue and does not
 prescribe how it is fixed.
+
+## Open questions
+
+### Q1. One criterion that reads producers, or a second criterion?
+
+Phase 6 has to measure the producer definitions that `eol-distro`
+cannot see. Either `eol-distro` grows the ability to read
+`IMAGE_BUILDS`, `CI_IMAGES` and a build list, or a second
+criterion does it.
+
+**Default if nobody answers: a separate criterion.** The two
+report different defects -- one says "this repository names a
+banned label", the other says "this repository *offers* one" --
+and they are fixed by different people. More decisively, an issue
+title is the fleet-wide idempotency key for filing and closing,
+and `scripts/tests/test_metadata.py` freezes those titles
+precisely because changing one orphans every issue already open
+under the old title. Widening `eol-distro`'s meaning changes what
+its existing title claims; a new criterion carries a new title and
+orphans nothing.
 
 ## Decisions
 
@@ -173,6 +195,22 @@ phase 4 (the freshness watchdog) are load-bearing here, so they are
 named in the phase table below, but the detail stays there rather
 than being copied.
 
+### D6. 33fl gets no detection here
+
+The Mission says 33fl is a different organisation with its own
+conventions, and that applies to detection as much as to fixes.
+Its static runners are named as the third producer in the
+structural finding because the exposure is real and worth
+recording, but phase 1 builds two detections, not three. 33fl#826
+tracks its own rollover, and the note in
+`group_vars/all/static_runners.yml` is where the exposure is
+recorded for the next reader.
+
+What belongs here instead is the general lesson: a static runner
+fleet advertises no operating system, so it is structurally
+invisible to a label-based audit. Any future fleet of that shape
+needs the same treatment, and phase 6 says so.
+
 ## Execution
 
 | Phase | Status | Merged |
@@ -189,8 +227,11 @@ than being copied.
 
 Closes: part of private-ci#44. Depends on: nothing.
 
-Three producers, three independent detections. None of them may
-depend on the thing it watches.
+Two detections, for the two producers this organisation
+controls. Neither may depend on the thing it watches -- a
+component that has stopped running also stops reporting that it
+has stopped running, which is how failure 4 stayed invisible for a
+day. 33fl's static runners get no detection here, per D6.
 
 * **shakenfist/images**: phase 4 of that repository's plan. A
   scheduled `HEAD` against
@@ -199,16 +240,21 @@ depend on the thing it watches.
   no connection to the build host. This measures what a consumer
   receives, so it also catches a broken publish step or stale
   nginx.
-* **private-ci**: `_update_status(image_ages=...)` already tracks
-  blob age per label, so the data is in hand and the work is
-  reporting it. File an issue, or surface it on the dashboard,
-  when any label in `IMAGE_BUILDS` has no successful build within
-  N days.
-* **shakenfist/images** again: phase 1 of its plan, so one failing
-  image stops one image. This is prevention rather than detection,
-  but it belongs here because it is what makes the detection
-  actionable -- an alarm that always fires for the whole list
-  teaches people to ignore it.
+* **private-ci**: the conductor already tracks blob age per label
+  in `_update_status(image_ages=...)`, so the data exists. It must
+  not be the conductor that reports on it, though: the conductor is
+  the component whose restart silently skipped a nightly rebuild,
+  and a conductor that is not running cannot tell anyone it is not
+  running. The detection is therefore a scheduled job elsewhere
+  that reads the published dashboard or the conductor's API and
+  files an issue when any label's age exceeds N days, or when the
+  cycle summary is absent or stale.
+
+Phase 1 also carries one piece of prevention, because it is what
+makes the detection actionable: phase 1 of the shakenfist/images
+plan, so one failing image stops one image rather than the whole
+run. An alarm that fires for the entire list every time teaches
+people to ignore it.
 
 Also fix the scheduler bug #44 documents: persist the last
 completed nightly rather than recomputing `nightly_due` into a
@@ -251,15 +297,23 @@ Closes: private-ci#45, private-ci#39. Depends on: phase 2 for the
 * While in `ci-dependencies.yml`, add `debian:13` and `rocky:10`
   to the cached image list. Neither is currently cached, so CI
   cannot test against current Debian even now that the label
-  works. Reword the `base_image == "debian:11"` conditions at
-  lines 50 and 61 to test for the bullseye interpreter quirk by
-  name, since they stop reading as deliberate once debian:11 is
-  gone.
+  works. Reword the two `when:` conditions that branch on
+  `base_image == "debian:11"` (lines 50 and 61 at the time of
+  writing, and the same phase edits that file, so find them by the
+  condition text) to test for the bullseye interpreter quirk by
+  name. They stop reading as deliberate once debian:11 is gone.
 
 ### 4. The consumer sweep
 
-Closes: development#123. Depends on: phase 3 for anything naming
-`debian-gnome-12`.
+Closes: development#123, private-ci#38. Depends on: phase 3 for
+anything naming `debian-gnome-12`.
+
+private-ci#38 is the collated inventory of where the fleet uses
+obsolete base images. It is a reference rather than a task, and it
+closes when the thing it inventories is gone: this phase clears
+the consumer half and phase 5 clears the producer half, so #38
+closes at the end of phase 5 rather than when its own checklist is
+ticked.
 
 80 references in 15 repositories, repository by repository rather
 than as one sweep, so each change carries its own actionlint edit
@@ -279,9 +333,9 @@ Two things make this less mechanical than the count suggests:
   than a migration. kerbside has two bookworm-tagged rust images
   needing a tag bump, which is a different decision.
 
-The daily audit files a `consistency` issue per repository once
-the criterion is live, so this phase tracks those rather than
-duplicating them.
+The daily audit already files a `consistency` issue per
+repository, so this phase tracks those rather than duplicating
+them.
 
 ### 5. Retire the end-of-life producers
 
@@ -308,16 +362,46 @@ The phase that stops the 80 findings coming back. Per the
 structural finding above, all three producers sit outside the
 criterion that bans what they produce.
 
-* **shakenfist/images**: decide whether it joins the audit matrix.
-  Its exclusion reads "historical archive", which is wrong -- it
-  is built from nightly and the fleet's CI depends on its output.
-  This is a change to `docs/audits/README.md` and `REPO_OVERRIDES`
-  in `scripts/audit/repo.py`, and phase 5 of that repository's own
-  plan expects it to be a deliberate decision rather than a side
-  effect.
+* **shakenfist/images**: decide whether it joins the audit matrix,
+  and on what terms. Scope is stated in three places and a change
+  has to make all three agree in one commit, or `scope-coverage`
+  reports the repository as decided nowhere and
+  `AuditScopeIsStatedOnceTest` fails: the `repo:` matrix in
+  `.github/workflows/consistency-audit.yml`, which is what
+  actually runs, and the in-scope and excluded lists in
+  `docs/audits/README.md`, which are what a reader is told.
+  `REPO_OVERRIDES` in `scripts/audit/repo.py` is not a scope
+  statement -- it narrows a repository already in the matrix -- so
+  it is only edited if images is to be scoped to a subset.
+
+  Joining is otherwise all-or-nothing: in the matrix means all 52
+  criteria apply. Measured against the current clone on
+  2026-09-13, images would report **8 fail, 6 pass, 38 not
+  applicable**. The eight are `llm-context-lint-ci`, `renovate`,
+  `ci-review-automation`, `pre-commit-config`, `export-repo-config`,
+  `default-branch-naming`, `github-security` and
+  `delete-branch-on-merge`. That is a morning of `consistency`
+  issues rather than a wall, and every one of them is already an
+  item in phase 5 of that repository's own plan, so the decision
+  is whether to file them or do them first -- not whether the
+  repository can survive being measured. Re-measure before acting;
+  this number is from before phase 5 runs.
 * **private-ci**: extend `only_checks` to cover a criterion that
   reads `IMAGE_BUILDS` and `CI_IMAGES` for end-of-life bases. It
-  is currently scoped to five plan criteria and `sfui-vendor`.
+  is currently scoped to four plan criteria and `sfui-vendor` --
+  five `only_checks` entries in total.
+
+  A partial scope is stated a fourth time, as the sentence in the
+  partial-scope paragraph of `docs/audits/README.md` that
+  `scripts/audit/scope.py` parses and holds against `only_checks`.
+  Its docstring records that this is the statement with the worst
+  track record: `only_checks` was widened once with the sentence,
+  and two other documents, left behind and no test noticing. So
+  the same commit updates the sentence in `docs/audits/README.md`,
+  the `REPO_OVERRIDES` comment block in `scripts/audit/repo.py`,
+  and the comment above `- private-ci` in the audit matrix -- which
+  is already stale, still reading "Scoped to the sfui-vendor
+  check".
 * **33fl**: outside this organisation and this tooling. #826
   records the exposure in `group_vars/all/static_runners.yml`
   where the next reader will find it, which is the available
@@ -325,12 +409,8 @@ criterion that bans what they produce.
   invisible to a label-based audit, so any future fleet of the
   same shape needs the same treatment.
 
-An open question this phase must answer rather than assume: whether
-the right instrument is extending `eol-distro` to read producer
-definitions, or a separate criterion. They fail differently -- one
-reports "this repository names a banned label", the other "this
-repository *offers* one" -- and the issue titles are the fleet-wide
-idempotency key, so the choice is not cosmetic.
+Which instrument does the measuring is Q1 above, and the default
+there is a separate criterion.
 
 ### 7. Push audit
 
@@ -343,6 +423,21 @@ and are audited against that repository's default branch as part
 of the pull request that lands them; this phase cites those audits
 rather than re-running them. That applies to most of this plan --
 only phase 6 and this phase land here.
+
+## Agent guidance
+
+Deliberately short. Six of the seven phases land in other
+repositories, under their own conventions and, for
+shakenfist/images, its own `PLAN-TEMPLATE.md` and the
+project-specific checks in it. Per-step effort levels, model
+recommendations and review checklists belong in the plan of the
+repository the work lands in, not here, so this plan does not
+carry the shared blocks `PLAN-TEMPLATE.md` offers for them.
+
+The exception is phase 6, which lands here. It changes what the
+fleet is measured against and reaches `scripts/audit/`, so it is
+high effort per this repository's own guidance, and it is
+exercised with `--dry-run` before anything files an issue.
 
 ## Risks and mitigations
 
@@ -371,8 +466,12 @@ mislabelled images were deleted on 2026-09-12.
 
 ### Success criteria
 
-* All nine issues are closed, or explicitly declined in writing
-  here.
+* Every one of the nine issues is closed, explicitly declined in
+  writing here, or reduced to a named residual recorded in this
+  plan. The residual case is not a loophole: phase 1 closes only
+  part of private-ci#44 and says so, because that issue's fourth
+  checkbox -- what actually caused the 2026-09-12 miss -- is a
+  separate defect that the scheduler fix does not explain.
 * An image that fails to build, or stops being built, produces a
   GitHub issue without a human looking for it -- demonstrated for
   each of the three producers.

@@ -43,7 +43,7 @@ rediscovery.
 
 Adding the next release is one entry in that table and one row here.
 It is deliberately not a new check: the reason Debian 12 lingered in
-sixteen repositories is that noticing was a person's job, and a
+fifteen repositories is that noticing was a person's job, and a
 criterion that has to be re-invented per release is the same job
 wearing a hat.
 
@@ -58,9 +58,10 @@ release goes end of life next quarter.
 `debian-gnome-13` label yet. The guest image it is built from exists --
 [images](https://github.com/shakenfist/images) has built
 `debian-gnome:13` since August 2026 -- so what is missing is an entry
-in [private-ci](https://github.com/shakenfist/private-ci)'s `IMAGES`
-table, not an image. A finding naming it is therefore a request there
-rather than a one-line edit in the repository the issue lands on. It is
+in [private-ci](https://github.com/shakenfist/private-ci)'s
+`IMAGE_BUILDS` table, not an image. A finding naming it is therefore
+a request there rather than a one-line edit in the repository the
+issue lands on. It is
 listed anyway, because leaving the fleet's one remaining bookworm
 runner off would make this page claim Debian 12 was gone when it was
 not.
