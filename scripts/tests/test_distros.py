@@ -11,6 +11,7 @@ those forms has a test naming the real file it came from.
 Run with: python3 scripts/tests/test_distros.py
 """
 
+import datetime
 import os
 import re
 import sys
@@ -96,6 +97,38 @@ class ImageReferenceTest(unittest.TestCase):
     def test_an_expression_is_not_judged(self):
         self.assertIsNone(self.release('${{ matrix.image }}'))
         self.assertIsNone(self.release('$IMAGE'))
+
+
+class RetiredReleaseTest(unittest.TestCase):
+    """A release listed ahead of its date must not fail the fleet.
+
+    The table is meant to be cheap to add to, which invites writing an
+    entry while a migration is still being planned. Until the date
+    arrives the entry is inert.
+    """
+
+    def test_todays_list_is_every_release_whose_date_has_passed(self):
+        for release in distros.retired_releases(datetime.date(2099, 1, 1)):
+            self.assertIn(release, distros.EOL_RELEASES)
+        self.assertEqual(list(distros.EOL_RELEASES),
+                         distros.retired_releases(datetime.date(2099, 1, 1)))
+
+    def test_a_release_is_not_retired_before_its_date(self):
+        # Debian 11 went end of life on 2026-08-31.
+        names = [r.name for r in
+                 distros.retired_releases(datetime.date(2026, 7, 1))]
+        self.assertNotIn('Debian 11 (bullseye)', names)
+        self.assertIn('Debian 12 (bookworm)', names)
+
+    def test_the_date_itself_counts_as_retired(self):
+        names = [r.name for r in
+                 distros.retired_releases(datetime.date(2026, 8, 31))]
+        self.assertIn('Debian 11 (bullseye)', names)
+
+    def test_every_listed_date_parses(self):
+        for release in distros.EOL_RELEASES:
+            with self.subTest(release=release.name):
+                datetime.date.fromisoformat(release.eol)
 
 
 class RunnerLabelMatchTest(unittest.TestCase):
@@ -224,6 +257,46 @@ class EolDistroTest(CheckTestCase):
         self.fixture.write('rust/proxy/Dockerfile',
                            'FROM rust:slim-bookworm AS builder\n')
         self.assert_fail(self.check(), containing='Debian 12 (bookworm)')
+
+    def test_an_image_key_with_a_trailing_comment_is_still_read(self):
+        """A pinned line explaining its own pin is the stale one."""
+        self.fixture.workflow(
+            'ci.yml',
+            'jobs:\n'
+            '  a:\n'
+            '    container:\n'
+            '      image: debian:12  # renovate pin\n')
+        self.assert_fail(self.check(has_workflows_dir=True),
+                         containing='Debian 12 (bookworm)')
+
+    def test_a_from_line_with_a_platform_flag_is_read(self):
+        self.fixture.write(
+            'Dockerfile',
+            'FROM --platform=$BUILDPLATFORM debian:12 AS builder\n')
+        self.assert_fail(self.check(), containing='Debian 12 (bookworm)')
+
+    def test_several_from_flags_are_skipped(self):
+        self.fixture.write(
+            'Dockerfile',
+            'FROM --platform=linux/amd64 --a=b debian:bookworm\n')
+        self.assert_fail(self.check(), containing='Debian 12 (bookworm)')
+
+    def test_a_workflow_template_is_scanned(self):
+        """A template is copied into ten repositories verbatim."""
+        self.fixture.write(
+            'templates/mermaid-lint/mermaid-lint.yml',
+            'jobs:\n  a:\n    runs-on: [self-hosted, vm, debian-12, s]\n')
+        result = self.assert_fail(self.check(),
+                                  containing='Debian 12 (bookworm)')
+        self.assertEqual(
+            ['templates/mermaid-lint/mermaid-lint.yml:3 (debian-12)'],
+            result['findings'])
+
+    def test_a_template_readme_is_prose_not_a_workflow(self):
+        self.fixture.write(
+            'templates/mermaid-lint/README.md',
+            'Use `[self-hosted, vm, debian-12, s]`, not static.\n')
+        self.assert_skip(self.check())
 
     def test_a_dockerfile_in_a_vendored_tree_is_not_ours(self):
         self.fixture.write('vendor/thing/Dockerfile', 'FROM debian:12\n')
@@ -355,9 +428,21 @@ class RegressionGuardTest(unittest.TestCase):
         self.assertNotIn(r'\b', pattern)
 
     def test_variants_are_ordered_longest_first(self):
-        alternatives = re.search(r'\((.*)\)\(\?!', distros.RUNNER_LABEL_RE
-                                 .pattern)
-        labels = alternatives.group(1).split('|') if alternatives else []
+        """Longest first, or debian-12-docker reports as debian-12.
+
+        The capture excludes nested parentheses deliberately. Matching
+        from the first '(' in the pattern picks up the '(?<!' lookbehind
+        instead, and the first split element becomes the lookbehind glued
+        to the first label -- which still satisfies a longest-first
+        assertion by accident, because that mangled string is the longest
+        of them. The first assertion below is what makes a mis-capture
+        fail loudly rather than pass quietly.
+        """
+        alternatives = re.search(
+            r'\(([^()]*)\)\(\?!', distros.RUNNER_LABEL_RE.pattern)
+        self.assertIsNotNone(alternatives)
+        labels = alternatives.group(1).split('|')
+        self.assertEqual(re.escape('debian-11-docker'), labels[0])
         self.assertEqual(sorted(labels, key=lambda x: (-len(x), x)), labels)
 
 

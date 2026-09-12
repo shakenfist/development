@@ -28,6 +28,13 @@ sixteen repositories is that noticing was a person's job, and a
 criterion that has to be re-invented per release is the same job
 wearing a hat.
 
+An entry may be written before its date arrives, which is the normal
+way to plan a migration. The end-of-life date is compared against
+today, and a release whose date is still in the future is recognised
+but not reported -- otherwise an entry added a quarter early fails
+every repository at once, with an issue whose own text says the
+release goes end of life next quarter.
+
 `debian-gnome-12` is listed although the CI conductor advertises no
 `debian-gnome-13` label yet. The guest image it is built from exists --
 [images](https://github.com/shakenfist/images) has built
@@ -64,9 +71,25 @@ version number is only read when the image *is* the distribution:
 with no tag, or one behind a shell or Actions expression, is not
 judged.
 
+**Workflow templates**, every `.yml` and `.yaml` under a top-level
+`templates/` directory. Only shakenfist/development has one, and what
+is in it is copied verbatim into ten other repositories -- so a
+retired label there files a finding against every project that adopted
+the template while the source of the violation goes on passing, and a
+repository adopting it tomorrow fails the audit on arrival. The
+templates' `README.md` files discuss labels in prose and are not
+scanned, for the same reason a plan describing a 2025 bookworm build
+is not.
+
 Vendored trees, build output and virtualenvs are skipped when walking
-for container build files, on the same reasoning as the fuzz criteria:
-a `Dockerfile` under `vendor/` or `target/` belongs to a dependency.
+for container build files and templates, on the same reasoning as the
+fuzz criteria: a `Dockerfile` under `vendor/` or `target/` belongs to
+a dependency.
+
+A `container:` or `image:` line is read with any trailing comment
+stripped, so `image: debian:12  # renovate pin` is a finding. A
+`FROM` line's leading `--flag` and `--flag=value` tokens are skipped,
+so `FROM --platform=$BUILDPLATFORM debian:12` is one too.
 
 ### What this does not cover
 

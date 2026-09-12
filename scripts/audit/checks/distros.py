@@ -25,11 +25,15 @@ docs/audits/eol-distro.md for why, and what covers them instead.
 """
 
 import collections
+import datetime
 import os
 import re
 
 from audit.check import Check
-from audit.text.workflows import is_runner_label_value
+from audit.files import WALK_SKIP
+from audit.text.workflows import (
+    is_runner_label_value, strip_trailing_comment,
+)
 
 
 #: One distribution release the fleet has retired.
@@ -101,6 +105,25 @@ EOL_RELEASES = (
 )
 
 
+def retired_releases(today=None):
+    """The listed releases whose end-of-life date has actually passed.
+
+    The date in the table is a fact about the release rather than a
+    switch, so an entry can be written before it takes effect -- which
+    is the normal way to plan a migration, and the spec invites it by
+    promising that adding a release is one entry and one row. Without
+    this, an entry added a quarter early fails every repository in the
+    fleet at once, with an issue whose own text says the release goes
+    end of life in the future.
+    """
+    if today is None:
+        today = datetime.date.today()
+    return [
+        release for release in EOL_RELEASES
+        if datetime.date.fromisoformat(release.eol) <= today
+    ]
+
+
 def _runner_label_re(releases):
     """A regex matching any retired runner label, as a whole label.
 
@@ -141,12 +164,28 @@ RELEASE_BY_LABEL = {
 #: what keeps `"${setup} ubuntu-2004 /srv/ci/ubuntu:20.04 --shared"`
 #: -- a shell argument in shakenfist/actions naming a Shaken Fist guest
 #: image -- out of the findings.
+#:
+#: The value is not anchored to the end of the line. It was, and an
+#: `image: debian:12  # renovate pin` matched nothing at all rather
+#: than matching the image and ignoring the comment -- so a pinned
+#: line carrying the explanation of its own pin, which is exactly the
+#: kind most likely to be stale, was the one the criterion could not
+#: see. Runner labels on a commented line were caught throughout, so
+#: the two surfaces disagreed about the same file. Callers strip the
+#: comment with strip_trailing_comment() before matching.
 IMAGE_KEY_RE = re.compile(
-    r'^\s*(?:-\s+)?(?:container|image):\s*(\S+)\s*$'
+    r'^\s*(?:-\s+)?(?:container|image):\s*(\S+)'
 )
 
 
-DOCKERFILE_FROM_RE = re.compile(r'^\s*FROM\s+(\S+)', re.IGNORECASE)
+#: A Dockerfile `FROM`, skipping any `--flag` or `--flag=value` that
+#: precedes the image. `FROM --platform=$BUILDPLATFORM debian:12` is
+#: how a multi-arch build names its base, and capturing the first
+#: token alone captured the flag: the platform string holds no colon,
+#: so the reference read as untagged and the retired base passed.
+DOCKERFILE_FROM_RE = re.compile(
+    r'^\s*FROM\s+(?:--\S+\s+)*(\S+)', re.IGNORECASE
+)
 
 
 #: Marker acknowledging a deliberate exception, placed on the offending
@@ -156,15 +195,6 @@ DOCKERFILE_FROM_RE = re.compile(r'^\s*FROM\s+(\S+)', re.IGNORECASE)
 #: boot a `debian:12` container on purpose, because measuring what a
 #: bookworm filesystem looks like is the job.
 EXCEPTION_RE = re.compile(r'audit-ok:\s*eol-distro')
-
-
-#: Build output, vendored trees and virtualenvs: a Dockerfile inside
-#: one belongs to a dependency rather than to the repository being
-#: audited. Mirrors FUZZ_WALK_SKIP in ci_workflows.py.
-WALK_SKIP = frozenset({
-    '.git', '.tox', '.venv', 'build', 'dist', 'node_modules',
-    'target', 'third_party', 'vendor', 'venv',
-})
 
 
 def is_dockerfile(name):
@@ -274,7 +304,7 @@ def scan_workflow(path, content):
                 (f'{path}:{i + 1}', label, RELEASE_BY_LABEL[label])
             )
 
-        key = IMAGE_KEY_RE.match(line)
+        key = IMAGE_KEY_RE.match(strip_trailing_comment(line))
         if key:
             release = image_release(key.group(1))
             if release is not None:
@@ -300,8 +330,51 @@ def scan_dockerfile(path, content):
     return found
 
 
-def scan(repo):
-    """Every reference to a retired release in a checkout."""
+def workflow_templates(repo_path):
+    """Repository-relative paths of the workflow templates, if any.
+
+    A template under `templates/` is not a workflow this repository
+    runs, so nothing else here reads it -- and it is copied verbatim
+    into ten other repositories, which makes a retired label in one a
+    finding filed against every project that adopted it while the
+    source of it goes on passing. shakenfist/development is the only
+    repository with the directory, and `.github/actionlint.yaml`
+    already calls it "the fleet's source of truth for files nothing
+    else checks before they are copied into ten repositories".
+
+    Only YAML is returned. The templates' README files discuss labels
+    in prose, and prose is out of scope for the same reason a plan
+    describing a 2025 bookworm build is.
+    """
+    root = os.path.join(repo_path, 'templates')
+    if not os.path.isdir(root):
+        return []
+    found = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames if d not in WALK_SKIP)
+        for name in sorted(filenames):
+            if name.endswith(('.yml', '.yaml')):
+                found.append(
+                    os.path.relpath(
+                        os.path.join(dirpath, name), repo_path
+                    ).replace(os.sep, '/')
+                )
+    return sorted(found)
+
+
+def scan(repo, build_files=None, templates=None, today=None):
+    """Every reference to a retired release in a checkout.
+
+    `build_files` and `templates` are passed in by run(), which has
+    already walked for them to decide whether the criterion applies.
+    Walking twice was free but untidy, and Repo caches its reads for
+    exactly this reason.
+    """
+    if build_files is None:
+        build_files = dockerfiles(repo.path)
+    if templates is None:
+        templates = workflow_templates(repo.path)
+
     found = []
     for name in sorted(repo.workflows()):
         content = repo.workflow(name)
@@ -309,11 +382,20 @@ def scan(repo):
             found.extend(
                 scan_workflow(f'.github/workflows/{name}', content)
             )
-    for path in dockerfiles(repo.path):
+    for path in templates:
+        content = repo.read(path)
+        if content:
+            found.extend(scan_workflow(path, content))
+    for path in build_files:
         content = repo.read(path)
         if content:
             found.extend(scan_dockerfile(path, content))
-    return found
+
+    # A release listed ahead of its date is matched, then dropped: the
+    # labels are recognised so that the table stays one place, and the
+    # finding is withheld until the date arrives.
+    retired = set(retired_releases(today))
+    return [finding for finding in found if finding[2] in retired]
 
 
 def release_guidance(found):
@@ -340,10 +422,11 @@ class EolDistro(Check):
     def run(self, repo):
         """Check nothing is built on a distribution release we retired.
 
-        Runner labels and container image references only. Both choose
-        an operating system the repository's own CI or artefacts then
-        run on, which is what makes them mechanically checkable and
-        worth failing over; a release merely named in prose, booted as
+        Runner labels and container image references only, in this
+        repository's own workflows, in the workflow templates the
+        fleet copies from, and in its container build files. All three
+        choose an operating system something then runs on, which is
+        what makes them mechanically checkable and worth failing over; a release merely named in prose, booted as
         test input, or dispatched to an upstream job by name is not
         this criterion, and matching whole tokens is what keeps those
         three out.
@@ -358,17 +441,20 @@ class EolDistro(Check):
         while 'details' is printed into a table cell on the compliance
         page and has to stay one.
         """
-        if not repo.workflows() and not dockerfiles(repo.path):
+        build_files = dockerfiles(repo.path)
+        templates = workflow_templates(repo.path)
+        if not repo.workflows() and not build_files and not templates:
             return self.skip(
-                'No workflows and no container build files to read'
+                'No workflows, workflow templates or container build '
+                'files to read'
             )
 
-        found = scan(repo)
+        found = scan(repo, build_files=build_files, templates=templates)
         if not found:
             return self.ok(
                 f'No workflow runner label or container image names '
-                f'any of the {len(EOL_RELEASES)} retired distribution '
-                f'releases')
+                f'any of the {len(retired_releases())} retired '
+                f'distribution releases')
 
         locations = [
             f'{where} ({what})' for where, what, _ in sorted(found)

@@ -10,6 +10,22 @@ import os
 import re
 
 
+#: Directories a tree walk skips: build output, vendored trees and
+#: virtualenvs. Whatever a criterion is looking for, a copy inside one
+#: of these belongs to a dependency rather than to the repository being
+#: audited -- `target` is the realistic case, and the rest are defence
+#: in depth against the same mistake reached by another route.
+#:
+#: Shared because two criteria walk for different things and want the
+#: same answer about what is not ours. They had a copy each, identical
+#: and commented as such, which is the arrangement that drifts the
+#: first time somebody adds `.mypy_cache` to one of them.
+WALK_SKIP = frozenset({
+    '.git', '.tox', '.venv', 'build', 'dist', 'node_modules',
+    'target', 'third_party', 'vendor', 'venv',
+})
+
+
 def check_file_exists(repo_path, path):
     """Check if a file exists relative to repo root."""
     return os.path.exists(os.path.join(repo_path, path))

@@ -17,8 +17,8 @@ import subprocess
 from audit.check import Check
 from audit.github import GhCli
 from audit.files import (
-    any_workflow_contains, check_file_contains, check_file_exists,
-    list_workflow_files, workflow_has_permissions,
+    WALK_SKIP, any_workflow_contains, check_file_contains,
+    check_file_exists, list_workflow_files, workflow_has_permissions,
 )
 from audit.text.workflows import (
     RUNS_ON_RE, STATIC_ALLOWED_LABELS, indented_block, parse_runner_labels,
@@ -1415,13 +1415,10 @@ FUZZ_TARGET_DIR = 'fuzz_targets'
 
 # Build output, vendored trees and virtualenvs are large, and a
 # fuzz_targets/ inside one belongs to a dependency rather than to the
-# repository being audited. `target` is the realistic case -- a
-# cargo-fuzz corpus lands there -- and the rest are defence in depth
-# against the same mistake reached by another route.
-FUZZ_WALK_SKIP = frozenset({
-    '.git', '.tox', '.venv', 'build', 'dist', 'node_modules',
-    'target', 'third_party', 'vendor', 'venv',
-})
+# repository being audited -- `target` is the realistic case, since a
+# cargo-fuzz corpus lands there. The set is shared with the criteria
+# that walk for other things; see WALK_SKIP in audit/files.py.
+FUZZ_WALK_SKIP = WALK_SKIP
 
 
 # What running the targets looks like in a workflow: a cargo-fuzz

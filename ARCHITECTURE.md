@@ -90,7 +90,7 @@ beside it:
   audit scope: the workflow matrix and the two lists in
   `docs/audits/README.md`. Read by the `scope-coverage` check and by
   the test that holds the three statements to each other.
-- `audit/checks/` -- the criteria, eight modules grouped the way their
+- `audit/checks/` -- the criteria, grouped the way their
   specifications are.
 - `audit/text/` and `audit/files.py` -- the parsing and file reading
   they share.
