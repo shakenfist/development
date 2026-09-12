@@ -199,11 +199,25 @@ resting on a transitive pin, and those are the two that catch real
 drift. Writing all three keeps the npm story symmetric with the
 Python one instead of leaving two thirds of it unmeasured.
 
-The criteria that stay not applicable, each with a stated reason in
-`REPO_OVERRIDES`, are the packaging and Python-version ones:
-`pyproject-usage`, `python-version-targeting`, `release-process`,
-`version-file-gitignore`, `dependency-name-normalization` and
-`renovate-lockstep-groups`.
+The Python criteria that stay not applicable need no override to say
+so. `release-process`, `pin-indirect-dependencies`,
+`dependency-name-normalization`, `unused-declared-dependency`,
+`undeclared-direct-dependency`, `renovate-lockstep-groups`,
+`version-file-gitignore` and `python-version-targeting` each begin by
+skipping when `has_pyproject_toml` is false, and `pyproject-usage`
+falls through to `skip('No Python code')` when `git ls-files -- '*.py'`
+comes back empty. That is already why they are among the 36
+not-applicable results in the Situation section.
+
+Nor is there a facility to say it. `detect_repo_properties()`
+(`scripts/audit/repo.py:108-133`) reads exactly six override keys --
+`is_private`, `is_docs_only`, `not_python`, `default_branch_exception`,
+`only_checks` and `doc_content_excludes` -- and discards anything else
+silently, so a per-criterion not-applicable-with-reason entry would be
+invented shape that no test would catch and no check would read. If
+such a facility is ever wanted it is a change to
+`detect_repo_properties()` with its own phase and its own test, not a
+line in this plan's phase 1.
 
 ### D5. 33fl is not touched by this plan's author
 
@@ -247,11 +261,20 @@ Following `docs/consistency-audits.md`:
 
 - Add `hunkydory` to the matrix in
   `.github/workflows/consistency-audit.yml`.
-- Add it to the in-scope list in `docs/audits/README.md`.
-- Add a `REPO_OVERRIDES` entry in `scripts/audit/repo.py` marking
-  the Python packaging criteria from D4 not applicable, each with a
-  reason. Not an `only_checks` list: hunkydory is expected to meet
-  the conventions, it simply is not a Python project.
+- Add it to the in-scope list in `docs/audits/README.md`, and confirm
+  it does not appear in the excluded list.
+
+Those are the three statements `audit/scope.py` parses -- the matrix,
+and the in-scope and excluded lists -- and
+`AuditScopeIsStatedOnceTest` holds them to each other, so they change
+together. `REPO_OVERRIDES` is a separate, fourth statement, read only
+against the partial-scope paragraph and only for `only_checks`; this
+phase does not touch it.
+
+No `REPO_OVERRIDES` entry is needed at all: per D4, the Python
+criteria already report not-applicable from the absence of
+`pyproject.toml`, and there is no key that would carry a
+per-criterion reason if one were wanted.
 
 The nine failures from the Situation section become nine issues on
 `hunkydory` at the next run. That is the intended behaviour -- they
@@ -271,7 +294,13 @@ Everything that does not need a runner:
   script called by both pre-commit and CI, so the two cannot drift.
 - `.pre-commit-config.yaml` with that script as a `language: script`
   local hook, plus shellcheck, gitleaks and skillsaw from the fleet
-  configuration. skillsaw here also closes `llm-context-lint-ci`.
+  configuration. skillsaw here closes *half* of
+  `llm-context-lint-ci`: the check requires both a pre-commit entry
+  and a CI route, and its issue title says so -- "LLM context linting
+  in pre-commit and CI". Phase 5's `ci.yml` closes the other half by
+  running `pre-commit run --all-files`, which the check accepts via
+  `PRE_COMMIT_RUN_RE`. Until phase 5 lands, this criterion stays
+  red.
 - Fix the three relative links in `README.md` and the one in
   `docs/`, closing `readme-absolute-links` and
   `docs-external-links`.
@@ -279,22 +308,93 @@ Everything that does not need a runner:
   `engines.node`. Today the package declares `^20` while the runner
   it is destined for would have had 18, which is how a type
   definition ends up describing an API the runtime lacks.
+- `PUSH-AUDIT.md`, copied from this repository, and a line in
+  hunkydory's `AGENTS.md` saying when to run it. The `push-audit`
+  criterion measures both the shared blocks and the reference, and
+  reports not-applicable while the file is absent -- so this is the
+  phase that gives phase 8 a runbook to cite rather than a gap to
+  explain.
 
 ### 3. npm dependency criteria
 
 Three checks per D4, following the shape
-`docs/audits/README.md` and the template's worked brief describe: a
-`Check` subclass with `id`, `spec` and `issue_title` as class
-attributes, registered in `scripts/audit/registry.py`, a
-specification page under `docs/audits/`, a line in
-`docs/audits/README.md`, and tests covering pass, fail and
-not-applicable.
+`docs/audits/README.md` and the template's worked brief describe. A
+criterion has six parts here, not four:
+
+- a `Check` subclass with `id`, `spec` and `issue_title` as class
+  attributes;
+- registration in `scripts/audit/registry.py`;
+- a specification page under `docs/audits/`;
+- a line in `docs/audits/README.md`;
+- a line each in `FROZEN_METADATA`, `FROZEN_ISSUE_TITLES` and the
+  frozen column table in `scripts/tests/test_metadata.py`, which
+  `test_audit_metadata_matches_the_frozen_table`,
+  `test_issue_titles_match_the_frozen_table` and
+  `test_column_names_match_the_frozen_table` assert equality
+  against;
+- tests in `scripts/tests/test_packaging.py`, where the existing
+  dependency criteria are tested, covering pass, fail and
+  not-applicable. `test_metadata.py` also asserts that every check
+  is reachable from some test module.
+
+Adding three checks without touching the frozen tables fails
+`pre-commit run --all-files`, which is the first item on this plan's
+own review checklist, so the phase would fail its own gate. This is
+the same staleness `PLAN-scope-coverage.md:433` corrected in
+`PUSH-AUDIT.md`; the four-part framing survived into an earlier draft
+of this plan.
+
+**How many repositories this newly fails: one.** Every default-branch
+tree of all twenty in-scope repositories was listed recursively
+through the GitHub API, and `package.json` appears in exactly one of
+them -- `hunkydory`, at the root. No tree was truncated, so the survey
+is complete rather than a sample. The other nineteen, `development`
+included, report not-applicable, and `33fl` is outside the audit
+fleet. So phase 3 files at most three issues, all on hunkydory, and
+they join the backlog phase 1 already accounts for. If a second
+repository grows a `package.json` before this phase runs, re-run the
+survey before landing: the answer is what makes this a safe change to
+land in one step rather than a scoped rollout.
 
 They apply when `package.json` is present and report
-`not_applicable` with a reason otherwise. Note that this repository
-is inside its own audit matrix: these checks will run against
-`development` too, find no `package.json`, and must report
-not-applicable rather than failing.
+`not_applicable` with a reason otherwise.
+
+The false-positive surface is where the work is, and hunkydory
+exhibits all of it today. `unused-declared-dependency` and
+`undeclared-direct-dependency` must exempt:
+
+- **Node builtins, in both spellings.** `test/corpus.ts` has `import
+  fs from 'node:fs'` and `import path from 'node:path'`; the bare
+  `fs` and `path` spellings are equally valid and equally not
+  packages.
+- **Host-provided modules.** `src/extension.ts` has `import * as
+  vscode from 'vscode'`, which the extension host injects and which
+  must never be declared as a dependency. A naive undeclared-direct
+  check flags it.
+- **Relative imports.** `./diff`, `../src/recount` are not packages.
+- **`@types/*` packages.** Consumed by `tsc`, never imported by name.
+  hunkydory declares `@types/node` and `@types/vscode` today.
+- **`typescript` itself**, and any devDependency invoked from
+  `scripts` in `package.json` rather than from an `import` --
+  `@biomejs/biome` after phase 2, and `vsce` after phase 7.
+
+Without those five, the first run files two false issues on
+hunkydory: `unused-declared-dependency` against all three of its
+current devDependencies (`@types/node`, `@types/vscode`,
+`typescript`), none of which is imported by name, and
+`undeclared-direct-dependency` against `vscode` and the two
+`node:`-prefixed builtins. Note also that `import type` and
+`export ... from` are import forms and must be counted as such.
+
+For `pin-indirect-dependencies`: if it reports on lockfile entries
+rather than on `package.json`, Biome contributes several rather than
+one -- `@biomejs/biome` resolves platform-specific binaries
+(`@biomejs/cli-linux-x64` and siblings) as optional dependencies.
+That is not drift and must not be read as drift.
+
+Note that this repository is inside its own audit matrix: these
+checks will run against `development` too, find no `package.json`,
+and must report not-applicable rather than failing.
 
 ### 4. Static runners gain node
 
@@ -323,6 +423,22 @@ this plan has checked:
 - Whether `python3-venv` and the rest of the base list behave the
   same on trixie.
 
+Landing node on the runners also falsifies half of the mermaid-lint
+rationale this plan quotes as evidence in the Situation section, in
+four files where it is load-bearing prose:
+`templates/mermaid-lint/README.md:28,36`,
+`templates/mermaid-lint/mermaid-lint.sh:16`,
+`tools/mermaid-lint.sh:16` and
+`docs/audits/mermaid-lint-ci.md:108,116`. A node toolchain goes onto
+the runners deliberately, and node 20.19.2 is no longer "older than
+jsdom wants". The chromium half of the argument survives and the
+decision does not change, so this is a rewording rather than a
+reversal: keep the chromium argument, drop or restate the
+node-version one. It is part of this phase rather than future work
+because `templates/` is copied into ten repositories, and a template
+that justifies itself with a fact the fleet has reversed is judged as
+the code it becomes.
+
 The rollout is gradual rather than a re-image: line 229 is inside
 the loop over `missing_runners`, so it affects newly created
 instances only, and the weekly retire and rebuild cycle replaces the
@@ -337,17 +453,38 @@ Once the runners have npm:
 - `ci.yml` running `tools/check-node.sh` on `[self-hosted, static]`,
   with `npm_config_cache` pointed into `${{ runner.temp }}` so the
   shared `~/.npm` on a non-ephemeral runner is not written by a
-  repository's build.
+  repository's build. It also runs `pre-commit run --all-files` as a
+  job, the way this repository's own `ci.yml` does, so the shellcheck,
+  gitleaks and skillsaw hooks gate a pull request rather than only a
+  clone where somebody ran `pre-commit install`. That is what closes
+  the CI half of `llm-context-lint-ci` from phase 2.
 - `codeql-analysis.yml`, `export-repo-config.yml`, `renovate.yml`
-  and `renovate.json`, `pr-re-review.yml`, `pr-retest.yml` from the
-  fleet templates, closing `github-security`, `export-repo-config`,
-  `renovate` and `ci-review-automation`.
+  and `renovate.json`, `pr-re-review.yml`, `pr-retest.yml`,
+  `secret-scan.yml` from the fleet templates, closing
+  `github-security`, `export-repo-config`, `renovate` and
+  `ci-review-automation`.
 - Secret scanning, push protection and delete-branch-on-merge
   enabled through the GitHub API, closing `github-security`'s
   remaining two findings and `delete-branch-on-merge`.
 
 CodeQL supports JavaScript and TypeScript directly, so that workflow
 is a language substitution rather than a new pattern.
+
+**This phase activates four criteria that are dormant today.**
+`workflow-permissions`, `self-hosted-runners`, `static-runner-tags`
+and `secret-scanning-ci` all begin with `if not
+repo.props['has_workflows_dir']: return self.skip(...)`, so they are
+among hunkydory's 36 not-applicable results purely because it has no
+`.github/workflows/`. Creating that directory makes all four live.
+Three are satisfied by what this phase writes: the fleet templates
+carry `permissions:` blocks, and `ci.yml` names `[self-hosted,
+static]`. The fourth is why `secret-scan.yml` is in the list above --
+`secret-scanning-ci` requires one of `gitleaks`, `trufflehog` or
+`detect-secrets` invoked *from a workflow*, and reads workflows only,
+so the gitleaks hook in `.pre-commit-config.yaml` would not have
+counted on its own. Phase 1 names the failures it creates so they are
+a deliberate choice rather than a surprise; this phase creates none,
+and that is the point of saying so here.
 
 ### 6. Human review onboarding
 
@@ -362,12 +499,48 @@ The scope config should cover `src/` and `test/`. The point of this
 phase is that the operator has not read code written entirely by an
 agent, and the review queue is how that gets fixed.
 
+This phase deliberately opens a `review-coverage` issue, the way
+phase 1 opens nine. `review-coverage` fails once five or more
+in-scope files need review (`REVIEW_BACKLOG_THRESHOLD = 5` in
+`scripts/audit/checks/review.py`), and hunkydory's `src/` and `test/`
+hold five files between them with none marked, so the criterion goes
+red the moment `.vscode/review-scope.toml` lands and stays red until
+the operator has worked the queue. That is the criterion doing its
+job, not a regression, and it is why the success criteria below
+exempt it.
+
 ### 7. Marketplace release
 
 **Blocked on the publisher account and `VSCE_PAT`; see D3.**
 
 A `release.yml` that packages and publishes on a tag, and the
-`RELEASE-SETUP.md` the fleet's release criterion expects. Note that
+`RELEASE-SETUP.md` the fleet's release criterion expects.
+
+**`release.yml` does not run on `[self-hosted, static]`.** D1's own
+argument is that the static pool is "a static shared runner rather
+than an ephemeral per-job VM", shared by every repository in both the
+shakenfist and mach33labs organisations, with filesystem and process
+state that outlives a job. `VSCE_PAT` can publish under the
+`shakenfist` publisher id, so putting it in a job's environment on
+that pool exposes it to every other repository's jobs on the same
+machine -- and `npm ci` runs dependency lifecycle scripts there, so a
+typosquatted transitive package in any repository using the pool runs
+code where the token has been. So:
+
+- the publish job runs on an ephemeral VM runner, not the static
+  pool;
+- `VSCE_PAT` is a GitHub *environment* secret on a tag-protected
+  environment, not a plain repository secret, so it is not readable
+  from a job on a branch;
+- build and publish are separate jobs: the build runs `npm ci` and
+  produces the `.vsix` as an artifact with no access to the secret,
+  and the publish job uploads that artifact without running install
+  scripts.
+
+If the static pool is used anyway, this phase says why the exposure
+is acceptable, here, where the next reader finds it.
+
+Note that
 `release-process` as written measures a Python package and will stay
 not applicable; whether it grows a TypeScript arm is future work
 rather than part of this plan.
@@ -376,10 +549,26 @@ rather than part of this plan.
 
 Run `PUSH-AUDIT.md` over the accumulated diff of every phase against
 `main`, per the shared block. Phases landing in `hunkydory` and
-`33fl` record `<repo> <sha> (#pr)` in the `Merged` column and are
-audited against those repositories' default branches as part of the
-pull requests that land them; this phase cites those audits rather
-than re-running them.
+`33fl` record `<repo> <sha> (#pr)` in the `Merged` column.
+
+**Neither hunkydory nor 33fl carries a `PUSH-AUDIT.md` today,** so
+as this plan is written there is no runbook in either to cite. The
+`push-audit` criterion reports not-applicable when the file is
+absent, which is why it is not among
+the nine failures the Situation section enumerates, and `33fl` is
+outside the audit fleet entirely. The shared block anticipates this:
+"A repository with no `PUSH-AUDIT.md` still carries the phase, and
+the phase says that the runbook does not exist yet and what was done
+instead."
+
+What is done instead: phase 2 deploys this repository's
+`PUSH-AUDIT.md` to hunkydory as part of the local tooling it adopts,
+since it is a template the fleet copies, so by the time this phase
+runs hunkydory has a runbook and its pull requests are audited
+against `develop` like any other repository's. For `33fl`, this phase
+runs *this* repository's `PUSH-AUDIT.md` briefs over the runner diff
+directly and records that it did so, rather than citing an audit
+nothing obliges anyone to perform.
 
 ## Agent guidance
 
@@ -404,13 +593,13 @@ patterns already worked out elsewhere in the fleet.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 1 | medium | sonnet | none | Add `hunkydory` to the matrix in `.github/workflows/consistency-audit.yml` and to the in-scope list in `docs/audits/README.md`; add a `REPO_OVERRIDES` entry in `scripts/audit/repo.py` marking the six Python packaging criteria named in D4 not applicable with reasons. `audit/scope.py` parses all three statements and a test holds them to each other, so all three change together. |
-| 2 | medium | sonnet | none | In hunkydory: add Biome with a `biome.json` set to 100 columns, single quotes, semicolons; write `tools/check-node.sh` mirroring ryll's `scripts/check-rust.sh`; add `.pre-commit-config.yaml` calling it as a `language: script` hook alongside shellcheck, gitleaks and skillsaw; fix four relative links; align `@types/node` and add `engines.node`. |
-| 3 | high | opus | worktree | Add three `Check` subclasses for npm dependency auditing to `scripts/audit/checks/`, following the worked brief in `PLAN-TEMPLATE.md`. Register in `scripts/audit/registry.py`, write a spec page each under `docs/audits/`, add them to the index in `docs/audits/README.md`, and add tests covering pass, fail and not-applicable. They must report not-applicable with a reason where there is no `package.json`, including against this repository. |
-| 4 | high | opus | worktree | **Hold.** See D5. |
-| 5 | medium | sonnet | none | Copy the fleet workflow templates into hunkydory, substituting TypeScript for Python in CodeQL, and write `ci.yml` calling `tools/check-node.sh` on `[self-hosted, static]` with `npm_config_cache` under `runner.temp`. |
+| 1 | medium | sonnet | none | Add `hunkydory` to the matrix in `.github/workflows/consistency-audit.yml` and to the in-scope list in `docs/audits/README.md`, and confirm it is absent from the excluded list. Those are the three statements `audit/scope.py` parses and `AuditScopeIsStatedOnceTest` holds them to each other, so all three change together. Do **not** add a `REPO_OVERRIDES` entry: per D4 the Python criteria already skip on the absence of `pyproject.toml`, and `detect_repo_properties()` has no per-criterion not-applicable key to carry a reason in. |
+| 2 | medium | sonnet | none | In hunkydory: add Biome with a `biome.json` set to 100 columns, single quotes, semicolons; write `tools/check-node.sh` mirroring ryll's `scripts/check-rust.sh`; add `.pre-commit-config.yaml` calling it as a `language: script` hook alongside shellcheck, gitleaks and skillsaw; fix four relative links; align `@types/node` and add `engines.node`; copy `PUSH-AUDIT.md` in and reference it from `AGENTS.md`. |
+| 3 | high | opus | worktree | Add three `Check` subclasses for npm dependency auditing to `scripts/audit/checks/`, following the worked brief in `PLAN-TEMPLATE.md`. Register in `scripts/audit/registry.py`, write a spec page each under `docs/audits/`, add them to the index in `docs/audits/README.md`, add their lines to `FROZEN_METADATA`, `FROZEN_ISSUE_TITLES` and the frozen column table in `scripts/tests/test_metadata.py`, and add tests in `scripts/tests/test_packaging.py` covering pass, fail and not-applicable. They must report not-applicable with a reason where there is no `package.json`, including against this repository -- hunkydory is the only repository in the fleet that has one. Read the phase 3 section for the five exemptions the dependency checks must carry (node builtins in both spellings, the host-provided `vscode` module, relative imports, `@types/*`, and devDependencies invoked from `scripts`); without them the first run files three false issues on hunkydory. |
+| 4 | high | opus | worktree | **Hold.** See D5. Includes rewording the node half of the mermaid-lint rationale in the four files the phase 4 section names. |
+| 5 | medium | sonnet | none | Copy the fleet workflow templates into hunkydory, including `secret-scan.yml`, substituting TypeScript for Python in CodeQL, and write `ci.yml` calling `tools/check-node.sh` on `[self-hosted, static]` with `npm_config_cache` under `runner.temp`, plus a job running `pre-commit run --all-files`. Read the phase 5 section for the four criteria that go live when `.github/workflows/` first appears. |
 | 6 | medium | sonnet | none | Deploy review tracking per `docs/code-review-tracking.md`, scoped to `src/` and `test/`. |
-| 7 | medium | sonnet | none | **Hold.** See D3. |
+| 7 | medium | sonnet | none | **Hold.** See D3, and the runner and secret-scoping constraints in the phase 7 section -- `release.yml` does not run on the static pool. |
 | 8 | high | opus | none | Run `PUSH-AUDIT.md` over the accumulated diff, citing the other repositories' audits. |
 
 ### Model choice
@@ -430,6 +619,64 @@ repository's own checks:
       or this plan says why the verdict moved. Phase 3 is expected
       to add three not-applicable results here and nothing else.
 - [ ] Issue filing was exercised with `--dry-run` only.
+- [ ] `python3 scripts/audit-check.py --repo-path <hunkydory clone>
+      --repo-name hunkydory --github-org shakenfist` was re-run after
+      the phase, and the verdict moved the way the phase said it
+      would. The Situation section established the start state by
+      measurement; a phase that closes criteria should establish the
+      end state the same way rather than asserting it. Phase 5 in
+      particular moves four criteria from not-applicable to live, and
+      phases 2 and 5 close `llm-context-lint-ci` between them, so
+      "which criteria changed" is the check that catches a phase
+      claiming more than it delivered.
+
+## Risks and mitigations
+
+The material below is stated in the phases too; it is gathered here
+because somebody deciding whether to approve phase 4 should not have
+to reassemble it from three sections.
+
+**Trixie regressions the runner phase has not verified.** Phase 4
+moves the static runner image from `debian:12` to `debian:13` without
+having confirmed that the playbook's `yq` install via `pip
+--break-system-packages`, the shared `docker.yml`, the claude CLI
+install, or `python3-venv` and the rest of the base package list
+behave the same on trixie. *Mitigation:* those four are named as
+must-verify in phase 4 and are a precondition for proposing the
+change, not a follow-up. The gradual rollout means a bad image
+surfaces on one runner rather than all of them.
+
+**A mixed node-18 and node-20 pool for about a week.** Line 229 is
+inside the loop over `missing_runners`, so only newly created
+instances get the new image and the weekly retire-and-rebuild cycle
+replaces the fleet over roughly a week. A job could land on either.
+*Mitigation:* hunkydory was verified to build and pass its 20 tests
+on Debian 12's node 18.20.4, so both halves of the pool can run it;
+and phase 5 waits for the rollout to finish rather than for phase 4
+to land. "Landed" and "rolled out" are a week apart and the plan says
+so.
+
+**Phase 3's criteria are measured against the whole fleet the next
+morning.** A wrong criterion files issues in twenty repositories
+rather than producing a red build. *Mitigation:* the survey in phase 3
+establishes that hunkydory is the only repository with a
+`package.json`, so the blast radius today is one repository and three
+issues. The five exemptions in phase 3 are the guard against those
+three being false. Issue filing is exercised with `--dry-run` only,
+per the review checklist.
+
+**Another session is editing `33fl` concurrently** (D5), so phase 4
+could collide with work in flight. *Mitigation:* phase 4 is marked
+`Blocked` in the Execution table, restated as **Hold** in the step
+guidance, and carries "Do not execute without the operator's say-so"
+at the head of its section. Nothing else in the plan writes to that
+repository.
+
+**Phase 7 handles a Marketplace publish token.** `VSCE_PAT` can
+publish under the `shakenfist` publisher id. *Mitigation:* the
+constraints in phase 7 -- an ephemeral runner, a tag-protected
+environment secret, and build separated from publish so `npm ci`
+never runs in the job that holds the token.
 
 ## Administration and logistics
 
@@ -438,13 +685,19 @@ repository's own checks:
 We will know when this plan has been successfully implemented
 because the following statements will be true:
 
-* `scripts/audit-check.py` against `hunkydory` reports no failures.
+* `scripts/audit-check.py` against `hunkydory` reports no failures
+  other than `review-coverage`, which phase 6 deliberately opens and
+  which stays open until the human review queue has been worked.
 * `scope-coverage` passes against `development` again.
 * `pre-commit run --all-files` passes in both repositories.
-* The three npm criteria have all four parts in step: the check and
-  its registration, the specification under `docs/audits/`, the line
-  in `docs/audits/README.md`, and tests.
-* Every `REPO_OVERRIDES` entry added carries a stated reason.
+* The three npm criteria have every part in step: the check, its
+  registration in `scripts/audit/registry.py`, the specification
+  under `docs/audits/`, the line in `docs/audits/README.md`, their
+  lines in `FROZEN_METADATA`, `FROZEN_ISSUE_TITLES` and the frozen
+  column table in `scripts/tests/test_metadata.py`, and tests in
+  `scripts/tests/test_packaging.py`.
+* No `REPO_OVERRIDES` entry was needed, or any that was added
+  carries a stated reason.
 * A push to `hunkydory` runs `npm ci` and its tests on a static
   runner without a node download.
 * hunkydory appears on the VS Code Marketplace, or phase 7 records
