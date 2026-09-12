@@ -29,6 +29,7 @@ jobs:
           # exemption written by the people the standard is for.
           - development
           - divergulent
+          - hunkydory
           - instar
           - kerbside
           - kerbside-client
