@@ -56,8 +56,8 @@ unaffected.
 
 ## The runner label
 
-`[self-hosted, vm, debian-12-docker, s]`, not `static`. Static runners
-have no docker daemon; `debian-12-docker` is the fleet image that
+`[self-hosted, vm, debian-13-docker, s]`, not `static`. Static runners
+have no docker daemon; `debian-13-docker` is the fleet image that
 ships `docker.io`. The label must also be listed in
 `.github/actionlint.yaml` under `self-hosted-runner: labels:`, or
 actionlint fails on the workflow.

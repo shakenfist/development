@@ -110,6 +110,37 @@ def gh_close_issue(org, repo, issue_number, comment=None):
         )
 
 
+# GitHub rejects an issue body over 65536 characters outright, so a
+# repository with a pathological number of items would file no issue
+# at all rather than a long one. The budget sits under that with room
+# for the rest of the body, and only bites where the alternative is
+# silence.
+ISSUE_BODY_BUDGET = 60000
+
+
+def render_issue_items(heading, items, used):
+    """Render one per-item list, stopping before the body gets too big.
+
+    `used` is the length of the body so far. The lists are deliberately
+    not truncated in any realistic case: the fix is per item, and a
+    short list leaves somebody re-running the audit to learn what the
+    issue meant. Where the budget does run out, the reader is told how
+    many items are missing and how to see them, which is the one thing
+    a silently short list cannot do.
+    """
+    rendered = f'\n**{heading}:**\n'
+    for index, item in enumerate(items):
+        line = f'- `{item}`\n'
+        if used + len(rendered) + len(line) > ISSUE_BODY_BUDGET:
+            return rendered + (
+                f'- ...and {len(items) - index} more, omitted to stay '
+                f'under GitHub\'s issue body limit. Run '
+                f'`scripts/audit-check.py` for the full list.\n'
+            )
+        rendered += line
+    return rendered
+
+
 def build_issue_body(check_id, check_result):
     """Build the issue body for a failed check."""
     meta = AUDIT_METADATA.get(check_id, {})
@@ -138,9 +169,19 @@ def build_issue_body(check_id, check_result):
     body += f'\n### Automated check details\n\n{check_result["details"]}\n'
 
     if 'missing' in check_result:
-        body += '\n**Missing items:**\n'
-        for item in check_result['missing']:
-            body += f'- `{item}`\n'
+        body += render_issue_items(
+            'Missing items', check_result['missing'], len(body))
+
+    # The sibling of 'missing', for a check whose findings are things
+    # present that should not be rather than things absent. Both carry
+    # a per-item list because the fix is per item, and a truncated one
+    # leaves somebody re-running the audit to learn what the issue
+    # meant; only the heading differs, and calling a list of offending
+    # lines "missing items" sends the reader looking for the wrong
+    # thing.
+    if 'findings' in check_result:
+        body += render_issue_items(
+            'Findings', check_result['findings'], len(body))
 
     body += (
         '\n---\n'

@@ -9,8 +9,8 @@ import re
 
 from audit.check import Check
 from audit.text.workflows import (
-    RUNS_ON_RE, STATIC_ALLOWED_LABELS, literal_runner_labels,
-    parse_runner_labels,
+    RUNS_ON_RE, STATIC_ALLOWED_LABELS, is_runner_label_value,
+    literal_runner_labels, parse_runner_labels,
 )
 
 
@@ -26,63 +26,6 @@ GITHUB_HOSTED_LABEL_RE = re.compile(
 # Marker acknowledging a deliberate exception, placed on the
 # offending line or the line immediately above it.
 RUNNER_EXCEPTION_RE = re.compile(r'audit-ok:\s*github-hosted-runner')
-
-
-# A GitHub-hosted label only names a runner when it sits where YAML
-# puts a value: after "runs-on:", as an element of a "[...]" list, or
-# as a "- " item in a matrix. The same text inside a shell command is
-# not a runner reference -- shakenfist/actions ships a step which
-# uploads an image artifact named "ubuntu-2004", and reporting that
-# asked someone to mark a deliberate exception on a line which never
-# described a runner at all.
-RUNNER_VALUE_PREFIXES = frozenset({':', '-', '[', ','})
-
-
-RUNNER_VALUE_SUFFIXES = frozenset({',', ']', '#'})
-
-
-def is_runner_label_value(line, start, end):
-    """Does a matched label sit where a YAML value could?
-
-    Scanning every line, rather than only "runs-on:" lines, is
-    deliberate -- matrix values feeding "runs-on: ${{ matrix.os }}"
-    have to be caught too -- so the position test replaces the
-    context a "runs-on:" anchor would have given.
-
-    The test is about token boundaries, not just neighbouring
-    characters. A label glued to preceding text is part of a longer
-    name ("build-ubuntu-latest"), and only a sequence opener can
-    legitimately abut one; a label separated by whitespace is a value
-    when what precedes it opens one.
-    """
-    before = line[:start]
-    after = line[end:]
-
-    # Treat 'ubuntu-latest' the same as ubuntu-latest.
-    if before.endswith(('"', "'")):
-        before = before[:-1]
-    if after.startswith(('"', "'")):
-        after = after[1:]
-
-    if before and not before.endswith((' ', '\t')):
-        # Glued to what comes before, so this is the tail of a longer
-        # name unless a list or flow-sequence opener abuts it.
-        if not before.endswith(('[', ',')):
-            return False
-    else:
-        stripped = before.rstrip()
-        if stripped and stripped[-1] not in RUNNER_VALUE_PREFIXES:
-            return False
-
-    if after and not after.startswith((' ', '\t')):
-        if not after.startswith((',', ']')):
-            return False
-    else:
-        stripped = after.lstrip()
-        if stripped and stripped[0] not in RUNNER_VALUE_SUFFIXES:
-            return False
-
-    return True
 
 
 # The runner sizes the CI conductor knows about. A "vm" job which

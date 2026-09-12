@@ -20,7 +20,9 @@ to keep in step.
 from datetime import datetime, timezone
 
 from audit.check import NOT_APPLICABLE
-from audit.checks import ci_workflows, docs_content, github_config, llm_docs, packaging, plans, review, runners
+from audit.checks import (
+    ci_workflows, distros, docs_content, github_config, llm_docs, packaging, plans, review, runners,
+)
 
 
 #: Every criterion, as instances, grouped family by family. The
@@ -58,6 +60,7 @@ CHECKS = [
     runners.SelfHostedRunners(),
     runners.StaticRunnerTags(),
     runners.VmRunnerSize(),
+    distros.EolDistro(),
     ci_workflows.CiReviewAutomation(),
     ci_workflows.WorkflowPermissions(),
     ci_workflows.PreCommitConfig(),
