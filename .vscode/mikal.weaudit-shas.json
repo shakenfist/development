@@ -317,10 +317,6 @@
       "sha": "ef1d4a20156613830ec787fde806cbf955e9501e",
       "date": "2026-09-02"
     },
-    "scripts/audit/repo.py": {
-      "sha": "a22ef8577e81e44bd0dc367b95e8410bc54c7c7e",
-      "date": "2026-09-10"
-    },
     "scripts/audit/scope.py": {
       "sha": "1e0464184a211e168fe0b11293a10f4de31e914f",
       "date": "2026-09-10"
