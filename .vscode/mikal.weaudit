@@ -639,6 +639,30 @@
     {
       "path": "scripts/audit/scope.py",
       "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/consistency-audit.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/mermaid-lint.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/actionlint.yaml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
