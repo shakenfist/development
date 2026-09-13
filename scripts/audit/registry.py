@@ -21,7 +21,8 @@ from datetime import datetime, timezone
 
 from audit.check import NOT_APPLICABLE
 from audit.checks import (
-    ci_workflows, distros, docs_content, github_config, llm_docs, packaging, plans, review, runners,
+    ci_workflows, distros, docs_content, github_config, llm_docs, npm_dependencies, packaging, plans, review,
+    runners,
 )
 
 
@@ -57,6 +58,9 @@ CHECKS = [
     packaging.UnusedDeclaredDependency(),
     packaging.UndeclaredDirectDependency(),
     packaging.RenovateLockstepGroups(),
+    npm_dependencies.NpmPinIndirectDependencies(),
+    npm_dependencies.NpmUnusedDeclaredDependency(),
+    npm_dependencies.NpmUndeclaredDirectDependency(),
     runners.SelfHostedRunners(),
     runners.StaticRunnerTags(),
     runners.VmRunnerSize(),

@@ -138,6 +138,18 @@ FROZEN_METADATA = {
         'spec': 'docs/audits/renovate-lockstep-groups.md',
         'template': None,
     },
+    'npm-pin-indirect-dependencies': {
+        'spec': 'docs/audits/npm-pin-indirect-dependencies.md',
+        'template': None,
+    },
+    'npm-unused-declared-dependency': {
+        'spec': 'docs/audits/npm-unused-declared-dependency.md',
+        'template': None,
+    },
+    'npm-undeclared-direct-dependency': {
+        'spec': 'docs/audits/npm-undeclared-direct-dependency.md',
+        'template': None,
+    },
     'pyproject-usage': {
         'spec': 'docs/audits/pyproject-usage.md',
         'template': None,
@@ -272,6 +284,9 @@ FROZEN_ISSUE_TITLES = {
     'unused-declared-dependency': 'Unused declared dependency',
     'undeclared-direct-dependency': 'Undeclared direct dependency',
     'renovate-lockstep-groups': 'Renovate lockstep groups',
+    'npm-pin-indirect-dependencies': 'Pin indirect npm dependencies',
+    'npm-unused-declared-dependency': 'Unused declared npm dependency',
+    'npm-undeclared-direct-dependency': 'Undeclared direct npm dependency',
     'export-repo-config': 'Export repo config',
     'default-branch-naming': 'Default branch naming',
     'github-security': 'GitHub security settings',

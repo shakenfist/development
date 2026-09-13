@@ -161,6 +161,9 @@ attached rather than quietly disappearing from the table.
 | [dependency-name-normalization.md](dependency-name-normalization.md) | One spelling per pinned distribution |
 | [unused-declared-dependency.md](unused-declared-dependency.md) | Declared dependencies are imported, or carry a recorded reason they are not |
 | [undeclared-direct-dependency.md](undeclared-direct-dependency.md) | Nothing imported is left resting on a generated transitive pin |
+| [npm-pin-indirect-dependencies.md](npm-pin-indirect-dependencies.md) | package-lock.json is committed, current, and honoured by CI |
+| [npm-unused-declared-dependency.md](npm-unused-declared-dependency.md) | Declared npm dependencies are imported, run, or named where they are used |
+| [npm-undeclared-direct-dependency.md](npm-undeclared-direct-dependency.md) | Nothing imported is left resting on a transitive npm resolution |
 | [export-repo-config.md](export-repo-config.md) | Repo configuration export |
 | [default-branch-naming.md](default-branch-naming.md) | Default branch conventions |
 | [github-security.md](github-security.md) | Dependabot, secret scanning, CodeQL |
