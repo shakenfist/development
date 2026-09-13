@@ -139,8 +139,10 @@ image. That makes npm a first-class fleet capability rather than a
 hunkydory workaround, keeps the runtime on Debian's security
 support, and leaves CI as `npm ci` with nothing to download.
 
-Taken together with the version question, this means moving the
-static runners from `debian:12` to `debian:13`. hunkydory runs fine
+Taken together with the version question, this means the static
+runners must be on `debian:13`. That move landed separately in
+`33fl` before this phase began -- see phase 4 -- so what this plan
+contributes is the packages, not the release. hunkydory runs fine
 on Debian 12's node 18.20.4, so this is not forced by hunkydory.
 It is taken because node 18 reached upstream end of life in April
 2025 and Debian 13's node 20.19.2 both matches what the project is
@@ -235,7 +237,7 @@ Nothing else in the plan writes to that repository.
 | 1. Register hunkydory in the audit scope | Complete | a7f4798 (#125) |
 | 2. hunkydory adopts the local tooling | Complete | hunkydory 73cdca7 (#1) |
 | 3. npm dependency criteria | Complete | b8e8fd2 (#126) |
-| 4. Static runners gain node | Not started | |
+| 4. Static runners gain node | In progress | 33fl bc50c52a (master) |
 | 5. hunkydory CI and the fleet workflows | Not started | |
 | 6. Human review onboarding | Not started | |
 | 7. Marketplace release | Blocked | |
@@ -425,28 +427,39 @@ are fixed and pinned by tests. The suite went from 1070 to 1093.
 **Released by the operator on 2026-09-13; see D5.** It was held
 until then because another session was editing `33fl`.
 
-In `33fl/static_runner.yml`:
+**Most of this phase was already done by that other session, and
+this plan described it wrongly.** It called the work a re-image. It
+is not: `33fl`'s own `worktree-debian-13-static-runners` branch had
+already landed the Debian move, parameterised as
+`static_runner_debian_release: 13` in
+`group_vars/all/static_runners.yml`, and the operator replaced every
+static runner on 2026-09-12. The fleet was on Debian 13 before this
+phase started.
 
-- Line 229, the disk specification in "Create the missing runner
-  instances", moves from `@debian:12` to `@debian:13`.
-- `nodejs` and `npm` join the base package list at approximately
-  line 337.
-- The comment at line 39, which documents the cached `debian:12`
-  image as a precondition, is updated to say `debian:13`.
+So the line numbers above were stale and only one item remained:
+`nodejs` and `npm` joining the base package list. That is
+`33fl` `bc50c52a` on `master`, not pushed and not deployed -- the
+operator is deploying separately once other work lands.
 
-Three things to verify before proposing that change, none of which
-this plan has checked:
+The three verification questions are answered:
 
-- The playbook installs `yq` with `pip --break-system-packages`,
-  installs docker through a shared `docker.yml`, and installs the
-  claude CLI for the claude flavor. All three need confirming on
-  trixie.
-- Line 630 sets `--docker-image debian:12` for the GitLab docker
-  executor. That is a different thing from the runner's own image
-  and is deliberately left alone here, but somebody should decide
-  whether it moves too.
-- Whether `python3-venv` and the rest of the base list behave the
-  same on trixie.
+- The GitLab docker executor's image is no longer hardcoded. It
+  reads `--docker-image debian:{{ static_runner_debian_release }}`,
+  so it moves with the fleet rather than needing its own decision.
+- `yq` via `pip --break-system-packages`, the shared `docker.yml`
+  and the claude CLI install all work on trixie, and so does the
+  rest of the base package list. The fleet was rebuilt on Debian 13
+  and is serving jobs, which answers this empirically rather than by
+  inspection.
+
+**What `apt` installs follows the runner's release, not this
+plan's wish.** `nodejs` on Debian 13 is node 20.19.2; on Debian 12
+it would have been 18.20.4, which reached upstream end of life in
+April 2025. Because the fleet was replaced first, the package change
+lands on Debian 13 everywhere and the mixed pool this plan would
+otherwise have created does not arise. A future release bump
+reopens that window, so `static_runner.yml` carries the warning
+beside the package list rather than only here.
 
 Landing node on the runners also falsifies half of the mermaid-lint
 rationale this plan quotes as evidence in the Situation section, in
@@ -464,12 +477,13 @@ because `templates/` is copied into ten repositories, and a template
 that justifies itself with a fact the fleet has reversed is judged as
 the code it becomes.
 
-The rollout is gradual rather than a re-image: line 229 is inside
-the loop over `missing_runners`, so it affects newly created
-instances only, and the weekly retire and rebuild cycle replaces the
-fleet over about a week. That is a feature -- a bad image shows up
-on one runner rather than all of them -- but it means "landed" and
-"rolled out" are a week apart, and phase 5 waits for the latter.
+**Phase 5 now waits on a deploy rather than on a rebuild.** The
+week of runner recycling this plan budgeted for has already been
+spent: the fleet is on Debian 13, so the only thing between here and
+npm on the runners is running `static_runner.yml`. The package task
+is ordinary `apt` state and applies to existing runners at the next
+playbook run, unlike the release variable, which only governs
+instances the reconcile creates.
 
 ### 5. hunkydory CI and the fleet workflows
 
