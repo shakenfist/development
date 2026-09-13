@@ -82,15 +82,23 @@ A TypeScript repository with a `package.json` and a
 `package-lock.json` raises the same questions about pinning and
 unused dependencies, and today the audit simply does not ask them.
 
-**The runners cannot run npm.** No workflow anywhere in the fleet
-uses `setup-node`, `npm ci` or `npm install`; the mermaid-lint
-template records the reason, that running it "from the upstream
-container keeps chromium and a node toolchain off the runners", and
-that jsdom "pulls in an undici that needs a newer node than the
-runners carry". The static runners boot `debian:12`
-(`33fl/static_runner.yml:229`), which packages `nodejs 18.20.4`.
-Debian 13 packages `nodejs 20.19.2`. Both were confirmed against the
-archive rather than assumed.
+**The runners could not run npm** when this plan was written on
+2026-09-11. No workflow anywhere in the fleet used `setup-node`,
+`npm ci` or `npm install`; the mermaid-lint template recorded the
+reason, that running it "from the upstream container keeps chromium
+and a node toolchain off the runners", and that jsdom "pulls in an
+undici that needs a newer node than the runners carry". The static
+runners booted `debian:12`, which packages `nodejs 18.20.4`. Debian
+13 packages `nodejs 20.19.2`. Both were confirmed against the archive
+rather than assumed.
+
+Both halves of that have since gone: the fleet was replaced on
+2026-09-12 and boots the release named by
+`static_runner_debian_release`, and took `nodejs` and `npm` as base
+packages on 2026-09-13. See phase 4. This paragraph is left as the
+statement of the problem the plan was written to solve, dated rather
+than rewritten, and the rationale it quotes has been reworded in the
+files it quotes from.
 
 hunkydory itself was verified to build and pass its 20 unit tests on
 Debian 12's `nodejs 18.20.4` inside a container, and Biome 2.5.13 was
@@ -237,8 +245,8 @@ Nothing else in the plan writes to that repository.
 | 1. Register hunkydory in the audit scope | Complete | a7f4798 (#125) |
 | 2. hunkydory adopts the local tooling | Complete | hunkydory 73cdca7 (#1) |
 | 3. npm dependency criteria | Complete | b8e8fd2 (#126) |
-| 4. Static runners gain node | In progress | 33fl bc50c52a (master) |
-| 5. hunkydory CI and the fleet workflows | Not started | |
+| 4. Static runners gain node | In progress | 33fl bc50c52a, deployed |
+| 5. hunkydory CI and the fleet workflows | In progress | |
 | 6. Human review onboarding | Not started | |
 | 7. Marketplace release | Blocked | |
 | 8. Push audit | Not started | |
@@ -438,8 +446,7 @@ phase started.
 
 So the line numbers above were stale and only one item remained:
 `nodejs` and `npm` joining the base package list. That is
-`33fl` `bc50c52a` on `master`, not pushed and not deployed -- the
-operator is deploying separately once other work lands.
+`33fl` `bc50c52a`, pushed to `master` and deployed on 2026-09-13.
 
 The three verification questions are answered:
 
@@ -646,7 +653,7 @@ patterns already worked out elsewhere in the fleet.
 | 1 | medium | sonnet | none | Add `hunkydory` to the matrix in `.github/workflows/consistency-audit.yml` and to the in-scope list in `docs/audits/README.md`, and confirm it is absent from the excluded list. Those are the three statements `audit/scope.py` parses and `AuditScopeIsStatedOnceTest` holds them to each other, so all three change together. Do **not** add a `REPO_OVERRIDES` entry: per D4 the Python criteria already skip on the absence of `pyproject.toml`, and `detect_repo_properties()` has no per-criterion not-applicable key to carry a reason in. |
 | 2 | medium | sonnet | none | In hunkydory: add Biome with a `biome.json` set to 100 columns, single quotes, semicolons; write `tools/check-node.sh` mirroring ryll's `scripts/check-rust.sh`; add `.pre-commit-config.yaml` calling it as a `language: script` hook alongside shellcheck, gitleaks and skillsaw; fix four relative links; align `@types/node` and add `engines.node`; copy `PUSH-AUDIT.md` in and reference it from `AGENTS.md`. |
 | 3 | high | opus | worktree | Add three `Check` subclasses for npm dependency auditing to `scripts/audit/checks/`, following the worked brief in `PLAN-TEMPLATE.md`. Register in `scripts/audit/registry.py`, write a spec page each under `docs/audits/`, add them to the index in `docs/audits/README.md`, add their lines to `FROZEN_METADATA`, `FROZEN_ISSUE_TITLES` and the frozen column table in `scripts/tests/test_metadata.py`, and add tests in `scripts/tests/test_packaging.py` covering pass, fail and not-applicable. They must report not-applicable with a reason where there is no `package.json`, including against this repository -- hunkydory is the only repository in the fleet that has one. Read the phase 3 section for the five exemptions the dependency checks must carry (node builtins in both spellings, the host-provided `vscode` module, relative imports, `@types/*`, and devDependencies invoked from `scripts`); without them the first run files three false issues on hunkydory. |
-| 4 | high | opus | worktree | Released 2026-09-13; see D5. Includes rewording the node half of the mermaid-lint rationale in the four files the phase 4 section names. |
+| 4 | high | opus | worktree | Done bar this plan file; most of it had already landed in `33fl`, see the phase 4 section. Includes rewording the node half of the mermaid-lint rationale in the four files the phase 4 section names. |
 | 5 | medium | sonnet | none | Copy the fleet workflow templates into hunkydory, including `secret-scan.yml`, substituting TypeScript for Python in CodeQL, and write `ci.yml` calling `tools/check-node.sh` on `[self-hosted, static]` with `npm_config_cache` under `runner.temp`, plus a job running `pre-commit run --all-files`. Read the phase 5 section for the four criteria that go live when `.github/workflows/` first appears. |
 | 6 | medium | sonnet | none | Deploy review tracking per `docs/code-review-tracking.md`, scoped to `src/` and `test/`. |
 | 7 | medium | sonnet | none | **Hold.** See D3, and the runner and secret-scoping constraints in the phase 7 section -- `release.yml` does not run on the static pool. |
