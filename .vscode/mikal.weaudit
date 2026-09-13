@@ -537,10 +537,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/consistency-audit.yml",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/github.py",
       "author": "mikal"
     },
