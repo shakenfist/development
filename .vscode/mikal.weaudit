@@ -663,6 +663,42 @@
     {
       "path": ".github",
       "author": "mikal"
+    },
+    {
+      "path": "docs/audits/eol-distro.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/fuzz-nightly-reporting.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/mermaid-lint-ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/npm-pin-indirect-dependencies.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/npm-undeclared-direct-dependency.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/npm-unused-declared-dependency.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/plan-audit-phase.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consistency-audits.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
