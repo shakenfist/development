@@ -13,11 +13,13 @@
 #
 # Rendering is what mermaid-cli does, and rendering needs a browser, so
 # this runs in the upstream container rather than installing a
-# chromium and a node toolchain onto a runner. There is no lighter
-# path worth taking: mermaid's own parse() under plain node throws
-# "DOMPurify.addHook is not a function" for flowchart and
-# stateDiagram-v2 -- the two most common types here -- so a DOM-free
-# checker reports false failures on exactly the diagrams that matter.
+# chromium onto a runner. A DOM-free checker is not an option:
+# mermaid's own parse() under plain node throws "DOMPurify.addHook is
+# not a function" for flowchart and stateDiagram-v2 -- the two most
+# common types here -- so it reports false failures on exactly the
+# diagrams that matter. Supplying a DOM with jsdom is no longer ruled
+# out now that the runners carry node, but nobody has tried it; see
+# templates/mermaid-lint/README.md.
 #
 # Usage:
 #   tools/mermaid-lint.sh            # every tracked markdown file

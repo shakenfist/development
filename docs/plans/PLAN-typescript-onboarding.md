@@ -464,18 +464,29 @@ beside the package list rather than only here.
 Landing node on the runners also falsifies half of the mermaid-lint
 rationale this plan quotes as evidence in the Situation section, in
 four files where it is load-bearing prose:
-`templates/mermaid-lint/README.md:28,36`,
-`templates/mermaid-lint/mermaid-lint.sh:16`,
-`tools/mermaid-lint.sh:16` and
-`docs/audits/mermaid-lint-ci.md:108,116`. A node toolchain goes onto
-the runners deliberately, and node 20.19.2 is no longer "older than
-jsdom wants". The chromium half of the argument survives and the
-decision does not change, so this is a rewording rather than a
-reversal: keep the chromium argument, drop or restate the
-node-version one. It is part of this phase rather than future work
-because `templates/` is copied into ten repositories, and a template
-that justifies itself with a fact the fleet has reversed is judged as
-the code it becomes.
+`templates/mermaid-lint/README.md`,
+`templates/mermaid-lint/mermaid-lint.sh`, `tools/mermaid-lint.sh`
+and `docs/audits/mermaid-lint-ci.md`. A node toolchain goes onto the
+runners deliberately, and node 20.19.2 is no longer "older than jsdom
+wants".
+
+Calling that a rewording rather than a reversal was too glib. The
+node-version claim was what ruled out the *lighter* path -- a
+parse-only checker with a supplied DOM, no rendering and no browser
+-- so with node 20 on the runners that blocker is gone and "jsdom is
+not viable" moves from settled to untested. The chromium argument
+still justifies rendering, but it does not by itself justify
+rendering over parsing. The DOMPurify argument survives untouched,
+since it is about needing a DOM at all rather than about node's
+version, so a DOM-free checker stays excluded. The decision does not
+change today and the container stays; what the four files must say
+is that the jsdom option is no longer ruled out and that nobody has
+measured it -- neither that it would work nor that it would not.
+
+It is part of this phase rather than future work because
+`templates/` is copied into ten repositories, and a template that
+justifies itself with a fact the fleet has reversed is judged as the
+code it becomes.
 
 **Phase 5 now waits on a deploy rather than on a rebuild.** The
 week of runner recycling this plan budgeted for has already been
