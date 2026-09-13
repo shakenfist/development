@@ -17,6 +17,7 @@ than drawn in ASCII. Converting them is covered by the
 |------|-------------|-------------|
 | `mermaid-lint.sh` | `tools/mermaid-lint.sh` | Renders every tracked markdown file that contains a mermaid fence |
 | `mermaid-lint.yml` | `.github/workflows/mermaid-lint.yml` | Runs the script on markdown-touching pull requests |
+| -- | `tools/mermaid-lint-exclude` | Optional, written by the adopting repository: trees to leave alone, one path per line |
 
 Both copy directly, with no per-project substitution. A project that
 already has a CI gate job may prefer to add the script as a step there
@@ -61,6 +62,16 @@ have no docker daemon; `debian-13-docker` is the fleet image that
 ships `docker.io`. The label must also be listed in
 `.github/actionlint.yaml` under `self-hosted-runner: labels:`, or
 actionlint fails on the workflow.
+
+The workflow sets no proxy environment, unlike the fleet's
+pip-installing lanes. It does not need to: the daemon pulls the image
+itself, so the proxy has to be configured daemon-side in the runner
+image rather than in the job, and the container it starts runs with
+`--network none` and fetches nothing. Measured on shakenfist's
+`debian-12-docker` image, cold: the 543MB pull succeeds with no `env:`
+block. A fleet whose docker-capable image does not carry that
+configuration needs it there, not here -- an `http_proxy` in the job
+would not reach the daemon doing the pull.
 
 ## Required status checks
 
@@ -264,6 +275,63 @@ would silently stop running on changes to itself -- which is the gap
 the two paths were added to close. The same applies to a repository
 that folds the script into an existing gate job rather than taking
 the shipped workflow: that job's own filter needs the script's path.
+
+## Repository-local exclusions
+
+`REVIEWS.md` is the only exclusion that ships. A repository with a
+tree of its own to leave alone writes it into
+`tools/mermaid-lint-exclude`, one path per line, whole-line `#`
+comments and blank lines ignored:
+
+```
+# Imported hourly from the sibling repositories by
+# sync-external-docs.yml, and never edited here. A diagram broken
+# upstream is fixed upstream.
+docs/components
+```
+
+The file is optional; a repository with nothing to exclude does not
+carry one, and it must be committed: an untracked copy stops the run
+rather than narrowing it, because everything else this script trusts
+comes from the index and CI only ever has what is in there.
+
+Each line is turned into an `:(exclude,literal)` pathspec, so it is
+the path it reads as and nothing else. Globs and pathspec magic are
+not supported and cannot slip through as something else: under
+`:(literal)` a line saying `docs/*.md` or `:(exclude)docs` names no
+tracked file, which is the fatal case below. A directory name still
+excludes everything beneath it.
+
+The case this exists for is a machine-synced import of somebody
+else's documentation. `shakenfist/shakenfist` carries 664 markdown
+files under `docs/components/`, refreshed hourly from the sibling
+repositories, and its `AGENTS.md` forbids editing them locally --
+so a diagram broken in `instar` or `kerbside` would fail this lane
+there, on the next pull request to touch any markdown, naming a file
+whose author cannot fix it. That is the same complaint the
+`REVIEWS.md` exclusion answers, and the answer is the same: lint it
+in the repository where it can be fixed.
+
+Two properties are worth knowing before adding a line.
+
+A line that drops no tracked markdown file **fails the run** -- one
+matching nothing at all, and one matching only files this lane never
+reads, such as a directory of images. An exclusion is a claim about
+what was not looked at, and a line that drops nothing reads, in a
+green run, exactly like one that excluded a tree. So the run prints
+what it dropped, and a name that drops nothing stops the run rather
+than being believed. This is deliberately stricter than the built-in
+`REVIEWS.md` pathspec, which a repository keeps whether or not the
+file exists; an anticipatory line does not belong in this file, so add
+it when the tree lands.
+
+**The workflow's path filter is the other half, and does not read this
+file** -- GitHub Actions has no way to. A repository that adds a line
+here adds the matching `!path/**` (or `!path` for a single file) to
+*both* of the workflow's `paths` lists, last, because a later pattern
+wins. That is the one place an adopting repository's copy of the
+workflow diverges from this template. The two must agree for the
+reason the `REVIEWS.md` paragraphs above give.
 
 ## The pinned image
 
