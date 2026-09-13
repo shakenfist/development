@@ -233,8 +233,8 @@ Nothing else in the plan writes to that repository.
 | Phase | Status | Merged |
 |-------|--------|--------|
 | 1. Register hunkydory in the audit scope | Complete | a7f4798 (#125) |
-| 2. hunkydory adopts the local tooling | Not started | |
-| 3. npm dependency criteria | In progress | |
+| 2. hunkydory adopts the local tooling | Complete | hunkydory 73cdca7 (#1) |
+| 3. npm dependency criteria | Complete | b8e8fd2 (#126) |
 | 4. Static runners gain node | Not started | |
 | 5. hunkydory CI and the fleet workflows | Not started | |
 | 6. Human review onboarding | Not started | |
@@ -318,6 +318,18 @@ Everything that does not need a runner:
   phase that gives phase 8 a runbook to cite rather than a gap to
   explain.
 
+**Landed 2026-09-13.** The audit went from six passes and nine
+failures to fourteen passes and five failures against hunkydory. The
+five that remain all need a `.github/workflows/` directory or a
+repository setting, so they are phase 5 and phase 7 work.
+`llm-context-lint-ci` is the one to watch: this phase closed its
+pre-commit half, and it stays red until phase 5 adds the CI route.
+
+`tools/check-node.sh` deliberately does not run the corpus check,
+because that needs a sibling `kerbside-patches` checkout which will
+not exist in CI. The strongest test hunkydory has is therefore the
+one CI will never run, which is worth revisiting in phase 5.
+
 ### 3. npm dependency criteria
 
 Three checks per D4, following the shape
@@ -398,6 +410,15 @@ That is not drift and must not be read as drift.
 Note that this repository is inside its own audit matrix: these
 checks will run against `development` too, find no `package.json`,
 and must report not-applicable rather than failing.
+
+**Landed 2026-09-13.** All three criteria pass against hunkydory
+and report not-applicable with a reason everywhere else, so the phase
+filed no issues. Review found two false-failure bugs before merge: a
+workflow was read as text, so a step named "do not use npm install
+here" failed a repository whose only npm command was `npm ci`; and
+`npm-shrinkwrap.json` was skipped as a foreign lockfile when it is
+npm's own format and takes precedence over `package-lock.json`. Both
+are fixed and pinned by tests. The suite went from 1070 to 1093.
 
 ### 4. Static runners gain node
 
