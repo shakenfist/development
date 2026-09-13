@@ -673,10 +673,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/mermaid-lint-ci.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/npm-pin-indirect-dependencies.md",
       "author": "mikal"
     },

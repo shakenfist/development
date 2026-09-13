@@ -169,10 +169,6 @@
       "sha": "30339aeda464965fe7fbcc8562edee9249043126",
       "date": "2026-08-29"
     },
-    "docs/audits/mermaid-lint-ci.md": {
-      "sha": "a79ff7438a893b778c09b7938015f2b1de49a4e3",
-      "date": "2026-09-14"
-    },
     "docs/audits/npm-pin-indirect-dependencies.md": {
       "sha": "f8af357ce56357aa10668cf5911ee1f314d63f77",
       "date": "2026-09-14"
