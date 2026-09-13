@@ -639,6 +639,66 @@
     {
       "path": "scripts/audit/scope.py",
       "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/consistency-audit.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/mermaid-lint.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/actionlint.yaml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/eol-distro.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/fuzz-nightly-reporting.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/mermaid-lint-ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/npm-pin-indirect-dependencies.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/npm-undeclared-direct-dependency.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/npm-unused-declared-dependency.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/plan-audit-phase.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consistency-audits.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

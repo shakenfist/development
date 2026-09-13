@@ -17,6 +17,10 @@
       "sha": "cf7c807de18a9170b83aa2a57d719f8fc3b3935e",
       "date": "2026-09-04"
     },
+    ".github/actionlint.yaml": {
+      "sha": "8cdbc00c61e3307cf3bb043f5bcf5d5de2ae8a0e",
+      "date": "2026-09-14"
+    },
     ".github/exported-config/repository-settings.json": {
       "sha": "e1e9f80b8dfc29fbc9440143fd2f804d43bace80",
       "date": "2026-09-01"
@@ -37,6 +41,10 @@
       "sha": "c11dc1e33458f31f6da1b87331769aab53c5530e",
       "date": "2026-09-01"
     },
+    ".github/workflows/consistency-audit.yml": {
+      "sha": "04d0298be9f13813db18d17b1fdbe236fd2c0905",
+      "date": "2026-09-14"
+    },
     ".github/workflows/export-repo-config.yml": {
       "sha": "53b5d8eb46e89e228dd88d42d7e1b0c3ea6694cd",
       "date": "2026-08-24"
@@ -44,6 +52,10 @@
     ".github/workflows/issue-link-check.yml": {
       "sha": "6d0ce3ba5bf1008a1139a1a1be27959413f8ad0a",
       "date": "2026-09-09"
+    },
+    ".github/workflows/mermaid-lint.yml": {
+      "sha": "d5b8377f8a98d3f68fd14469ed4d5be8fece1c6a",
+      "date": "2026-09-14"
     },
     ".github/workflows/pr-re-review.yml": {
       "sha": "983a5e26834fb3f3352613087fcb9ebeeedf560c",
@@ -56,6 +68,10 @@
     ".github/workflows/prune-reviews.yml": {
       "sha": "feb474e2510c2bfdd2011573e57c87976b62f1ad",
       "date": "2026-09-01"
+    },
+    ".github/workflows/renovate.yml": {
+      "sha": "e9f2c96380155f91d6fb2d29e144a4441d68f0d7",
+      "date": "2026-09-14"
     },
     ".github/workflows/secret-scan.yml": {
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
@@ -76,6 +92,10 @@
     "README.md": {
       "sha": "5ac5a6754b08642183a1425f5a50f114ea907848",
       "date": "2026-09-09"
+    },
+    "docs/audits/README.md": {
+      "sha": "28362ce4dc280502ccd3173bf8ceab2885574b8a",
+      "date": "2026-09-14"
     },
     "docs/audits/ci-review-automation.md": {
       "sha": "b0e5dd33cc1c7e7d845ee3b42e63ec31e35b58da",
@@ -105,6 +125,10 @@
       "sha": "9b09c0d4f5d44caa46a3212407f89e8ade0eef11",
       "date": "2026-08-27"
     },
+    "docs/audits/eol-distro.md": {
+      "sha": "862c0198a99412212364fbf3fc6370b24f7eb146",
+      "date": "2026-09-14"
+    },
     "docs/audits/expensive-lane-path-filter.md": {
       "sha": "a73639bc27b1bab18e649fa22b808ca73234e12e",
       "date": "2026-08-27"
@@ -112,6 +136,10 @@
     "docs/audits/export-repo-config.md": {
       "sha": "7fba89f8a3f2ac89ed16118e31c637eafb5567c4",
       "date": "2026-08-27"
+    },
+    "docs/audits/fuzz-nightly-reporting.md": {
+      "sha": "1ec089b60a6566502a5ff0ca30b4105d402ea3d0",
+      "date": "2026-09-14"
     },
     "docs/audits/github-security.md": {
       "sha": "59aa05becc43e1c7b5d4f42240b6c20a8ac53dae",
@@ -141,9 +169,29 @@
       "sha": "30339aeda464965fe7fbcc8562edee9249043126",
       "date": "2026-08-29"
     },
+    "docs/audits/mermaid-lint-ci.md": {
+      "sha": "a79ff7438a893b778c09b7938015f2b1de49a4e3",
+      "date": "2026-09-14"
+    },
+    "docs/audits/npm-pin-indirect-dependencies.md": {
+      "sha": "f8af357ce56357aa10668cf5911ee1f314d63f77",
+      "date": "2026-09-14"
+    },
+    "docs/audits/npm-undeclared-direct-dependency.md": {
+      "sha": "fd6c23f287bef5e2108834771c41e294a0f1f814",
+      "date": "2026-09-14"
+    },
+    "docs/audits/npm-unused-declared-dependency.md": {
+      "sha": "511f0e6549966f3891746fb98339f37552ee3c49",
+      "date": "2026-09-14"
+    },
     "docs/audits/pin-indirect-dependencies.md": {
       "sha": "6141c51ac838a8550f1b301e26bfb4c6fb092978",
       "date": "2026-08-29"
+    },
+    "docs/audits/plan-audit-phase.md": {
+      "sha": "903513cb7c98eb8b1836e653e92715bd7cf36adc",
+      "date": "2026-09-14"
     },
     "docs/audits/plan-index.md": {
       "sha": "8fe492a81b938eb86d7e7b792f6ba5c8beb8ce16",
@@ -252,6 +300,10 @@
     "docs/code-review-tracking.md": {
       "sha": "0eb0cce0f2d17eff4e3beb319bb9e4e5b8033347",
       "date": "2026-09-01"
+    },
+    "docs/consistency-audits.md": {
+      "sha": "a2c8a1b6ec840444dcd21ac9f330cc1b12fb4354",
+      "date": "2026-09-14"
     },
     "docs/release-automation.md": {
       "sha": "8a37bddb0db038f25e1d735df9807f9eb3367aa4",
