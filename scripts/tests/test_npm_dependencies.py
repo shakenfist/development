@@ -7,6 +7,7 @@ Run with: python3 -m unittest discover -s scripts/tests -t scripts
 
 import json
 import os
+import shutil
 import sys
 import unittest
 
@@ -23,11 +24,17 @@ class NpmFixtureMixin:
         self.fixture.write('package.json',
                            json.dumps(fields, indent=2) + '\n')
 
-    def lockfile(self, packages=(), version=3, **extra):
+    def lockfile(self, packages=(), version=3, path='package-lock.json',
+                 **extra):
         """A lockfileVersion 2/3 style lockfile.
 
         `packages` is a list of names, or of (name, bin names) pairs,
         written as the flat install-path map npm 7 and later produce.
+        A package's bin names may also be a single string, which is the
+        shape npm writes for a package installing one command.
+
+        `path` names the lockfile, because npm-shrinkwrap.json is the
+        same file under another name and the criteria have to read it.
         """
         entries = {'': {'name': 'x'}}
         for package in packages:
@@ -35,14 +42,15 @@ class NpmFixtureMixin:
             if isinstance(package, tuple):
                 package, binaries = package
             entry = {'version': '1.0.0'}
-            if binaries:
+            if isinstance(binaries, str):
+                entry['bin'] = binaries
+            elif binaries:
                 entry['bin'] = {name: 'bin/%s' % name for name in binaries}
             entries['node_modules/%s' % package] = entry
         document = {'name': 'x', 'lockfileVersion': version,
                     'packages': entries}
         document.update(extra)
-        self.fixture.write('package-lock.json',
-                           json.dumps(document, indent=2) + '\n')
+        self.fixture.write(path, json.dumps(document, indent=2) + '\n')
 
     def source(self, content, path='src/main.ts'):
         self.fixture.write(path, content)
@@ -153,6 +161,78 @@ class NpmPinIndirectDependenciesTest(NpmFixtureMixin, CheckTestCase):
                                         '      - run: npm ci\n')
         self.assert_pass(self.check())
 
+    def test_the_phrase_outside_a_command_is_not_an_install(self):
+        """A workflow naming npm install is not one running it.
+
+        The step name, the echo and the trailing comment are each the
+        whole failure on their own: a repository whose only npm
+        command is `npm ci` must not be reported for saying so.
+        """
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'])
+        self.fixture.workflow(
+            'ci.yml',
+            'jobs:\n  b:\n    steps:\n'
+            '      - name: Install with npm install is forbidden here\n'
+            '        run: npm ci  # not npm install\n'
+            '      - run: echo "do not use npm install in this repo"\n')
+        self.assert_pass(self.check())
+
+    def test_an_install_inside_a_run_block_still_fails(self):
+        """Only the run: body is read, and all of it is."""
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'])
+        self.fixture.workflow(
+            'ci.yml',
+            'jobs:\n  b:\n    steps:\n'
+            '      - name: Build\n'
+            '        run: |\n'
+            '          node --version\n'
+            '          npm install\n'
+            '        env:\n'
+            '          CI: "true"\n')
+        self.assert_fail(self.check(), containing='npm install')
+
+    def test_an_install_after_a_shell_operator_still_fails(self):
+        """`cd x && npm install` runs it as surely as a bare line."""
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'])
+        self.fixture.workflow(
+            'ci.yml',
+            'jobs:\n  b:\n    steps:\n'
+            '      - run: cd extension && npm install\n')
+        self.assert_fail(self.check(), containing='npm install')
+
+    def test_a_key_after_a_run_block_is_not_a_command(self):
+        """The block ends where the indentation returns to its key."""
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'])
+        self.fixture.workflow(
+            'ci.yml',
+            'jobs:\n  b:\n    steps:\n'
+            '      - run: |\n'
+            '          npm ci\n'
+            '      - name: npm install would be wrong\n'
+            '        uses: ./.github/actions/build\n')
+        self.assert_pass(self.check())
+
+    def test_a_shrinkwrap_is_a_lockfile_not_a_foreign_one(self):
+        """npm's own format, and the one it prefers when both exist."""
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'], path='npm-shrinkwrap.json')
+        result = self.assert_pass(self.check())
+        self.assertIn('npm-shrinkwrap.json is committed', result['details'])
+
+    def test_an_uncommitted_shrinkwrap_fails_as_itself(self):
+        """The lockfile git is asked about is the one that is there."""
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'], path='npm-shrinkwrap.json')
+        self.fixture.init_git()
+        self.fixture.write('.gitignore', 'npm-shrinkwrap.json\n')
+        self.fixture.commit()
+        self.assert_fail(self.check(),
+                         containing='npm-shrinkwrap.json is not committed')
+
 
 class NpmUnusedDeclaredDependencyTest(NpmFixtureMixin, CheckTestCase):
     check_class = npm_dependencies.NpmUnusedDeclaredDependency
@@ -239,6 +319,30 @@ class NpmUnusedDeclaredDependencyTest(NpmFixtureMixin, CheckTestCase):
         self.source("export const a = 1;\n")
         self.assert_pass(self.check())
 
+    def test_a_shrinkwrap_is_read_as_the_lockfile(self):
+        """The binary names live there when that is the lockfile."""
+        self.manifest(name='x', devDependencies={'typescript': '^5.3.0'},
+                      scripts={'build': 'tsc -p .'})
+        self.lockfile([('typescript', ['tsc'])], path='npm-shrinkwrap.json')
+        self.source("export const a = 1;\n")
+        self.assert_pass(self.check())
+
+    def test_a_single_binary_is_recorded_as_a_bare_string(self):
+        """A package installing one command writes `"bin": "bin/tsc"`."""
+        self.manifest(name='x', devDependencies={'typescript': '^5.3.0'},
+                      scripts={'build': 'tsc -p .'})
+        self.lockfile([('typescript', 'bin/tsc')])
+        self.source("export const a = 1;\n")
+        self.assert_pass(self.check())
+
+    def test_a_scoped_package_installs_a_command_named_after_it(self):
+        """npm's shorthand: a string bin is the package's own name."""
+        self.manifest(name='x', devDependencies={'@scope/biome': '^2.5.13'},
+                      scripts={'lint': 'biome check .'})
+        self.lockfile([('@scope/biome', 'dist/cli.js')])
+        self.source("export const a = 1;\n")
+        self.assert_pass(self.check())
+
     def test_a_package_named_in_a_config_file_counts_as_a_use(self):
         """A postcss plugin is keyed by name and never imported."""
         self.manifest(name='x', devDependencies={'autoprefixer': '^10.4.0'})
@@ -247,6 +351,68 @@ class NpmUnusedDeclaredDependencyTest(NpmFixtureMixin, CheckTestCase):
             'postcss.config.js',
             "module.exports = { plugins: { autoprefixer: {} } };\n")
         self.source("export const a = 1;\n")
+        self.assert_pass(self.check())
+
+    def test_a_config_file_under_dot_config_counts_as_a_use(self):
+        """eslint documents .config/ as the alternative home for it."""
+        self.manifest(name='x',
+                      devDependencies={'eslint-plugin-import': '^2.31.0'})
+        self.lockfile(['eslint-plugin-import'])
+        self.fixture.write(
+            '.config/eslint.config.js',
+            "export default [{ plugins: ['eslint-plugin-import'] }];\n")
+        self.source("export const a = 1;\n")
+        self.assert_pass(self.check())
+
+    def test_a_typescript_module_config_counts_as_a_use(self):
+        """A flat eslint config is routinely written as .mts."""
+        self.manifest(name='x',
+                      devDependencies={'eslint-plugin-import': '^2.31.0'})
+        self.lockfile(['eslint-plugin-import'])
+        self.fixture.write(
+            'eslint.config.mts',
+            "export default [{ plugins: ['eslint-plugin-import'] }];\n")
+        self.source("export const a = 1;\n")
+        self.assert_pass(self.check())
+
+    def test_a_config_deeper_than_dot_config_is_not_read(self):
+        """One level, or the audit starts reading a project's fixtures."""
+        self.manifest(name='x',
+                      devDependencies={'eslint-plugin-import': '^2.31.0'})
+        self.lockfile(['eslint-plugin-import'])
+        self.fixture.write(
+            '.config/nested/eslint.config.js',
+            "export default [{ plugins: ['eslint-plugin-import'] }];\n")
+        self.source("export const a = 1;\n")
+        self.assert_fail(self.check(), containing='eslint-plugin-import')
+
+    def test_an_out_dir_is_matched_as_a_path_not_a_name(self):
+        """outDir generated/js says nothing about generated/keep."""
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'])
+        self.fixture.write('tsconfig.json',
+                           '{"compilerOptions": {"outDir": "generated/js"}}\n')
+        self.source("import leftPad from 'left-pad';\n",
+                    path='generated/keep/main.ts')
+        self.assert_pass(self.check())
+
+    def test_a_copy_in_a_nested_out_dir_is_not_a_use(self):
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'])
+        self.fixture.write('tsconfig.json',
+                           '{"compilerOptions": {"outDir": "generated/js"}}\n')
+        self.source("export const a = 1;\n")
+        self.source("import leftPad from 'left-pad';\n",
+                    path='generated/js/main.js')
+        self.assert_fail(self.check(), containing='left-pad')
+
+    def test_an_out_dir_of_the_repository_itself_skips_nothing(self):
+        """Compiling in place is not a request to skip the whole tree."""
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'])
+        self.fixture.write('tsconfig.json',
+                           '{"compilerOptions": {"outDir": "."}}\n')
+        self.source("import leftPad from 'left-pad';\n")
         self.assert_pass(self.check())
 
     def test_a_package_named_in_a_workflow_counts_as_a_use(self):
@@ -383,6 +549,28 @@ class NpmUndeclaredDirectDependencyTest(NpmFixtureMixin, CheckTestCase):
         self.source("import type { Pool } from 'undici-types';\n")
         self.assert_fail(self.check(), containing='undici-types')
 
+    def test_a_binding_list_spanning_lines_is_still_an_import(self):
+        """What the multi-line body in the import pattern is there for."""
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad', 'undici-types'])
+        self.source("import {\n  Pool,\n  Dispatcher,\n"
+                    "} from 'undici-types';\n")
+        self.assert_fail(self.check(), containing='undici-types')
+
+    def test_a_star_re_export_is_still_an_import(self):
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad', 'undici-types'])
+        self.source("export * from 'undici-types';\n")
+        self.assert_fail(self.check(), containing='undici-types')
+
+    def test_a_shrinkwrap_is_read_as_the_resolved_tree(self):
+        """npm prefers it, so a project pinning that way is still read."""
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad', 'undici-types'],
+                      path='npm-shrinkwrap.json')
+        self.source("import types from 'undici-types';\n")
+        self.assert_fail(self.check(), containing='undici-types')
+
     def test_an_export_from_a_transitive_package_fails(self):
         self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
         self.lockfile(['left-pad', 'undici-types'])
@@ -471,6 +659,35 @@ class NpmUndeclaredDirectDependencyTest(NpmFixtureMixin, CheckTestCase):
                     "import types from 'undici-types';\n")
         self.assert_fail(self.check(), containing='undici-types')
 
+    def test_an_unterminated_comment_ends_the_file_rather_than_raising(self):
+        """A file somebody is in the middle of editing is still read."""
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad', 'undici-types'])
+        self.source("import types from 'undici-types';\n"
+                    "/* still writing this\n")
+        self.assert_fail(self.check(), containing='undici-types')
+
+    def test_an_unterminated_string_ends_the_file_rather_than_raising(self):
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad', 'undici-types'])
+        self.source("import types from 'undici-types';\n"
+                    "const half = 'unclosed\n")
+        self.assert_fail(self.check(), containing='undici-types')
+
+    def test_a_symlink_out_of_the_checkout_is_not_read(self):
+        """A repository does not get to choose what the audit reads."""
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad', 'undici-types'])
+        self.source("import leftPad from 'left-pad';\n")
+        outside = os.path.join(self._tmp.name + '-outside', 'escape.ts')
+        os.makedirs(os.path.dirname(outside), exist_ok=True)
+        with open(outside, 'w') as f:
+            f.write("import types from 'undici-types';\n")
+        self.addCleanup(shutil.rmtree, os.path.dirname(outside), True)
+        os.symlink(outside,
+                   os.path.join(self.fixture.path, 'src', 'escape.ts'))
+        self.assert_pass(self.check())
+
     def test_an_import_resolving_to_nothing_is_not_reported(self):
         """A tsconfig paths alias is resolver configuration we do not read."""
         self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
@@ -504,6 +721,27 @@ class NpmUndeclaredDirectDependencyTest(NpmFixtureMixin, CheckTestCase):
         }, indent=2))
         self.source("import types from 'undici-types';\n")
         self.assert_fail(self.check(), containing='undici-types')
+
+
+class CommentStrippingTest(unittest.TestCase):
+    """The slash question, which is the one with no parser to ask."""
+
+    def test_a_regex_after_a_keyword_is_not_a_comment(self):
+        """`return /x\\/\\//` holds a // that starts nothing."""
+        stripped = npm_dependencies.strip_comments(
+            'function f(s) {\n'
+            '  return /https:\\/\\//.test(s);\n'
+            '}\n'
+            "import y from 'pkg';\n")
+        self.assertIn('.test(s)', stripped)
+        self.assertIn("'pkg'", stripped)
+
+    def test_a_division_after_an_identifier_is_not_a_regex(self):
+        """Reading one as a regex swallows the comment after it."""
+        stripped = npm_dependencies.strip_comments(
+            'const half = width / 2; // a note\n')
+        self.assertIn('width / 2;', stripped)
+        self.assertNotIn('note', stripped)
 
 
 class SpecificationTest(unittest.TestCase):

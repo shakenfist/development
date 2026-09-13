@@ -3,9 +3,10 @@
 ## Who this applies to
 
 Every project with a `package.json` and a readable `package-lock.json`
-whose lockfile resolves at least one package the manifest does not
-declare, and which has JavaScript or TypeScript source outside its
-build directories.
+-- or `npm-shrinkwrap.json`, the same file under the name npm prefers
+when a project has both -- whose lockfile resolves at least one package
+the manifest does not declare, and which has JavaScript or TypeScript
+source outside its build directories.
 
 A workspace root is not applicable, for the reason
 [npm-unused-declared-dependency.md](npm-unused-declared-dependency.md)

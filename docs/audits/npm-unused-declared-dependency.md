@@ -11,7 +11,9 @@ several manifests, and this criterion reads only the root one, so it
 would report a package the root declares on behalf of a member as
 unused.
 
-A project with no readable `package-lock.json` is not applicable
+A project with no readable `package-lock.json` -- or
+`npm-shrinkwrap.json`, the same file under the name npm prefers when a
+project has both -- is not applicable
 either. The lockfile is where the command names a package installs are
 recorded -- it is how `typescript` is known to be what puts `tsc` on
 the path -- so without it every tool invoked from a `scripts` entry
@@ -69,16 +71,25 @@ All of these, and the list is deliberately long:
   being used by that script.
 * **A binary a `scripts` entry runs.** `typescript` puts `tsc` on the
   path, and `"build": "tsc -p ."` never names the package. The command
-  names a package installs are read out of `package-lock.json`, so the
+  names a package installs are read out of the lockfile, so the
   mapping is measured rather than guessed from a table that would be
   right about `typescript` and wrong about the next tool anybody adds.
-* **A name in configuration.** Any root-level dotfile or `.json`,
-  `.js`, `.cjs`, `.mjs`, `.ts`, `.yaml`, `.yml` or `.toml` file, and
-  any workflow under `.github/workflows/`. This is how an eslint config
-  in an `extends` array, a postcss plugin keyed by name, and a tool a
-  workflow invokes are all counted. The dependency maps in
-  `package.json` itself are excluded before the manifest is read, for
-  the obvious reason: they name every declared dependency.
+  A package installing a single command records it as a bare path, and
+  npm names that command after the package rather than after the file.
+* **A name in configuration.** Any dotfile, or any `.json`, `.js`,
+  `.cjs`, `.mjs`, `.ts`, `.mts`, `.cts`, `.yaml`, `.yml` or `.toml`
+  file, at the root of the repository or one level inside `.config/`,
+  and any workflow under `.github/workflows/`. This is how an eslint
+  config in an `extends` array, a postcss plugin keyed by name, and a
+  tool a workflow invokes are all counted. `.config/` is read because
+  it is the alternative home eslint documents for a flat config and
+  other tools have followed it, and a config file that is not read is
+  the only mention of the plugin it names -- which is exactly what
+  this criterion would then report as unused. Nothing deeper is read,
+  or the audit would start counting mentions in whatever a project
+  keeps as test fixtures. The dependency maps in `package.json` itself
+  are excluded before the manifest is read, for the obvious reason:
+  they name every declared dependency.
 * **Being a `@types/` package.** These are consumed by the TypeScript
   compiler on the strength of their name, and nothing ever imports
   them. `@types/vscode` describes an API the extension host injects,

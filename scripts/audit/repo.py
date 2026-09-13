@@ -180,19 +180,25 @@ class Repo:
 
         full = self.join(path)
         content = None
-        if os.path.isfile(full) and self._contains(full):
+        if os.path.isfile(full) and self.contains(full):
             with open(full, 'r', errors='replace') as f:
                 content = f.read()
         self._reads[path] = content
         return content
 
-    def _contains(self, full):
+    def contains(self, full):
         """Does an absolute path resolve to something in the checkout?
 
         Both sides are resolved, because the checkout itself is often
         reached through a symlink and comparing a resolved file to an
         unresolved root would then reject every file in the
         repository.
+
+        Public because `read()` is not the only way a check opens a
+        file: a criterion that walks the tree for source files opens
+        what it finds itself, and the containment rule above is the
+        same one there. One implementation of it, called from both,
+        rather than a second realpath comparison that drifts.
         """
         root = os.path.realpath(self.path)
         return os.path.realpath(full).startswith(root + os.sep)

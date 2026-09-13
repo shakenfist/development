@@ -8,14 +8,21 @@ applicable, which today is every repository in the fleet except
 `hunkydory`.
 
 A project whose lockfile is `yarn.lock`, `pnpm-lock.yaml` or
-`bun.lockb` rather than `package-lock.json` is reported not applicable
-with that reason. Those files pin a tree too, and reading them is work
+`bun.lockb` rather than an npm one is reported not applicable with
+that reason. Those files pin a tree too, and reading them is work
 nobody in the fleet needs yet; the criterion says so rather than
 failing a project for using a package manager it does not parse.
 
+`npm-shrinkwrap.json` is not one of those. It is npm's own format --
+the same schema as `package-lock.json`, installed exactly by `npm ci`
+-- and it is the publishable spelling, which npm reads in preference
+when a project has both. A project pinning its tree that way is doing
+what this criterion asks, so it is read as the lockfile rather than
+reported as a package manager we do not parse.
+
 ## What we check
 
-* `package-lock.json` exists.
+* `package-lock.json`, or `npm-shrinkwrap.json`, exists.
 * It is committed. A lockfile that only ever existed in the working
   copy that generated it pins nothing for anybody else.
 * Its `lockfileVersion` is 2 or later.
@@ -70,6 +77,14 @@ Neither is `npm install --package-lock-only`, which resolves and
 rewrites the lockfile without installing anything. That is how a
 lockfile is deliberately refreshed, and nothing is tested against the
 tree it produces until the resulting lockfile is reviewed and merged.
+
+Neither, finally, is the phrase appearing somewhere that is not a
+command. Only the body of a `run:` is read, and the command has to
+start there or follow a `|`, `&&` or `;`. A step called "never use npm
+install here", an `echo` saying the same thing, and a comment at the
+end of a `npm ci` line are a workflow describing the mistake rather
+than making it, and failing a compliant repository for saying so is
+the expensive direction to be wrong in.
 
 ## What we deliberately do not check
 

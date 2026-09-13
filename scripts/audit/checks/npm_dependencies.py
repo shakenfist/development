@@ -68,6 +68,37 @@ SOURCE_EXTENSIONS = ('.ts', '.tsx', '.mts', '.cts',
 #: keep counting it after the file it came from was deleted.
 BUILD_DIRECTORIES = frozenset({'coverage', 'out'})
 
+#: npm's own lockfile formats, in the order npm reads them. Both
+#: carry the same schema and both are installed by `npm ci`;
+#: `npm-shrinkwrap.json` is the publishable spelling, and npm honours
+#: it in preference to `package-lock.json` when a project has both.
+#: A project using one is doing what the pinning criterion asks, so it
+#: resolves which one is in play rather than reading only the common
+#: spelling and reporting the other as a package manager it cannot
+#: read.
+NPM_LOCKFILES = ('npm-shrinkwrap.json', 'package-lock.json')
+
+#: Lockfiles belonging to another package manager entirely. These do
+#: pin a tree, and reading them is work nobody in the fleet needs yet,
+#: so a project using one is reported not applicable with that reason.
+FOREIGN_LOCKFILES = ('yarn.lock', 'pnpm-lock.yaml', 'bun.lockb')
+
+#: The manifest and every lockfile: read as configuration, they would
+#: name every declared dependency and make all of them look used.
+MANIFEST_AND_LOCKFILES = frozenset(
+    ('package.json',) + NPM_LOCKFILES + FOREIGN_LOCKFILES)
+
+#: What a configuration file is called. A dotfile counts whatever its
+#: name; anything else counts by extension. `.mts` and `.cts` are here
+#: because a flat eslint config is routinely written in one.
+CONFIGURATION_EXTENSIONS = ('.json', '.js', '.cjs', '.mjs', '.ts', '.mts',
+                            '.cts', '.yaml', '.yml', '.toml')
+
+#: The documented alternative home for tool configuration -- eslint
+#: names it explicitly, and others have followed -- read one level
+#: deep beside the repository root.
+CONFIGURATION_DIRECTORY = '.config'
+
 #: The dependency maps a package name can be declared in. All four
 #: count as "declared" for the undeclared-import criterion -- a peer or
 #: optional dependency is a deliberate statement about a package, not
@@ -99,6 +130,24 @@ BARE_IMPORT_RE = re.compile(
 CALL_IMPORT_RE = re.compile(
     r'\b(?:require|import)[ \t]*\([ \t\r\n]*'
     r'[\'"](?P<spec>[^\'"\n]+)[\'"]')
+
+#: A `run:` key in a workflow, as a step's own key (`- run:`) or as a
+#: plain one. What follows on the line is either the command itself or
+#: a block scalar indicator introducing several.
+RUN_KEY_RE = re.compile(r'^(?P<lead>[ \t]*(?:-[ \t]+)?)run:(?P<rest>.*)$')
+
+#: The block scalar indicators, with their optional chomping and
+#: explicit indentation: `|`, `>-`, `|2` and the rest.
+BLOCK_SCALAR_RE = re.compile(r'^[|>](?:\d+[-+]?|[-+]?\d*)$')
+
+#: `npm install`, at a position where a shell would run it: the start
+#: of a command, or just after a pipe, `&&` or `;`. Anchored, because
+#: a workflow names npm in plenty of places that do not run it -- a
+#: step `name:`, an `echo`, a trailing comment -- and matching the
+#: phrase anywhere in the line fails a repository whose only npm
+#: command is `npm ci` for having a step named "do not use npm
+#: install".
+NPM_RESOLVING_RE = re.compile(r'(?:^|[|&;]\s*)npm\s+(?:install|i|add)\b')
 
 #: A specifier carrying a URI scheme -- `node:`, `bun:`, `data:`,
 #: `https:` -- is never a package name.
@@ -146,6 +195,36 @@ def declared_dependencies(manifest, sections=DEPENDENCY_SECTIONS):
         for name in entries:
             declared.setdefault(name, section)
     return declared
+
+
+def lockfile_name(repo):
+    """Which npm lockfile this project pins with, or None.
+
+    npm's precedence: `npm-shrinkwrap.json` wins when a project has
+    both. The two are the same file under different names -- identical
+    schema, both installed exactly by `npm ci` -- and the shrinkwrap is
+    the one that ships to a consumer, which is why a published CLI
+    carries it. Reading only `package-lock.json` would report a project
+    that pins its tree the stricter way as using a lockfile format this
+    criterion cannot read, and silently stop asking any of these three
+    questions about it.
+    """
+    for name in NPM_LOCKFILES:
+        if repo.exists(name):
+            return name
+    return None
+
+
+def read_lockfile(repo):
+    """The parsed lockfile and the name it was read from.
+
+    Both, because every message that mentions a lockfile should name
+    the one the project actually has.
+    """
+    name = lockfile_name(repo)
+    if name is None:
+        return None, None
+    return read_json(repo, name), name
 
 
 def manifest_line(repo, name):
@@ -252,8 +331,22 @@ def _starts_regex(source, index, previous):
         return True
     if not (previous.isalnum() or previous == '_'):
         return False
-    word = re.search(r'[A-Za-z_$][\w$]*\s*$', source[:index])
-    return bool(word) and word.group(0).strip() in REGEX_PRECEDING_KEYWORDS
+
+    # Walk back over the word rather than matching a regex against
+    # `source[:index]`. That slice is a copy of everything read so
+    # far and the search then scans all of it, so the cost of
+    # stripping comments grew with the file size times the number of
+    # divisions in it: a 140KB file with 500 of them took half a
+    # minute. The answer only ever depends on the token immediately
+    # before the slash.
+    end = index
+    while end > 0 and source[end - 1].isspace():
+        end -= 1
+    start = end
+    while start > 0 and (source[start - 1].isalnum()
+                         or source[start - 1] in '_$'):
+        start -= 1
+    return source[start:end] in REGEX_PRECEDING_KEYWORDS
 
 
 def _skip_regex(source, index):
@@ -313,8 +406,16 @@ def source_files(repo):
     WALK_SKIP. A compiled copy of a source file is not evidence about
     anything: it says what the source said at the last build, which is
     exactly what makes a deleted import look alive.
+
+    The `outDir` is matched as the path it names rather than as a
+    directory name. An `outDir` of `build/js` says nothing about a
+    directory called `build` three levels down, and one of `.` names
+    the repository itself, which is a tsconfig saying "compile in
+    place" rather than one asking for the whole tree to be skipped.
     """
     skip = set(WALK_SKIP) | set(BUILD_DIRECTORIES)
+    root = os.path.normpath(repo.path)
+    out_directory = None
     tsconfig = repo.read('tsconfig.json')
     if tsconfig:
         try:
@@ -322,15 +423,30 @@ def source_files(repo):
         except ValueError:
             parsed = {}
         out_dir = (parsed.get('compilerOptions') or {}).get('outDir')
-        if isinstance(out_dir, str) and out_dir:
-            skip.add(out_dir.strip('./').split('/')[0])
+        if isinstance(out_dir, str) and out_dir.strip():
+            candidate = os.path.normpath(os.path.join(root, out_dir.strip()))
+            if candidate != root:
+                out_directory = candidate
 
     found = []
-    for dirpath, dirnames, filenames in os.walk(repo.path):
-        dirnames[:] = sorted(d for d in dirnames if d not in skip)
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(
+            d for d in dirnames
+            if d not in skip
+            and os.path.normpath(os.path.join(dirpath, d)) != out_directory)
         for filename in sorted(filenames):
-            if filename.endswith(SOURCE_EXTENSIONS):
-                found.append(os.path.join(dirpath, filename))
+            if not filename.endswith(SOURCE_EXTENSIONS):
+                continue
+            full = os.path.join(dirpath, filename)
+            # The walk opens these itself rather than going through
+            # Repo.read, so it applies Repo's containment rule itself:
+            # a committed symlink pointing out of the clone is a path
+            # the audited repository chose, and following it would let
+            # a repository decide what the audit reads. Symlinked
+            # directories need no such guard, because os.walk does not
+            # follow them.
+            if repo.contains(full):
+                found.append(full)
     return found
 
 
@@ -342,6 +458,11 @@ def imported_packages(paths):
     `import()`. A type-only import is a dependency like any other --
     it is resolved at build time, and the build breaks when it is not
     installed.
+
+    The paths are opened directly rather than through `Repo.read`,
+    because there is nothing to cache here and the walk already holds
+    absolute paths. `source_files()` applies the containment rule
+    `Repo.read` applies, so nothing outside the checkout arrives here.
     """
     names = set()
     for path in paths:
@@ -425,16 +546,66 @@ def binary_names(lock, package):
         if isinstance(binaries, dict):
             names |= {str(b) for b in binaries}
         elif isinstance(binaries, str):
+            # A string `bin` is npm's shorthand for one command named
+            # after the package, so `@scope/thing` installs `thing`
+            # whatever the file is called. The file name is offered as
+            # well, because it usually is the command too and an extra
+            # candidate can only make a dependency look used.
+            names.add(package.rsplit('/', 1)[-1])
             names.add(os.path.basename(binaries))
     return names
 
 
 def mentions(text, name):
-    """Is a package named as a whole token somewhere in some text?"""
+    """Is a package named as a whole token somewhere in some text?
+
+    A name inside a comment counts, which is the opposite of what
+    `files.file_mentions()` does with the same question, and
+    deliberately so: the two are asked about opposite things. That one
+    asks whether a project does something, where a comment describing
+    it would report the project compliant for describing what it does
+    not do. This one asks whether a declared dependency is used, and
+    reads only for the generous direction `run()` argues for -- a
+    spurious mention can only make a dependency look used, and a false
+    pass costs a finding the next sweep gets anyway, while a false
+    failure sends somebody to justify a dependency nobody doubted. A
+    config file whose comment names a plugin is a config file somebody
+    is still thinking about.
+
+    Note this is the opposite call to the one `strip_comments()` makes
+    about *source*. A commented-out import is the precise shape this
+    criterion exists to find, so it must not count; a comment in a
+    config file naming a tool is evidence about the tool, not a dead
+    import of it.
+    """
     if not text:
         return False
     pattern = r'(?<![A-Za-z0-9_@/.\-])%s(?![A-Za-z0-9_.\-])' % re.escape(name)
     return bool(re.search(pattern, text))
+
+
+def configuration_files(repo):
+    """Repository-relative configuration files, root and `.config/`.
+
+    A dotfile counts whatever it is called, because configuration
+    routinely has no extension worth matching on; anything else counts
+    by extension.
+    """
+    found = []
+    for directory in ('', CONFIGURATION_DIRECTORY):
+        base = repo.join(directory) if directory else repo.path
+        if not os.path.isdir(base):
+            continue
+        for name in sorted(os.listdir(base)):
+            if name in MANIFEST_AND_LOCKFILES:
+                continue
+            if not (name.startswith('.')
+                    or name.endswith(CONFIGURATION_EXTENSIONS)):
+                continue
+            if not os.path.isfile(os.path.join(base, name)):
+                continue
+            found.append(os.path.join(directory, name) if directory else name)
+    return found
 
 
 def configuration_text(repo, manifest):
@@ -451,6 +622,16 @@ def configuration_text(repo, manifest):
     annotation block, which would otherwise exempt a dependency on the
     strength of an entry carrying no reason. Lockfiles are left out for
     the same reason as the dependency maps.
+
+    Configuration is read from the root and from `.config/`, which is
+    the directory eslint documents as the alternative home for
+    `eslint.config.js` and which several other tools have followed.
+    Missing a config file means missing the only mention of the plugin
+    it names, and a plugin nothing imports is exactly what this
+    criterion would then report as unused -- a false failure, which is
+    the expensive direction. Nothing deeper is read: a tool's config
+    lives at one of those two levels, and walking the tree would start
+    reading the fixtures of whatever the project tests.
     """
     without_declarations = {
         key: value for key, value in manifest.items()
@@ -458,18 +639,8 @@ def configuration_text(repo, manifest):
     }
     chunks = [json.dumps(without_declarations, sort_keys=True)]
 
-    for name in sorted(os.listdir(repo.path)):
-        full = os.path.join(repo.path, name)
-        if not os.path.isfile(full):
-            continue
-        if name in ('package.json', 'package-lock.json', 'yarn.lock',
-                    'pnpm-lock.yaml', 'npm-shrinkwrap.json'):
-            continue
-        if not (name.startswith('.') or name.endswith(
-                ('.json', '.js', '.cjs', '.mjs', '.ts', '.yaml', '.yml',
-                 '.toml'))):
-            continue
-        content = repo.read(name)
+    for relative in configuration_files(repo):
+        content = repo.read(relative)
         if content:
             chunks.append(content)
 
@@ -524,6 +695,53 @@ def host_provided_modules(manifest):
     return {str(name) for name in engines if str(name) not in ('node', 'npm')}
 
 
+def run_commands(content):
+    """The shell command lines a workflow actually runs.
+
+    Reading a workflow as text finds npm in places nothing runs it: a
+    step `name:`, an `echo` warning somebody off, a comment at the end
+    of a line, a description in prose. Only the body of a `run:` is a
+    command, so only that is returned -- everything else is a workflow
+    talking about a command rather than running one, and failing a
+    compliant repository for describing what it does not do is the
+    expensive direction to be wrong in.
+
+    A block scalar (`run: |`) carries several commands, and ends where
+    the indentation returns to the key that introduced it. That is
+    tracked rather than assumed, because the line after a block is
+    routinely another key of the same step, and reading it as a
+    command would put the whole rest of the file back in scope.
+
+    This is a scan and not a YAML parse, for the reason the module
+    docstring gives: the audit reads checkouts with the standard
+    library alone. The shapes it does not follow -- a quoted scalar
+    spanning lines, an anchor -- are shapes no workflow in the fleet
+    writes a command in.
+    """
+    commands = []
+    key_column = None
+    for line in content.splitlines():
+        stripped = line.strip()
+        if key_column is not None:
+            if not stripped:
+                continue
+            if len(line) - len(line.lstrip()) > key_column:
+                if not stripped.startswith('#'):
+                    commands.append(stripped)
+                continue
+            key_column = None
+
+        match = RUN_KEY_RE.match(line)
+        if not match:
+            continue
+        rest = match.group('rest').strip()
+        if BLOCK_SCALAR_RE.match(rest):
+            key_column = len(match.group('lead'))
+        elif rest and not rest.startswith('#'):
+            commands.append(rest)
+    return commands
+
+
 def workspace_reason(manifest):
     """Why a workspace root is out of scope, or None."""
     if manifest.get('workspaces'):
@@ -574,7 +792,15 @@ class NpmPinIndirectDependencies(NpmPackageCheck):
 
         A global install (`npm install -g`) is not that. It installs a
         tool beside the project rather than the project's own
-        dependencies, and touches no lockfile.
+        dependencies, and touches no lockfile. Neither is a mention of
+        the phrase somewhere in a workflow that is not a command: only
+        the body of a `run:` is read, because failing a repository for
+        a step named after the thing it does not do is the expensive
+        direction to be wrong in.
+
+        Either of npm's two lockfile spellings satisfies this, and
+        `npm-shrinkwrap.json` wins when a project has both, because
+        that is npm's own precedence.
         """
         manifest = self.manifest(repo)
         if manifest is None:
@@ -585,36 +811,37 @@ class NpmPinIndirectDependencies(NpmPackageCheck):
             return self.skip('No dependencies are declared in package.json, '
                              'so there is no transitive tree to pin')
 
-        if not repo.exists('package-lock.json'):
-            for alternative in ('yarn.lock', 'pnpm-lock.yaml',
-                                'bun.lockb', 'npm-shrinkwrap.json'):
+        name = lockfile_name(repo)
+        if name is None:
+            for alternative in FOREIGN_LOCKFILES:
                 if repo.exists(alternative):
                     return self.skip(
                         f'Dependencies are locked by {alternative} rather '
-                        f'than package-lock.json, which is the only '
-                        f'lockfile format this criterion reads')
+                        f'than by package-lock.json or npm-shrinkwrap.json, '
+                        f'which are the only lockfile formats this '
+                        f'criterion reads')
             return self.fail(
-                'No package-lock.json, so nothing pins the transitive '
-                'dependency tree: every install resolves the declared '
-                'ranges afresh')
+                'No package-lock.json or npm-shrinkwrap.json, so nothing '
+                'pins the transitive dependency tree: every install '
+                'resolves the declared ranges afresh')
 
         issues = []
 
-        lock = read_json(repo, 'package-lock.json')
+        lock = read_json(repo, name)
         if lock is None:
-            issues.append('package-lock.json is not readable JSON')
+            issues.append(f'{name} is not readable JSON')
         else:
             version = lock.get('lockfileVersion')
             if not isinstance(version, int) or version < 2:
                 issues.append(
-                    f'package-lock.json is lockfileVersion {version!r}; '
+                    f'{name} is lockfileVersion {version!r}; '
                     f'version 2 or later is what records the full '
                     f'resolved tree that npm ci installs')
 
-        if self._is_untracked(repo):
+        if self._is_untracked(repo, name):
             issues.append(
-                'package-lock.json is not committed, so the pinned tree '
-                'exists only in the working copy that generated it')
+                f'{name} is not committed, so the pinned tree '
+                f'exists only in the working copy that generated it')
 
         issues.extend(self._resolving_workflows(repo))
 
@@ -623,10 +850,10 @@ class NpmPinIndirectDependencies(NpmPackageCheck):
 
         packages = lockfile_packages(lock) if lock else set()
         noun = 'package' if len(packages) == 1 else 'packages'
-        return self.ok(f'package-lock.json is committed and pins all '
+        return self.ok(f'{name} is committed and pins all '
                        f'{len(packages)} resolved {noun}')
 
-    def _is_untracked(self, repo):
+    def _is_untracked(self, repo, name):
         """True when git is sure the lockfile is not tracked.
 
         Only when it is sure. A directory that is not a checkout, or a
@@ -635,8 +862,7 @@ class NpmPinIndirectDependencies(NpmPackageCheck):
         """
         try:
             result = subprocess.run(
-                ['git', '-C', repo.path, 'ls-files', '--',
-                 'package-lock.json'],
+                ['git', '-C', repo.path, 'ls-files', '--', name],
                 capture_output=True, text=True, timeout=30,
             )
         except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
@@ -649,24 +875,20 @@ class NpmPinIndirectDependencies(NpmPackageCheck):
         """Workflows that install by resolving rather than by the lock."""
         found = []
         for name in sorted(repo.workflows()):
-            content = repo.workflow(name) or ''
-            for line in content.splitlines():
-                stripped = line.strip()
-                if stripped.startswith('#'):
+            for command in run_commands(repo.workflow(name) or ''):
+                if not NPM_RESOLVING_RE.search(command):
                     continue
-                if not re.search(r'\bnpm\s+(?:install|i|add)\b', stripped):
-                    continue
-                if re.search(r'(?:^|\s)(?:-g|--global)(?:\s|$)', stripped):
+                if re.search(r'(?:^|\s)(?:-g|--global)(?:\s|$)', command):
                     continue
                 # --package-lock-only resolves and writes the lockfile
                 # without installing anything, which is how a lockfile
                 # is deliberately refreshed. Nothing is tested against
                 # the tree it produces until that lockfile is reviewed
                 # and merged, so it is the opposite of the problem.
-                if '--package-lock-only' in stripped:
+                if '--package-lock-only' in command:
                     continue
                 found.append(
-                    f'.github/workflows/{name} runs "{stripped}" rather '
+                    f'.github/workflows/{name} runs "{command}" rather '
                     f'than "npm ci", which re-resolves the declared '
                     f'ranges and rewrites the lockfile')
                 break
@@ -734,12 +956,12 @@ class NpmUnusedDeclaredDependency(NpmPackageCheck):
         # as unused. That is the expensive direction to be wrong in,
         # and npm-pin-indirect-dependencies is already failing a
         # project that has no lockfile.
-        lock = read_json(repo, 'package-lock.json')
+        lock, _ = read_lockfile(repo)
         if lock is None:
             return self.skip(
-                'No readable package-lock.json, so the command names a '
-                'dependency installs cannot be read and a tool invoked '
-                'from a scripts entry would look unused')
+                'No readable package-lock.json or npm-shrinkwrap.json, so '
+                'the command names a dependency installs cannot be read '
+                'and a tool invoked from a scripts entry would look unused')
 
         sources = source_files(repo)
         imported = imported_packages(sources)
@@ -829,17 +1051,18 @@ class NpmUndeclaredDirectDependency(NpmPackageCheck):
         if reason:
             return self.skip(reason)
 
-        lock = read_json(repo, 'package-lock.json')
+        lock, name = read_lockfile(repo)
         if lock is None:
-            return self.skip('No readable package-lock.json, so there is no '
-                             'resolved tree an import could be resting on')
+            return self.skip('No readable package-lock.json or '
+                             'npm-shrinkwrap.json, so there is no resolved '
+                             'tree an import could be resting on')
 
         declared = set(declared_dependencies(manifest))
         transitive = lockfile_packages(lock) - declared
         if not transitive:
-            return self.skip('package-lock.json resolves nothing that '
-                             'package.json does not declare, so there are '
-                             'no transitive packages to rest on')
+            return self.skip(f'{name} resolves nothing that package.json '
+                             f'does not declare, so there are no transitive '
+                             f'packages to rest on')
 
         sources = source_files(repo)
         if not sources:
@@ -865,7 +1088,7 @@ class NpmUndeclaredDirectDependency(NpmPackageCheck):
                 undeclared=undeclared)
 
         if len(transitive) == 1:
-            return self.ok('The one package package-lock.json resolves '
-                           'transitively is not imported directly')
+            return self.ok(f'The one package {name} resolves transitively '
+                           f'is not imported directly')
         return self.ok(f'None of the {len(transitive)} transitive packages '
                        f'is imported directly')
