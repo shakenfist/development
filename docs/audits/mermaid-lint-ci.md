@@ -150,11 +150,14 @@ the same paths.
 
 A repository with a tree of its own to leave alone -- a machine-synced
 import of somebody else's documentation is the case this exists for --
-names it in `tools/mermaid-lint-exclude`, one path per line. The
-script reads that file and the workflow cannot, so the same
-move-together rule applies: a line added there is added to both of the
-workflow's `paths` lists as `!path/**`. A line matching no tracked
-file fails the run, because an exclusion that silently matches nothing
+names it in `tools/mermaid-lint-exclude`, one path per line, each
+turned into an `:(exclude,literal)` pathspec so that a line is the
+path it reads as rather than a glob or pathspec magic. The script
+reads that file and the workflow cannot, so the same move-together
+rule applies: a line added there is added to both of the workflow's
+`paths` lists as `!path/**`. A line that drops no tracked markdown
+file fails the run, and so does an exclude file that is present but
+not committed, because an exclusion that silently drops nothing
 leaves the tree linted while the file says it is not.
 
 ### The runner

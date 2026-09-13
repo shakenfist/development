@@ -280,8 +280,8 @@ the shipped workflow: that job's own filter needs the script's path.
 
 `REVIEWS.md` is the only exclusion that ships. A repository with a
 tree of its own to leave alone writes it into
-`tools/mermaid-lint-exclude`, one path per line, `#` comments and
-blank lines ignored:
+`tools/mermaid-lint-exclude`, one path per line, whole-line `#`
+comments and blank lines ignored:
 
 ```
 # Imported hourly from the sibling repositories by
@@ -291,10 +291,16 @@ docs/components
 ```
 
 The file is optional; a repository with nothing to exclude does not
-carry one. Each line is read as a literal path and turned into a
-`:(exclude)` pathspec, rather than being passed through as one, so a
-line saying `docs/components` cannot mean something other than it
-reads. A directory name excludes everything beneath it.
+carry one, and it must be committed: an untracked copy stops the run
+rather than narrowing it, because everything else this script trusts
+comes from the index and CI only ever has what is in there.
+
+Each line is turned into an `:(exclude,literal)` pathspec, so it is
+the path it reads as and nothing else. Globs and pathspec magic are
+not supported and cannot slip through as something else: under
+`:(literal)` a line saying `docs/*.md` or `:(exclude)docs` names no
+tracked file, which is the fatal case below. A directory name still
+excludes everything beneath it.
 
 The case this exists for is a machine-synced import of somebody
 else's documentation. `shakenfist/shakenfist` carries 664 markdown
@@ -308,14 +314,16 @@ in the repository where it can be fixed.
 
 Two properties are worth knowing before adding a line.
 
-A line that matches no tracked file **fails the run**. An exclusion is
-a claim about what was not looked at, and a misspelled one excludes
-nothing while reading, in a green run, exactly like one that excluded
-a tree. So the run prints what it dropped, and a name that drops
-nothing stops the run rather than being believed. This is deliberately
-stricter than the built-in `REVIEWS.md` pathspec, which a repository
-keeps whether or not the file exists; an anticipatory line does not
-belong in this file, so add it when the tree lands.
+A line that drops no tracked markdown file **fails the run** -- one
+matching nothing at all, and one matching only files this lane never
+reads, such as a directory of images. An exclusion is a claim about
+what was not looked at, and a line that drops nothing reads, in a
+green run, exactly like one that excluded a tree. So the run prints
+what it dropped, and a name that drops nothing stops the run rather
+than being believed. This is deliberately stricter than the built-in
+`REVIEWS.md` pathspec, which a repository keeps whether or not the
+file exists; an anticipatory line does not belong in this file, so add
+it when the tree lands.
 
 **The workflow's path filter is the other half, and does not read this
 file** -- GitHub Actions has no way to. A repository that adds a line
