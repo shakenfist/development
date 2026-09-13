@@ -549,23 +549,7 @@
       "author": "mikal"
     },
     {
-      "path": "tools/mermaid-lint.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "tools",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/mermaid-lint-ci.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/merge-group-cancellation.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/mermaid-lint/mermaid-lint.sh",
       "author": "mikal"
     },
     {
@@ -634,10 +618,6 @@
     },
     {
       "path": "scripts/tests/test_github_config.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_docs_content.py",
       "author": "mikal"
     },
     {
