@@ -234,17 +234,35 @@ stale-label issue is private-ci#54. images#6 landed the per-image
 failure isolation this phase carries as prevention.
 
 What remains is the Grafana rule in Mach33Labs/33fl that watches
-`conductor_image_last_nightly_timestamp_seconds`. It is blocked on
-the conductor being deployed rather than on anything being written:
-the metrics endpoint binds to localhost on the monitoring host, so
-until a deploy happens there is no way to confirm the gauge is being
-scraped, and a rule written against a metric nothing exports fires
-on no data and is indistinguishable from health.
+`conductor_image_last_nightly_timestamp_seconds`.
 
-Note what that leaves true in the meantime. The gauge and the
-stale-label issues work from the next deploy whether or not the rule
-exists; what is missing is the notification path, not the
-measurement.
+The conductor deployed at 20:37 on 2026-09-13, carrying private-ci
+`e1f8fb15`. It logged the priming path on startup -- it claimed that
+day's slot rather than starting a rebuild in the evening -- and
+Prometheus is scraping the gauge, which reads the primed slot rather
+than zero. So the fallback that seeds from the claimed slot is
+doing its job: without it a fresh deployment would read zero and
+alert immediately despite having missed nothing.
+
+**Do not use the 26 hour threshold this plan originally specified.**
+It was taken from the `Nightly report not dispatched` rule, where
+the thing being timed is a workflow dispatch and is instantaneous.
+A full image rebuild is eleven images built serially and takes about
+an hour and a half -- six runs between 2026-09-07 and 2026-09-13
+took between 1h24m and 1h37m -- and the gauge advances on
+completion, not on the slot. So the first completion after priming
+lands 25.6 hours after the primed slot, which leaves 24 minutes of
+margin against a 13 minute observed spread in build duration. The
+rule would have had a real chance of firing spuriously on its first
+night, which is the worst possible introduction for an alert.
+
+Use 30 hours. A genuinely skipped night reaches 48, so anything
+between roughly 28 and 44 separates "skipped" from "slow", and 30
+still alerts within about four hours of when completion was due.
+
+The general point, for any future rule of this shape: a threshold
+over a completion timestamp has to cover the slot interval plus how
+long the work takes, not just the slot interval.
 
 Two detections, for the two producers this organisation
 controls. Neither may depend on the thing it watches -- a
