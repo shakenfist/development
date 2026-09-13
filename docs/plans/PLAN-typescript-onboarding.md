@@ -139,8 +139,10 @@ image. That makes npm a first-class fleet capability rather than a
 hunkydory workaround, keeps the runtime on Debian's security
 support, and leaves CI as `npm ci` with nothing to download.
 
-Taken together with the version question, this means moving the
-static runners from `debian:12` to `debian:13`. hunkydory runs fine
+Taken together with the version question, this means the static
+runners must be on `debian:13`. That move landed separately in
+`33fl` before this phase began -- see phase 4 -- so what this plan
+contributes is the packages, not the release. hunkydory runs fine
 on Debian 12's node 18.20.4, so this is not forced by hunkydory.
 It is taken because node 18 reached upstream end of life in April
 2025 and Debian 13's node 20.19.2 both matches what the project is
@@ -233,9 +235,9 @@ Nothing else in the plan writes to that repository.
 | Phase | Status | Merged |
 |-------|--------|--------|
 | 1. Register hunkydory in the audit scope | Complete | a7f4798 (#125) |
-| 2. hunkydory adopts the local tooling | Not started | |
-| 3. npm dependency criteria | In progress | |
-| 4. Static runners gain node | Not started | |
+| 2. hunkydory adopts the local tooling | Complete | hunkydory 73cdca7 (#1) |
+| 3. npm dependency criteria | Complete | b8e8fd2 (#126) |
+| 4. Static runners gain node | In progress | 33fl bc50c52a (master) |
 | 5. hunkydory CI and the fleet workflows | Not started | |
 | 6. Human review onboarding | Not started | |
 | 7. Marketplace release | Blocked | |
@@ -318,6 +320,18 @@ Everything that does not need a runner:
   phase that gives phase 8 a runbook to cite rather than a gap to
   explain.
 
+**Landed 2026-09-13.** The audit went from six passes and nine
+failures to fourteen passes and five failures against hunkydory. The
+five that remain all need a `.github/workflows/` directory or a
+repository setting, so they are phase 5 and phase 7 work.
+`llm-context-lint-ci` is the one to watch: this phase closed its
+pre-commit half, and it stays red until phase 5 adds the CI route.
+
+`tools/check-node.sh` deliberately does not run the corpus check,
+because that needs a sibling `kerbside-patches` checkout which will
+not exist in CI. The strongest test hunkydory has is therefore the
+one CI will never run, which is worth revisiting in phase 5.
+
 ### 3. npm dependency criteria
 
 Three checks per D4, following the shape
@@ -399,56 +413,88 @@ Note that this repository is inside its own audit matrix: these
 checks will run against `development` too, find no `package.json`,
 and must report not-applicable rather than failing.
 
+**Landed 2026-09-13.** All three criteria pass against hunkydory
+and report not-applicable with a reason everywhere else, so the phase
+filed no issues. Review found two false-failure bugs before merge: a
+workflow was read as text, so a step named "do not use npm install
+here" failed a repository whose only npm command was `npm ci`; and
+`npm-shrinkwrap.json` was skipped as a foreign lockfile when it is
+npm's own format and takes precedence over `package-lock.json`. Both
+are fixed and pinned by tests. The suite went from 1070 to 1093.
+
 ### 4. Static runners gain node
 
 **Released by the operator on 2026-09-13; see D5.** It was held
 until then because another session was editing `33fl`.
 
-In `33fl/static_runner.yml`:
+**Most of this phase was already done by that other session, and
+this plan described it wrongly.** It called the work a re-image. It
+is not: `33fl`'s own `worktree-debian-13-static-runners` branch had
+already landed the Debian move, parameterised as
+`static_runner_debian_release: 13` in
+`group_vars/all/static_runners.yml`, and the operator replaced every
+static runner on 2026-09-12. The fleet was on Debian 13 before this
+phase started.
 
-- Line 229, the disk specification in "Create the missing runner
-  instances", moves from `@debian:12` to `@debian:13`.
-- `nodejs` and `npm` join the base package list at approximately
-  line 337.
-- The comment at line 39, which documents the cached `debian:12`
-  image as a precondition, is updated to say `debian:13`.
+So the line numbers above were stale and only one item remained:
+`nodejs` and `npm` joining the base package list. That is
+`33fl` `bc50c52a` on `master`, not pushed and not deployed -- the
+operator is deploying separately once other work lands.
 
-Three things to verify before proposing that change, none of which
-this plan has checked:
+The three verification questions are answered:
 
-- The playbook installs `yq` with `pip --break-system-packages`,
-  installs docker through a shared `docker.yml`, and installs the
-  claude CLI for the claude flavor. All three need confirming on
-  trixie.
-- Line 630 sets `--docker-image debian:12` for the GitLab docker
-  executor. That is a different thing from the runner's own image
-  and is deliberately left alone here, but somebody should decide
-  whether it moves too.
-- Whether `python3-venv` and the rest of the base list behave the
-  same on trixie.
+- The GitLab docker executor's image is no longer hardcoded. It
+  reads `--docker-image debian:{{ static_runner_debian_release }}`,
+  so it moves with the fleet rather than needing its own decision.
+- `yq` via `pip --break-system-packages`, the shared `docker.yml`
+  and the claude CLI install all work on trixie, and so does the
+  rest of the base package list. The fleet was rebuilt on Debian 13
+  and is serving jobs, which answers this empirically rather than by
+  inspection.
+
+**What `apt` installs follows the runner's release, not this
+plan's wish.** `nodejs` on Debian 13 is node 20.19.2; on Debian 12
+it would have been 18.20.4, which reached upstream end of life in
+April 2025. Because the fleet was replaced first, the package change
+lands on Debian 13 everywhere and the mixed pool this plan would
+otherwise have created does not arise. A future release bump
+reopens that window, so `static_runner.yml` carries the warning
+beside the package list rather than only here.
 
 Landing node on the runners also falsifies half of the mermaid-lint
 rationale this plan quotes as evidence in the Situation section, in
 four files where it is load-bearing prose:
-`templates/mermaid-lint/README.md:28,36`,
-`templates/mermaid-lint/mermaid-lint.sh:16`,
-`tools/mermaid-lint.sh:16` and
-`docs/audits/mermaid-lint-ci.md:108,116`. A node toolchain goes onto
-the runners deliberately, and node 20.19.2 is no longer "older than
-jsdom wants". The chromium half of the argument survives and the
-decision does not change, so this is a rewording rather than a
-reversal: keep the chromium argument, drop or restate the
-node-version one. It is part of this phase rather than future work
-because `templates/` is copied into ten repositories, and a template
-that justifies itself with a fact the fleet has reversed is judged as
-the code it becomes.
+`templates/mermaid-lint/README.md`,
+`templates/mermaid-lint/mermaid-lint.sh`, `tools/mermaid-lint.sh`
+and `docs/audits/mermaid-lint-ci.md`. A node toolchain goes onto the
+runners deliberately, and node 20.19.2 is no longer "older than jsdom
+wants".
 
-The rollout is gradual rather than a re-image: line 229 is inside
-the loop over `missing_runners`, so it affects newly created
-instances only, and the weekly retire and rebuild cycle replaces the
-fleet over about a week. That is a feature -- a bad image shows up
-on one runner rather than all of them -- but it means "landed" and
-"rolled out" are a week apart, and phase 5 waits for the latter.
+Calling that a rewording rather than a reversal was too glib. The
+node-version claim was what ruled out the *lighter* path -- a
+parse-only checker with a supplied DOM, no rendering and no browser
+-- so with node 20 on the runners that blocker is gone and "jsdom is
+not viable" moves from settled to untested. The chromium argument
+still justifies rendering, but it does not by itself justify
+rendering over parsing. The DOMPurify argument survives untouched,
+since it is about needing a DOM at all rather than about node's
+version, so a DOM-free checker stays excluded. The decision does not
+change today and the container stays; what the four files must say
+is that the jsdom option is no longer ruled out and that nobody has
+measured it -- neither that it would work nor that it would not.
+
+It is part of this phase rather than future work because
+`templates/` is copied into ten repositories, and a template that
+justifies itself with a fact the fleet has reversed is judged as the
+code it becomes.
+
+**Phase 5 now waits on a deploy rather than on a rebuild.** The
+week of runner recycling this plan budgeted for has already been
+spent: the fleet is on Debian 13, so the only thing between here and
+npm on the runners is running `static_runner.yml`. The package task
+is ordinary `apt` state and applies to existing runners at the next
+playbook run, unlike the release variable, which only governs
+instances the reconcile creates.
 
 ### 5. hunkydory CI and the fleet workflows
 
