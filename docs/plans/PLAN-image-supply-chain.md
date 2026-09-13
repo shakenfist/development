@@ -32,7 +32,7 @@ and, importantly, what it cannot see.
 | [#44](https://github.com/shakenfist/private-ci/issues/44) | private-ci | A conductor restart silently skips that day's nightly rebuild |
 | [#45](https://github.com/shakenfist/private-ci/issues/45) | private-ci | No `debian-gnome-13`; the last bookworm label with no successor |
 | [#826](https://github.com/Mach33Labs/33fl/issues/826) | 33fl | Two GitLab static runners stay on bookworm until deleted by hand |
-| Phases 1-6 | images | `PLAN-image-build-modernisation.md`, phase 0 complete |
+| Phases 1-6 | images | `PLAN-image-build-modernisation.md`; see its own Execution table for what has landed |
 
 Already landed and not repeated below: development#119 (the
 `eol-distro` criterion), actions#66 (`debian-13-docker` published a
@@ -171,6 +171,16 @@ So the plan carries a separate phase that asserts what an image
 the pattern by ending the build with `docker version`; this
 generalises it.
 
+**Operative reading, added 2026-09-14.** Implementing phase 2
+showed that "verify the artifact, not the name" taken literally is
+the wrong way round: comparing the artifact against the build's own
+inputs is exactly what would have passed every night for two years.
+The reading that works is **verify the artifact against the name it
+will be published under**, and the name is held by whatever
+publishes rather than whatever builds. The correction in phase 2
+sets out why. Anything else applying D2 -- the private-ci bullet in
+that phase, and any future producer -- takes this reading.
+
 ### D3. `debian-gnome-13` before the consumer sweep
 
 private-ci#45 is the only issue on the critical path of #123.
@@ -215,8 +225,8 @@ needs the same treatment, and phase 6 says so.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. Alarm on absence | In progress | images#5, private-ci#49, private-ci#54 |
-| 2. Verify the artifact, not the name | In progress | images#7 |
+| 1. Alarm on absence | Complete | images acccd2b (#5), images 47ed141 (#6), private-ci ae7b1f8 (#49), private-ci e1f8fb1 (#54), 33fl 6de1764 (#827) |
+| 2. Verify the artifact, not the name | In progress | images 6028647 (#7) |
 | 3. Unblock the migration | Not started | |
 | 4. The consumer sweep | Not started | |
 | 5. Retire the end-of-life producers | Not started | |
@@ -227,14 +237,14 @@ needs the same treatment, and phase 6 says so.
 
 Closes: part of private-ci#44. Depends on: nothing.
 
-**Status, 2026-09-13.** Both detections are built and merged. The
-shakenfist/images watchdog is images#5, the conductor's persisted
-nightly and its staleness gauge are private-ci#49, and the
-stale-label issue is private-ci#54. images#6 landed the per-image
-failure isolation this phase carries as prevention.
-
-What remains is the Grafana rule in Mach33Labs/33fl that watches
-`conductor_image_last_nightly_timestamp_seconds`.
+**Status: complete, 2026-09-14.** Both detections are built,
+merged and deployed. The shakenfist/images watchdog is images#5;
+the conductor's persisted nightly and its staleness gauge are
+private-ci#49; the stale-label issue is private-ci#54; the Grafana
+rule watching the gauge is 33fl#827. images#6 landed the per-image
+failure isolation this phase carries as prevention, and is audited
+against the images repository's default branch as part of that
+pull request, per phase 7.
 
 The conductor deployed at 20:37 on 2026-09-13, carrying private-ci
 `e1f8fb15`. It logged the priming path on startup -- it claimed that
@@ -243,6 +253,32 @@ Prometheus is scraping the gauge, which reads the primed slot rather
 than zero. So the fallback that seeds from the claimed slot is
 doing its job: without it a fresh deployment would read zero and
 alert immediately despite having missed nothing.
+
+**How the invariant at the head of this phase is satisfied.** The
+gauge is exported by the conductor process itself, on maui, and
+scraped by Prometheus on the same host. Taken alone that would
+re-create failure 4: a conductor that is not running exports
+nothing, and a rule that only compares a timestamp sees no data and
+stays quiet. Two things prevent it, and both are load-bearing
+rather than incidental.
+
+`up{job="conductor"}` is synthesised by Prometheus when a scrape
+succeeds or fails, not exported by the conductor, so it reports 0
+for a conductor that is not running. The pre-existing `Host down`
+rule in 33fl watches it. That is the detection which does not
+depend on the thing it watches, and it was already in place before
+this plan.
+
+33fl#827 also sets `noDataState: Alerting`, so the absence of the
+gauge alerts in its own right rather than reading as health.
+
+Stating the division precisely, because the first draft of this
+note got it wrong: private-ci#54's stale-label issues cover a
+conductor that is running and reports a label going stale. A
+conductor that is absent entirely is covered by `Host down` and by
+the no-data state of 33fl#827, not by anything conductor-side. The
+images producer is covered independently of all of it by images#5,
+which reads the published site from a hosted runner.
 
 **Do not use the 26 hour threshold this plan originally specified.**
 It was taken from the `Nightly report not dispatched` rule, where
@@ -259,10 +295,24 @@ night, which is the worst possible introduction for an alert.
 Use 30 hours. A genuinely skipped night reaches 48, so anything
 between roughly 28 and 44 separates "skipped" from "slow", and 30
 still alerts within about four hours of when completion was due.
+33fl#827 landed at 30 hours with that reasoning recorded beside it.
 
 The general point, for any future rule of this shape: a threshold
 over a completion timestamp has to cover the slot interval plus how
 long the work takes, not just the slot interval.
+
+**What follows is the original specification**, kept verbatim
+because the phase 2 correction below shows what is lost by quietly
+editing a plan to match what was built. It was departed from in one
+place. The private-ci bullet specifies "a scheduled job elsewhere
+that reads the published dashboard or the conductor's API"; what
+landed reads a Prometheus gauge through a Grafana rule instead,
+because that estate already existed, already scraped the conductor,
+and already carried two rules of exactly this shape to copy. The
+requirement the bullet was protecting -- that the detection not
+depend on the thing it watches -- is met as set out above. The
+scheduler-persistence item in the last paragraph is done, in
+private-ci#49.
 
 Two detections, for the two producers this organisation
 controls. Neither may depend on the thing it watches -- a
@@ -556,8 +606,9 @@ phase has completed, been abandoned or been superseded.
 
 ### Future work
 
-* **Boot-testing published images.** Phase 2 asserts what an image
-  says it is; nothing asserts that it boots. That is the largest
+* **Boot-testing published images.** Phase 2 asserts that an image
+  matches the name it is published under; nothing asserts that it
+  boots. That is the largest
   remaining quality gap in the pipeline and it is a plan of its
   own.
 * **A Fedora image that builds.** `fedora:43` and `fedora:44` have
@@ -579,8 +630,24 @@ phase has completed, been abandoned or been superseded.
 
 ### Bugs fixed during this work
 
-To be completed as phases land. Already fixed before this plan was
-written, and recorded here because they are the evidence for it:
+Fixed as phases landed:
+
+* **The conductor skipped a nightly rebuild on restart**
+  (private-ci#49, phase 1). `builder_loop` recomputed `nightly_due`
+  from the clock into a local at every start, so a conductor coming
+  back after the nightly hour set the next rebuild to tomorrow and
+  nothing recorded that tonight had not happened. The slot is now
+  claimed in the database. This does **not** explain the 2026-09-12
+  miss that prompted private-ci#44 -- that issue's fourth checkbox
+  stays open as a possibly separate defect.
+* **A nightly that failed halfway could be retried in full by every
+  subsequent restart** (private-ci#49, phase 1). Found while fixing
+  the above; the slot is claimed when the cycle starts rather than
+  when it completes, while the staleness metric reads only
+  completions.
+
+Already fixed before this plan was written, and recorded here
+because they are the evidence for it:
 images#2 (the sixteen-day outage, the grub filesystem
 incompatibility and the two-year bullseye mislabelling) and
 actions#66 (`debian-13-docker` publishing without a docker client).
