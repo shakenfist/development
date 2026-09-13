@@ -215,8 +215,8 @@ needs the same treatment, and phase 6 says so.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. Alarm on absence | Not started | |
-| 2. Verify the artifact, not the name | Not started | |
+| 1. Alarm on absence | In progress | images#5, private-ci#49, private-ci#54 |
+| 2. Verify the artifact, not the name | In progress | images#7 |
 | 3. Unblock the migration | Not started | |
 | 4. The consumer sweep | Not started | |
 | 5. Retire the end-of-life producers | Not started | |
@@ -226,6 +226,25 @@ needs the same treatment, and phase 6 says so.
 ### 1. Alarm on absence
 
 Closes: part of private-ci#44. Depends on: nothing.
+
+**Status, 2026-09-13.** Both detections are built and merged. The
+shakenfist/images watchdog is images#5, the conductor's persisted
+nightly and its staleness gauge are private-ci#49, and the
+stale-label issue is private-ci#54. images#6 landed the per-image
+failure isolation this phase carries as prevention.
+
+What remains is the Grafana rule in Mach33Labs/33fl that watches
+`conductor_image_last_nightly_timestamp_seconds`. It is blocked on
+the conductor being deployed rather than on anything being written:
+the metrics endpoint binds to localhost on the monitoring host, so
+until a deploy happens there is no way to confirm the gauge is being
+scraped, and a rule written against a metric nothing exports fires
+on no data and is indistinguishable from health.
+
+Note what that leaves true in the meantime. The gauge and the
+stale-label issues work from the next deploy whether or not the rule
+exists; what is missing is the notification path, not the
+measurement.
 
 Two detections, for the two producers this organisation
 controls. Neither may depend on the thing it watches -- a
@@ -271,12 +290,39 @@ The phase that would have caught three of the five failures, and
 the one most likely to be dropped for being nobody's issue.
 
 * **shakenfist/images**: after building an image, assert that it
-  is what it claims. Reading `/etc/os-release` from the built
-  image and comparing it against the release the build asked for
-  is enough to have caught the two-year bullseye defect on its
-  first night. This is currently listed under Future work in that
-  repository's plan; this plan promotes it, because it is the only
+  is what it claims. Landed 2026-09-13 as the `verify-release`
+  element (images#7). This was listed under Future work in that
+  repository's plan; this plan promoted it, because it is the only
   control that addresses D2.
+
+  **Correction, 2026-09-13.** This bullet used to say that reading
+  `/etc/os-release` and comparing it against "the release the build
+  asked for" was enough to have caught the two-year bullseye defect
+  on its first night. That is wrong, and the way it is wrong is the
+  most useful thing in this phase.
+
+  Nothing in those builds disagreed with itself. `build.sh` passed
+  `DIB_RELEASE=bullseye`, diskimage-builder built bullseye, and the
+  image honestly reported bullseye. Every comparison between the
+  image and the build's own inputs would have passed, every night,
+  for two years and two months. What was wrong was the name the
+  artifact was published under.
+
+  So the invariant worth asserting is not "the image matches what
+  was requested" but "the image matches what it is about to be
+  called" -- and the name is held by the thing doing the publishing,
+  which is usually not the thing doing the building. The element
+  therefore compares against the publish label, which `build.sh`
+  passes in, and keeps the `DIB_RELEASE` comparison only as a
+  secondary check.
+
+  D2 says "verify the artifact, not the name". Read literally that
+  is the wrong way round: verifying the artifact against the build
+  is what would have failed here. Read as "verify the artifact
+  against the name it will be published under", which is what it
+  was reaching for, it is exactly right. Anything else applying D2
+  -- the private-ci bullet below, and any future producer -- should
+  take the second reading.
 * **private-ci**: confirm `debian-gnome:13` is genuinely trixie
   before wiring it up, per #45's own caveat, and adopt the
   actions#66 pattern -- end each image build by exercising the
