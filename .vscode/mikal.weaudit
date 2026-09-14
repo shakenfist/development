@@ -695,6 +695,10 @@
     {
       "path": "docs/consistency-audits.md",
       "author": "mikal"
+    },
+    {
+      "path": "docs/audits/mermaid-lint-ci.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
