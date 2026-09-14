@@ -672,6 +672,9 @@ criterion would be written against a single example.
 
 #### Step plan
 
+Steps 7a.1 to 7a.4 are done; see *What implementation found*. 7b
+remains.
+
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
 | 7a.1 | low | sonnet | none | In hunkydory: add `@vscode/vsce` to `devDependencies` and refresh `package-lock.json` with `npm install`. Verify `npm ci && npm run package` produces `hunkydory-0.1.0.vsix` on a clean checkout with no network fetch of vsce itself. Check vsce's own `engines.node` against the repository's `engines.node: ">=20"` and against the node the static runners carry (Debian 13's packaged node, per D1) -- if vsce needs newer, say so and stop rather than raising `engines.node`. Re-run the three npm criteria: they read imports, so they should not move. |
@@ -728,6 +731,77 @@ states the ordering.
 * Either hunkydory is listed on the VS Code Marketplace, or this
   section records why it is not and the `.vsix` is attached to a
   GitHub release.
+
+#### What implementation found
+
+Phase 7a landed as hunkydory `43b7f59`. Four things the planning
+survey did not reach, found by building the thing:
+
+**Adding vsce was not enough to make `npm run package` work.**
+Nothing built the TypeScript before `vsce` ran, so packaging failed a
+second time on a clean tree even once the dependency existed. The
+`README` documents `npm install && npm run package` as the whole
+flow, so this was a real gap in a promised path rather than an
+artefact of testing. Fixed with `vscode:prepublish`, vsce's own
+convention, which needed no new script.
+
+**The `.vsix` shipped the repository to every user.** Of 27 packaged
+files, three were the extension. The rest were the eight workflows,
+`.pre-commit-config.yaml`, `.github/actionlint.yaml`, the three
+`tools/` scripts, `AGENTS.md`, `ARCHITECTURE.md`, `PUSH-AUDIT.md`,
+`REVIEWS.md`, `renovate.json` and `biome.json` -- most of them put
+there by phases 2, 5 and 6, none of which had reason to think about
+packaging. `.vscodeignore` is now an allow-list, which takes the
+package to 8 files and 14KB and makes a new file have to be named
+before it can reach a user. This is the failure mode phase 6's
+`review-scope.toml` was deliberately shaped to avoid, in a file
+nobody thought to apply the same reasoning to.
+
+**The publish job cannot run vsce without installing it.** D7.2 says
+the job "runs no `npm ci`", which is unimplementable as written: the
+job needs the binary. It runs `npm ci --ignore-scripts`, which
+removes the lifecycle-script execution D7.2 is actually guarding
+against, and keeps the lockfile-pinned version rather than the
+floating one `npx` would fetch at publish time. The deviation is
+commented in the workflow.
+
+**Nothing tied the tag to the shipped version.** `vsce` publishes
+the version inside the `.vsix`, and unlike the template's
+`setuptools_scm` nothing here derives that from the tag, so a
+mismatched tag would quietly republish the old version. The build job
+now compares the two and fails.
+
+#### Risks found during implementation
+
+**The `VSCE_PAT` architecture has a deadline.** Azure DevOps retires
+*global* personal access tokens -- the "all accessible organizations"
+scope vsce requires -- on **1 December 2026**. A token minted before
+then stops working on that date regardless of its own expiry. The
+replacement in the pinned vsce 3.9.2 is `publish --azure-credential`,
+"Use Microsoft Entra ID for authentication"; there is no `--oidc`
+flag in this version, whatever the surrounding commentary says. It
+needs an Entra app registration, a GitHub federated credential, and
+that identity added to the Marketplace publisher. *Mitigation:*
+`RELEASE-SETUP.md` leads with it. **This wants a decision before
+7b.1 rather than after**: standing up a PAT now buys about ten weeks,
+and the Entra path has to be walked eventually either way.
+
+**vsce's transitive Azure dependencies already ask for a newer node
+than the runners have.** `@vscode/vsce` declares `engines.node
+">= 20"` and the fleet carries Debian 13's node 20, but
+`@azure/identity` and its neighbours declare `">=22.0.0"`. npm warns
+`EBADENGINE` and installs anyway, and `@vscode/vsce/out/auth.js` was
+verified to load and run on node 20.19.2, so this works today.
+*Mitigation:* none available in this repository -- the fix is the
+fleet moving to a newer node, and the failure would surface at
+publish time. Recorded so the next reader is not surprised.
+
+**hunkydory's release tags are unsigned.** The fleet template has a
+fourth job that Sigstore-signs the tag with gitsign; D7.2 decided a
+three-job shape without considering it. Not implemented, recorded in
+the workflow header as a known gap rather than an oversight. Whether
+the fleet's tag-signing convention should apply here is an open
+question, not a decided omission.
 
 #### Why the publish job stays off the static pool
 
