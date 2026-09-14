@@ -333,6 +333,14 @@
       "sha": "d54faddeed246c3b084571825d542bf04c1bb930",
       "date": "2026-09-02"
     },
+    "scripts/audit/checks/ci_workflows.py": {
+      "sha": "95c122907e0240ee21cca6a530ea05e62bbf31a1",
+      "date": "2026-09-15"
+    },
+    "scripts/audit/checks/distros.py": {
+      "sha": "81c0aa6c3a383d6a46ec931e57e71f89b2828158",
+      "date": "2026-09-15"
+    },
     "scripts/audit/checks/docs_content.py": {
       "sha": "b840b72da01fdf95bd938993104368dfa42f1111",
       "date": "2026-09-06"
@@ -345,13 +353,25 @@
       "sha": "7101c0e2b34d0762641a7e25477bb3839ba1eed2",
       "date": "2026-09-03"
     },
+    "scripts/audit/checks/npm_dependencies.py": {
+      "sha": "01853364578a6139d3787ebfa9d09a65211bb37c",
+      "date": "2026-09-15"
+    },
     "scripts/audit/checks/packaging.py": {
       "sha": "a09316ca6f7de57df1ae55e74541c57ca75fd4f7",
       "date": "2026-09-06"
     },
+    "scripts/audit/checks/plans.py": {
+      "sha": "36fe5e4c9c044f805ede40a95ff1bb65e7240761",
+      "date": "2026-09-15"
+    },
     "scripts/audit/checks/review.py": {
       "sha": "d4306f77753ad6a1bd653905e7ce7c76d05fbfd8",
       "date": "2026-09-03"
+    },
+    "scripts/audit/checks/runners.py": {
+      "sha": "c7e4ad82421f4784116725b1ca57a8d848ac9e59",
+      "date": "2026-09-15"
     },
     "scripts/audit/github.py": {
       "sha": "5fdb28856b27d63920448d38d2d77ae30c7aa061",
