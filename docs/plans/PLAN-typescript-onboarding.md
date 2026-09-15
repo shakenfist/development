@@ -191,14 +191,16 @@ This is the one decision with a prerequisite outside any repository:
 an Azure DevOps publisher account for the `shakenfist` publisher id
 already named in `package.json`, and a `VSCE_PAT` secret.
 
-Phase 7 revised this decision in two ways, recorded here so a reader
-citing D3 is not misled. `VSCE_PAT` is an **environment** secret on a
-tag-protected `release` environment, not a repository secret: see
-D7.2. And D7.4 attaches the `.vsix` to a GitHub release *alongside*
-Marketplace publishing; what D3 rejected was attaching it as the
-*only* channel.
-Until both exist the release phase cannot be completed, which is why
-it is sequenced last and marked `Blocked`.
+Until both exist nothing can be *published*, which is why this phase
+is sequenced last. D7.1 later split the phase on exactly that seam:
+the packaging half needs neither, and landed; only 7b is held.
+
+Phase 7 revised this decision in two further ways, recorded here so a
+reader citing D3 is not misled. `VSCE_PAT` is an **environment**
+secret on a tag-protected `release` environment, not a repository
+secret: see D7.2. And D7.4 attaches the `.vsix` to a GitHub release
+*alongside* Marketplace publishing; what D3 rejected was attaching it
+as the *only* channel.
 
 ### D4. Write npm dependency criteria now
 
@@ -586,7 +588,8 @@ detail on 2026-09-14; the rest of this section is that plan.
 
 #### What the survey found
 
-Six checks against the tree, of the claims this section and D3 make.
+Seven checks against the tree, of the claims this section and D3
+make.
 
 **The prerequisite is still unmet, and it is the only real block.**
 As of 2026-09-14 `shakenfist/hunkydory` has no repository secrets,
@@ -645,8 +648,12 @@ release workflow, a dispatch trigger and a high-value publish
 secret, and none of the fleet's controls for that combination apply
 to it. D7.5's "one release is not a pattern" is sound for the
 *packaging* half of `release-process` and does not reach this half.
-The definition of done carries the three assertions that stand in
-for them, and Future work carries the generalisation.
+Four of the five apply here. The definition of done carries
+stand-in assertions for `release_asset_issues`,
+`release_dispatch_guard_issues`, `release_workspace_issues` and
+`dist_agreement_issues`; `release_container_path_issues` is
+genuinely inapplicable, being specific to `gh-action-pypi-publish`'s
+container mounts. Future work carries the generalisation.
 
 **Phases 4, 5 and 6 had landed but the Execution table still read
 `In progress`, `In progress` and `Not started`.** Corrected at
@@ -667,6 +674,15 @@ rejected because every defect this phase can contain lives in the
 build half, and that half is testable today. It also keeps the
 plan's last executable phase, the push audit, from being hostage to
 an Azure DevOps signup.
+
+The split still stands, but its claim that "every defect this phase
+can contain lives in the build half" did not survive implementation.
+That sentence is left above rather than quietly edited, so the
+argument can be judged against what happened. Whether the publish
+lane carries node at all is a defect in the held half that no 7a run
+can reach, because the dispatch guard stops a dispatch getting
+there. See *Open question: does the publish lane have node?*; step
+7a.6 exists to settle it.
 
 **D7.2. Publish off the static pool, exactly as argued below.**
 Concretely: a `build` job on `[self-hosted, static]` running
@@ -689,7 +705,8 @@ is on that branch. The fleet has a criterion for exactly this --
 `release_dispatch_guard_issues` in
 `scripts/audit/checks/packaging.py`, which reports ref-only guards
 separately from missing ones -- but it is switched off here; see the
-survey's fifth finding.
+five release-safety helpers behind the `pyproject.toml` skip, in the
+survey above.
 
 **D7.3. `vsce publish --packagePath`, not bare `vsce publish`.**
 Bare `vsce publish` repackages from the working tree, so the
@@ -713,19 +730,21 @@ criterion would be written against a single example.
 
 #### Step plan
 
-Steps 7a.1 to 7a.4 are done; see *What implementation found*. 7a.5
-waits on 7a merging, and 7b on the decisions in 7b.0.
+Steps 7a.1 to 7a.4 are done; see *What implementation found*. 7a
+merged on 2026-09-14, so 7a.5 and 7a.6 are now unblocked; 7b waits
+on the decisions in 7b.0.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
 | 7a.1 | low | sonnet | none | In hunkydory: add `@vscode/vsce` to `devDependencies` and refresh `package-lock.json` with `npm install`. Verify `npm ci && npm run package` produces `hunkydory-0.1.0.vsix` on a clean checkout with no network fetch of vsce itself. Check vsce's own `engines.node` against the repository's `engines.node: ">=20"` and against the node the static runners carry (Debian 13's packaged node, per D1) -- if vsce needs newer, say so and stop rather than raising `engines.node`. Re-run the three npm criteria: they read imports, so they should not move. |
-| 7a.2 | medium | sonnet | none | Write `.github/workflows/release.yml` with the three jobs from D7.2 and D7.4. Adapt `templates/release-automation/release.yml` rather than copying it: the publish job moves off `[self-hosted, static]`, and the header comment says the template is the source and why this file deviates. `permissions: {}` at the top, least privilege per job. Scripts longer than about five lines go in `tools/`, per the fleet convention. actionlint runs from pre-commit against `.github/actionlint.yaml`; do not add labels to that file. |
-| 7a.3 | low | sonnet | none | Write `RELEASE-SETUP.md` covering every one-time step: the Azure DevOps publisher account for the `shakenfist` publisher id already in `package.json`, generating a `VSCE_PAT` with Marketplace publish scope, creating the tag-protected `release` environment, and adding the secret to that environment rather than to the repository. Model the structure on `templates/release-automation/RELEASE-SETUP.md`, but write the VS Code Marketplace steps rather than the PyPI trusted-publisher ones. Reference it from `AGENTS.md` only if a convention changes; a release runbook is a `docs/` citizen. |
+| 7a.2 | medium | sonnet | none | Write `.github/workflows/release.yml` with the three jobs from D7.2 and D7.4. Adapt `templates/release-automation/release.yml` rather than copying it: the publish job moves off `[self-hosted, static]`, and the header comment says the template is the source and why this file deviates. `permissions: {}` at the top, least privilege per job. Scripts longer than about five lines go in `tools/`, per the fleet convention. actionlint runs from pre-commit against `.github/actionlint.yaml`; 7a needs no new labels, because `[self-hosted, vm, debian-13, s]` is already declared there, so do not add any. (This scopes 7a, and is not a standing prohibition: 7b's option 2 adds a label deliberately.) |
+| 7a.3 | low | sonnet | none | Write `RELEASE-SETUP.md` covering every one-time step: the Azure DevOps publisher account for the `shakenfist` publisher id already in `package.json`, generating a `VSCE_PAT` with Marketplace publish scope, creating the tag-protected `release` environment, and adding the secret to that environment rather than to the repository. Model the structure on `templates/release-automation/RELEASE-SETUP.md`, but write the VS Code Marketplace steps rather than the PyPI trusted-publisher ones. The file goes at the repository root, `RELEASE-SETUP.md`, as it is in every other repository in the fleet -- `ReleaseProcess` tests `repo.exists('RELEASE-SETUP.md')` (`scripts/audit/checks/packaging.py:819`) and the template is root-destined. That criterion skips for hunkydory today, so nothing would catch a divergence, which is exactly why the path is stated here rather than inferred. Separately: reference it from `AGENTS.md` only if a convention changes. |
 | 7a.4 | low | sonnet | none | Re-run `pre-commit run --all-files` in hunkydory and the audit (`scripts/audit-check.py --repo-path <clone> --repo-name hunkydory --github-org shakenfist`). The verdict must still be 28 pass / 1 fail / 26 not-applicable, the failure being `review-coverage`. Anything else moved is a finding, not a rounding error. |
 | 7a.5 | low | sonnet | none | Dispatch `release.yml` on `develop` once 7a has merged. Confirm the `build` job produces the `.vsix` artifact on `[self-hosted, static]`, that `vscode:prepublish` compiles on a real runner with a real `npm_config_cache`, and that both publishing jobs correctly decline to run. Record the run URL here. This is the run D7.1's argument rests on, and it cannot answer the publish-lane question above, because the guard stops a dispatch reaching that job by design. |
-| 7b.0 | -- | operator | -- | **Decide two things before 7b.1 does any work.** (a) PAT or Entra federated credential: Azure DevOps retires global PATs on 1 December 2026, so a PAT bought now lasts about ten weeks and the Entra path has to be walked either way. The plan leans to going straight to `--azure-credential` and never minting a PAT, on the grounds that the setup cost is paid once rather than twice. (b) How the publish lane gets node, from the three options in the open question above; the plan leans to option 2, the `debian-13-docker` lane with a pinned `node:22` container, because it settles the `engines.node` risk in the same move and needs no work in another repository. |
+| 7a.6 | low | sonnet | none | **Measure whether `[self-hosted, vm, debian-13, s]` carries node, and record the answer in *Open question: does the publish lane have node?* above.** Add a dispatch-only throwaway workflow to hunkydory -- `permissions: {}`, **no `environment:` key**, so it can reach no secret -- whose single job runs on that lane and executes `node --version; npm --version; command -v node npm` without `set -e` stopping at the first absence. `secret-scan.yml` already uses this lane and `workflow_dispatch`, so no new actionlint label is needed. Dispatch it, record the output and the run URL, then delete the workflow in the same PR chain: it is a probe, not a fixture. The point is to reduce 7b.0's question (b) from a three-way guess to either "nothing to do" or "option 2". Do not fold this into `release.yml`'s publish job -- the dispatch guard means that job cannot run until 7b, which is the whole reason the question is open. |
+| 7b.0 | -- | operator | -- | **Decide two things before 7b.1 does any work.** (a) PAT or Entra federated credential: Azure DevOps retires global PATs on 1 December 2026, so a PAT bought now lasts about ten weeks and the Entra path has to be walked either way. The plan leans to going straight to `--azure-credential` and never minting a PAT, on the grounds that the setup cost is paid once rather than twice. (b) How the publish lane gets node. **Read 7a.6's measurement first**: if the lane already carries node and npm, there is nothing to decide and option 2's label and container work is unnecessary. If it does not, the plan leans to option 2, the `debian-13-docker` lane with a pinned `node:22` container, because it settles the `engines.node` risk in the same move and needs no work in another repository. |
 | 7b.1 | -- | operator | -- | **Hold.** Execute what 7b.0 chose: create the publisher account, create the tag-protected `release` environment, and add the credential to it. Nothing in a repository can do this. |
-| 7b.2 | low | sonnet | none | Once 7b.1 is done: tag `v0.1.0`, watch the run, and record the outcome in this section -- either the Marketplace listing URL, or what failed. If the account never arrives, record that instead and cite the attached `.vsix`. |
+| 7b.2 | low | sonnet | none | Once 7b.1 is done: tag `v0.1.0`, watch the run, and record the outcome in this section -- either the Marketplace listing URL, or what failed. If the account never arrives, record that instead and cite the attached `.vsix`. **If it fails, the recovery is a version bump, not a re-tag**: `43b7f59`'s build job asserts the tag matches `package.json`, and the Marketplace rejects a republished version, so a deleted and re-pushed `v0.1.0` either fails the same way or is refused on the far side. Bump to `0.1.1` and tag that. The jobs can also disagree -- `github-release` needs `publish-marketplace`, so Marketplace-succeeded-and-release-failed is the only split possible, and it is repaired by attaching the `.vsix` to the existing release by hand rather than by re-running anything. Add both to `RELEASE-SETUP.md`'s troubleshooting while the reasoning is fresh. |
 
 #### Risks and mitigations
 
@@ -766,13 +785,32 @@ states the ordering.
 * No `runs-on` in `release.yml`'s publish job contains `static`,
   and the job that references `secrets.VSCE_PAT` runs no install
   without `--ignore-scripts`, and no `npm run` script.
-* Both jobs carrying `environment: release` are guarded on
+* `publish-marketplace` is the only job carrying
+  `environment: release`, and no job whose `runs-on` contains
+  `static` references `secrets.VSCE_PAT`. The second half is the
+  one that matters: GitHub scopes an environment secret to the
+  environment, not to the job, so an `environment: release` job on
+  the static pool would be one line of YAML away from holding the
+  token. See *Why the publish job stays off the static pool*.
+* Both publishing jobs are guarded on
   `github.event_name == 'push'` *and* on a `refs/tags/v` ref, so a
-  `workflow_dispatch` on a branch cannot reach them.
+  `workflow_dispatch` on a branch cannot reach either.
+  `github-release` carries the guard for a different reason from
+  `publish-marketplace`: it holds no publishing secret, but it has
+  `contents: write` and creates a public release. This stands in
+  for `release_dispatch_guard_issues`.
 * The `github-release` job's `download-artifact` names both `name:`
   and `path:`, and its upload sets `fail_on_unmatched_files: true`.
   These stand in for `release_asset_issues`, which does not run
   against this repository.
+* `github-release` downloads into `${{ runner.temp }}` rather than
+  into the workspace, and its `files:` glob names that same
+  directory. This is load-bearing rather than stylistic: the job
+  runs on the persistent static pool and does not check out, so a
+  workspace glob could attach a `.vsix` some earlier run left
+  behind, and `fail_on_unmatched_files` does not catch that -- it
+  catches zero matches, not extra or wrong ones. These stand in for
+  `release_workspace_issues` and `dist_agreement_issues`.
 * `RELEASE-SETUP.md` names the publisher id, the environment name,
   the PAT scope and the tag rule, and states that the environment
   must exist before the first tag is pushed.
@@ -797,17 +835,21 @@ flow, so this was a real gap in a promised path rather than an
 artefact of testing. Fixed with `vscode:prepublish`, vsce's own
 convention, which needed no new script.
 
-**The `.vsix` shipped the repository to every user.** Of 27 packaged
-files, three were the extension. The rest were the eight workflows,
-`.pre-commit-config.yaml`, `.github/actionlint.yaml`, the three
-`tools/` scripts, `AGENTS.md`, `ARCHITECTURE.md`, `PUSH-AUDIT.md`,
-`REVIEWS.md`, `renovate.json` and `biome.json` -- most of them put
-there by phases 2, 5 and 6, none of which had reason to think about
-packaging. `.vscodeignore` is now an allow-list, which takes the
-package to 8 files and 14KB and makes a new file have to be named
-before it can reach a user. This is the failure mode phase 6's
-`review-scope.toml` was deliberately shaped to avoid, in a file
-nobody thought to apply the same reasoning to.
+**The `.vsix` shipped the repository to every user.** `vsce ls`
+listed 27 files. Six belonged in an extension: the three compiled
+modules under `out/src/`, plus `package.json`, `README.md` and
+`LICENSE`. The other 21 were repository infrastructure -- the nine
+workflows, `.github/actionlint.yaml`, `.pre-commit-config.yaml`, the
+three `tools/` scripts, `AGENTS.md`, `ARCHITECTURE.md`,
+`PUSH-AUDIT.md`, `REVIEWS.md`, `RELEASE-SETUP.md`, `renovate.json`
+and `biome.json` -- most of them put there by phases 2, 5 and 6,
+none of which had reason to think about packaging. `.vscodeignore`
+is now an allow-list, which takes `vsce ls` to those same six files
+-- 8 entries and 14,682 bytes in the archive, which adds
+`extension.vsixmanifest` and `[Content_Types].xml` -- and makes a
+new file have to be named before it can reach a user. This is the
+failure mode phase 6's `review-scope.toml` was deliberately shaped
+to avoid, in a file nobody thought to apply the same reasoning to.
 
 An allow-list inverts the failure mode rather than removing it: it
 can now ship too little, and a missing file fails at a user's
@@ -864,8 +906,19 @@ discovered later:
   the only failure. Nothing moved, which for this phase is the
   expected result: 7a added a workflow, a runbook and a dependency,
   and the criteria that would notice any of those are the Python
-  ones that skip, and the five release-safety helpers the survey's
-  fifth finding says go dark with them.
+  ones that skip, and the five release-safety helpers that go dark
+  behind the same `pyproject.toml` skip.
+
+**`github-release` was already clean of the workspace.** `43b7f59`
+downloads the artifact into `${{ runner.temp }}/vsix/` and points
+`files:` at that directory, so the two assertions the definition of
+done adds for `release_workspace_issues` and `dist_agreement_issues`
+are met by the implementation rather than pending against it. The
+job's header comment reaches the same conclusion from the other
+direction -- it does not check out because downloading into
+`runner.temp` is the cheaper way to get a directory nothing else has
+written to -- which is worth noting because it means the property
+holds by reasoning that was written down, not by luck.
 
 **Both publishing jobs are dispatch-guarded.** `43b7f59` carries
 `if: github.event_name == 'push' && startsWith(github.ref,
@@ -922,11 +975,24 @@ The options, for a decision rather than a guess:
 3. **Have the build job ship vsce.** Upload `node_modules` beside
    the `.vsix` so the publish job installs nothing. Removes npm but
    not node, so it only helps if the lane has node but not npm --
-   the least likely shape.
+   the least likely shape. It is also the worst of the three on
+   D7.2's own terms, and that is the stronger objection: it moves
+   305 packages of executable code, materialised on the shared
+   static pool, into the job that holds the token, and runs it. The
+   lockfile pin stops bounding what executes, because what executes
+   is the pool's tarball rather than the reviewed and pinned tree --
+   and *What implementation found* is explicit that the pin is
+   load-bearing for security, not only for reproducibility.
 
-Pending that decision, `43b7f59` runs `node --version && npm
---version` as the first step of the publish job, so the diagnosis is
-in the log rather than an unexplained `npm: command not found`.
+`43b7f59` runs `node --version && npm --version` as the first step of
+the publish job, so that whatever happens, the diagnosis is in the
+log rather than an unexplained `npm: command not found`. That was the
+right instinct in the wrong place: the step sits inside the one job
+the dispatch guard keeps unreachable until 7b, so it reports the
+answer only once it is too late to choose differently. Step 7a.6
+measures the same two commands on the same lane from a dispatch-only
+job that holds no secret, which is available now, so 7b.0 decides
+with the fact rather than around it.
 
 #### Risks found during implementation
 
@@ -936,15 +1002,19 @@ scope vsce requires -- on **1 December 2026**. A token minted before
 then stops working on that date regardless of its own expiry. The
 announcement is
 <https://devblogs.microsoft.com/devops/retirement-of-global-personal-access-tokens-in-azure-devops/>;
-`microsoft/vscode#322741` tracks vsce's lack of support for the
-organisation-scoped tokens that replace them. The replacement in the
-pinned vsce 3.9.2 is `publish --azure-credential`, "Use Microsoft
-Entra ID for authentication"; there is no `--oidc` flag in this
-version, whatever the surrounding commentary says. That flag surface
-was established by running `node_modules/.bin/vsce publish --help`
-against the pinned version, which is the check to repeat when vsce is
-next bumped. It
-needs an Entra app registration, a GitHub federated credential, and
+`microsoft/vsmarketplace#2121`, "Support publishing extensions with
+organization-scoped PATs due to global PATs being retired", tracks
+vsce's lack of support for the organisation-scoped tokens that
+replace them; it was open when checked on 2026-09-15. (An earlier
+revision of this section cited it as `microsoft/vscode#322741`,
+which is where the issue started before it was transferred.) The
+replacement in the pinned vsce 3.9.2 is `publish --azure-credential`,
+"Use Microsoft Entra ID for authentication"; there is no `--oidc`
+flag in this version, whatever the surrounding commentary says. That
+flag surface was established by running
+`node_modules/.bin/vsce publish --help` against the pinned version,
+which is the check to repeat when vsce is next bumped. It needs an
+Entra app registration, a GitHub federated credential, and
 that identity added to the Marketplace publisher. *Mitigation:*
 `RELEASE-SETUP.md` leads with it. **This wants a decision before
 7b.1 rather than after**: standing up a PAT now buys about ten weeks,
@@ -1227,9 +1297,10 @@ been superseded.
   recorded in `release.yml`'s header as an open question.
 * **Packaging is a concern no criterion owns.** Phases 2, 5 and 6
   each added files to hunkydory with no reason to think about what
-  ships to a user, and the `.vsix` ended up carrying 24 files of
-  repository infrastructure. The `.vscodeignore` allow-list fixes
-  this repository; nothing stops the next one.
+  ships to a user, and the `.vsix` ended up carrying 21 files of
+  repository infrastructure alongside the 6 that belonged in it. The
+  `.vscodeignore` allow-list fixes this repository; nothing stops the
+  next one.
 
 ### Bugs fixed during this work
 
