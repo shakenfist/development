@@ -69,6 +69,10 @@
       "sha": "feb474e2510c2bfdd2011573e57c87976b62f1ad",
       "date": "2026-09-01"
     },
+    ".github/workflows/renovate.yml": {
+      "sha": "54781297864977fe36ae069bd055e4830d0a3342",
+      "date": "2026-09-16"
+    },
     ".github/workflows/secret-scan.yml": {
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
       "date": "2026-08-24"
@@ -77,9 +81,21 @@
       "sha": "26a19958e61609c60e1b721594ab8151ddf1634f",
       "date": "2026-09-04"
     },
+    ".pre-commit-config.yaml": {
+      "sha": "33dd8025ce54de02c718de0ff7724f90efc57771",
+      "date": "2026-09-16"
+    },
     "AGENTS.md": {
       "sha": "8527c1d114aa36d9ab1159f6a96a5f0234caf6bb",
       "date": "2026-09-06"
+    },
+    "ARCHITECTURE.md": {
+      "sha": "b3d68183816ceccc766cf0349836d283dca30cef",
+      "date": "2026-09-16"
+    },
+    "PLAN-TEMPLATE.md": {
+      "sha": "58dc1db4e2348928d127d28a6336209803ce4c93",
+      "date": "2026-09-16"
     },
     "PUSH-AUDIT.md": {
       "sha": "30723ce58effe56f458c0b8b7de94cfca2cfb2c1",
@@ -593,6 +609,18 @@
       "sha": "6d0ce3ba5bf1008a1139a1a1be27959413f8ad0a",
       "date": "2026-09-09"
     },
+    "templates/mermaid-lint/README.md": {
+      "sha": "537519b29b5702651f9f56d8c73df77617bbcf98",
+      "date": "2026-09-16"
+    },
+    "templates/mermaid-lint/mermaid-lint.sh": {
+      "sha": "2469e90b91ec54bce07d085d0a8b3d95d4fa292b",
+      "date": "2026-09-16"
+    },
+    "templates/mermaid-lint/mermaid-lint.yml": {
+      "sha": "d5b8377f8a98d3f68fd14469ed4d5be8fece1c6a",
+      "date": "2026-09-16"
+    },
     "templates/pin-indirect-dependencies/README.md": {
       "sha": "c20c7590e1b3311e1696db887296410c95b7183b",
       "date": "2026-08-30"
@@ -600,6 +628,10 @@
     "templates/pin-indirect-dependencies/pin-indirect-dependencies.sh": {
       "sha": "241b462c281d6e33fa1d4023d15762a95d69112a",
       "date": "2026-08-30"
+    },
+    "templates/pin-indirect-dependencies/pin-indirect-dependencies.yml": {
+      "sha": "ac69b68d8b24fbca72c61785ec294e6e7950e2a8",
+      "date": "2026-09-16"
     },
     "templates/release-automation/README.md": {
       "sha": "1b567888baa5b772742c73256d159780dca8eaca",
@@ -609,6 +641,10 @@
       "sha": "33f4b4e69c07a1ff84daade84341b3a6591ff501",
       "date": "2026-09-06"
     },
+    "templates/release-automation/release.yml": {
+      "sha": "38b26358b5de0f4f478a7d7064816cd1fc11b98a",
+      "date": "2026-09-16"
+    },
     "templates/renovate/README.md": {
       "sha": "ae88c3ede7ec64844b7e1186cb36432db2f176cd",
       "date": "2026-08-30"
@@ -616,6 +652,10 @@
     "templates/renovate/renovate.json": {
       "sha": "2ddd5e0b8169050eed659789ddcbfb95b6a8f299",
       "date": "2026-08-30"
+    },
+    "templates/renovate/renovate.yml": {
+      "sha": "7e46f9ce5851d6bb5a84766add76b5c55c249e7c",
+      "date": "2026-09-16"
     },
     "templates/shared-blocks/README.md": {
       "sha": "4508ee6d15fc3b1e514f09b7154c5f63a871badb",
@@ -656,6 +696,10 @@
     "templates/shared-blocks/plan-planning-effort.md": {
       "sha": "1e7f1b0747ba292069e22f69a8a6b4a27c0518b1",
       "date": "2026-09-04"
+    },
+    "templates/shared-blocks/plan-push-audit-phase.md": {
+      "sha": "d2b289157a3de087b509c07bd52ae2caf968e011",
+      "date": "2026-09-16"
     },
     "templates/shared-blocks/plan-review-checklist.md": {
       "sha": "797ddae188bc6e38d94ba0ad7c10b18f8fb8ae30",
@@ -704,6 +748,10 @@
     "tools/ci-prune-reviews.sh": {
       "sha": "3e10680265c6b885619e8e08bea30a4fb05cb10b",
       "date": "2026-08-24"
+    },
+    "tools/mermaid-lint.sh": {
+      "sha": "2469e90b91ec54bce07d085d0a8b3d95d4fa292b",
+      "date": "2026-09-16"
     },
     "tools/review-tracking.sh": {
       "sha": "fabe2fc68a97b45b5f628f6380893bbfac9d764c",

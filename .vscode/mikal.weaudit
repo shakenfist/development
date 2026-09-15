@@ -759,6 +759,90 @@
     {
       "path": "scripts/audit-manage-issues.py",
       "author": "mikal"
+    },
+    {
+      "path": "templates/mermaid-lint/mermaid-lint.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/mermaid-lint/mermaid-lint.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/mermaid-lint/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/mermaid-lint",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/pin-indirect-dependencies/pin-indirect-dependencies.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/pin-indirect-dependencies",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation/release.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/plan-push-audit-phase.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/mermaid-lint.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools",
+      "author": "mikal"
+    },
+    {
+      "path": ".pre-commit-config.yaml",
+      "author": "mikal"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "author": "mikal"
+    },
+    {
+      "path": "PLAN-TEMPLATE.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
