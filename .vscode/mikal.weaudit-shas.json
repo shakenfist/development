@@ -593,6 +593,18 @@
       "sha": "6d0ce3ba5bf1008a1139a1a1be27959413f8ad0a",
       "date": "2026-09-09"
     },
+    "templates/mermaid-lint/README.md": {
+      "sha": "537519b29b5702651f9f56d8c73df77617bbcf98",
+      "date": "2026-09-16"
+    },
+    "templates/mermaid-lint/mermaid-lint.sh": {
+      "sha": "2469e90b91ec54bce07d085d0a8b3d95d4fa292b",
+      "date": "2026-09-16"
+    },
+    "templates/mermaid-lint/mermaid-lint.yml": {
+      "sha": "d5b8377f8a98d3f68fd14469ed4d5be8fece1c6a",
+      "date": "2026-09-16"
+    },
     "templates/pin-indirect-dependencies/README.md": {
       "sha": "c20c7590e1b3311e1696db887296410c95b7183b",
       "date": "2026-08-30"
@@ -600,6 +612,10 @@
     "templates/pin-indirect-dependencies/pin-indirect-dependencies.sh": {
       "sha": "241b462c281d6e33fa1d4023d15762a95d69112a",
       "date": "2026-08-30"
+    },
+    "templates/pin-indirect-dependencies/pin-indirect-dependencies.yml": {
+      "sha": "ac69b68d8b24fbca72c61785ec294e6e7950e2a8",
+      "date": "2026-09-16"
     },
     "templates/release-automation/README.md": {
       "sha": "1b567888baa5b772742c73256d159780dca8eaca",
@@ -609,6 +625,10 @@
       "sha": "33f4b4e69c07a1ff84daade84341b3a6591ff501",
       "date": "2026-09-06"
     },
+    "templates/release-automation/release.yml": {
+      "sha": "38b26358b5de0f4f478a7d7064816cd1fc11b98a",
+      "date": "2026-09-16"
+    },
     "templates/renovate/README.md": {
       "sha": "ae88c3ede7ec64844b7e1186cb36432db2f176cd",
       "date": "2026-08-30"
@@ -616,6 +636,10 @@
     "templates/renovate/renovate.json": {
       "sha": "2ddd5e0b8169050eed659789ddcbfb95b6a8f299",
       "date": "2026-08-30"
+    },
+    "templates/renovate/renovate.yml": {
+      "sha": "7e46f9ce5851d6bb5a84766add76b5c55c249e7c",
+      "date": "2026-09-16"
     },
     "templates/shared-blocks/README.md": {
       "sha": "4508ee6d15fc3b1e514f09b7154c5f63a871badb",
@@ -656,6 +680,10 @@
     "templates/shared-blocks/plan-planning-effort.md": {
       "sha": "1e7f1b0747ba292069e22f69a8a6b4a27c0518b1",
       "date": "2026-09-04"
+    },
+    "templates/shared-blocks/plan-push-audit-phase.md": {
+      "sha": "d2b289157a3de087b509c07bd52ae2caf968e011",
+      "date": "2026-09-16"
     },
     "templates/shared-blocks/plan-review-checklist.md": {
       "sha": "797ddae188bc6e38d94ba0ad7c10b18f8fb8ae30",
@@ -704,6 +732,10 @@
     "tools/ci-prune-reviews.sh": {
       "sha": "3e10680265c6b885619e8e08bea30a4fb05cb10b",
       "date": "2026-08-24"
+    },
+    "tools/mermaid-lint.sh": {
+      "sha": "2469e90b91ec54bce07d085d0a8b3d95d4fa292b",
+      "date": "2026-09-16"
     },
     "tools/review-tracking.sh": {
       "sha": "fabe2fc68a97b45b5f628f6380893bbfac9d764c",
