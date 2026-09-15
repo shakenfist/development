@@ -77,9 +77,21 @@
       "sha": "26a19958e61609c60e1b721594ab8151ddf1634f",
       "date": "2026-09-04"
     },
+    ".pre-commit-config.yaml": {
+      "sha": "33dd8025ce54de02c718de0ff7724f90efc57771",
+      "date": "2026-09-16"
+    },
     "AGENTS.md": {
       "sha": "8527c1d114aa36d9ab1159f6a96a5f0234caf6bb",
       "date": "2026-09-06"
+    },
+    "ARCHITECTURE.md": {
+      "sha": "b3d68183816ceccc766cf0349836d283dca30cef",
+      "date": "2026-09-16"
+    },
+    "PLAN-TEMPLATE.md": {
+      "sha": "58dc1db4e2348928d127d28a6336209803ce4c93",
+      "date": "2026-09-16"
     },
     "PUSH-AUDIT.md": {
       "sha": "30723ce58effe56f458c0b8b7de94cfca2cfb2c1",
