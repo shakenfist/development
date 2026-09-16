@@ -568,7 +568,7 @@ left as traps.
 | 3a | medium | sonnet | none | In `shakenfist/private-ci`, add a `debian-gnome-13` entry to `IMAGE_BUILDS` in `conductor/imagebuilder.py`, immediately after the `debian-gnome-12` entry at line 120. Copy its shape exactly: `name` and `label` both `debian-gnome-13`, `base_image` `debian-gnome:13`, `base_image_user` `debian`, `playbook` `ansible/ci-image-desktop.yml`. Do not touch `GNOME_LABEL` (line 225) in this step. Update `conductor/tests/test_imagebuilder.py` -- lines 91 and 117 assert over the build order and the missing-label set, and both enumerate labels. Run `tox` (or the repo's test command) and confirm green. Commit subject: "Add a debian-gnome-13 CI image." |
 | 3b | low | haiku | none | Wait for the conductor to build the new label and confirm `ci-images/debian-gnome-13` exists before step 3c starts. This is an observation step, not a code change: `sf-client --json artifact list` filtered on `sf://label/ci-images/debian-gnome-13`, or the conductor's own log. Report the label's blob uuid. No commit. |
 | 3c | high | opus | worktree | In `shakenfist/private-ci`, change the `dependencies` entry in `conductor/imagebuilder.py:143` from `base_image: 'debian:11'` to `'debian:13'`. `base_image_user` stays `debian`. Read the comment block at lines 126-140 before editing -- it explains the gnome-less marker and the first/last build ordering, and it names `debian-gnome-12`; leave that naming alone, step 3e moves it. Check whether any test in `conductor/tests/test_imagebuilder.py` asserts the dependencies base image. Also check `conductor/provisioner.py:47` -- it carries a separate `debian-11` entry with `upstream: debian:11`; that is the runner boot label, not the cache disk, and is out of scope. High effort because the dependencies label gates all CI provisioning: if this build fails, nothing provisions. Commit subject: "Build the dependencies disk on Debian 13." |
-| 3d | medium | sonnet | none | In `shakenfist/actions`, edit `ansible/ci-dependencies.yml`. (1) Add `debian:13` and `rocky:10` to the cached image list at lines 140-176, following the existing `- { url: ..., name: ... }` shape exactly. (2) Delete the `Add to ansible (force python3)` task at lines 40-51 and remove the `when: base_image != "debian:11"` from the task at 52-62, so one unconditional `add_host` remains -- see decision 3. (3) Change the stale default at line 8 from `base_image: "debian:11"` to `"debian:13"`. **This must not merge until step 3c has built successfully** -- see decision 2. Verify with `tools/ansible-syntax-check.sh`, which phase 2 added. Commit subject: "Cache Debian 13 and Rocky 10, drop bullseye." |
+| 3d | medium | sonnet | none | In `shakenfist/actions`, edit `ansible/ci-dependencies.yml`. (1) Add `debian:13` and `rocky:10` to the cached image list at lines 140-176, following the existing `- { url: ..., name: ... }` shape exactly. (2) Delete the `Add to ansible (force python3)` task at lines 40-51 and remove the `when: base_image != "debian:11"` from the task at 52-62, so one unconditional `add_host` remains -- see decision 3. (3) Change the stale default at line 8 from `base_image: "debian:11"` to `"debian:13"`. (4) Change `mkfs.ext4 /dev/vdc` at line 109 to disable `orphan_file` explicitly -- see the back brief. Write a comment above it naming the compatibility floor: the disk is mounted read-write by every runner, the oldest of which boots `ubuntu2004-ci-template.qcow2` on kernel 5.4, and `orphan_file` needs 5.15. State that the feature list is pinned deliberately so a future builder-OS bump cannot change the on-disk format by accident. **This must not merge until step 3c has built successfully** -- see decision 2. Verify with `tools/ansible-syntax-check.sh`, which phase 2 added. Commit subject: "Cache Debian 13 and Rocky 10, drop bullseye." |
 | 3e | high | opus | worktree | Move the dependencies disk's gnome snapshot from `debian-gnome-12` to `debian-gnome-13`, across two repositories, as two pull requests. In `shakenfist/private-ci`: `GNOME_LABEL` at `conductor/imagebuilder.py:225`, and re-read its six uses (507-538, 871, 1213) plus the comment block at 126-140, which describes the behaviour in terms of the old label. In `shakenfist/actions/ansible/ci-dependencies.yml`: the jq selector at line 220, the skip message at 230, and the `/tmp/debian-12-gnome-agents` path at 252-253 -- rename that path too, it names the release. Also fix the stale play default at `ansible/ci-image-desktop.yml:151`. High effort because the gnome-less marker decides when a cluster rebuilds its cache disk, and a constant that watches one label while the playbook snapshots another produces a rebuild that never fires. Commit subjects: "Snapshot the Debian 13 desktop image." in each repository. |
 | 3f | low | haiku | none | Housekeeping. Tick checkboxes two and three on private-ci#45 and leave it open per decision 5, saying in a comment which phase closes it. Close private-ci#39 with the merge commits. File the two out-of-scope findings from the survey: the frozen cache entries against private-ci#38, and the discarded reconciliation summary against `shakenfist/images`. No commit in this repository. |
 
@@ -611,6 +611,8 @@ left as traps.
 * `ansible/ci-dependencies.yml` contains no `when:` clause
   mentioning `debian:11`, and `ansible-playbook --syntax-check`
   passes via `tools/ansible-syntax-check.sh`.
+* `dumpe2fs -h` on a dependencies disk built after this phase does
+  not list `orphan_file` among its features.
 * The cached image list contains `debian:13` and `rocky:10`, and a
   `dependencies` disk built after this phase has `/srv/ci/cached`
   entries for both with non-zero size -- the playbook's own
@@ -633,6 +635,56 @@ depends on the disk's own filesystem being bullseye-era. The step is
 cheap to propose and expensive to get wrong -- a broken dependencies
 label stops all CI provisioning -- and the answer lives in what
 mounts the disk rather than in what builds it.
+
+**Answered 2026-09-16: yes, with one addition that step 3d must
+carry.**
+
+The builder's operating system is not consumed by anything. The
+`dependencies` label is a snapshot of the *second* disk alone:
+`ci-dependencies.yml` snapshots with `all: true`, records
+`cisnapshot['meta']['vdc']['blob_uuid']`, and then explicitly
+deletes the `vda` snapshot. So `base_image` picks the throwaway
+builder, not the artifact, and moving it to `debian:13` changes
+nothing a runner sees.
+
+What it does change is the filesystem, and that is the coupling the
+sketch missed. The disk is made by a bare `mkfs.ext4 /dev/vdc`
+(`ci-dependencies.yml:108-109`), so it inherits whatever the
+builder's distribution defaults to. Measured on trixie, e2fsprogs
+1.47.2:
+
+```
+Filesystem features: has_journal ext_attr resize_inode dir_index
+orphan_file filetype extent 64bit flex_bg metadata_csum_seed ...
+```
+
+`orphan_file` is new. `man 5 ext4`: "supported by Linux kernels
+starting version 5.15, and by e2fsprogs starting with version
+1.47.0." Bullseye's e2fsprogs did not set it; trixie's does, by
+default, silently.
+
+The consumers are older than that. Every runner attaches this disk
+as its second disk (`provisioner.py:1512`), and the topology
+playbooks mount `/dev/vdc` read-write with no options
+(`ci-topology-slim-primary.yml:308-313` and five siblings). One of
+those still boots `ubuntu2004-ci-template.qcow2` -- kernel 5.4. The
+`debian-11` boot label is 5.10, and `rocky-9` is 5.14. All three
+are below the floor.
+
+What an older kernel does with the feature depends on whether the
+bit is compatible or incompatible, which could not be settled from
+the build host, so this is a risk of unknown size rather than a
+known breakage. That distinction does not change the action: a
+shared cache disk should be built to a stated compatibility floor
+rather than to whatever the builder's distribution defaults to,
+because otherwise every future bump of the builder OS re-rolls this
+dice in silence.
+
+So step 3d also changes the `mkfs.ext4` invocation to disable the
+feature explicitly and says in a comment what the floor is and who
+sets it. That is a one-flag change which removes the question
+entirely, and it is worth having even if the answer would have been
+benign.
 
 ### 4. The consumer sweep
 
