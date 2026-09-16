@@ -226,7 +226,7 @@ needs the same treatment, and phase 6 says so.
 | Phase | Status | Merged |
 |-------|--------|--------|
 | 1. Alarm on absence | Complete | images acccd2b (#5), images 47ed141 (#6), private-ci ae7b1f8 (#49), private-ci e1f8fb1 (#54), 33fl 6de1764 (#827) |
-| 2. Verify the artifact, not the name | In progress | images 6028647 (#7) |
+| 2. Verify the artifact, not the name | Complete | images 6028647 (#7), images 4800c72 (#8), images b872641 (#9), actions 2ac4a94 (#74), 33fl bbbd842 (#836) |
 | 3. Unblock the migration | Not started | |
 | 4. The consumer sweep | Not started | |
 | 5. Retire the end-of-life producers | Not started | |
@@ -357,6 +357,34 @@ Closes: nothing on its own. Depends on: nothing.
 The phase that would have caught three of the five failures, and
 the one most likely to be dropped for being nobody's issue.
 
+**Status: complete, 2026-09-16.** `verify-release` is in the
+element list of all fourteen images published on the night of
+2026-09-16, the build host is on images `b872641` with a
+root-owned checkout, and the desktop and dependency assertions are
+on `actions` `main`. private-ci#45's first checkbox is ticked with
+the artifact read directly -- Debian 13.7, trixie, GNOME 48 -- so
+phase 3's stated dependency is recorded rather than remembered.
+
+**What this phase cost, which belongs in phase 7's audit.** The
+self-update it shipped (images#8) broke the nightly build on its
+first night. `build.sh` runs under errexit, and
+`before=$(git rev-parse HEAD)` on a line of its own is a simple
+command, so when git refused the checkout on ownership the run
+ended at 05:00:01 having published nothing. The host has no MTA,
+so cron discarded the one line that explained it. It was found by
+the completion check at the head of phase 3's planning, not by any
+alarm: `tools/check-image-freshness.sh` uses a 72 hour threshold
+and would not have reported it until 2026-09-17.
+
+Two fixes, one per cause: images#9 puts every git command inside
+the `if` condition so any git failure warns and builds anyway, with
+two regression tests that exit 128 against the previous script;
+33fl#836 owns the checkout as the user cron runs as, and asks
+cron's question by stripping `SUDO_UID` rather than sudo's. The
+general lesson for the rest of this plan: a check run under `sudo`
+is not the check cron runs, and git is one of several tools that
+behaves differently between them.
+
 * **shakenfist/images**: after building an image, assert that it
   is what it claims. Landed 2026-09-13 as the `verify-release`
   element (images#7). This was listed under Future work in that
@@ -398,24 +426,213 @@ the one most likely to be dropped for being nobody's issue.
 
 ### 3. Unblock the migration
 
-Closes: private-ci#45, private-ci#39. Depends on: phase 2 for the
-`debian-gnome:13` confirmation.
+Closes: private-ci#45 (partly -- see decision 5), private-ci#39.
+Depends on: phase 2, satisfied. Planning effort: high, because the
+sequencing spans two repositories and the gnome snapshot machinery
+is not where the original sketch said it was.
 
-* **private-ci#45**: add a `debian-gnome-13` entry to
-  `IMAGE_BUILDS` with `playbook: ansible/ci-image-desktop.yml`.
-* **private-ci#39**: move the dependencies cache disk from
-  `debian:11` to `debian:13`. `debian:11` can no longer be built
-  at all -- `bullseye-security`'s `Release` expired 2026-09-08 --
-  so this disk is pinned to a frozen, unpatchable base, and a
-  missing `dependencies` label blocks all CI provisioning.
-* While in `ci-dependencies.yml`, add `debian:13` and `rocky:10`
-  to the cached image list. Neither is currently cached, so CI
-  cannot test against current Debian even now that the label
-  works. Reword the two `when:` conditions that branch on
-  `base_image == "debian:11"` (lines 50 and 61 at the time of
-  writing, and the same phase edits that file, so find them by the
-  condition text) to test for the bullseye interpreter quirk by
-  name. They stop reading as deliberate once debian:11 is gone.
+Two labels are stuck. `debian-gnome-12` has no trixie successor, so
+the `eol-distro` criterion bans a label the fleet still needs. And
+the dependencies cache disk -- which every runner and inner CI
+primary mounts at `/srv/ci`, and whose absence blocks *all* CI
+provisioning -- is built from `debian:11`, a base that can no longer
+be built at all: `bullseye-security`'s `Release` expired
+2026-09-08.
+
+#### What the survey found
+
+Checked 2026-09-16 against `private-ci` `84f39cc` and `actions`
+`origin/main`. The original sketch for this phase was written
+before phase 2 executed. Most of it survived; one claim was
+materially incomplete and one was a near miss.
+
+**Confirmed as written.**
+
+* `debian-gnome-13` really is absent from `IMAGE_BUILDS`.
+  `debian-gnome-12` sits at `conductor/imagebuilder.py:120` with
+  `playbook: ansible/ci-image-desktop.yml`, exactly as private-ci#45
+  quotes it.
+* The dependencies entry really is `base_image: 'debian:11'`, at
+  `conductor/imagebuilder.py:143`.
+* The two conditions to reword really are at
+  `ansible/ci-dependencies.yml:50` and `:61`, still at those exact
+  line numbers on `origin/main` after phase 2 edited that file.
+* `debian:13` and `rocky:10` really are absent from the cached image
+  list (`ansible/ci-dependencies.yml:140-176`).
+
+**Materially incomplete: the gnome snapshot is not one line.** The
+sketch treats "should the cache disk snapshot `debian-gnome-13`
+instead" as a decision. It is a decision, but acting on it touches
+seven places across two repositories, and the master plan did not
+say so:
+
+* `conductor/imagebuilder.py:225` -- `GNOME_LABEL =
+  'debian-gnome-12'`, a module constant read in six places,
+  including the gnome-less marker (`:507-538`), the nightly
+  scheduling (`:871`) and the operator log line (`:1213`).
+* `ansible/ci-dependencies.yml` -- the label is hardcoded in the jq
+  selector at `:220`
+  (`select(.source_url == "sf://label/ci-images/debian-gnome-12")`),
+  in the skip message at `:230`, and in the download path
+  `/tmp/debian-12-gnome-agents` at `:252-253`.
+
+`GNOME_LABEL` and the playbook have to move together. The marker
+exists so that a cluster which built `dependencies` before the gnome
+label existed rebuilds it once the label appears; if the constant
+watches `debian-gnome-12` while the playbook snapshots
+`debian-gnome-13`, that rebuild is triggered by the wrong label's
+arrival.
+
+**A near miss worth recording so nobody else chases it.**
+`ansible/ci-image-desktop.yml:151` hardcodes
+`label: "ci-images/debian-gnome-12"`, which looks like it would send
+a `debian-gnome-13` build to the 12 label. It does not: the
+conductor passes `label` in `extra_vars`
+(`conductor/imagebuilder.py:791`, `'label': 'ci-images/%s' %
+image['label']`), which overrides the play's default. The same is
+true of `ci-dependencies.yml:8`'s `base_image: "debian:11"`. Both
+are stale defaults that only bite somebody running the playbook by
+hand, and both should be corrected while in the file rather than
+left as traps.
+
+**Two findings out of scope, recorded here rather than fixed.**
+
+* The cached image list carries `ubuntu:20.04`, `debian:11` and
+  `fedora:40`. `shakenfist/images` builds none of those any more --
+  its list is `ubuntu:22.04 ubuntu:24.04 centos:9-stream debian:12
+  debian-docker:12 debian-gnome:12 debian-xfce:12 debian:13
+  debian-docker:13 debian-gnome:13 debian-xfce:13 rocky:8 rocky:9
+  rocky:10`. All three URLs still return 200, so CI is quietly
+  caching three frozen artifacts, two of them end of life. That is
+  inventory work for phase 4 and retirement for phase 5, and it
+  belongs to private-ci#38's collated inventory. File it there
+  rather than widening this phase.
+* `build.sh`'s reconciliation summary -- `Built:` / `Failed:` /
+  `Not attempted:` at `build.sh:736-747` -- is printed to stdout
+  only. Per-image logs ship to Loki; the summary does not. Under
+  cron on a host with no MTA it is discarded, so the one output that
+  distinguishes "never attempted" from "built fine" reaches nobody.
+  images#6 built that reconciliation precisely to make that state
+  visible. File against `shakenfist/images`; it is a phase 1
+  detection gap rather than a phase 3 migration step.
+
+#### Decisions
+
+1. **Order is: label, then base image, then snapshot.** Add
+   `debian-gnome-13` first, because steps 3 and 4 need the label to
+   exist before anything can point at it. Move the dependencies base
+   image second. Switch the gnome snapshot last.
+
+2. **The cross-repository ordering constraint is real and is
+   stated.** Deleting the `debian:11` interpreter branch from
+   `ci-dependencies.yml` must land *after* the `IMAGE_BUILDS` base
+   image move has built successfully, not before. While
+   `dependencies` still builds on `debian:11`, removing that branch
+   sends bullseye down the auto-detect path -- which is the quirk
+   the branch exists for. Two pull requests in two repositories,
+   with a build in between, not one flag day.
+
+3. **Delete the `debian:11` branch rather than reword it.** The
+   master plan says to reword the two `when:` conditions to name the
+   bullseye interpreter quirk. Once the dependencies entry is on
+   `debian:13`, nothing invokes `ci-dependencies.yml` with
+   `base_image: debian:11` at all -- it is the only entry that uses
+   that playbook -- so the condition is not obscure, it is dead. Two
+   `add_host` tasks collapse to one with no `when:`. This is a
+   deliberate departure from the master plan's wording, on the
+   grounds that a clearly-named condition for a case that cannot
+   occur is still a thing the next reader has to rule out.
+
+4. **Yes, switch the snapshot to `debian-gnome-13`.** private-ci#45
+   leaves it open. The cache disk exists so CI does not pull from
+   the network, and a cache of the EOL desktop is a cache of the
+   thing phase 5 is about to delete. Switching now means one nightly
+   cycle in which the disk still carries the 12 snapshot, which is
+   harmless.
+
+5. **private-ci#45 is not closed by this phase.** Its fourth
+   checkbox -- retire `debian-gnome-12` once nothing consumes it --
+   is phase 5's work, and this phase deliberately leaves both
+   `debian-gnome-12` and `debian-11` building so nothing breaks
+   mid-plan. The issue keeps three of four boxes ticked and closes
+   in phase 5. **This is the decision most likely to be argued
+   with:** it leaves two end-of-life labels building for two more
+   phases, and `eol-distro` will keep reporting them the whole time.
+   The alternative -- retire as we go -- couples this phase to
+   finding every consumer, which is exactly what phase 4 is for.
+
+#### Step plan
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 3a | medium | sonnet | none | In `shakenfist/private-ci`, add a `debian-gnome-13` entry to `IMAGE_BUILDS` in `conductor/imagebuilder.py`, immediately after the `debian-gnome-12` entry at line 120. Copy its shape exactly: `name` and `label` both `debian-gnome-13`, `base_image` `debian-gnome:13`, `base_image_user` `debian`, `playbook` `ansible/ci-image-desktop.yml`. Do not touch `GNOME_LABEL` (line 225) in this step. Update `conductor/tests/test_imagebuilder.py` -- lines 91 and 117 assert over the build order and the missing-label set, and both enumerate labels. Run `tox` (or the repo's test command) and confirm green. Commit subject: "Add a debian-gnome-13 CI image." |
+| 3b | low | haiku | none | Wait for the conductor to build the new label and confirm `ci-images/debian-gnome-13` exists before step 3c starts. This is an observation step, not a code change: `sf-client --json artifact list` filtered on `sf://label/ci-images/debian-gnome-13`, or the conductor's own log. Report the label's blob uuid. No commit. |
+| 3c | high | opus | worktree | In `shakenfist/private-ci`, change the `dependencies` entry in `conductor/imagebuilder.py:143` from `base_image: 'debian:11'` to `'debian:13'`. `base_image_user` stays `debian`. Read the comment block at lines 126-140 before editing -- it explains the gnome-less marker and the first/last build ordering, and it names `debian-gnome-12`; leave that naming alone, step 3e moves it. Check whether any test in `conductor/tests/test_imagebuilder.py` asserts the dependencies base image. Also check `conductor/provisioner.py:47` -- it carries a separate `debian-11` entry with `upstream: debian:11`; that is the runner boot label, not the cache disk, and is out of scope. High effort because the dependencies label gates all CI provisioning: if this build fails, nothing provisions. Commit subject: "Build the dependencies disk on Debian 13." |
+| 3d | medium | sonnet | none | In `shakenfist/actions`, edit `ansible/ci-dependencies.yml`. (1) Add `debian:13` and `rocky:10` to the cached image list at lines 140-176, following the existing `- { url: ..., name: ... }` shape exactly. (2) Delete the `Add to ansible (force python3)` task at lines 40-51 and remove the `when: base_image != "debian:11"` from the task at 52-62, so one unconditional `add_host` remains -- see decision 3. (3) Change the stale default at line 8 from `base_image: "debian:11"` to `"debian:13"`. **This must not merge until step 3c has built successfully** -- see decision 2. Verify with `tools/ansible-syntax-check.sh`, which phase 2 added. Commit subject: "Cache Debian 13 and Rocky 10, drop bullseye." |
+| 3e | high | opus | worktree | Move the dependencies disk's gnome snapshot from `debian-gnome-12` to `debian-gnome-13`, across two repositories, as two pull requests. In `shakenfist/private-ci`: `GNOME_LABEL` at `conductor/imagebuilder.py:225`, and re-read its six uses (507-538, 871, 1213) plus the comment block at 126-140, which describes the behaviour in terms of the old label. In `shakenfist/actions/ansible/ci-dependencies.yml`: the jq selector at line 220, the skip message at 230, and the `/tmp/debian-12-gnome-agents` path at 252-253 -- rename that path too, it names the release. Also fix the stale play default at `ansible/ci-image-desktop.yml:151`. High effort because the gnome-less marker decides when a cluster rebuilds its cache disk, and a constant that watches one label while the playbook snapshots another produces a rebuild that never fires. Commit subjects: "Snapshot the Debian 13 desktop image." in each repository. |
+| 3f | low | haiku | none | Housekeeping. Tick checkboxes two and three on private-ci#45 and leave it open per decision 5, saying in a comment which phase closes it. Close private-ci#39 with the merge commits. File the two out-of-scope findings from the survey: the frozen cache entries against private-ci#38, and the discarded reconciliation summary against `shakenfist/images`. No commit in this repository. |
+
+#### Risks and mitigations
+
+* **The dependencies build fails on trixie and CI stops
+  provisioning.** This is the real risk in the phase: a missing
+  `dependencies` label blocks everything. Mitigated by step 3c being
+  its own pull request with nothing else in it, so a revert is one
+  commit; and by `_build_order()` already building `dependencies`
+  first when its label is missing, so recovery is the next scan
+  rather than a manual intervention. Checked by whoever merges 3c,
+  by watching the conductor build the label before merging 3d.
+* **3d merges before 3c builds.** Then bullseye takes the
+  auto-detect interpreter path and the dependencies build breaks for
+  the reason the deleted branch existed. Mitigated by decision 2
+  being stated in the step brief itself rather than only here, and
+  by 3b existing as an explicit gate.
+* **The gnome snapshot switch half-lands.** `GNOME_LABEL` in one
+  repository and the playbook in another cannot merge atomically.
+  Mitigated by ordering: merge the playbook first (it snapshots
+  whatever label it is told to look up, and the lookup failing is
+  already handled -- the snapshot is skipped with a warning), then
+  the constant. A skipped snapshot for one night is recoverable; a
+  marker watching a label nobody builds is not self-correcting.
+* **`debian-gnome:13` turns out not to boot a desktop under CI even
+  though the guest image is correct.** Phase 2 confirmed the
+  artifact is trixie with GNOME 48 and that it reaches the gdm3
+  greeter. `ci-image-desktop.yml` now proves this at build time
+  (actions#74), so this fails the build loudly rather than producing
+  a label that looks fine.
+
+#### Definition of done
+
+* `IMAGE_BUILDS` contains a `debian-gnome-13` entry and
+  `ci-images/debian-gnome-13` exists as a label with a blob.
+* `grep -rn 'debian:11' conductor/imagebuilder.py` returns only the
+  `debian-11` runner boot label at lines 59-62, and no dependencies
+  entry.
+* `ansible/ci-dependencies.yml` contains no `when:` clause
+  mentioning `debian:11`, and `ansible-playbook --syntax-check`
+  passes via `tools/ansible-syntax-check.sh`.
+* The cached image list contains `debian:13` and `rocky:10`, and a
+  `dependencies` disk built after this phase has `/srv/ci/cached`
+  entries for both with non-zero size -- the playbook's own
+  "Confirm every cache entry has content" assertion at line 318
+  covers this, so a successful build is the evidence.
+* `grep -rn 'debian-gnome-12' conductor/ ansible/` across both
+  repositories returns only the `IMAGE_BUILDS` entry that phase 5
+  retires -- no constant, no jq selector, no `/tmp` path.
+* private-ci#39 is closed; private-ci#45 has boxes one, two and
+  three ticked, box four open, and a comment naming phase 5 as its
+  closer.
+* Two issues exist for the out-of-scope findings.
+
+#### Back brief
+
+Confirm before step 3c is written: that building the dependencies
+cache disk on `debian:13` is acceptable given the disk is snapshotted
+and mounted by every runner, and that nothing consuming `/srv/ci`
+depends on the disk's own filesystem being bullseye-era. The step is
+cheap to propose and expensive to get wrong -- a broken dependencies
+label stops all CI provisioning -- and the answer lives in what
+mounts the disk rather than in what builds it.
 
 ### 4. The consumer sweep
 
