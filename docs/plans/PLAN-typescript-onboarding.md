@@ -257,8 +257,8 @@ Nothing else in the plan writes to that repository.
 | 4. Static runners gain node | Complete | 33fl bc50c52a, deployed; b86f2bb (#127) |
 | 5. hunkydory CI and the fleet workflows | Complete | hunkydory 3d556a6 (#7) |
 | 6. Human review onboarding | Complete | hunkydory e216f93 (#8) |
-| 7. Marketplace release | In progress | 7a: hunkydory 43b7f59 (#9) |
-| 8. Push audit | Not started | |
+| 7. Marketplace release | In progress | 7a: hunkydory 6da49c1 (#9) |
+| 8. Push audit | In progress | |
 
 Phase 4 was blocked on D5 and was released on 2026-09-13; see that
 decision for what changed. Phase 5 depended on phase 4, because a CI
@@ -984,12 +984,18 @@ The options, for a decision rather than a guess:
    and *What implementation found* is explicit that the pin is
    load-bearing for security, not only for reproducibility.
 
-`43b7f59` runs `node --version && npm --version` as the first step of
-the publish job, so that whatever happens, the diagnosis is in the
-log rather than an unexplained `npm: command not found`. That was the
-right instinct in the wrong place: the step sits inside the one job
-the dispatch guard keeps unreachable until 7b, so it reports the
-answer only once it is too late to choose differently. Step 7a.6
+A diagnostic step running `node --version && npm --version` as the
+first step of the publish job was written for exactly this, so that
+whatever happens the diagnosis is in the log rather than an
+unexplained `npm: command not found`. **It never landed.** The
+commit, `8351a5b`, was authored eight minutes after #9 merged and is
+orphaned on `origin/typescript-onboarding-phase7`; the merged
+`release.yml` has no such step. An earlier revision of this section
+asserted that `43b7f59` carries it, which phase 8's survey found to
+be false. It was in any case the right instinct in the wrong place:
+the step sits inside the one job the dispatch guard keeps
+unreachable until 7b, so it would report the answer only once it is
+too late to choose differently. Step 7a.6
 measures the same two commands on the same lane from a dispatch-only
 job that holds no secret, which is available now, so 7b.0 decides
 with the fact rather than around it.
@@ -1085,28 +1091,246 @@ gets configured for an architecture that then changes.
 
 ### 8. Push audit
 
-Run `PUSH-AUDIT.md` over the accumulated diff of every phase against
-`main`, per the shared block. Phases landing in `hunkydory` and
-`33fl` record `<repo> <sha> (#pr)` in the `Merged` column.
+Run `PUSH-AUDIT.md` over the accumulated diff of every phase, per
+the shared block. Phases landing in `hunkydory` and `33fl` record
+`<repo> <sha> (#pr)` in the `Merged` column.
 
-**Neither hunkydory nor 33fl carries a `PUSH-AUDIT.md` today,** so
-as this plan is written there is no runbook in either to cite. The
-`push-audit` criterion reports not-applicable when the file is
-absent, which is why it is not among
-the nine failures the Situation section enumerates, and `33fl` is
-outside the audit fleet entirely. The shared block anticipates this:
-"A repository with no `PUSH-AUDIT.md` still carries the phase, and
-the phase says that the runbook does not exist yet and what was done
-instead."
+Planned at high effort on 2026-09-16; the rest of this section is
+that plan.
 
-What is done instead: phase 2 deploys this repository's
-`PUSH-AUDIT.md` to hunkydory as part of the local tooling it adopts,
-since it is a template the fleet copies, so by the time this phase
-runs hunkydory has a runbook and its pull requests are audited
-against `develop` like any other repository's. For `33fl`, this phase
-runs *this* repository's `PUSH-AUDIT.md` briefs over the runner diff
-directly and records that it did so, rather than citing an audit
-nothing obliges anyone to perform.
+#### Scope
+
+**In scope.** Three repositories, because this plan landed work in
+three. Everything the `Merged` column records, plus the two
+development pull requests the column omits (below). The audit is of
+the accumulated diff of the whole plan, not of any one phase.
+
+**Out of scope.** Phase 7b, which is operator-held and may never
+run -- D7.1 split the phase precisely so that this one would not be
+"hostage to an Azure DevOps signup". If 7b later lands, it is
+audited in its own pull request against hunkydory's `develop`, and
+this section is not reopened. Also out: fixing anything the audit
+finds. Findings land as their own pull request, per the shared
+block.
+
+#### What the survey found
+
+Eight checks against the three trees, of the claims this section
+makes and of the `Merged` column this phase reads. Six found
+something. The false claims are corrected at source as part of the
+planning commit, so a later step does not rediscover them.
+
+**The `Merged` column records a head commit where it needs a merge
+commit.** Phase 7's cell reads `hunkydory 43b7f59 (#9)`.
+`43b7f59` has one parent: it is #9's head, not its merge. The
+merge is `6da49c1`. The shared block is explicit -- "A single
+commit is only ever enough when it is a merge commit" -- because
+`git diff 43b7f59^1 43b7f59` is the last commit of the pull
+request rather than the pull request. The other six cells check
+out: `a7f4798`, `b8e8fd2`, `b86f2bb`, `73cdca7`, `3d556a6` and
+`e216f93` all have two parents. Corrected above.
+
+**Two development pull requests this plan landed are not in the
+`Merged` column at all.** `d102e9f` (#128, "Correct what phase 2
+asserts, and record phase 1") and `9fe50ee` (#130, the phase 7
+plan). Both are plan-document changes rather than phases, which is
+why no cell claimed them, but the audit's documentation wave reads
+plan prose and they are this plan's work on this repository. They
+are named in the ranges below rather than added to the table,
+which tracks phases.
+
+**hunkydory now has a `PUSH-AUDIT.md`, as this section predicted.**
+The claim above -- "Neither hunkydory nor 33fl carries a
+`PUSH-AUDIT.md` today" -- was true when written and is now false
+for hunkydory: phase 2 deployed it in `35b5e3e`, and the
+`push-audit` criterion **passes** against hunkydory today rather
+than reporting not-applicable. The prediction held, so the
+paragraph is retensed rather than deleted; the 33fl half is still
+true.
+
+**No hunkydory pull request was push-audited when it landed.**
+This is the finding that changes the work. The shared block says a
+phase landing in another repository "is audited against that
+repository's default branch, as part of the pull request that
+lands it", and that "the plan's own push-audit phase cites that
+audit rather than re-running it". Checking the bodies of hunkydory
+#1, #7, #8 and #9 finds no audit record in any of them -- #1
+mentions `PUSH-AUDIT.md` only as a file it is adding. So there is
+nothing to cite, and this phase runs hunkydory's audit itself
+rather than pretending the citation exists.
+
+**33fl's phase 4 commit is a legitimate direct landing.**
+`bc50c52a` has one parent and touches one file,
+`static_runner.yml`, +16 lines. That is the shared block's "where
+the phase landed directly, every commit of the phase" case rather
+than the defect the first finding describes. 33fl remains outside
+the audit fleet -- it appears in neither `scripts/audit/registry.py`
+nor `docs/audits/` -- and carries no `PUSH-AUDIT.md`, so the
+section's plan for it stands unchanged.
+
+**Every diff command in the runbook is written against
+`main...HEAD`.** `PUSH-AUDIT.md:27` says so outright. That shape
+assumes an unmerged branch, and everything this phase audits is
+already on a default branch, so the ranges have to be reconstructed
+from merge commits and the commands rewritten. D8.2 says how.
+
+**Phase 7 is `In progress`, and one of its statements is false.**
+7a.5 and 7a.6 are unblocked and undone; 7b is operator-held. Line
+987 asserts that "`43b7f59` runs `node --version && npm --version`
+as the first step of the publish job". It does not: the commit that
+added that step, `8351a5b`, was authored eight minutes after #9
+merged and sits orphaned on `origin/typescript-onboarding-phase7`.
+Corrected at source. This phase does not wait on 7b -- see Scope --
+but it does depend on 7a.5 and 7a.6 having run, because their
+results are text this audit reads. D8.4.
+
+**The Situation section's figures are start-state and still
+correct as history.** "51 checks: 6 pass, 9 fail, 36 not
+applicable" was the pre-plan verdict. Today hunkydory reports 55
+checks, 28 pass, 1 fail, 26 not-applicable, the failure being the
+`review-coverage` backlog phase 6 opened deliberately. Nothing to
+correct; recorded so the next reader does not think the Situation
+has drifted.
+
+#### Decisions
+
+**D8.1. Three audits, not one.** The work landed in three
+repositories with three default branches and, now, two runbooks.
+Merging the diffs into a single review would apply this
+repository's briefs -- written for audit automation with a
+sixteen-repository blast radius -- to a VS Code extension and to an
+Ansible role. Each repository is audited against its own runbook
+where it has one, and findings are collected centrally.
+
+**D8.2. Reconstruct each range as a list of merge commits, and
+audit a concatenated diff.** The runbook's `main...HEAD` does not
+work on merged history. For each repository, produce
+
+```
+for m in <merges>; do git diff "$m^1" "$m"; done > phase8-<repo>.diff
+```
+
+and run wave 1's greps over that file instead of over a range.
+This is a superset rather than a net diff: a file touched by two
+phases appears twice, and a line a later phase corrected shows both
+states. That is the right bias for an audit, which is looking for
+what was introduced, and it is why wave 2 reads the *current* tree
+for the same paths rather than the concatenated patch. The
+alternative -- a scratch branch replaying every phase onto the
+merge-base -- was rejected as archaeology that can itself be wrong.
+
+The ranges, from the `Merged` column plus the two omissions:
+
+| Repository | Default | Merges to audit |
+|---|---|---|
+| `shakenfist/development` | `main` | `a7f4798` (#125), `b8e8fd2` (#126), `b86f2bb` (#127), `d102e9f` (#128), `9fe50ee` (#130) |
+| `shakenfist/hunkydory` | `develop` | `73cdca7` (#1), `3d556a6` (#7), `e216f93` (#8), `6da49c1` (#9) |
+| `mach33labs/33fl` | `main` | `bc50c52a` (direct, not a merge -- diff against its single parent) |
+
+**D8.3. hunkydory's audit is run now, not cited.** The survey found
+no audit was performed on #1, #7, #8 or #9. Re-running four pull
+requests' worth of work in one pass is what the accumulated-diff
+rule asks for anyway, so this costs little beyond honesty about why
+it is happening. Record in this section that the per-pull-request
+audits the shared block expects did not occur, because that is a
+process finding about this plan, not about hunkydory's code, and it
+is the kind of thing that recurs silently.
+
+**D8.4. 7a.5 and 7a.6 run before this phase, not after.** Both are
+unblocked today and both write text into the plan that this audit's
+documentation wave reads -- 7a.5 a dispatch run URL, 7a.6 the
+answer to the open question. Auditing the plan before they land
+means auditing prose known to be incomplete. This is the decision
+most likely to be argued with: it makes phase 8 wait on two steps
+of a phase whose other half may never finish, and the counter-
+argument is that the audit should simply take the plan as it
+stands. The case for waiting is that both steps are hours of work,
+not weeks, and that the audit's whole value is reading the final
+text.
+
+**D8.5. 33fl gets the mechanical wave only.** Sixteen lines of
+Ansible in a repository outside the audit fleet does not warrant
+four judgment sub-agents. Wave 1's greps, plus a single reader
+checking the change against `static_runner.yml`'s surrounding
+conventions and against what D1 said it would do. Say so in the
+record, rather than implying a full audit ran.
+
+#### Step plan
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 8.1 | low | sonnet | none | **Prerequisite gate, not an audit step.** Confirm 7a.5 and 7a.6 have landed and that this plan records their results. If either is outstanding, stop and report rather than proceeding -- D8.4. Also confirm `git fetch` has run in all three repositories and that each local default branch is at its remote: `PUSH-AUDIT.md`'s own note is that a stale local `main` silently widens the audit, and this session has hit that failure three times. Commit subject: none; this step produces a go/no-go, not a change. |
+| 8.2 | low | sonnet | none | Build the three concatenated diffs per D8.2 into a scratch directory, and report each one's size and the file list it touches. Use the merge list in D8.2's table verbatim; do not rederive it from `git log`, which cannot tell a phase merge from an unrelated one. Sanity-check that `shakenfist/development`'s diff contains `scripts/audit/checks/npm.py` and `scripts/tests/test_npm_dependencies.py` (phase 3, 2,277 insertions), that hunkydory's contains `.github/workflows/release.yml` and `.vscodeignore`, and that 33fl's is 16 lines of `static_runner.yml`. If any is missing, the range is wrong -- stop. |
+| 8.3 | medium | sonnet | none | Wave 1 of `PUSH-AUDIT.md` against `shakenfist/development`'s diff: lint and the full test suite on `main`, then every grep in the Mechanical checks section rewritten to read the concatenated diff file rather than `git diff main...HEAD`. Pay particular attention to the `FROZEN_ISSUE_TITLES` and shared-block-version checks, because phase 3 added criteria and phase 4 edited `templates/mermaid-lint/`. Report findings; fix nothing. |
+| 8.4 | medium | sonnet | none | Wave 1 against hunkydory's diff, using **hunkydory's own** `PUSH-AUDIT.md`, whose greps phase 2 rewrote for a VS Code extension with no server. Run from a hunkydory checkout at `origin/develop`. `npm ci && npm run lint && npm test` is the lint-and-test half; `npm run corpus` needs a sibling kerbside-patches checkout and is expected to skip without one -- say which happened. Report findings; fix nothing. |
+| 8.5 | low | sonnet | none | 33fl, mechanical only, per D8.5. Wave 1's language-agnostic greps over the 16-line diff, plus a read of `bc50c52a` against `static_runner.yml`'s surrounding conventions and against what D1 of this plan said phase 4 would do. There is no `PUSH-AUDIT.md` in 33fl and it is outside the audit fleet, so state which runbook was used and that no judgment wave ran. Report findings; fix nothing. |
+| 8.6 | high | opus | none | Wave 2a and 2d (code quality, security) against `shakenfist/development`, reading the current tree for the paths 8.2 listed rather than the concatenated patch -- D8.2 says why. The blast radius framing in `PUSH-AUDIT.md`'s preamble applies in full: phase 3 added criteria that file and close issues fleet-wide. Check in particular that the npm criteria cannot file against a repository with no `package.json`, and that nothing phase 3 added reads the network. Spawn 2a and 2d as the runbook intends. Report findings; fix nothing. |
+| 8.7 | high | opus | none | Wave 2b and 2c (tests, documentation) against `shakenfist/development`. 2c has the most to do: this plan changed `docs/plans/index.md`, `PLAN-TEMPLATE.md` adjacent prose, four `docs/audits/` specs and its own 1,300-line plan file, and the documentation brief is the one that catches a page phase 2 made wrong and phase 5 never revisited. Check the plan's own internal consistency too -- the survey above found a head commit recorded as a merge and a false claim about `43b7f59`, both of which a documentation wave should have caught. Report findings; fix nothing. |
+| 8.8 | high | opus | none | Wave 2 against hunkydory, all four briefs, using hunkydory's `PUSH-AUDIT.md`. This is where D8.3's four unaudited pull requests actually get read: phases 2, 5, 6 and 7a built the entire repository's fleet integration and none of it has had a judgment pass. Highest-value targets are `release.yml` (a token-holding publish job), `.vscodeignore` (an allow-list that can ship too little), and `tools/`. Report findings; fix nothing. |
+| 8.9 | medium | opus | none | **Management session, not a sub-agent.** Collect every finding from 8.3 to 8.8, deduplicate across repositories, and triage each into fix / decline / defer-to-Future-work. Write the outcome into this section: what was audited, what the ranges were, what was found, and -- if nothing was -- say so in one sentence, which the shared block calls a real result. Record that hunkydory's per-pull-request audits did not happen (D8.3) and that 33fl got the mechanical wave only (D8.5). |
+| 8.10 | medium | sonnet | none | Land the findings as their own pull request per repository, separate from this planning commit. The plan is not complete until each is resolved or declined in writing, and a declined finding says why, here, where the next reader will find it. If 8.9 found nothing anywhere, this step is skipped and 8.9's sentence stands instead. |
+
+#### Risks and mitigations
+
+**The concatenated diff double-counts, and an auditor reads an
+intermediate state as the shipped one.** Phase 7a's `.vscodeignore`
+is the live example: the deny-list and the allow-list both appear
+in hunkydory's diff. *Mitigation:* D8.2 puts wave 2 on the current
+tree rather than the patch, and 8.2's sanity checks name the files
+where this is most likely. The management session in 8.9 rejects
+any finding whose evidence is only a superseded hunk.
+
+**Auditing this plan's own prose is self-review.** The same
+session that wrote the phase 7 section audits it in 8.7.
+*Mitigation:* 8.7 is a sub-agent with the runbook's brief and not
+the management session, and it is pointed at two defects the
+survey already found so its calibration can be checked against a
+known answer. If it misses both, its other findings are worth
+less.
+
+**Four unaudited hunkydory pull requests is a lot of surface for
+one pass.** *Mitigation:* 8.8 is the only step given all four
+judgment briefs and an opus budget, and D8.3 records the situation
+so that a finding-heavy result reads as expected rather than
+alarming.
+
+**7b may never land, leaving the plan permanently `In progress`
+with a completed push audit.** *Mitigation:* Scope says 7b is
+audited in its own pull request if it happens. The success criteria
+already allow the Marketplace outcome to be "or phase 7 records why
+it does not", so a plan that ends with 7b abandoned is a
+contemplated ending rather than a failure.
+
+#### Definition of done
+
+* Phase 7's `Merged` cell names `6da49c1`, a two-parent commit, not
+  `43b7f59`.
+* No statement in this plan says `43b7f59` carries a `node
+  --version` step.
+* The three concatenated diffs exist, and each passes 8.2's
+  file-presence sanity check.
+* Wave 1 has run over all three, and hunkydory's used hunkydory's
+  runbook rather than this repository's.
+* Wave 2 has run over `shakenfist/development` and `hunkydory`;
+  this section states that 33fl received the mechanical wave only,
+  and why.
+* This section records that hunkydory #1, #7, #8 and #9 were not
+  audited when they landed.
+* Every finding is fixed, declined in writing here, or in Future
+  work -- or this section says in one sentence that the audit found
+  nothing.
+* `pre-commit run --all-files` passes in this repository, and the
+  audit against hunkydory still reports one failure and it is
+  `review-coverage`.
+
+#### Back brief gate
+
+**Before 8.3 runs, confirm the ranges in D8.2's table.** They are
+cheap to agree and expensive to redo: every subsequent step reads
+the diffs built from them, and a wrong range produces an audit that
+looks complete and is not. That is the failure the shared block
+spent a paragraph on, and the survey found one instance of it
+already in the column this table is built from.
 
 ## Agent guidance
 
