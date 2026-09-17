@@ -386,8 +386,12 @@ assume; it was assumed. Both corrected at source above, and D5.2
 says what phase 5 does about the defect itself.
 
 **Both non-compliant repositories are far past the threshold, and
-that is not this plan's automation failing.** ryll needs review on
-120 of 214 in-scope files, kerbside on 115 of 229. The Situation
+that is not this plan's automation failing.** As the compliance page
+was last regenerated before this planning, on 2026-09-16, ryll needed
+review on 120 of 214 in-scope files and kerbside on 115 of 229; step
+5.3 re-measured both a day later from clean clones and found 105 and
+106, which is the ordinary movement of a backlog as commits land
+rather than a discrepancy. The Situation
 section opens with "ryll is about to reach 100% human-reviewed",
 which has not been true for weeks -- but the cause is that the scope
 deliberately grew, driven by the `review-scope-completeness`
@@ -453,6 +457,7 @@ measurements, corrects the Mission and the documentation to say what
 the machinery does, and adds it to Future work. If that reading is
 wrong the alternative is cheap to take later: it is one `gh issue
 edit` in `process_results()`, guarded on the rendered body differing.
+Filed as shakenfist/development#138.
 
 **D5.3. Do not retune the threshold or add hysteresis on this
 evidence.** Two repositories sit 20x over the threshold with an
@@ -491,6 +496,61 @@ anything.
 | 5.3 | low | sonnet | none | Reproduce the audit's numbers locally, which is the one claim in the survey nobody has re-derived from a clone rather than from the compliance page: clone or update a checkout of shakenfist/ryll at `origin/develop` and one of shakenfist/kerbside at its default branch, then run `python3 scripts/audit-check.py --repo-path <clone> --repo-name <name> --github-org shakenfist` from this repository and compare the `review-coverage` entry against `docs/audits/compliance.md#review-coverage` (ryll: 94 of 214 reviewed, 120 needing review; kerbside: 114 of 229, 115 needing). Numbers move as commits land, so the test is that the check's arithmetic agrees with `python3 scripts/review-tracking.py status --json` run in the same clone at the same commit, not that it matches the digits written here. Record the commit audited and the result in this section. Do not run `audit-manage-issues.py` at all, not even with `--dry-run`, and do not commit any clone. |
 | 5.4 | low | sonnet | none | Record the outcome in this section under a "What verification found" heading: the evidence table from the survey (audit run, prune commit count, the four ryll issues with their dates and which were closed by the bot, the 2026-09-11 retrigger run), step 5.3's reproduction, and step 5.2's issue number. Then set this phase's row in the Execution table to `Complete` and fill its `Merged` column when the pull request lands, and update the plan's row in `docs/plans/index.md` so the Intent line says the steady state is verified in production and names what it found. Leave the index status at `In progress`: phase 6 has not run. |
 
+#### What verification found
+
+Per D5.1 the phase verified from evidence production had
+already produced, and nothing was staged. The table below is
+what was re-checked on 2026-09-17, against `gh` and `git`
+rather than copied from the survey above:
+
+| Checked | Evidence |
+|---------|----------|
+| Daily audit | Most recent run at writing: `https://github.com/shakenfist/development/actions/runs/35087963103` (2026-09-16); the review-coverage table in `docs/audits/compliance.md` regenerates alongside it. |
+| Automatic pruning on ryll | 35 `Prune stale review marks.` commits on `origin/develop`. |
+| The retrigger | Run at 2026-09-11 04:57:20 UTC, `displayTitle` "Prune stale review marks.", committed nothing -- the evidence that a PAT push retriggers the workflow once into a no-op. |
+| Issue lifecycle on ryll | #242 opened 2026-08-03, closed 2026-08-05; #275 opened 2026-08-14, closed 2026-08-15; #282 opened 2026-08-16, closed 2026-08-17; #304 opened 2026-08-21, still open. #242 and #275 carry shakenfist-bot's automated closing comment, so the close path is machine-verified; #282 a human closed. hunkydory#10 is the same lifecycle in a third repository. |
+| Review sessions | ryll's develop carries `review:` commits as recently as 2026-09-17, so the manual half still works alongside the automation. |
+
+Step 5.3 re-derived the numbers from clean clones rather than
+from `docs/audits/compliance.md`, on 2026-09-17. ryll was
+cloned at `develop`, full commit
+`c868d8b7ee5c982da79588a7396a4a7da7dd6f61` (short `c868d8b`);
+kerbside was cloned at its default branch, also `develop`,
+full commit `9996305745a5f291a8178ad2c6960cd8682786db` (short
+`9996305`). Both clones live under a scratch directory outside
+this repo and were left uncommitted; neither existing local
+checkout under `~/src/shakenfist/` was touched.
+
+`scripts/audit-check.py` reported `review-coverage` as `fail`
+for both, at the threshold of 5:
+
+| Repo | Commit | Status | Details |
+|------|--------|--------|---------|
+| ryll | `c868d8b` | fail | 109 of 214 in-scope files reviewed at HEAD; 105 need review (threshold 5) |
+| kerbside | `9996305` | fail | 123 of 229 in-scope files reviewed at HEAD; 106 need review (threshold 5) |
+
+At each of those same commits, `scripts/review-tracking.py
+status --json`, run with the clone as cwd, agreed exactly:
+`in_scope`, `reviewed` and `needing_review` matched the
+details string above for both repositories, and the union of
+`stale` plus `never_reviewed` matched the check's `missing`
+list file for file (105 of 105 entries for ryll, 106 of 106
+for kerbside; both repositories have zero `stale` files, so
+the whole backlog is `never_reviewed`). No disagreement was
+found between the two tools at either commit, and
+`audit-manage-issues.py` was not run.
+
+What the phase changed, in total, is three corrections in
+`docs/code-review-tracking.md` -- the loop-safety argument,
+the location of `REVIEW_BACKLOG_THRESHOLD`, and the claim
+that a filed issue is a ready-made work queue -- plus the
+four sentences that said the prune workflow pushes to
+"main", corrected to "default branch" since ryll's and
+kerbside's is develop; and shakenfist/development#138, filed
+against the issue body never being refreshed. No criterion,
+check or issue-management code was touched, and
+`audit-manage-issues.py` was never run.
+
 #### Risks and mitigations
 
 **The survey's numbers age while the phase is in review.** The
@@ -518,26 +578,28 @@ commit here.
 
 #### Definition of done
 
-- [ ] `docs/code-review-tracking.md` contains no statement that a
+- [x] `docs/code-review-tracking.md` contains no statement that a
       prune push cannot retrigger the workflow, and its explanation
       of why the loop terminates matches ryll's
       `.github/workflows/prune-reviews.yml` header comment.
-- [ ] `grep -rn 'REVIEW_BACKLOG_THRESHOLD' docs/` names
-      `scripts/audit/checks/review.py` and no other file.
-- [ ] `docs/code-review-tracking.md` says, where it describes the
+- [x] `grep -rn 'REVIEW_BACKLOG_THRESHOLD' docs/ | grep -v
+      '^docs/plans/'` names `scripts/audit/checks/review.py` and no
+      other file. The plans are excluded deliberately: they record
+      the old path as part of saying it was wrong.
+- [x] `docs/code-review-tracking.md` says, where it describes the
       issue as a work queue, that the list is not refreshed after
       filing.
-- [ ] An issue exists on shakenfist/development describing the
+- [x] An issue exists on shakenfist/development describing the
       never-updated issue body, and its number appears both in this
       section and in Future work.
-- [ ] Step 5.3's run is recorded with the commit it audited, and
+- [x] Step 5.3's run is recorded with the commit it audited, and
       `review-tracking.py status` and `audit-check.py` agreed at that
       commit.
-- [ ] No issue was filed, edited or closed by anything this phase
+- [x] No issue was filed, edited or closed by anything this phase
       ran: `audit-manage-issues.py` was not invoked.
-- [ ] Every status cell in this plan's Execution table is one term
+- [x] Every status cell in this plan's Execution table is one term
       from `templates/shared-blocks/plan-status-vocabulary.md`.
-- [ ] `pre-commit run --all-files` passes, and
+- [x] `pre-commit run --all-files` passes, and
       `python3 scripts/audit-check.py --repo-path . --repo-name
       development` still reports 31 pass, 0 fail, 24 not-applicable
       as it did on 2026-09-17, or this section says which verdict
@@ -583,6 +645,8 @@ PR on this branch, the ryll work a separate PR.
 Step 7 stopped being blocked when both pull requests merged in
 August; phase 5 above is the plan for it. The statuses were brought
 into the shared vocabulary on 2026-09-17 -- see that phase's survey.
+Step 7 reaches `Complete` when its own pull request merges and the
+`Merged` column records that commit, not before.
 
 The `Merged` column is what `plan-push-audit-phase` asks each phase
 to record as it lands, so that phase 6 has a range to audit once
@@ -627,7 +691,7 @@ proposed; the Python follows the house style (single quotes,
   open issue's body, so every consistency issue is frozen at filing
   time and a long-lived `review-coverage` issue understates the
   backlog it was filed about. Phase 5 D5.2 explains why the fix is
-  not made here; the issue number goes here when step 5.2 files it.
+  not made here; filed as development#138.
 * A consistency check that repos with
   `.vscode/review-scope.toml` also carry the prune workflow, so
   the two halves of the steady state cannot drift apart as more
