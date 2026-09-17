@@ -381,10 +381,19 @@ and 2 -- images#5, #6, #7, #8, #9; private-ci#49, #54; actions#74;
 33fl#827, #836 -- plus private-ci#60 from phase 3. Not one carries
 an audit in its body or its comments, and none of
 `shakenfist/images`, `shakenfist/actions`,
-`mach33labs/33fl` or `shakenfist/private-ci` has a `PUSH-AUDIT.md`
+`Mach33Labs/33fl` or `shakenfist/private-ci` has a `PUSH-AUDIT.md`
 at all -- so no such audit could have been run. The shared block's
 "audited as part of the pull request that lands it" has been the
 plan's assumption rather than its practice.
+
+**The shas themselves are verified.** All eleven merge commits
+recorded in the Execution table were read on 2026-09-18 with `git
+cat-file -p <sha>` in each of the four repositories: every one has
+two parents and a message naming the matching pull request. No
+repository here squash-merges, so each recorded sha's diff against
+its first parent is the whole of what landed, which is what the
+push audit shared block requires of the record rather than merely
+of the number.
 
 What that costs phase 7 is specific rather than general. It has
 three options and should say which it took: run the accumulated
@@ -475,32 +484,53 @@ be built at all: `bullseye-security`'s `Release` expired
 #### What the survey found
 
 Checked 2026-09-16 against `private-ci` `84f39cc` and `actions`
-`origin/main`. The original sketch for this phase was written
-before phase 2 executed. Most of it survived; one claim was
-materially incomplete and one was a near miss.
+`edc4b73` -- that repository's `main` that day, pinned to a sha
+rather than written as `origin/main`, because a moving basis is
+what makes a line number unreconcilable a fortnight later. The
+original sketch for this phase was written before phase 2 executed.
+Most of it survived; one claim was materially incomplete and one
+was a near miss.
+
+**Two bases, stated once so that every number below can be
+placed.** Every line number in this survey is as it stands on those
+two commits. Every line number in the *step briefs* is as it stands
+**after step 3a**, that is on `private-ci` `392700d`, where 3a's
+seven-line `IMAGE_BUILDS` entry shifted everything below
+`conductor/imagebuilder.py:123` down by seven. So the survey's
+`:143` and step 3b's `:149` are the same entry read on different
+bases *and* by different anchors: `:143` is its `base_image` line
+pre-3a, `:149` its `name` line post-3a (`:142` and `:150` being the
+other of each pair). `conductor/imagebuilder.py` is byte-identical
+between `84f39cc` and 3a's first parent, so the seven-line shift is
+the only difference between the two bases. Nothing in this plan
+pins `actions` after the survey, so re-derive anything quoted from
+`actions/` against its `main` before editing rather than trusting
+the number here.
 
 **Confirmed as written.**
 
 * `debian-gnome-13` really is absent from `IMAGE_BUILDS`.
-  `debian-gnome-12` sits at `conductor/imagebuilder.py:120` with
-  `playbook: ansible/ci-image-desktop.yml`, exactly as private-ci#45
-  quotes it.
+  In `private-ci`, `debian-gnome-12` sits at
+  `conductor/imagebuilder.py:120` with `playbook:
+  ansible/ci-image-desktop.yml`, exactly as private-ci#45 quotes
+  it.
 * The dependencies entry really is `base_image: 'debian:11'`, at
-  `conductor/imagebuilder.py:143`.
-* The two conditions to reword really are at
+  `conductor/imagebuilder.py:143` in `private-ci`.
+* The two conditions to reword really are in `actions`, at
   `ansible/ci-dependencies.yml:50` and `:61`, still at those exact
-  line numbers on `origin/main` after phase 2 edited that file.
+  line numbers on `edc4b73` after phase 2 edited that file.
 * `debian:13` and `rocky:10` really are absent from the cached image
-  list (the `Cache all minimal images we currently build to reduce
-  network traffic` task, `ansible/ci-dependencies.yml:124-177`).
+  list in `actions` (the `Cache all minimal images we currently
+  build to reduce network traffic` task,
+  `ansible/ci-dependencies.yml:124-177`).
 
 **Measured, because the sketch did not ask: the two new images
 fit.** Step 3d grows the cached set on a fixed disk and decision 4
 leaves three frozen entries in place, so the growth is worth a
 number rather than an assumption. The cache disk is the builder
 instance's second disk, declared as `- "50"` at
-`ansible/ci-dependencies.yml:23-26`: 50GB. The eleven upstream
-images cached today total 8.9GiB by `Content-Length` on
+`ansible/ci-dependencies.yml:23-26` in `actions`: 50GB. The eleven
+upstream images cached today total 8.9GiB by `Content-Length` on
 `images.shakenfist.com` (measured 2026-09-17); the two additions
 are `debian:13` at 0.41GiB and `rocky:10` at 0.96GiB, so 1.4GiB of
 growth.
@@ -515,29 +545,43 @@ paragraph is not the answer, only the part of it that could be
 measured without a cluster.
 
 **And the playbook does not check what it caches.** Worth stating
-because it is tempting to assume it does: `ci-dependencies.yml` has
-exactly one cache-contents task, `List contents of /srv/ci/cached`
--- a bare `ls -lrth` at `:285-286` -- which prints and asserts
-nothing. `get_url` fails the play on a 404 or a full disk, so a
-*missing* entry does break the build, but nothing inspects the set
-afterwards, and no task confirms each entry has content. So "the
-build passed" is weaker evidence than a definition of done should
+because it is tempting to assume it does: `actions`'
+`ansible/ci-dependencies.yml` has exactly one cache-contents task,
+`List contents of /srv/ci/cached` -- a bare `ls -lrth` at
+`:285-286` -- which prints and asserts nothing. `get_url` fails the
+play on a 404 or a full disk, so a *missing* entry does break the
+build, but nothing inspects the set afterwards, and no task
+confirms each entry has content. So "the build passed" is weaker
+evidence than a definition of done should
 lean on, and this phase's says what is actually read instead.
 
 **Materially incomplete: the gnome snapshot is not one line.** The
 sketch treats "should the cache disk snapshot `debian-gnome-13`
 instead" as a decision. It is a decision, but acting on it touches
-seven places across two repositories, and the master plan did not
-say so:
+two repositories: one module constant, plus **seven further sites
+that spell the label out literally and that no constant reaches**.
+The master plan did not say so. Counted as sites rather than as
+lines, because several sites span more than one line and the count
+is meant to be checkable:
 
-* `conductor/imagebuilder.py:225` -- `GNOME_LABEL =
-  'debian-gnome-12'`, a module constant read in six places,
-  including the gnome-less marker (`:507-538`), the nightly
-  scheduling (`:871`) and the operator log line (`:1213`).
-* `ansible/ci-dependencies.yml` -- the label is hardcoded in the jq
-  selector at `:220`
+* In `private-ci`, `conductor/imagebuilder.py:225` -- `GNOME_LABEL
+  = 'debian-gnome-12'`, the constant. It is read on five lines
+  (`:514`, `:519`, `:538`, `:871`, `:1213`; six occurrences in the
+  file counting the definition), which are the gnome-less marker
+  (`:507-538`), the nightly scheduling (`:871`) and the operator log
+  line (`:1213`). Those readers need no edit -- they follow the
+  constant.
+* Four literal sites in that same file that the constant does *not*
+  reach, so editing `GNOME_LABEL` leaves them describing the old
+  behaviour: the `IMAGE_BUILDS` comment block (`:132`, `:134`,
+  `:138`), the gnome-less marker's own explanatory note (`:220`),
+  and two docstrings (`:533` and `:569`). Step 3f rewrites all four;
+  the definition of done greps for them, so reading them and leaving
+  them will not pass.
+* Three literal sites in `actions`, in `ansible/ci-dependencies.yml`:
+  the jq selector at `:220`
   (`select(.source_url == "sf://label/ci-images/debian-gnome-12")`),
-  in the skip message at `:230`, and in the download path
+  the skip message at `:230`, and the download path
   `/tmp/debian-12-gnome-agents` at `:252-253`.
 
 `GNOME_LABEL` and the playbook have to move together. The marker
@@ -548,16 +592,16 @@ watches `debian-gnome-12` while the playbook snapshots
 arrival.
 
 **A near miss worth recording so nobody else chases it.**
-`ansible/ci-image-desktop.yml:151` hardcodes
+In `actions`, `ansible/ci-image-desktop.yml:151` hardcodes
 `label: "ci-images/debian-gnome-12"`, which looks like it would send
 a `debian-gnome-13` build to the 12 label. It does not: the
-conductor passes `label` in `extra_vars`
-(`conductor/imagebuilder.py:791`, `'label': 'ci-images/%s' %
+conductor passes `label` in `extra_vars` (`private-ci`
+`conductor/imagebuilder.py:791`, `'label': 'ci-images/%s' %
 image['label']`), which overrides the play's default. The same is
-true of `ci-dependencies.yml:8`'s `base_image: "debian:11"`. Both
-are stale defaults that only bite somebody running the playbook by
-hand, and both should be corrected while in the file rather than
-left as traps.
+true of the `base_image: "debian:11"` at `actions`'
+`ansible/ci-dependencies.yml:8`. Both are stale defaults that only
+bite somebody running the playbook by hand, and both should be
+corrected while in the file rather than left as traps.
 
 **Two findings out of scope, recorded here rather than fixed.**
 
@@ -572,10 +616,11 @@ left as traps.
   belongs to private-ci#38's collated inventory. File it there
   rather than widening this phase.
 * `build.sh`'s reconciliation summary -- `Built:` / `Failed:` /
-  `Not attempted:` at `build.sh:736-747` -- is printed to stdout
-  only. Per-image logs ship to Loki; the summary does not. Under
-  cron on a host with no MTA it is discarded, so the one output that
-  distinguishes "never attempted" from "built fine" reaches nobody.
+  `Not attempted:` at `build.sh:736-747` in `images` -- is printed
+  to stdout only. Per-image logs ship to Loki; the summary does
+  not. Under cron on a host with no MTA it is discarded, so the one
+  output that distinguishes "never attempted" from "built fine"
+  reaches nobody.
   images#6 built that reconciliation precisely to make that state
   visible. File against `shakenfist/images`; it is a phase 1
   detection gap rather than a phase 3 migration step.
@@ -635,10 +680,11 @@ left as traps.
 | 3a | medium | sonnet | none | **Landed 2026-09-17 as private-ci#60 (`392700d`).** In `shakenfist/private-ci`, add a `debian-gnome-13` entry to `IMAGE_BUILDS` in `conductor/imagebuilder.py`, immediately after the `debian-gnome-12` entry. Copy its shape exactly: `name` and `label` both `debian-gnome-13`, `base_image` `debian-gnome:13`, `base_image_user` `debian`, `playbook` `ansible/ci-image-desktop.yml`. Do not touch `GNOME_LABEL` in this step. Update `conductor/tests/test_imagebuilder.py` -- the build-order and missing-label assertions both enumerate labels. Run `tox` (or the repo's test command) and confirm green. Commit subject: "Add a debian-gnome-13 CI image." |
 | 3b | high | opus | worktree | In `shakenfist/private-ci`, change the `dependencies` entry in `conductor/imagebuilder.py` (`'name': 'dependencies'` at `:149` once 3a has landed) from `base_image: 'debian:11'` to `'debian:13'`. `base_image_user` stays `debian`. Read the comment block immediately above it (`:133-148`) before editing -- it explains the gnome-less marker and the first/last build ordering, and it names `debian-gnome-12`; leave that naming alone, step 3f moves it. Check whether any test in `conductor/tests/test_imagebuilder.py` asserts the dependencies base image, and **run the suite and confirm green either way** -- the check is not the verification. Two `debian-11` things are out of scope and are not each other: the `IMAGE_BUILDS` entry at `:58-63` is the image this repository *builds* and decision 5 keeps it until phase 5; the `CI_IMAGES` entry at `conductor/provisioner.py:46-51` is the label runners *boot from*. Neither is the cache disk. High effort because the dependencies label gates all CI provisioning: if this build fails, nothing provisions. Commit subject: "Build the dependencies disk on Debian 13." |
 | 3c | low | haiku | none | **The gate for 3d**, and the mitigation the risks section names. Observation step, no code change. After 3b merges, confirm the conductor has rebuilt the `dependencies` label (`DEPENDENCIES_LABEL`, `conductor/imagebuilder.py:233`) on `debian:13` and that the build succeeded: `sf-client --json artifact list`, or the conductor's own log. Report the label's blob uuid **and its creation time**, and confirm that time is after 3b merged -- yesterday's blob still answering the lookup is exactly what this gate exists to catch. While there, run `df -h /srv/ci/cached` on a runner with the disk mounted and report free space; step 3d needs it. No commit. |
-| 3d | medium | sonnet | none | In `shakenfist/actions`, edit `ansible/ci-dependencies.yml`. (1) Add `debian:13` and `rocky:10` to the cached image list in the `Cache all minimal images we currently build to reduce network traffic` task (`:124-177`), following the existing `- { url: ..., name: ... }` shape exactly -- but first check 3c's reported free space against the 1.4GiB the two images need (survey), and stop and say so if the headroom is under 5GiB rather than adding them anyway. (2) Delete the `Add to ansible (force python3)` task at `:40-51` and remove the `when: base_image != "debian:11"` from the task at `:52-62`, so one unconditional `add_host` remains -- see decision 3. (3) Change the stale default at `:8` from `base_image: "debian:11"` to `"debian:13"`. (4) Change `mkfs.ext4 /dev/vdc` at `:109` to `mkfs.ext4 -O ^orphan_file /dev/vdc`, with a comment above it saying *only* that this one feature is disabled, why, and what the floor is: the disk is mounted read-write by every runner, the oldest of which boots `ubuntu2004-ci-template.qcow2` on kernel 5.4, and `orphan_file` needs 5.15. Do not write that the feature list is pinned -- it is not, this disables one bit, and a comment claiming more than the command does is the next reader's trap. See the back brief. **This must not merge until step 3c has reported a successful dependencies build on `debian:13`** -- see decision 2. Verify with `tools/ansible-syntax-check.sh`, which phase 2 added. Commit subject: "Cache Debian 13 and Rocky 10, drop bullseye." |
+| 3d | medium | sonnet | none | In `shakenfist/actions`, edit `ansible/ci-dependencies.yml`. (1) Add `debian:13` and `rocky:10` to the cached image list in the `Cache all minimal images we currently build to reduce network traffic` task (`:124-177`), following the existing `- { url: ..., name: ... }` shape exactly -- but first check 3c's reported free space against the 1.4GiB the two images need (survey), and stop and say so if the headroom is under 5GiB rather than adding them anyway. (2) Delete the `Add to ansible (force python3)` task at `:40-51` and remove the `when: base_image != "debian:11"` from the task at `:52-62`, so one unconditional `add_host` remains -- see decision 3. (3) Change the stale default at `:8` from `base_image: "debian:11"` to `"debian:13"`. (4) Change `mkfs.ext4 /dev/vdc` at `:109` to `mkfs.ext4 -O ^orphan_file /dev/vdc`, with a comment above it saying *only* that this one feature is disabled, why, and what the floor is: the disk is mounted read-write by every runner, the oldest of which boots `ubuntu2004-ci-template.qcow2` on kernel 5.4, and `orphan_file` needs 5.15. Do not write that the feature list is pinned -- it is not, this disables one bit, and a comment claiming more than the command does is the next reader's trap. See the back brief. **This must not merge until step 3c has reported a successful dependencies build on `debian:13`** -- see decision 2. Verify with `tools/ansible-syntax-check.sh`, which phase 2 added. **Two commits, not one.** Items (1) to (3) are the migration and go under "Cache Debian 13 and Rocky 10, drop bullseye."; item (4) is its own commit, subject "Build the cache disk to the kernel 5.4 feature floor.", with the back brief's compat-versus-ro_compat measurement in the body. It has its own reasoning, its own definition-of-done bullet and a different blast radius -- it changes what every runner mounts, against a stated kernel floor -- and the risk story in this phase leans on a revert being one commit. One pull request is fine; one commit is not. |
 | 3e | low | haiku | none | **The gate for 3f.** Observation step, no code change. Confirm `ci-images/debian-gnome-13` exists *and has a blob*: `sf-client --json artifact list` filtered on `sf://label/ci-images/debian-gnome-13`, or the conductor's own log. A label that exists with no blob is the failure mode -- 3f points the playbook's jq selector at this label, and a selector that matches nothing skips the snapshot silently. Report the blob uuid. No commit. |
-| 3f | high | opus | worktree | Move the dependencies disk's gnome snapshot from `debian-gnome-12` to `debian-gnome-13`, across two repositories, as two pull requests. **Merge the `shakenfist/actions` one first, then the `shakenfist/private-ci` one**: the playbook snapshots whatever label it is told to look up and already handles the lookup failing (the snapshot is skipped with a warning), so a skipped snapshot for one night is recoverable, whereas a `GNOME_LABEL` watching a label the playbook never snapshots is a marker that never clears. In `shakenfist/actions/ansible/ci-dependencies.yml`: the jq selector at `:220`, the skip message at `:230-232`, the comment at `:212-216`, and the `/tmp/debian-12-gnome-agents` scratch path at `:252-254` and `:269`. **The destination at `:270` is different**: `/srv/ci/cached/debian-12-gnome-agents` is the name the snapshot has *on the cache disk*, so anything outside this repository that reads the disk reads that name. A grep of `shakenfist/shakenfist`, `shakenfist/private-ci` and `shakenfist/actions` on 2026-09-17 found no consumer other than the audit documentation at `shakenfist/docs/components/development/audits/eol-distro.md:128`; confirm that across the fleet before renaming it, and if it stays, say so in the commit message rather than leaving it looking forgotten. Also fix the stale play default at `ansible/ci-image-desktop.yml:151`. Run `tools/ansible-syntax-check.sh`. In `shakenfist/private-ci`: `GNOME_LABEL` at `conductor/imagebuilder.py:232`, its six uses (`:521`, `:526`, `:545`, `:878`, `:1220`), and **rewrite** the comment block at `:133-148` and the note at `:227` so both describe the behaviour in terms of `debian-gnome-13` -- the definition of done greps for `debian-gnome-12` and re-reading these will not make it pass. Grep the tests for `GNOME_LABEL` and for the literal `debian-gnome-12` (`conductor/tests/test_imagebuilder.py:58`, `:93`) and run the suite green. High effort because the gnome-less marker decides when a cluster rebuilds its cache disk, and a constant that watches one label while the playbook snapshots another produces a rebuild that never fires. Commit subjects: "Snapshot the Debian 13 desktop image." in each repository. |
-| 3g | low | haiku | none | Housekeeping. Tick checkboxes two and three on private-ci#45 and leave it open per decision 5, saying in a comment which phase closes it. Close private-ci#39 with the merge commits. File the two out-of-scope findings from the survey: the frozen cache entries against private-ci#38, and the discarded reconciliation summary against `shakenfist/images`. No commit in this repository. |
+| 3f | high | opus | worktree | Move the dependencies disk's gnome snapshot from `debian-gnome-12` to `debian-gnome-13`, across two repositories, as two pull requests. **Merge the `shakenfist/actions` one first, then the `shakenfist/private-ci` one**: the playbook snapshots whatever label it is told to look up and already handles the lookup failing (the snapshot is skipped with a warning), so a skipped snapshot for one night is recoverable, whereas a `GNOME_LABEL` watching a label the playbook never snapshots is a marker that never clears. In `shakenfist/actions/ansible/ci-dependencies.yml`: the jq selector at `:220`, the skip message at `:230-232`, the comment at `:212-216`, and the `/tmp/debian-12-gnome-agents` scratch path at `:252-254` and `:269`. **The destination at `:270` is different**: `/srv/ci/cached/debian-12-gnome-agents` is the name the snapshot has *on the cache disk*, so anything outside this repository that reads the disk reads that name. A grep of `shakenfist/shakenfist`, `shakenfist/private-ci` and `shakenfist/actions` on 2026-09-17 found no consumer other than the audit documentation at `shakenfist/docs/components/development/audits/eol-distro.md:128`; confirm that across the fleet before renaming it, and if it stays, say so in the commit message rather than leaving it looking forgotten. Also fix the stale play default at `ansible/ci-image-desktop.yml:151`. Run `tools/ansible-syntax-check.sh`. In `shakenfist/private-ci` (line numbers post-3a, on `392700d`, per the survey's note on bases): `GNOME_LABEL` at `conductor/imagebuilder.py:232`, its five uses (`:521`, `:526`, `:545`, `:878`, `:1220`), and **rewrite** the four places that carry the literal without going through the constant -- the `IMAGE_BUILDS` comment block at `:133-147`, the gnome-less marker note at `:226-230`, and the two docstrings at `:540` and `:576` -- so that all of them describe the behaviour in terms of `debian-gnome-13`. The definition of done greps for `debian-gnome-12`, so re-reading these and leaving them alone will not make it pass. Grep the tests for `GNOME_LABEL` and for the literal `debian-gnome-12` (`conductor/tests/test_imagebuilder.py:58`, `:93`) and run the suite green. High effort because the gnome-less marker decides when a cluster rebuilds its cache disk, and a constant that watches one label while the playbook snapshots another produces a rebuild that never fires. Commit subjects: "Snapshot the Debian 13 desktop image." in each repository. |
+| 3g | low | haiku | none | Housekeeping. Tick checkboxes two and three on private-ci#45 and leave it open per decision 5, saying in a comment which phase closes it. Close private-ci#39 with the merge commits. Record the two out-of-scope findings from the survey: comment the frozen cache entries onto private-ci#38, which already exists and is not closed here, and file a *new* issue for the discarded reconciliation summary against `shakenfist/images`. No commit in this repository. |
+| 3h | low | haiku | none | **Confirms step 3f actually worked**, which nothing else does. Observation step, no code change. Last in the table rather than adjacent to 3f because it has to wait for a nightly `dependencies` rebuild to complete after 3f merged. The survey establishes two facts that combine badly: the playbook's jq selector skips the snapshot with a warning when the lookup matches nothing, and the playbook asserts nothing about what it cached. So a grep for the absence of the old label passes whether or not the snapshot ever succeeded. On a `dependencies` disk built after 3f, confirm `/srv/ci/cached/` carries the gnome snapshot at non-zero size, that it is the Debian 13 artifact and not a survivor of the old name, and that the playbook run did *not* log the `label does not exist yet` skip message. Report the blob uuid it was downloaded from so it can be matched against the one step 3e reported. If the snapshot was skipped, say so rather than filing it: the marker is designed to trigger one rebuild, so the next nightly may fix it, and knowing which happened is the point of this step. No commit. |
 
 #### Risks and mitigations
 
@@ -668,6 +714,19 @@ left as traps.
   ordering is stated in 3f's own brief, not only here, for the same
   reason decision 2's is: 3f is the step most likely to be executed
   by a sub-agent reading one row.
+* **Step 3a lengthens the nightly cycle that phase 1's staleness
+  threshold was sized against.** Phase 1 chose the conductor's
+  30-hour threshold from measured duration -- eleven images built
+  serially, 1h24m to 1h37m across six runs, with the gauge advancing
+  on completion. 3a makes it twelve, and a desktop image is not one
+  of the cheap ones. The arithmetic still holds comfortably:
+  completion lands about 25.6 hours after the primed slot, so 30
+  hours leaves roughly 4.4 hours of headroom and one image cannot
+  plausibly consume it. Recorded because the plan should say the
+  interaction was looked at rather than leave it to be rediscovered,
+  and because phase 5 later removes images while this phase adds
+  one. Step 3c is already on a runner reading `df`, so it is the
+  convenient place to re-read the cycle duration as well.
 * **`debian-gnome:13` turns out not to boot a desktop under CI even
   though the guest image is correct.** Phase 2 confirmed the
   artifact is trixie with GNOME 48 and that it reaches the gdm3
@@ -686,9 +745,19 @@ left as traps.
   `conductor/provisioner.py`'s `CI_IMAGES`, which is the label
   runners boot from, is a different thing in a different file and
   this phase does not touch it.
-* `ansible/ci-dependencies.yml` contains no `when:` clause
-  mentioning `debian:11`, and `ansible-playbook --syntax-check`
-  passes via `tools/ansible-syntax-check.sh`.
+* In `shakenfist/actions`, `grep -n 'debian:11'
+  ansible/ci-dependencies.yml` returns **only** the two lines of the
+  cached image list's `debian:11` entry (its `url` and its `name`),
+  which the survey's out-of-scope finding deliberately leaves for
+  private-ci#38 to collate. In particular it returns no `when:`
+  clause and no `base_image:` play default: the latter is step 3d
+  item (3), the smallest of its four changes and the one that would
+  otherwise have no gate at all. Note that this is a grep whose
+  passing output is non-empty, which is deliberate -- a bullet
+  asking for nothing would be unsatisfiable while those three frozen
+  entries stay, for the same reason the old `debian-gnome-12` bullet
+  was. `ansible-playbook --syntax-check` passes via
+  `tools/ansible-syntax-check.sh`.
 * `dumpe2fs -h` on a dependencies disk built after this phase does
   not list `orphan_file` among its features.
 * The cached image list contains `debian:13` and `rocky:10`, and a
@@ -698,16 +767,47 @@ left as traps.
   /srv/ci/cached` output at `ci-dependencies.yml:285-286` in a
   successful run, read rather than assumed, together with the `df`
   step 3c reported.
-* `grep -rn 'debian-gnome-12' conductor/ ansible/` across both
-  repositories returns only the `IMAGE_BUILDS` entry that phase 5
-  retires -- no constant, no jq selector, no `/tmp` path, and no
-  comment or skip message still describing the behaviour in terms of
-  the old label. Step 3f rewrites those comments rather than reading
-  them, which is what makes this grep passable.
+* The old label survives only in the entry phase 5 retires. This
+  is two greps, one per repository, not one across both:
+  `shakenfist/actions` has no `conductor/` directory, so a single
+  `grep -rn 'debian-gnome-12' conductor/ ansible/` errors and exits
+  non-zero there.
+  * In `shakenfist/private-ci`, `grep -rn 'debian-gnome-12'
+    conductor/imagebuilder.py` returns only the *lines of* the
+    `IMAGE_BUILDS` entry that phase 5 retires -- two of them, its
+    `name` and its `label`, not one hit. Its `base_image` is
+    `'debian-gnome:12'` with a colon and so does not match this
+    pattern at all. No constant, no comment block, no marker note
+    and neither docstring.
+  * `conductor/tests/` is deliberately outside that grep. Decision 5
+    keeps the entry building until phase 5, so the assertions naming
+    `debian-gnome-12` there must *stay*; a gate that demanded they
+    go would be satisfied most cheaply by deleting legitimate test
+    coverage. Step 3f reads them and runs the suite green instead.
+  * In `shakenfist/actions`, `grep -rn 'debian-gnome-12' ansible/`
+    returns nothing at all: no jq selector, no skip message, no
+    comment, no play default.
+* `grep -rn 'debian-12-gnome' ansible/` in `shakenfist/actions` is a
+  separate check, because the `/tmp` and cache-disk paths spell the
+  label the other way round and can never appear in the grep above
+  however it is scoped. It returns nothing if step 3f renamed the
+  cache-disk destination, or only that destination if 3f decided to
+  leave the name alone -- in which case 3f's commit message says so,
+  per its brief, and this bullet is satisfied by that sentence
+  rather than by an empty result.
+* Step 3h has reported, from a `dependencies` disk built after 3f,
+  that the gnome snapshot exists on the cache disk at non-zero size
+  and is the Debian 13 artifact, and that the playbook's run did not
+  log the skip message. The greps above pass whether or not the
+  snapshot ever ran, so this is the bullet that distinguishes a
+  switched label from a silently skipped one.
 * private-ci#39 is closed; private-ci#45 has boxes one, two and
   three ticked, box four open, and a comment naming phase 5 as its
   closer.
-* Two issues exist for the out-of-scope findings.
+* The frozen-entry finding is recorded on private-ci#38, which
+  already existed before this phase and stays open, and a new issue
+  exists against `shakenfist/images` for the discarded
+  reconciliation summary. Two findings, one new issue.
 
 #### Back brief
 
@@ -917,11 +1017,36 @@ Per the push audit shared block in `PLAN-TEMPLATE.md`. Runs
 `PUSH-AUDIT.md` over the accumulated diff of every phase against
 `main`, not the diff of the last phase alone.
 
-Phases landing in other repositories record `<repo> <sha> (#pr)`
-and are audited against that repository's default branch as part
-of the pull request that lands them; this phase cites those audits
-rather than re-running them. That applies to most of this plan --
-only phase 6 and this phase land here.
+**There are no out-of-repository audits for this phase to cite.**
+Phases landing elsewhere record `<repo> <sha> (#pr)`, and the
+shared block allows citing an audit run as part of the pull request
+that landed them. The finding under phase 2 checked all eleven
+landings and found that not one carries such an audit, and that
+none of the four repositories has a `PUSH-AUDIT.md` to have run.
+An earlier draft of this paragraph asserted the citing as fact;
+restating a policy in the past tense is how a plan comes to believe
+it has evidence it never collected, which is the defect phase 1's
+correction records.
+
+Of the three options that finding names, **this phase takes the
+first**: it runs the accumulated audit itself, once per repository,
+against that repository's default branch. Deferring the three
+`shakenfist/images` landings to that repository's own phase 6 would
+leave actions#74 and 33fl#836 covered by nothing, and declining the
+gap in writing buys nothing when running the audit is the work this
+phase exists to do. There is no single accumulated diff spanning
+four repositories, so the record must name which repository each
+audit covered and the sha it was taken against.
+
+**Audit images#8 first.** It is the one landing where this is not
+bookkeeping: it broke the nightly build on its first night, and an
+audit of the accumulated diff is precisely the instrument that
+would have looked at a self-update running under errexit. The rest
+is catch-up; that one is the demonstration that the catch-up is
+worth doing.
+
+Only phase 6 and this phase land in this repository, so the
+accumulated diff against `main` here is the small part of the work.
 
 ## Agent guidance
 
