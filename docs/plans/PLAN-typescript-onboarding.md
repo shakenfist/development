@@ -681,8 +681,9 @@ That sentence is left above rather than quietly edited, so the
 argument can be judged against what happened. Whether the publish
 lane carries node at all is a defect in the held half that no 7a run
 can reach, because the dispatch guard stops a dispatch getting
-there. See *Open question: does the publish lane have node?*; step
-7a.6 exists to settle it.
+there. See *Answered: the publish lane has neither node nor npm*;
+step 7a.6 settled it, and the answer is that the held half contains
+a defect 7a merged.
 
 **D7.2. Publish off the static pool, exactly as argued below.**
 Concretely: a `build` job on `[self-hosted, static]` running
@@ -731,8 +732,9 @@ criterion would be written against a single example.
 #### Step plan
 
 Steps 7a.1 to 7a.4 are done; see *What implementation found*. 7a
-merged on 2026-09-14, so 7a.5 and 7a.6 are now unblocked; 7b waits
-on the decisions in 7b.0.
+merged on 2026-09-14, and 7a.5 and 7a.6 both ran on 2026-09-16, so
+all of 7a is now done. 7b waits on the decisions in 7b.0, which
+7a.6's measurement has narrowed from three options to two.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
@@ -741,8 +743,8 @@ on the decisions in 7b.0.
 | 7a.3 | low | sonnet | none | Write `RELEASE-SETUP.md` covering every one-time step: the Azure DevOps publisher account for the `shakenfist` publisher id already in `package.json`, generating a `VSCE_PAT` with Marketplace publish scope, creating the tag-protected `release` environment, and adding the secret to that environment rather than to the repository. Model the structure on `templates/release-automation/RELEASE-SETUP.md`, but write the VS Code Marketplace steps rather than the PyPI trusted-publisher ones. The file goes at the repository root, `RELEASE-SETUP.md`, as it is in every other repository in the fleet -- `ReleaseProcess` tests `repo.exists('RELEASE-SETUP.md')` (`scripts/audit/checks/packaging.py:819`) and the template is root-destined. That criterion skips for hunkydory today, so nothing would catch a divergence, which is exactly why the path is stated here rather than inferred. Separately: reference it from `AGENTS.md` only if a convention changes. |
 | 7a.4 | low | sonnet | none | Re-run `pre-commit run --all-files` in hunkydory and the audit (`scripts/audit-check.py --repo-path <clone> --repo-name hunkydory --github-org shakenfist`). The verdict must still be 28 pass / 1 fail / 26 not-applicable, the failure being `review-coverage`. Anything else moved is a finding, not a rounding error. |
 | 7a.5 | low | sonnet | none | Dispatch `release.yml` on `develop` once 7a has merged. Confirm the `build` job produces the `.vsix` artifact on `[self-hosted, static]`, that `vscode:prepublish` compiles on a real runner with a real `npm_config_cache`, and that both publishing jobs correctly decline to run. Record the run URL here. This is the run D7.1's argument rests on, and it cannot answer the publish-lane question above, because the guard stops a dispatch reaching that job by design. |
-| 7a.6 | low | sonnet | none | **Measure whether `[self-hosted, vm, debian-13, s]` carries node, and record the answer in *Open question: does the publish lane have node?* above.** Add a dispatch-only throwaway workflow to hunkydory -- `permissions: {}`, **no `environment:` key**, so it can reach no secret -- whose single job runs on that lane and executes `node --version; npm --version; command -v node npm` without `set -e` stopping at the first absence. `secret-scan.yml` already uses this lane and `workflow_dispatch`, so no new actionlint label is needed. Dispatch it, record the output and the run URL, then delete the workflow in the same PR chain: it is a probe, not a fixture. The point is to reduce 7b.0's question (b) from a three-way guess to either "nothing to do" or "option 2". Do not fold this into `release.yml`'s publish job -- the dispatch guard means that job cannot run until 7b, which is the whole reason the question is open. |
-| 7b.0 | -- | operator | -- | **Decide two things before 7b.1 does any work.** (a) PAT or Entra federated credential: Azure DevOps retires global PATs on 1 December 2026, so a PAT bought now lasts about ten weeks and the Entra path has to be walked either way. The plan leans to going straight to `--azure-credential` and never minting a PAT, on the grounds that the setup cost is paid once rather than twice. (b) How the publish lane gets node. **Read 7a.6's measurement first**: if the lane already carries node and npm, there is nothing to decide and option 2's label and container work is unnecessary. If it does not, the plan leans to option 2, the `debian-13-docker` lane with a pinned `node:22` container, because it settles the `engines.node` risk in the same move and needs no work in another repository. |
+| 7a.6 | low | sonnet | none | **Measure whether `[self-hosted, vm, debian-13, s]` carries node, and record the answer in *Answered: the publish lane has neither node nor npm* above.** Add a dispatch-only throwaway workflow to hunkydory -- `permissions: {}`, **no `environment:` key**, so it can reach no secret -- whose single job runs on that lane and executes `node --version; npm --version; command -v node npm` without `set -e` stopping at the first absence. `secret-scan.yml` already uses this lane and `workflow_dispatch`, so no new actionlint label is needed. Dispatch it, record the output and the run URL, then delete the workflow in the same PR chain: it is a probe, not a fixture. The point is to reduce 7b.0's question (b) from a three-way guess to either "nothing to do" or "option 2". Do not fold this into `release.yml`'s publish job -- the dispatch guard means that job cannot run until 7b, which is the whole reason the question is open. |
+| 7b.0 | -- | operator | -- | **Decide two things before 7b.1 does any work.** (a) PAT or Entra federated credential: Azure DevOps retires global PATs on 1 December 2026, so a PAT bought now lasts about ten weeks and the Entra path has to be walked either way. The plan leans to going straight to `--azure-credential` and never minting a PAT, on the grounds that the setup cost is paid once rather than twice. (b) How the publish lane gets node. **7a.6 has measured it: the lane carries neither node nor npm.** So there is something to decide, option 3 is eliminated, and the decision is no longer only about 7b -- it has to repair `release.yml`'s publish job, which runs `npm ci` on that lane today, and delete the false node-20 comment inside it. The plan leans to option 2, the `debian-13-docker` lane with a pinned `node:22` container, because it settles the `engines.node` risk in the same move and needs no work in another repository. |
 | 7b.1 | -- | operator | -- | **Hold.** Execute what 7b.0 chose: create the publisher account, create the tag-protected `release` environment, and add the credential to it. Nothing in a repository can do this. |
 | 7b.2 | low | sonnet | none | Once 7b.1 is done: tag `v0.1.0`, watch the run, and record the outcome in this section -- either the Marketplace listing URL, or what failed. If the account never arrives, record that instead and cite the attached `.vsix`. **If it fails, the recovery is a version bump, not a re-tag**: `43b7f59`'s build job asserts the tag matches `package.json`, and the Marketplace rejects a republished version, so a deleted and re-pushed `v0.1.0` either fails the same way or is refused on the far side. Bump to `0.1.1` and tag that. The jobs can also disagree -- `github-release` needs `publish-marketplace`, so Marketplace-succeeded-and-release-failed is the only split possible, and it is repaired by attaching the `.vsix` to the existing release by hand rather than by re-running anything. Add both to `RELEASE-SETUP.md`'s troubleshooting while the reasoning is fresh. |
 
@@ -928,14 +930,63 @@ by review rather than by measurement, since
 `release_dispatch_guard_issues` does not run against this
 repository.
 
-#### Open question: does the publish lane have node?
+**Step 7a.5 dispatched `release.yml` and confirmed the above by
+measurement rather than review.** Run:
+https://github.com/shakenfist/hunkydory/actions/runs/35078839428,
+`develop` at `b2d3014`, 2026-09-16. The `build` job ("Build the
+.vsix") succeeded in 24s on `[self-hosted, static]`.
+`vscode:prepublish` ran `npm run build` (`tsc -p .`) and compiled
+cleanly before `vsce package` ran, with `npm_config_cache` pointed
+at a real `runner.temp` path rather than the default. The `.vsix`
+packaged eight files at 14.33 KB, and the `vsix` artifact uploaded
+at 14,253 bytes. The "Check the tag matches package.json" step
+was skipped, as it is guarded on `github.event_name == 'push'` and
+this run is a `workflow_dispatch`. Both publishing jobs -- "Create
+GitHub Release" and "Publish to the VS Code Marketplace" -- also
+skipped, exactly as designed. As the step brief anticipated, this
+run says nothing about the publish lane's node question below: the
+guard stops a dispatch reaching that job, so
+`[self-hosted, vm, debian-13, s]` was never touched by this run.
+That is step 7a.6's job.
 
-**This blocks 7b and is not settled.** Phase 4 put `nodejs` and
-`npm` on the **static** runners -- `33fl` `bc50c52a` in
+The run did settle one adjacent question by measurement. The static
+pool carries node v20.19.2 and npm 9.2.0, and `npm ci` there emitted
+`EBADENGINE` warnings from the vsce Azure dependencies that want node
+22 -- warnings, not failures, and the build succeeded. So the
+`engines.node` risk recorded below is real rather than theoretical,
+and it is now known to be live on the pool phase 4 provisioned as
+well as on whatever lane 7a.6 finds.
+
+#### Answered: the publish lane has neither node nor npm
+
+**Settled by measurement on 2026-09-16.** Step 7a.6's throwaway
+probe ran on `[self-hosted, vm, debian-13, s]`, on ephemeral runner
+`sfcbr-OO1IC0zAPJiDuZ2a`:
+https://github.com/shakenfist/hunkydory/actions/runs/35141854203
+
+```
+node: command not found
+npm: command not found
+neither on PATH
+```
+
+The history, because it explains how the gap opened. Phase 4 put
+`nodejs` and `npm` on the **static** runners -- `33fl` `bc50c52a` in
 `static_runner.yml` -- and said nothing about the ephemeral VM lane.
 D7.2 then put the publish job on `[self-hosted, vm, debian-13, s]`,
 and implementation found that job needs `npm ci --ignore-scripts` to
-get the vsce binary. Nothing establishes that lane has node.
+get the vsce binary. Nothing established that lane has node, and it
+does not.
+
+**This is a defect in what 7a merged, not merely a gap in what 7b
+must build.** `release.yml`'s publish job runs `npm ci
+--ignore-scripts` as its first command, so the job fails on its
+first real invocation. The same job carries a comment asserting that
+"this runner carries Debian 13's node 20, so that's satisfied
+today". That is false, and it is load-bearing: it is the sentence
+that made the `engines.node` risk below look bounded. Both the code
+and the comment are hunkydory's to repair, and whichever option
+7b.0 picks has to carry that repair with it.
 
 What the search found, so the next person does not repeat it:
 
@@ -973,9 +1024,10 @@ The options, for a decision rather than a guess:
    of the `engines.node` risk below at the same time. Costs a label
    in hunkydory's `.github/actionlint.yaml` and a `tools/` script.
 3. **Have the build job ship vsce.** Upload `node_modules` beside
-   the `.vsix` so the publish job installs nothing. Removes npm but
-   not node, so it only helps if the lane has node but not npm --
-   the least likely shape. It is also the worst of the three on
+   the `.vsix` so the publish job installs nothing. **Eliminated by
+   7a.6**: it removes the need for npm but not for node, so it would
+   only have helped had the lane carried node without npm. The lane
+   carries neither. It was in any case the worst of the three on
    D7.2's own terms, and that is the stronger objection: it moves
    305 packages of executable code, materialised on the shared
    static pool, into the job that holds the token, and runs it. The
@@ -983,6 +1035,16 @@ The options, for a decision rather than a guess:
    is the pool's tarball rather than the reviewed and pinned tree --
    and *What implementation found* is explicit that the pin is
    load-bearing for security, not only for reproducibility.
+4. **`actions/setup-node` in the publish job.** The measurement
+   newly admits this one: with nothing at all on the lane the
+   toolchain has to come from somewhere, and this is the
+   conventional answer. It needs no work in another repository and
+   no new actionlint label. Against it, the runner is ephemeral, so
+   every publish pays a fresh toolchain download through
+   `cache.home.stillhq.com`; and it fetches and executes a toolchain
+   inside the one job holding `VSCE_PAT`, which is the property
+   D7.2 spent the `--ignore-scripts` argument protecting. Option 2
+   pins the same runtime without that.
 
 A diagnostic step running `node --version && npm --version` as the
 first step of the publish job was written for exactly this, so that
@@ -995,10 +1057,13 @@ asserted that `43b7f59` carries it, which phase 8's survey found to
 be false. It was in any case the right instinct in the wrong place:
 the step sits inside the one job the dispatch guard keeps
 unreachable until 7b, so it would report the answer only once it is
-too late to choose differently. Step 7a.6
-measures the same two commands on the same lane from a dispatch-only
-job that holds no secret, which is available now, so 7b.0 decides
-with the fact rather than around it.
+too late to choose differently. Step 7a.6 measured the same two
+commands on the same lane instead, from a dispatch-only job holding
+no secret, which is why the answer above arrived before 7b.0 rather
+than after the first release. The probe,
+`.github/workflows/runner-probe.yml`, landed as hunkydory #14
+(`19733c2`) and is to be deleted now that it has reported; phase 8's
+audit range has to cover that merge and its deletion.
 
 #### Risks found during implementation
 
@@ -1175,7 +1240,7 @@ already on a default branch, so the ranges have to be reconstructed
 from merge commits and the commands rewritten. D8.2 says how.
 
 **Phase 7 is `In progress`, and one of its statements is false.**
-7a.5 and 7a.6 are unblocked and undone; 7b is operator-held. Line
+7a.5 and 7a.6 have since both run, and 7b is operator-held. Line
 987 asserts that "`43b7f59` runs `node --version && npm --version`
 as the first step of the publish job". It does not: the commit that
 added that step, `8351a5b`, was authored eight minutes after #9
@@ -1203,7 +1268,9 @@ Ansible role. Each repository is audited against its own runbook
 where it has one, and findings are collected centrally.
 
 **D8.2. Reconstruct each range as a list of merge commits, and
-audit a concatenated diff.** The runbook's `main...HEAD` does not
+audit a concatenated diff.** Note that 33fl's default branch is
+`master`, not `main`; an earlier revision of this table said `main`,
+and step 8.1's gate caught it. The runbook's `main...HEAD` does not
 work on merged history. For each repository, produce
 
 ```
@@ -1225,7 +1292,7 @@ The ranges, from the `Merged` column plus the two omissions:
 |---|---|---|
 | `shakenfist/development` | `main` | `a7f4798` (#125), `b8e8fd2` (#126), `b86f2bb` (#127), `d102e9f` (#128), `9fe50ee` (#130) |
 | `shakenfist/hunkydory` | `develop` | `73cdca7` (#1), `3d556a6` (#7), `e216f93` (#8), `6da49c1` (#9) |
-| `mach33labs/33fl` | `main` | `bc50c52a` (direct, not a merge -- diff against its single parent) |
+| `mach33labs/33fl` | `master` | `bc50c52a` (direct, not a merge -- diff against its single parent) |
 
 **D8.3. hunkydory's audit is run now, not cited.** The survey found
 no audit was performed on #1, #7, #8 or #9. Re-running four pull
@@ -1236,11 +1303,13 @@ audits the shared block expects did not occur, because that is a
 process finding about this plan, not about hunkydory's code, and it
 is the kind of thing that recurs silently.
 
-**D8.4. 7a.5 and 7a.6 run before this phase, not after.** Both are
-unblocked today and both write text into the plan that this audit's
-documentation wave reads -- 7a.5 a dispatch run URL, 7a.6 the
-answer to the open question. Auditing the plan before they land
-means auditing prose known to be incomplete. This is the decision
+**D8.4. 7a.5 and 7a.6 run before this phase, not after.** Both have
+now done so, on 2026-09-16, and both wrote text into the plan that
+this audit's documentation wave reads -- 7a.5 a dispatch run URL,
+7a.6 the answer to the open question, which turned out to be a
+defect rather than a clean bill of health. Auditing the plan before
+they landed would have meant auditing prose known to be incomplete.
+This is the decision
 most likely to be argued with: it makes phase 8 wait on two steps
 of a phase whose other half may never finish, and the counter-
 argument is that the audit should simply take the plan as it
