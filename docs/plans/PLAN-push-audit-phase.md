@@ -1648,10 +1648,21 @@ The `Merged` column gives `5b1fb74` (#49), `ff92357` (#50),
 path-union tool naturally produces -- gives 11,579 insertions and
 9,279 deletions across 213 unrelated commits, because
 `PLAN-audit-scripts-restructure` moved roughly 13,000 lines through
-`scripts/audit/` in the middle of the window. Four of the thirty
-files do not exist at `5b1fb74^1` at all, so a span counts their
-entire creation by another plan as this plan's work. Decision 1
-takes the union of the five diffs instead.
+`scripts/audit/` in the middle of the window. Eight of the thirty
+files are created by *other* plans inside the window and do not
+exist at `5b1fb74^1` at all -- `PLAN-TEMPLATE.md`,
+`docs/plans/PLAN-audit-compliance-split.md`,
+`scripts/audit/checks/plans.py`, `scripts/audit/registry.py`,
+`scripts/audit/text/markdown.py`, `scripts/tests/test_markdown.py`,
+`scripts/tests/test_metadata.py` and `scripts/tests/test_plans.py`
+-- so a span counts each one's entire creation as this plan's work.
+Four more are absent at that base only because this plan's own
+merges create them -- `PUSH-AUDIT.md`,
+`docs/plans/PLAN-push-audit-phase.md` and
+`templates/shared-blocks/plan-push-audit-phase.md` at `5b1fb74`,
+and `docs/audits/plan-audit-phase.md` at `81dc421` -- which is
+expected and is evidence of nothing. Decision 1 takes the union of
+the five diffs instead.
 
 **kerbside's `tools/audit/plan-range.sh` exists, and would produce
 exactly the wrong range here.** It is real --
@@ -1681,8 +1692,12 @@ in-scope files reviewed, and `review-coverage` passes with 0 needing
 review, so the phase leaves nothing outstanding on that front.
 
 **The repository is clean going in.** `scripts/audit-check.py`
-against this tree reports 55 checks: 31 pass, 0 fail, 24
-`not_applicable`. `push-audit` passes -- "PUSH-AUDIT.md carries
+against this tree, with `gh` authenticated, reports 55 checks:
+31 pass, 0 fail, 24 `not_applicable`. Two of them --
+`delete-branch-on-merge` and `scope-coverage` -- query the GitHub
+API and fail closed without credentials, so an unauthenticated
+re-run reporting 29 pass and 2 fail is the environment rather than
+a contradiction. `push-audit` passes -- "PUSH-AUDIT.md carries
 current shared blocks and is referenced from AGENTS.md" -- which is
 phase 1's own done-criterion still holding six weeks later.
 
@@ -1723,10 +1738,15 @@ goes first because 5c to 5f read the runbook 5a corrects.
 
 **4. Wave 2 is briefed for what this plan actually changed, not
 for the repository in general.** The four phases changed a fleet
-criterion (`scripts/audit/checks/plans.py`, +1,495 lines with
-`scripts/tests/test_plans.py` at +2,754), a shared block that
-sixteen repositories embed, a runbook, and 1,789 lines of plan
-prose. So 2a reads the criterion's bucket logic, 2b reads whether
+criterion (`scripts/audit/checks/plans.py`, +899 in this range
+and 1,495 lines now, with `scripts/tests/test_plans.py` at +1,568
+and 2,754 lines now), a shared block that sixteen repositories
+embed, a runbook, and 1,450 lines of plan prose across
+`docs/plans/`, 1,308 of them in this file. Every `+N` here is an
+insertion count over the union, measured the same way as the 5,186
+figure above; where a whole-file size is useful to an agent that
+will read the file rather than only its diff, it is named as
+one. So 2a reads the criterion's bucket logic, 2b reads whether
 the tests test what their names say, 2c reads whether four
 documents about the same convention now agree, and 2d reads the
 one thing here with a blast radius -- what a shared-block bump and
@@ -1734,7 +1754,10 @@ an issue-title change do to sixteen repositories at 06:00 UTC.
 
 **5. Findings land as their own pull request against `main`.** The
 shared block requires it and the three previous audits here all did
-it. This branch carries the plan record only.
+it. That applies to wave 2's findings: this branch carries the
+plan record and 5a's runbook fix, and 5b runs from this branch
+with 5a's commit already in it rather than waiting on a separate
+pull request.
 
 **6. The phase is not complete when the audit runs.** It is
 complete when every finding is resolved or declined in writing in
@@ -1746,13 +1769,13 @@ finishes.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 5a | low | sonnet | none | Fix the range defect in `PUSH-AUDIT.md`, and nothing else in that file. Every diff command in the wave 1 block and in the four wave 2 briefs is written `git diff main...HEAD`; the "How to use this runbook" section at line 27 states that as the rule. Two failure modes, both already recorded against this repository: a stale local `main` silently widens the audit (`PLAN-audit-compliance-split.md:656`), and against work that has already merged `main...HEAD` is empty and reads as a clean audit rather than as no audit (`PLAN-scope-coverage.md:384`). Replace the rule with one that says the audit runs over an explicit range: default `origin/main...HEAD` for unmerged work, and `$AUDIT_BASE $AUDIT_HEAD` where the work has landed, with one sentence saying a plan whose phases landed as several merges runs each command once per merge. Update the commands themselves to read `git diff $AUDIT_RANGE` with `AUDIT_RANGE` defaulting to `origin/main...HEAD`, rather than leaving literal `main...HEAD` strings for every future reader to substitute by hand -- there are sixteen: eleven in the wave 1 block's eight checks, one in the rule at line 27, and one in each of the four wave 2 briefs. Do not touch any `<!-- shared-block: -->` region: a bump files issues in sixteen repositories. Do not change what any check looks for. Wrap at the file's existing width. Commit subject: "Give the push audit an explicit range." |
-| 5b | medium | sonnet | none | Wave 1 of `PUSH-AUDIT.md`, over this plan's five merges. Run `pre-commit run --all-files` first, on a clean tree -- `git status --short` empty before you start, because `review-tracking.py stamp` takes its SHAs from the git **index**, so an unstaged edit is attested at the staged content and the run gives a false pass for exactly the check that guards the attestations. Then run every check in the wave 1 block five times, once per merge, with `AUDIT_BASE=<sha>^1 AUDIT_HEAD=<sha>` for each of `5b1fb74`, `ff92357`, `81dc421`, `fd0678c`, `a19b706` in that order. Do not use a single spanning range: `5b1fb74^1..a19b706` sweeps in 213 unrelated commits and roughly 9,000 deletions from `PLAN-audit-scripts-restructure`'s move through `scripts/audit/`, which is measured under *What the survey found*. Report every hit with a verdict -- hit, looked at, accepted or blocking, and why -- and say explicitly which checks were empty in all five, because a silent check is indistinguishable from an unrun one. Expect and explain rather than ignore: `templates/shared-blocks/plan-push-audit-phase.md` changed in three of the five merges and the version marker moved with it each time, which is the convention working; `REVIEWS.md` changed in three of them and the prunes it records are the convention working; `docs/audits/compliance.md` is not in this range at all. Report, do not fix. |
-| 5c | high | sonnet | none | Wave 2a, code quality, per the brief in `PUSH-AUDIT.md` -- read the runbook as 5a leaves it, not a cached copy. Diff is the five merges of decision 1, and the code in them is almost entirely `scripts/audit/checks/plans.py` (+1,495) and `scripts/audit/text/markdown.py` (+387). Take 5b's grep report as input. The highest-value reading is `plan_audit_phase_state()` and `plan_index_entries()`: phase 4 added a fourth bucket, plans the index links without recording a status, and the criterion now has four ways to decline to judge a plan -- unphased, terminal-status, statusless, and unresolved link. Ask what happens when two apply at once, whether any plan can fall through all four and be silently counted as passing, and whether the fenced-code blanking that `plan_phases()` does is applied on every path that searches for `PUSH-AUDIT.md` rather than most of them. `iter_markdown_table_rows()` in `text/markdown.py` is read by several criteria; a behaviour change there is a fleet-wide change, so check its callers against what it now returns for a malformed table. |
-| 5d | high | sonnet | none | Wave 2b, test review, per the brief in `PUSH-AUDIT.md`, over the five merges of decision 1. `scripts/tests/test_plans.py` gained 2,754 lines and `scripts/tests/test_markdown.py` and `scripts/tests/test_metadata.py` moved with it. Establish that the tests test what their names say rather than that they pass: phase 4's decision 2 is the contested one and its worked example has moved repositories since, so read `test_bullet_list_index_records_no_status_and_is_not_judged`, `test_an_index_of_only_statusless_plans_is_not_n_a`, `test_a_statusless_link_to_no_file_is_named_as_unresolved` and `test_a_statusless_unphased_plan_is_named_as_statusless` against the real shapes they claim to cover -- occystrap's bullet list, which the fleet sweep found has since been rewritten into a status table, and ryll's `## Standalone plans` second table, which is now the only live example. A test whose fixture no longer matches any repository is not wrong, but it is worth knowing which of these are the last copy of a shape. Name any assertion in the diff that would still pass if the behaviour it names were removed. |
-| 5e | high | sonnet | none | Wave 2c, documentation review, per the brief in `PUSH-AUDIT.md`, over the five merges of decision 1. Four documents describe the same convention and the question is whether they agree: `PUSH-AUDIT.md`, `templates/shared-blocks/plan-push-audit-phase.md` (now v3), `docs/audits/plan-audit-phase.md` and `AGENTS.md`. Check specifically that the v3 carve-out sentence -- a plan already `Complete`, `Abandoned` or `Superseded` is not reopened -- says the same thing in the block, in the criterion spec and in the audit documentation; that `docs/audits/plan-audit-phase.md` records the statusless exclusion *and* says `plan-index` requires a table rather than a status column, which is what makes the exclusion an opt-out nothing detects; that `docs/audits/README.md`'s criterion row and `PLAN-TEMPLATE.md`'s block list agree on nine blocks; and that `AGENTS.md`'s "drop this qualifier once the sweep has landed" is still accurate, given that phase 4's Future work now says explicitly that phase 4 was not that sweep. 1,789 lines of this diff are plan prose in `PLAN-push-audit-phase.md` itself: read it for claims about other repositories that were true when written and are not now, which is the failure mode phase 4 spent a whole step on. |
+| 5a | low | sonnet | none | Fix the range defect in `PUSH-AUDIT.md`, and nothing else in that file. Every diff command in the wave 1 block and in the four wave 2 briefs is written `git diff main...HEAD`; the "How to use this runbook" section at line 27 states that as the rule. Two failure modes, both already recorded against this repository: a stale local `main` silently widens the audit (`PLAN-audit-compliance-split.md:656`), and against work that has already merged `main...HEAD` is empty and reads as a clean audit rather than as no audit (`PLAN-scope-coverage.md:384`). Replace the rule with one that says the audit runs over an explicit range held in a single variable, `AUDIT_RANGE`: the default is `origin/main...HEAD` for unmerged work, and work that has already landed sets `AUDIT_RANGE=<sha>^1..<sha>`, with one sentence saying a plan whose phases landed as several merges runs each command once per merge. Use that one name everywhere. `git diff A..B` and `git diff A B` are the same thing, so a second `AUDIT_BASE`/`AUDIT_HEAD` pair would buy nothing and would give a later reader two names to choose between. Write every command as `git diff "${AUDIT_RANGE:-origin/main...HEAD}"`, defaulted in the expansion rather than relying on the reader to export it: an unset bare `$AUDIT_RANGE` diffs the working tree, which on the clean tree wave 1 requires is empty, and every check then passes over nothing. Do this rather than leaving literal `main...HEAD` strings for every future reader to substitute by hand -- there are sixteen: eleven in the wave 1 block's eight checks, one in the rule at line 27, and one in each of the four wave 2 briefs. Do not touch any `<!-- shared-block: -->` region: a bump files issues in sixteen repositories. Do not change what any check looks for. Wrap at the file's existing width. Commit subject: "Give the push audit an explicit range." |
+| 5b | medium | sonnet | none | Wave 1 of `PUSH-AUDIT.md`, over this plan's five merges. Run `pre-commit run --all-files` first, on a clean tree -- `git status --short` empty before you start, because `review-tracking.py stamp` takes its SHAs from the git **index**, so an unstaged edit is attested at the staged content and the run gives a false pass for exactly the check that guards the attestations. Then run every check in the wave 1 block five times, once per merge, with `AUDIT_RANGE=<sha>^1..<sha>` for each of `5b1fb74`, `ff92357`, `81dc421`, `fd0678c`, `a19b706` in that order -- the one variable 5a leaves in the runbook, not a second one. Before the checks for each merge, run `git diff --numstat "$AUDIT_RANGE" | awk '{i+=$1; d+=$2} END {print i, d, NR}'` and record the three numbers. Across the five they must sum to 5,186 insertions and 356 deletions over 30 distinct paths, which is measured under *What the survey found*; a run that does not reproduce those figures is reading the wrong range and stops there rather than reporting a clean audit over nothing. Do not use a single spanning range: `5b1fb74^1..a19b706` sweeps in 213 unrelated commits and roughly 9,000 deletions from `PLAN-audit-scripts-restructure`'s move through `scripts/audit/`, which is measured under *What the survey found*. Report every hit with a verdict -- hit, looked at, accepted or blocking, and why -- and say explicitly which checks were empty in all five, because a silent check is indistinguishable from an unrun one. Expect and explain rather than ignore: `templates/shared-blocks/plan-push-audit-phase.md` changed in three of the five merges and the version marker moved with it each time, which is the convention working; `REVIEWS.md` changed in three of them and the prunes it records are the convention working; `docs/audits/compliance.md` is not in this range at all. Report, do not fix. |
+| 5c | high | sonnet | none | Wave 2a, code quality, per the brief in `PUSH-AUDIT.md` -- read the runbook as 5a leaves it, not a cached copy. Diff is the five merges of decision 1, and the code in them is almost entirely `scripts/audit/checks/plans.py` (+899 in this range, 1,495 lines now) and `scripts/audit/text/markdown.py` (+136 in this range, 387 lines now). Take 5b's grep report as input. The highest-value reading is `plan_audit_phase_state()` and `plan_index_entries()`: phase 4 added a fourth bucket, plans the index links without recording a status, and the criterion now has four ways to decline to judge a plan -- unphased, terminal-status, statusless, and unresolved link. Ask what happens when two apply at once, whether any plan can fall through all four and be silently counted as passing, and whether the fenced-code blanking that `plan_phases()` does is applied on every path that searches for `PUSH-AUDIT.md` rather than most of them. `iter_markdown_table_rows()` in `text/markdown.py` is read by several criteria; a behaviour change there is a fleet-wide change, so check its callers against what it now returns for a malformed table. |
+| 5d | high | sonnet | none | Wave 2b, test review, per the brief in `PUSH-AUDIT.md`, over the five merges of decision 1. `scripts/tests/test_plans.py` gained 1,568 lines in this range and is 2,754 lines now, and `scripts/tests/test_markdown.py` and `scripts/tests/test_metadata.py` moved with it. Establish that the tests test what their names say rather than that they pass: phase 4's decision 2 is the contested one and its worked example has moved repositories since, so read `test_bullet_list_index_records_no_status_and_is_not_judged`, `test_an_index_of_only_statusless_plans_is_not_n_a`, `test_a_statusless_link_to_no_file_is_named_as_unresolved` and `test_a_statusless_unphased_plan_is_named_as_statusless` against the real shapes they claim to cover -- occystrap's bullet list, which the fleet sweep found has since been rewritten into a status table, and ryll's `## Standalone plans` second table, which is now the only live example. A test whose fixture no longer matches any repository is not wrong, but it is worth knowing which of these are the last copy of a shape. Name any assertion in the diff that would still pass if the behaviour it names were removed. |
+| 5e | high | sonnet | none | Wave 2c, documentation review, per the brief in `PUSH-AUDIT.md`, over the five merges of decision 1. Four documents describe the same convention and the question is whether they agree: `PUSH-AUDIT.md`, `templates/shared-blocks/plan-push-audit-phase.md` (now v3), `docs/audits/plan-audit-phase.md` and `AGENTS.md`. Check specifically that the v3 carve-out sentence -- a plan already `Complete`, `Abandoned` or `Superseded` is not reopened -- says the same thing in the block, in the criterion spec and in the audit documentation; that `docs/audits/plan-audit-phase.md` records the statusless exclusion *and* says `plan-index` requires a table rather than a status column, which is what makes the exclusion an opt-out nothing detects; that `docs/audits/README.md`'s criterion row and `PLAN-TEMPLATE.md`'s block list agree on nine blocks; and that `AGENTS.md`'s "drop this qualifier once the sweep has landed" is still accurate, given that phase 4's Future work now says explicitly that phase 4 was not that sweep. 1,308 of this diff's insertions are plan prose in `PLAN-push-audit-phase.md` itself, out of 1,450 across `docs/plans/`; read this file for claims about other repositories that were true when written and are not now, which is the failure mode phase 4 spent a whole step on. |
 | 5f | high | opus | none | Wave 2d, security review, per the brief in `PUSH-AUDIT.md`, over the five merges of decision 1. Read the actual code. This repository's blast radius is not a running service: it is sixteen repositories audited at 06:00 UTC and a shared block copied into each of them. So the surface is what this diff does to other people's repositories. Three things to read hardest. `FROZEN_ISSUE_TITLES` and the issue-title interface: `plan-audit-phase` is a new criterion that files and closes issues fleet-wide, and the title is the idempotency key -- establish that a rename in this range cannot orphan open issues, and that the detail strings it files, which quote plan filenames and phase names read from another repository's markdown, cannot carry a mention, a closing keyword or a markdown injection into an issue body. `scripts/audit/checks/plans.py` reads arbitrary markdown from sixteen repositories: consider what a crafted `index.md` or plan file does to the table iterator and the link parser, including a link target that escapes `docs/plans/`. And the v3 shared-block bump: confirm the version marker moved everywhere the wording did, because a wording change without a bump leaves sixteen repositories on the old text with nothing detecting it. Apply the `path-traversal-review` shared block. |
-| 5g | high | opus | none | Management triage, in the session rather than a sub-agent: read all five reports, decide each finding blocking, advisory or declined, and write the outcome into this section under an **Outcome** heading -- what wave 1 found, what each wave 2 agent found, and for every finding either where it was fixed or why it was declined, in writing. Work the `PUSH-AUDIT.md` management checklist, including the two items this plan's own work bears on: that the shared-block bump to v3 was deliberate and its fleet-wide consequence is understood, and that `REVIEWS.md` and `docs/audits/compliance.md` are generated rather than hand-edited. Fixes land as their own pull request against `main`, not on this branch. Then set phase 5 to `Complete` in the Execution table with its own merge commit, and move `docs/plans/index.md` to `Complete` only once the findings pull request has merged -- decision 6. |
+| 5g | high | opus | none | Management triage, in the session rather than a sub-agent: read all five reports, decide each finding blocking, advisory or declined, and write the outcome into this section under an **Outcome** heading -- what wave 1 found, what each wave 2 agent found, and for every finding either where it was fixed or why it was declined, in writing. Work the `PUSH-AUDIT.md` management checklist, including the two items this plan's own work bears on: that the shared-block bump to v3 was deliberate and its fleet-wide consequence is understood, and that `REVIEWS.md` and `docs/audits/compliance.md` are generated rather than hand-edited. Fixes land as their own pull request against `main`, not on this branch. Then set phase 5 to `Complete` in the Execution table, and move `docs/plans/index.md` to `Complete` only once the findings pull request has merged -- decision 6. Phase 5 cannot name the commit that lands it any more than phase 4 could, and it is the last phase, so no later planning commit exists to do it for them: the findings pull request is the carrier, and it writes phase 5's merge SHA into both the Execution table and this section's `**Merged:**` line. If the audit finds nothing worth fixing, a one-line follow-up commit does it instead -- the cell does not stay blank, in the plan that introduced the column. |
 
 Steps 5a and 5b are sequential: 5c to 5f read the runbook 5a
 corrects, and 5b's grep report is 5c's input. The runbook requires
@@ -1800,13 +1823,21 @@ anything, and 5b to 5f write no code at all.
 
 #### Definition of done
 
-* `PUSH-AUDIT.md` contains no literal `main...HEAD`, and its
+* `PUSH-AUDIT.md` contains no *unqualified* `main...HEAD`, and its
   "How to use this runbook" section says how to audit work that has
-  already merged. Checked by `grep -c 'main\.\.\.HEAD' PUSH-AUDIT.md`
-  returning 0.
+  already merged. Checked by
+  `grep -nE '(^|[^/])main\.\.\.HEAD' PUSH-AUDIT.md` producing no
+  output. The qualifier is load-bearing: 5a's own default is
+  `origin/main...HEAD`, which carries the forbidden string as a
+  substring, so a bare `grep -c 'main\.\.\.HEAD'` returning 0 would
+  mean 5a had disobeyed its brief rather than followed it.
 * Each of the eight wave 1 checks was run against all five merges,
   and 5b's report states a verdict for each of the forty
-  check-merge pairs, including the empty ones.
+  check-merge pairs, including the empty ones. The report also
+  carries the five per-merge `--numstat` totals, and they sum to
+  5,186 insertions, 356 deletions and 30 distinct paths -- an
+  arithmetic check that the range was right, rather than an
+  attestation from the agent whose mistake it is meant to catch.
 * Each wave 2 report names the diff it read and the line count it
   saw, and none of the four is the 11,579-line span.
 * Every wave 2 finding appears in this section under **Outcome**
