@@ -793,23 +793,11 @@
       "author": "mikal"
     },
     {
-      "path": "templates/renovate/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate",
-      "author": "mikal"
-    },
-    {
       "path": "templates/shared-blocks/plan-push-audit-phase.md",
       "author": "mikal"
     },
     {
       "path": "templates/shared-blocks",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     },
     {
@@ -830,18 +818,6 @@
     },
     {
       "path": "PLAN-TEMPLATE.md",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
       "author": "mikal"
     }
   ],
