@@ -543,22 +543,20 @@ merely queues the file for re-review.
 every repository in its matrix. Repositories without a
 `.vscode/review-scope.toml` are reported as not applicable, so
 adopting the tooling automatically opts a repository in. The check
-runs `review-tracking.py status`, which recomputes coverage
-against HEAD -- which marks are still valid, which files are stale
-or never reviewed -- rather than trusting the committed
-`REVIEWS.md`, so alerting stays honest even if the prune
-automation breaks. When 5 or more in-scope files need review
-(`REVIEW_BACKLOG_THRESHOLD` in `scripts/audit/checks/review.py`),
-the audit files a `Consistency: Human review coverage` issue on
-the repository listing the files needing review, and closes it
-once a session brings the backlog back under the threshold. That
-list is a snapshot, not a queue that stays current: it is written
-once, when the issue is filed, and
+runs `review-tracking.py status`, which recomputes coverage against
+HEAD -- which marks are still valid, which files are stale or never
+reviewed -- rather than trusting the committed `REVIEWS.md`, so
+alerting stays honest even if the prune automation breaks. When 5 or
+more in-scope files need review (`REVIEW_BACKLOG_THRESHOLD` in
+`scripts/audit/checks/review.py`), the audit files a `Consistency:
+Human review coverage` issue on the repository listing the files
+needing review, and closes it once a session brings the backlog back
+under the threshold. That list is a snapshot, not a queue that stays
+current: it is written once, when the issue is filed, and
 `scripts/audit-manage-issues.py` creates, dedupes and closes such
 issues but never edits one that is already open, so a long-lived
 issue understates a growing backlog and any link it carries to a
-criterion spec rots if that spec moves
-(https://github.com/shakenfist/development/issues/138). Expect the
+criterion spec rots if that spec moves (development#138). Expect the
 issue to open and close routinely: a single feature PR can touch
 five in-scope files, and the issue is a standing nudge rather than
 an alarm.

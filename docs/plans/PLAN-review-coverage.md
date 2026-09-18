@@ -375,31 +375,34 @@ as fact and step 5.1 fixes it.
 dedupes and closes; it never edits an open issue
 (`scripts/audit-manage-issues.py:249-266`). So the work queue is
 frozen at the moment of filing. ryll#304 has said "63 need review"
-since 2026-08-21 while the audit now measures 120, and its spec link
-points at `development/audits/review-coverage.md`, a path that
-stopped existing when the specs moved under `docs/`.
+since 2026-08-21 while the audit now measures 120 needing review,
+and its spec link points at `development/audits/review-coverage.md`,
+a path that stopped existing when the specs moved under `docs/`.
 kerbside#227 has said "0 of 152 in-scope files reviewed" since
-2026-08-03 while the audit now measures 114 of 229. This plan's
-Mission claimed the audit "opens (or updates)" the issue and phase 2
-recorded the update as a behavioural note to verify rather than
-assume; it was assumed. Both corrected at source above, and D5.2
-says what phase 5 does about the defect itself.
+2026-08-03 while the audit now measures 114 reviewed of 229. This
+plan's Mission claimed the audit "opens (or updates)" the issue and
+phase 2 recorded the update as a behavioural note to verify rather
+than assume; it was assumed. Both corrected at source above, and
+D5.2 says what phase 5 does about the defect itself.
 
 **Both non-compliant repositories are far past the threshold, and
 that is not this plan's automation failing.** As the compliance page
-was last regenerated before this planning, on 2026-09-16, ryll needed
-review on 120 of 214 in-scope files and kerbside on 115 of 229; step
-5.3 re-measured both a day later from clean clones and found 105 and
-106, which is the ordinary movement of a backlog as commits land
-rather than a discrepancy. The Situation
-section opens with "ryll is about to reach 100% human-reviewed",
-which has not been true for weeks -- but the cause is that the scope
-deliberately grew, driven by the `review-scope-completeness`
-criterion and by hand (ryll `cf5f6b1` "name every tracked file in
-the scope config", `1f22ac8` adding `.devcontainer`), not that marks
-are being lost. A backlog alert whose subject grew its own
-denominator is working as designed. D5.3 declines to retune on this
-evidence.
+was last regenerated before this planning, on 2026-09-16, ryll
+needed review on 120 of its 214 in-scope files and kerbside on 115
+of its 229; step 5.3 re-measured both a day later from clean clones
+and found 105 and 106 needing review, which is the ordinary movement
+of a backlog as commits land rather than a discrepancy. The
+compliance page is regenerated daily, so its figures will match
+neither of these dated measurements for long -- read it as the
+current position, and these as what was measured on the days named.
+The Situation section opens with "ryll is about to reach 100%
+human-reviewed", which has not been true for weeks -- but the cause
+is that the scope deliberately grew, driven by the
+`review-scope-completeness` criterion and by hand (ryll `cf5f6b1`
+"name every tracked file in the scope config", `1f22ac8` adding
+`.devcontainer`), not that marks are being lost. A backlog alert
+whose subject grew its own denominator is working as designed. D5.3
+declines to retune on this evidence.
 
 **Review sessions still work end to end.** ryll's develop carries
 `review:` commits as recently as 2026-09-17 (`fde4f54`, `ba84ee3`),
@@ -541,15 +544,56 @@ found between the two tools at either commit, and
 `audit-manage-issues.py` was not run.
 
 What the phase changed, in total, is three corrections in
-`docs/code-review-tracking.md` -- the loop-safety argument,
-the location of `REVIEW_BACKLOG_THRESHOLD`, and the claim
-that a filed issue is a ready-made work queue -- plus the
-four sentences that said the prune workflow pushes to
-"main", corrected to "default branch" since ryll's and
-kerbside's is develop; and shakenfist/development#138, filed
-against the issue body never being refreshed. No criterion,
-check or issue-management code was touched, and
-`audit-manage-issues.py` was never run.
+`docs/code-review-tracking.md` -- the loop-safety argument, the
+location of `REVIEW_BACKLOG_THRESHOLD`, and the claim that a filed
+issue is a ready-made work queue -- plus the four sentences that
+said the prune workflow pushes to "main", corrected to "default
+branch" since ryll's and kerbside's is develop; and
+shakenfist/development#138, filed against the issue body never being
+refreshed. No criterion, check or issue-management code was touched,
+and `audit-manage-issues.py` was never run.
+
+Review of the pull request added three more edits of the same kind.
+The "pushes to main" claim survived in two places step 5.1's brief
+had ruled out of scope: `AGENTS.md` and `ARCHITECTURE.md` both say
+it about *adopting* repositories, so both were wrong for exactly the
+reason the four corrected sentences were, and both now say "default
+branch". The brief's reasoning -- no convention and no system shape
+changed -- does not reach a statement that is simply false.
+(`ARCHITECTURE.md`'s other two mentions describe this repository's
+own `ci-prune-reviews.sh`, whose default branch really is main, and
+are left alone.)
+
+`AGENTS.md` also claimed that editing a file carrying a review mark
+makes `review-tracking-tests` fail. It does not: `regen` counts
+marks rather than validating them against HEAD, so `REVIEWS.md`
+regenerates unchanged and the suite passes. This pull request proved
+it -- editing `docs/code-review-tracking.md` staled its mark, the
+suite stayed green, and the review caught what CI could not.
+`AGENTS.md` now says that nothing in the pull request catches this
+and that `prune-reviews` heals it only after the merge. All three
+marks this phase staled -- `docs/code-review-tracking.md`, and
+`AGENTS.md` and `ARCHITECTURE.md` from the corrections above -- were
+pruned here rather than left for that workflow, so all three return
+to the human review queue. The totals in `REVIEWS.md` are not quoted
+here: they move with every merge to main, which is the same reason
+the compliance figures above carry their dates.
+
+**`review-coverage` fails against this repository, and that is the
+criterion working.** Rebasing onto main on 2026-09-19 put
+development itself over its own backlog threshold: main already
+needed review on two files (`.github/workflows/renovate.yml` and
+`templates/renovate/renovate.yml`), this branch's three prunes bring
+the total to five, and the threshold is five. So `audit-check.py`
+now reports 30 pass, 1 fail, 24 not-applicable rather than the
+31/0/24 of 2026-09-17. Nothing regressed: the check recomputes
+against HEAD exactly as phase 2 built it to, and the repository that
+owns the tooling has landed in its own backlog queue. The daily
+audit will file a `Consistency: Human review coverage` issue against
+development once this merges, and it closes itself when a review
+session clears the five files -- the lifecycle phase 5 verified on
+ryll, now demonstrated at home without staging anything, which is
+what D5.1 and D5.3 declined to manufacture elsewhere.
 
 #### Risks and mitigations
 
@@ -599,11 +643,15 @@ commit here.
       ran: `audit-manage-issues.py` was not invoked.
 - [x] Every status cell in this plan's Execution table is one term
       from `templates/shared-blocks/plan-status-vocabulary.md`.
-- [x] `pre-commit run --all-files` passes, and
-      `python3 scripts/audit-check.py --repo-path . --repo-name
-      development` still reports 31 pass, 0 fail, 24 not-applicable
-      as it did on 2026-09-17, or this section says which verdict
-      moved and why.
+- [x] `python3 scripts/review-tracking.py status` reports no
+      `stale:` file: any review mark this phase staled by editing a
+      file has been pruned in the branch rather than left for
+      `prune-reviews` to heal after the merge.
+- [x] `pre-commit run --all-files` passes, and `python3
+      scripts/audit-check.py --repo-path . --repo-name development`
+      still reports 31 pass, 0 fail, 24 not-applicable as it did on
+      2026-09-17, or this section says which verdict moved and why.
+      One moved: see below.
 
 #### Back brief
 
@@ -703,6 +751,14 @@ proposed; the Python follows the house style (single quotes,
   phase 5 D5.3 declines to act on the *current* evidence, where two
   repositories sit far above the threshold for a reason hysteresis
   would not touch.
+* Extend `plan-index` (or add a sibling criterion) to apply the
+  shared status vocabulary to every status column in a master plan's
+  own phase table, not only the index row. `plan-status-vocabulary`
+  governs both, but `PlanIndex` reads `docs/plans/index.md` and
+  nothing else, which is why this plan's own Execution table drifted
+  to `Done` and `Blocked on merge` unnoticed. Not yet urgent: on
+  2026-09-19 no other `docs/plans/PLAN-*.md` phase table carried an
+  out-of-vocabulary status.
 * Revisit capping the issue-body file list if a repo much larger
   than ryll adopts the tooling. Unreached so far: ryll#304's body
   is 76 lines at 63 files, and because the body is never refreshed
