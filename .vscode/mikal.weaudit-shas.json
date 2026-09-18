@@ -69,6 +69,10 @@
       "sha": "feb474e2510c2bfdd2011573e57c87976b62f1ad",
       "date": "2026-09-01"
     },
+    ".github/workflows/renovate.yml": {
+      "sha": "bf6848afd55a99bebd8a4bcc3902517196a265e1",
+      "date": "2026-09-19"
+    },
     ".github/workflows/secret-scan.yml": {
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
       "date": "2026-08-24"
@@ -648,6 +652,10 @@
     "templates/renovate/renovate.json": {
       "sha": "2ddd5e0b8169050eed659789ddcbfb95b6a8f299",
       "date": "2026-08-30"
+    },
+    "templates/renovate/renovate.yml": {
+      "sha": "f06f837115324e557b40b961b70a557579744e62",
+      "date": "2026-09-19"
     },
     "templates/shared-blocks/README.md": {
       "sha": "4508ee6d15fc3b1e514f09b7154c5f63a871badb",
