@@ -556,10 +556,10 @@ current: it is written once, when the issue is filed, and
 `scripts/audit-manage-issues.py` creates, dedupes and closes such
 issues but never edits one that is already open, so a long-lived
 issue understates a growing backlog and any link it carries to a
-criterion spec rots if that spec moves (development#138). Expect the
-issue to open and close routinely: a single feature PR can touch
-five in-scope files, and the issue is a standing nudge rather than
-an alarm.
+criterion spec rots if that spec moves (shakenfist/development#138).
+Expect the issue to open and close routinely: a single feature PR
+can touch five in-scope files, and the issue is a standing nudge
+rather than an alarm.
 
 **Scope alerting.** The same audit runs a
 `review-scope-completeness` check
