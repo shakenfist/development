@@ -23,8 +23,31 @@ code and apply judgment. They can be spawned in parallel.
 The management session reviews all findings, fixes any issues,
 and confirms the push.
 
-The default branch is `main`, so every diff command below is
-against `main...HEAD`.
+Every diff command below reads a range held in one variable,
+`AUDIT_RANGE`. Run `git fetch origin` first: `origin/main` is
+itself a cached ref that only advances on fetch, so a clone
+left alone for a while would otherwise widen the audit
+silently, even under the range below.
+
+The default, for work not yet merged, is `origin/main...HEAD`.
+Work that has already landed sets `AUDIT_RANGE` explicitly
+instead: a phase that landed as one merge commit sets
+`AUDIT_RANGE=<sha>^1..<sha>`, and a plan whose phases landed as
+several merges runs every command once per merge. A phase that
+landed on `main` directly, with no merge commit, sets
+`AUDIT_RANGE=<first>^..<last>` -- with the caret. `first..last`
+is the label the `Merged` column records, but `A..B` excludes
+`A`, so the diff that actually covers that label is one commit
+wider than the bare range; drop the caret and the first commit
+of the phase silently falls out of the diff, which is where a
+version bump or a column addition tends to live.
+
+Every command below is written
+`git diff "${AUDIT_RANGE:-origin/main...HEAD}"`, with the
+default in the shell expansion rather than left for the reader
+to export: an unset bare `$AUDIT_RANGE` diffs the working tree
+instead, which is empty on a clean checkout, and every check
+then passes over nothing.
 
 ## Wave 1: Mechanical checks
 
@@ -43,22 +66,22 @@ Then the grep-level checks on the diff:
 
 ```
 # Lines over 120 characters in new Python
-git diff main...HEAD -- '*.py' | grep -nE '^\+[^+].{120,}'
+git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- '*.py' | grep -nE '^\+[^+].{120,}'
 
 # New third-party imports -- the audit scripts are stdlib plus
 # the git and gh CLIs only, which is why they run on a bare runner
-git diff main...HEAD -- 'scripts/*.py' | grep -nE '^\+import |^\+from '
+git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- 'scripts/*.py' | grep -nE '^\+import |^\+from '
 
 # Hand-edited compliance data. compliance.md is regenerated and
 # pushed by the daily workflow, so an edit to it is reverted tomorrow
 # morning and confuses whoever reads it today
-git diff main...HEAD -- 'docs/audits/compliance.md' | grep -nE '^\+'
+git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- 'docs/audits/compliance.md' | grep -nE '^\+'
 
 # A generated block, or a status table, appearing in a criterion
 # spec. The specs are hand-written and in scope for human review; one
 # carrying a line the daily run rewrites can never hold a review mark
 # again, which is the regression the compliance page exists to prevent
-git diff main...HEAD -- 'docs/audits/*.md' ':!docs/audits/compliance.md' | \
+git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- 'docs/audits/*.md' ':!docs/audits/compliance.md' | \
     grep -nE '^\+.*consistency-audit:(begin|end)|^\+\| .* \| (compliant|non-compliant|N/A) \|'
 
 # Changes to the issue-title interface. FROZEN_ISSUE_TITLES is
@@ -67,26 +90,26 @@ git diff main...HEAD -- 'docs/audits/*.md' ':!docs/audits/compliance.md' | \
 # list is the reliable trigger, because a rename cannot merge
 # without updating it; the second line finds the declaration that
 # made the change, which the frozen snapshot cannot point at
-git diff main...HEAD -- 'scripts/tests/test_metadata.py' | \
+git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- 'scripts/tests/test_metadata.py' | \
     grep -nE '^[-+].*FROZEN_ISSUE_TITLES|^-\s+'\''[a-z-]+'\'':'
-git diff main...HEAD -- 'scripts/audit/checks/*.py' | \
+git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- 'scripts/audit/checks/*.py' | \
     grep -nE '^[-+].*issue_title'
 
 # A shared block edited without its version bumped. Editing the
 # wording without the bump means every embedding repository keeps
 # the old text and the audit never notices
-git diff main...HEAD -- 'templates/shared-blocks/*.md' --name-only
-git diff main...HEAD -- 'templates/shared-blocks/*.md' | \
+git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- 'templates/shared-blocks/*.md' --name-only
+git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- 'templates/shared-blocks/*.md' | \
     grep -nE '^\+<!-- shared-block: '
 
 # TODO / FIXME / HACK / XXX, and new suppressions
-git diff main...HEAD -- '*.py' | \
+git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- '*.py' | \
     grep -nE '^\+.*\b(TODO|FIXME|HACK|XXX)\b'
-git diff main...HEAD -- '*.py' | \
+git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- '*.py' | \
     grep -nE '^\+.*(# noqa|# type: ignore)'
 
 # Documentation touched at all (warns if none)
-git diff main...HEAD --name-only -- 'docs/*' '*.md'
+git diff "${AUDIT_RANGE:-origin/main...HEAD}" --name-only -- 'docs/*' '*.md'
 ```
 
 Exit condition: wave 1 passes when `pre-commit` is clean and
@@ -129,7 +152,8 @@ The mechanical sweep has already extracted TODO/FIXME comments,
 new suppressions, and third-party imports. Take that report as
 input, and triage each: blocking or advisory, and why.
 
-Then the judgment-level review of `git diff main...HEAD`:
+Then the judgment-level review of
+`git diff "${AUDIT_RANGE:-origin/main...HEAD}"`:
 
 - **The five-file rule.** A consistency criterion spans a
   `Check` subclass in `scripts/audit/checks/<family>.py`,
@@ -238,12 +262,13 @@ and whether it is blocking or advisory.
 
 **Brief for sub-agent:**
 
-Review `git diff main...HEAD` for test coverage. The audit
-suites are `scripts/tests/`, `test_audit_seams.py`,
-`test_audit_snapshot.py`, `test_audit_update_docs.py`,
-`test_review_tracking.py` and `test_check_audit_smoke.py`, all
-stdlib `unittest`, all run by `pre-commit`. Other suites under
-`scripts/` cover the workflow templates in the same style.
+Review `git diff "${AUDIT_RANGE:-origin/main...HEAD}"` for test
+coverage. The audit suites are `scripts/tests/`,
+`test_audit_seams.py`, `test_audit_snapshot.py`,
+`test_audit_update_docs.py`, `test_review_tracking.py` and
+`test_check_audit_smoke.py`, all stdlib `unittest`, all run by
+`pre-commit`. Other suites under `scripts/` cover the workflow
+templates in the same style.
 `test_audit_snapshot.py` is the one to extend when a check grows
 a network call: it re-derives the advisory list from the package
 source, and a stale list makes the snapshot diff lie.
@@ -305,7 +330,7 @@ Report findings as a bullet list grouped by file.
 **Brief for sub-agent:**
 
 Check that documentation matches the current code state. Read
-`git diff main...HEAD` and verify:
+`git diff "${AUDIT_RANGE:-origin/main...HEAD}"` and verify:
 
 <!-- shared-block: readme-discipline v1 -->
 README discipline (shared block; do not edit -- the canonical
@@ -441,8 +466,9 @@ is a valid answer.
 
 **Brief for sub-agent:**
 
-Security review of `git diff main...HEAD`. Read the actual code,
-not just the diff summary.
+Security review of
+`git diff "${AUDIT_RANGE:-origin/main...HEAD}"`. Read the
+actual code, not just the diff summary.
 
 The threat model here is unusual and worth stating: this
 repository has no users and holds no data. What it has is write
