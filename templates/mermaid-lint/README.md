@@ -41,10 +41,10 @@ node supplies one, so nothing in the fleet's node version touches it.
 What is no longer settled is the lighter path of supplying one: a
 parse-only checker with jsdom, no rendering and no browser. That was
 excluded because jsdom pulls in an undici newer than the runners'
-node, and the runners now carry node 20. Nobody has tried it since
-and nobody has measured it, so it is untested rather than ruled out.
-The decision does not change today: the container stays. This is a
-note that a question reopened, not a proposal to replace anything.
+node, and the static runners now carry node 20. Nobody has tried it
+since and nobody has measured it, so it is untested rather than ruled
+out. The decision does not change today: the container stays. This is
+a note that a question reopened, not a proposal to replace anything.
 
 The cost is smaller than it looks: the image is cached after its first
 pull, and rendering is about 1.4 seconds per file amortised inside a

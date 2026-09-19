@@ -402,9 +402,13 @@ that plans are indexed", write "add a `PlanIndex` class to
 `scripts/audit/registry.py` beside the other plan checks, write
 `docs/audits/plan-index.md` following the structure in
 `docs/audits/README.md` and linking to `compliance.md#plan-index`,
-add the file to `docs/audits/README.md`, and add tests to
+add the file to `docs/audits/README.md`, add its lines to
+`FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in
+`scripts/tests/test_metadata.py`, and add tests to
 `scripts/tests/test_plans.py` covering pass, fail and
-not-applicable."
+not-applicable." A brief that names four of the criterion's five
+files is the characteristic defect here, and the frozen tables are
+the one most often left out.
 
 A check that does not apply reports
 `not_applicable` with a reason rather than being omitted, because
@@ -505,12 +509,18 @@ because the following statements will be true:
 * `pre-commit run --all-files` passes.
 * `scripts/audit-check.py` run against this repository reports no
   new failures, or the plan states which verdicts moved and why.
-* Any new or changed criterion has all four of its parts in step:
-  the check function and its registration, the entries in
-  `AUDIT_METADATA` and `ISSUE_TITLES`, the specification under
-  `docs/audits/`, and its line in `docs/audits/README.md` -- plus
-  a column heading in `audit-update-docs.py` where it shares a
-  spec page.
+* Any new or changed criterion has all five of its files in step:
+  the `Check` subclass in `scripts/audit/checks/<family>.py`, its
+  registration in `CHECKS` in `scripts/audit/registry.py`, the
+  specification under `docs/audits/`, its row in
+  `docs/audits/README.md`, and its frozen lines in
+  `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in
+  `scripts/tests/test_metadata.py` -- plus a
+  `FROZEN_COLUMN_NAMES` line where a spec page carries more than
+  one check. `AUDIT_METADATA`, `ISSUE_TITLES` and `COLUMN_NAMES`
+  are derived from the registry rather than tables anybody edits;
+  the issue title is the fleet-wide idempotency key, so renaming
+  one orphans every open issue for that check across the fleet.
 * No `consistency-audit` marker block has been added to a
   criterion specification by hand, and the compliance tables in
   `docs/audits/compliance.md` have not been hand-edited.

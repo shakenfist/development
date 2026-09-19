@@ -142,6 +142,29 @@ def render_issue_items(heading, items, used):
     return rendered
 
 
+def render_details(details, used):
+    """Render the check's own details, under the same budget.
+
+    `details` is written by the criterion and is not bounded by
+    anything the criterion has to think about: several route a per-item
+    list through it, and the npm ones quote a workflow's `run:` line
+    verbatim. Left unaccounted it can push the body past GitHub's
+    limit on its own, at which point the create call returns nothing
+    and the criterion silently stops filing while the audit reports
+    success -- the failure mode the per-item budget already exists to
+    prevent, reached through the one field that was not measured.
+    """
+    heading = '\n### Automated check details\n\n'
+    trailer = (
+        '\n\n*...truncated to stay under GitHub\'s issue body limit. '
+        'Run `scripts/audit-check.py` for the full details.*\n'
+    )
+    room = ISSUE_BODY_BUDGET - used - len(heading) - len(trailer)
+    if len(details) + 1 <= room:
+        return f'{heading}{details}\n'
+    return f'{heading}{details[:max(room, 0)]}{trailer}'
+
+
 def build_issue_body(check_id, check_result):
     """Build the issue body for a failed check."""
     meta = AUDIT_METADATA.get(check_id, {})
@@ -167,14 +190,13 @@ def build_issue_body(check_id, check_result):
             f'({DEV_REPO_URL}/{template_dir}README.md)\n'
         )
 
-    # Defused, not spliced raw. The string is written by a check out
-    # of what it found in another repository -- filenames and heading
-    # text read from that repository's markdown -- and an issue body
-    # renders a mention to a real notification, under this workflow's
-    # own identity.
-    body += (
-        f'\n### Automated check details\n\n'
-        f'{defuse(check_result["details"])}\n')
+    # Defused before it is measured, not spliced raw. The string is
+    # written by a check out of what it found in another repository --
+    # filenames and heading text read from that repository's markdown
+    # -- and an issue body renders a mention to a real notification,
+    # under this workflow's own identity. Defusing first also means the
+    # budget measures the string that actually lands.
+    body += render_details(defuse(check_result['details']), len(body))
 
     if 'missing' in check_result:
         body += render_issue_items(

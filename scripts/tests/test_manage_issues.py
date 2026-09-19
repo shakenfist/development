@@ -132,5 +132,46 @@ class IssueBodyLimitTest(unittest.TestCase):
         self.assertEqual(5000, rendered + int(omitted.group(1)))
 
 
+class DetailsLimitTest(unittest.TestCase):
+    """`details` is written by the criterion and is not bounded.
+
+    Several criteria route a per-item list through it and the npm ones
+    quote a workflow's `run:` line verbatim, so it can carry the body
+    past GitHub's limit on its own. When it does, the create call
+    returns nothing and the criterion silently stops filing while the
+    audit still reports success.
+    """
+
+    #: GitHub rejects a create with a body longer than this.
+    GITHUB_LIMIT = 65536
+
+    def setUp(self):
+        self.module = _manage_issues()
+
+    def body(self, details, **extra):
+        built = {'id': 'eol-distro', 'status': 'fail', 'details': details}
+        built.update(extra)
+        return self.module.build_issue_body('eol-distro', built)
+
+    def test_a_realistic_details_string_is_rendered_whole(self):
+        body = self.body('two references to debian-12')
+        self.assertIn('two references to debian-12', body)
+        self.assertNotIn('truncated', body)
+
+    def test_a_pathological_details_string_still_files_an_issue(self):
+        body = self.body('debian-12 ' * 20000)
+        self.assertLess(len(body), self.GITHUB_LIMIT)
+        self.assertIn('truncated', body)
+
+    def test_a_long_details_string_leaves_room_for_the_lists(self):
+        """The two budgets are one budget, or neither of them holds."""
+        body = self.body(
+            'debian-12 ' * 20000,
+            findings=['.github/workflows/ci.yml:%d (debian-12)' % n
+                      for n in range(500)])
+        self.assertLess(len(body), self.GITHUB_LIMIT)
+        self.assertIn('**Findings:**', body)
+
+
 if __name__ == '__main__':
     unittest.main()
