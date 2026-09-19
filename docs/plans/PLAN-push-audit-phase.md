@@ -1727,10 +1727,16 @@ planned, `scripts/audit-check.py` against this tree with `gh`
 authenticated reported 55 checks: 31 pass, 0 fail, 24
 `not_applicable`. When the audit actually ran, five days later, it
 reported 30 pass, 1 fail and 24 `not_applicable`: `review-coverage`
-had begun failing at 180 of 189 in-scope files reviewed, 9 needing
-review against a threshold of 5. `0e16ef1` "Prune stale review
-marks." landed that backlog, and 5a's own prune of the
-`PUSH-AUDIT.md` mark takes it to 179 of 189. Two other checks --
+had begun failing, at 180 of 189 in-scope files reviewed with 9
+needing review against a threshold of 5, measured on `main` at
+`0e16ef1` on 2026-09-19. `0e16ef1` "Prune stale review marks."
+landed that backlog, and 5a's own prune of the `PUSH-AUDIT.md` mark
+took it to 179 of 189 the same day. Every count here is quoted with
+the commit and date it was taken at, because this paragraph has now
+gone stale twice: by `5861c0a` on 2026-09-20 `main` reported 175 of
+190 with 15 needing review. The direction is what is durable -- the
+criterion fails, and it failed before this phase touched anything --
+and an undated count in a plan is a claim with a shelf life. Two other checks --
 `delete-branch-on-merge` and `scope-coverage` -- query the GitHub
 API and fail closed without credentials, so an unauthenticated
 re-run reporting two further failures is the environment rather
@@ -1942,9 +1948,12 @@ four agents have read the wrong diff.
 The audit ran on 2026-09-19 over the six diffs of decision 1: 5a as
 one commit, wave 1, and the four wave 2 agents in parallel. It found
 **two blocking defects, both in `scripts/audit/checks/plans.py`, both
-reachable from a commit in any of the sixteen audited repositories**,
-and seven advisory items. The runbook itself was the first finding,
-and it was fixed before anything ran.
+reachable from a commit in any of the sixteen audited repositories**.
+The disposition table below carries ten rows: those two, wave 1's
+one true positive, and seven advisory items. The runbook defect 5a
+fixed is not among them -- it was found by the survey that planned
+this phase rather than by the run, and it was fixed before anything
+ran.
 
 **The range gate passed.** Every one of the five reports states the
 per-diff totals it read, and all five match the figures the
@@ -2153,9 +2162,17 @@ wave 1 harder to read and easier to make silently wrong. The
 runbook's greps are deliberately blunt and the verdict column is
 where the judgement goes.
 
-**5a's commit, reviewed by the management session.** `4a7c4f2` is
+**5a's commit, reviewed by the management session.** `4873e95` is
 the one change in this phase no audit range contains, so nothing
-else reads it. Verified directly rather than from its subject line:
+else reads it. It was first recorded here as `4a7c4f2`, which was
+the same work before this branch was rebased and is now a dead
+object -- resolvable in the clone that wrote it and nowhere else.
+That is the defect this plan's own `Merged` convention exists to
+prevent, so the rule it implies is written down rather than left
+as an embarrassment: a SHA measured on a branch is re-checked with
+`git merge-base --is-ancestor <sha> origin/main` before it is
+recorded, because a rebase silently invalidates every one already
+written. Verified directly rather than from its subject line:
 all sixteen `main...HEAD` occurrences became
 `"${AUDIT_RANGE:-origin/main...HEAD}"`; every grep pattern and path
 filter is byte-identical on both sides, so the "the runbook fix
@@ -2174,9 +2191,9 @@ the right action -- they are the state `REVIEWS.md` is generated
 from -- but justified it by citing a test,
 `test_reviews_md_is_reproducible_from_the_committed_state`, that
 does not exist in this repository. And it briefly used
-`--no-verify` on a throwaway commit before undoing it; the branch
-carries one commit, so nothing escaped, but the runbook sanctions
-`--no-verify` nowhere.
+`--no-verify` on a throwaway commit before undoing it; 5a's own
+commit is a single one that went through the hooks, so nothing
+escaped, but the runbook sanctions `--no-verify` nowhere.
 
 **Management checklist.** Wave 1 passed with `pre-commit run
 --all-files` clean on a clean tree. Wave 2 findings are reviewed and
@@ -2193,8 +2210,10 @@ and was not hand-edited, and `REVIEWS.md` moved only through
 so -- 5a dropped `PUSH-AUDIT.md | mikal | 2026-09-09 | 30723ce58eff`,
 which now needs a human to read that file again; it was not
 re-stamped, because the mark attests that a person read that exact
-content. Commit history is clean: one commit, no fixups, no WIP. The
-branch was rebased onto `main` at `228eb34`.
+content. Commit history is clean: three commits -- the runbook fix
+and two that record this outcome -- with no fixups, no WIP and
+nothing accidental. The branch was rebased onto `main`, which is
+what moved 5a's SHA above.
 
 **What the audit says about the runbook.** Four executed audits in
 this repository have now each found something, which retires the
@@ -2393,6 +2412,38 @@ general, which was decision 4.
   identity so every run re-reports the same pile, and the
   whole-codebase niche is deliberately occupied by
   `docs/code-review-tracking.md` -- human, file by file, attested.
+* **Check a canonical shared block's text against its own version.**
+  Phase 5's wave 2d found that an unbumped wording change is not
+  undetected, which is what everyone assumed -- it is
+  *misattributed*. `validate_shared_blocks`
+  (`scripts/audit/checks/shared_blocks.py:109-118`) compares
+  versions and wording in an `if`/`elif`, so when the versions match
+  it compares text and every repository still carrying the old
+  wording is told its copy has **drifted**: accused of editing a
+  block it never touched, and pointed at a local edit that does not
+  exist, when the fix is to pull the canonical file. Nothing
+  compares a canonical block's text against the version in its own
+  marker. A criterion that did would name the real fault -- an
+  unbumped canonical block -- and would also catch an edit to a
+  block no repository has adopted yet, which the drift path is
+  structurally blind to because every repository reports "missing"
+  either way. `ff92357` is the worked example, recorded as W1 in
+  phase 5's Outcome.
+* **The range rule reaches one of the eight runbooks.** Phase 5's
+  step 5a fixed `main...HEAD` in this repository's `PUSH-AUDIT.md`.
+  Seven other repositories carry their own copy, and the range rule
+  is prose in each rather than one of the files in
+  `templates/shared-blocks/` -- `push-audit` verifies only that the
+  eight required blocks are present and current
+  (`PUSH_AUDIT_BLOCKS`, `scripts/audit/checks/plans.py:104-110`).
+  So the other seven still say every diff command is against
+  `main...HEAD`, and each will audit an empty diff the first time it
+  is pointed at landed work, which reads as a clean audit rather
+  than as no audit. Two shapes: sweep the seven, or promote the
+  range rule to a shared block so `push-audit` carries it to the
+  fleet the way it carries the other eight. The second is the reason
+  this is a Future work item rather than a seven-repository sweep
+  appended to phase 5.
 
 ## Back brief
 

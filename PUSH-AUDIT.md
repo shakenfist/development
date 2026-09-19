@@ -49,6 +49,19 @@ to export: an unset bare `$AUDIT_RANGE` diffs the working tree
 instead, which is empty on a clean checkout, and every check
 then passes over nothing.
 
+One consequence matters for wave 2, because it is silent. A
+sub-agent runs in its own shell and inherits nothing, so a brief
+handed over with the expansion in it expands to the default --
+which against already-landed work is the empty diff this rule
+exists to prevent, and an empty diff reads as a clean review. So
+the management session substitutes the concrete range into each
+wave 2 brief rather than passing the expansion, tells each agent
+which range it is reading, and requires every report to state
+the insertion and deletion totals it measured. A report whose
+totals do not match the range is re-run rather than triaged: it
+is the one check on this that does not depend on the agent
+noticing its own mistake.
+
 ## Wave 1: Mechanical checks
 
 ```
@@ -65,6 +78,10 @@ makes the CI run boring.
 Then the grep-level checks on the diff:
 
 ```
+# origin/main is a cached ref: without this a stale clone widens
+# the audit silently, even under the range rule above
+git fetch origin
+
 # Lines over 120 characters in new Python
 git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- '*.py' | grep -nE '^\+[^+].{120,}'
 
