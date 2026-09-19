@@ -118,6 +118,22 @@ def gh_close_issue(org, repo, issue_number, comment=None):
 # silence.
 ISSUE_BODY_BUDGET = 60000
 
+# `details` is one field among several competing for that budget, and
+# the only one with no bound at all. Given the whole budget it starves
+# the per-item lists, which are the part a maintainer acts on: the
+# issue still files, it just carries no actionable items. Half leaves
+# both sides room in every realistic case, and where it does bite the
+# trailer says where the rest is.
+DETAILS_BUDGET = ISSUE_BODY_BUDGET // 2
+
+# Module level so a test can compute the exact room `render_details`
+# has, and so pin the truncation boundary rather than approach it.
+DETAILS_HEADING = '\n### Automated check details\n\n'
+DETAILS_TRAILER = (
+    '\n\n*...truncated to stay under GitHub\'s issue body limit. '
+    'Run `scripts/audit-check.py` for the full details.*\n'
+)
+
 
 def render_issue_items(heading, items, used):
     """Render one per-item list, stopping before the body gets too big.
@@ -142,6 +158,20 @@ def render_issue_items(heading, items, used):
     return rendered
 
 
+def details_room(used):
+    """How many characters of `details` fit, given a body of `used`.
+
+    Can go negative where the rest of the body has already spent the
+    budget; the caller clamps. Kept separate from the rendering so the
+    boundary is a value a test can ask for rather than one it has to
+    find by bisection.
+    """
+    return (
+        min(ISSUE_BODY_BUDGET - used, DETAILS_BUDGET)
+        - len(DETAILS_HEADING) - len(DETAILS_TRAILER)
+    )
+
+
 def render_details(details, used):
     """Render the check's own details, under the same budget.
 
@@ -153,16 +183,16 @@ def render_details(details, used):
     and the criterion silently stops filing while the audit reports
     success -- the failure mode the per-item budget already exists to
     prevent, reached through the one field that was not measured.
+
+    Capped at `DETAILS_BUDGET` rather than at whatever is left, so
+    that a pathological `details` cannot spend the room the per-item
+    lists need.
     """
-    heading = '\n### Automated check details\n\n'
-    trailer = (
-        '\n\n*...truncated to stay under GitHub\'s issue body limit. '
-        'Run `scripts/audit-check.py` for the full details.*\n'
-    )
-    room = ISSUE_BODY_BUDGET - used - len(heading) - len(trailer)
+    room = details_room(used)
     if len(details) + 1 <= room:
-        return f'{heading}{details}\n'
-    return f'{heading}{details[:max(room, 0)]}{trailer}'
+        return f'{DETAILS_HEADING}{details}\n'
+    return (
+        f'{DETAILS_HEADING}{details[:max(room, 0)]}{DETAILS_TRAILER}')
 
 
 def build_issue_body(check_id, check_result):

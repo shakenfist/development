@@ -208,9 +208,17 @@ class NetworkCheckListTest(unittest.TestCase):
         `NpmPackageCheck` holds an `applies()` that every subclass
         runs, so a scan that does not follow the inheritance edge
         cannot see what that method does.
+
+        The tables are keyed by bare name across every module, so two
+        same-named top-level symbols would silently overwrite each
+        other and `_reaches_network` would examine the wrong body --
+        a wrong answer rather than a missing one, which the `unread`
+        assertion cannot see. Returns the collisions so the caller can
+        fail on them; there are none today.
         """
         bodies = {}
         bases = {}
+        duplicates = set()
         for source in sources:
             name = None
             body = []
@@ -218,6 +226,8 @@ class NetworkCheckListTest(unittest.TestCase):
                 match = re.match(r'^(?:def|class) (\w+)', line)
                 if match:
                     if name:
+                        if name in bodies:
+                            duplicates.add(name)
                         bodies[name] = '\n'.join(body)
                     name = match.group(1)
                     body = []
@@ -231,8 +241,10 @@ class NetworkCheckListTest(unittest.TestCase):
                 elif name:
                     body.append(line)
             if name:
+                if name in bodies:
+                    duplicates.add(name)
                 bodies[name] = '\n'.join(body)
-        return bodies, bases
+        return bodies, bases, sorted(duplicates)
 
     def _reaches_network(self, bodies, bases, name, seen=None):
         seen = seen if seen is not None else set()
@@ -252,7 +264,18 @@ class NetworkCheckListTest(unittest.TestCase):
         return False
 
     def test_network_checks_matches_the_checker(self):
-        bodies, bases = self._symbols(self._sources())
+        bodies, bases, duplicates = self._symbols(self._sources())
+
+        # A bare-name table cannot tell two same-named top-level
+        # symbols apart, and the survivor is whichever module was
+        # walked last. Fail on the collision rather than on whatever
+        # it makes the network scan conclude.
+        self.assertEqual(
+            duplicates, [],
+            'these top-level symbol names are defined in more than one '
+            'module under scripts/audit/, so the body examined for a '
+            'network call may belong to the wrong one',
+        )
 
         # Map check id to the class that implements it, taken from the
         # registry rather than matched out of the source. An earlier

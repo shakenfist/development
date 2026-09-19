@@ -87,10 +87,13 @@ git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- '*.py' | grep -nE '^\+[^+].{120
 
 # New third-party imports -- the audit scripts are stdlib plus
 # the git and gh CLIs only, which is why they run on a bare runner.
-# Scoped at '*.py' rather than 'scripts/*.py' because git's fnmatch
-# lets '*' cross a '/' unless the pathspec carries ':(glob)' magic,
-# so the narrower-looking spelling selected exactly the same files
-# while implying it had narrowed something
+# Scoped at '*.py' rather than 'scripts/*.py' because a Python file
+# added anywhere else should be checked too. The two select the same
+# 56 files today only because every tracked .py happens to live under
+# scripts/ -- not because the narrower spelling narrows anything
+# useful: git's fnmatch lets '*' cross a '/' unless the pathspec
+# carries ':(glob)' magic, so 'scripts/*.py' already reaches the whole
+# subtree rather than its top level (':(glob)scripts/*.py' returns 13)
 git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- '*.py' | grep -nE '^\+import |^\+from '
 
 # Hand-edited compliance data. compliance.md is regenerated and

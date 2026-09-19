@@ -55,6 +55,20 @@ class NpmFixtureMixin:
     def source(self, content, path='src/main.ts'):
         self.fixture.write(path, content)
 
+    def manifest_line(self, name):
+        """The 1-indexed line of a dependency key in the written manifest.
+
+        The expectation for a citation, derived from the same file the
+        criterion reads, so a test asserting the exact number does not
+        have to be maintained by hand every time a fixture changes.
+        """
+        with open(os.path.join(self.fixture.path, 'package.json')) as handle:
+            lines = handle.read().splitlines()
+        for number, line in enumerate(lines, 1):
+            if line.strip().startswith('"%s"' % name):
+                return number
+        raise AssertionError('%r is not a key in the fixture manifest' % name)
+
 
 class NpmPinIndirectDependenciesTest(NpmFixtureMixin, CheckTestCase):
     check_class = npm_dependencies.NpmPinIndirectDependencies
@@ -167,6 +181,45 @@ class NpmPinIndirectDependenciesTest(NpmFixtureMixin, CheckTestCase):
             'jobs:\n  b:\n    steps:\n'
             '      - run: npm install -g @anthropic-ai/claude-code\n')
         self.assert_pass(self.check())
+
+    def test_a_global_install_by_alias_is_not_a_project_install(self):
+        """The exclusion has to cover every spelling the match does.
+
+        `npm install`, `npm i` and `npm add` are all reported, so all
+        three have to drop the `-g` form as well. Testing only the long
+        one leaves two ways to fail a compliant repository.
+        """
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'])
+        for command in ('npm i -g tsx',
+                        'npm add -g tsx',
+                        'npm install --global tsx'):
+            with self.subTest(command=command):
+                # The one workflow is overwritten each time, so each
+                # subtest sees a repository whose only npm command is
+                # the one it is about.
+                self.fixture.workflow(
+                    'agent.yml',
+                    'jobs:\n  b:\n    steps:\n'
+                    '      - run: %s\n' % command)
+                self.assert_pass(self.check())
+
+    def test_a_workspace_root_still_applies(self):
+        """Unlike its two siblings, and the spec page says so.
+
+        `docs/audits/npm-pin-indirect-dependencies.md` asserts this
+        normatively: a workspace root has one lockfile pinning the
+        whole tree, so `npm install` undoes the pinning for every
+        workspace at once. Without this test the guard could be lifted
+        into `NpmPackageCheck` with every suite still green and only
+        the spec page becoming false.
+        """
+        self.manifest(name='x', workspaces=['packages/*'],
+                      dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'])
+        self.fixture.workflow('ci.yml', 'jobs:\n  b:\n    steps:\n'
+                                        '      - run: npm install\n')
+        self.assert_fail(self.check(), containing='npm install')
 
     def test_a_lockfile_refresh_is_not_an_install(self):
         """--package-lock-only writes the lockfile and installs nothing."""
@@ -328,8 +381,12 @@ class NpmUnusedDeclaredDependencyTest(NpmFixtureMixin, CheckTestCase):
         self.lockfile(['left-pad', 'semver'])
         self.source("import leftPad from 'left-pad';\n")
         result = self.assert_fail(self.check(), containing='semver')
-        # {, "name", "dependencies": {, "left-pad", "semver".
-        self.assertIn('semver (package.json:5)', result['details'])
+        # Read back out of the file the fixture just wrote rather than
+        # counted by hand: hard-coding it makes reordering the kwargs
+        # above, or changing `manifest()`'s indent, fail as though the
+        # criterion had miscounted.
+        self.assertIn('semver (package.json:%d)' % self.manifest_line('semver'),
+                      result['details'])
         self.assertNotIn('left-pad', result['details'])
 
     def test_a_dependency_on_a_one_line_manifest_is_still_reported(self):
