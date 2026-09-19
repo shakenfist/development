@@ -1486,7 +1486,10 @@ ISSUES_WRITE_RE = re.compile(r'^\s*issues:\s*write\s*$', re.MULTILINE)
 #
 # The braces are a single alternation rather than two independent
 # options so that `${GH issue create` and `$GH} issue create`, neither
-# of which is shell, are not matched.
+# of which is shell, are not matched. Shell is all it is written for:
+# the Actions expression form, `${{ env.GH }} issue create`, is not
+# matched, because the seam this exists for lives in the reporter
+# script rather than in the YAML that calls it.
 FILES_AN_ISSUE_RE = re.compile(
     r'gh\W{1,4}issue\W{1,4}create\b'
     r'|\$(?:\{[A-Za-z_]\w*(?::[-=?+][^}\n]*)?\}|[A-Za-z_]\w*)'
@@ -1640,22 +1643,27 @@ def referenced_scripts(text, base):
         # preceding character is what separates all of this from a
         # genuine `/etc/x.sh`, which must still be refused.
         #
-        # The basename against the referring file's own directory is
-        # offered because a script computing a directory to find a
-        # helper in is nearly always computing its own -- but not when
-        # the tail climbs out of that directory, since
-        # `${TOOLS}/../shared/report.sh` names a file somewhere else,
-        # and a sibling of that name is one the reference never made.
-        # The rest of the tail is offered too, so that a workflow naming
-        # its reporter under a workspace variable finds tools/ci/x.sh
-        # rather than looking for x.sh at the repository root. Order
-        # decides only which read happens first; the caller searches
-        # every candidate it can read.
+        # The tail is offered against the referring file's directory and
+        # against the repository root, so that a workflow naming its
+        # reporter under a workspace variable finds tools/ci/x.sh rather
+        # than looking for x.sh at the root.
+        #
+        # Only where the tail names no directory of its own is the
+        # basename offered as well, and there it is the same path as the
+        # tail against the base -- it is there for `$x.sh`, where the
+        # variable's own name is the whole match and the tail comes out
+        # empty. A tail that does name directories means them:
+        # `${TOOLS}/../shared/report.sh` and `${DIR}/sub/report.sh` both
+        # point somewhere other than beside the referring file, so a
+        # sibling report.sh is a file the reference never named, and
+        # reading one would let an unrelated file of the right name
+        # answer for the reporter. Order decides only which read happens
+        # first; the caller searches every candidate it can read.
         if preceding and preceding in '}$)':
             tail = (named.partition('/')[2] if preceding == '$'
                     else named.lstrip('/'))
             candidates = []
-            if os.pardir not in tail.split('/'):
+            if '/' not in tail:
                 candidates.append(
                     os.path.join(base, os.path.basename(named)))
             if tail:

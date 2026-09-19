@@ -31,6 +31,13 @@ class RepoReadTest(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.fixture = FixtureRepo(self._tmp.name)
         self.addCleanup(self._tmp.cleanup)
+        # Somewhere for the tests that need a path the checkout does
+        # not contain. A directory of its own rather than a name beside
+        # the checkout: two suites running at once -- the pre-commit
+        # hook while CI runs, or unittest with -j -- would otherwise
+        # race over the same file in the shared temporary directory.
+        self._outside = tempfile.TemporaryDirectory()
+        self.addCleanup(self._outside.cleanup)
         self.repo = Repo(self._tmp.name, 'testrepo', 'shakenfist',
                          github=FakeGitHub())
 
@@ -73,10 +80,9 @@ class RepoReadTest(unittest.TestCase):
         containment check here an audited repository could decide what
         the audit reads.
         """
-        outside = os.path.join(self._tmp.name, os.pardir, 'outside.txt')
+        outside = os.path.join(self._outside.name, 'outside.txt')
         with open(outside, 'w') as f:
             f.write('not ours\n')
-        self.addCleanup(os.unlink, outside)
         os.makedirs(os.path.join(self._tmp.name, 'tools', 'ci'))
         os.symlink(outside,
                    os.path.join(self._tmp.name, 'tools', 'ci', 'leak.sh'))
@@ -90,10 +96,8 @@ class RepoReadTest(unittest.TestCase):
         matches nothing.
         """
         self.fixture.write('tools/ci/helper.sh', 'gh issue create\n')
-        link = os.path.join(self._tmp.name, os.pardir,
-                            os.path.basename(self._tmp.name) + '-link')
+        link = os.path.join(self._outside.name, 'checkout-link')
         os.symlink(self._tmp.name, link)
-        self.addCleanup(os.unlink, link)
         through = Repo(link, 'testrepo', 'shakenfist', github=FakeGitHub())
         self.assertEqual('gh issue create\n',
                          through.read('tools/ci/helper.sh'))
