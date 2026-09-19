@@ -9,6 +9,7 @@ import fnmatch
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -594,40 +595,57 @@ class ThisRepositoryTest(unittest.TestCase):
     def tearDown(self):
         os.chdir(self.previous)
 
+    # The header count is a property of the whole tree: any file
+    # entering or leaving review scope moves it, on whatever branch
+    # happens to do so. Asserting it here would make REVIEWS.md a file
+    # that every such branch has to regenerate and commit, which is how
+    # a generated file becomes a merge-conflict hot spot and a CI round
+    # trip for a change that is entirely prose. Nothing is lost by
+    # leaving it out: cmd_prune regenerates REVIEWS.md whether or not it
+    # pruned anything, so prune-reviews corrects the count on the next
+    # push to main, and the review-coverage audit does not read this
+    # number at all -- review_status() recomputes coverage against HEAD
+    # precisely so that a missed regen cannot inflate it.
+    COUNT_LINE = re.compile(
+        r'^\d+ of \d+ in-scope files are currently reviewed\.$', re.MULTILINE)
+
+    def _without_count(self, text):
+        """Return REVIEWS.md text with the header count neutralised."""
+        return self.COUNT_LINE.sub('<count>', text)
+
     def test_reviews_md_is_reproducible_from_the_committed_state(self):
-        """REVIEWS.md must be exactly what the review state renders to.
+        """REVIEWS.md's rows must be what the review state renders to.
 
-        The header count is not enough to catch this: it counts weAudit
-        marks rather than stamps, so a commit that lands the marks and
-        forgets .vscode/<user>.weaudit-shas.json reports the right
-        number of reviews while every Date and Blob SHA cell renders as
-        '-'. That is not a cosmetic difference. prune-reviews.yml
-        regenerates and commits this file on every push to main, so the
-        first thing such a merge produces is a bot commit blanking the
-        attestation columns -- and review-tracking.py status, which the
-        review-coverage audit check reads, counts an unstamped mark as
-        needing review.
+        Everything but the header count is compared. The count itself
+        trusts marks rather than stamps (see review_status), so a commit
+        that lands the marks and forgets
+        .vscode/<user>.weaudit-shas.json reports the right number while
+        every Date and Blob SHA cell renders as '-'. That is not a
+        cosmetic difference: prune-reviews regenerates and commits this
+        file on every push to main, so the first thing such a merge
+        produces is a bot commit blanking the attestation columns -- and
+        review-tracking.py status, which the review-coverage audit check
+        reads, counts an unstamped mark as needing review. Comparing the
+        rows catches that, and catches a REVIEWS.md edited by hand,
+        which its own header forbids.
 
-        Comparing the rendering also catches a REVIEWS.md edited by
-        hand, which its own header forbids.
+        The count is excluded for the reason given on COUNT_LINE above.
         """
         with open(os.path.join(self.root, 'REVIEWS.md')) as f:
             committed = f.read()
         self.assertEqual(
-            self.rt.render_reviews_md(), committed,
-            'REVIEWS.md is not what the committed review state '
-            'renders to. A difference in the header count means a file '
-            'entered or left review scope, and `review-tracking.py '
-            'regen` is all that is needed -- this one can be caused by '
-            'another branch rather than by your change, since two '
-            'branches adding an in-scope file each regen to the same '
-            'header text and merge without conflict. A difference in '
-            'the Date or Blob SHA columns means the sidecar '
+            self._without_count(self.rt.render_reviews_md()),
+            self._without_count(committed),
+            'REVIEWS.md is not what the committed review state renders '
+            'to, ignoring the header count. A difference in the Date or '
+            'Blob SHA columns means the sidecar '
             '(.vscode/<user>.weaudit-shas.json) is missing from the '
             'commit: run `review-tracking.py stamp` and commit the '
-            'sidecar and REVIEWS.md together. A row for a file that '
-            'has since changed or gone needs `review-tracking.py '
-            'prune` first',
+            'sidecar and REVIEWS.md together. A difference in which rows '
+            'are present means a mark was added or removed by hand. Note '
+            'that a row for a file that has since changed is not an '
+            'error here -- pruning stale marks is the prune-reviews '
+            'workflow\'s job, not a pull request\'s',
         )
 
     def test_no_review_mark_is_missing_its_stamp(self):

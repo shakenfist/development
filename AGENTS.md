@@ -84,23 +84,23 @@ is being made the last phase of every master plan -- see
 `docs/plans/PLAN-push-audit-phase.md`, which is rolling that out;
 drop this qualifier once the sweep has landed.
 
-Adding or removing a file matched by `.vscode/review-scope.toml`
-changes the in-scope count in `REVIEWS.md`, which is generated. Run
-`python3 scripts/review-tracking.py regen` and commit the result with
-the change, or `review-tracking-tests` fails. It can also fail on a
-branch that did not cause it, when another branch adds an in-scope
-file and both regenerate to the same header text: the fix is the same
-one command.
+`REVIEWS.md` is owned by the `prune-reviews` workflow. Do not run
+`prune` or `regen` in a pull request, and do not commit the file:
+both the staleness caused by editing a reviewed file and the header
+count moved by a file entering or leaving `.vscode/review-scope.toml`
+are corrected on the next push to main, because `prune` regenerates
+the file whether or not it pruned anything. `review-tracking-tests`
+deliberately does not assert the header count, so nothing here fails.
+Pruning from a branch is also wrong more often than it is right:
+`prune` compares stamps against whatever `HEAD` is, so a branch behind
+main discards marks for files main changed. See the `plan-phase-landing`
+shared block.
 
-Editing a file that carries a review mark stales that mark. Nothing in
-the pull request catches this: `review-tracking-tests` only checks
-that `REVIEWS.md` regenerates unchanged, and `regen` counts marks
-rather than validating them against HEAD, so it passes. The
-`prune-reviews` workflow heals it after the merge, which is too late
-to be visible in review. Run `prune` yourself and say so: the file
-then needs a human to read it again and re-mark it in weAudit. Do not
-re-stamp -- the mark attests that a person read that exact content, so
-there is no version of this an agent can finish alone.
+A pruned file needs a human to read it again and re-mark it in
+weAudit. Do not re-stamp -- the mark attests that a person read that
+exact content, so there is no version of this an agent can finish
+alone. Accumulated staleness is the `review-coverage` audit's job to
+report, not a pull request's.
 
 `review-tracking.py` is run by hand in target repositories (via a thin
 wrapper like ryll's `tools/review-tracking.sh`), deliberately not from

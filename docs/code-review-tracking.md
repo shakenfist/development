@@ -497,16 +497,34 @@ session. Two pieces of automation cover this.
 
 One consequence of `REVIEWS.md` being generated is worth stating
 before either of them: the header count is a property of the whole
-tree, so adding or removing *any* in-scope file changes it. Running
-`regen` and committing the result belongs with such a change, the
-same way a regenerated lockfile does. `prune-reviews` heals a
-forgotten one on the next push to the default branch, so it is a
-tidiness rule rather than a correctness one -- but this repository
-additionally asserts it at commit time (`review-tracking-tests`),
-because `REVIEWS.md` that is not reproducible from the committed
-state is how a missing stamp sidecar hides. An adopting repository
-that copies that hook inherits the rule; one that does not, does
-not.
+tree, so adding or removing *any* in-scope file changes it -- on
+whatever branch happens to do so. That is why a pull request does
+not regenerate it. A generated file that every branch has to
+rewrite is a merge-conflict hot spot, and the conflicts are
+semantic rather than textual: two branches each adding an in-scope
+file regenerate to the same header text, merge cleanly, and leave
+a count that is wrong by one. Resolving that costs a rebase and a
+full CI run for a change that is entirely prose, which on a small
+CI cluster is a real tax on forward progress.
+
+Nothing is needed to make this safe. `prune` regenerates
+`REVIEWS.md` whether or not it pruned anything, so the
+`prune-reviews` workflow corrects a moved count on the next push
+to the default branch, in the same commit it would have made
+anyway. The `review-coverage` audit does not read the count at
+all: `review-tracking.py status` recomputes coverage against
+`HEAD`, precisely so that a missed regeneration cannot inflate it.
+
+This repository does assert at commit time
+(`review-tracking-tests`) that `REVIEWS.md` is reproducible from
+the committed state, because a file that is not is how a missing
+stamp sidecar hides -- the count trusts marks rather than stamps,
+so a commit that lands the marks and forgets the sidecar reports
+the right number while every Date and Blob SHA cell renders as
+`-`. That assertion compares every row but skips the count line,
+so it catches the sidecar and hand-edited rows without making the
+file a hot spot. An adopting repository that copies that hook
+inherits the check; one that does not, does not.
 
 **Automatic pruning.** Each adopting repository carries a
 `prune-reviews` workflow (see ryll's
