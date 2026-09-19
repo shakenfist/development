@@ -895,9 +895,19 @@ class PlanAuditPhaseTest(unittest.TestCase):
 
         A plan deliberately dropped is not going to write the diff an
         audit would read, so it is not reopened to acquire a phase
-        either. The plan here has a phase structure, so the check
-        genuinely reads it and passes on the status rather than
-        passing because there was nothing to judge.
+        either.
+
+        The fixture carries a phase structure, and the check never
+        reads it: the terminal-status branch is taken before the plan
+        file is opened, which is the whole point of the carve-out.
+        This docstring used to claim the opposite -- that the check
+        "genuinely reads it and passes on the status rather than
+        passing because there was nothing to judge" -- and the push
+        audit of this plan disproved it by making
+        plan_audit_phase_state() raise unconditionally and watching
+        all three terminal-status tests still pass. What this test
+        pins is the short-circuit, not the reading, and anyone
+        chasing a phase-ordering regression should look elsewhere.
         """
         result = self._check(
             {'PLAN-dropped.md': self._plan(['Build', 'Ship'])},
