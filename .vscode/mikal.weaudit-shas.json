@@ -41,10 +41,6 @@
       "sha": "c11dc1e33458f31f6da1b87331769aab53c5530e",
       "date": "2026-09-01"
     },
-    ".github/workflows/consistency-audit.yml": {
-      "sha": "04d0298be9f13813db18d17b1fdbe236fd2c0905",
-      "date": "2026-09-14"
-    },
     ".github/workflows/export-repo-config.yml": {
       "sha": "53b5d8eb46e89e228dd88d42d7e1b0c3ea6694cd",
       "date": "2026-08-24"
@@ -317,14 +313,6 @@
       "sha": "97673b9e35622a6049cab81725d8554754e715b5",
       "date": "2026-09-04"
     },
-    "scripts/audit-manage-issues.py": {
-      "sha": "b7acc33402420d56f3835b740644cd1fecd06171",
-      "date": "2026-09-15"
-    },
-    "scripts/audit-update-docs.py": {
-      "sha": "61b02d331898fc658e50e818f19a65ec02e4d6eb",
-      "date": "2026-09-04"
-    },
     "scripts/audit/__init__.py": {
       "sha": "86ffeb2a5deffaa05b04df768a1e43d2448435a0",
       "date": "2026-09-02"
@@ -409,10 +397,6 @@
       "sha": "b2ff8e5e60be2380c29d3cc67b06289e343b043b",
       "date": "2026-09-15"
     },
-    "scripts/audit_common.py": {
-      "sha": "768efab3788f1b537c588263f560fd9caae22765",
-      "date": "2026-09-04"
-    },
     "scripts/audit_snapshot.py": {
       "sha": "4f60df83948b9d7e26083b499095ac5322be05e2",
       "date": "2026-09-06"
@@ -435,10 +419,6 @@
     },
     "scripts/test_audit_snapshot.py": {
       "sha": "f7a0f292cdda3544b0fe38d6a5fa142984496f1f",
-      "date": "2026-09-04"
-    },
-    "scripts/test_audit_update_docs.py": {
-      "sha": "1b4d00f84c5d5ce3ea752e18d9b971f5a3842a1b",
       "date": "2026-09-04"
     },
     "scripts/test_check_audit_smoke.py": {
@@ -477,14 +457,6 @@
       "sha": "8a9fadb7bec5273da5b8169b8e0e7729c7d950ff",
       "date": "2026-09-04"
     },
-    "scripts/tests/test_manage_issues.py": {
-      "sha": "0c57104087bd46e4d2e81ba01b20395969b26bb5",
-      "date": "2026-09-15"
-    },
-    "scripts/tests/test_markdown.py": {
-      "sha": "004fef9dd4e92af2cd9d20ac8cff8608a4c7cb38",
-      "date": "2026-09-04"
-    },
     "scripts/tests/test_metadata.py": {
       "sha": "e6436fbcf581c67f826422ccaa246e7bff69ad67",
       "date": "2026-09-15"
@@ -496,10 +468,6 @@
     "scripts/tests/test_packaging.py": {
       "sha": "d708e33060fd73d60591ab293d37ded1615af373",
       "date": "2026-09-06"
-    },
-    "scripts/tests/test_plans.py": {
-      "sha": "de049a8d90364a283bdbfe892c396bc73164030c",
-      "date": "2026-09-15"
     },
     "scripts/tests/test_python_source.py": {
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",

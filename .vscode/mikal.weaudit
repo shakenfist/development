@@ -345,10 +345,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_markdown.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_python_source.py",
       "author": "mikal"
     },
@@ -361,15 +357,7 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit_common.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit-check.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit-update-docs.py",
       "author": "mikal"
     },
     {
@@ -390,10 +378,6 @@
     },
     {
       "path": "scripts/test_audit_snapshot.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/test_audit_update_docs.py",
       "author": "mikal"
     },
     {
@@ -617,10 +601,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/consistency-audit.yml",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/mermaid-lint.yml",
       "author": "mikal"
     },
@@ -693,23 +673,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_manage_issues.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_metadata.py",
       "author": "mikal"
     },
     {
       "path": "scripts/tests/test_npm_dependencies.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_plans.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit-manage-issues.py",
       "author": "mikal"
     },
     {
@@ -770,14 +738,6 @@
     },
     {
       "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
       "author": "mikal"
     },
     {
