@@ -141,10 +141,6 @@
       "sha": "7fba89f8a3f2ac89ed16118e31c637eafb5567c4",
       "date": "2026-08-27"
     },
-    "docs/audits/fuzz-nightly-reporting.md": {
-      "sha": "1ec089b60a6566502a5ff0ca30b4105d402ea3d0",
-      "date": "2026-09-14"
-    },
     "docs/audits/github-security.md": {
       "sha": "59aa05becc43e1c7b5d4f42240b6c20a8ac53dae",
       "date": "2026-08-27"
@@ -333,10 +329,6 @@
       "sha": "d54faddeed246c3b084571825d542bf04c1bb930",
       "date": "2026-09-02"
     },
-    "scripts/audit/checks/ci_workflows.py": {
-      "sha": "95c122907e0240ee21cca6a530ea05e62bbf31a1",
-      "date": "2026-09-15"
-    },
     "scripts/audit/checks/distros.py": {
       "sha": "81c0aa6c3a383d6a46ec931e57e71f89b2828158",
       "date": "2026-09-15"
@@ -387,10 +379,6 @@
     },
     "scripts/audit/registry.py": {
       "sha": "b42d0bcd005a8eb5d5c48f87e3a2f769bbffff78",
-      "date": "2026-09-15"
-    },
-    "scripts/audit/repo.py": {
-      "sha": "1806df7f6cae1970f2ec61dc4aa7fcb351b93e18",
       "date": "2026-09-15"
     },
     "scripts/audit/scope.py": {
@@ -469,10 +457,6 @@
       "sha": "b6b807536cef7bdef331a6f25ab9c585aea4d1b6",
       "date": "2026-09-09"
     },
-    "scripts/tests/test_ci_workflows.py": {
-      "sha": "6fdf4c9c41da50d09035b8b303c9a3be82d9c481",
-      "date": "2026-09-15"
-    },
     "scripts/tests/test_distros.py": {
       "sha": "2a43c0a85d59b84b8b675a4a66879446510d3443",
       "date": "2026-09-15"
@@ -524,10 +508,6 @@
     "scripts/tests/test_registry.py": {
       "sha": "bf05c960fe55f670efee273df89a6d3f4d1beef0",
       "date": "2026-09-10"
-    },
-    "scripts/tests/test_repo.py": {
-      "sha": "a0c095c79017fb888cddd853369b0bf8c13d0a08",
-      "date": "2026-09-15"
     },
     "scripts/tests/test_review.py": {
       "sha": "742e2256f8d2c74cb8a65560d075ee11429c9914",

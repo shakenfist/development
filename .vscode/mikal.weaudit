@@ -645,10 +645,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/fuzz-nightly-reporting.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/npm-pin-indirect-dependencies.md",
       "author": "mikal"
     },
@@ -674,10 +670,6 @@
     },
     {
       "path": "docs/audits/mermaid-lint-ci.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/ci_workflows.py",
       "author": "mikal"
     },
     {
@@ -709,14 +701,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/repo.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_ci_workflows.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_distros.py",
       "author": "mikal"
     },
@@ -738,10 +722,6 @@
     },
     {
       "path": "scripts/tests/test_plans.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_repo.py",
       "author": "mikal"
     },
     {
