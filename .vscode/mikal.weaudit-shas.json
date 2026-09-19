@@ -85,6 +85,22 @@
       "sha": "33dd8025ce54de02c718de0ff7724f90efc57771",
       "date": "2026-09-16"
     },
+    "AGENTS.md": {
+      "sha": "a4ef273cbf15c1d8da3c43bdae171e91f9e1dbd0",
+      "date": "2026-09-20"
+    },
+    "ARCHITECTURE.md": {
+      "sha": "1525d1de3e48b4391fe0a33e7190930972a3ae8b",
+      "date": "2026-09-20"
+    },
+    "PLAN-TEMPLATE.md": {
+      "sha": "bd2c587ec417f7ebb3637eab5f4bc74aa065b16d",
+      "date": "2026-09-20"
+    },
+    "PUSH-AUDIT.md": {
+      "sha": "663c4095fb9cfae01e82d68c545fe4ac1a4cb725",
+      "date": "2026-09-20"
+    },
     "README.md": {
       "sha": "5ac5a6754b08642183a1425f5a50f114ea907848",
       "date": "2026-09-09"
@@ -493,6 +509,10 @@
       "sha": "bf05c960fe55f670efee273df89a6d3f4d1beef0",
       "date": "2026-09-10"
     },
+    "scripts/tests/test_repo.py": {
+      "sha": "54db87d6402b28dc30ef642f8ce7463cbf18d62c",
+      "date": "2026-09-20"
+    },
     "scripts/tests/test_review.py": {
       "sha": "742e2256f8d2c74cb8a65560d075ee11429c9914",
       "date": "2026-09-04"
@@ -604,6 +624,10 @@
     "templates/renovate/renovate.yml": {
       "sha": "f06f837115324e557b40b961b70a557579744e62",
       "date": "2026-09-19"
+    },
+    "templates/shared-blocks/README.md": {
+      "sha": "488e9b983aae2fb866d369265d032f604166357e",
+      "date": "2026-09-20"
     },
     "templates/shared-blocks/comment-proportion.md": {
       "sha": "38c366bd44e111f047e5eb2379451ba9c13d04c6",

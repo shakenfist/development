@@ -779,6 +779,30 @@
     {
       "path": ".github",
       "author": "mikal"
+    },
+    {
+      "path": "AGENTS.md",
+      "author": "mikal"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "author": "mikal"
+    },
+    {
+      "path": "PLAN-TEMPLATE.md",
+      "author": "mikal"
+    },
+    {
+      "path": "PUSH-AUDIT.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_repo.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
