@@ -725,13 +725,23 @@ Step 7 merged on 2026-09-19 as `ced6fef` (#139), which is what moved
 it to `Complete`; this plan does not write that term without a
 landing commit beside it.
 
-That cell records step 7 and nothing else. This closeout is its
-own pull request (#146), so it lands outside any range anchored on
-`ced6fef` and phase 6 will not see it. What it changes is this
-plan file's own narrative and no tooling, so the omission costs
-the audit nothing -- it is written down here rather than left
-implicit because the rule is that a landing is recorded, not that
-it is judged small.
+That cell records step 7 and nothing else. Phase 5's closeout went
+out as its own pull request, #146, merged as `02924fe` -- which is
+the shape `plan-phase-landing` exists to prevent, and that block
+landed an hour afterwards (#145, `ad6c8fa`, 18:00 AEST on
+2026-09-19, against #146 at 16:56). The rule is followed from
+here: this paragraph is the first commit of phase 6's branch
+rather than a seventh pull request, and phase 5 needs no further
+closeout -- its `Status` and `Merged` cells and the plan's index
+row were all set in #146.
+
+`02924fe` is written down anyway, because phase 6 audits it. The
+earlier draft of this paragraph argued the omission was free,
+since the closeout changes this plan file and no tooling. That
+reasoning is the one `plan-phase-landing` rejects: a landing is
+recorded because it landed, not because somebody judged it big
+enough to matter, and D6.2 folds `02924fe` into the development
+range on exactly that basis.
 
 The `Merged` column is what `plan-push-audit-phase` asks each phase
 to record as it lands, so that phase 6 has a range to audit once
