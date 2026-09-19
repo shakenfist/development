@@ -100,13 +100,14 @@ the next daily run and files issues automatically -- that is the
 mechanism working, but it should be a decision rather than a
 side effect.
 
-If the diff adds or removes a file matched by
-`.vscode/review-scope.toml`, `REVIEWS.md` must have been
-regenerated (`python3 scripts/review-tracking.py regen`) and the
-result committed. If the diff edits a file carrying a review
-mark, that mark is stale: run `prune` and say so in the PR. Never
-re-stamp -- the mark attests that a person read that exact
-content.
+`REVIEWS.md` needs no change in a pull request. A change that
+adds or removes a file matched by `.vscode/review-scope.toml`
+moves the header count, and a change that edits a file carrying
+a review mark stales that mark, but the `prune-reviews` workflow
+corrects both on the next push to main -- so do not prune,
+regenerate or commit the file here. Say instead which marks the
+change stales. Never re-stamp -- the mark attests that a person
+read that exact content.
 
 ## Wave 2: Deeper review
 

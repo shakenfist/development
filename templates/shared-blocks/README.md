@@ -42,11 +42,20 @@ checks) verify that an embedded block:
 `plan-phase-landing` is canonical here and embedded in this
 repository's `PLAN-TEMPLATE.md`, but is deliberately **not** in
 `PLAN_TEMPLATE_BLOCKS` in `scripts/audit/checks/plans.py` yet. Adding
-it there marks eleven repositories non-compliant at once and files
-eleven issues, and the point of the block is to reduce documentation
-round trips rather than to generate a fresh batch of them. Add it to
-that list when there is appetite for the sweep; it is a one-line
-change and nothing else depends on the timing.
+it there marks every repository carrying `PLAN-TEMPLATE.md` that does
+not embed the block non-compliant at once, and files an issue against
+each -- ten repositories are applicable today and eight of them would
+newly fail. The plan-template section of `docs/audits/compliance.md`
+is regenerated daily and is the current figure. The point of the
+block is to reduce documentation round trips rather than to generate
+a fresh batch of them, so add it to that list when there is appetite
+for the sweep; it is a one-line change and nothing else depends on
+the timing.
+
+Read `plan-phase-landing` together with `plan-push-audit-phase`: the
+first says the push-audit phase records no `Merged` cell, which is
+the one exception to the second's account of that column, and the
+fleet carries the second without the first until the sweep lands.
 
 ## Updating a block
 

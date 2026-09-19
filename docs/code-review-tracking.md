@@ -531,20 +531,22 @@ inherits the check; one that does not, does not.
 `.github/workflows/prune-reviews.yml` and
 `tools/ci-prune-reviews.sh`) that runs on every push to its
 default branch -- the only event that can create staleness there.
-It clones this repository for the script, runs `prune`, and if
-anything was pruned commits the updated review state and
-regenerated `REVIEWS.md` directly back to that branch as
-shakenfist-bot, using the same rebase-then-push landing pattern as
-this repository's audit compliance-table commits. A concurrency
-group serialises overlapping merges, and the loop terminates
-either way: a repository that can push with the default
-`GITHUB_TOKEN` never retriggers the workflow at all, while one
-whose ruleset forces a PAT instead -- as ryll's does, since develop
-requires a pull request before merging and GitHub will not accept
-the built-in Actions app as a bypass actor, so shakenfist-bot
-pushes with `DEPENDENCIES_TOKEN` -- retriggers exactly once, into a
-run that finds nothing left to prune (observed 2026-09-11 04:57:20
-UTC, `Prune stale review marks.`, which committed nothing).
+It clones this repository for the script, runs `prune`, and
+commits the updated review state and regenerated `REVIEWS.md`
+whenever either changed -- including a regeneration that pruned
+nothing, which is what corrects a moved header count -- directly
+back to that branch as shakenfist-bot, using the same
+rebase-then-push landing pattern as this repository's audit
+compliance-table commits. A concurrency group serialises
+overlapping merges, and the loop terminates either way: a
+repository that can push with the default `GITHUB_TOKEN` never
+retriggers the workflow at all, while one whose ruleset forces a
+PAT instead -- as ryll's does, since develop requires a pull
+request before merging and GitHub will not accept the built-in
+Actions app as a bypass actor, so shakenfist-bot pushes with
+`DEPENDENCIES_TOKEN` -- retriggers exactly once, into a run that
+finds nothing left to prune (observed 2026-09-11 04:57:20 UTC,
+`Prune stale review marks.`, which committed nothing).
 
 The bot's prune commits are not signed, and do not need to be:
 prune can only *remove* marks, never add or refresh them ('a

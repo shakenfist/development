@@ -248,16 +248,16 @@ Three rules keep them out of the way.
   Editing a reviewed file stales its mark, and adding or removing
   an in-scope file moves the header count, but neither is the
   landing pull request's business. `prune` regenerates the file
-  whether or not it dropped anything, so the scheduled
-  `prune-reviews` workflow heals both on the next push to the
-  default branch. Pruning from a branch is also wrong more often
-  than it is right: `prune` compares stamps against whatever
-  `HEAD` is, so on a branch behind the default one it discards
-  marks for files the default branch changed rather than for
-  files the pull request touched. Accumulated staleness is
-  reported by the `review-coverage` audit, which recomputes
-  coverage against `HEAD` and raises an issue once the backlog is
-  worth a review session.
+  whether or not it dropped anything, so the `prune-reviews`
+  workflow heals both on the next push to the default branch.
+  Pruning from a branch is also wrong more often than it is
+  right: `prune` compares stamps against whatever `HEAD` is, so
+  on a branch behind the default one it discards marks for files
+  the default branch changed rather than for files the pull
+  request touched. Accumulated staleness is reported by the
+  `review-coverage` audit, which recomputes coverage against
+  `HEAD` and raises an issue once the backlog is worth a review
+  session.
 
 These rules assume phases land one after another. Where two phase
 branches are open at once, each closes out only the phase it

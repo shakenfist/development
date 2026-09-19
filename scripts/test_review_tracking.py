@@ -41,6 +41,33 @@ def make_weaudit(audited, partial=None, author='testuser'):
     }
 
 
+# The header count line of REVIEWS.md, which
+# test_reviews_md_is_reproducible_from_the_committed_state excludes from
+# its comparison. The count is a property of the whole tree: any file
+# entering or leaving review scope moves it, on whatever branch happens
+# to do so. Asserting it would make REVIEWS.md a file that every such
+# branch has to regenerate and commit, which is how a generated file
+# becomes a merge-conflict hot spot and a CI round trip for a change
+# that is entirely prose. Nothing is lost by leaving it out: cmd_prune
+# regenerates REVIEWS.md whether or not it pruned anything, so
+# prune-reviews corrects the count on the next push to main, and the
+# review-coverage audit does not read this number at all --
+# review_status() recomputes coverage against HEAD precisely so that a
+# missed regen cannot inflate it.
+#
+# ReviewTrackingTest.test_stamp_creates_sidecar_and_reviews_md asserts
+# that this still matches what render_reviews_md emits, so rewording the
+# sentence fails there rather than silently putting the count back into
+# the comparison.
+COUNT_LINE = re.compile(
+    r'^\d+ of \d+ in-scope files are currently reviewed\.$', re.MULTILINE)
+
+
+def without_count(text):
+    """Return REVIEWS.md text with the header count neutralised."""
+    return COUNT_LINE.sub('<count>', text)
+
+
 class ReviewTrackingTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -104,12 +131,47 @@ class ReviewTrackingTest(unittest.TestCase):
         reviews = self.read('REVIEWS.md')
         self.assertIn('src/a.py', reviews)
         self.assertIn('testuser', reviews)
-        self.assertIn('1 of 2 in-scope files are currently reviewed.', reviews)
+        # Asserted through COUNT_LINE rather than as a literal, so that
+        # rewording the sentence fails here, with the reason attached,
+        # rather than silently dropping the count out of the
+        # reproducibility comparison in ThisRepositoryTest.
+        count = COUNT_LINE.search(reviews)
+        self.assertIsNotNone(
+            count,
+            'the count line was reworded; without_count no longer neutralises '
+            'it, so REVIEWS.md is a merge-conflict hot spot again')
+        self.assertEqual(
+            '1 of 2 in-scope files are currently reviewed.', count.group(0))
 
         # A second run has nothing to do and passes.
         self.git('add', '-A')
         p = self.run_tool('stamp')
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+
+    def test_the_count_may_drift_from_the_committed_file_but_a_row_may_not(self):
+        """Both halves of the reproducibility test's tolerance.
+
+        ThisRepositoryTest compares the committed REVIEWS.md against a
+        fresh rendering with the header count neutralised, so a branch
+        that moves the count does not have to regenerate and commit the
+        file. That comparison cannot demonstrate its own tolerance: on
+        the real tree the two sides agree, so it passes either way.
+        Perturb a rendering here instead -- a moved count still compares
+        equal, a moved row does not.
+        """
+        self.mark_reviewed(['src/a.py'])
+        self.run_tool('stamp')
+        rendered = self.read('REVIEWS.md')
+
+        moved_count = rendered.replace(
+            '1 of 2 in-scope files are currently reviewed.',
+            '1 of 3 in-scope files are currently reviewed.')
+        self.assertNotEqual(moved_count, rendered)
+        self.assertEqual(without_count(moved_count), without_count(rendered))
+
+        moved_row = rendered.replace('src/a.py', 'src/b.py')
+        self.assertNotEqual(moved_row, rendered)
+        self.assertNotEqual(without_count(moved_row), without_count(rendered))
 
     def test_stamp_refuses_to_move_a_stamp_onto_unread_content(self):
         """A changed file that is already stamped must stop the commit.
@@ -595,24 +657,6 @@ class ThisRepositoryTest(unittest.TestCase):
     def tearDown(self):
         os.chdir(self.previous)
 
-    # The header count is a property of the whole tree: any file
-    # entering or leaving review scope moves it, on whatever branch
-    # happens to do so. Asserting it here would make REVIEWS.md a file
-    # that every such branch has to regenerate and commit, which is how
-    # a generated file becomes a merge-conflict hot spot and a CI round
-    # trip for a change that is entirely prose. Nothing is lost by
-    # leaving it out: cmd_prune regenerates REVIEWS.md whether or not it
-    # pruned anything, so prune-reviews corrects the count on the next
-    # push to main, and the review-coverage audit does not read this
-    # number at all -- review_status() recomputes coverage against HEAD
-    # precisely so that a missed regen cannot inflate it.
-    COUNT_LINE = re.compile(
-        r'^\d+ of \d+ in-scope files are currently reviewed\.$', re.MULTILINE)
-
-    def _without_count(self, text):
-        """Return REVIEWS.md text with the header count neutralised."""
-        return self.COUNT_LINE.sub('<count>', text)
-
     def test_reviews_md_is_reproducible_from_the_committed_state(self):
         """REVIEWS.md's rows must be what the review state renders to.
 
@@ -634,8 +678,8 @@ class ThisRepositoryTest(unittest.TestCase):
         with open(os.path.join(self.root, 'REVIEWS.md')) as f:
             committed = f.read()
         self.assertEqual(
-            self._without_count(self.rt.render_reviews_md()),
-            self._without_count(committed),
+            without_count(self.rt.render_reviews_md()),
+            without_count(committed),
             'REVIEWS.md is not what the committed review state renders '
             'to, ignoring the header count. A difference in the Date or '
             'Blob SHA columns means the sidecar '

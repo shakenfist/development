@@ -94,7 +94,7 @@ deliberately does not assert the header count, so nothing here fails.
 Pruning from a branch is also wrong more often than it is right:
 `prune` compares stamps against whatever `HEAD` is, so a branch behind
 main discards marks for files main changed. See the `plan-phase-landing`
-shared block.
+shared block in `PLAN-TEMPLATE.md`.
 
 A pruned file needs a human to read it again and re-mark it in
 weAudit. Do not re-stamp -- the mark attests that a person read that
