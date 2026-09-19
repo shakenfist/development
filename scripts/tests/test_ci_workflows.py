@@ -1820,20 +1820,32 @@ class FuzzNightlyReportingTest(CheckTestCase):
         self.fixture.workflow('fuzz.yml', GOOD_NIGHTLY)
         self.assert_pass(self.check(has_workflows_dir=True))
 
-    def test_a_variable_rooted_tail_that_climbs_names_no_sibling(self):
-        """`${TOOLS}/../shared/x.sh` is not a reference to a sibling.
+    def test_a_variable_rooted_tail_with_directories_names_no_sibling(self):
+        """A tail that names directories means them.
 
         The sibling reading exists because a script computing a
-        directory is nearly always computing its own. A tail that
-        climbs back out of that directory says otherwise, and offering
-        the basename anyway fabricates a path the repository never
-        named -- which can hand the walk an unrelated file of the same
-        name and turn it into a pass.
+        directory is nearly always computing its own, which is only
+        the case where nothing follows the variable but a file name.
+        Offering the basename for a tail that names directories --
+        whether it climbs out of the referring file's directory or
+        descends past it -- fabricates a path the repository never
+        named, and can hand the walk an unrelated file of the right
+        name and turn a repository that files nothing into a pass.
         """
-        self.assertEqual(
-            ['tools/shared/report.sh'],
-            list(ci_workflows.referenced_scripts(
-                '"${TOOLS}/../shared/report.sh"', 'tools/ci')))
+        for reference, expected in (
+                ('"${TOOLS}/../shared/report.sh"',
+                 ['tools/shared/report.sh']),
+                ('"${SCRIPT_DIR}/sub/dir/report.sh"',
+                 ['tools/ci/sub/dir/report.sh', 'sub/dir/report.sh']),
+                # Nothing but a file name after the variable, so the
+                # sibling is what was meant.
+                ('${SCRIPT_DIR}/report.sh',
+                 ['tools/ci/report.sh', 'report.sh'])):
+            with self.subTest(reference=reference):
+                self.assertEqual(
+                    expected,
+                    list(ci_workflows.referenced_scripts(
+                        reference, 'tools/ci')))
 
     def test_a_bare_sibling_is_resolved_against_its_own_directory(self):
         """`helper.sh "$1"` inside tools/ci means tools/ci/helper.sh.

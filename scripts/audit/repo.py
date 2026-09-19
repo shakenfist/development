@@ -146,6 +146,11 @@ class Repo:
                       else detect_repo_properties(path, name))
         self._reads = {}
         self._workflows = None
+        # Resolved once rather than per call: contains() is asked
+        # about every file a criterion's tree walk finds, and about
+        # every candidate path the fuzz reporting check offers for a
+        # reference.
+        self._real_path = os.path.realpath(path)
 
     def join(self, *parts):
         """Absolute path to something inside the checkout."""
@@ -200,8 +205,7 @@ class Repo:
         same one there. One implementation of it, called from both,
         rather than a second realpath comparison that drifts.
         """
-        root = os.path.realpath(self.path)
-        return os.path.realpath(full).startswith(root + os.sep)
+        return os.path.realpath(full).startswith(self._real_path + os.sep)
 
     def workflows(self):
         """Workflow file names under .github/workflows/, cached."""
