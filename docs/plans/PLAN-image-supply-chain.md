@@ -227,7 +227,7 @@ needs the same treatment, and phase 6 says so.
 |-------|--------|--------|
 | 1. Alarm on absence | Complete | images acccd2b (#5), images 47ed141 (#6), private-ci ae7b1f8 (#49), private-ci e1f8fb1 (#54), 33fl 6de1764 (#827) |
 | 2. Verify the artifact, not the name | Complete | images 6028647 (#7), images 4800c72 (#8), images b872641 (#9), actions 2ac4a94 (#74), 33fl bbbd842 (#836) |
-| 3. Unblock the migration | In progress | private-ci 9eace9d (#60), private-ci 2e18c13 (#61), private-ci dbb78ca (#63), actions 8684eec (#78), actions 781d267 (#80), kerbside 79c2506 (#435) |
+| 3. Unblock the migration | Complete | private-ci 9eace9d (#60), private-ci 2e18c13 (#61), private-ci dbb78ca (#63), actions 8684eec (#78), actions 781d267 (#80), kerbside 79c2506 (#435), kerbside cfef26a (#450) |
 | 4. The consumer sweep | Not started | |
 | 5. Retire the end-of-life producers | Not started | |
 | 6. Close the audit's blind spot | Not started | |
@@ -481,18 +481,17 @@ provisioning -- is built from `debian:11`, a base that can no longer
 be built at all: `bullseye-security`'s `Release` expired
 2026-09-08.
 
-**Status: the work is done and running; one correction is in
-review.** Both stuck labels are unstuck. `ci-images/debian-gnome-13`
-first built on 2026-09-17 at 06:53 (529s, blob
-`b9b624c8-713e-440b-ad0f-82b0e5f5ef60`), and the dependencies disk
-now builds on Debian 13 -- verified in production rather than at
-merge, with the conductor deployed at private-ci `ad9863eb` and the
-nightly creating its builder as `disks=['100@debian:13', '50']` on
-2026-09-18, against `['100@debian:11', '50']` the night before.
-private-ci#39 is closed with that evidence. private-ci#45 keeps its
-fourth checkbox for phase 5. Outstanding: kerbside#450, which
-corrects a defect introduced by kerbside#435; the status cell moves
-to `Complete` when it merges.
+**Status: complete, and verified in production.** Both stuck labels
+are unstuck. `ci-images/debian-gnome-13` first built on 2026-09-17
+at 06:53 (529s, blob `b9b624c8-713e-440b-ad0f-82b0e5f5ef60`), and
+the dependencies disk now builds on Debian 13 -- verified in
+production rather than at merge, with the conductor deployed at
+private-ci `ad9863eb` and the nightly creating its builder as
+`disks=['100@debian:13', '50']` on 2026-09-18, against
+`['100@debian:11', '50']` the night before. private-ci#39 is closed
+with that evidence. private-ci#45 keeps its fourth checkbox for
+phase 5. kerbside#450 merged on 2026-09-19, correcting the defect
+kerbside#435 introduced, which was the last outstanding piece.
 
 **Three things this phase got wrong, recorded for phase 7.**
 
@@ -534,8 +533,9 @@ lookup and the scratch filename. That removes the release from a
 cross-repository interface entirely, so the next desktop bump is not
 a fleet change. kerbside#435 was written against the abandoned
 design and merged anyway, reading a path that is never published and
-silently taking the legacy hardlink on every run -- which is what
-kerbside#450 fixes.
+silently taking the legacy hardlink on every run; kerbside#450
+corrected it to the published name, keeping the legacy fallback for
+clusters whose disk predates the stable name.
 
 #### What the survey found
 
