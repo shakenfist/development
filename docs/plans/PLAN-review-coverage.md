@@ -543,20 +543,6 @@ the whole backlog is `never_reviewed`). No disagreement was
 found between the two tools at either commit, and
 `audit-manage-issues.py` was not run.
 
-Review of #139 carried two of those corrections further than this
-phase had scoped them. `AGENTS.md` and `ARCHITECTURE.md` also said
-the prune workflow pushes to `main`, and
-`docs/audits/review-coverage.md` both named ryll and kerbside as the
-only adopters and described the
-issue as a work queue without the caveat; all three were fixed in the
-review rounds, and `AGENTS.md` additionally gained a note that nothing
-in a pull request catches a staled review mark. Step 5.1's brief told
-the sub-agent not to touch `AGENTS.md` or `ARCHITECTURE.md`, on the
-grounds that no convention and no system shape had changed. That was
-the wrong call: the same false claim lived in four files, and scoping
-the repair to one of them left the tree disagreeing with itself.
-Phase 6 audits the accumulated diff, so it sees all of it.
-
 What the phase changed, in total, is three corrections in
 `docs/code-review-tracking.md` -- the loop-safety argument, the
 location of `REVIEW_BACKLOG_THRESHOLD`, and the claim that a filed
@@ -607,6 +593,14 @@ bare `#N` but renders `repo#N` as plain text, so the short form the
 first round asked for was not a link at all. Editing the spec staled
 its mark too, pruned here like the other three, which is what takes
 this repository past its own threshold.
+
+Taken together, the two rounds say step 5.1's brief was wrong to
+scope the repair to one file. The "pushes to `main`" claim lived in
+three -- `docs/code-review-tracking.md`, `AGENTS.md` and
+`ARCHITECTURE.md` -- and the criterion spec carried two stale
+statements of its own, so repairing one of them left the tree
+disagreeing with itself until review caught it. Both rounds landed
+inside #139, so the merge commit recorded for step 7 covers them.
 
 **`review-coverage` fails against this repository, and that is the
 criterion working.** Rebasing onto main on 2026-09-19 put
@@ -730,6 +724,14 @@ into the shared vocabulary on 2026-09-17 -- see that phase's survey.
 Step 7 merged on 2026-09-19 as `ced6fef` (#139), which is what moved
 it to `Complete`; this plan does not write that term without a
 landing commit beside it.
+
+That cell records step 7 and nothing else. This closeout is its
+own pull request (#146), so it lands outside any range anchored on
+`ced6fef` and phase 6 will not see it. What it changes is this
+plan file's own narrative and no tooling, so the omission costs
+the audit nothing -- it is written down here rather than left
+implicit because the rule is that a landing is recorded, not that
+it is judged small.
 
 The `Merged` column is what `plan-push-audit-phase` asks each phase
 to record as it lands, so that phase 6 has a range to audit once
