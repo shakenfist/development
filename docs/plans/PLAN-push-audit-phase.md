@@ -1981,22 +1981,22 @@ required, done properly rather than asserted.
 Wave 1's one true positive is recorded as W1 below. Two checks
 over-fired and are recorded as A5 and A6.
 
-**Findings, with a disposition for each.** B1 and B2 are fixed in
-the findings pull request; A1 to A7 are advisory and their
-dispositions are stated individually.
+**Findings, with a disposition for each.** B1, B2, A1, A3 and A7 are fixed
+in the findings pull request, [#155]. A2 was declined on reading
+the code, and A5 and A6 on the merits.
 
 | # | Finding | Disposition |
 |---|---|---|
-| B1 | Symlink escape in `plan_index_target_path` | Fix in findings PR |
-| B2 | Quadratic `PLAN_LINK_RE` with no size cap and no job timeout | Fix in findings PR |
+| B1 | Symlink escape in `plan_index_target_path` | Fixed in [#155] |
+| B2 | Quadratic `PLAN_LINK_RE` with no size cap and no job timeout | Fixed in [#155] |
 | W1 | `ff92357` edits the shared block with no version bump | Accepted, no fix |
-| A1 | Raw `details` spliced into issue bodies | Fix in findings PR |
-| A2 | `iter_markdown_table_rows` carries a header across a table boundary | Fix in findings PR |
-| A3 | A docstring that is false about its own code path | Fix in findings PR |
+| A1 | Raw `details` spliced into issue bodies | Fixed in [#155] |
+| A2 | `iter_markdown_table_rows` carries a header across a table boundary | Declined, test added |
+| A3 | A docstring that is false about its own code path | Fixed in [#155] |
 | A4 | Two stale claims in this plan's own survey | Fixed here |
 | A5 | New-third-party-import check over-fires on first-party imports | Declined |
 | A6 | New-suppression check over-fires on carried-over `# noqa` | Declined |
-| A7 | `markdown_table_cells()` has no direct test | Fix in findings PR |
+| A7 | `markdown_table_cells()` has no direct test | Fixed in [#155] |
 
 **B1 -- the audit reads files outside the checkout, and quotes them
 into an issue it files.** `plan_index_target_path`
@@ -2102,13 +2102,21 @@ pre-existing class rather than opening one: `PlanIndex` already
 quoted uncapped cell text. Fixed in the findings pull request
 alongside B1 and B2, since it is the same file and the same review.
 
-**A2, A3, A7 -- correctness and test findings, all fixed in the
-findings pull request.** A2: `iter_markdown_table_rows` does not
-reset `header` at a table boundary, so a stray `|`-prefixed line
-following a real table with no blank line between is read as a data
-row of the previous table and attributed to its columns; the failure
-mode is a misattributed status cell rather than a crash, and
-`IterMarkdownTableRowsTest` has no case for it. A3:
+**A2 -- declined on reading the code.** Wave 2a raised
+`iter_markdown_table_rows` not resetting `header` at a table
+boundary: a `|`-prefixed line directly under a table, with no blank
+line between, is read as a data row of it. That is not a
+misattribution, because it is what the renderer does -- a table
+ends at the first line that is not a row, so there is no second
+table for the header to leak into, and GitHub renders those two
+lines as one table. Fixing it would have moved the parser away from
+the renderer. [#155] pins the behaviour and the blank-line boundary
+in a test instead, so the next reader does not make that change.
+This is the one finding whose disposition changed between triage
+and fix, which is an argument for writing the fix before writing
+that a finding is real.
+
+**A3 and A7 -- fixed in the findings pull request.** A3:
 `test_abandoned_plan_without_the_phase_passes` carries a docstring
 that is false about its own code path -- it claims "the check
 genuinely reads it and passes on the status rather than passing
@@ -2392,3 +2400,5 @@ Before phase 2 begins, the management session confirms with Mikal:
 the canonical wording of the shared block, and `development`'s
 `PUSH-AUDIT.md`. Both are cheap to propose and expensive to redo
 across thirty-six plan files and eight repositories.
+
+[#155]: https://github.com/shakenfist/development/pull/155
