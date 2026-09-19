@@ -92,19 +92,23 @@ branch that did not cause it, when another branch adds an in-scope
 file and both regenerate to the same header text: the fix is the same
 one command.
 
-Editing a file that carries a review mark stales that mark, and the
-same suite fails. Run `prune` and say so: the file then needs a human
-to read it again and re-mark it in weAudit. Do not re-stamp -- the
-mark attests that a person read that exact content, so there is no
-version of this an agent can finish alone.
+Editing a file that carries a review mark stales that mark. Nothing in
+the pull request catches this: `review-tracking-tests` only checks
+that `REVIEWS.md` regenerates unchanged, and `regen` counts marks
+rather than validating them against HEAD, so it passes. The
+`prune-reviews` workflow heals it after the merge, which is too late
+to be visible in review. Run `prune` yourself and say so: the file
+then needs a human to read it again and re-mark it in weAudit. Do not
+re-stamp -- the mark attests that a person read that exact content, so
+there is no version of this an agent can finish alone.
 
 `review-tracking.py` is run by hand in target repositories (via a thin
 wrapper like ryll's `tools/review-tracking.sh`), deliberately not from
 git hooks. Three subcommands also run from CI in steady state: `prune`
-from an adopting repo's `prune-reviews` workflow on pushes to main, and
-`status` and `scope-orphans` from the consistency audit's
-`review-coverage` and `review-scope-completeness` checks -- see
-`docs/code-review-tracking.md`.
+from an adopting repo's `prune-reviews` workflow on pushes to its
+default branch, and `status` and `scope-orphans` from the consistency
+audit's `review-coverage` and `review-scope-completeness` checks --
+see `docs/code-review-tracking.md`.
 
 ## Working on review tracking
 

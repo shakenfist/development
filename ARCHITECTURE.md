@@ -121,7 +121,7 @@ coverage against HEAD, list files the scope config silently omits),
 run by hand in target repositories via a thin wrapper (for example
 ryll's `tools/review-tracking.sh`) -- deliberately not from git
 hooks. In steady state three subcommands also run from CI: adopting
-repos prune stale marks on every push to main via a
+repos prune stale marks on every push to their default branch via a
 `prune-reviews` workflow, and the daily consistency audit alerts
 (via a GitHub issue) when five or more in-scope files need review
 (`review-coverage`) and when the scope config leaves a tracked file
