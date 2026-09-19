@@ -84,17 +84,25 @@ is being made the last phase of every master plan -- see
 `docs/plans/PLAN-push-audit-phase.md`, which is rolling that out;
 drop this qualifier once the sweep has landed.
 
-`REVIEWS.md` is owned by the `prune-reviews` workflow. Do not run
-`prune` or `regen` in a pull request, and do not commit the file:
-both the staleness caused by editing a reviewed file and the header
-count moved by a file entering or leaving `.vscode/review-scope.toml`
-are corrected on the next push to main, because `prune` regenerates
-the file whether or not it pruned anything. `review-tracking-tests`
-deliberately does not assert the header count, so nothing here fails.
-Pruning from a branch is also wrong more often than it is right:
-`prune` compares stamps against whatever `HEAD` is, so a branch behind
-main discards marks for files main changed. See the `plan-phase-landing`
-shared block in `PLAN-TEMPLATE.md`.
+`REVIEWS.md` is owned by the `prune-reviews` workflow. In a pull
+request that changes code or documentation, do not run `prune` or
+`regen`, and do not commit the file: both the staleness caused by
+editing a reviewed file and the header count moved by a file entering
+or leaving `.vscode/review-scope.toml` are corrected on the next push
+to main, because `prune` regenerates the file whether or not it pruned
+anything. `review-tracking-tests` deliberately does not assert the
+header count, so nothing here fails. Pruning from a branch is also
+wrong more often than it is right, and not for the obvious reason:
+`prune` compares each stamp against `HEAD`, which on a branch is the
+branch tip, so it drops the marks for the files the pull request itself
+touched and keeps the ones main has already pruned.
+
+A review session is the exception. `stamp` regenerates `REVIEWS.md`
+as well as writing the marks, and the rows, sidecars and marks are
+committed together -- see `docs/code-review-tracking.md`. Where a
+repository requires a pull request to reach its default branch, that
+is how its review sessions land. See the `plan-phase-landing` shared
+block in `PLAN-TEMPLATE.md`.
 
 A pruned file needs a human to read it again and re-mark it in
 weAudit. Do not re-stamp -- the mark attests that a person read that

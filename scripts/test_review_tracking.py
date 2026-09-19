@@ -395,6 +395,45 @@ class ReviewTrackingTest(unittest.TestCase):
         state = self.read_json('.vscode/testuser.weaudit')
         self.assertEqual([e['path'] for e in state['auditedFiles']], ['src/a.py'])
 
+    def test_prune_regenerates_the_count_even_when_nothing_was_stale(self):
+        """cmd_prune must regenerate REVIEWS.md on a run that pruned nothing.
+
+        This is the healing path the whole no-REVIEWS.md-in-a-pull-request
+        policy rests on: a branch that moves the header count leaves it
+        wrong, and prune-reviews corrects it on the next push to the
+        default branch. That only works because generate_reviews_md() is
+        called unconditionally rather than under `if pruned`. Making it
+        conditional reads like a harmless optimisation and would leave
+        the count drifting forever with nothing failing, which is
+        precisely what the comment on COUNT_LINE above relies on not
+        happening -- so the property is asserted here rather than left to
+        that comment.
+        """
+        self.mark_reviewed(['src/a.py'])
+        self.run_tool('stamp')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'reviews')
+        self.assertIn('1 of 2 in-scope files are currently reviewed.',
+                      self.read('REVIEWS.md'))
+
+        # A new in-scope file moves the count and stales nothing.
+        self.write('src/c.py', 'c = 3\n')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'add c')
+
+        p = self.run_tool('prune')
+        self.assertEqual(p.returncode, 0)
+        self.assertNotIn('changed since its review', p.stdout)
+
+        self.assertIn(
+            '1 of 3 in-scope files are currently reviewed.',
+            self.read('REVIEWS.md'),
+            'prune regenerated no REVIEWS.md on a run that pruned nothing, '
+            'so a moved header count would never heal on the default branch')
+        state = self.read_json('.vscode/testuser.weaudit')
+        self.assertEqual([e['path'] for e in state['auditedFiles']],
+                         ['src/a.py'])
+
     def test_prune_handles_deleted_files(self):
         self.mark_reviewed(['src/a.py'])
         self.run_tool('stamp')

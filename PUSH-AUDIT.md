@@ -100,14 +100,17 @@ the next daily run and files issues automatically -- that is the
 mechanism working, but it should be a decision rather than a
 side effect.
 
-`REVIEWS.md` needs no change in a pull request. A change that
-adds or removes a file matched by `.vscode/review-scope.toml`
-moves the header count, and a change that edits a file carrying
-a review mark stales that mark, but the `prune-reviews` workflow
-corrects both on the next push to main -- so do not prune,
-regenerate or commit the file here. Say instead which marks the
-change stales. Never re-stamp -- the mark attests that a person
-read that exact content.
+`REVIEWS.md` needs no change in a pull request that changes code
+or documentation. A change that adds or removes a file matched by
+`.vscode/review-scope.toml` moves the header count, and a change
+that edits a file carrying a review mark stales that mark, but the
+`prune-reviews` workflow corrects both on the next push to main --
+so do not prune, regenerate or commit the file here. Say instead
+which marks the change stales. Never re-stamp -- the mark attests
+that a person read that exact content. A review session is the
+exception: `stamp` regenerates the file, and the rows, sidecars and
+marks are committed together, as `docs/code-review-tracking.md`
+describes.
 
 ## Wave 2: Deeper review
 
@@ -529,7 +532,8 @@ After all agents complete:
 - [ ] Generated files are generated, not hand-edited:
       `docs/audits/compliance.md` and `REVIEWS.md`, and no
       criterion spec has grown a generated block.
-- [ ] Stale review marks pruned, and said so.
+- [ ] Stale review marks named in the pull request body, not
+      pruned.
 - [ ] Commit history is clean -- no fixups that should be
       squashed, no accidental files, no WIP messages.
 - [ ] Branch is up to date with `main`.
