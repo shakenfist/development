@@ -12,6 +12,12 @@ jobs:
   audit:
     name: Audit ${{ matrix.repo }}
     runs-on: [self-hosted, static]
+    # Bounded so one repository cannot hold the matrix open to the
+    # 360-minute default. The checks read markdown from the audited
+    # repository, so their cost is that repository's to choose; a leg
+    # that normally takes a couple of minutes and instead runs for six
+    # hours is a poisoned input, not a slow clone.
+    timeout-minutes: 30
     permissions:
       contents: read
     strategy:
@@ -117,6 +123,14 @@ jobs:
   manage-issues:
     name: Manage consistency issues
     needs: audit
+    # Runs even when a leg of the matrix failed. fail-fast: false
+    # already preserves the other legs' artifacts, and without this
+    # they were downloaded and then thrown away: one repository whose
+    # audit timed out stopped issue filing for all the others. Safe
+    # because audit-manage-issues.py iterates the result files it
+    # finds, so a repository with no artifact is not processed at all
+    # -- its open issues are left alone rather than closed as passing.
+    if: always()
     runs-on: [self-hosted, static]
     permissions:
       contents: read

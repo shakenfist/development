@@ -58,6 +58,42 @@ PLAN_SOURCE_FILE_OK = 'audit-ok: plan-reference-file'
 PLAN_SOURCE_MAX_BYTES = 2 * 1024 * 1024
 
 
+def plan_quote(text):
+    """Bound a string read from a repository before it is quoted.
+
+    Every detail string this module builds is published twice: into
+    the generated compliance page, and into the body of an issue
+    filed on the audited repository. The text quoted is a heading or
+    a table cell read from that repository's markdown, so its length
+    is that repository's to choose. The phase summary was already
+    bounded here; the heading beside it was not, and a 180-character
+    "heading" rendered in full. audit_common.defuse() takes the
+    structure out of these strings and this takes the volume out --
+    the two are not substitutes.
+    """
+    if len(text) > 60:
+        return text[:57] + '...'
+    return text
+
+
+def plan_path_is_contained(root, candidate):
+    """True when candidate resolves inside root, symlinks included.
+
+    os.path.normpath is textual. It stops a `../../` link target and
+    it does not stop a symlink committed inside docs/plans/, because
+    os.path.isfile() follows the link: the file is then read, and this
+    criterion quotes what it read into an issue it files on sixteen
+    repositories. Repo.contains() makes the same comparison against
+    the clone, and says in its own docstring why one implementation
+    called from everywhere beats a second realpath comparison that
+    drifts. This is the narrower form of it -- a plan has to sit under
+    docs/plans/, not merely somewhere in the repository -- so it
+    defers to the same rule rather than restating it loosely.
+    """
+    real_root = os.path.realpath(root)
+    return os.path.realpath(candidate).startswith(real_root + os.sep)
+
+
 # PLAN-TEMPLATE.md is not a plan. It is the template plans are written
 # from, it sits at the repository root rather than in docs/plans/, and
 # the plan-template audit is what holds it there. Naming it in a script
@@ -145,7 +181,24 @@ PLAN_PHASE_FILE_RE = re.compile(r'-phase-\d')
 PLAN_CELL_DECORATION_RE = re.compile(r'[`*_~]')
 
 
-PLAN_LINK_RE = re.compile(r'\[([^\]]*)\]\(([^)]+)\)')
+# Both halves are bounded, and the bound is the point rather than
+# the length. Unbounded, `\[([^\]]*)\]\(([^)]+)\)` backtracks
+# quadratically over a run of `[` with no closing paren: every `[` is
+# a fresh start position, each one scans to the `]` and then unwinds
+# the `+`. Measured on this pattern at 4x per doubling of the input,
+# so a 2 MB index.md costs hours -- per check, and two checks read it
+# -- against a job with no timeout whose failure skips issue filing
+# and the compliance page for every repository in the matrix. Bounding
+# only the target does not fix it and bounding neither with `[^)\n]`
+# makes it slower; bounding both caps the work at each start position
+# and the curve goes linear. No real link comes close to the bound:
+# the longest in this repository's own plans is under 80 characters.
+PLAN_LINK_MAX_CHARS = 512
+
+
+PLAN_LINK_RE = re.compile(
+    r'\[([^\]\n]{0,%d})\]\(([^)\n]{1,%d})\)'
+    % (PLAN_LINK_MAX_CHARS, PLAN_LINK_MAX_CHARS))
 
 
 # A link target that leaves this repository: an absolute URL, or
@@ -419,8 +472,13 @@ def plan_index_entries(path):
     Returns a list of (filename, link target, status or None) in the
     order the index introduces them.
     """
+    # Bounded for the same reason plan_reference_files() bounds what
+    # it reads, and with the same constant: this file is markdown
+    # from another repository, and both this criterion and plan-index
+    # read it on every run. An index over 2 MB is pathological rather
+    # than large -- this repository's own is under 8 KB.
     with open(path, 'r', errors='replace') as f:
-        lines = f.read().splitlines()
+        lines = f.read(PLAN_SOURCE_MAX_BYTES).splitlines()
 
     found = {}
 
@@ -513,9 +571,17 @@ def plan_index_target_path(plans_dir, target, name, paths):
     candidate = os.path.normpath(os.path.join(plans_dir, target))
     root = os.path.normpath(plans_dir)
     if (candidate == root or candidate.startswith(root + os.sep)) \
-            and os.path.isfile(candidate):
+            and os.path.isfile(candidate) \
+            and plan_path_is_contained(plans_dir, candidate):
         return candidate
-    return paths.get(name)
+    # The by-name fallback needs the same proof. plan_file_paths()
+    # walks docs/plans/, so every value in the map is textually
+    # inside it, which says nothing about where a symlink there
+    # points.
+    fallback = paths.get(name)
+    if fallback is not None and plan_path_is_contained(plans_dir, fallback):
+        return fallback
+    return None
 
 
 def plan_phases(content):
@@ -794,8 +860,7 @@ def plan_audit_phase_state(content):
         # number already told them. The row the phase was read from
         # names something.
         summary = text
-    if len(summary) > 60:
-        summary = summary[:57] + '...'
+    summary = plan_quote(summary)
 
     # An audit phase somewhere earlier, rather than the words
     # appearing anywhere in the plan: a Future work note mentioning a
@@ -871,7 +936,8 @@ def plan_audit_phase_state(content):
         # believe they already wrote, so the heading is named and the
         # two shapes that are read are spelled out instead.
         return PLAN_AUDIT_PROBLEM, (
-            f'no push audit phase; the plan has a "{near[-1]}" heading, '
+            f'no push audit phase; the plan has a '
+            f'"{plan_quote(near[-1])}" heading, '
             f'but that is not read as one -- a push audit phase is a '
             f'numbered phase, or a section headed exactly "Push audit"'
         )
@@ -1310,8 +1376,10 @@ class PlanAuditPhase(Check):
                 terminal += 1
                 continue
 
+            # Bounded: this is markdown from another repository and
+            # every byte of it is fed to the link and table parsers.
             with open(path, 'r', errors='replace') as f:
-                content = f.read()
+                content = f.read(PLAN_SOURCE_MAX_BYTES)
             state, detail = plan_audit_phase_state(content)
             if state == PLAN_AUDIT_UNPHASED:
                 unphased.append(name)

@@ -21,6 +21,7 @@ import time
 from audit_common import (
     AUDIT_METADATA,
     ISSUE_TITLES,
+    defuse,
     gh_canonical_repo,
     gh_search_issues,
 )
@@ -166,7 +167,14 @@ def build_issue_body(check_id, check_result):
             f'({DEV_REPO_URL}/{template_dir}README.md)\n'
         )
 
-    body += f'\n### Automated check details\n\n{check_result["details"]}\n'
+    # Defused, not spliced raw. The string is written by a check out
+    # of what it found in another repository -- filenames and heading
+    # text read from that repository's markdown -- and an issue body
+    # renders a mention to a real notification, under this workflow's
+    # own identity.
+    body += (
+        f'\n### Automated check details\n\n'
+        f'{defuse(check_result["details"])}\n')
 
     if 'missing' in check_result:
         body += render_issue_items(

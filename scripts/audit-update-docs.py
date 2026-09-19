@@ -39,6 +39,7 @@ from audit_common import (
     BEGIN_MARKER,
     END_MARKER,
     ISSUE_TITLES,
+    defuse,
     gh_search_issues,
 )
 
@@ -174,36 +175,6 @@ def column_name(check_id):
             file=sys.stderr,
         )
     return COLUMN_NAMES.get(check_id, check_id)
-
-
-def defuse(details):
-    """Make a harvested detail string safe to splice into the page.
-
-    A detail string is written by a check in audit-check.py out of what
-    it found in an audited repository, so it can carry that
-    repository's filenames and a tool's output verbatim. It is then
-    rendered as bare prose inside the generated block, which means two
-    things have to be taken away from it before it lands.
-
-    Newlines, because the block's structure is line-based: a detail
-    spanning lines can emit a table row, a `## ` heading, or a bare
-    marker, none of which the renderer intended. A subprocess
-    traceback reaching a detail string is the way this happens by
-    accident.
-
-    The HTML comment opener, because update_compliance_page finds the
-    end marker in order to replace the block. A detail containing the
-    literal end marker would terminate the next run's splice early,
-    leaving the rest of that run's tables outside the block -- where
-    they are preserved, and preserved again by every later run, so the
-    page grows without bound and publishes stale verdicts that
-    blank_generated_blocks no longer exempts from this repository's own
-    docs-external-links and plan-phase-references checks. It takes
-    commit access to an audited repository to do deliberately (a
-    workflow file named for the marker is enough), which is why the
-    marker is defused here rather than the whole string escaped.
-    """
-    return ' '.join(details.split()).replace('<!--', '&lt;!--')
 
 
 def render_table(check_ids, results, no_issues):
