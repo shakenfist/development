@@ -85,14 +85,6 @@
       "sha": "33dd8025ce54de02c718de0ff7724f90efc57771",
       "date": "2026-09-16"
     },
-    "PLAN-TEMPLATE.md": {
-      "sha": "58dc1db4e2348928d127d28a6336209803ce4c93",
-      "date": "2026-09-16"
-    },
-    "PUSH-AUDIT.md": {
-      "sha": "30723ce58effe56f458c0b8b7de94cfca2cfb2c1",
-      "date": "2026-09-09"
-    },
     "README.md": {
       "sha": "5ac5a6754b08642183a1425f5a50f114ea907848",
       "date": "2026-09-09"
@@ -353,10 +345,6 @@
       "sha": "a09316ca6f7de57df1ae55e74541c57ca75fd4f7",
       "date": "2026-09-06"
     },
-    "scripts/audit/checks/plans.py": {
-      "sha": "36fe5e4c9c044f805ede40a95ff1bb65e7240761",
-      "date": "2026-09-15"
-    },
     "scripts/audit/checks/review.py": {
       "sha": "d4306f77753ad6a1bd653905e7ce7c76d05fbfd8",
       "date": "2026-09-03"
@@ -444,10 +432,6 @@
     "scripts/test_issue_fix_extraction.py": {
       "sha": "a65f57fa36a5b208cf744d16dddc0963c7e864a5",
       "date": "2026-09-04"
-    },
-    "scripts/test_review_tracking.py": {
-      "sha": "b9544dc9a6c1d955974539228ef8d2c20eeac071",
-      "date": "2026-09-09"
     },
     "scripts/tests/__init__.py": {
       "sha": "531d26fbe639291831bc7dff3a4959a702b09fe8",
@@ -620,10 +604,6 @@
     "templates/renovate/renovate.yml": {
       "sha": "f06f837115324e557b40b961b70a557579744e62",
       "date": "2026-09-19"
-    },
-    "templates/shared-blocks/README.md": {
-      "sha": "4508ee6d15fc3b1e514f09b7154c5f63a871badb",
-      "date": "2026-09-04"
     },
     "templates/shared-blocks/comment-proportion.md": {
       "sha": "38c366bd44e111f047e5eb2379451ba9c13d04c6",

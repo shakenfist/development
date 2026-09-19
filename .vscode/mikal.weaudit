@@ -473,10 +473,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/shared-blocks/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/shared-blocks/subagent-execution-model.md",
       "author": "mikal"
     },
@@ -577,10 +573,6 @@
       "author": "mikal"
     },
     {
-      "path": "PUSH-AUDIT.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/pyproject-usage.md",
       "author": "mikal"
     },
@@ -606,10 +598,6 @@
     },
     {
       "path": "scripts/tests/test_github_config.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/test_review_tracking.py",
       "author": "mikal"
     },
     {
@@ -678,10 +666,6 @@
     },
     {
       "path": "scripts/audit/checks/npm_dependencies.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/plans.py",
       "author": "mikal"
     },
     {
@@ -765,10 +749,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/shared-blocks",
-      "author": "mikal"
-    },
-    {
       "path": "tools/mermaid-lint.sh",
       "author": "mikal"
     },
@@ -781,19 +761,11 @@
       "author": "mikal"
     },
     {
-      "path": "PLAN-TEMPLATE.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/renovate/renovate.yml",
       "author": "mikal"
     },
     {
       "path": "templates/renovate",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     },
     {
