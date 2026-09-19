@@ -14,6 +14,7 @@ import re
 import subprocess
 
 from audit.check import Check
+from audit.repo import path_is_within
 from audit.files import check_file_contains, iter_doc_content_files
 from audit.text.markdown import (
     blank_generated_blocks, iter_lines_outside_fences,
@@ -58,21 +59,37 @@ PLAN_SOURCE_FILE_OK = 'audit-ok: plan-reference-file'
 PLAN_SOURCE_MAX_BYTES = 2 * 1024 * 1024
 
 
-def plan_quote(text):
+def plan_source_is_oversize(path):
+    """Is this file too large to be the plan document it claims to be?
+
+    Markdown from another repository, parsed by this one on every
+    run, so its size is that repository's to choose. Every caller
+    declines to judge rather than reading a prefix: a truncated plan
+    is a wrong verdict rather than a declined one, and a wrong
+    verdict here files an issue on somebody else's repository.
+    """
+    return os.path.getsize(path) > PLAN_SOURCE_MAX_BYTES
+
+
+def plan_quote(text, limit=60):
     """Bound a string read from a repository before it is quoted.
 
     Every detail string this module builds is published twice: into
     the generated compliance page, and into the body of an issue
-    filed on the audited repository. The text quoted is a heading or
-    a table cell read from that repository's markdown, so its length
-    is that repository's to choose. The phase summary was already
-    bounded here; the heading beside it was not, and a 180-character
-    "heading" rendered in full. audit_common.defuse() takes the
-    structure out of these strings and this takes the volume out --
-    the two are not substitutes.
+    filed on the audited repository. The text quoted is a heading, a
+    date or a table cell read from that repository's markdown, so its
+    length is that repository's to choose, and PLAN_INDEX_MAX_SHOWN
+    bounds how many items are named rather than how long each one is.
+
+    The limit is an argument because the two checks here disagreed
+    about it -- 60 for a phase summary, 40 for a status cell -- and
+    the disagreement is worth keeping while the second implementation
+    of the truncation is not. audit_common.defuse() takes the
+    structure out of these strings and this takes the volume out; the
+    two are not substitutes.
     """
-    if len(text) > 60:
-        return text[:57] + '...'
+    if len(text) > limit:
+        return text[:limit - 3] + '...'
     return text
 
 
@@ -88,10 +105,10 @@ def plan_path_is_contained(root, candidate):
     called from everywhere beats a second realpath comparison that
     drifts. This is the narrower form of it -- a plan has to sit under
     docs/plans/, not merely somewhere in the repository -- so it
-    defers to the same rule rather than restating it loosely.
+    passes a narrower root to the same primitive rather than writing
+    the comparison out a second time.
     """
-    real_root = os.path.realpath(root)
-    return os.path.realpath(candidate).startswith(real_root + os.sep)
+    return path_is_within(root, candidate)
 
 
 # PLAN-TEMPLATE.md is not a plan. It is the template plans are written
@@ -472,13 +489,17 @@ def plan_index_entries(path):
     Returns a list of (filename, link target, status or None) in the
     order the index introduces them.
     """
-    # Bounded for the same reason plan_reference_files() bounds what
-    # it reads, and with the same constant: this file is markdown
-    # from another repository, and both this criterion and plan-index
-    # read it on every run. An index over 2 MB is pathological rather
-    # than large -- this repository's own is under 8 KB.
+    # An index too large to be one is not read at all, rather than
+    # read in part: truncating would hand the link parser a fragment
+    # and report whatever survived the cut as the whole index. Same
+    # constant and same shape as the plan-source-references check
+    # below, which skips an oversize file rather than truncating it.
+    # This repository's own index is under 8 KB.
+    if plan_source_is_oversize(path):
+        return []
+
     with open(path, 'r', errors='replace') as f:
-        lines = f.read(PLAN_SOURCE_MAX_BYTES).splitlines()
+        lines = f.read().splitlines()
 
     found = {}
 
@@ -1074,7 +1095,14 @@ class PlanSourceReferences(Check):
             path = os.path.join(repo.path, rel)
             if not os.path.isfile(path):
                 continue
-            if os.path.getsize(path) > PLAN_SOURCE_MAX_BYTES:
+            # isfile() follows a symlink, and git tracks symlinks, so
+            # a repository can point one at anything on the runner
+            # and have this check quote what it reads into an issue
+            # body. The containment the index link targets get, on
+            # the path beside them.
+            if not repo.contains(path):
+                continue
+            if plan_source_is_oversize(path):
                 continue
             with open(path, 'r', errors='replace') as f:
                 content = f.read()
@@ -1187,7 +1215,9 @@ class PlanIndex(Check):
                     'columns': columns,
                     'lead_ok': (tuple(columns[:len(PLAN_INDEX_LEAD_COLUMNS)])
                                 == PLAN_INDEX_LEAD_COLUMNS),
-                    'header': f'line {lineno} starts "{" | ".join(cells[:2])}"',
+                    'header': (
+                        f'line {lineno} starts '
+                        f'"{plan_quote(" | ".join(cells[:2]))}"'),
                     'has_plans': False,
                     'previous_date': None,
                     'bad_dates': [],
@@ -1206,11 +1236,12 @@ class PlanIndex(Check):
                 # statuses out of the wrong columns would only add noise.
                 continue
 
-            plan = plan_cell_text(cells[1]) or f'line {lineno}'
+            plan = plan_quote(plan_cell_text(cells[1])) or f'line {lineno}'
 
             date = plan_cell_text(cells[0])
             if not PLAN_INDEX_DATE_RE.match(date):
-                current['bad_dates'].append(f'{plan} ("{date}")')
+                current['bad_dates'].append(
+                    f'{plan} ("{plan_quote(date)}")')
             else:
                 previous = current['previous_date']
                 if previous is not None and date < previous:
@@ -1222,9 +1253,7 @@ class PlanIndex(Check):
                 if index < len(cells):
                     status = plan_cell_text(cells[index])
                     if status.lower() not in statuses:
-                        excerpt = (
-                            status if len(status) <= 40 else status[:37] + '...'
-                        )
+                        excerpt = plan_quote(status, limit=40)
                         current['bad_statuses'].append(f'{plan} ("{excerpt}")')
 
         plan_tables = [t for t in tables if t['has_plans']]
@@ -1376,10 +1405,16 @@ class PlanAuditPhase(Check):
                 terminal += 1
                 continue
 
-            # Bounded: this is markdown from another repository and
-            # every byte of it is fed to the link and table parsers.
+            if plan_source_is_oversize(path):
+                # Declined rather than judged on a fragment. Reading
+                # the first 2 MB and reporting "no push audit phase"
+                # would file an issue on another repository about a
+                # phase that may sit just past the cut.
+                unresolved.append(name)
+                continue
+
             with open(path, 'r', errors='replace') as f:
-                content = f.read(PLAN_SOURCE_MAX_BYTES)
+                content = f.read()
             state, detail = plan_audit_phase_state(content)
             if state == PLAN_AUDIT_UNPHASED:
                 unphased.append(name)

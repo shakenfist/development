@@ -130,7 +130,12 @@ jobs:
     # because audit-manage-issues.py iterates the result files it
     # finds, so a repository with no artifact is not processed at all
     # -- its open issues are left alone rather than closed as passing.
-    if: always()
+    #
+    # !cancelled() rather than always(): a run somebody stopped, or
+    # one superseded by a newer dispatch, should not go on to file
+    # and close issues across the fleet from whichever artifacts
+    # happened to land before it was killed.
+    if: ${{ !cancelled() }}
     runs-on: [self-hosted, static]
     permissions:
       contents: read
@@ -163,6 +168,14 @@ jobs:
   # specs, which are hand-written, can hold a human review mark.
   update-docs:
     name: Update the audit compliance page
+    # Deliberately NOT given manage-issues' !cancelled() treatment,
+    # and the asymmetry is the point rather than an oversight. That
+    # job only touches the repositories it has results for, so a
+    # partial run is partial work. This one regenerates the whole
+    # page: a repository whose leg failed has no artifact, renders as
+    # `unknown` (AGENTS.md), and would be committed to main that way
+    # -- replacing good verdicts with unknowns is worse than the
+    # stale page report-failure already warns about.
     needs: [audit, manage-issues]
     runs-on: [self-hosted, static]
     permissions:
