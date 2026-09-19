@@ -39,6 +39,15 @@ checks) verify that an embedded block:
 - matches the canonical wording exactly (modulo trailing
   whitespace).
 
+`plan-phase-landing` is canonical here and embedded in this
+repository's `PLAN-TEMPLATE.md`, but is deliberately **not** in
+`PLAN_TEMPLATE_BLOCKS` in `scripts/audit/checks/plans.py` yet. Adding
+it there marks eleven repositories non-compliant at once and files
+eleven issues, and the point of the block is to reduce documentation
+round trips rather than to generate a fresh batch of them. Add it to
+that list when there is appetite for the sweep; it is a one-line
+change and nothing else depends on the timing.
+
 ## Updating a block
 
 1. Edit the canonical file here.
