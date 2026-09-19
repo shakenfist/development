@@ -85,14 +85,6 @@
       "sha": "33dd8025ce54de02c718de0ff7724f90efc57771",
       "date": "2026-09-16"
     },
-    "AGENTS.md": {
-      "sha": "8527c1d114aa36d9ab1159f6a96a5f0234caf6bb",
-      "date": "2026-09-06"
-    },
-    "ARCHITECTURE.md": {
-      "sha": "b3d68183816ceccc766cf0349836d283dca30cef",
-      "date": "2026-09-16"
-    },
     "PLAN-TEMPLATE.md": {
       "sha": "58dc1db4e2348928d127d28a6336209803ce4c93",
       "date": "2026-09-16"
@@ -253,10 +245,6 @@
       "sha": "ce1f4861273d8634c0a9007750585e98637ed38f",
       "date": "2026-09-04"
     },
-    "docs/audits/review-coverage.md": {
-      "sha": "c11e8e126b81545278f015a7580d8eeadcdb55f3",
-      "date": "2026-08-29"
-    },
     "docs/audits/review-scope-completeness.md": {
       "sha": "043fcc6e69f9732861a1871b4bdb43b517abc164",
       "date": "2026-09-01"
@@ -308,10 +296,6 @@
     "docs/ci-review-automation.md": {
       "sha": "d0ddaacb7265a1071af7a8463b44c8d5cf28a329",
       "date": "2026-09-07"
-    },
-    "docs/code-review-tracking.md": {
-      "sha": "0eb0cce0f2d17eff4e3beb319bb9e4e5b8033347",
-      "date": "2026-09-01"
     },
     "docs/consistency-audits.md": {
       "sha": "a2c8a1b6ec840444dcd21ac9f330cc1b12fb4354",

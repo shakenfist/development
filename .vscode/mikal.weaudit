@@ -105,10 +105,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/review-coverage.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/rust-unwrap-lint.md",
       "author": "mikal"
     },
@@ -290,10 +286,6 @@
     },
     {
       "path": "docs/audits/workflow-standards.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/code-review-tracking.md",
       "author": "mikal"
     },
     {
@@ -542,10 +534,6 @@
     },
     {
       "path": "scripts/audit_snapshot.py",
-      "author": "mikal"
-    },
-    {
-      "path": "AGENTS.md",
       "author": "mikal"
     },
     {
@@ -810,10 +798,6 @@
     },
     {
       "path": ".pre-commit-config.yaml",
-      "author": "mikal"
-    },
-    {
-      "path": "ARCHITECTURE.md",
       "author": "mikal"
     },
     {
