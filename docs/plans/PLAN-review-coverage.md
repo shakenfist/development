@@ -543,6 +543,20 @@ the whole backlog is `never_reviewed`). No disagreement was
 found between the two tools at either commit, and
 `audit-manage-issues.py` was not run.
 
+Review of #139 carried two of those corrections further than this
+phase had scoped them. `AGENTS.md` and `ARCHITECTURE.md` also said
+the prune workflow pushes to `main`, and
+`docs/audits/review-coverage.md` both named ryll and kerbside as the
+only adopters and described the
+issue as a work queue without the caveat; all three were fixed in the
+review rounds, and `AGENTS.md` additionally gained a note that nothing
+in a pull request catches a staled review mark. Step 5.1's brief told
+the sub-agent not to touch `AGENTS.md` or `ARCHITECTURE.md`, on the
+grounds that no convention and no system shape had changed. That was
+the wrong call: the same false claim lived in four files, and scoping
+the repair to one of them left the tree disagreeing with itself.
+Phase 6 audits the accumulated diff, so it sees all of it.
+
 What the phase changed, in total, is three corrections in
 `docs/code-review-tracking.md` -- the loop-safety argument, the
 location of `REVIEW_BACKLOG_THRESHOLD`, and the claim that a filed
@@ -707,14 +721,15 @@ PR on this branch, the ryll work a separate PR.
 | 4 | development | `PROJECT-CONSISTENCY-AUDITS.md` + `PLAN-consistency.md` entries | Complete | `b677b61` (#11) |
 | 5 | development | `docs/code-review-tracking.md` steady-state rewrite | Complete | `b677b61` (#11) |
 | 6 | ryll | prune workflow + `tools/ci-prune-reviews.sh` + docs | Complete | ryll `1e94d00f` (#236) |
-| 7 | both | end-to-end verification (phase 5) | In progress | |
+| 7 | both | end-to-end verification (phase 5) | Complete | `ced6fef` (#139) |
 | 8 | both | push audit over each PR (phase 6) | Not started | |
 
 Step 7 stopped being blocked when both pull requests merged in
 August; phase 5 above is the plan for it. The statuses were brought
 into the shared vocabulary on 2026-09-17 -- see that phase's survey.
-Step 7 reaches `Complete` when its own pull request merges and the
-`Merged` column records that commit, not before.
+Step 7 merged on 2026-09-19 as `ced6fef` (#139), which is what moved
+it to `Complete`; this plan does not write that term without a
+landing commit beside it.
 
 The `Merged` column is what `plan-push-audit-phase` asks each phase
 to record as it lands, so that phase 6 has a range to audit once
