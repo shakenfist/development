@@ -25,7 +25,7 @@ and, importantly, what it cannot see.
 
 | Issue | Repository | What |
 |-------|------------|------|
-| [#123](https://github.com/shakenfist/development/issues/123) | development | 80 Debian 12 references in 15 repositories |
+| [#123](https://github.com/shakenfist/development/issues/123) | development | Debian 12 runner labels and container bases, fleet wide |
 | [#38](https://github.com/shakenfist/private-ci/issues/38) | private-ci | Collated inventory of obsolete base image usage |
 | [#39](https://github.com/shakenfist/private-ci/issues/39) | private-ci | Dependencies cache disk still built from `debian:11` |
 | [#40](https://github.com/shakenfist/private-ci/issues/40) | private-ci | Retire the unused `debian-11` runner image and label |
@@ -227,7 +227,7 @@ needs the same treatment, and phase 6 says so.
 |-------|--------|--------|
 | 1. Alarm on absence | Complete | images acccd2b (#5), images 47ed141 (#6), private-ci ae7b1f8 (#49), private-ci e1f8fb1 (#54), 33fl 6de1764 (#827) |
 | 2. Verify the artifact, not the name | Complete | images 6028647 (#7), images 4800c72 (#8), images b872641 (#9), actions 2ac4a94 (#74), 33fl bbbd842 (#836) |
-| 3. Unblock the migration | In progress | private-ci 9eace9d (#60), private-ci 2e18c13 (#61), private-ci dbb78ca (#63), actions 8684eec (#78), actions 781d267 (#80), kerbside 79c2506 (#435) |
+| 3. Unblock the migration | Complete | private-ci 9eace9d (#60), private-ci 2e18c13 (#61), private-ci dbb78ca (#63), actions 8684eec (#78), actions 781d267 (#80), kerbside 79c2506 (#435), kerbside cfef26a (#450) |
 | 4. The consumer sweep | Not started | |
 | 5. Retire the end-of-life producers | Not started | |
 | 6. Close the audit's blind spot | Not started | |
@@ -481,18 +481,17 @@ provisioning -- is built from `debian:11`, a base that can no longer
 be built at all: `bullseye-security`'s `Release` expired
 2026-09-08.
 
-**Status: the work is done and running; one correction is in
-review.** Both stuck labels are unstuck. `ci-images/debian-gnome-13`
-first built on 2026-09-17 at 06:53 (529s, blob
-`b9b624c8-713e-440b-ad0f-82b0e5f5ef60`), and the dependencies disk
-now builds on Debian 13 -- verified in production rather than at
-merge, with the conductor deployed at private-ci `ad9863eb` and the
-nightly creating its builder as `disks=['100@debian:13', '50']` on
-2026-09-18, against `['100@debian:11', '50']` the night before.
-private-ci#39 is closed with that evidence. private-ci#45 keeps its
-fourth checkbox for phase 5. Outstanding: kerbside#450, which
-corrects a defect introduced by kerbside#435; the status cell moves
-to `Complete` when it merges.
+**Status: complete, and verified in production.** Both stuck labels
+are unstuck. `ci-images/debian-gnome-13` first built on 2026-09-17
+at 06:53 (529s, blob `b9b624c8-713e-440b-ad0f-82b0e5f5ef60`), and
+the dependencies disk now builds on Debian 13 -- verified in
+production rather than at merge, with the conductor deployed at
+private-ci `ad9863eb` and the nightly creating its builder as
+`disks=['100@debian:13', '50']` on 2026-09-18, against
+`['100@debian:11', '50']` the night before. private-ci#39 is closed
+with that evidence. private-ci#45 keeps its fourth checkbox for
+phase 5. kerbside#450 merged on 2026-09-19, correcting the defect
+kerbside#435 introduced, which was the last outstanding piece.
 
 **Three things this phase got wrong, recorded for phase 7.**
 
@@ -534,8 +533,9 @@ lookup and the scratch filename. That removes the release from a
 cross-repository interface entirely, so the next desktop bump is not
 a fleet change. kerbside#435 was written against the abandoned
 design and merged anyway, reading a path that is never published and
-silently taking the legacy hardlink on every run -- which is what
-kerbside#450 fixes.
+silently taking the legacy hardlink on every run; kerbside#450
+corrected it to the published name, keeping the legacy fallback for
+clusters whose disk predates the stable name.
 
 #### What the survey found
 
@@ -1014,37 +1014,343 @@ disabled, that is the point to reconsider.
 
 ### 4. The consumer sweep
 
-Closes: development#123, private-ci#38. Depends on: phase 3 for
-anything naming `debian-gnome-12`.
+Closes: development#123. Contributes to private-ci#38, which closes
+at the end of phase 5. Depends on: phase 3, satisfied. Planning
+effort: high, because the inventory the master plan carried is a
+fortnight stale in both directions, and because the criterion that
+produced it cannot see the half of the migration that actually
+gates phase 5.
+
+**Status: planned, not started.**
 
 private-ci#38 is the collated inventory of where the fleet uses
 obsolete base images. It is a reference rather than a task, and it
-closes when the thing it inventories is gone: this phase clears
-the consumer half and phase 5 clears the producer half, so #38
-closes at the end of phase 5 rather than when its own checklist is
-ticked.
+closes when the thing it inventories is gone: this phase clears the
+consumer half and phase 5 clears the producer half, so #38 closes at
+the end of phase 5 rather than when its own checklist is ticked.
 
-80 references in 15 repositories, repository by repository rather
-than as one sweep, so each change carries its own actionlint edit
-and is reviewed against the workflows it touches.
+Two things make this less mechanical than a reference count
+suggests:
 
-Two things make this less mechanical than the count suggests:
+* **Each runner-label move is two files.** A label change also needs
+  the replacement declared in that repository's
+  `.github/actionlint.yaml` under `self-hosted-runner: labels:`, in
+  the same commit. actionlint fails a workflow naming an undeclared
+  label, so missing this turns a one-line fix into a failing lint.
+* **The runner labels are the visible half.** The guest images the
+  CI clusters boot, and the artifact name a smoke cluster uploads
+  into itself, are also Debian 12, and the `eol-distro` criterion
+  reads neither. That half is the half phase 5 trips over.
 
-* **Each move is two files.** A runner label change also needs the
-  replacement declared in that repository's
-  `.github/actionlint.yaml` under `self-hosted-runner: labels:`,
-  in the same commit. actionlint fails a workflow naming an
-  undeclared label, so missing this turns a one-line fix into a
-  failing lint.
-* **Two findings are not label swaps.** instar boots `debian:12`
-  in a functional-test matrix deliberately covering several
-  distributions, which is the `audit-ok: eol-distro` case rather
-  than a migration. kerbside has two bookworm-tagged rust images
-  needing a tag bump, which is a different decision.
+#### What the survey found
 
-The daily audit already files a `consistency` issue per
-repository, so this phase tracks those rather than duplicating
-them.
+Checked 2026-09-19 against each repository's `main` as fetched that
+day, by shallow-cloning all twenty-nine non-archived repositories
+in the `shakenfist` organisation and running this plan's own
+criterion over every one of them, including the eight the daily
+audit does not cover. The scan is reproducible from a checkout of this
+repository:
+
+```python
+import sys
+sys.path.insert(0, 'scripts')
+from audit.checks import distros
+from audit.repo import Repo
+found = distros.scan(Repo(clone_path, name, 'shakenfist'))
+```
+
+It agrees line for line with `docs/audits/compliance.md` as
+regenerated at 2026-09-19T10:32, which is the artifact to re-read
+rather than any number written here.
+
+**The count has almost halved, and not because of this plan.**
+development#123 measured 80 references in 15 repositories on
+2026-09-12. Today it is 45 in 13, and the 35 that went were ordinary
+repository work answering the daily audit's own issues:
+development's four cleared when #119 merged, exactly as #123
+predicted; `instar` moved its whole pool on 2026-09-16 (`dbc1cc0`,
+"Move CI onto the Debian 13 runner pool"), taking 20 of its 21; and
+`kerbside` moved on 2026-09-17 (`45af922`, "Move CI off Debian 12,
+which is end of life"), taking all 14. The count moved the other way
+too -- `occystrap` went from 3 to 5 and `shakenfist` from 4 to 5 --
+because new workflows land naming the label the fleet still
+advertises. So the inventory is the compliance page, re-read at the
+start of each step, and never a number in this plan.
+
+**Every remaining label reference is a literal `runs-on:` line.**
+All 44 of them; there is no matrix indirection, no
+`workflow_dispatch` input default and no reusable-workflow input to
+chase, which is what makes the sweep a token edit per line rather
+than a reading exercise. The forty-fifth finding is an image, not a
+label, and is decision 4.3.
+
+| Repository | `debian-12` | `debian-12-docker` | Declares the replacement? |
+|------------|-------------|--------------------|---------------------------|
+| ryll | 5 | 12 | `debian-13` only |
+| occystrap | 4 | 1 | `debian-13` only |
+| shakenfist | 4 | 1 | neither |
+| client-python-k3s | 4 | - | yes |
+| actions | 3 | - | `debian-13` only |
+| agent-python | 2 | - | no |
+| clingwrap | 2 | - | no |
+| sfui | 2 | - | yes |
+| client-python | 1 | - | yes |
+| divergulent | 1 | - | yes |
+| library-utilities | 1 | - | yes |
+| visual-digest-rust | 1 | - | no |
+| instar | - | - | already moved |
+
+**Both replacements are verified in production rather than
+declared.** Last night's nightly published `ci-images/debian-13`
+(blob `b70b037f-05e2-47d4-8512-7c661adfc917`) and
+`ci-images/debian-13-docker` (`7b708330-4489-4181-b703-c93bb2fd6ff8`),
+and runners of both labels served real jobs on 2026-09-19 -- a
+`debian-13-docker` worker came online and busy at 19:08 for a
+Mermaid lint, and `debian-13` jobs at `xl` and `s` were scheduled
+alongside it. `/srv/ci/debian:13` is on the dependencies cache disk,
+which phase 3 put there (`actions`
+`ansible/ci-dependencies.yml:194`). Eleven of the twelve `IMAGE_BUILDS`
+entries published a label last night; the one that did not is
+`debian-11`, whose base can no longer be built, which is phase 5's
+retirement and phase 1's permanent `False` seen from the other side.
+
+**The half the criterion cannot see, and it is the half that gates
+phase 5.** The `eol-distro` specification says so itself -- guest
+images and cached disks are "the pre-push reviewer's to raise" --
+but nobody has raised them, and phase 5 removes `debian-12` from
+`IMAGE_BUILDS` and `CI_IMAGES`. Every site below then names a label
+the conductor no longer builds:
+
+* **The guest image label**, `sf://label/ci-images/debian-12`, at
+  eight live sites: `actions`
+  `build-smoke-cluster/action.yml:29` (the composite action's
+  default) and `.github/workflows/smoke-cluster.yml:56` (the
+  reusable workflow's own input default, which feeds it), and
+  `shakenfist` `.github/workflows/functional-tests.yml:443`, `:463`,
+  `:477`, `:515` and `.github/workflows/scheduled-tests.yml:42`,
+  `:52`. Two callers pass no `base_image` at all and so take the
+  default today: `shakenfist`
+  `.github/workflows/functional-tests.yml:558` and `kerbside`
+  `.github/workflows/sf-e2e-functional.yml:104`.
+* **The cached image and the artifact name it is uploaded under**,
+  `sf-client artifact upload debian-12 /srv/ci/debian:12`, at
+  `actions` `build-smoke-cluster/action.yml:249` and `shakenfist`
+  `.github/workflows/functional-tests.yml:583`.
+* **That artifact name, read back by the test suite**, as
+  `sf://upload/system/debian-12`: 43 references across 12 files in
+  `shakenfist`, in `deploy/shakenfist_ci/` and `tests/` and
+  `deploy/nodelifecycletests.sh:132`. There is a constant for it --
+  `CLUSTER_CI_IMAGE` at `deploy/shakenfist_ci/base.py:37` -- and it
+  reaches one of the 43. This is `GNOME_LABEL` again: a constant
+  that names the thing, and a couple of dozen literals the constant
+  does not reach.
+* **The job names, read by a tool.** `shakenfist`'s matrix calls its
+  lanes "Debian 12 cluster" and "Debian 12 tier"
+  (`functional-tests.yml:441`, `:475`), and
+  `tools/ci_headroom_harvest.py:134` and `:141` key
+  `BUNDLE_TOPOLOGIES` off those exact strings, with the file's own
+  comment warning that the derivation "would break silently if that
+  changed". Renaming the lane without the tool is a silent stop, not
+  a failure.
+
+`private-ci`'s own unit tests name `ci-images/debian-12` seven times
+in `conductor/tests/test_imagebuilder.py`; those follow the
+`IMAGE_BUILDS` entry in phase 5 rather than moving here.
+
+**One claim in the master plan has already been overtaken.**
+#123 recorded two findings that are not label swaps. The first still
+holds: `instar` boots `debian:12` in a functional-test matrix that
+deliberately covers several distributions. The second does not --
+`kerbside`'s two bookworm-tagged rust images are already on trixie
+(`rust/kerbside-proxy/Dockerfile:17` is `rust:slim-trixie` and
+`loadtests/latency/Dockerfile:8` is `rust:1.97-trixie`), and that
+repository has been compliant since 2026-09-17.
+
+**Eight active repositories are outside the audit's matrix**, and
+one of them is `shakenfist/images`, which builds the guest images
+this whole plan is about. The others are `client-python-ova`,
+`divergulent-reviews`, `homebrew-tap`, `performance`,
+`reproducables`, `sonobouy` and `uefi-latency-guest`. All eight were
+scanned by hand for this survey and none has a finding today, so
+nothing is being missed right now -- but nothing is watching them
+either, and "we grepped it once" is the state phase 3 said was not
+good enough. Widening the matrix is phase 6's work, and decision 4.6
+says why it is not done here.
+
+#### Decisions
+
+Numbered `4.N` for the same reason phase 3's are numbered `3.N`:
+this plan has a top-level `D1` to `D6`, and "decision 4.2" and "D2"
+should not be confusable.
+
+4.1. **One pull request per repository, grouped into steps by
+   size.** Each carries its own `actionlint.yaml` edit and is
+   reviewed against the workflows it touches, which is what the
+   master plan asked for. The steps group repositories only so that
+   one sub-agent can carry several trivial ones; the pull requests
+   stay separate, because the consistency issue they close is
+   per repository and so is the CI that proves the move worked.
+
+4.2. **The retired label leaves `actionlint.yaml` in the same
+   commit as the last workflow line that names it.** That list is
+   the set of labels a workflow *may* name, so leaving `debian-12`
+   declared after the last user is gone lets the next workflow name
+   a retired label and pass lint -- which is exactly how
+   `occystrap` and `shakenfist` grew new findings this fortnight.
+   The cost is that a revert needs the declaration back, and a
+   reviewer may reasonably prefer to keep the declarations until
+   phase 5 retires the labels themselves. Taken anyway: the lint is
+   the only thing standing between a fleet-wide convention and the
+   next copy-pasted workflow, and a revert that needs two lines is
+   not a hard revert.
+
+4.3. **`instar` is marked, not migrated.** Its one remaining
+   finding is `image: 'debian:12'` at
+   `.github/workflows/functional-tests.yml:597`, test input in a
+   matrix that deliberately covers several releases. The criterion
+   describes this case and provides the marker for it; use it, with
+   the reason on the line.
+
+4.4. **The guest-image half is in scope for this phase.** It is not
+   what the master plan's section described, and it roughly doubles
+   the phase. It is in anyway, because D4 retires producers only
+   after their consumers, and phase 5 removes `debian-12` from
+   `IMAGE_BUILDS` and `CI_IMAGES`: every site listed in the survey
+   above would then name a label the conductor does not build. The
+   alternative -- a phase 4a for the invisible half -- was rejected
+   because it separates two halves of one repository's migration
+   into two plans, and `shakenfist` has both.
+
+4.5. **The uploaded artifact gets a release-neutral name.** The
+   smoke cluster uploads the cached image into itself as
+   `debian-12` and 43 test references read it back by that name. The
+   obvious move is `debian-13`, and the obvious move buys another
+   43-reference edit at the next release. Phase 3 reached the same
+   fork with the gnome snapshot and took the neutral name
+   (`debian-gnome-agents`), which is why the next desktop bump is
+   not a fleet change; take it again here. The artifact becomes
+   `sf://upload/system/debian`, the release survives only in the
+   path the action copies from (`/srv/ci/debian:13`), and the tests
+   stop naming a release they do not care about. This is the
+   decision a reviewer is most likely to argue with, because a test
+   that says `debian` no longer says which Debian it exercised --
+   the answer is that it never did: the name said 12 while the
+   bytes were whatever the cache disk last cached, which for
+   `debian-gnome:12` was Debian 11 for two years (private-ci#38).
+
+4.6. **Repositories outside the audit matrix are surveyed here and
+   watched in phase 6.** The survey is above; widening the matrix
+   changes a workflow every repository's compliance depends on, and
+   phase 6 is the phase that owns the audit's blind spots.
+
+4.7. **The frozen cached-image list is not touched.** `ubuntu:20.04`,
+   `debian:11` and `fedora:40` stay in `ci-dependencies.yml`'s cache
+   list, and `debian:12` joins them there rather than being removed:
+   the cache is what lets a test boot an old guest deliberately.
+   Retirement is phase 5's and private-ci#38's.
+
+#### Step plan
+
+Every step that edits a repository other than this one opens a pull
+request there and waits for that repository's own CI. Steps 4a to
+4e are independent of each other and of 4f to 4h; within 4f to 4h
+the order is a real constraint and is stated in each brief. No step
+prunes or regenerates `REVIEWS.md` (see the phase landing shared
+block in `PLAN-TEMPLATE.md`).
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 4a | low | sonnet | worktree | Six repositories, one pull request each, all the same shape. `shakenfist/agent-python` (`.github/workflows/functional-tests.yml:25`, `release.yml:71`), `client-python` (`release.yml:73`), `clingwrap` (`functional-tests.yml:22`, `release.yml:73`), `divergulent` (`release.yml:71`), `library-utilities` (`release.yml:81`), `visual-digest-rust` (`ci.yml:16`). Every one is a literal `runs-on: [self-hosted, ..., debian-12, ...]`; change that token to `debian-13` and leave the size token and everything else alone. Then `.github/actionlint.yaml`: add `debian-13` to `self-hosted-runner: labels:` in agent-python, clingwrap and visual-digest-rust (the other three already declare it), and delete `debian-12` from all six per decision 4.2. Re-read the repository's consistency issue first for the current line numbers -- the audit refiles daily and the numbers here are from 2026-09-19. Commit subject in each: "Move CI onto the Debian 13 runner pool." **actionlint passing is not the verification**: wait for the repository's own CI to run a job on the new label and pass, because the label provisions a different image and this is the step that finds out whether anything in it was load-bearing. Do not touch `REVIEWS.md`. |
+| 4b | low | sonnet | worktree | Three more repositories, same shape as 4a, separated only because each has more than two lines. `shakenfist/sfui` (`functional-tests.yml:18`, `:51`), `client-python-k3s` (`functional-tests.yml:103`, `:225`, `release.yml:73`, `supply-chain.yml:67`), `actions` (`ci.yml:150`, `:191`, `smoke-cluster.yml:128`). All three already declare `debian-13`; delete `debian-12` from each `actionlint.yaml`. **In `actions`, change nothing outside those three `runs-on:` lines.** That repository also carries the guest-image defaults at `build-smoke-cluster/action.yml:29` and `:249` and `.github/workflows/smoke-cluster.yml:56`, which are steps 4f and 4h and have an ordering constraint this step must not pre-empt. Same commit subject and same verification as 4a. |
+| 4c | medium | sonnet | worktree | The two `*-docker` repositories, one pull request each. `shakenfist/ryll`: five `debian-12` (`ci.yml:209`, `:290`, `:351`, `:385`, `supply-chain.yml:48`) and twelve `debian-12-docker` (`ci.yml:83`, `:115`, `:138`, `:235`, `fuzz.yml:60`, `manual-build.yml:99`, `mermaid-lint.yml:77`, `release.yml:76`, `:272`, `:319`, `:392`, `supply-chain.yml:66`). `shakenfist/occystrap`: four `debian-12` (`functional-tests.yml:50`, `python-unit-tests.yml:47`, `release.yml:71`, `supply-chain.yml:76`) and one `debian-12-docker` (`mermaid-lint.yml:77`). Both declare `debian-13` but neither declares `debian-13-docker`; add it, and delete both Debian 12 declarations. Medium rather than low because these are the repositories whose jobs actually use the docker daemon: the `debian-13-docker` image ships `docker.io` *and* `docker-cli` only since shakenfist/actions#66, and the build runs `docker version` so a broken image fails rather than publishing -- so if a docker job misbehaves on the new label, report it rather than working around it, because it means that fix regressed. Commit subject: "Move CI onto the Debian 13 runner pool." |
+| 4d | low | haiku | none | One line, in `shakenfist/instar`. `.github/workflows/functional-tests.yml:597` is `image: 'debian:12'`, deliberate test input in a matrix that covers several releases (decision 4.3). Add the marker on the line above, matching the shape the specification gives in `docs/audits/eol-distro.md`: `# audit-ok: eol-distro -- test input, we measure old images`, indented to match. Change nothing else: instar moved its runner labels on 2026-09-16 and this is its only remaining finding. Commit subject: "Mark the bookworm test image as deliberate." |
+| 4e | medium | sonnet | worktree | `shakenfist/shakenfist`, runner labels only. Five lines: `.github/workflows/functional-tests.yml:536`, `:726`, `mermaid-lint.yml:94` (`debian-12-docker`), `pin-indirect-dependencies.yml:55`, `release.yml:105`. `.github/actionlint.yaml` declares neither replacement: add `debian-13` and `debian-13-docker`, delete `debian-12` and `debian-12-docker`. **Runner labels only.** The same workflow file also names the guest image `sf://label/ci-images/debian-12` at `:443`, `:463`, `:477`, `:515`, and those are step 4g -- moving them here would put a guest-image change into a pull request reviewed as a runner move. Medium because this repository's functional tests are the heaviest in the fleet and a provisioning failure here is expensive to diagnose from a red matrix. Commit subject: "Move CI onto the Debian 13 runner pool." |
+| 4f | high | opus | worktree | **Additive, and it must merge before 4g.** In `shakenfist/actions`, `build-smoke-cluster/action.yml`. The action uploads the cached image into the cluster it just built as artifact `debian-12` (`:249`, `sf-client artifact upload debian-12 /srv/ci/debian:12 --shared --no-checksum`), and 43 references in `shakenfist` read it back as `sf://upload/system/debian-12`. Decision 4.5 moves that name to `debian`, with no release in it. Do it in two landings so neither repository is ever reading a name the other does not write: this step adds a *second* upload of the same file under the name `debian`, leaving the `debian-12` upload in place, and 4h removes the old one after 4g has landed. Also move the two guest-image defaults in this repository to `sf://label/ci-images/debian-13` -- `build-smoke-cluster/action.yml:29` and `.github/workflows/smoke-cluster.yml:56` -- and the source path at `:249` to `/srv/ci/debian:13`, which phase 3 put on the cache disk (`ansible/ci-dependencies.yml:194`). Those defaults are safe to move now and are what two callers take today (`shakenfist` `functional-tests.yml:558`, `kerbside` `sf-e2e-functional.yml:104`). **Confirm before editing, not after**: `ci-images/debian-13` must have a blob newer than the last nightly -- read the conductor's `sf-client label update "ci-images/debian-13"` line rather than the `IMAGE_BUILDS` entry, because an entry is not a blob and phase 3 lost a night to exactly that distinction. Every consumer of this repository pins `@main`, so this lands for the whole fleet the moment it merges; say so in the pull request. Two commits: "Boot smoke clusters on Debian 13." and "Upload the cluster base image under a release-neutral name.". |
+| 4g | high | opus | worktree | **After 4f has merged.** `shakenfist/shakenfist`, the guest-image half, in one pull request but not one commit. (1) The four `base_image: 'sf://label/ci-images/debian-12'` in `.github/workflows/functional-tests.yml` (`:443`, `:463`, `:477`, `:515`) and the two in `.github/workflows/scheduled-tests.yml` (`:42`, `:52`) become `debian-13`; `base_image_user` stays `debian`. (2) The matrix lane names at `functional-tests.yml:441` and `:475` are "Debian 12 cluster" and "Debian 12 tier", and `tools/ci_headroom_harvest.py:134` and `:141` key `BUNDLE_TOPOLOGIES` off those strings *and* off the derived GitHub job names in the same entries; that file's own comment says the derivation would break silently if the names changed. Rename lanes and tool in the same commit, and update `tests/test_ci_headroom_harvest.py:61-62`. (3) Replace the 43 `sf://upload/system/debian-12` references with `sf://upload/system/debian` -- 12 files under `deploy/shakenfist_ci/` and `tests/`, plus `deploy/nodelifecycletests.sh:132` -- and route them through `CLUSTER_CI_IMAGE` (`deploy/shakenfist_ci/base.py:37`) wherever the file already imports from `base`, so the next release is one line. A literal that the constant does not reach is the phase 3 failure this step is repeating on purpose; the definition of done greps for the old name, so leaving any is not passing. (4) `functional-tests.yml:583` uploads the image itself for the node-lifecycle job, the same command as the action's `:249`: move it to `debian` and `/srv/ci/debian:13` too. Commit subjects, one per numbered item, beginning "Boot the cluster lanes on Debian 13.". High effort because item (3) is 43 sites in a test suite whose failures are slow to read, and because item (2) fails silently rather than loudly. |
+| 4h | medium | sonnet | worktree | **After 4g has merged, and gated on a grep rather than on this sentence.** In `shakenfist/actions`, remove the transitional `debian-12` upload 4f added to `build-smoke-cluster/action.yml`, leaving only the `debian` one. Before editing, grep the fleet for `sf://upload/system/debian-12` across fresh clones of every non-archived repository in the organisation -- not just `shakenfist`, which is where 4g worked -- and **stop and report instead of editing if any live reference remains**. Phase 3's retrospective is that a gate stated in a plan file is not a gate; this one is a command whose output decides the step. Commit subject: "Drop the transitional cluster image name." |
+| 4i | low | haiku | none | Housekeeping, no commit in this repository. Close development#123 with the merge commits, noting that 35 of its 80 references were cleared by ordinary repository work answering the daily audit rather than by this phase. Comment on private-ci#38 with the guest-image inventory this survey found, since #38 is the collated reference and did not have it: the eight `sf://label/ci-images/debian-12` sites, the upload name, and the seven references in `private-ci`'s own `conductor/tests/test_imagebuilder.py` that follow `IMAGE_BUILDS` in phase 5. Leave #38 open; it closes at the end of phase 5. Do not close the 13 per-repository consistency issues by hand -- the audit closes them itself when the repository goes compliant, and closing one by hand hides a repository that did not. |
+| 4j | low | haiku | none | **Confirms the phase, which nothing else does.** Observation step, no commit, run after every pull request above has merged and at least one morning's audit has run. (1) Read `docs/audits/compliance.md` on this repository's `main` and confirm the `eol-distro` table has no `non-compliant` row, and that its generation timestamp is after the last merge -- a stale page looks healthy, which the page's own header warns about. (2) Confirm a smoke cluster built after 4f actually booted Debian 13: find a completed `shakenfist` functional-tests run and read the base image out of its log, rather than reading the workflow file, which only proves what was asked for. (3) Confirm `tools/ci_headroom_harvest.py` still matches its bundles after the lane rename, by running it against a merge run that completed after 4g. Report all three; if (2) or (3) disagrees with the diff, say so rather than filing it, because the phase is not over until they agree. |
+
+#### Risks and mitigations
+
+**A label that provisions is not an image that works.** The
+`debian-13` image is a different rootfs: a job that relied on a
+package bookworm shipped and trixie does not will fail at the step
+that uses it, not at provisioning. Mitigated per repository rather
+than centrally -- every step above waits for that repository's own
+CI on the new label and treats a green actionlint as no evidence at
+all. This is cheap here because the fleet has already done it
+fourteen times: `instar` and `kerbside` moved 34 references between
+them in two days without a follow-up fix.
+
+**The guest-image change lands for the whole fleet at once.**
+`build-smoke-cluster@main` is what every consumer pins, so 4f is
+live everywhere the moment it merges, including for `kerbside`,
+which takes the default. Mitigated by 4f being additive on the name
+that matters (the old upload stays until 4h) and by the gate on a
+published `ci-images/debian-13` blob; and by the revert being one
+commit, which stays true only while 4f is the newest landing in that
+file.
+
+**A silent stop, not a failure.** `ci_headroom_harvest.py` keys off
+job names, and 4g renames them. Nothing fails if the tool is missed:
+it matches nothing and reports empty. Mitigated by putting the
+rename and the tool in one commit, and by 4j re-running the tool
+against a real merge run rather than reading the diff.
+
+**The inventory moves while the phase runs.** Two repositories grew
+new findings during the fortnight this plan sat still. Mitigated by
+every step re-reading the repository's consistency issue for current
+line numbers before editing, and by 4j asserting against the
+regenerated compliance page rather than against this plan's table.
+
+**Phase 5 starts before this finishes.** D4 orders producers after
+consumers, and the guest-image half is the part that makes that
+ordering real. Mitigated by 4j being the gate: phase 5's first step
+should refuse to start until 4j has reported all three checks
+agreeing.
+
+#### Definition of done
+
+- [ ] `docs/audits/compliance.md`'s `eol-distro` table has no
+      `non-compliant` row, on a page generated after the last merge.
+- [ ] No `.github/actionlint.yaml` in the thirteen repositories
+      declares `debian-12` or `debian-12-docker`.
+- [ ] `grep -rn "sf://label/ci-images/debian-12"` over fresh clones
+      of every non-archived repository in the organisation returns
+      only `private-ci/conductor/tests/test_imagebuilder.py`, which
+      phase 5 moves.
+- [ ] `grep -rn "sf://upload/system/debian-12"` over the same clones
+      returns nothing.
+- [ ] `instar`'s `functional-tests.yml` carries the `audit-ok:
+      eol-distro` marker with a reason, and instar#564 is closed by
+      the audit rather than by hand.
+- [ ] A completed `shakenfist` functional-tests run after 4f shows a
+      cluster booted from `ci-images/debian-13`, read from the run's
+      log.
+- [ ] `tools/ci_headroom_harvest.py` matches its bundles on a merge
+      run completed after 4g.
+- [ ] development#123 is closed; private-ci#38 is still open and
+      carries the guest-image inventory.
+
+#### Back brief
+
+Three things to agree before the phase starts, because each is
+cheap to propose and expensive to redo:
+
+1. **Decision 4.5, the release-neutral artifact name.** It is a
+   43-site edit in a test suite, and doing it as `debian-13`
+   instead is the same edit for a worse result. If the neutral name
+   is wrong, say so before 4f, not after 4g.
+2. **Decision 4.2, deleting the retired declaration.** The
+   alternative -- leave `debian-12` declared until phase 5 -- is
+   defensible and makes every revert one line. This plan takes the
+   stricter reading because two repositories grew new findings
+   while it waited.
+3. **Decision 4.4, the scope.** This phase is now two phases' worth
+   of work in one section. Splitting the guest-image half into its
+   own phase is reasonable; what is not reasonable is running phase
+   5 without it.
 
 ### 5. Retire the end-of-life producers
 
@@ -1117,6 +1423,20 @@ criterion that bans what they produce.
   answer; note here that a static runner fleet is structurally
   invisible to a label-based audit, so any future fleet of the
   same shape needs the same treatment.
+
+**And images is not the only repository outside the matrix.**
+Phase 4's survey scanned all twenty-nine non-archived repositories
+in the organisation and found eight that the daily audit never
+reads: `images` itself, plus `client-python-ova`,
+`divergulent-reviews`, `homebrew-tap`, `performance`,
+`reproducables`, `sonobouy` and `uefi-latency-guest`. None has an
+`eol-distro` finding today, which is the good news and also the
+trap: the reason to know that is a scan somebody ran once, and the
+whole point of this phase is that "somebody grepped it once" is not
+detection. Deciding the terms for `images` is the interesting half
+of that; deciding whether the other seven are dormant enough to
+leave unwatched is the cheap half, and it should be written down
+either way.
 
 Which instrument does the measuring is Q1 above, and the default
 there is a separate criterion.
@@ -1221,10 +1541,15 @@ issues, phases 1, 2 and 6 close none, and the plan is declared
 finished. That is the ordering D1 exists to prevent, and it is why
 phases 1 and 2 come first despite closing nothing.
 
-**Phase 4 is long and boring.** 15 repositories with an actionlint
-edit each. The mitigation is that the daily audit files and closes
-the per-repository issues itself, so progress is externally visible
-rather than tracked by hand.
+**Phase 4 is long and boring, and that is the half that is going
+well.** Thirteen repositories with an actionlint edit each, and the
+daily audit files and closes the per-repository issues itself, so
+progress is externally visible rather than tracked by hand -- the
+fleet cleared 35 of the original 80 references that way before the
+phase started. The risk moved next door: phase 4's survey found a
+second class of consumer the criterion cannot see, and being
+boring is what made it easy to believe the criterion's count was
+the whole job.
 
 **Retiring a label early breaks CI fleet-wide.** D4 and the phase 5
 ordering exist for this. A `debian-12` retirement before phase 4
