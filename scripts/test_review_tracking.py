@@ -9,6 +9,7 @@ import fnmatch
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -38,6 +39,33 @@ def make_weaudit(audited, partial=None, author='testuser'):
                                   for p, s, e in (partial or [])],
         'resolvedEntries': [],
     }
+
+
+# The header count line of REVIEWS.md, which
+# test_reviews_md_is_reproducible_from_the_committed_state excludes from
+# its comparison. The count is a property of the whole tree: any file
+# entering or leaving review scope moves it, on whatever branch happens
+# to do so. Asserting it would make REVIEWS.md a file that every such
+# branch has to regenerate and commit, which is how a generated file
+# becomes a merge-conflict hot spot and a CI round trip for a change
+# that is entirely prose. Nothing is lost by leaving it out: cmd_prune
+# regenerates REVIEWS.md whether or not it pruned anything, so
+# prune-reviews corrects the count on the next push to main, and the
+# review-coverage audit does not read this number at all --
+# review_status() recomputes coverage against HEAD precisely so that a
+# missed regen cannot inflate it.
+#
+# ReviewTrackingTest.test_stamp_creates_sidecar_and_reviews_md asserts
+# that this still matches what render_reviews_md emits, so rewording the
+# sentence fails there rather than silently putting the count back into
+# the comparison.
+COUNT_LINE = re.compile(
+    r'^\d+ of \d+ in-scope files are currently reviewed\.$', re.MULTILINE)
+
+
+def without_count(text):
+    """Return REVIEWS.md text with the header count neutralised."""
+    return COUNT_LINE.sub('<count>', text)
 
 
 class ReviewTrackingTest(unittest.TestCase):
@@ -103,12 +131,47 @@ class ReviewTrackingTest(unittest.TestCase):
         reviews = self.read('REVIEWS.md')
         self.assertIn('src/a.py', reviews)
         self.assertIn('testuser', reviews)
-        self.assertIn('1 of 2 in-scope files are currently reviewed.', reviews)
+        # Asserted through COUNT_LINE rather than as a literal, so that
+        # rewording the sentence fails here, with the reason attached,
+        # rather than silently dropping the count out of the
+        # reproducibility comparison in ThisRepositoryTest.
+        count = COUNT_LINE.search(reviews)
+        self.assertIsNotNone(
+            count,
+            'the count line was reworded; without_count no longer neutralises '
+            'it, so REVIEWS.md is a merge-conflict hot spot again')
+        self.assertEqual(
+            '1 of 2 in-scope files are currently reviewed.', count.group(0))
 
         # A second run has nothing to do and passes.
         self.git('add', '-A')
         p = self.run_tool('stamp')
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+
+    def test_the_count_may_drift_from_the_committed_file_but_a_row_may_not(self):
+        """Both halves of the reproducibility test's tolerance.
+
+        ThisRepositoryTest compares the committed REVIEWS.md against a
+        fresh rendering with the header count neutralised, so a branch
+        that moves the count does not have to regenerate and commit the
+        file. That comparison cannot demonstrate its own tolerance: on
+        the real tree the two sides agree, so it passes either way.
+        Perturb a rendering here instead -- a moved count still compares
+        equal, a moved row does not.
+        """
+        self.mark_reviewed(['src/a.py'])
+        self.run_tool('stamp')
+        rendered = self.read('REVIEWS.md')
+
+        moved_count = rendered.replace(
+            '1 of 2 in-scope files are currently reviewed.',
+            '1 of 3 in-scope files are currently reviewed.')
+        self.assertNotEqual(moved_count, rendered)
+        self.assertEqual(without_count(moved_count), without_count(rendered))
+
+        moved_row = rendered.replace('src/a.py', 'src/b.py')
+        self.assertNotEqual(moved_row, rendered)
+        self.assertNotEqual(without_count(moved_row), without_count(rendered))
 
     def test_stamp_refuses_to_move_a_stamp_onto_unread_content(self):
         """A changed file that is already stamped must stop the commit.
@@ -331,6 +394,45 @@ class ReviewTrackingTest(unittest.TestCase):
         self.assertNotIn('changed since its review', p.stdout)
         state = self.read_json('.vscode/testuser.weaudit')
         self.assertEqual([e['path'] for e in state['auditedFiles']], ['src/a.py'])
+
+    def test_prune_regenerates_the_count_even_when_nothing_was_stale(self):
+        """cmd_prune must regenerate REVIEWS.md on a run that pruned nothing.
+
+        This is the healing path the whole no-REVIEWS.md-in-a-pull-request
+        policy rests on: a branch that moves the header count leaves it
+        wrong, and prune-reviews corrects it on the next push to the
+        default branch. That only works because generate_reviews_md() is
+        called unconditionally rather than under `if pruned`. Making it
+        conditional reads like a harmless optimisation and would leave
+        the count drifting forever with nothing failing, which is
+        precisely what the comment on COUNT_LINE above relies on not
+        happening -- so the property is asserted here rather than left to
+        that comment.
+        """
+        self.mark_reviewed(['src/a.py'])
+        self.run_tool('stamp')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'reviews')
+        self.assertIn('1 of 2 in-scope files are currently reviewed.',
+                      self.read('REVIEWS.md'))
+
+        # A new in-scope file moves the count and stales nothing.
+        self.write('src/c.py', 'c = 3\n')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'add c')
+
+        p = self.run_tool('prune')
+        self.assertEqual(p.returncode, 0)
+        self.assertNotIn('changed since its review', p.stdout)
+
+        self.assertIn(
+            '1 of 3 in-scope files are currently reviewed.',
+            self.read('REVIEWS.md'),
+            'prune regenerated no REVIEWS.md on a run that pruned nothing, '
+            'so a moved header count would never heal on the default branch')
+        state = self.read_json('.vscode/testuser.weaudit')
+        self.assertEqual([e['path'] for e in state['auditedFiles']],
+                         ['src/a.py'])
 
     def test_prune_handles_deleted_files(self):
         self.mark_reviewed(['src/a.py'])
@@ -595,39 +697,38 @@ class ThisRepositoryTest(unittest.TestCase):
         os.chdir(self.previous)
 
     def test_reviews_md_is_reproducible_from_the_committed_state(self):
-        """REVIEWS.md must be exactly what the review state renders to.
+        """REVIEWS.md's rows must be what the review state renders to.
 
-        The header count is not enough to catch this: it counts weAudit
-        marks rather than stamps, so a commit that lands the marks and
-        forgets .vscode/<user>.weaudit-shas.json reports the right
-        number of reviews while every Date and Blob SHA cell renders as
-        '-'. That is not a cosmetic difference. prune-reviews.yml
-        regenerates and commits this file on every push to main, so the
-        first thing such a merge produces is a bot commit blanking the
-        attestation columns -- and review-tracking.py status, which the
-        review-coverage audit check reads, counts an unstamped mark as
-        needing review.
+        Everything but the header count is compared. The count itself
+        trusts marks rather than stamps (see review_status), so a commit
+        that lands the marks and forgets
+        .vscode/<user>.weaudit-shas.json reports the right number while
+        every Date and Blob SHA cell renders as '-'. That is not a
+        cosmetic difference: prune-reviews regenerates and commits this
+        file on every push to main, so the first thing such a merge
+        produces is a bot commit blanking the attestation columns -- and
+        review-tracking.py status, which the review-coverage audit check
+        reads, counts an unstamped mark as needing review. Comparing the
+        rows catches that, and catches a REVIEWS.md edited by hand,
+        which its own header forbids.
 
-        Comparing the rendering also catches a REVIEWS.md edited by
-        hand, which its own header forbids.
+        The count is excluded for the reason given on COUNT_LINE above.
         """
         with open(os.path.join(self.root, 'REVIEWS.md')) as f:
             committed = f.read()
         self.assertEqual(
-            self.rt.render_reviews_md(), committed,
-            'REVIEWS.md is not what the committed review state '
-            'renders to. A difference in the header count means a file '
-            'entered or left review scope, and `review-tracking.py '
-            'regen` is all that is needed -- this one can be caused by '
-            'another branch rather than by your change, since two '
-            'branches adding an in-scope file each regen to the same '
-            'header text and merge without conflict. A difference in '
-            'the Date or Blob SHA columns means the sidecar '
+            without_count(self.rt.render_reviews_md()),
+            without_count(committed),
+            'REVIEWS.md is not what the committed review state renders '
+            'to, ignoring the header count. A difference in the Date or '
+            'Blob SHA columns means the sidecar '
             '(.vscode/<user>.weaudit-shas.json) is missing from the '
             'commit: run `review-tracking.py stamp` and commit the '
-            'sidecar and REVIEWS.md together. A row for a file that '
-            'has since changed or gone needs `review-tracking.py '
-            'prune` first',
+            'sidecar and REVIEWS.md together. A difference in which rows '
+            'are present means a mark was added or removed by hand. Note '
+            'that a row for a file that has since changed is not an '
+            'error here -- pruning stale marks is the prune-reviews '
+            'workflow\'s job, not a pull request\'s',
         )
 
     def test_no_review_mark_is_missing_its_stamp(self):

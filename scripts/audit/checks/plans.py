@@ -885,6 +885,13 @@ def plan_audit_phase_state(content):
 # churns whenever a model ships or retires, and keeping it apart
 # means the issue filed against a lagging repository names the
 # roster rather than the surrounding prose.
+#
+# plan-phase-landing is canonical and embedded in this repository's
+# PLAN-TEMPLATE.md, but is deliberately absent here: requiring it
+# marks most of the fleet non-compliant at once and files an issue
+# against each, which is the round trip the block exists to avoid.
+# See templates/shared-blocks/README.md. Adding it is a one-line
+# change whenever there is appetite for the sweep.
 PLAN_TEMPLATE_BLOCKS = [
     'plan-file-conventions',
     'plan-status-vocabulary',

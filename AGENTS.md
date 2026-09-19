@@ -84,23 +84,31 @@ is being made the last phase of every master plan -- see
 `docs/plans/PLAN-push-audit-phase.md`, which is rolling that out;
 drop this qualifier once the sweep has landed.
 
-Adding or removing a file matched by `.vscode/review-scope.toml`
-changes the in-scope count in `REVIEWS.md`, which is generated. Run
-`python3 scripts/review-tracking.py regen` and commit the result with
-the change, or `review-tracking-tests` fails. It can also fail on a
-branch that did not cause it, when another branch adds an in-scope
-file and both regenerate to the same header text: the fix is the same
-one command.
+`REVIEWS.md` is owned by the `prune-reviews` workflow. In a pull
+request that changes code or documentation, do not run `prune` or
+`regen`, and do not commit the file: both the staleness caused by
+editing a reviewed file and the header count moved by a file entering
+or leaving `.vscode/review-scope.toml` are corrected on the next push
+to main, because `prune` regenerates the file whether or not it pruned
+anything. `review-tracking-tests` deliberately does not assert the
+header count, so nothing here fails. Pruning from a branch is also
+wrong more often than it is right, and not for the obvious reason:
+`prune` compares each stamp against `HEAD`, which on a branch is the
+branch tip, so it drops the marks for the files the pull request itself
+touched and keeps the ones main has already pruned.
 
-Editing a file that carries a review mark stales that mark. Nothing in
-the pull request catches this: `review-tracking-tests` only checks
-that `REVIEWS.md` regenerates unchanged, and `regen` counts marks
-rather than validating them against HEAD, so it passes. The
-`prune-reviews` workflow heals it after the merge, which is too late
-to be visible in review. Run `prune` yourself and say so: the file
-then needs a human to read it again and re-mark it in weAudit. Do not
-re-stamp -- the mark attests that a person read that exact content, so
-there is no version of this an agent can finish alone.
+A review session is the exception. `stamp` regenerates `REVIEWS.md`
+as well as writing the marks, and the rows, sidecars and marks are
+committed together -- see `docs/code-review-tracking.md`. Where a
+repository requires a pull request to reach its default branch, that
+is how its review sessions land. See the `plan-phase-landing` shared
+block in `PLAN-TEMPLATE.md`.
+
+A pruned file needs a human to read it again and re-mark it in
+weAudit. Do not re-stamp -- the mark attests that a person read that
+exact content, so there is no version of this an agent can finish
+alone. Accumulated staleness is the `review-coverage` audit's job to
+report, not a pull request's.
 
 `review-tracking.py` is run by hand in target repositories (via a thin
 wrapper like ryll's `tools/review-tracking.sh`), deliberately not from
