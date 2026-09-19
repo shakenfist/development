@@ -263,13 +263,19 @@ class NetworkCheckListTest(unittest.TestCase):
         # green while doing it.
         scheduled = {check.id: type(check).__name__ for check in CHECKS}
 
-        # Every registered criterion is covered. This is the assertion
-        # that would have caught that: a family dropping out of the
-        # derivation now fails loudly instead of quietly narrowing what
-        # the test examines.
+        # Two registered criteria sharing an id would collapse the
+        # map silently, so check the size before using it. This is
+        # cheap rather than load-bearing: `scheduled` is built from
+        # CHECKS, so nothing else can make it disagree.
         self.assertEqual(
-            set(scheduled), {check.id for check in CHECKS},
-            'the derived map does not cover every registered check')
+            len(scheduled), len(CHECKS),
+            'two registered checks share an id')
+
+        # This is the assertion that would have caught the regex: a
+        # criterion whose class body cannot be found is one whose
+        # network behaviour was never examined, and a family dropping
+        # out that way now fails loudly instead of quietly narrowing
+        # what the test looks at.
         unread = sorted(
             check_id for check_id, symbol in scheduled.items()
             if symbol not in bodies)

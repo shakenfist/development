@@ -664,8 +664,8 @@ source as part of this planning commit, with merge references. The
 audit against hunkydory reported 28 pass, 1 fail, 26
 not-applicable when that was written on 2026-09-14, the single
 failure being the `review-coverage` backlog phase 6 deliberately
-opened. It reports 29 / 0 / 26 since the operator worked that
-queue; see phase 8's Audit outcome.
+opened. That count moves with the review queue rather than with
+this plan; see phase 8's Audit outcome.
 
 #### Decisions
 
@@ -1307,11 +1307,10 @@ having run, because their results are text this audit reads. D8.4.
 **The Situation section's figures are start-state and still
 correct as history.** "51 checks: 6 pass, 9 fail, 36 not
 applicable" was the pre-plan verdict. Today hunkydory reports 55
-checks, 29 pass, 0 fail, 26 not-applicable: the `review-coverage`
-backlog phase 6 opened deliberately was the last failure, and the
-operator worked it before 8.9 re-measured. Nothing to correct;
-recorded so the next reader does not think the Situation has
-drifted.
+checks with no failure other than `review-coverage`, which phase 6
+opened deliberately and which reopens whenever a reviewed file
+changes. Nothing to correct; recorded so the next reader does not
+think the Situation has drifted.
 
 #### Decisions
 
@@ -1498,11 +1497,11 @@ contemplated ending rather than a failure.
   work -- or this section says in one sentence that the audit found
   nothing.
 * `pre-commit run --all-files` passes in this repository, and the
-  audit against hunkydory reports 29 pass, 0 fail and 26
-  not-applicable. This bullet originally required the one
-  `review-coverage` failure to still be there; the operator
-  cleared the review queue while the phase ran, and the Audit
-  outcome records the correction rather than hiding it.
+  audit against hunkydory reports no failure other than
+  `review-coverage`. This bullet originally pinned "one failure,
+  and it is `review-coverage`", which is the wrong shape: the count
+  moves whenever the review queue does, and it moved twice while
+  this phase ran. What has to hold is that nothing else fails.
 
 #### Back brief gate
 
@@ -1601,6 +1600,16 @@ plan and are 8.10's work. The plan-wide success criterion -- "no
 failures other than `review-coverage`" -- stays true and needs no
 change.
 
+**And the count moved again before the findings landed.** Step
+8.11 changed nine files and ran the repository's own review prune,
+which expired their marks: `REVIEWS.md` now reads 16 of 27 and
+`review-coverage` fails again, putting hunkydory back at 28 pass,
+1 fail, 26 not-applicable -- the figure this plan asserted all
+along, arrived at from the other direction. That is the review
+system working rather than a regression, and it is the argument
+for pinning no verdict triple anywhere: what is durable is that
+nothing other than `review-coverage` fails.
+
 **D8.3: hunkydory #1, #7, #8 and #9 were not push-audited when
 they landed, and this phase audited them instead.** The shared
 block expects a phase landing in another repository to be audited
@@ -1668,7 +1677,7 @@ actually read.
 | HD-4 | hunkydory | high | `.vscodeignore`'s `!out/src/*.js` is a single-segment glob. Proven empirically by 8.8: `out/src/sub/probe.js` is excluded from `vsce ls`. The first nested module under `src/` ships a broken extension, silently. | Fix (8.11) |
 | HD-5 | hunkydory | blocking | `RELEASE-SETUP.md` contradicts `release.yml` on the job count (two versus three), the job name (`publish` versus `publish-marketplace`, including in the troubleshooting section) and, at `:131-136`, on the security control: it states the job "runs no `npm ci` and no package lifecycle scripts of any kind" when `release.yml:151` runs `npm ci --ignore-scripts`. The security property holds; the described mechanism is wrong. | Fix (8.11) |
 | HD-6 | hunkydory | blocking | `README.md:55-57` claims a test suite that uses git as an oracle. No test invokes git at all; every fixture is hand-typed. This README ships as the Marketplace listing. | Fix (8.11) |
-| HD-7 | hunkydory | medium | CRLF patch files are a total silent no-op. `src/diff.ts:8`'s `HUNK_RE` ends `@@(.*)$`; `.` does not match `\r` and `$` is not multiline. Verified: a CRLF header does not match. No CRLF test exists. | Fix (8.11), with a regression test |
+| HD-7 | hunkydory | medium | CRLF patch files are a silent no-op through the string API. `src/diff.ts:8`'s `HUNK_RE` ends `@@(.*)$`; `.` does not match `\r` and `$` is not multiline. Verified: a CRLF header does not match. No CRLF test exists. (This row originally said *every* CRLF patch file is a no-op. 8.11 established that the editor paths were fine -- they all read `document.lineAt(i).text`, which excludes the terminator -- so what was broken is `recountText` and `looksLikeDiff`, which is to say the regression harness and any non-editor caller. Root cause was `recountText` splitting on `\n` alone, not the expression.) | Fix (8.11), with a regression test |
 | HD-8 | hunkydory | medium | `isPatch` matches any `*.patch` by filename regardless of language id, which is wider than `activationEvents: onLanguage:diff`; under `hunkydory.mode: onSave` that rewrites bytes on disk in a file the user never opened as a diff. | Fix (8.11) |
 | HD-9 | hunkydory | medium | `prune-reviews.yml` has failed 6 of 6 runs since 2026-09-15 and `renovate.yml` 4 of 4, both for missing token secrets. Review pruning and dependency updates are inert, and have been since they were installed. | Defer to 7b.0 + issue |
 | HD-10 | hunkydory | factual | `REVIEWS.md:31` still attests `.github/workflows/runner-probe.yml`, deleted by #17, and claims "26 of 26 in-scope files are currently reviewed". Confirmed still present on `develop`. This corrects PR #17's body, which said `prune-reviews` would drop the row automatically: that run (`35413757830`) failed, per HD-9. | Fix (8.11), by hand |
