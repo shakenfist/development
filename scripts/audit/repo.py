@@ -133,6 +133,25 @@ def detect_repo_properties(repo_path, repo_name):
     }
 
 
+def path_is_within(root, candidate, root_is_real=False):
+    """Does candidate resolve to something under root?
+
+    The one realpath comparison in this package. Repo.contains()
+    answers it for the clone; a criterion that has to hold a path to
+    a narrower root -- a plan inside docs/plans/, say -- answers it
+    for that root through the same function, because two realpath
+    comparisons written a few hundred lines apart are how one of them
+    ends up textual. os.path.normpath is not a substitute: it stops a
+    `../..` in a link target and it does not stop a symlink, since
+    os.path.isfile() follows one.
+
+    `root_is_real` is for the caller that has already resolved its
+    root once and keeps it, rather than resolving it per candidate.
+    """
+    real_root = root if root_is_real else os.path.realpath(root)
+    return os.path.realpath(candidate).startswith(real_root + os.sep)
+
+
 class Repo:
     """A checkout being audited, and the answers read from it."""
 
@@ -205,7 +224,7 @@ class Repo:
         same one there. One implementation of it, called from both,
         rather than a second realpath comparison that drifts.
         """
-        return os.path.realpath(full).startswith(self._real_path + os.sep)
+        return path_is_within(self._real_path, full, root_is_real=True)
 
     def workflows(self):
         """Workflow file names under .github/workflows/, cached."""

@@ -748,27 +748,11 @@ class DefuseTest(unittest.TestCase):
     heading or a table row, or carry the end marker and truncate the
     next run's splice -- which preserves that run's tables outside the
     block, and every later run preserves them again.
+
+    defuse() itself is tested in tests/test_audit_common.py, where it
+    now lives; what is left here is the end-to-end property, which is
+    this page's rather than the function's.
     """
-
-    def test_newlines_are_collapsed(self):
-        self.assertEqual(
-            'a b c', audit_update_docs.defuse('a\nb\n\n  c  '))
-
-    def test_a_traceback_becomes_one_line(self):
-        # The accidental route: a check that puts subprocess stderr
-        # into its details.
-        self.assertEqual(
-            'Traceback (most recent call last): File "x" ValueError',
-            audit_update_docs.defuse(
-                'Traceback (most recent call last):\n'
-                '  File "x"\nValueError'))
-
-    def test_the_markers_are_defused(self):
-        for marker in (audit_update_docs.BEGIN_MARKER,
-                       audit_update_docs.END_MARKER):
-            defused = audit_update_docs.defuse('found %s here' % marker)
-            self.assertNotIn(marker, defused)
-            self.assertIn('&lt;!--', defused)
 
     def test_a_defused_detail_cannot_truncate_the_splice(self):
         # The end-to-end property, rather than the string shape.

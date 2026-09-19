@@ -47,6 +47,22 @@ class IssueBodyTest(unittest.TestCase):
         self.assertIn('docs/audits/eol-distro.md', body)
         self.assertIn('two references', body)
 
+    def test_the_details_are_defused_before_they_reach_the_body(self):
+        """A detail string is another repository's text, published.
+
+        The push audit of PLAN-push-audit-phase.md found this path
+        splicing it in raw while the compliance page defused it. A
+        newline in a detail renders a heading in an issue body, and
+        the comment opener terminates the next compliance splice
+        early; both are reachable by committing a plan file with the
+        right name to any audited repository.
+        """
+        body = self.build('eol-distro', self.result(
+            details='a plan named "x\n## Not a real heading" <!-- end -->'))
+        self.assertNotIn('\n## Not a real heading', body)
+        self.assertIn('&lt;!-- end -->', body)
+        self.assertNotIn('<!-- end -->', body)
+
     def test_a_result_with_neither_list_renders_neither_heading(self):
         body = self.build('eol-distro', self.result())
         self.assertNotIn('**Findings:**', body)

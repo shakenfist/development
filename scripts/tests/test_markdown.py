@@ -13,7 +13,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.text.markdown import (  # noqa: E402
     iter_lines_outside_fences, iter_markdown_headings,
-    iter_markdown_table_rows, markdown_heading, strip_markdown_code,
+    iter_markdown_table_rows, markdown_heading, markdown_table_cells,
+    strip_markdown_code,
 )
 
 
@@ -119,6 +120,39 @@ class MarkdownHeadingTest(unittest.TestCase):
         )
 
 
+class MarkdownTableCellsTest(unittest.TestCase):
+    """Direct cover for the split every table row goes through.
+
+    It had only the indirect cover of IterMarkdownTableRowsTest, which
+    exercises it exclusively through well-formed rows -- so nothing
+    pinned what it does to the ragged ones a repository can actually
+    write.
+    """
+
+    def test_trims_the_outer_pipes_and_the_whitespace(self):
+        self.assertEqual(
+            markdown_table_cells('| Phase |  Status  |'),
+            ['Phase', 'Status'])
+
+    def test_a_row_without_outer_pipes_still_splits(self):
+        self.assertEqual(
+            markdown_table_cells('Phase | Status'), ['Phase', 'Status'])
+
+    def test_an_empty_cell_is_kept(self):
+        self.assertEqual(
+            markdown_table_cells('| 5 | Complete | |'),
+            ['5', 'Complete', ''])
+
+    def test_leading_and_trailing_space_outside_the_pipes(self):
+        self.assertEqual(
+            markdown_table_cells('   | a | b |   '), ['a', 'b'])
+
+    def test_a_bare_pipe_pair_is_one_empty_cell(self):
+        # Both pipes are outer, so stripping them leaves nothing to
+        # split: one empty cell rather than two.
+        self.assertEqual(markdown_table_cells('||'), [''])
+
+
 class IterMarkdownTableRowsTest(unittest.TestCase):
     """Header detection, and the fence handling underneath it."""
 
@@ -174,6 +208,37 @@ class IterMarkdownTableRowsTest(unittest.TestCase):
         )
         self.assertEqual(rows[1][3], ['date', 'plan'])
         self.assertIsNone(rows[-1][3])
+
+    def test_a_row_after_a_table_belongs_to_that_table(self):
+        """Only a non-row ends a table, which is what the renderer does.
+
+        A `|` line directly under a table, with no blank line between,
+        is another data row of it -- there is no second table until
+        something that is not a row intervenes. The push audit of
+        PLAN-push-audit-phase.md raised the carried-over header as a
+        possible misattribution; it is not one, because GitHub renders
+        the same two lines as one table. Pinned here so the next
+        reader does not "fix" the parser away from the renderer.
+        """
+        doc = [
+            '| Phase | Status |',
+            '|---|---|',
+            '| 1 | Complete |',
+            '| stray | row |',
+            '',
+            '| Other | Table |',
+            '|---|---|',
+            '| x | y |',
+        ]
+        rows = [(h, c) for _o, _l, _i, h, c
+                in iter_markdown_table_rows(doc) if c]
+        self.assertEqual(rows[1][0], ['phase', 'status'])
+        self.assertEqual(rows[2][0], ['phase', 'status'])
+        self.assertEqual(rows[2][1], ['stray', 'row'])
+        # The blank line is the boundary, so the second table is read
+        # against its own header rather than the first one's.
+        self.assertEqual(rows[3][0], ['other', 'table'])
+        self.assertEqual(rows[4][0], ['other', 'table'])
 
     def test_columns_callable_normalises_the_header(self):
         rows = self._rows_with_columns(

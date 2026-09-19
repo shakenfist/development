@@ -787,15 +787,28 @@ class PlanAuditPhaseTest(unittest.TestCase):
             'diff of every phase in this plan.\n'
         )
 
-    def _check(self, files, index=None):
+    def _check(self, files, index=None, links=None, outside=None):
         """Run the check over a docs/plans/ built from the arguments.
 
         files maps plan file names to content; index is the content of
         index.md, or None to leave it out entirely.
+
+        outside maps names to content written *above* the repository
+        root, and links maps a name inside docs/plans/ to one of them
+        -- which is how a repository points the audit at a file it
+        does not contain, since git tracks symlinks.
         """
         with tempfile.TemporaryDirectory() as tmp:
             plans_dir = os.path.join(tmp, 'docs', 'plans')
             os.makedirs(plans_dir)
+            elsewhere = os.path.join(tmp, '..', 'elsewhere')
+            for name, content in (outside or {}).items():
+                os.makedirs(elsewhere, exist_ok=True)
+                with open(os.path.join(elsewhere, name), 'w') as f:
+                    f.write(content)
+            for name, target in (links or {}).items():
+                os.symlink(os.path.join(elsewhere, target),
+                           os.path.join(plans_dir, name))
             for name, content in files.items():
                 path = os.path.join(plans_dir, name)
                 os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -895,9 +908,19 @@ class PlanAuditPhaseTest(unittest.TestCase):
 
         A plan deliberately dropped is not going to write the diff an
         audit would read, so it is not reopened to acquire a phase
-        either. The plan here has a phase structure, so the check
-        genuinely reads it and passes on the status rather than
-        passing because there was nothing to judge.
+        either.
+
+        The fixture carries a phase structure, and the check never
+        reads it: the terminal-status branch is taken before the plan
+        file is opened, which is the whole point of the carve-out.
+        This docstring used to claim the opposite -- that the check
+        "genuinely reads it and passes on the status rather than
+        passing because there was nothing to judge" -- and the push
+        audit of this plan disproved it by making
+        plan_audit_phase_state() raise unconditionally and watching
+        all three terminal-status tests still pass. What this test
+        pins is the short-circuit, not the reading, and anyone
+        chasing a phase-ordering regression should look elsewhere.
         """
         result = self._check(
             {'PLAN-dropped.md': self._plan(['Build', 'Ship'])},
@@ -910,6 +933,94 @@ class PlanAuditPhaseTest(unittest.TestCase):
         self.assertEqual(result['status'], 'pass', result['details'])
         self.assertIn('1 terminal-status', result['details'])
         self.assertNotIn('PLAN-dropped.md', result['details'])
+
+    def test_the_link_pattern_is_bounded_on_both_halves(self):
+        """The bound is the point, not the length.
+
+        Unbounded, this pattern backtracks quadratically over a run of
+        `[` with no closing paren -- every `[` is a fresh start
+        position that scans to the `]` and then unwinds the `+`. The
+        push audit measured it at 4x per doubling, against two checks
+        that both read index.md and a workflow job that had no
+        timeout. Bounding only the target does not fix it and
+        excluding newlines makes it slower; bounding both caps the
+        work at each start position.
+        """
+        from audit.checks.plans import PLAN_LINK_MAX_CHARS, PLAN_LINK_RE
+        over = 'x' * (PLAN_LINK_MAX_CHARS + 1)
+        self.assertEqual([], PLAN_LINK_RE.findall(f'[a]({over})'))
+        self.assertEqual([], PLAN_LINK_RE.findall(f'[{over}](a.md)'))
+        # Real links are nowhere near it, and still match.
+        self.assertEqual(
+            [('Push audit phase', 'PLAN-push-audit-phase.md')],
+            PLAN_LINK_RE.findall(
+                '[Push audit phase](PLAN-push-audit-phase.md)'))
+        # A link may not span a line break, which every call site
+        # already guarantees by passing a single line or a cell.
+        self.assertEqual([], PLAN_LINK_RE.findall('[a](b\nc.md)'))
+
+    def test_a_symlinked_plan_out_of_the_tree_is_not_read(self):
+        """Containment is proved with realpath, not with normpath.
+
+        normpath is textual: it stops a `../../` link target and it
+        does not stop a symlink committed inside docs/plans/, because
+        os.path.isfile() follows one. The push audit of
+        PLAN-push-audit-phase.md reproduced the escape end to end --
+        the file was read and its content quoted into the details
+        string, which audit-manage-issues.py posts to GitHub.
+        """
+        result = self._check(
+            {},
+            outside={'SECRET.md': self._plan(['Build'])},
+            links={'PLAN-leak.md': 'SECRET.md'},
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | [Leak](PLAN-leak.md) | Nope | In progress |\n'
+            ),
+        )
+        # Unresolved rather than judged: the criterion declines a plan
+        # it cannot reach without leaving the checkout.
+        self.assertIn('PLAN-leak.md', result['details'])
+        self.assertIn('link', result['details'].lower())
+
+    def test_an_oversize_plan_is_declined_rather_than_truncated(self):
+        """A truncated plan is a wrong verdict, not a declined one.
+
+        Reading a prefix and reporting "no push audit phase" would
+        file an issue on another repository about a phase that may sit
+        just past the cut, so an oversize plan joins the unresolved
+        bucket instead.
+        """
+        from audit.checks.plans import PLAN_SOURCE_MAX_BYTES
+        huge = self._audit_plan(['Build']) + ('\n<!-- %s -->' % ('x' * 128))
+        huge += 'y' * (PLAN_SOURCE_MAX_BYTES + 1 - len(huge))
+        result = self._check(
+            {'PLAN-huge.md': huge},
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | [Huge](PLAN-huge.md) | Big | In progress |\n'
+            ),
+        )
+        self.assertIn('PLAN-huge.md', result['details'])
+        self.assertNotIn('no push audit phase', result['details'])
+
+    def test_a_long_near_miss_heading_is_bounded_when_quoted(self):
+        """The quoted heading is another repository's text, published.
+
+        It reached the details string uncapped, so a 180-character
+        "heading" rendered in full in an issue body.
+        """
+        heading = 'Push audit ' + 'z' * 180
+        plan = self._plan(['Build']) + f'\n## {heading}\n'
+        result = self._check(
+            {'PLAN-near.md': plan},
+            index=(
+                self.HEADER +
+                '| 2026-01-01 | [Near](PLAN-near.md) | X | In progress |\n'
+            ),
+        )
+        self.assertIn('...', result['details'])
+        self.assertNotIn('z' * 180, result['details'])
 
     def test_superseded_plan_without_the_phase_passes(self):
         # The same, for a plan replaced by another one. Matching is
