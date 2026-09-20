@@ -1032,10 +1032,6 @@ class MergeGroupCancellationTest(CheckTestCase):
         self.assert_skip(result)
 
 
-if __name__ == '__main__':
-    unittest.main()
-
-
 class WorkflowPermissionsTest(CheckTestCase):
     check_class = ci_workflows.WorkflowPermissions
 
