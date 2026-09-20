@@ -38,6 +38,21 @@ def repo_file(*parts):
         return f.read()
 
 
+def repo_text(*parts):
+    """The same file, decoded, for the suites that read prose.
+
+    The spec-agreement tests compare a page under docs/audits/ with the
+    constants the check measures against, and each carries its own
+    open() over a REPO_ROOT join because repo_file() hands back bytes:
+    PushAuditTest and PlanTemplateTest read the page their block list
+    has to be named on, and VmRunnerSizeTest reads the size vocabulary
+    out of workflow-standards.md. The walk is the part that goes wrong
+    when a file moves, and there is no reason for three more copies of
+    it to exist than there are for the byte-comparing ones.
+    """
+    return repo_file(*parts).decode('utf-8')
+
+
 def run_check(check, path, props=None, name='testrepo',
               org='shakenfist', github=None):
     """Run a check against a directory, the way the scheduler does.
@@ -75,10 +90,50 @@ class FixtureRepo:
             f.write(content)
         return full
 
+    def write_all(self, files):
+        """Write a {repository-relative path: content} mapping.
+
+        The shape most of the private `_repo` and `_check` helpers were
+        built around -- DocsExternalLinksTest, DiagramFormatTest,
+        MermaidLintCiTest, ConsoleLoggingTest, HeaderSanitizationTest,
+        PlanPhaseReferencesTest, PlanSourceReferenceTest,
+        PlanAuditPhaseTest, OrphanSkillMarkdownTest and
+        LlmContextLintCiTest each carry their own copy of this loop,
+        and the copies already disagree about whether a directory is
+        created with makedirs(path) or makedirs(path or tmp).
+
+        A None content writes an empty file, which is what
+        DocsExternalLinksTest's fixtures mean by it. PushAuditTest
+        spells absence the same way, so it filters before calling
+        rather than having this guess which of the two a caller meant.
+        """
+        return [self.write(relative, content or '')
+                for relative, content in files.items()]
+
     def workflow(self, name, content):
         """Write a workflow under .github/workflows/."""
         return self.write(os.path.join('.github', 'workflows', name),
                           content)
+
+    def workflows(self, files):
+        """Write a {workflow name: content} mapping.
+
+        ExpensiveLanePathFilterTest, MergeGroupCancellationTest,
+        VmRunnerSizeTest and PrAutoReviewSecretsInheritTest all drive
+        their fixtures from a mapping of workflows, and each builds the
+        directory and the loop itself.
+
+        The directory is created even when the mapping is empty,
+        because those helpers create it unconditionally and a check
+        that walks .github/workflows/ distinguishes an empty one from
+        an absent one.
+        """
+        os.makedirs(os.path.join(self.path, '.github', 'workflows'),
+                    exist_ok=True)
+        return self.write_all({
+            os.path.join('.github', 'workflows', name): content
+            for name, content in files.items()
+        })
 
     def git(self, *args):
         return subprocess.run(
@@ -109,6 +164,21 @@ class CheckTestCase(unittest.TestCase):
         self.fixture = FixtureRepo(self._tmp.name)
         self.addCleanup(self._tmp.cleanup)
 
+    def tempdir(self):
+        """A second throwaway directory, cleaned up with the fixture.
+
+        PushAuditTest and PlanTemplateTest each build a canonical
+        shared-blocks directory that is deliberately not part of the
+        repository under test, so that their cases do not depend on
+        the real templates/shared-blocks/ content. That is a second
+        TemporaryDirectory and a second addCleanup in each of them,
+        which is the duplication this module exists to end rather than
+        an exception to it.
+        """
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        return tmp.name
+
     def repo(self, name='testrepo', org='shakenfist', github=None,
              **props):
         """A Repo over the fixture, with properties supplied directly.
@@ -124,9 +194,18 @@ class CheckTestCase(unittest.TestCase):
                     github=github if github is not None else FakeGitHub(),
                     props=detected)
 
-    def check(self, **kwargs):
-        """Run the check under test against the fixture."""
-        instance = self.check_class()
+    def check(self, check_args=None, **kwargs):
+        """Run the check under test against the fixture.
+
+        Everything else named here is a property of the repository;
+        check_args are constructor arguments for the check itself.
+        Three checks take one: PushAudit and PlanTemplate read their
+        canonical blocks from blocks_dir, and SfuiVendor clones
+        canonical_url. This method is the only thing that instantiates
+        check_class, so without check_args PushAuditTest,
+        PlanTemplateTest and SfuiVendorTest could not use it at all.
+        """
+        instance = self.check_class(**(check_args or {}))
         repo = self.repo(**kwargs)
         reason = instance.applies(repo)
         if reason is not None:
