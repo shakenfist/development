@@ -829,16 +829,28 @@ shell script and two markdown files in ryll and no Rust at all, so
 the Rust portions would exercise today's `develop` rather than
 anything in the range. D6.5 scopes it and records the skip.
 
-**Review marks.** Of the files in scope, two carry human review
-marks in `REVIEWS.md`: `scripts/audit/checks/review.py`, reviewed
-2026-09-03, and `scripts/review-tracking.py`, reviewed
-2026-09-04. Both post-date this plan's code, so a person has read
+**Review marks.** Of the files in scope, two carried human review
+marks in `REVIEWS.md` when the survey ran:
+`scripts/audit/checks/review.py`, reviewed 2026-09-03, and
+`scripts/review-tracking.py`, reviewed 2026-09-04. Both post-dated
+this plan's code, so the survey concluded that a person had read
 the current form of the criterion and the `status` subcommand.
 `docs/code-review-tracking.md` and `docs/audits/review-coverage.md`
 carry none. This phase edits only `docs/plans/PLAN-review-coverage.md`,
 which `.vscode/review-scope.toml` excludes, so nothing here stales
 a mark -- and per `plan-phase-landing` no step prunes or
 regenerates `REVIEWS.md` in any case.
+
+*Corrected on 2026-09-21, after review: that conclusion is
+withdrawn for the criterion.* Development#158 changed
+`scripts/audit/checks/review.py`, and `8a2750b` duly pruned its
+mark, so `REVIEWS.md` on `main` now carries only
+`scripts/review-tracking.py | mikal | 2026-09-04`. Nobody has read
+the criterion in its current form, so the conclusion above stands
+for the `status` subcommand alone. The backlog that creates is the
+`review-coverage` audit's to report -- this plan's own machinery,
+working as designed on this plan's own code, and the reason the
+paragraph is corrected rather than the mark restored.
 
 Nothing else in either runbook disagreed with its tree.
 
@@ -1059,7 +1071,8 @@ A second gate, before 6g edits the Execution table: it states
 whether the audit produced findings, because that decides the
 shape of the close-out. No findings means step 8 goes to
 `Complete` with no `Merged` cell and no follow-up pull request;
-findings mean the index row stays `In progress` until they land.
+findings mean the index row stays `In progress` until they land or
+are declined in writing.
 
 #### Outcome
 
@@ -1074,9 +1087,17 @@ recording: a whole-plan audit found what per-phase review did not.
 --repo-name development --github-org shakenfist` on this branch
 reports `plan-audit-phase` and `plan-index` passing, along with
 `plan-template`, `plan-phase-references` and `plan-source-references`.
-`review-coverage` reports 175 of 190 in-scope files reviewed with 15
-needing review, which is what it reports at `5861c0a` as well, so
-this phase's edits leave it unchanged rather than merely no worse.
+`review-coverage` reports 175 of 190 in-scope files reviewed with
+15 needing review at `475689e`, which is what it reports at
+`5861c0a` as well, so this phase's edits leave it unchanged rather
+than merely no worse. *Anchored on 2026-09-21, after review:* the
+figure has since moved, and a measurement with no tree attached is
+the same class of problem the citation-drift bullet in Future work
+describes. On `main` at `8617f7b` the same command reports 157 of
+191 with 34 needing review; the drift is development#158 and the
+prune `8a2750b` that followed it, not this phase, and the
+definition-of-done item this answers is a measurement at a commit
+rather than a standing claim.
 The definition-of-done item that measures the phase against its own
 audit is therefore met, and now says so rather than being left to
 be inferred.
@@ -1105,14 +1126,15 @@ distinction D6.3 exists to keep.
 
 #### Findings, with dispositions
 
-**F1. `AGENTS.md:132-134` still states the false claim phase 5
-chased. Blocking; fixed in development#158, not yet merged.** The
-sentence reads "CI pruning of a repo's own main branch is the
-steady-state design, not a violation of it". It is a *generic* claim
-about any adopting repository, and it is false: ryll's default
-branch is `develop`. Sixteen lines earlier,
-in the same file, `AGENTS.md:116-117` already says "on pushes to its
-default branch" -- corrected during #139's review. This is the fifth
+**F1. `AGENTS.md:132-134` stated the false claim phase 5 chased.
+Blocking; fixed in development#158, merged as `3859865`.** The
+sentence read "CI pruning of a repo's own main branch is the
+steady-state design, not a violation of it". It was a *generic*
+claim about any adopting repository, and it was false: ryll's
+default branch is `develop`. Sixteen lines earlier, in the same
+file, `AGENTS.md:116-117` already said "on pushes to its default
+branch" -- corrected during #139's review. The same range on `main`
+now reads "of a repo's own default branch". This is the fifth
 instance of the claim step 5.1 was scoped away from, and the only one
 that survived; the closeout note above says "the same false claim
 lived in four files", and the honest count is five. `AGENTS.md` is
@@ -1123,13 +1145,15 @@ The other `main` references in `AGENTS.md` (92, 98) and
 describe *this* repository, whose default branch really is `main`.
 
 **F2. `ReviewCoverage.run()` can take every other criterion down with
-it. Advisory; fixed in development#158, not yet merged.**
-`scripts/audit/checks/review.py:195-200` wraps its
+it. Advisory; fixed in development#158, merged as `3859865`.**
+`scripts/audit/checks/review.py:195-200` wrapped its
 `subprocess.run` in `try: ... except
-subprocess.TimeoutExpired` and catches nothing else, where every
-other shelling-out check in the package already catches
-`FileNotFoundError` as well and `SfuiVendor` in the same file does
-it correctly. `scripts/audit/registry.py:135` appends
+subprocess.TimeoutExpired` and caught nothing else, where every
+other shelling-out check in the package already caught
+`FileNotFoundError` as well and `SfuiVendor` in the same file did
+it correctly. On `main` since `3859865` the same `try` carries an
+`except OSError` beside the timeout handler.
+`scripts/audit/registry.py:135` appends
 `run_check(...)` with no handler, so anything raised costs the
 repository all fifty-five criteria rather than one.
 
@@ -1155,17 +1179,18 @@ settled. In scope: the subprocess call is step 2's own code, carried
 across the restructure unchanged.
 
 **F3. A filename can forge content in an auto-filed issue body.
-Advisory; fixed in development#158, not yet merged.** `never_reviewed` is
-the list of tracked files as `git ls-files -z` returns them, and
-`render_issue_items` -- defined at
-`scripts/audit-manage-issues.py:138` and called at 232 and 243 --
-renders each as `` `- `{item}`` `` with no escaping. A git path may
+Advisory; fixed in development#158, merged as `3859865`.**
+`never_reviewed` is the list of tracked files as `git ls-files -z`
+returns them, and `render_issue_items` -- at
+`scripts/audit-manage-issues.py:194` on
+`main` today, called at 288 and 299 -- rendered each as
+`` `- `{item}`` `` with no escaping. A git path may
 contain a backtick, which closes the code span, or a newline, which
 injects raw lines into a body authored by shakenfist-bot. There is no
 state-change primitive -- GitHub does not close issues from body
 keywords -- so this is content forgery and notification abuse, not
 escalation. `defuse()`, at `scripts/audit_common.py:121`, exists for
-exactly this class, and nothing defuses `missing` or `findings` on
+exactly this class, and nothing defused `missing` or `findings` on
 the issue path, where `review-coverage` and
 `review-scope-completeness` are the widest producers of
 repository-derived `missing` in the check set. This
@@ -1173,7 +1198,7 @@ was first declined and referred, on the D5.2 boundary: escaping
 `render_issue_items` changes every criterion's issue bodies
 fleet-wide, which is `PLAN-consistency-audits-v2`'s machinery
 rather than this plan's. The operator overrode that when asking for
-every finding to be addressed, so it is fixed in the findings pull
+every finding to be addressed, so it was fixed in the findings pull
 request, development#158, instead, and the blast radius is stated in
 that commit rather than used as a reason not to act. The referral stands for
 development#138, which is a different problem in the same file.
@@ -1185,7 +1210,7 @@ all. That was true of the tree the audit read at 07:37 AEST and
 false twenty-nine minutes later. `PLAN-push-audit-phase.md`'s own
 push audit found the same asymmetry independently and closed it:
 `d60b58a` routes `details` through `defuse()`, now at
-`scripts/audit-manage-issues.py:229`, and `2766610` adds the
+`scripts/audit-manage-issues.py:285`, and `2766610` adds the
 regression test -- `test_the_details_are_defused_before_they_reach_the_body`
 in `scripts/tests/test_manage_issues.py`, whose docstring names that
 audit. Both merged to `main` as development#154 at 11:42, before
@@ -1193,16 +1218,27 @@ this section's own correction pass at 12:14, which revisited F3 and
 did not re-read the file. So the asymmetry is closed rather than
 confirmed, and citing it as live understated a fix that had already
 landed. The finding survives narrowed, and that narrower form is
-what development#158 fixes: `render_issue_items` escapes nothing, so
-`missing` and `findings` items still reach the body raw while
-`details` no longer does. Two audits of two plans reaching the same
-file in one morning is the argument for re-reading the tree at
+what development#158 fixed: `render_issue_items` escaped nothing, so
+`missing` and `findings` items reached the body raw while `details`
+no longer did. Both go through `defuse_item()` on `main` since
+`3859865`. Two audits of two plans reaching the same file in one
+morning is the argument for re-reading the tree at
 correction time and not only at audit time.
 
-**F4-F6, ryll, advisory; no pull request opened yet, carried in
-Future work below.**
-The job still grants `GITHUB_TOKEN` `contents: write` at
-`prune-reviews.yml:40-41`,
+**F4-F6, ryll, advisory; declined for this plan and carried in
+Future work below.** *Dispositioned on 2026-09-21, after review.*
+These were first recorded as "no pull request opened yet", which is
+deferral rather than either of the two exits this plan's close-out
+allows, and left the index row's stated exit condition unreachable.
+They are declined here in writing. All three are advisory, all
+three are in ryll rather than in the repository whose machinery
+this plan built, and none of them changes what the review tracking
+does: a leftover permission grant that constrains nothing, and two
+documentation omissions. Holding a finished plan open on three ryll
+nits buys nothing, so they move to Future work recorded in enough
+detail to act on without re-auditing, and the index row reaches
+`Complete`. The findings themselves: the job still grants
+`GITHUB_TOKEN` `contents: write` at `prune-reviews.yml:40-41`,
 although since `a0227e05` every write goes through
 `DEPENDENCIES_TOKEN` and the `permissions:` block does not constrain
 a PAT at all -- the grant is leftover from the pre-PAT design.
@@ -1371,6 +1407,33 @@ the briefs were issued. A brief is a record of what was asked, not
 a claim about the tree, and rewriting one to match today's runbook
 would falsify the record. Follow the section headings instead.
 
+*Corrected on 2026-09-21, after the next round of review.*
+"Thirteen resolved exactly" was measured against a tree that no
+longer exists, and one of the thirteen was resolved against a tree
+that never will. Review found that F3's four numbers into
+`scripts/audit-manage-issues.py` -- 138, 232, 243 and 229 -- match
+neither `5861c0a`, nor this branch, nor `main`. They match
+`771b074` alone: an intermediate commit on development#158's own
+branch, which `b34734e` later reworked. The re-resolution pass had
+that branch checked out and resolved against it, so the commit
+whose stated purpose was eliminating stale citations produced one
+that was wrong in every tree the repository keeps. They are
+re-resolved above against `main` after `3859865` -- 194, 288, 299
+and 285 -- and the rule that would have prevented it is in Future
+work: resolve against the default branch, never against a branch
+that has not merged.
+
+The same round found five statements describing development#158 as
+unmerged, when it merged as `3859865` at 19:38 on 2026-09-20, nine
+minutes before `475689e` was written. Sweeping the class rather
+than the five turned up three more the review did not report: F1's
+"the sentence reads", F2's "catches nothing else" and F3's "nothing
+defuses `missing` or `findings`" were all present-tense claims
+about a tree the fix had already changed. Every `path:line`
+citation in this phase into a file development#158 touched was
+re-resolved against `main` afterwards, and the dispositions now
+name the merge commit rather than a pending pull request.
+
 #### The survival audit
 
 Every assertion phase 1 and phase 2 wrote survived the restructure.
@@ -1447,28 +1510,43 @@ derivation: the two follow-ups to the prune workflow
 unrelated merge-queue pull request, so no range anchored on this
 plan's own commits contains them.
 
-Step 8's `Merged` cell is empty and stays empty in this pull
-request. `plan-phase-landing` lets the push-audit row omit one,
-because it is the last row and nothing ever reads it -- but the
-carve-out it grants for *free* applies where the audit found
-nothing, and this audit found F1 to F6. So the findings pull
-request is the carrier: it lands against `main` after this phase
-merges, records this phase's merge commit in that cell, and is what
-moves the plan's index row to `Complete`. Until then the row stays
-`In progress`, because a plan with open findings is not complete
-however many of its rows say otherwise.
+Step 8's `Merged` cell is empty and stays empty. *Rewritten on
+2026-09-21, after review: the paragraph this replaces nominated a
+carrier that had already landed.* `plan-phase-landing` lets the
+push-audit row omit the cell because it is the last row and nothing
+ever reads it -- the column exists so that the push-audit phase can
+reconstruct what to audit, and there is no phase after this one.
+But the carve-out it grants for *free* applies where the audit
+found nothing, and this audit found F1 to F6, so the block
+nominates the findings pull request as the carrier: it is supposed
+to land after the audit phase merges, when that merge commit is
+known, and to record it.
+
+That ordering inverted. Development#158 merged as `3859865` at
+19:38 on 2026-09-20, while this phase's own pull request was still
+in review rounds and unmerged. The block assumes the findings are
+fixed *after* the audit phase lands; here they were fixed during
+its review cycle, at the operator's direction, so the carrier went
+first and none remains. The cell is therefore left empty
+deliberately, and the carve-out claimed outside the conditions the
+block states -- in preference to spending a pull request and a CI
+run on one cell that nothing ever reads, which is the round trip
+that same block exists to avoid. F1 to F3's landing commit is
+recorded against each finding in the Outcome instead, where a
+reader looking for it will be. The gap in the block is written up
+in Future work.
 
 Step 8's `Status` is `Complete` deliberately, and it is the audit
 that finished, not the work the audit found: every wave brief ran,
 every finding is written down with a disposition, and nothing
-further is learned by running it again. Recorded here because the
-resulting row -- `Complete`, an empty `Merged` cell, an index row
-saying `In progress` -- is indistinguishable from the carve-out the
-paragraph above disclaims, and only this prose separates them.
-Nothing mechanical does: `plan-audit-phase` passes either way, so if
-development#158 were closed unmerged the gap would not surface. The
-index row is the load-bearing one, because it stays `In progress`
-until every finding has landed.
+further is learned by running it again. The plan's index row is
+`Complete` too, because every finding now has an exit -- F1 to F3
+landed in development#158 (`3859865`), and F4 to F6 are declined in
+writing in the Outcome -- rather than because the rows say so.
+Recorded here because the resulting row, `Complete` with an empty
+`Merged` cell, is indistinguishable from the carve-out the
+paragraphs above disclaim, and only this prose separates them.
+Nothing mechanical does: `plan-audit-phase` passes either way.
 
 `pre-commit run --all-files` must pass before each commit is
 proposed; the Python follows the house style (single quotes,
@@ -1540,7 +1618,16 @@ proposed; the Python follows the house style (single quotes,
   and a verbatim subagent brief, which is a record of what was asked
   rather than a claim about the tree. A check that cannot tell those
   apart would be noise, and the honest first step is a convention
-  for marking a citation as historical.
+  for marking a citation as historical. A fourth instance arrived
+  from the commit that set out to eliminate the first three: F3's
+  citations into `scripts/audit-manage-issues.py` were resolved
+  against `771b074`, an intermediate commit on the findings branch
+  that `b34734e` later reworked, so they were wrong in every tree
+  the repository has rather than merely drifted. That says the
+  convention needs three states and not two -- live, historical at
+  a named commit, and resolved against an unmerged branch -- and
+  the third has no honest rendering at all, which is the argument
+  for resolving against the default branch and nothing else.
 * Revisit capping the issue-body file list if a repo much larger
   than ryll adopts the tooling. Unreached so far: ryll#304's body
   is 76 lines at 63 files, and because the body is never refreshed
@@ -1559,18 +1646,18 @@ proposed; the Python follows the house style (single quotes,
   a review artefact, so such a pull request skips every test tier.
 * ~~Escape `render_issue_items` in
   `scripts/audit-manage-issues.py`.~~ Done in the findings pull
-  request, development#158 (unmerged at the time of writing), rather
-  than deferred, at the operator's direction. The
-  fleet-wide caveat that made it a deferral still applies and is
+  request, development#158, merged as `3859865`, rather than
+  deferred, at the operator's direction. The fleet-wide caveat that
+  made it a deferral still applies and is
   recorded in that commit: it changes every criterion's issue
   bodies, not only the two review checks'.
 * ~~Catch `OSError` alongside `subprocess.TimeoutExpired` wherever
   a `Check` shells out.~~ No sweep was needed: a survey found
   `ReviewCoverage` and `ReviewScopeCompleteness` were the only two
   sites in the package not already catching it, and both are fixed
-  in the findings pull request, development#158 (unmerged at the
-  time of writing). The reachable trigger is `cwd`
-  rather than a missing script -- see F2's correction.
+  in the findings pull request, development#158, merged as
+  `3859865`. The reachable trigger is `cwd` rather than a missing
+  script -- see F2's correction.
 * The test gaps phase 6's observations name, none of which have a
   test today: `in_scope == 0` is untested, so the boundary that
   decides whether a repository has zeroed its own obligation is the
@@ -1581,10 +1668,23 @@ proposed; the Python follows the house style (single quotes,
   machinery, against five in-repository precedents for exactly that
   kind of smoke test. See phase 6's "Observations, recorded and not
   acted on" for what each one was found by.
-* Phase 6's F4, F5 and F6, all in ryll and all advisory, recorded
-  here because no pull request carries them and an advisory finding
-  with no carrier is a finding that gets lost. F4: the prune job
-  still grants `GITHUB_TOKEN` `contents: write` at
+* `plan-phase-landing` assumes a plan's findings are fixed *after*
+  its push-audit phase merges, so that the findings pull request is
+  available to carry that phase's merge commit. Phase 6 inverted
+  it: the findings landed as development#158 (`3859865`) while the
+  audit phase was still going through review rounds, which left the
+  last row's `Merged` cell with no carrier and the carve-out
+  claimed outside the conditions the block states. The block should
+  say what to do when the findings land first -- the common case
+  whenever the audit phase runs more than one review round. Not
+  fixed here: editing a shared block is
+  `PLAN-plan-template-blocks`'s work and fans out to every
+  repository carrying it.
+* Phase 6's F4, F5 and F6, all in ryll and all advisory, declined
+  for this plan and recorded here because no pull request carries
+  them and an advisory finding with no carrier is a finding that
+  gets lost. F4: the prune job still grants `GITHUB_TOKEN`
+  `contents: write` at
   `prune-reviews.yml:40-41`, leftover from the pre-PAT design, where
   every write has gone through `DEPENDENCIES_TOKEN` since
   `a0227e05` and a `permissions:` block does not constrain a PAT
@@ -1629,8 +1729,9 @@ proposed; the Python follows the house style (single quotes,
   backlog it names, and filed development#138 for the cause.
 * Phase 6 found a fifth instance of the default-branch claim, at
   `AGENTS.md:132-134`, which two rounds of review had passed over.
-  It is recorded as F1 in phase 6's Outcome and lands in that
-  phase's findings pull request, development#158, not here.
+  It is recorded as F1 in phase 6's Outcome and landed in that
+  phase's findings pull request, development#158 (`3859865`), not
+  here.
 * Phase 6 corrected four factual errors in its own briefs at source,
   listed under "What the audit corrected about this plan". The
   largest was the premise that `ReviewCoverage.run()` and
@@ -1653,4 +1754,7 @@ matched. The second, before the Execution table moved, required a
 statement of whether the audit had produced findings, because that
 decides the shape of the close-out: findings mean the index row
 stays `In progress` until they land or are declined in writing. It
-did produce findings, so it does.
+did produce findings: F1 to F3 landed in development#158
+(`3859865`), which merged ahead of this phase rather than after it,
+and F4 to F6 are declined in the Outcome, so the row reaches
+`Complete` here.
