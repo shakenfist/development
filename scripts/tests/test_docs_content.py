@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from audit.checks import docs_content  # noqa: E402
 from audit.checks import llm_docs as llm_docs_module  # noqa: E402
 from tests.base import (  # noqa: E402
-    REPO_ROOT, CheckTestCase, FixtureRepo, repo_file,
+    REPO_ROOT, CheckTestCase, repo_file,
 )
 
 
@@ -91,13 +91,12 @@ class DocsExternalLinksTest(CheckTestCase):
         check only has to find the file, so its content is beside the
         point.
 
-        Each call builds its own fixture rather than adding to the one
-        setUp made: the excludes case runs the check twice in one
-        method, and files written by the first call would otherwise
-        still be on disk for the second -- which is what the temporary
-        directory this replaced did.
+        A fresh fixture per call, via CheckTestCase.fresh_fixture,
+        because the excludes case runs the check twice in one method,
+        and files written by the first call would otherwise still be on
+        disk for the second.
         """
-        self.fixture = FixtureRepo(self.tempdir())
+        self.fresh_fixture()
         self.fixture.write_all(files or {})
         return self.check(**(props or {}))
 
@@ -301,13 +300,12 @@ class DiagramFormatTest(CheckTestCase):
     def _check(self, files, props=None):
         """files maps repo-relative paths to content.
 
-        Each call builds its own fixture rather than adding to the one
-        setUp made: two cases run the check twice in one method, and
-        files written by the first call would otherwise still be on
-        disk for the second -- which is what the temporary directory
-        this replaced did.
+        A fresh fixture per call, via CheckTestCase.fresh_fixture,
+        because two cases run the check twice in one method, and files
+        written by the first call would otherwise still be on disk for
+        the second.
         """
-        self.fixture = FixtureRepo(self.tempdir())
+        self.fresh_fixture()
         self.fixture.write_all(files)
         return self.check(**(props or {}))
 

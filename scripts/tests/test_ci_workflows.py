@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import ci_workflows  # noqa: E402
 from audit.text import workflows  # noqa: E402
-from tests.base import CheckTestCase, FixtureRepo, REPO_ROOT  # noqa: E402
+from tests.base import CheckTestCase, REPO_ROOT  # noqa: E402
 
 CI_REVIEW_DEVELOPER_WORKFLOWS = ci_workflows.CI_REVIEW_DEVELOPER_WORKFLOWS
 CI_REVIEW_SHARED_ACTION = ci_workflows.CI_REVIEW_SHARED_ACTION
@@ -239,12 +239,12 @@ class RetiredCommentAddresserTest(CheckTestCase):
     def _check(self, leftovers=(), docs_only=False):
         """The check over a clean repository plus the named leftovers.
 
-        Each call builds its own fixture rather than adding to the one
-        setUp made: the case which separates the installed workflow
-        from a template copy runs the check twice, and the first call's
+        A fresh fixture per call, via CheckTestCase.fresh_fixture,
+        because the case which separates the installed workflow from a
+        template copy runs the check twice, and the first call's
         leftovers would be findings in the second.
         """
-        self.fixture = FixtureRepo(self.tempdir())
+        self.fresh_fixture()
         self.fixture.workflows({
             wf: ('uses: shakenfist/actions/pr-bot-trigger@main\n'
                  'uses: shakenfist/actions/review-pr-with-claude@main\n')
@@ -662,12 +662,12 @@ class MergeGroupCancellationTest(CheckTestCase):
         default because the check hands them to merge_queue_is_serial,
         so they are part of what each case sets up.
 
-        Each call builds its own fixture rather than adding to the one
-        setUp made: the matrix case runs the check twice in one
-        method, and workflows written by the first call would
-        otherwise still be on disk for the second.
+        A fresh fixture per call, via CheckTestCase.fresh_fixture,
+        because the matrix case runs the check twice in one method, and
+        workflows written by the first call would otherwise still be on
+        disk for the second.
         """
-        self.fixture = FixtureRepo(self.tempdir())
+        self.fresh_fixture()
         self.fixture.workflows(workflows)
         return self.check(name='testrepo', org='shakenfist',
                           has_workflows_dir=True)

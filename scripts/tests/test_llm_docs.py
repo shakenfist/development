@@ -21,7 +21,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import llm_docs  # noqa: E402
-from tests.base import CheckTestCase, FixtureRepo  # noqa: E402
+from tests.base import CheckTestCase  # noqa: E402
 
 LLM_DOC_STRUCTURE_OK = llm_docs.LLM_DOC_STRUCTURE_OK
 
@@ -44,12 +44,12 @@ class LlmDocStructureTest(CheckTestCase):
     def _check(self, agents=None, architecture=None, docs=None):
         """docs maps docs/-relative filenames to content.
 
-        Each call builds its own fixture rather than adding to the one
-        setUp made: the case comparing the two line caps runs the check
+        A fresh fixture per call, via CheckTestCase.fresh_fixture,
+        because the case comparing the two line caps runs the check
         twice, and the over-long AGENTS.md written by the first call
         would still be on disk for the second, which expects a pass.
         """
-        self.fixture = FixtureRepo(self.tempdir())
+        self.fresh_fixture()
         self.fixture.write_all({
             name: content
             for name, content in (('AGENTS.md', agents),
@@ -285,12 +285,12 @@ class LlmContextLintCiTest(CheckTestCase):
     def _check(self, files):
         """The check over a repository made of exactly these files.
 
-        Each call builds its own fixture rather than adding to the one
-        setUp made: the case showing the invocation form is not pinned
-        runs the check once per spelling, and a workflow left behind by
-        the previous spelling would answer for the next.
+        A fresh fixture per call, via CheckTestCase.fresh_fixture,
+        because the case showing the invocation form is not pinned runs
+        the check once per spelling, and a workflow left behind by the
+        previous spelling would answer for the next.
         """
-        self.fixture = FixtureRepo(self.tempdir())
+        self.fresh_fixture()
         self.fixture.write_all(files)
         return self.check()
 

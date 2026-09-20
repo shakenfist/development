@@ -13,9 +13,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import packaging  # noqa: E402
-from tests.base import (  # noqa: E402
-    REPO_ROOT, CheckTestCase, FixtureRepo,
-)
+from tests.base import REPO_ROOT, CheckTestCase  # noqa: E402
 
 
 class DependencyNameNormalizationTest(CheckTestCase):
@@ -289,13 +287,12 @@ class ConsoleLoggingTest(CheckTestCase):
     def _check(self, files, pyproject=None):
         """Run the check over a {path: content} mapping.
 
-        Each call builds its own fixture rather than adding to the one
-        setUp made: the malformed-declaration case runs the check three
+        A fresh fixture per call, via CheckTestCase.fresh_fixture,
+        because the malformed-declaration case runs the check three
         times in one method, and a pyproject.toml written by an earlier
-        call would otherwise still be on disk for the next one -- which
-        is what the temporary directory this replaced did.
+        call would otherwise still be on disk for the next one.
         """
-        self.fixture = FixtureRepo(self.tempdir())
+        self.fresh_fixture()
         if pyproject is not False:
             self.fixture.write('pyproject.toml', pyproject or self.PYPROJECT)
         self.fixture.write_all(files)
@@ -1066,13 +1063,12 @@ class PythonVersionTargetingTest(CheckTestCase):
     def _check(self, pyproject=None, renovate=None, props=None):
         """Run the check over an optional pyproject and renovate.json.
 
-        Each call builds its own fixture rather than adding to the one
-        setUp made: the malformed-renovate case runs the check four
-        times in one method, and a file written by an earlier call
-        would otherwise still be on disk for the next one -- which is
-        what the temporary directory this replaced did.
+        A fresh fixture per call, via CheckTestCase.fresh_fixture,
+        because the malformed-renovate case runs the check four times in
+        one method, and a file written by an earlier call would
+        otherwise still be on disk for the next one.
         """
-        self.fixture = FixtureRepo(self.tempdir())
+        self.fresh_fixture()
         if pyproject is not None:
             self.fixture.write('pyproject.toml', pyproject)
         if renovate is not None:

@@ -92,10 +92,13 @@ git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- '*.py' | grep -nE '^\+[^+].{120
 # named file rather than left to whether anyone happened to notice.
 # The extension list is this repository's: Python and shell are all
 # it ships. --diff-filter=d keeps a deleted path out of wc's argv,
-# and the awk drops wc's own total line
-git diff --name-only --diff-filter=d "${AUDIT_RANGE:-origin/main...HEAD}" \
-    -- '*.py' '*.sh' | xargs -r wc -l | sort -rn | \
-    awk '$1 > 800 && $2 != "total"'
+# and the awk drops wc's own total line -- xargs splits a long list
+# over several wc runs, each printing one. -z/-0 rather than a bare
+# pipe because a path with a space in it would otherwise be split,
+# and git C-quotes anything non-ASCII under core.quotePath
+git diff --name-only -z --diff-filter=d \
+    "${AUDIT_RANGE:-origin/main...HEAD}" -- '*.py' '*.sh' | \
+    xargs -0r wc -l | sort -rn | awk '$1 > 800 && $2 != "total"'
 
 # New third-party imports -- the audit scripts are stdlib plus
 # the git and gh CLIs only, which is why they run on a bare runner.

@@ -41,14 +41,14 @@ def repo_file(*parts):
 def repo_text(*parts):
     """The same file, decoded, for the suites that read prose.
 
-    The spec-agreement tests compare a page under docs/audits/ with the
-    constants the check measures against, and each carries its own
-    open() over a REPO_ROOT join because repo_file() hands back bytes:
-    PushAuditTest and PlanTemplateTest read the page their block list
-    has to be named on, and VmRunnerSizeTest reads the size vocabulary
-    out of workflow-standards.md. The walk is the part that goes wrong
-    when a file moves, and there is no reason for three more copies of
-    it to exist than there are for the byte-comparing ones.
+    The spec-agreement tests compare a page under docs/audits/ with
+    the constants the check measures against, and each used to carry
+    its own open() over a REPO_ROOT join because repo_file() hands
+    back bytes. The walk is the part that goes wrong when a file
+    moves, and there is no reason for more copies of it to exist than
+    there are for the byte-comparing ones. (The callers are not listed
+    here on purpose: a list of class names in a docstring rots, and
+    `grep -rn repo_text scripts/tests/` is current.)
     """
     return repo_file(*parts).decode('utf-8')
 
@@ -101,14 +101,13 @@ class FixtureRepo:
     def write_all(self, files):
         """Write a {repository-relative path: content} mapping.
 
-        The shape most of the private `_repo` and `_check` helpers were
-        built around -- DocsExternalLinksTest, DiagramFormatTest,
-        MermaidLintCiTest, ConsoleLoggingTest, HeaderSanitizationTest,
-        PlanPhaseReferencesTest, PlanSourceReferenceTest,
-        PlanAuditPhaseTest, OrphanSkillMarkdownTest and
-        LlmContextLintCiTest each carry their own copy of this loop,
-        and the copies already disagree about whether a directory is
-        created with makedirs(path) or makedirs(path or tmp).
+        The shape most of the private `_repo` and `_check` helpers
+        were built around: before this existed, ten of them carried
+        their own copy of this loop, and the copies already disagreed
+        about whether a directory was created with makedirs(path) or
+        makedirs(path or tmp). Which classes those were is history and
+        is not listed here, because such a list rots; the callers now
+        are what `grep -rn write_all scripts/tests/` says.
 
         A None content means the file is absent and is skipped; an
         empty file is spelled ''. The two readings were both in use
@@ -130,10 +129,9 @@ class FixtureRepo:
     def workflows(self, files):
         """Write a {workflow name: content} mapping.
 
-        ExpensiveLanePathFilterTest, MergeGroupCancellationTest,
-        VmRunnerSizeTest and PrAutoReviewSecretsInheritTest all drive
-        their fixtures from a mapping of workflows, and each builds the
-        directory and the loop itself.
+        Several suites drive their fixtures from a mapping of
+        workflows, and each used to build the directory and the loop
+        itself.
 
         The directory is created even when the mapping is empty,
         because those helpers create it unconditionally and a check
@@ -190,6 +188,33 @@ class CheckTestCase(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         return tmp.name
+
+    def fresh_fixture(self):
+        """Replace self.fixture with an empty one, and return it.
+
+        A class helper that runs the check needs this whenever a
+        single test method calls it more than once: files written by
+        the first call are still on disk for the second, so a case
+        meaning "and now without that file" cannot say so. The bug
+        that produces is a silent pass, because the check sees a
+        repository the test did not describe.
+
+        Each caller's docstring says which of its cases forced this,
+        since that is the part a later reader cannot reconstruct; the
+        mechanism is here.
+
+        Deleting the rebuild below fails three tests today --
+        PlanIndexTest, LlmDocStructureTest and
+        RetiredCommentAddresserTest -- and no others, because the
+        remaining callers' repeated calls happen to rewrite the same
+        paths, so the second overwrites what the first left. That is
+        a coincidence of the current cases rather than a property, so
+        the rebuild belongs in all of them: MergeGroupCancellationTest
+        was exactly this shape and started failing as soon as one case
+        named a second workflow.
+        """
+        self.fixture = FixtureRepo(self.tempdir())
+        return self.fixture
 
     def repo(self, name='testrepo', org='shakenfist', github=None,
              **props):

@@ -188,6 +188,24 @@ class FixtureRepoBulkWriteTest(CheckTestCase):
             'on:\n  pull_request:\n',
             self.repo().read('.github/workflows/lint.yml'))
 
+    def test_workflows_skips_a_none_content(self):
+        """The absence sentinel survives the composition.
+
+        workflows() delegates to write_all(), so None has to keep
+        meaning "absent" across two helpers rather than one. A check
+        that walks .github/workflows/ counts what is there, so a
+        sentinel that leaked through as an empty file would be
+        counted -- and the case meaning "this workflow is missing"
+        would pass for the wrong reason.
+        """
+        written = self.fixture.workflows({'ci.yml': 'on:\n  push:\n',
+                                          'absent.yml': None})
+        workflows = os.path.join(self.fixture.path, '.github', 'workflows')
+        self.assertEqual([os.path.join(workflows, 'ci.yml')], written)
+        self.assertFalse(
+            os.path.exists(os.path.join(workflows, 'absent.yml')))
+        self.assertEqual(['ci.yml'], sorted(os.listdir(workflows)))
+
     def test_an_empty_mapping_still_creates_the_directory(self):
         # The helpers this replaces call makedirs() before the loop, so
         # a repository with a workflows directory and no workflows is a

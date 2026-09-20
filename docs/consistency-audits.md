@@ -277,7 +277,8 @@ A test for a check subclasses `CheckTestCase` from
 `scripts/tests/base.py` rather than building its own fixture and
 assertion scaffolding. It provides `self.fixture`, a `FixtureRepo`
 over a throwaway checkout (`write()`, `write_all()`, `workflow()`,
-`workflows()`, `init_git()`, `commit()`); `self.check(**props)`,
+`workflows()`, `init_git()`, `commit()`); `self.fresh_fixture()`,
+which replaces it with an empty one; `self.check(**props)`,
 which runs `check_class` against the fixture with repository
 properties supplied directly rather than detected; `check_args=` on
 `self.check()` for the three checks whose constructors take an
@@ -297,8 +298,8 @@ helper existed, and absence is the one that fails silently if a
 caller guesses wrong -- a check that distinguishes a missing file
 from an empty one would quietly pass. And a helper that runs the
 check more than once in a single test method must rebuild the
-fixture first (`self.fixture = FixtureRepo(self.tempdir())`), or the
-first call's files are still on disk for the second.
+fixture first, by calling `self.fresh_fixture()`, or the first
+call's files are still on disk for the second.
 
 The tests cover the machinery, not what a check *decides* about a real
 repository. Test that half against local clones:

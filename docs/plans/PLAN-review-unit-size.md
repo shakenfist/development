@@ -374,7 +374,7 @@ this repository's convention.
 | 3. Inventory, and the gaps in `CheckTestCase` | Complete | 06437a7..33a042a |
 | 4. Migrate the check tests, one file per commit | Complete | 06437a7..33a042a |
 | 5. Retire the helpers and record the convention | Complete | 06437a7..33a042a |
-| 6. Push audit | In progress | |
+| 6. Push audit | Complete | |
 
 **All six phases ship as a single pull request.** That is an
 operator decision taken when this plan was written, and it has
@@ -1192,8 +1192,12 @@ the Future work bullet omitted `scripts/audit/checks/plans.py`,
 which is over the threshold the block this plan wrote sets and is
 the one file under `scripts/audit/` this plan edits.
 
-The rest are recorded for a decision rather than fixed here, since
-`plan-phase-landing` lands findings as their own pull request:
+The rest were recorded for a decision rather than fixed in the
+audit commit, since `plan-phase-landing` lands findings as their
+own pull request. All four were then settled during the automated
+review rounds on the pull request -- two taken, two declined in
+writing -- which is why this phase can close itself out here rather
+than waiting on a follow-up:
 
 * `scripts/tests/base.py` -- `write()` and `write_all()` do a bare
   `os.path.join(self.path, relative)`. Every call site passes a
@@ -1205,7 +1209,10 @@ The rest are recorded for a decision rather than fixed here, since
   answer where it was asked.
 * `scripts/tests/base.py` -- the `repo_text` and `write_all`
   docstrings enumerate ten and three affected class names, which
-  will rot. Keep the why, trim the lists.
+  will rot. Keep the why, trim the lists. **Taken** in the second
+  review round, together with the same list in `workflows()` that
+  the audit had missed. Each now says the count and points at the
+  grep that is current instead of naming the classes.
 * `scripts/audit-manage-issues.py` -- `build_issue_body()` runs
   only where no open issue exists, so a repository already holding
   an open `push-audit` issue never sees the new requirement in its
@@ -1220,11 +1227,16 @@ The rest are recorded for a decision rather than fixed here, since
   Recorded under Future work as three manual body edits, which is
   the cheap half; the durable half is refreshing a changed body on
   an already-open issue, and that is a separate pull request
-  against code this plan does not touch.
+  against code this plan does not touch. **Declined here** on that
+  ground, and the review agreed with the split.
 * Repository-wide, out of scope and not introduced here: there are
   no type annotations on any of the 1,796 `def`s under `scripts/`,
   while the `python-version-discipline` block this repository ships
-  requires them of ten others.
+  requires them of ten others. **Declined here.** Annotating 1,796
+  definitions is its own plan, and doing a tenth of it in a
+  migration's pull request would leave the repository in the state
+  that is hardest to reason about: annotated enough to look
+  checked, not enough to be.
 
 **What gates the push is not a finding.** `origin/main` moved 34
 commits during this plan and `git merge origin/main` conflicts in
@@ -1241,10 +1253,12 @@ the merged tree for that reason.
 
 Findings land as their own pull request against `main`, and the
 plan is not complete until they are resolved or declined in
-writing. If the audit finds nothing, say so here in one sentence;
-per `plan-phase-landing` this row is the one permitted to omit a
-`Merged` cell, and it sets its own `Status` and the plan's index
-row to `Complete` in this pull request.
+writing. Each of the four above now carries that decision, so the
+condition is met without a follow-up pull request -- which is the
+outcome `plan-phase-landing` is for. Per that block this row is
+the one permitted to omit a `Merged` cell, and it sets its own
+`Status`, and the plan's index row, to `Complete` in this pull
+request.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|

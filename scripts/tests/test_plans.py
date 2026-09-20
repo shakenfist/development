@@ -39,14 +39,12 @@ class PlanPhaseReferencesTest(CheckTestCase):
     def _check(self, files, props=None):
         """files maps repo-relative paths to content.
 
-        Each call builds its own fixture rather than adding to the one
-        setUp made: the excludes case runs the check twice in one
-        method and the marker-prose case runs it once per spelling,
-        and files written by an earlier call would otherwise still be
-        on disk -- which is what the temporary directory this replaced
-        did.
+        A fresh fixture per call, via CheckTestCase.fresh_fixture,
+        because the excludes case runs the check twice in one method and
+        the marker-prose case runs it once per spelling, and files
+        written by an earlier call would otherwise still be on disk.
         """
-        self.fixture = FixtureRepo(self.tempdir())
+        self.fresh_fixture()
         self.fixture.write_all(files)
         return self.check(**(props or {}))
 
@@ -423,13 +421,12 @@ class PlanIndexTest(CheckTestCase):
         plans is a list of file names to create; index is the content
         of index.md, or None to leave it out entirely.
 
-        Each call builds its own fixture rather than adding to the one
-        setUp made: the blank-versus-omitted status pair runs the
-        check twice in one method, and "leave index.md out entirely"
-        cannot mean that if a previous call already wrote one -- which
-        is what the temporary directory this replaced did.
+        A fresh fixture per call, via CheckTestCase.fresh_fixture,
+        because the blank-versus-omitted status pair runs the check
+        twice in one method, and "leave index.md out entirely" cannot
+        mean that if a previous call already wrote one.
         """
-        self.fixture = FixtureRepo(self.tempdir())
+        self.fresh_fixture()
         os.makedirs(os.path.join(self.fixture.path, 'docs', 'plans'))
         for name in plans or []:
             self.fixture.write(os.path.join('docs', 'plans', name),

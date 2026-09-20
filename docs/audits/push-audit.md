@@ -83,6 +83,19 @@ independently in each repository -- several still told the
 documentation reviewer that "`README.md` reflects any new features",
 which is the exact feedback loop that bloats READMEs.
 
+### Recently enforced
+
+**`source-file-size` became a required block on 2026-09-20**, and the
+repositories that do not yet embed it are non-compliant on the
+generated compliance page from that date rather than from any change
+of their own. The fix is a verbatim copy of
+`templates/shared-blocks/source-file-size.md` from
+`shakenfist/development`, markers included;
+`templates/shared-blocks/README.md` describes the copy
+discipline, and the reasoning for enforcing it with a backlog
+open rather than after the sweep is D1 and D2 of
+[PLAN-review-unit-size.md](../plans/PLAN-review-unit-size.md).
+
 ## Template
 
 Template: `templates/shared-blocks/`
