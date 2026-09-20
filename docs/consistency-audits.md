@@ -273,6 +273,23 @@ python3 scripts/test_check_audit_smoke.py
 python3 scripts/test_issue_fix_extraction.py
 ```
 
+A test for a check subclasses `CheckTestCase` from
+`scripts/tests/base.py` rather than building its own fixture and
+assertion scaffolding. It provides `self.fixture`, a `FixtureRepo`
+over a throwaway checkout (`write()`, `write_all()`, `workflow()`,
+`workflows()`, `init_git()`, `commit()`); `self.check(**props)`,
+which runs `check_class` against the fixture with repository
+properties supplied directly rather than detected; `check_args=` on
+`self.check()` for the three checks whose constructors take an
+argument (`PushAudit`, `PlanTemplate`, `SfuiVendor`); and the
+`assert_pass(result)` / `assert_fail(result, containing=)` /
+`assert_skip(result, containing=)` triple in place of a bare
+`assertEqual` against `result['status']`. A class that tests a pure
+helper rather than a `Check` subclass -- a regex, a parsing function,
+a spec-page comparison -- correctly does not use it; it stays a plain
+`unittest.TestCase`, since there is no check to run and nothing
+`CheckTestCase` would add.
+
 The tests cover the machinery, not what a check *decides* about a real
 repository. Test that half against local clones:
 

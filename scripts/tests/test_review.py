@@ -25,7 +25,7 @@ SCRIPT = os.path.join(
 
 
 class ReviewMarksPreCommitTest(CheckTestCase):
-    """Tests check_review_marks_pre_commit against config fixtures."""
+    """Tests ReviewMarksPreCommit against config fixtures."""
 
     check_class = review.ReviewMarksPreCommit
 
@@ -111,7 +111,7 @@ class ReviewMarksPreCommitTest(CheckTestCase):
 
 
 class ReviewCoverageTest(CheckTestCase):
-    """Tests check_review_coverage against fixture git repositories.
+    """Tests ReviewCoverage against fixture git repositories.
 
     The check shells out to review-tracking.py status, which needs a
     real repository: committed files so blob SHAs resolve, weAudit
@@ -184,7 +184,7 @@ class ReviewCoverageTest(CheckTestCase):
 
 
 class ReviewScopeCompletenessTest(CheckTestCase):
-    """Tests check_review_scope_completeness against fixture repos.
+    """Tests ReviewScopeCompleteness against fixture repos.
 
     The check shells out to review-tracking.py scope-orphans, which
     needs a real repository: the orphan set is computed from git
@@ -251,7 +251,7 @@ class ReviewScopeCompletenessTest(CheckTestCase):
 
 
 class SfuiVendorTest(CheckTestCase):
-    """Exercise check_sfui_vendor against fixture repositories.
+    """Exercise SfuiVendor against fixture repositories.
 
     The canonical fixture is a tiny git repo carrying a stand-in
     tools/vendor.sh that honours the real script's --check contract

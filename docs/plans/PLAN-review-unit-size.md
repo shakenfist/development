@@ -365,11 +365,11 @@ this repository's convention.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. The `source-file-size` shared block | Not started | |
-| 2. Enforce both blocks | Not started | |
-| 3. Inventory, and the gaps in `CheckTestCase` | Not started | |
-| 4. Migrate the check tests, one file per commit | Not started | |
-| 5. Retire the helpers and record the convention | Not started | |
+| 1. The `source-file-size` shared block | Complete | 06437a7..(see below) |
+| 2. Enforce both blocks | Complete | 06437a7..(see below) |
+| 3. Inventory, and the gaps in `CheckTestCase` | Complete | 06437a7..(see below) |
+| 4. Migrate the check tests, one file per commit | Complete | 06437a7..(see below) |
+| 5. Retire the helpers and record the convention | In progress | 06437a7..(see below) |
 | 6. Push audit | Not started | |
 
 **All six phases ship as a single pull request.** That is an
@@ -386,6 +386,11 @@ are recorded here rather than left to be discovered.
   each phase's first commit sets the previous phase's `Status`
   cell. Nothing is closed out across a merge, because there is only
   one merge.
+* The `Merged` range ends at the branch tip, which phase 6 moves,
+  so the five completed rows carry its start and the audit phase
+  writes the end SHA in its own commit -- the last one on the
+  branch, and the first point at which both ends are known. The
+  branch begins at `06437a7`.
 * No phase can record its own merge commit, and the `Merged` record
   is therefore one entry for all six rows rather than six, in the
   `first..last` range form `plan-push-audit-phase` allows for a
@@ -1011,31 +1016,94 @@ the deleted code and the deleted test look alike in a diff.
 Close out phase 4 and make the convention discoverable, so the
 migration does not have to be done a third time.
 
-**Deliverables.**
+**Results.**
 
-* Re-run the helper census
-  (`grep -c 'def _repo\|def _check\|TemporaryDirectory()'
-  scripts/tests/*.py`, which stood at 142 across 11 files) and
-  record the new figure in this plan. Any survivor is either in a
-  non-candidate class or is a real gap in `CheckTestCase`; say
-  which, per survivor.
-* A paragraph in `docs/consistency-audits.md`, in *Testing a
-  change*, saying that a test for a check subclasses
-  `CheckTestCase` from `scripts/tests/base.py`, what it provides,
-  and that a class testing a pure helper does not.
-* One line in `AGENTS.md` pointing at that paragraph. This is a
-  convention change, which is the bar `AGENTS.md` is held to by
-  the `llm-doc-structure` criterion -- one line and a pointer, not
-  a copy of the paragraph.
-* Re-measure the five files from the Situation table and record
-  the before-and-after line counts in this plan, under this phase.
-  That is the number the whole plan is for, and it is also the
-  first real data point for the phase 1 guideline: if the
-  migration does not move those files meaningfully, the plan
-  should say so plainly rather than claim a win it did not get.
-* The phase 4 close-out: `Status` cells for phases 1 to 4, the
-  single `Merged` range for all rows, and the plan's row in
-  `docs/plans/index.md`.
+The helper census, re-run over `scripts/tests/`:
+
+| Metric | At plan start | Now |
+|---|---|---|
+| `TemporaryDirectory()` sites | 112 | 21 |
+| `def _repo` helpers | 10 | 3 |
+| `def _check` helpers | 20 | 24 |
+| Old-style `(unittest.TestCase)` classes | 68 | 39 |
+| `CheckTestCase` classes | 25 | 58 |
+
+Two of those numbers need explaining rather than presenting bare.
+
+`def _check` went *up*, 20 to 24. That is the shape decision
+recorded in commit `39ccfcf`: each migrated class keeps one thin
+helper holding the class's repository shape -- what a compliant
+fixture looks like for that criterion -- while the scaffolding
+underneath it (the tempdir, the `makedirs`, the write loop, the
+module-level `check_*` wrapper) is what got deleted. The count of
+`_check` helpers was never the right measure of this migration; the
+`TemporaryDirectory()` count is, and it fell by four fifths, 112 to
+21.
+
+The 21 remaining `TemporaryDirectory()` sites break down as
+follows, counted per class rather than asserted:
+
+| Where | Sites | Why it stays |
+|---|---:|---|
+| `CheckTestCase.setUp` / `.tempdir()` in `base.py` | 2 | The machinery itself, not a survivor of it |
+| `AuditScopeIsStatedOnceTest`, `CheckScopeTest` (`test_registry.py`) | 7 | Non-candidates: the registry contract and audit scope, no `Check` to run |
+| `MermaidLintScriptTest` (`test_docs_content.py`) | 3 | Non-candidate: drives the deployed script directly |
+| `RepoReadTest` (`test_repo.py`) | 2 | Non-candidate: tests `Repo.read` itself |
+| `ContractTest` (`test_metadata.py`) | 1 | Non-candidate: a fleet-wide contract over every registered check |
+| `OrphanSkillMarkdownTest` (`test_llm_docs.py`) | 4 | Migrated, but four of its seven methods call a pure helper against a plain directory (see `796ce96`) |
+| `FuzzNightlyReportingTest` (`test_ci_workflows.py`) | 2 | Already on `CheckTestCase` before this plan, and still builds its own directories |
+
+So six of the 21 sit inside `CheckTestCase` subclasses rather than in
+old-style classes, which is worth saying because the tempting summary
+-- "what is left is all in the classes we did not migrate" -- is not
+true. Four of those six are deliberate and documented;
+`FuzzNightlyReportingTest` is neither, and is the one place a later
+pass could still take something out. It is recorded under Future work.
+
+None of this is a gap in `CheckTestCase` for the work this plan
+scoped: every class the phase 3 inventory named as a migration
+candidate has been migrated, and no candidate was left with
+hand-rolled scaffolding.
+
+The five candidate-bearing files from the Situation table, plus
+`test_runners.py` and `test_review.py`, which phase 4 migrated
+first:
+
+| File | Before | After |
+|---|---|---|
+| `test_ci_workflows.py` | 2210 | 2124 |
+| `test_packaging.py` | 2660 | 2531 |
+| `test_plans.py` | 2754 | 2719 |
+| `test_docs_content.py` | 1916 | 1892 |
+| `test_runners.py` | 414 | 366 |
+| `test_review.py` | 457 | 363 |
+| `test_llm_docs.py` | 562 | 496 |
+
+The big files barely moved: `test_plans.py` fell 35 lines and
+`test_packaging.py` 129, against a Situation section that framed
+this work as reducing re-review cost. Said plainly, per the phase 1
+guideline: the migration removed duplicated scaffolding, not bulk.
+These files stay long because they carry many test cases and their
+rationale comments, which the `source-file-size` block this plan
+wrote explicitly says must not be cut to hit a number. A real
+reduction for `test_plans.py` and `test_packaging.py` would mean
+splitting them along the seams already named in this plan's Future
+work section, which this plan deliberately did not do.
+
+39 old-style classes remain. 38 are the non-candidates the phase 3
+inventory named -- they test pure helpers, regexes, spec-page
+wording or the registry contract and have no `Check` to inherit.
+The 39th is `RepoTextTest`, added in commit `e08d667` (phase 3b) to
+test the new `repo_text()` helper, and correctly left as a plain
+`unittest.TestCase` for the same reason: it is not testing a
+`Check`. Every candidate the phase 3 inventory identified -- all 30
+of them, across `test_ci_workflows.py`, `test_docs_content.py`,
+`test_llm_docs.py`, `test_packaging.py`, `test_plans.py`,
+`test_review.py` and `test_runners.py` -- has been migrated onto
+`CheckTestCase`.
+
+The convention paragraph is in `docs/consistency-audits.md`, under
+*Testing a change*, with its one-line pointer in `AGENTS.md`.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
@@ -1451,6 +1519,11 @@ intend to do aligns with that plan.
   changed. `python3 -m unittest discover -s scripts/tests -t
   scripts` already discovers new files, so no pre-commit or CI
   configuration moves.
+* **`FuzzNightlyReportingTest`.** It is already on `CheckTestCase`
+  and still builds two of its own `TemporaryDirectory()` sites, which
+  is the last unexplained scaffolding in a migrated class. Phase 5
+  counted it rather than fixing it, because it predates this plan and
+  changing it is not a migration. One class, probably one commit.
 * **The non-check suites.** `scripts/test_review_tracking.py` (879
   lines) and `scripts/test_audit_update_docs.py` (796) test CLIs
   rather than checks, so they have no `CheckTestCase` to inherit

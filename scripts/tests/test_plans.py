@@ -2489,7 +2489,7 @@ class PushAuditTest(CheckTestCase):
 
 
 class PlanTemplateTest(CheckTestCase):
-    """Tests for check_plan_template.
+    """Tests for PlanTemplate.
 
     The check had no direct coverage at all, which matters once
     PLAN_TEMPLATE_BLOCKS gains an entry: adding a name to that list
