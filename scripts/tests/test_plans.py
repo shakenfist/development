@@ -2321,6 +2321,37 @@ class PlanAuditPhaseTest(unittest.TestCase):
         self.assertEqual(result['status'], 'pass', result['details'])
 
 
+class PushAuditRunbookRangeTest(unittest.TestCase):
+    """This repository's own PUSH-AUDIT.md states an explicit range.
+
+    Three plans recorded the `main...HEAD` defect and none fixed it,
+    because the only thing standing between the runbook and its
+    return was a person noticing. Against a stale local `main` the
+    range silently widens; against work that has already landed it is
+    empty, and an empty diff reads as a clean audit rather than as no
+    audit. Phase 5 of PLAN-push-audit-phase.md fixed it in step 5a,
+    and this is what keeps it fixed.
+
+    `origin/main...HEAD` is the documented default and contains the
+    forbidden string as a substring, so the pattern requires the
+    match to be unqualified.
+    """
+
+    BARE_RANGE_RE = re.compile(r'(^|[^/])main\.\.\.HEAD')
+
+    def test_no_diff_command_uses_a_bare_main_head_range(self):
+        path = os.path.join(REPO_ROOT, 'PUSH-AUDIT.md')
+        with open(path) as f:
+            hits = [
+                (n, line.rstrip()) for n, line in enumerate(f, 1)
+                if self.BARE_RANGE_RE.search(line)
+            ]
+        self.assertEqual(
+            [], hits,
+            'PUSH-AUDIT.md has regained a bare main...HEAD range; use '
+            '"${AUDIT_RANGE:-origin/main...HEAD}" instead')
+
+
 class PushAuditTest(unittest.TestCase):
     def setUp(self):
         # A private canonical blocks directory so the tests do not
