@@ -282,8 +282,8 @@ Deliberately out of scope:
   **Default: 800 advisory, 1,500 wants a stated reason, no hard
   cap ever.**
 * **Does `test_plans.py` get migrated in this plan or deferred?**
-  It is 2,754 lines with zero migrated classes and six candidates
-  spanning 2,581 of them -- a third of the whole job and the one
+  It is 2,791 lines with zero migrated classes and six candidates
+  spanning 2,618 of them -- a third of the whole job and the one
   file where the migration could plausibly go wrong quietly.
   **Default: in scope, migrated last, as its own commit, with the
   before-and-after test count recorded in the commit message.**
@@ -770,14 +770,130 @@ is the failure mode to avoid. Always pass `--page /tmp/compliance.md`.
 
 Two jobs, both cheap, both of which de-risk phase 3.
 
-**Re-derive the inventory.** The 36-candidate figure in the
-Situation section came from a substring filter and will
-over-count. Produce, per test file, the actual list of old-style
-classes that instantiate a `Check` subclass, and for each the
-reason it is or is not a candidate. Land it as a table in this plan
-under this phase's section, replacing the heuristic number. A class
-that tests a pure helper stays; say so per class rather than
-leaving the reader to infer it from an absence.
+**The inventory, re-derived by reading every class** in
+`scripts/tests/test_*.py` declared as `(unittest.TestCase)` (a
+class already migrated onto `CheckTestCase` is excluded, since it
+is not old-style), rather than by the substring filter the
+Situation section used:
+
+| File | Class | Lines | Candidate | Reason |
+|------|-------|-------|-----------|--------|
+| test_ci_workflows.py | CiReviewAutomationSpecTest | 42-80 | No | Compares the spec page's "Measured" section to constants; never runs `CiReviewAutomation` |
+| test_ci_workflows.py | ExpensiveLanePathFilterTest | 81-222 | Yes | `ExpensiveLanePathFilter`, via `check_expensive_lane_path_filter()` |
+| test_ci_workflows.py | WorkflowJobBlocksTest | 223-251 | No | Tests `workflow_job_blocks()` / `is_dedicated_scanner_workflow()`, pure text helpers |
+| test_ci_workflows.py | RetiredCommentAddresserTest | 252-466 | Yes | `CiReviewAutomation`, via `check_ci_review_automation()` |
+| test_ci_workflows.py | PrReReviewTriggerTest | 467-545 | Yes | `CiReviewAutomation`, via `check_ci_review_automation()` |
+| test_ci_workflows.py | PrAutoReviewSecretsInheritTest | 546-681 | Yes | `CiReviewAutomation`, via `check_ci_review_automation()` |
+| test_ci_workflows.py | MergeGroupCancellationTest | 682-1120 | Yes | `MergeGroupCancellation`, via `check_merge_group_cancellation()` |
+| test_distros.py | ImageReferenceTest | 26-113 | No | Tests `image_release()`, a pure helper |
+| test_distros.py | RetiredReleaseTest | 114-145 | No | Tests `retired_releases()`, a pure helper |
+| test_distros.py | RunnerLabelMatchTest | 146-186 | No | Tests the `RUNNER_LABEL_RE` regex directly |
+| test_distros.py | SpecificationTest | 449-488 | No | Compares `eol-distro.md` wording to `EOL_RELEASES`/`README.md`; no check run |
+| test_distros.py | ExceptionMarkerTest | 489-503 | No | Tests the `EXCEPTION_RE` regex directly |
+| test_distros.py | DockerfileNamingTest | 504-517 | No | Tests `is_dockerfile()`, a pure helper |
+| test_distros.py | RegressionGuardTest | 518-551 | No | Asserts on `RUNNER_LABEL_RE.pattern`'s text |
+| test_docs_content.py | ReadmeStructureTest | 47-102 | Yes | `ReadmeStructure`, via `check_readme_structure()` |
+| test_docs_content.py | DocsExternalLinksTest | 103-305 | Yes | `DocsExternalLinks`, via `check_docs_external_links()` |
+| test_docs_content.py | DiagramFormatTest | 306-573 | Yes | `DiagramFormat`, via `check_diagram_format()` |
+| test_docs_content.py | MermaidLintCiTest | 574-671 | Yes | `MermaidLintCi`, via `check_mermaid_lint_ci()` |
+| test_docs_content.py | IssueLinkCheckDeploymentTest | 672-707 | No | Byte-compares the deployed workflow to its template; no check run |
+| test_docs_content.py | MermaidLintDeploymentTest | 708-807 | No | Byte-compares deployed script/workflow to templates; no check run |
+| test_docs_content.py | MermaidLintScriptTest | 808-1862 | No | Runs `tools/mermaid-lint.sh` itself via subprocess against a stub docker; no `Check` involved |
+| test_github_config.py | MergeQueueConfigTest | 23-63 | No | Tests `evaluate_merge_queue_rules()`, a helper `MergeQueueConfig` calls internally; never instantiates the check |
+| test_hooks.py | HookTriggerTest | 191-225 | No | Checks `.pre-commit-config.yaml` file-patterns against each suite's own dependencies; no `checks/` module involved |
+| test_llm_docs.py | LlmDocStructureTest | 48-201 | Yes | `LlmDocStructure`, via `check_llm_doc_structure()` |
+| test_llm_docs.py | OrphanSkillMarkdownTest | 203-280 | Ambiguous | Four methods call `orphan_skill_markdown()` directly (a pure helper); the other three (`test_repo_without_skills_is_not_applicable`, `test_orphans_fail_the_check`, `test_missing_skillsaw_is_not_applicable`) call `check_llm_context_lint()`, exercising `LlmContextLint`'s `applies`/`skip`/`fail` wiring rather than the helper -- close to an even split, not a clean yes or no |
+| test_llm_docs.py | LlmContextLintCiTest | 282-559 | Yes | `LlmContextLintCi`, via `check_llm_context_lint_ci()` |
+| test_manage_issues.py | IssueBodyTest | 34-81 | No | Tests `build_issue_body()`, an issue-formatting helper; no check run |
+| test_manage_issues.py | IssueBodyLimitTest | 82-118 | No | Same helper, tests its truncation behaviour |
+| test_markdown.py | StripMarkdownCodeTest | 20-49 | No | Tests `strip_markdown_code()`, a pure helper |
+| test_markdown.py | IterLinesOutsideFencesTest | 50-78 | No | Tests `iter_lines_outside_fences()`, a pure helper |
+| test_markdown.py | MarkdownHeadingTest | 79-121 | No | Tests `markdown_heading()` / `iter_markdown_headings()`, pure helpers |
+| test_markdown.py | IterMarkdownTableRowsTest | 122-193 | No | Tests `iter_markdown_table_rows()`, a pure helper |
+| test_metadata.py | FrozenMetadataTest | 343-354 | No | Compares derived metadata tables to frozen literals |
+| test_metadata.py | DerivationTest | 355-421 | No | Asserts `registry.CHECKS` metadata invariants (spec/id/column); never calls `.run()`/`.applies()` |
+| test_metadata.py | ContractTest | 422-503 | No, ambiguous | Calls `.applies()`/`.run()` on *every* registered check to test a fleet-wide contract, not any one check's behaviour -- does not fit a single `check_class` |
+| test_npm_dependencies.py | CommentStrippingTest | 726-746 | No | Tests `strip_comments()`, a pure helper |
+| test_npm_dependencies.py | SpecificationTest | 747-774 | No | Tests `specifier_package()`, a pure helper |
+| test_packaging.py | DependencyNameNormalizationTest | 47-150 | Yes | `DependencyNameNormalization`, via `check_dependency_name_normalization()` |
+| test_packaging.py | PinIndirectDepsScopeTest | 151-245 | Yes | `PinIndirectDependencies`, via `check_pin_indirect_deps()` |
+| test_packaging.py | RenovatePreCommitManagerTest | 246-339 | Yes | `Renovate`, via `check_renovate()` |
+| test_packaging.py | ConsoleLoggingTest | 340-791 | Yes | `ConsoleLogging`, via `check_console_logging()` |
+| test_packaging.py | HeaderSanitizationTest | 792-1184 | Yes | `HeaderSanitization`, via `check_header_sanitization()` |
+| test_packaging.py | PythonVersionTargetingTest | 1185-1332 | Yes | `PythonVersionTargeting`, via `check_python_version_targeting()` |
+| test_plans.py | PlanPhaseReferencesTest | 60-355 | Yes | `PlanPhaseReferences`, via `check_plan_phase_references()` |
+| test_plans.py | PlanSourceReferenceTest | 356-443 | Yes | `PlanSourceReferences`, via `check_plan_source_references()` |
+| test_plans.py | PlanIndexTest | 444-741 | Yes | `PlanIndex`, via `check_plan_index()` |
+| test_plans.py | PlanAuditPhaseTest | 742-2212 | Yes | `PlanAuditPhase`, via `check_plan_audit_phase()` |
+| test_plans.py | PushAuditTest | 2213-2558 | Yes, mixed | Most of its ~20 methods go through `_check()` -> `check_push_audit()` -> `PushAudit`; four (`test_source_file_size_is_required`, `test_every_required_block_has_a_canonical_copy`, `test_every_required_block_is_named_in_the_spec`, `test_the_fixture_covers_every_required_block`) instead assert directly against the `PUSH_AUDIT_BLOCKS` constant and canonical block files, with no check run -- those four would need to travel separately at migration time |
+| test_plans.py | PlanTemplateTest | 2559-2662 | Ambiguous | Four of its eight methods go through `_check()` -> `check_plan_template()` -> `PlanTemplate`; the other four (`test_push_audit_phase_is_required`, `test_phase_landing_is_required`, `test_every_required_block_is_named_in_the_spec`, `test_every_required_block_has_a_canonical_copy`) assert directly against `PLAN_TEMPLATE_BLOCKS` and canonical block files, with no check run -- an even split, closer to non-candidate than `PushAuditTest` |
+| test_plans.py | CanonicalSharedBlocksTest | 2663-2682 | No | Confirms every `templates/shared-blocks/*.md` file parses as its own named block; no check run |
+| test_plans.py | PlanStatusVocabularyBlockTest | 2683-2717 | No | Compares the `plan-status-vocabulary` canonical block to `PLAN_STATUSES`/`PLAN_TEMPLATE_BLOCKS` |
+| test_plans.py | PushAuditPhaseBlockTest | 2718-2773 | No | Compares the `plan-push-audit-phase` canonical block's wording to named rule phrases |
+| test_python_source.py | CanonicalNameTest | 20-28 | No | Tests `canonical_dependency_name()`, a plain function, not a check |
+| test_python_source.py | MaskCommentsAndStringsTest | 29-69 | No | Tests `mask_comments_and_strings()`, a pure helper |
+| test_python_source.py | MaskStringsTest | 70-101 | No | Tests `mask_strings()`, a pure helper |
+| test_registry.py | AuditScopeIsStatedOnceTest | 36-329 | No | Tests `audit.scope`'s doc/matrix parsing helpers; no check |
+| test_registry.py | RepoOverridesTest | 330-401 | No | Tests `detect_repo_properties()`; no check |
+| test_registry.py | CheckScopeTest | 402-482 | No, ambiguous | Calls `registry.run_all()` (every registered check) to test the `only_checks` scoping mechanism itself, not one check's behaviour |
+| test_registry.py | GitHooksDisabledTest | 483-598 | No | Greps this repository's own workflow files for a security control; no `checks/` module for it |
+| test_registry.py | MergeRefResolutionTest | 599-703 | No | Greps this repository's own workflow files for the resolve-ref pattern; no `checks/` module for it |
+| test_repo.py | RepoReadTest | 29-104 | No | Tests `Repo.read()` directly, not any check |
+| test_review.py | ReviewMarksPreCommitTest | 45-147 | Yes | `ReviewMarksPreCommit`, via `check_review_marks_pre_commit()` |
+| test_review.py | ReviewCoverageTest | 149-242 | Yes | `ReviewCoverage`, via `check_review_coverage()` |
+| test_review.py | ReviewScopeCompletenessTest | 244-330 | Yes | `ReviewScopeCompleteness`, via `check_review_scope_completeness()` |
+| test_review.py | SfuiVendorTest | 332-455 | Yes | `SfuiVendor`, via `check_sfui_vendor()` |
+| test_runners.py | RunnerLabelParsingTest | 36-79 | No | Tests `parse_runner_labels()`/`literal_runner_labels()`, pure helpers |
+| test_runners.py | VmRunnerSizeTest | 81-268 | Yes, mostly | `VmRunnerSize`, via `check_vm_runner_size()`; one method compares the spec's size list to `VM_SIZE_LABELS` instead |
+| test_runners.py | SelfHostedRunnerLabelPositionTest | 271-376 | Yes | `SelfHostedRunners`, via `check_self_hosted_runners()` |
+
+`EolDistroTest` and `DateGateTest` in `test_distros.py`,
+`GithubConfigTestCase` and its subclasses in
+`test_github_config.py`, and `ReadmeAbsoluteLinksTest` /
+`LlmToolingTest` in `test_docs_content.py` already subclass
+`CheckTestCase` and are excluded from the table above as
+already migrated, not as non-candidates.
+
+Five classes are marked ambiguous or mixed rather than forced to
+a clean yes or no. `ContractTest` (`test_metadata.py`) and
+`CheckScopeTest` (`test_registry.py`) both call
+`.applies()`/`.run()`, but on every registered check at once, to
+test a fleet-wide contract or the scoping mechanism itself --
+neither fits a single `check_class`, so both are counted as
+non-candidates here. `OrphanSkillMarkdownTest`
+(`test_llm_docs.py`) and `PlanTemplateTest` (`test_plans.py`)
+split close to evenly between methods that call a pure helper or
+assert against a constant and methods that run a real check
+(`LlmContextLint`, `PlanTemplate` respectively) -- both are
+counted as candidates here on the strength of the check-running
+methods, but a migration will need to decide where the other
+half of each class's methods land. `PushAuditTest`
+(`test_plans.py`) has the same split but lopsided the other way
+(four non-check methods out of roughly twenty), so it is a
+cleaner candidate. `VmRunnerSizeTest` (`test_runners.py`) is
+mostly a candidate with one spec-comparison method that runs no
+check. `test_plans.py` was being edited concurrently by phase 2 while
+this table was produced, growing from 2,754 to 2,791 lines; the
+line numbers above are what was actually read, not a fixed
+count. Its six candidate classes span 2,618 of those lines.
+
+**The result:** 30 candidates across 68 old-style classes,
+totalling 6,765 lines -- against the Situation section's
+substring-filter figure of 36 classes / ~7,200 lines. The class
+count was overstated by about a sixth; the line count, dominated
+by a few very large classes (`PlanAuditPhaseTest` alone is 1,471
+lines), was close to right. 38 classes are correctly not
+candidates, each for a stated reason above: most test a pure
+helper (markdown, python-source, npm-dependency, runner-label
+parsing), some compare a specification page or canonical
+shared-block to a table or constant, and a few read this
+repository's own files directly for a security or template
+control that has no `Check` subclass at all. Three of the four
+files phase 4 groups as "small candidate sets, one commit each"
+(`test_manage_issues.py`, `test_registry.py`, `test_metadata.py`)
+in fact have zero candidates each -- only `test_runners.py`
+(two candidates) has anything to migrate from that group; worth
+weighing when phase 4 is briefed.
 
 **Then find what `CheckTestCase` cannot yet do**, by reading the
 old-style classes rather than by guessing. From a first pass, the
@@ -821,21 +937,39 @@ that a bad commit is bisectable to one file.
 the early files already contain migrated siblings to copy the shape
 from:
 
-1. `test_runners.py`, `test_manage_issues.py`, `test_registry.py`,
-   `test_metadata.py` -- small candidate sets, one commit each or
-   one commit for the four if each is only a class or two.
+The grouping below was rewritten against the phase 3 inventory,
+which found that three of the four files this phase originally put
+in its first group -- `test_manage_issues.py`, `test_registry.py`
+and `test_metadata.py` -- have no candidates at all. Ten of the
+seventeen test files turn out to have nothing to migrate. Naming
+them here anyway, as files deliberately not touched, is what stops
+the next reader reading their absence as an oversight.
+
+1. `test_runners.py` -- two candidates over ~297 lines
+   (`VmRunnerSizeTest`, `SelfHostedRunnerLabelPositionTest`), with
+   one migrated sibling in the file. The smallest real migration,
+   so it goes first and sets the shape cheaply.
 2. `test_review.py`, `test_llm_docs.py` -- four and three
    candidates, no migrated siblings, still small enough to read
    whole.
-3. `test_ci_workflows.py` -- five candidates over ~1,000 lines,
+3. `test_ci_workflows.py` -- five candidates over ~1,011 lines,
    with six already-migrated classes in the same file as the
-   pattern to follow. This is the reference migration; do it
-   before the two larger files and let it set the shape.
-4. `test_packaging.py` -- six candidates, eight migrated siblings.
+   pattern to follow. This is the reference migration for the
+   larger files; let it set the shape before the two biggest.
+4. `test_packaging.py` -- six candidates over ~1,286 lines, eight
+   migrated siblings.
 5. `test_docs_content.py` -- four candidates over ~625 lines, two
    migrated siblings.
-6. `test_plans.py` -- six candidates over ~2,581 lines, no migrated
+6. `test_plans.py` -- six candidates over ~2,618 lines, no migrated
    siblings. Last, alone, and with the most care.
+
+Not touched, because they have no class that runs a `Check`:
+`test_distros.py`, `test_github_config.py`, `test_hooks.py`,
+`test_manage_issues.py`, `test_markdown.py`, `test_metadata.py`,
+`test_npm_dependencies.py`, `test_python_source.py`,
+`test_registry.py`, `test_repo.py`. Their old-style classes test
+pure helpers, regexes, spec-page wording or the registry contract,
+and have nothing to inherit.
 
 **The invariant that governs every commit: no assertion changes.**
 A migration moves a class onto `CheckTestCase`, deletes its private
@@ -868,9 +1002,9 @@ the deleted code and the deleted test look alike in a diff.
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
 | 4a | high | opus | worktree | Migrate the phase 3a candidates in `scripts/tests/test_ci_workflows.py` to `CheckTestCase`. Read `scripts/tests/base.py` and the already-migrated classes in the same file (`WorkflowPermissionsTest` at line 1121 onwards) first; they are the target shape. For each candidate: set `check_class`, delete the private `_repo`/`_check`/`_job` helpers and `tempfile.TemporaryDirectory()` sites in favour of `self.fixture` and `self.check(**props)`, and replace `self.assertEqual(result['status'], ...)` with `assert_pass`/`assert_fail`/`assert_skip`. Keep every rationale comment verbatim and keep every assertion subject identical. `MergeGroupCancellationTest` monkeypatches `ci_workflows.merge_queue_is_serial` in `setUp`; keep that patch in the class, using `addCleanup` rather than `tearDown`. Report the test count before and after -- it must be unchanged. |
-| 4b | high | opus | worktree | The same migration for `test_runners.py`, `test_manage_issues.py`, `test_registry.py`, `test_metadata.py`, `test_review.py` and `test_llm_docs.py`, following the shape 4a established. One commit per file. Same invariants: no assertion subject changes, comments verbatim, test count recorded per commit. |
+| 4b | high | opus | worktree | The same migration for `test_runners.py` (2 candidates), `test_review.py` (4) and `test_llm_docs.py` (3), following the shape 4a established. One commit per file. `test_manage_issues.py`, `test_registry.py` and `test_metadata.py` are NOT in this step -- the phase 3 inventory found they have no candidates. Same invariants: no assertion subject changes, comments verbatim, test count recorded per commit. |
 | 4c | high | opus | worktree | The same migration for `test_packaging.py` and `test_docs_content.py`. One commit each. |
-| 4d | xhigh | opus | worktree | The same migration for `test_plans.py`: six candidate classes over roughly 2,581 lines with no migrated sibling in the file to copy from. Read the whole file before changing any of it. This is the largest single migration in the plan and the one where a dropped test is least likely to be noticed, so record the per-class test count, not just the file total. |
+| 4d | xhigh | opus | worktree | The same migration for `test_plans.py`: six candidate classes over roughly 2,618 lines with no migrated sibling in the file to copy from. Read the whole file before changing any of it. This is the largest single migration in the plan and the one where a dropped test is least likely to be noticed, so record the per-class test count, not just the file total. |
 
 ### 5. Retire the helpers and record the convention
 
