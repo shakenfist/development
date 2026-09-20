@@ -370,6 +370,28 @@ class ReviewScopeCompletenessTest(unittest.TestCase):
         self.assertEqual(result['status'], 'fail', result['details'])
         self.assertEqual(result['missing'], ['b.py', 'c.py'])
 
+    def test_oserror_is_reported_rather_than_raised(self):
+        # The mirror of ReviewCoverageTest's test of the same name.
+        # Both checks shell out and both grew the same handler, but
+        # only the coverage half was exercised, so the scope-orphans
+        # message -- a different string, reached by a different call
+        # -- was the untested one. Same reasoning as there: run_check()
+        # has no handler, so anything raised out of a check costs the
+        # repository all of its other criteria too.
+        self.commit('include = ["*.py"]\n', ['a.py', 'config.json'])
+
+        def boom(*args, **kwargs):
+            raise PermissionError(13, 'Permission denied')
+
+        original = review.subprocess.run
+        review.subprocess.run = boom
+        try:
+            result = self.check()
+        finally:
+            review.subprocess.run = original
+        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assertIn('scope-orphans could not run', result['details'])
+
 
 class SfuiVendorTest(unittest.TestCase):
     """Exercise check_sfui_vendor against fixture repositories.

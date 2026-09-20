@@ -158,9 +158,26 @@ def defuse_item(item):
     let a value start or end with a backtick, and CommonMark strips
     one leading and one trailing space when both are present.
 
-    Nothing here rejects an item. A path that needs defusing is still
-    the path somebody has to go and review, and dropping it would make
-    the work queue lie about what is outstanding.
+    A fence of three or more backticks is the shape of a fenced code
+    block opener rather than a span, which would be a different bug.
+    It cannot happen: the fence only reaches that width when the item
+    itself contains a run of two or more backticks, and it is emitted
+    on the same line as them, so the would-be info string contains a
+    backtick -- which CommonMark forbids. The opener is never valid,
+    and the parser falls back to span rules. This is what makes the
+    ```` a```b`c ```` case render as intended.
+
+    Nothing here rejects an item, but something is transformed: the
+    whitespace collapse means a path whose name contains a newline or
+    a tab is published with those rendered as single spaces, so it no
+    longer names a file that can be copied straight out of the issue.
+    That is the same trade defuse() makes for details in
+    audit_common.py, and it is preferred here for symmetry -- the
+    alternative, escaping losslessly, would make ordinary paths the
+    only thing the two functions disagree about. What matters is that
+    the item is still there: a path that needs defusing is still the
+    path somebody has to go and review, and dropping it would make the
+    work queue lie about what is outstanding.
     """
     flat = ' '.join(str(item).split())
     longest = 0

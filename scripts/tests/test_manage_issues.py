@@ -277,11 +277,18 @@ class ItemDefusingTest(unittest.TestCase):
         self.assertEqual('`` `both` ``', defused)
 
     def test_nothing_is_dropped(self):
-        """A path needing defusing is still a path somebody must review."""
+        """A path needing defusing is still a path somebody must review.
+
+        The expectation is the flattened value verbatim, not a
+        stripped one. Stripping the backticks would make this vacuous
+        for `` `x` `` -- the one input where they are all at the ends
+        -- so the assertion would rest entirely on `we`ird.py`, whose
+        interior backtick survives a strip. Asking for the whole value
+        makes every input here pin the property.
+        """
         for raw in ['plain.py', 'we`ird.py', 'two\nlines.py', '`x`']:
-            self.assertIn(
-                raw.replace('\n', ' ').strip('`') or '`',
-                self.defuse(raw))
+            flat = ' '.join(raw.split())
+            self.assertIn(flat, self.defuse(raw))
 
     def test_an_injected_heading_stays_inside_the_bullet(self):
         body = self.build('eol-distro', self.result(
