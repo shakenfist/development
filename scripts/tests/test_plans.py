@@ -14,16 +14,16 @@ Run with: python3 scripts/tests/test_plans.py
 
 import os
 import re
-import subprocess
 import sys
-import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import plans  # noqa: E402
 from audit.text import shared_blocks  # noqa: E402
-from tests.base import REPO_ROOT, run_check  # noqa: E402
+from tests.base import (  # noqa: E402
+    REPO_ROOT, CheckTestCase, FixtureRepo,
+)
 
 
 PLAN_STATUSES = plans.PLAN_STATUSES
@@ -33,55 +33,32 @@ SHARED_BLOCKS_DIR = shared_blocks.SHARED_BLOCKS_DIR
 load_canonical_block = shared_blocks.load_canonical_block
 
 
-def check_plan_phase_references(path, props=None):
-    return run_check(plans.PlanPhaseReferences(), path, props)
+class PlanPhaseReferencesTest(CheckTestCase):
+    check_class = plans.PlanPhaseReferences
 
-
-def check_plan_source_references(path, props=None):
-    return run_check(plans.PlanSourceReferences(), path, props)
-
-
-def check_plan_index(path, props=None):
-    return run_check(plans.PlanIndex(), path, props)
-
-
-def check_plan_audit_phase(path, props=None):
-    return run_check(plans.PlanAuditPhase(), path, props)
-
-
-def check_push_audit(path, props=None, blocks_dir=None):
-    return run_check(plans.PushAudit(blocks_dir=blocks_dir), path, props)
-
-
-def check_plan_template(path, props=None, blocks_dir=None):
-    return run_check(plans.PlanTemplate(blocks_dir=blocks_dir), path, props)
-
-
-class PlanPhaseReferencesTest(unittest.TestCase):
     def _check(self, files, props=None):
-        """files maps repo-relative paths to content."""
-        with tempfile.TemporaryDirectory() as tmp:
-            for rel, content in files.items():
-                path = os.path.join(tmp, rel)
-                os.makedirs(os.path.dirname(path) or tmp,
-                            exist_ok=True)
-                with open(path, 'w') as f:
-                    f.write(content)
-            return check_plan_phase_references(
-                tmp, props or {}
-            )
+        """files maps repo-relative paths to content.
+
+        Each call builds its own fixture rather than adding to the one
+        setUp made: the excludes case runs the check twice in one
+        method and the marker-prose case runs it once per spelling,
+        and files written by an earlier call would otherwise still be
+        on disk -- which is what the temporary directory this replaced
+        did.
+        """
+        self.fixture = FixtureRepo(self.tempdir())
+        self.fixture.write_all(files)
+        return self.check(**(props or {}))
 
     def test_not_applicable_without_readme_or_docs(self):
-        self.assertEqual(
-            self._check({})['status'], 'not_applicable'
-        )
+        self.assert_skip(self._check({}))
 
     def test_clean_docs_pass(self):
         result = self._check({
             'README.md': '# Project\n\nA pitch.\n',
             'docs/usage.md': 'The frobnicator frobs on demand.\n',
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_phase_reference_in_docs_fails_with_location(self):
         result = self._check({
@@ -90,15 +67,13 @@ class PlanPhaseReferencesTest(unittest.TestCase):
                 'Frobnication was implemented in phase 5.\n'
             ),
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('docs/usage.md:3', result['details'])
+        self.assert_fail(result, containing='docs/usage.md:3')
 
     def test_phase_reference_in_readme_fails(self):
         result = self._check({
             'README.md': 'Since Phase 3, frobbing is default.\n',
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('README.md:1', result['details'])
+        self.assert_fail(result, containing='README.md:1')
 
     def test_generated_compliance_block_is_not_scanned(self):
         """A harvested detail must not fail this repository's own audit.
@@ -131,7 +106,7 @@ class PlanPhaseReferencesTest(unittest.TestCase):
                 '<!-- consistency-audit:end -->\n'
             ),
         })
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_prose_naming_the_markers_exempts_nothing(self):
         """Naming a marker in prose must not exempt anything.
@@ -235,8 +210,7 @@ class PlanPhaseReferencesTest(unittest.TestCase):
                 'Wired up in phase 6.\n'
             ),
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('docs/notes.md:2', result['details'])
+        self.assert_fail(result, containing='docs/notes.md:2')
 
     def test_a_phase_reference_after_a_generated_block_still_fails(self):
         # The exclusion must end at the end marker, and must not shift
@@ -253,8 +227,7 @@ class PlanPhaseReferencesTest(unittest.TestCase):
                 'This was wired up in phase 6.\n'
             ),
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('docs/audits/plan-index.md:7', result['details'])
+        self.assert_fail(result, containing='docs/audits/plan-index.md:7')
 
     def test_markers_shown_inside_a_fence_do_not_open_a_block(self):
         # The same hazard as the docs-external-links case, and worth
@@ -285,21 +258,21 @@ class PlanPhaseReferencesTest(unittest.TestCase):
         result = self._check({
             'docs/usage.md': 'Delivered across phases 2 and 3.\n',
         })
-        self.assertEqual(result['status'], 'fail')
+        self.assert_fail(result)
 
     def test_plans_directory_is_ignored(self):
         result = self._check({
             'docs/plans/PLAN-frob.md': '## Phase 1: frob\n',
             'docs/usage.md': 'Frobbing.\n',
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_nested_plans_directory_is_ignored(self):
         result = self._check({
             'docs/parts/plans/PLAN-frob.md': '## Phase 2: frob\n',
             'docs/usage.md': 'Frobbing.\n',
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_doc_content_excludes_are_skipped(self):
         # shakenfist's docs/components/ is an automated import of
@@ -313,10 +286,10 @@ class PlanPhaseReferencesTest(unittest.TestCase):
             files,
             props={'doc_content_excludes': ['docs/components/']},
         )
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
         # Without the override the same tree fails, so the exclude
         # is doing the work.
-        self.assertEqual(self._check(files)['status'], 'fail')
+        self.assert_fail(self._check(files))
 
     def test_code_blocks_do_not_count(self):
         result = self._check({
@@ -326,7 +299,7 @@ class PlanPhaseReferencesTest(unittest.TestCase):
                 'A `phase 3` inline span does not count either.\n'
             ),
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_audit_ok_marker_suppresses_the_line(self):
         result = self._check({
@@ -335,7 +308,7 @@ class PlanPhaseReferencesTest(unittest.TestCase):
                 '<!-- audit-ok: phase-reference -->\n'
             ),
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_phase_without_a_number_passes(self):
         result = self._check({
@@ -343,46 +316,46 @@ class PlanPhaseReferencesTest(unittest.TestCase):
                 'Two-phase commit is used for the frob step.\n'
             ),
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_non_markdown_files_are_ignored(self):
         result = self._check({
             'docs/notes.txt': 'Implemented in phase 4.\n',
             'docs/usage.md': 'Frobbing.\n',
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
 
-class PlanSourceReferenceTest(unittest.TestCase):
+class PlanSourceReferenceTest(CheckTestCase):
     """Plan pointers written into source and configuration."""
 
-    def _repo(self, tmp, files):
-        for relative, content in files.items():
-            path = os.path.join(tmp, relative)
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, 'w') as f:
-                f.write(content)
-        subprocess.run(['git', 'init', '--quiet', '-b', 'main'], cwd=tmp,
-                       check=True)
-        subprocess.run(['git', 'add', '-A'], cwd=tmp, check=True)
-        return check_plan_source_references(tmp, {})
+    check_class = plans.PlanSourceReferences
+
+    def _check(self, files):
+        """The check over a checkout holding these files, staged.
+
+        The class's repository shape: this check reads the files git
+        knows about rather than walking the tree, so every fixture is
+        a real checkout with everything added.
+        """
+        self.fixture.write_all(files)
+        self.fixture.init_git()
+        self.fixture.git('add', '-A')
+        return self.check()
 
     def test_a_resolving_reference_passes(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            result = self._repo(tmp, {
-                'docs/plans/PLAN-frob.md': '# Frob\n',
-                'src/frob.py': '# See docs/plans/PLAN-frob.md.\n',
-            })
-        self.assertEqual(result['status'], 'pass')
+        result = self._check({
+            'docs/plans/PLAN-frob.md': '# Frob\n',
+            'src/frob.py': '# See docs/plans/PLAN-frob.md.\n',
+        })
+        self.assert_pass(result)
 
     def test_a_rotted_reference_fails(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            result = self._repo(tmp, {
-                'docs/plans/PLAN-frob.md': '# Frob\n',
-                'src/frob.py': '# See docs/plans/PLAN-gone.md.\n',
-            })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('PLAN-gone.md', result['details'])
+        result = self._check({
+            'docs/plans/PLAN-frob.md': '# Frob\n',
+            'src/frob.py': '# See docs/plans/PLAN-gone.md.\n',
+        })
+        self.assert_fail(result, containing='PLAN-gone.md')
 
     def test_a_rotted_reference_in_a_test_still_fails(self):
         # Test files carry prose pointers like any other source, and
@@ -390,59 +363,54 @@ class PlanSourceReferenceTest(unittest.TestCase):
         # cites a plan that no longer exists in its module docstring.
         # Skipping a file because its name looks like a test would
         # hide exactly that.
-        with tempfile.TemporaryDirectory() as tmp:
-            result = self._repo(tmp, {
-                'tests/test_frob.py': '"""See PLAN-gone.md."""\n',
-            })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('PLAN-gone.md', result['details'])
+        result = self._check({
+            'tests/test_frob.py': '"""See PLAN-gone.md."""\n',
+        })
+        self.assert_fail(result, containing='PLAN-gone.md')
 
     def test_the_file_marker_exempts_a_whole_file(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            result = self._repo(tmp, {
-                'tests/test_frob.py': (
-                    '# audit-ok: plan-reference-file\n'
-                    '"""See PLAN-gone.md and PLAN-also-gone.md."""\n'
-                ),
-            })
-        self.assertEqual(result['status'], 'not_applicable')
+        result = self._check({
+            'tests/test_frob.py': (
+                '# audit-ok: plan-reference-file\n'
+                '"""See PLAN-gone.md and PLAN-also-gone.md."""\n'
+            ),
+        })
+        self.assert_skip(result)
 
     def test_the_line_marker_exempts_one_line(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            result = self._repo(tmp, {
-                'docs/plans/PLAN-frob.md': '# Frob\n',
-                'src/frob.py': (
-                    "PATTERN = 'PLAN-*.md'  # audit-ok: plan-reference\n"
-                    '# See docs/plans/PLAN-gone.md.\n'
-                ),
-            })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('PLAN-gone.md', result['details'])
+        result = self._check({
+            'docs/plans/PLAN-frob.md': '# Frob\n',
+            'src/frob.py': (
+                "PATTERN = 'PLAN-*.md'  # audit-ok: plan-reference\n"
+                '# See docs/plans/PLAN-gone.md.\n'
+            ),
+        })
+        self.assert_fail(result, containing='PLAN-gone.md')
         self.assertNotIn('PATTERN', result['details'])
 
     def test_plan_template_is_not_a_plan_reference(self):
         # PLAN-TEMPLATE.md lives at the repository root, not in
         # docs/plans/, and the plan-template audit is what holds it
         # there. Naming it is not a pointer that can rot.
-        with tempfile.TemporaryDirectory() as tmp:
-            result = self._repo(tmp, {
-                'tools/check.sh': 'grep x PLAN-TEMPLATE.md\n',
-            })
-        self.assertEqual(result['status'], 'not_applicable')
+        result = self._check({
+            'tools/check.sh': 'grep x PLAN-TEMPLATE.md\n',
+        })
+        self.assert_skip(result)
 
     def test_an_absolute_url_is_not_flagged(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            result = self._repo(tmp, {
-                'src/frob.py': (
-                    '# See https://github.com/shakenfist/ryll/blob/'
-                    'develop/docs/plans/PLAN-gone.md.\n'
-                ),
-            })
-        self.assertEqual(result['status'], 'not_applicable')
+        result = self._check({
+            'src/frob.py': (
+                '# See https://github.com/shakenfist/ryll/blob/'
+                'develop/docs/plans/PLAN-gone.md.\n'
+            ),
+        })
+        self.assert_skip(result)
 
 
-class PlanIndexTest(unittest.TestCase):
+class PlanIndexTest(CheckTestCase):
     """docs/plans/index.md layout, ordering, statuses and coverage."""
+
+    check_class = plans.PlanIndex
 
     HEADER = (
         '| Date | Plan | Intent | Status |\n'
@@ -454,29 +422,36 @@ class PlanIndexTest(unittest.TestCase):
 
         plans is a list of file names to create; index is the content
         of index.md, or None to leave it out entirely.
+
+        Each call builds its own fixture rather than adding to the one
+        setUp made: the blank-versus-omitted status pair runs the
+        check twice in one method, and "leave index.md out entirely"
+        cannot mean that if a previous call already wrote one -- which
+        is what the temporary directory this replaced did.
         """
-        with tempfile.TemporaryDirectory() as tmp:
-            plans_dir = os.path.join(tmp, 'docs', 'plans')
-            os.makedirs(plans_dir)
-            for name in plans or []:
-                with open(os.path.join(plans_dir, name), 'w') as f:
-                    f.write('# A plan\n')
-            if index is not None:
-                with open(os.path.join(plans_dir, 'index.md'), 'w') as f:
-                    f.write(index)
-            return check_plan_index(tmp, {})
+        self.fixture = FixtureRepo(self.tempdir())
+        os.makedirs(os.path.join(self.fixture.path, 'docs', 'plans'))
+        for name in plans or []:
+            self.fixture.write(os.path.join('docs', 'plans', name),
+                               '# A plan\n')
+        if index is not None:
+            self.fixture.write(os.path.join('docs', 'plans', 'index.md'),
+                               index)
+        return self.check()
 
     def test_not_applicable_without_plans_directory(self):
-        result = check_plan_index('/nonexistent', {})
-        self.assertEqual(result['status'], 'not_applicable')
+        # A repository with no docs/plans/ at all, rather than the
+        # empty one the helper builds.
+        self.fixture = FixtureRepo('/nonexistent')
+        result = self.check()
+        self.assert_skip(result)
 
     def test_not_applicable_with_no_plans_and_no_index(self):
-        self.assertEqual(self._check()['status'], 'not_applicable')
+        self.assert_skip(self._check())
 
     def test_missing_index_with_plans_fails(self):
         result = self._check(plans=['PLAN-thing.md'], index=None)
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('index.md is missing', result['details'])
+        self.assert_fail(result, containing='index.md is missing')
 
     def test_well_formed_index_passes(self):
         result = self._check(
@@ -487,7 +462,7 @@ class PlanIndexTest(unittest.TestCase):
                 '| 2026-02-01 | [Two](PLAN-two.md) | Do two | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_phase_plans_need_no_index_row(self):
         # Phase files are named after their master plan and tracked in
@@ -499,7 +474,7 @@ class PlanIndexTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | Complete |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_plan_first_columns_fail(self):
         result = self._check(
@@ -510,8 +485,7 @@ class PlanIndexTest(unittest.TestCase):
                 '| [One](PLAN-one.md) | 1. Start | Complete |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('not led by Date then Plan', result['details'])
+        self.assert_fail(result, containing='not led by Date then Plan')
 
     def test_wrong_columns_suppress_date_and_status_findings(self):
         # Reading a date out of a column that holds something else
@@ -536,8 +510,7 @@ class PlanIndexTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | Complete |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('out of date order', result['details'])
+        self.assert_fail(result, containing='out of date order')
         self.assertIn('One', result['details'])
 
     def test_dates_are_not_compared_across_tables(self):
@@ -552,7 +525,7 @@ class PlanIndexTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | Complete |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_malformed_date_fails(self):
         result = self._check(
@@ -562,8 +535,7 @@ class PlanIndexTest(unittest.TestCase):
                 '| April 2026 | [One](PLAN-one.md) | Do one | Complete |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('YYYY-MM-DD', result['details'])
+        self.assert_fail(result, containing='YYYY-MM-DD')
 
     def test_status_outside_the_vocabulary_fails(self):
         result = self._check(
@@ -574,8 +546,7 @@ class PlanIndexTest(unittest.TestCase):
                 'Code landed; awaiting verification |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('vocabulary', result['details'])
+        self.assert_fail(result, containing='vocabulary')
 
     def test_qualified_status_fails(self):
         # The whole point of the vocabulary: "Complete (phases 1-5,
@@ -589,8 +560,7 @@ class PlanIndexTest(unittest.TestCase):
                 'Complete (phases 1-5) |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('vocabulary', result['details'])
+        self.assert_fail(result, containing='vocabulary')
 
     def test_status_matching_is_case_insensitive(self):
         result = self._check(
@@ -601,7 +571,7 @@ class PlanIndexTest(unittest.TestCase):
                 'In Progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_decorated_status_passes(self):
         result = self._check(
@@ -612,7 +582,7 @@ class PlanIndexTest(unittest.TestCase):
                 '**Complete** |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_table_without_a_status_column_is_fine(self):
         # Standalone plan listings carry no status, and that is not a
@@ -625,7 +595,7 @@ class PlanIndexTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_blank_status_cell_fails_but_an_omitted_one_does_not(self):
         # The pair that decides how wide plan-audit-phase's statusless
@@ -643,8 +613,7 @@ class PlanIndexTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | |\n'
             ),
         )
-        self.assertEqual(blank['status'], 'fail', blank['details'])
-        self.assertIn('vocabulary', blank['details'])
+        self.assert_fail(blank, containing='vocabulary')
 
         omitted = self._check(
             plans=['PLAN-one.md'],
@@ -653,7 +622,7 @@ class PlanIndexTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one |\n'
             ),
         )
-        self.assertEqual(omitted['status'], 'pass', omitted['details'])
+        self.assert_pass(omitted)
 
     def test_unregistered_master_plan_fails(self):
         result = self._check(
@@ -663,16 +632,14 @@ class PlanIndexTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | Complete |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('PLAN-orphan.md', result['details'])
+        self.assert_fail(result, containing='PLAN-orphan.md')
 
     def test_bullet_list_index_fails(self):
         result = self._check(
             plans=['PLAN-one.md'],
             index='# Plans\n\n* [One](PLAN-one.md).\n',
         )
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('no plan table', result['details'])
+        self.assert_fail(result, containing='no plan table')
         # Linked plans still count as registered, so the only finding
         # is the missing table.
         self.assertNotIn('not listed in the index', result['details'])
@@ -691,7 +658,7 @@ class PlanIndexTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | Complete |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_link_free_row_is_not_read_as_a_header(self):
         # A header is the row the separator underlines. A data row
@@ -705,8 +672,7 @@ class PlanIndexTest(unittest.TestCase):
                 '| 2026-02-01 | [One](PLAN-one.md) | Do one | Whenever |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('vocabulary', result['details'])
+        self.assert_fail(result, containing='vocabulary')
         self.assertNotIn('not led by Date then Plan', result['details'])
 
     def test_a_fenced_example_table_is_not_read_as_an_index_table(self):
@@ -729,7 +695,7 @@ class PlanIndexTest(unittest.TestCase):
                 '```\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail')
+        self.assert_fail(result)
         # The example's columns are sample text, not a table this
         # criterion judges.
         self.assertNotIn('not led by Date then Plan', result['details'])
@@ -739,8 +705,10 @@ class PlanIndexTest(unittest.TestCase):
         self.assertIn('not listed in the index', result['details'])
 
 
-class PlanAuditPhaseTest(unittest.TestCase):
+class PlanAuditPhaseTest(CheckTestCase):
     """Master plans ending with a phase that runs PUSH-AUDIT.md."""
+
+    check_class = plans.PlanAuditPhase
 
     HEADER = (
         '| Date | Plan | Intent | Status |\n'
@@ -792,32 +760,38 @@ class PlanAuditPhaseTest(unittest.TestCase):
 
         files maps plan file names to content; index is the content of
         index.md, or None to leave it out entirely.
+
+        The directory is created before anything is written to it,
+        because an index linking no plans is one of the cases and a
+        check that walks docs/plans/ distinguishes an empty directory
+        from an absent one. No method here runs the check twice, so
+        the fixture setUp made is enough; makedirs without exist_ok is
+        what would say so if one ever did.
         """
-        with tempfile.TemporaryDirectory() as tmp:
-            plans_dir = os.path.join(tmp, 'docs', 'plans')
-            os.makedirs(plans_dir)
-            for name, content in files.items():
-                path = os.path.join(plans_dir, name)
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-                with open(path, 'w') as f:
-                    f.write(content)
-            if index is not None:
-                with open(os.path.join(plans_dir, 'index.md'), 'w') as f:
-                    f.write(index)
-            return check_plan_audit_phase(tmp, {})
+        os.makedirs(os.path.join(self.fixture.path, 'docs', 'plans'))
+        self.fixture.write_all({
+            os.path.join('docs', 'plans', name): content
+            for name, content in files.items()
+        })
+        if index is not None:
+            self.fixture.write(os.path.join('docs', 'plans', 'index.md'),
+                               index)
+        return self.check()
 
     def test_not_applicable_without_an_index(self):
         result = self._check({'PLAN-one.md': self._plan(['Build'])})
-        self.assertEqual(result['status'], 'not_applicable')
-        self.assertIn('docs/plans/index.md', result['details'])
+        self.assert_skip(result, containing='docs/plans/index.md')
 
     def test_not_applicable_without_a_plans_directory(self):
-        result = check_plan_audit_phase('/nonexistent', {})
-        self.assertEqual(result['status'], 'not_applicable')
+        # A repository with no docs/plans/ at all, rather than the
+        # empty one the helper builds.
+        self.fixture = FixtureRepo('/nonexistent')
+        result = self.check()
+        self.assert_skip(result)
 
     def test_index_linking_no_plans_is_not_applicable(self):
         result = self._check({}, index='# Plans\n\nNothing yet.\n')
-        self.assertEqual(result['status'], 'not_applicable')
+        self.assert_skip(result)
 
     def test_compliant_repository_passes(self):
         result = self._check(
@@ -831,7 +805,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-02-01 | [Two](PLAN-two.md) | Do two | Not started |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertIn('2 incomplete master plan(s)', result['details'])
 
     def test_incomplete_plan_without_the_phase_fails_and_is_named(self):
@@ -846,8 +820,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-02-01 | [Two](PLAN-two.md) | Do two | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('PLAN-two.md', result['details'])
+        self.assert_fail(result, containing='PLAN-two.md')
         self.assertIn('no push audit phase', result['details'])
         # The compliant plan is not named as an offender.
         self.assertNotIn('PLAN-one.md', result['details'])
@@ -870,7 +843,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [Old](PLAN-old.md) | Done | Complete |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertIn('1 terminal-status', result['details'])
         self.assertNotIn('PLAN-old.md', result['details'])
 
@@ -888,7 +861,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [Old](PLAN-old.md) | Done | Complete |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_abandoned_plan_without_the_phase_passes(self):
         """The carve-out covers every terminal status, not Complete.
@@ -907,7 +880,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| Abandoned |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertIn('1 terminal-status', result['details'])
         self.assertNotIn('PLAN-dropped.md', result['details'])
 
@@ -922,7 +895,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| superseded |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertIn('1 terminal-status', result['details'])
         self.assertNotIn('PLAN-old.md', result['details'])
 
@@ -946,8 +919,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('not last', result['details'])
+        self.assert_fail(result, containing='not last')
         self.assertIn('move the audit phase after it', result['details'])
         self.assertIn('Follow-up defects', result['details'])
 
@@ -973,10 +945,9 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn(
-            'phase 2 is the push audit phase and is Complete',
-            result['details'])
+        self.assert_fail(
+            result,
+            containing='phase 2 is the push audit phase and is Complete')
         self.assertIn('append a new push audit phase', result['details'])
         self.assertIn('Reopened work', result['details'])
         # The remedy for the other shape must not be offered here.
@@ -1000,8 +971,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('never names PUSH-AUDIT.md', result['details'])
+        self.assert_fail(result, containing='never names PUSH-AUDIT.md')
 
     def test_plan_without_phases_is_not_judged(self):
         # ryll's standalone plans track follow-ups without phased
@@ -1027,7 +997,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         # Named, not merely counted: a plan the check declined to
         # judge is not the same as a plan it found nothing wrong
         # with, and only the name lets a person tell them apart.
@@ -1058,7 +1028,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_trailing_audit_section_counts_as_the_last_phase(self):
         # The audit appended as its own section after the numbering
@@ -1084,7 +1054,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_audit_section_after_a_phase_table_is_the_last_phase(self):
         # shakenfist's PLAN-qemu-futures.md: an Execution table whose
@@ -1113,7 +1083,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_audit_section_above_the_last_phase_is_not_last(self):
         """A table-driven plan whose audit section is outrun.
@@ -1161,12 +1131,11 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail', result['details'])
         # The section is seen, and the phase that outran it is named.
         # Both matter: if the section stopped being read as outrun the
         # plan would pass, and if it stopped being read at all the
         # finding would be "no push audit phase" rather than this.
-        self.assertIn('push audit section', result['details'])
+        self.assert_fail(result, containing='push audit section')
         self.assertIn('come after it', result['details'])
         self.assertIn('2. Deploy', result['details'])
         # Neither remedy is asserted on its own.
@@ -1205,7 +1174,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         # Passing is not enough on its own: a plan with no phases at
         # all also avoids failing. The plan must have been judged.
         self.assertNotIn('PLAN-one.md', result['details'])
@@ -1250,8 +1219,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail', result['details'])
-        self.assertIn('push audit section', result['details'])
+        self.assert_fail(result, containing='push audit section')
         self.assertIn('come after it', result['details'])
         # Quoted from the table row rather than from the heading: the
         # heading supplies the anchor that makes the audit outrun, and
@@ -1288,7 +1256,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_runbook_named_only_inside_a_fence_does_not_count(self):
         """A fenced example is not the phase running the runbook.
@@ -1325,8 +1293,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail', result['details'])
-        self.assertIn('never names PUSH-AUDIT.md', result['details'])
+        self.assert_fail(result, containing='never names PUSH-AUDIT.md')
 
     def test_bare_phase_cells_named_by_their_sections_pass(self):
         """A Phase column of "Phase 1", "Phase 2" and named sections.
@@ -1365,7 +1332,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_numbered_findings_below_the_audit_section_pass(self):
         """A plan that ran its audit and wrote the findings up.
@@ -1409,7 +1376,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_a_plan_linked_by_absolute_url_is_not_judged(self):
         """An index row pointing at another repository's plan.
@@ -1436,7 +1403,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertNotIn('PLAN-two.md', result['details'])
         self.assertNotIn('no file under docs/plans/', result['details'])
 
@@ -1467,8 +1434,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail', result['details'])
-        self.assertIn('"Push audit phase" heading', result['details'])
+        self.assert_fail(result, containing='"Push audit phase" heading')
         self.assertIn('headed exactly "Push audit"', result['details'])
 
     def test_a_bare_number_phase_is_quoted_by_its_row(self):
@@ -1493,8 +1459,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail', result['details'])
-        self.assertIn('phase 8', result['details'])
+        self.assert_fail(result, containing='phase 8')
         self.assertIn('Ship the thing', result['details'])
         self.assertNotIn('phase 8 is "8"', result['details'])
 
@@ -1521,8 +1486,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail', result['details'])
-        self.assertIn('no push audit phase', result['details'])
+        self.assert_fail(result, containing='no push audit phase')
         self.assertIn('2. Deploy', result['details'])
 
     def test_numbered_prose_sections_are_not_read_as_phases(self):
@@ -1551,7 +1515,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertIn('PLAN-one.md', result['details'])
 
     def test_phases_under_a_workstreams_heading_are_read(self):
@@ -1583,8 +1547,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('no push audit phase', result['details'])
+        self.assert_fail(result, containing='no push audit phase')
         self.assertIn('Trust hardening', result['details'])
 
     def test_unjudged_plans_are_named_alongside_failures(self):
@@ -1602,8 +1565,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-02-01 | [Loose](PLAN-loose.md) | Bits | Blocked |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('PLAN-one.md', result['details'])
+        self.assert_fail(result, containing='PLAN-one.md')
         self.assertIn('no phases this check can read', result['details'])
         self.assertIn('PLAN-loose.md', result['details'])
 
@@ -1629,7 +1591,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_phase_count_column_index_shape(self):
         # shakenfist's index carries a phase count column. The count
@@ -1649,7 +1611,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 1 of 1 |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertIn('1 terminal-status', result['details'])
 
     def test_index_without_a_phase_column_shape(self):
@@ -1666,7 +1628,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_inline_phases_list_index_shape(self):
         # divergulent's Phases cell is an inline list of phase names
@@ -1686,7 +1648,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 'audit ◐ | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertIn('1 incomplete master plan(s)', result['details'])
 
     def test_status_is_not_taken_from_another_plans_row(self):
@@ -1708,7 +1670,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '[Two](PLAN-two.md) | Complete |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertIn('1 terminal-status plan(s)', result['details'])
         self.assertIn(
             '1 plan(s) the index links without recording a status, not '
@@ -1725,7 +1687,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
             {'PLAN-one.md': self._plan(['Build'])},
             index='# Plans\n\n* [One](PLAN-one.md) -- does one thing.\n',
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertIn('without recording a status', result['details'])
         self.assertIn('PLAN-one.md', result['details'])
         self.assertNotIn('no push audit phase', result['details'])
@@ -1754,7 +1716,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertIn(
             '1 plan(s) the index links without recording a status, not '
             'judged: PLAN-one.md', result['details'])
@@ -1776,7 +1738,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertIn(
             '1 plan(s) the index links without recording a status, not '
             'judged: PLAN-one.md', result['details'])
@@ -1802,7 +1764,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertIn(
             '1 plan(s) the index links without recording a status, not '
             'judged: PLAN-one.md', result['details'])
@@ -1819,8 +1781,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [One](PLAN-one.md) | Do one | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail', result['details'])
-        self.assertIn('PLAN-one.md', result['details'])
+        self.assert_fail(result, containing='PLAN-one.md')
         self.assertIn('no push audit phase', result['details'])
 
     def test_an_index_of_only_statusless_plans_is_not_n_a(self):
@@ -1841,7 +1802,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-02-01 | [Two](PLAN-two.md) | Do two |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertIn(
             '2 plan(s) the index links without recording a status, not '
             'judged: PLAN-one.md, PLAN-two.md', result['details'])
@@ -1860,7 +1821,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-02 | [Gone](PLAN-gone.md) | Do two |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertIn(
             '1 plan(s) the index links without recording a status, not '
             'judged: PLAN-one.md', result['details'])
@@ -1882,7 +1843,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-01 | [Loose](PLAN-loose.md) | Bits |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertIn(
             '1 plan(s) the index links without recording a status, not '
             'judged: PLAN-loose.md', result['details'])
@@ -1914,8 +1875,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-02-01 | [Notes](PLAN-notes.md) | Bits |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail', result['details'])
-        self.assertIn('PLAN-one.md (', result['details'])
+        self.assert_fail(result, containing='PLAN-one.md (')
         self.assertIn(
             '1 plan(s) the index links without recording a status, not '
             'judged: PLAN-notes.md', result['details'])
@@ -1932,8 +1892,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '|\n'
             ),
         )
-        self.assertEqual(result['status'], 'not_applicable')
-        self.assertIn('PLAN-gone.md', result['details'])
+        self.assert_skip(result, containing='PLAN-gone.md')
 
     def test_unresolvable_link_is_named_alongside_judged_plans(self):
         result = self._check(
@@ -1945,7 +1904,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '|\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertIn('PLAN-gone.md', result['details'])
         self.assertIn('not judged', result['details'])
 
@@ -1962,8 +1921,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 'In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail', result['details'])
-        self.assertIn('PLAN-one.md', result['details'])
+        self.assert_fail(result, containing='PLAN-one.md')
         self.assertIn('no push audit phase', result['details'])
 
     def test_plan_linked_by_a_path_that_moved_is_found_by_name(self):
@@ -1979,7 +1937,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 'In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertIn('1 incomplete master plan(s)', result['details'])
 
     def test_unphased_only_repository_does_not_lead_with_a_zero(self):
@@ -1994,7 +1952,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '| 2026-01-02 | [Two](PLAN-two.md) | Do two | In progress |\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertFalse(
             result['details'].startswith('0 '), result['details'])
         self.assertIn('no phases this check can read', result['details'])
@@ -2037,7 +1995,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
             },
             index=self.HEADER + self.ONE_ROW,
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertNotIn('no phases this check can read', result['details'])
         self.assertIn('1 incomplete master plan(s)', result['details'])
 
@@ -2059,7 +2017,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
             },
             index=self.HEADER + self.ONE_ROW,
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertNotIn('not last', result['details'])
 
     def test_an_example_phase_table_in_a_fence_adds_no_phase(self):
@@ -2080,7 +2038,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
             },
             index=self.HEADER + self.ONE_ROW,
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertNotIn('not last', result['details'])
 
     def test_a_plan_linked_only_from_a_fenced_index_row_is_not_judged(self):
@@ -2103,7 +2061,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
                 '```\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertNotIn('PLAN-two.md', result['details'])
 
     def test_a_section_audit_with_no_status_leaves_the_remedy_open(self):
@@ -2137,8 +2095,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
             },
             index=self.HEADER + self.ONE_ROW,
         )
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('phase 2 is the push audit phase', result['details'])
+        self.assert_fail(result, containing='phase 2 is the push audit phase')
         self.assertIn('records no status', result['details'])
         self.assertIn('Reopened work', result['details'])
         # Neither remedy is asserted on its own.
@@ -2168,7 +2125,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
             },
             index=self.HEADER + self.ONE_ROW,
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertNotIn('no phases this check can read', result['details'])
 
     def test_a_bare_numbered_heading_is_still_not_a_phase(self):
@@ -2189,7 +2146,7 @@ class PlanAuditPhaseTest(unittest.TestCase):
             },
             index=self.HEADER + self.ONE_ROW,
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
         self.assertNotIn('not last', result['details'])
 
     def test_two_audit_phases_pass(self):
@@ -2207,15 +2164,17 @@ class PlanAuditPhaseTest(unittest.TestCase):
             },
             index=self.HEADER + self.ONE_ROW,
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
 
-class PushAuditTest(unittest.TestCase):
+class PushAuditTest(CheckTestCase):
+    check_class = plans.PushAudit
+
     def setUp(self):
+        super().setUp()
         # A private canonical blocks directory so the tests do not
         # depend on the real templates/shared-blocks/ content.
-        self._blocks = tempfile.TemporaryDirectory()
-        self.addCleanup(self._blocks.cleanup)
+        self.blocks_dir = self.tempdir()
         self.readme_block = (
             '<!-- shared-block: readme-discipline v2 -->\n'
             'Canonical wording.\n'
@@ -2275,7 +2234,7 @@ class PushAuditTest(unittest.TestCase):
             ('functional-test-coverage', self.tests_block),
         ):
             with open(
-                os.path.join(self._blocks.name, f'{name}.md'), 'w'
+                os.path.join(self.blocks_dir, f'{name}.md'), 'w'
             ) as f:
                 f.write(block)
         self.canonical = (
@@ -2302,41 +2261,35 @@ class PushAuditTest(unittest.TestCase):
                 break
         if named and 'AGENTS.md' not in files:
             files['AGENTS.md'] = f'# Agents\n\nSee {named}.\n'
-        with tempfile.TemporaryDirectory() as tmp:
-            for name, content in files.items():
-                # None means "this file is absent", which is how a
-                # case opts out of the default AGENTS.md above.
-                if content is None:
-                    continue
-                with open(os.path.join(tmp, name), 'w') as f:
-                    f.write(content)
-            return check_push_audit(
-                tmp, {}, blocks_dir=self._blocks.name
-            )
+        # None means "this file is absent", which is how a case opts
+        # out of the default AGENTS.md above. write_all writes a None
+        # as an empty file, which is a different thing entirely, so
+        # the sentinel is filtered out here rather than handed over.
+        self.fixture.write_all({
+            name: content for name, content in files.items()
+            if content is not None
+        })
+        return self.check(check_args={'blocks_dir': self.blocks_dir})
 
     def test_not_applicable_without_file(self):
-        self.assertEqual(self._check({})['status'], 'not_applicable')
+        self.assert_skip(self._check({}))
 
     def test_current_block_passes(self):
         result = self._check({
             'PUSH-AUDIT.md': f'# Audit\n\n{self.canonical}\n',
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_legacy_filename_fails(self):
         result = self._check({
             'PUSH-TEMPLATE.md': f'# Audit\n\n{self.canonical}\n',
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('legacy filename', result['details'])
+        self.assert_fail(result, containing='legacy filename')
 
     def test_missing_block_fails(self):
         result = self._check({'PUSH-AUDIT.md': '# Audit\n'})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn(
-            'missing shared block readme-discipline',
-            result['details'],
-        )
+        self.assert_fail(result,
+                         containing='missing shared block readme-discipline')
         self.assertIn(
             'missing shared block comment-proportion',
             result['details'],
@@ -2346,11 +2299,8 @@ class PushAuditTest(unittest.TestCase):
         result = self._check({
             'PUSH-AUDIT.md': f'# Audit\n\n{self.readme_block}\n',
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn(
-            'missing shared block comment-proportion',
-            result['details'],
-        )
+        self.assert_fail(result,
+                         containing='missing shared block comment-proportion')
 
     def test_missing_llm_doc_discipline_fails(self):
         result = self._check({
@@ -2359,11 +2309,8 @@ class PushAuditTest(unittest.TestCase):
                 f'{self.comment_block}\n{self.phase_block}\n'
             ),
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn(
-            'missing shared block llm-doc-discipline',
-            result['details'],
-        )
+        self.assert_fail(result,
+                         containing='missing shared block llm-doc-discipline')
 
     def test_missing_plan_phase_references_fails(self):
         result = self._check({
@@ -2372,20 +2319,16 @@ class PushAuditTest(unittest.TestCase):
                 f'{self.comment_block}\n'
             ),
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn(
-            'missing shared block plan-phase-references',
-            result['details'],
-        )
+        self.assert_fail(
+            result,
+            containing='missing shared block plan-phase-references')
 
     def test_stale_version_fails(self):
         stale = self.canonical.replace('v2', 'v1')
         result = self._check({
             'PUSH-AUDIT.md': f'# Audit\n\n{stale}\n',
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('stale (v1 embedded, v2 current)',
-                      result['details'])
+        self.assert_fail(result, containing='stale (v1 embedded, v2 current)')
 
     def test_drifted_content_fails(self):
         drifted = self.canonical.replace(
@@ -2394,8 +2337,7 @@ class PushAuditTest(unittest.TestCase):
         result = self._check({
             'PUSH-AUDIT.md': f'# Audit\n\n{drifted}\n',
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('drifted', result['details'])
+        self.assert_fail(result, containing='drifted')
 
     def test_trailing_whitespace_is_ignored(self):
         padded = self.canonical.replace(
@@ -2404,7 +2346,7 @@ class PushAuditTest(unittest.TestCase):
         result = self._check({
             'PUSH-AUDIT.md': f'# Audit\n\n{padded}\n',
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_unknown_block_fails(self):
         content = (
@@ -2414,9 +2356,8 @@ class PushAuditTest(unittest.TestCase):
             '<!-- shared-block-end -->\n'
         )
         result = self._check({'PUSH-AUDIT.md': content})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('unknown shared block no-such-block',
-                      result['details'])
+        self.assert_fail(result,
+                         containing='unknown shared block no-such-block')
 
     def test_missing_end_marker_fails(self):
         content = (
@@ -2425,36 +2366,30 @@ class PushAuditTest(unittest.TestCase):
             'Canonical wording.\n'
         )
         result = self._check({'PUSH-AUDIT.md': content})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('no <!-- shared-block-end -->',
-                      result['details'])
+        self.assert_fail(result, containing='no <!-- shared-block-end -->')
 
     def test_both_files_fails_even_with_current_block(self):
         result = self._check({
             'PUSH-AUDIT.md': f'# Audit\n\n{self.canonical}\n',
             'PUSH-TEMPLATE.md': '# Old\n',
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('legacy filename', result['details'])
+        self.assert_fail(result, containing='legacy filename')
 
     def test_unreferenced_audit_fails(self):
         result = self._check({
             'PUSH-AUDIT.md': f'# Audit\n\n{self.canonical}\n',
             'AGENTS.md': '# Agents\n\nNothing about the audit here.\n',
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn(
-            'AGENTS.md does not reference PUSH-AUDIT.md',
-            result['details'],
-        )
+        self.assert_fail(
+            result,
+            containing='AGENTS.md does not reference PUSH-AUDIT.md')
 
     def test_missing_agents_file_fails(self):
         result = self._check({
             'PUSH-AUDIT.md': f'# Audit\n\n{self.canonical}\n',
             'AGENTS.md': None,
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('no AGENTS.md to reference', result['details'])
+        self.assert_fail(result, containing='no AGENTS.md to reference')
 
     def test_legacy_name_reference_names_the_legacy_file(self):
         # A repository still on the old name gets told to rename it,
@@ -2463,8 +2398,7 @@ class PushAuditTest(unittest.TestCase):
             'PUSH-TEMPLATE.md': f'# Audit\n\n{self.canonical}\n',
             'AGENTS.md': '# Agents\n\nSee PUSH-TEMPLATE.md.\n',
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('legacy filename', result['details'])
+        self.assert_fail(result, containing='legacy filename')
         self.assertNotIn('does not reference', result['details'])
 
     def test_reference_is_reported_alongside_block_problems(self):
@@ -2474,8 +2408,7 @@ class PushAuditTest(unittest.TestCase):
             'PUSH-AUDIT.md': '# Audit\n',
             'AGENTS.md': '# Agents\n\nNothing here.\n',
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('missing shared block', result['details'])
+        self.assert_fail(result, containing='missing shared block')
         self.assertIn('does not reference', result['details'])
 
     def test_both_files_with_only_the_legacy_name_referenced(self):
@@ -2488,8 +2421,7 @@ class PushAuditTest(unittest.TestCase):
             'PUSH-TEMPLATE.md': '# Old\n',
             'AGENTS.md': '# Agents\n\nSee PUSH-TEMPLATE.md.\n',
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('legacy filename', result['details'])
+        self.assert_fail(result, containing='legacy filename')
         self.assertIn(
             'AGENTS.md does not reference PUSH-AUDIT.md',
             result['details'],
@@ -2507,13 +2439,13 @@ class PushAuditTest(unittest.TestCase):
                 '# Agents\n\n```\ncat PUSH-AUDIT.md\n```\n'
             ),
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_pass_details_mention_the_reference(self):
         result = self._check({
             'PUSH-AUDIT.md': f'# Audit\n\n{self.canonical}\n',
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
         self.assertIn('referenced from AGENTS.md', result['details'])
 
     def test_source_file_size_is_required(self):
@@ -2552,11 +2484,11 @@ class PushAuditTest(unittest.TestCase):
         self.assertEqual(
             sorted(PUSH_AUDIT_BLOCKS),
             sorted(os.path.splitext(name)[0]
-                   for name in os.listdir(self._blocks.name)),
+                   for name in os.listdir(self.blocks_dir)),
         )
 
 
-class PlanTemplateTest(unittest.TestCase):
+class PlanTemplateTest(CheckTestCase):
     """Tests for check_plan_template.
 
     The check had no direct coverage at all, which matters once
@@ -2566,9 +2498,14 @@ class PlanTemplateTest(unittest.TestCase):
     contents or that the check reads it.
     """
 
+    check_class = plans.PlanTemplate
+
     def setUp(self):
-        self._blocks = tempfile.TemporaryDirectory()
-        self.addCleanup(self._blocks.cleanup)
+        super().setUp()
+        # A private canonical blocks directory, for the same reason
+        # PushAuditTest keeps one: these fixtures are deliberately
+        # independent of templates/shared-blocks/.
+        self.blocks_dir = self.tempdir()
         self.blocks = {}
         for name in PLAN_TEMPLATE_BLOCKS:
             block = (
@@ -2578,18 +2515,13 @@ class PlanTemplateTest(unittest.TestCase):
             )
             self.blocks[name] = block
             with open(
-                os.path.join(self._blocks.name, f'{name}.md'), 'w'
+                os.path.join(self.blocks_dir, f'{name}.md'), 'w'
             ) as f:
                 f.write(block)
 
     def _check(self, files):
-        with tempfile.TemporaryDirectory() as tmp:
-            for name, content in files.items():
-                with open(os.path.join(tmp, name), 'w') as f:
-                    f.write(content)
-            return check_plan_template(
-                tmp, {}, blocks_dir=self._blocks.name
-            )
+        self.fixture.write_all(files)
+        return self.check(check_args={'blocks_dir': self.blocks_dir})
 
     def _template(self, omit=None):
         return '# Plan template\n\n' + '\n'.join(
@@ -2598,22 +2530,20 @@ class PlanTemplateTest(unittest.TestCase):
         )
 
     def test_not_applicable_without_template(self):
-        self.assertEqual(self._check({})['status'], 'not_applicable')
+        self.assert_skip(self._check({}))
 
     def test_all_blocks_passes(self):
         result = self._check({'PLAN-TEMPLATE.md': self._template()})
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_missing_push_audit_phase_block_fails(self):
         result = self._check({
             'PLAN-TEMPLATE.md': self._template(
                 omit='plan-push-audit-phase'),
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn(
-            'missing shared block plan-push-audit-phase',
-            result['details'],
-        )
+        self.assert_fail(
+            result,
+            containing='missing shared block plan-push-audit-phase')
 
     def test_stale_push_audit_phase_block_fails(self):
         # Take the marker from the fixture setUp built rather than
@@ -2626,11 +2556,9 @@ class PlanTemplateTest(unittest.TestCase):
             '<!-- shared-block: plan-push-audit-phase v0 -->',
         )
         result = self._check({'PLAN-TEMPLATE.md': stale})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn(
-            'shared block plan-push-audit-phase is stale',
-            result['details'],
-        )
+        self.assert_fail(
+            result,
+            containing='shared block plan-push-audit-phase is stale')
 
     def test_push_audit_phase_is_required(self):
         # The line of this change with the widest fleet consequence:
