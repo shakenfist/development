@@ -87,7 +87,9 @@ jobs:
       # Deliberately the same install as consistency-audit.yml, on the
       # same runner class. The point of this job is that the scheduled
       # workflow's environment assumptions are exercised on a pull
-      # request rather than at 06:00 UTC across sixteen repositories.
+      # request rather than at 06:00 UTC across the whole audit matrix.
+      # No count here on purpose: the matrix grows, and a number in a
+      # comment is the thing that goes stale without anything noticing.
       - name: Install skillsaw
         run: |
           python3 -m venv /tmp/audit-venv

@@ -55,6 +55,20 @@ class NpmFixtureMixin:
     def source(self, content, path='src/main.ts'):
         self.fixture.write(path, content)
 
+    def manifest_line(self, name):
+        """The 1-indexed line of a dependency key in the written manifest.
+
+        The expectation for a citation, derived from the same file the
+        criterion reads, so a test asserting the exact number does not
+        have to be maintained by hand every time a fixture changes.
+        """
+        with open(os.path.join(self.fixture.path, 'package.json')) as handle:
+            lines = handle.read().splitlines()
+        for number, line in enumerate(lines, 1):
+            if line.strip().startswith('"%s"' % name):
+                return number
+        raise AssertionError('%r is not a key in the fixture manifest' % name)
+
 
 class NpmPinIndirectDependenciesTest(NpmFixtureMixin, CheckTestCase):
     check_class = npm_dependencies.NpmPinIndirectDependencies
@@ -125,6 +139,31 @@ class NpmPinIndirectDependenciesTest(NpmFixtureMixin, CheckTestCase):
                                         '      - run: npm install\n')
         self.assert_fail(self.check(), containing='npm install')
 
+    def test_a_workflow_running_npm_i_fails(self):
+        """npm's own alias for install, and the same damage."""
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'])
+        self.fixture.workflow('ci.yml', 'jobs:\n  b:\n    steps:\n'
+                                        '      - run: npm i\n')
+        self.assert_fail(self.check(), containing='npm i')
+
+    def test_a_workflow_running_npm_add_fails(self):
+        """The third spelling, which resolves the ranges just the same."""
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'])
+        self.fixture.workflow('ci.yml', 'jobs:\n  b:\n    steps:\n'
+                                        '      - run: npm add left-pad\n')
+        self.assert_fail(self.check(), containing='npm add')
+
+    def test_a_workflow_running_npm_init_is_not_an_install(self):
+        """`i` is an alias; `init` merely starts with it."""
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'])
+        self.fixture.workflow('ci.yml', 'jobs:\n  b:\n    steps:\n'
+                                        '      - run: npm init -y\n'
+                                        '      - run: npm ci\n')
+        self.assert_pass(self.check())
+
     def test_a_workflow_running_npm_ci_passes(self):
         self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
         self.lockfile(['left-pad'])
@@ -142,6 +181,45 @@ class NpmPinIndirectDependenciesTest(NpmFixtureMixin, CheckTestCase):
             'jobs:\n  b:\n    steps:\n'
             '      - run: npm install -g @anthropic-ai/claude-code\n')
         self.assert_pass(self.check())
+
+    def test_a_global_install_by_alias_is_not_a_project_install(self):
+        """The exclusion has to cover every spelling the match does.
+
+        `npm install`, `npm i` and `npm add` are all reported, so all
+        three have to drop the `-g` form as well. Testing only the long
+        one leaves two ways to fail a compliant repository.
+        """
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'])
+        for command in ('npm i -g tsx',
+                        'npm add -g tsx',
+                        'npm install --global tsx'):
+            with self.subTest(command=command):
+                # The one workflow is overwritten each time, so each
+                # subtest sees a repository whose only npm command is
+                # the one it is about.
+                self.fixture.workflow(
+                    'agent.yml',
+                    'jobs:\n  b:\n    steps:\n'
+                    '      - run: %s\n' % command)
+                self.assert_pass(self.check())
+
+    def test_a_workspace_root_still_applies(self):
+        """Unlike its two siblings, and the spec page says so.
+
+        `docs/audits/npm-pin-indirect-dependencies.md` asserts this
+        normatively: a workspace root has one lockfile pinning the
+        whole tree, so `npm install` undoes the pinning for every
+        workspace at once. Without this test the guard could be lifted
+        into `NpmPackageCheck` with every suite still green and only
+        the spec page becoming false.
+        """
+        self.manifest(name='x', workspaces=['packages/*'],
+                      dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'])
+        self.fixture.workflow('ci.yml', 'jobs:\n  b:\n    steps:\n'
+                                        '      - run: npm install\n')
+        self.assert_fail(self.check(), containing='npm install')
 
     def test_a_lockfile_refresh_is_not_an_install(self):
         """--package-lock-only writes the lockfile and installs nothing."""
@@ -240,10 +318,36 @@ class NpmUnusedDeclaredDependencyTest(NpmFixtureMixin, CheckTestCase):
     def test_without_a_package_json_it_does_not_apply(self):
         self.assert_skip(self.check(), containing='No package.json')
 
+    def test_an_unreadable_manifest_does_not_apply(self):
+        self.fixture.write('package.json', '{ this is not json\n')
+        self.lockfile()
+        self.assert_skip(self.check(), containing='not readable JSON')
+
     def test_a_manifest_declaring_nothing_does_not_apply(self):
         self.manifest(name='x')
         self.lockfile()
         self.assert_skip(self.check(), containing='nothing')
+
+    def test_a_version_one_lockfile_loses_the_command_names(self):
+        """A known limitation, recorded rather than discovered later.
+
+        Binary names live in the `packages` map that lockfileVersion 2
+        introduced, so under a v1 lockfile a tool invoked from a
+        `scripts` entry by its command name looks unused and this
+        criterion false-fails. The blast radius is bounded: a v1
+        lockfile already fails npm-pin-indirect-dependencies, so the
+        repository is being told to regenerate it anyway. If that ever
+        stops being true, this test is where the cost shows up.
+        """
+        self.manifest(name='x', devDependencies={'typescript': '^5.3.0'},
+                      scripts={'build': 'tsc -p .'})
+        self.fixture.write('package-lock.json', json.dumps({
+            'name': 'x',
+            'lockfileVersion': 1,
+            'dependencies': {'typescript': {'version': '5.3.0'}},
+        }, indent=2) + '\n')
+        self.source("export const a = 1;\n")
+        self.assert_fail(self.check(), containing='typescript')
 
     def test_a_workspace_root_does_not_apply(self):
         self.manifest(name='x', workspaces=['packages/*'],
@@ -264,14 +368,36 @@ class NpmUnusedDeclaredDependencyTest(NpmFixtureMixin, CheckTestCase):
         self.assert_pass(self.check())
 
     def test_an_unused_dependency_fails_and_names_its_line(self):
+        """The line number is the citation, so assert the number.
+
+        `manifest_line()` has no other caller and no other test. An
+        assertion that only looks for `package.json:` passes whatever
+        number it is given, including a constant, and the number is
+        published into every issue this criterion files.
+        """
         self.manifest(name='x',
                       dependencies={'left-pad': '^1.3.0',
                                     'semver': '^7.6.0'})
         self.lockfile(['left-pad', 'semver'])
         self.source("import leftPad from 'left-pad';\n")
         result = self.assert_fail(self.check(), containing='semver')
-        self.assertIn('package.json:', result['details'])
+        # Read back out of the file the fixture just wrote rather than
+        # counted by hand: hard-coding it makes reordering the kwargs
+        # above, or changing `manifest()`'s indent, fail as though the
+        # criterion had miscounted.
+        self.assertIn('semver (package.json:%d)' % self.manifest_line('semver'),
+                      result['details'])
         self.assertNotIn('left-pad', result['details'])
+
+    def test_a_dependency_on_a_one_line_manifest_is_still_reported(self):
+        """No citation is available; the verdict must not depend on one."""
+        self.fixture.write(
+            'package.json',
+            '{"name": "x", "dependencies": {"left-pad": "^1.3.0"}}\n')
+        self.lockfile(['left-pad'])
+        self.source("export const a = 1;\n")
+        result = self.assert_fail(self.check(), containing='left-pad')
+        self.assertNotIn('package.json:', result['details'])
 
     def test_a_subpath_import_counts_as_a_use(self):
         self.manifest(name='x', dependencies={'lodash': '^4.17.21'})
@@ -432,9 +558,16 @@ class NpmUnusedDeclaredDependencyTest(NpmFixtureMixin, CheckTestCase):
         self.assert_fail(self.check(), containing='left-pad')
 
     def test_the_lockfile_is_not_evidence_of_use(self):
-        """It names every resolved package, which is all of them."""
+        """It names every resolved package, which is all of them.
+
+        Distinguished from its sibling above by putting the name
+        somewhere only the lockfile carries it: a *different* package
+        installing a command called `left-pad`. If the lockfile were
+        read as configuration text that mention would exempt the
+        dependency, and the criterion would pass on every project.
+        """
         self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
-        self.lockfile(['left-pad'])
+        self.lockfile(['left-pad', ('pad-left', ['left-pad'])])
         self.source("export const a = 1;\n")
         self.assert_fail(self.check(), containing='left-pad')
 
@@ -504,6 +637,12 @@ class NpmUndeclaredDirectDependencyTest(NpmFixtureMixin, CheckTestCase):
 
     def test_without_a_package_json_it_does_not_apply(self):
         self.assert_skip(self.check(), containing='No package.json')
+
+    def test_an_unreadable_manifest_does_not_apply(self):
+        self.fixture.write('package.json', '{ this is not json\n')
+        self.lockfile(['left-pad'])
+        self.source("import leftPad from 'left-pad';\n")
+        self.assert_skip(self.check(), containing='not readable JSON')
 
     def test_without_a_lockfile_it_does_not_apply(self):
         self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})

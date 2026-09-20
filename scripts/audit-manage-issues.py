@@ -118,6 +118,22 @@ def gh_close_issue(org, repo, issue_number, comment=None):
 # silence.
 ISSUE_BODY_BUDGET = 60000
 
+# `details` is one field among several competing for that budget, and
+# the only one with no bound at all. Given the whole budget it starves
+# the per-item lists, which are the part a maintainer acts on: the
+# issue still files, it just carries no actionable items. Half leaves
+# both sides room in every realistic case, and where it does bite the
+# trailer says where the rest is.
+DETAILS_BUDGET = ISSUE_BODY_BUDGET // 2
+
+# Module level so a test can compute the exact room `render_details`
+# has, and so pin the truncation boundary rather than approach it.
+DETAILS_HEADING = '\n### Automated check details\n\n'
+DETAILS_TRAILER = (
+    '\n\n*...truncated to stay under GitHub\'s issue body limit. '
+    'Run `scripts/audit-check.py` for the full details.*\n'
+)
+
 
 def render_issue_items(heading, items, used):
     """Render one per-item list, stopping before the body gets too big.
@@ -140,6 +156,43 @@ def render_issue_items(heading, items, used):
             )
         rendered += line
     return rendered
+
+
+def details_room(used):
+    """How many characters of `details` fit, given a body of `used`.
+
+    Can go negative where the rest of the body has already spent the
+    budget; the caller clamps. Kept separate from the rendering so the
+    boundary is a value a test can ask for rather than one it has to
+    find by bisection.
+    """
+    return (
+        min(ISSUE_BODY_BUDGET - used, DETAILS_BUDGET)
+        - len(DETAILS_HEADING) - len(DETAILS_TRAILER)
+    )
+
+
+def render_details(details, used):
+    """Render the check's own details, under the same budget.
+
+    `details` is written by the criterion and is not bounded by
+    anything the criterion has to think about: several route a per-item
+    list through it, and the npm ones quote a workflow's `run:` line
+    verbatim. Left unaccounted it can push the body past GitHub's
+    limit on its own, at which point the create call returns nothing
+    and the criterion silently stops filing while the audit reports
+    success -- the failure mode the per-item budget already exists to
+    prevent, reached through the one field that was not measured.
+
+    Capped at `DETAILS_BUDGET` rather than at whatever is left, so
+    that a pathological `details` cannot spend the room the per-item
+    lists need.
+    """
+    room = details_room(used)
+    if len(details) + 1 <= room:
+        return f'{DETAILS_HEADING}{details}\n'
+    return (
+        f'{DETAILS_HEADING}{details[:max(room, 0)]}{DETAILS_TRAILER}')
 
 
 def build_issue_body(check_id, check_result):
@@ -167,14 +220,13 @@ def build_issue_body(check_id, check_result):
             f'({DEV_REPO_URL}/{template_dir}README.md)\n'
         )
 
-    # Defused, not spliced raw. The string is written by a check out
-    # of what it found in another repository -- filenames and heading
-    # text read from that repository's markdown -- and an issue body
-    # renders a mention to a real notification, under this workflow's
-    # own identity.
-    body += (
-        f'\n### Automated check details\n\n'
-        f'{defuse(check_result["details"])}\n')
+    # Defused before it is measured, not spliced raw. The string is
+    # written by a check out of what it found in another repository --
+    # filenames and heading text read from that repository's markdown
+    # -- and an issue body renders a mention to a real notification,
+    # under this workflow's own identity. Defusing first also means the
+    # budget measures the string that actually lands.
+    body += render_details(defuse(check_result['details']), len(body))
 
     if 'missing' in check_result:
         body += render_issue_items(

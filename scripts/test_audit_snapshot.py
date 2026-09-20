@@ -16,6 +16,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import audit_snapshot  # noqa: E402
+from audit.registry import CHECKS  # noqa: E402
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -173,10 +174,11 @@ class NetworkCheckListTest(unittest.TestCase):
 
     NETWORK_CHECKS is written by hand, and a check that grows a
     GitHub call later would otherwise silently become a source of
-    spurious diffs. Re-derive it from the source: find every check
-    whose body reaches the network -- through the `_github()` client
-    accessor, or by cloning -- directly or through a helper it calls,
-    and compare.
+    spurious diffs. Take the schedule from `registry.CHECKS`, then
+    re-derive from the source which of those checks reaches the
+    network -- through the `_github()` client accessor, or by cloning
+    -- directly, through a helper it calls, or through a base class it
+    inherits, and compare.
 
     Matching on `_github(` rather than on a literal `gh` is what makes
     this survive the client seam: after phase 2 no check spawns `gh`
@@ -185,22 +187,38 @@ class NetworkCheckListTest(unittest.TestCase):
 
     def _sources(self):
         """Every module a scheduled check can be implemented in."""
-        paths = []
+        sources = []
         package = os.path.join(SCRIPT_DIR, 'audit')
         for root, _, names in os.walk(package):
-            for name in names:
+            for name in sorted(names):
                 if name.endswith('.py'):
-                    paths.append(os.path.join(root, name))
-        return [open(p, 'r').read() for p in paths]
+                    with open(os.path.join(root, name), 'r') as handle:
+                        sources.append(handle.read())
+        return sources
 
-    def _functions(self, sources):
-        """Split every module into {symbol name: body}.
+    def _symbols(self, sources):
+        """Split every module into {symbol: body} and {class: bases}.
 
         Classes and functions together: a check is a class whose body
         makes the call, and the module-level helpers it reaches it
         through are functions.
+
+        Base classes are recorded separately because a subclass body
+        never names them. An intermediate base such as
+        `NpmPackageCheck` holds an `applies()` that every subclass
+        runs, so a scan that does not follow the inheritance edge
+        cannot see what that method does.
+
+        The tables are keyed by bare name across every module, so two
+        same-named top-level symbols would silently overwrite each
+        other and `_reaches_network` would examine the wrong body --
+        a wrong answer rather than a missing one, which the `unread`
+        assertion cannot see. Returns the collisions so the caller can
+        fail on them; there are none today.
         """
         bodies = {}
+        bases = {}
+        duplicates = set()
         for source in sources:
             name = None
             body = []
@@ -208,16 +226,27 @@ class NetworkCheckListTest(unittest.TestCase):
                 match = re.match(r'^(?:def|class) (\w+)', line)
                 if match:
                     if name:
+                        if name in bodies:
+                            duplicates.add(name)
                         bodies[name] = '\n'.join(body)
                     name = match.group(1)
                     body = []
+                    inherits = re.match(r'^class \w+\(([^)]*)\)', line)
+                    bases[name] = [
+                        base.strip()
+                        for base in (inherits.group(1).split(',')
+                                     if inherits else [])
+                        if base.strip()
+                    ]
                 elif name:
                     body.append(line)
             if name:
+                if name in bodies:
+                    duplicates.add(name)
                 bodies[name] = '\n'.join(body)
-        return bodies
+        return bodies, bases, sorted(duplicates)
 
-    def _reaches_network(self, bodies, name, seen=None):
+    def _reaches_network(self, bodies, bases, name, seen=None):
         seen = seen if seen is not None else set()
         if name in seen:
             return False
@@ -225,32 +254,64 @@ class NetworkCheckListTest(unittest.TestCase):
         body = bodies.get(name, '')
         if re.search(r"_github\(|repo\.github|GhCli\(|'clone'", body):
             return True
+        for other in bases.get(name, []):
+            if self._reaches_network(bodies, bases, other, seen):
+                return True
         for other in bodies:
             if other != name and re.search(rf'\b{other}\s*\(', body):
-                if self._reaches_network(bodies, other, seen):
+                if self._reaches_network(bodies, bases, other, seen):
                     return True
         return False
 
     def test_network_checks_matches_the_checker(self):
-        sources = self._sources()
-        bodies = self._functions(sources)
+        bodies, bases, duplicates = self._symbols(self._sources())
 
-        # Map check id to the class that implements it, which is
-        # every class registry.CHECKS instantiates.
-        scheduled = {}
-        registry_src = open(
-            os.path.join(SCRIPT_DIR, 'audit', 'registry.py'), 'r').read()
-        for source in sources:
-            for cls, check_id in re.findall(
-                    r"class (\w+)\(Check\):\n    id = '([a-z0-9-]+)'",
-                    source):
-                if f'{cls}()' in registry_src:
-                    scheduled[check_id] = cls
+        # A bare-name table cannot tell two same-named top-level
+        # symbols apart, and the survivor is whichever module was
+        # walked last. Fail on the collision rather than on whatever
+        # it makes the network scan conclude.
+        self.assertEqual(
+            duplicates, [],
+            'these top-level symbol names are defined in more than one '
+            'module under scripts/audit/, so the body examined for a '
+            'network call may belong to the wrong one',
+        )
 
-        self.assertTrue(scheduled, 'could not read the schedule')
+        # Map check id to the class that implements it, taken from the
+        # registry rather than matched out of the source. An earlier
+        # version of this test read `class (\w+)\(Check\):`, which
+        # matches nothing whose base class is an intermediate one --
+        # npm_dependencies.py's three all inherit NpmPackageCheck --
+        # so it covered 52 of the 55 registered criteria, and passed
+        # green while doing it.
+        scheduled = {check.id: type(check).__name__ for check in CHECKS}
+
+        # Two registered criteria sharing an id would collapse the
+        # map silently, so check the size before using it. This is
+        # cheap rather than load-bearing: `scheduled` is built from
+        # CHECKS, so nothing else can make it disagree.
+        self.assertEqual(
+            len(scheduled), len(CHECKS),
+            'two registered checks share an id')
+
+        # This is the assertion that would have caught the regex: a
+        # criterion whose class body cannot be found is one whose
+        # network behaviour was never examined, and a family dropping
+        # out that way now fails loudly instead of quietly narrowing
+        # what the test looks at.
+        unread = sorted(
+            check_id for check_id, symbol in scheduled.items()
+            if symbol not in bodies)
+        self.assertEqual(
+            unread, [],
+            'no class body was found under scripts/audit/ for these '
+            'checks, so whether they reach the network was never looked '
+            'at',
+        )
+
         derived = {
             check_id for check_id, symbol in scheduled.items()
-            if self._reaches_network(bodies, symbol)
+            if self._reaches_network(bodies, bases, symbol)
         }
         self.assertEqual(
             derived, set(audit_snapshot.NETWORK_CHECKS),

@@ -4,7 +4,7 @@ checks before I push.
 ## How to use this runbook
 
 This repository is not a service. It is the automation that
-audits sixteen other repositories, the specifications that
+audits twenty other repositories, the specifications that
 automation implements, and the workflow templates the fleet
 copies. A defect here does not break a running system; it
 breaks other repositories quietly, or files a hundred wrong
@@ -86,8 +86,15 @@ git fetch origin
 git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- '*.py' | grep -nE '^\+[^+].{120,}'
 
 # New third-party imports -- the audit scripts are stdlib plus
-# the git and gh CLIs only, which is why they run on a bare runner
-git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- 'scripts/*.py' | grep -nE '^\+import |^\+from '
+# the git and gh CLIs only, which is why they run on a bare runner.
+# Scoped at '*.py' rather than 'scripts/*.py' because a Python file
+# added anywhere else should be checked too. The two select the same
+# 56 files today only because every tracked .py happens to live under
+# scripts/ -- not because the narrower spelling narrows anything
+# useful: git's fnmatch lets '*' cross a '/' unless the pathspec
+# carries ':(glob)' magic, so 'scripts/*.py' already reaches the whole
+# subtree rather than its top level (':(glob)scripts/*.py' returns 13)
+git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- '*.py' | grep -nE '^\+import |^\+from '
 
 # Hand-edited compliance data. compliance.md is regenerated and
 # pushed by the daily workflow, so an edit to it is reverted tomorrow
@@ -489,7 +496,7 @@ actual code, not just the diff summary.
 
 The threat model here is unusual and worth stating: this
 repository has no users and holds no data. What it has is write
-access to sixteen repositories, a `GITHUB_TOKEN` in workflows
+access to twenty-one repositories, a `GITHUB_TOKEN` in workflows
 triggered by comments from outside, and templates that other
 projects run verbatim. The interesting vulnerabilities are ones
 that reach out of this repository.

@@ -132,5 +132,105 @@ class IssueBodyLimitTest(unittest.TestCase):
         self.assertEqual(5000, rendered + int(omitted.group(1)))
 
 
+class DetailsLimitTest(unittest.TestCase):
+    """`details` is written by the criterion and is not bounded.
+
+    Several criteria route a per-item list through it and the npm ones
+    quote a workflow's `run:` line verbatim, so it can carry the body
+    past GitHub's limit on its own. When it does, the create call
+    returns nothing and the criterion silently stops filing while the
+    audit still reports success.
+    """
+
+    #: GitHub rejects a create with a body longer than this.
+    GITHUB_LIMIT = 65536
+
+    def setUp(self):
+        self.module = _manage_issues()
+
+    def body(self, details, **extra):
+        built = {'id': 'eol-distro', 'status': 'fail', 'details': details}
+        built.update(extra)
+        return self.module.build_issue_body('eol-distro', built)
+
+    def test_a_realistic_details_string_is_rendered_whole(self):
+        body = self.body('two references to debian-12')
+        self.assertIn('two references to debian-12', body)
+        self.assertNotIn('truncated', body)
+
+    def test_a_pathological_details_string_still_files_an_issue(self):
+        body = self.body('debian-12 ' * 20000)
+        self.assertLess(len(body), self.GITHUB_LIMIT)
+        self.assertIn('truncated', body)
+
+    def test_a_long_details_string_leaves_room_for_the_lists(self):
+        """The two budgets are one budget, or neither of them holds.
+
+        Asserting on the heading would not say this: `render_issue_items`
+        emits it unconditionally, so the test would pass with every item
+        dropped -- which is exactly what an uncapped `details` did.
+        """
+        body = self.body(
+            'debian-12 ' * 20000,
+            findings=['.github/workflows/ci.yml:%d (debian-12)' % n
+                      for n in range(500)])
+        self.assertLess(len(body), self.GITHUB_LIMIT)
+        self.assertIn('.github/workflows/ci.yml:0 (debian-12)', body)
+        self.assertIn('.github/workflows/ci.yml:499 (debian-12)', body)
+        self.assertNotIn('more, omitted', body)
+
+    # `x` rather than `d` as the filler: neither the heading nor the
+    # trailer contains one, so counting it counts only what survived
+    # of `details`.
+    def test_details_one_character_under_the_room_renders_whole(self):
+        """The boundary is asked for, not approached by bisection."""
+        room = self.module.details_room(0)
+        rendered = self.module.render_details('x' * (room - 1), 0)
+        self.assertNotIn('truncated', rendered)
+        self.assertEqual(room - 1, rendered.count('x'))
+
+    def test_details_one_character_over_the_room_truncates(self):
+        """`room` characters is one too many: the whole form adds a newline."""
+        room = self.module.details_room(0)
+        rendered = self.module.render_details('x' * room, 0)
+        self.assertIn('truncated', rendered)
+        self.assertEqual(room, rendered.count('x'))
+
+    def test_details_well_over_the_room_loses_the_tail(self):
+        room = self.module.details_room(0)
+        rendered = self.module.render_details('x' * (room + 100), 0)
+        self.assertIn('truncated', rendered)
+        self.assertEqual(room, rendered.count('x'))
+
+    def test_a_truncated_render_fits_inside_the_details_budget(self):
+        """The bound that does not come from `details_room`.
+
+        Every other assertion here asks `details_room` what to expect,
+        so a miscalculation inside it moves the expectation with it and
+        stays invisible. This one is arithmetic the function does not
+        supply: heading plus kept text plus trailer, all of it, under
+        the budget.
+        """
+        rendered = self.module.render_details('x' * 10 ** 6, 0)
+        self.assertLessEqual(len(rendered), self.module.DETAILS_BUDGET)
+
+    def test_details_is_capped_by_its_own_budget_not_the_body_one(self):
+        """An empty body does not entitle `details` to all of it."""
+        self.assertLess(
+            self.module.details_room(0), self.module.DETAILS_BUDGET)
+        self.assertLess(
+            self.module.details_room(0), self.module.ISSUE_BODY_BUDGET // 2)
+
+    def test_details_with_the_budget_already_spent_renders_none_of_it(self):
+        """Negative room is clamped, not sliced from the end."""
+        # Longer than the overrun on purpose: with a shorter string an
+        # unclamped `details[:room]` returns the empty string too, and
+        # the assertion cannot tell the two apart.
+        rendered = self.module.render_details(
+            'debian-12 ' * 1000, self.module.ISSUE_BODY_BUDGET + 1000)
+        self.assertIn('truncated', rendered)
+        self.assertNotIn('debian-12', rendered)
+
+
 if __name__ == '__main__':
     unittest.main()
