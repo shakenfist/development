@@ -830,9 +830,9 @@ the Rust portions would exercise today's `develop` rather than
 anything in the range. D6.5 scopes it and records the skip.
 
 **Review marks.** Of the files in scope, two carry human review
-marks in `REVIEWS.md`: `scripts/audit/checks/review.py` (line 106,
-2026-09-03) and `scripts/review-tracking.py` (line 122,
-2026-09-04). Both post-date this plan's code, so a person has read
+marks in `REVIEWS.md`: `scripts/audit/checks/review.py`, reviewed
+2026-09-03, and `scripts/review-tracking.py`, reviewed
+2026-09-04. Both post-date this plan's code, so a person has read
 the current form of the criterion and the `status` subcommand.
 `docs/code-review-tracking.md` and `docs/audits/review-coverage.md`
 carry none. This phase edits only `docs/plans/PLAN-review-coverage.md`,
@@ -1110,7 +1110,7 @@ chased. Blocking; fixed in development#158, not yet merged.** The
 sentence reads "CI pruning of a repo's own main branch is the
 steady-state design, not a violation of it". It is a *generic* claim
 about any adopting repository, and it is false: ryll's default
-branch is `develop`. Seventeen lines earlier,
+branch is `develop`. Sixteen lines earlier,
 in the same file, `AGENTS.md:116-117` already says "on pushes to its
 default branch" -- corrected during #139's review. This is the fifth
 instance of the claim step 5.1 was scoped away from, and the only one
@@ -1157,18 +1157,18 @@ across the restructure unchanged.
 **F3. A filename can forge content in an auto-filed issue body.
 Advisory; fixed in development#158, not yet merged.** `never_reviewed` is
 the list of tracked files as `git ls-files -z` returns them, and
-`render_issue_items` at `scripts/audit-manage-issues.py:121` renders
-each as `` `- `{item}`` `` with no escaping. A git path may contain a
-backtick, which closes the code span, or a newline, which injects raw
-lines into a body authored by shakenfist-bot. There is no
+`render_issue_items` -- defined at
+`scripts/audit-manage-issues.py:138` and called at 232 and 243 --
+renders each as `` `- `{item}`` `` with no escaping. A git path may
+contain a backtick, which closes the code span, or a newline, which
+injects raw lines into a body authored by shakenfist-bot. There is no
 state-change primitive -- GitHub does not close issues from body
 keywords -- so this is content forgery and notification abuse, not
-escalation. The asymmetry is the interesting part and it is
-confirmed: `defuse()` exists for exactly this class and is applied
-only at `scripts/audit-update-docs.py:243`, to `details`, on the
-compliance-page path. Nothing defuses `missing` on the issue path,
-and `review-coverage` and `review-scope-completeness` are the widest
-producers of repository-derived `missing` in the check set. This
+escalation. `defuse()`, at `scripts/audit_common.py:121`, exists for
+exactly this class, and nothing defuses `missing` or `findings` on
+the issue path, where `review-coverage` and
+`review-scope-completeness` are the widest producers of
+repository-derived `missing` in the check set. This
 was first declined and referred, on the D5.2 boundary: escaping
 `render_issue_items` changes every criterion's issue bodies
 fleet-wide, which is `PLAN-consistency-audits-v2`'s machinery
@@ -1178,7 +1178,29 @@ request, development#158, instead, and the blast radius is stated in
 that commit rather than used as a reason not to act. The referral stands for
 development#138, which is a different problem in the same file.
 
-**F4-F6, ryll, advisory; to be fixed, no pull request opened yet.**
+*Corrected on 2026-09-20, after review.* This finding first called
+the asymmetry "confirmed": that `defuse()` was applied only on the
+compliance-page path, to `details`, and not on the issue path at
+all. That was true of the tree the audit read at 07:37 AEST and
+false twenty-nine minutes later. `PLAN-push-audit-phase.md`'s own
+push audit found the same asymmetry independently and closed it:
+`d60b58a` routes `details` through `defuse()`, now at
+`scripts/audit-manage-issues.py:229`, and `2766610` adds the
+regression test -- `test_the_details_are_defused_before_they_reach_the_body`
+in `scripts/tests/test_manage_issues.py`, whose docstring names that
+audit. Both merged to `main` as development#154 at 11:42, before
+this section's own correction pass at 12:14, which revisited F3 and
+did not re-read the file. So the asymmetry is closed rather than
+confirmed, and citing it as live understated a fix that had already
+landed. The finding survives narrowed, and that narrower form is
+what development#158 fixes: `render_issue_items` escapes nothing, so
+`missing` and `findings` items still reach the body raw while
+`details` no longer does. Two audits of two plans reaching the same
+file in one morning is the argument for re-reading the tree at
+correction time and not only at audit time.
+
+**F4-F6, ryll, advisory; no pull request opened yet, carried in
+Future work below.**
 The job still grants `GITHUB_TOKEN` `contents: write` at
 `prune-reviews.yml:40-41`,
 although since `a0227e05` every write goes through
@@ -1316,7 +1338,8 @@ source rather than left for the next reader.
   and was re-checked on 2026-09-20 rather than assumed: the only
   remaining references to `PROJECT-CONSISTENCY-AUDITS.md` are in the
   historical sections of `PLAN-consistency-audits-v2.md`,
-  `PLAN-plan-template-blocks.md`, `PLAN-consistency.md` and this
+  `PLAN-plan-template-blocks.md`, `PLAN-consistency.md`,
+  `PLAN-llm-doc-structure.md` and this
   plan, which phase 5's decision says stand as records of what was
   written at the time; and every reference to `PLAN-consistency.md`
   resolves, because the file is there. So nothing dangles -- but the
@@ -1327,6 +1350,26 @@ One smaller correction, recorded because a later reader will chase
 it: 6b cited the `REVIEW_TRACKING_SCRIPT` computation at
 `scripts/audit/checks/review.py:97-100`; it is at 100-104. Line 97 is
 `REVIEW_BACKLOG_THRESHOLD`, as this plan says elsewhere.
+
+*Added on 2026-09-20, after review.* Review reported two stale
+citations in F3 and they are fixed above. Rather than fix the two,
+every `path:line` citation in this phase was re-resolved -- against
+`main` here, and against `origin/develop` for the one into ryll's
+`prune-reviews.yml`. Thirteen resolved exactly. One more was stale
+that review did not find. The **Review marks** paragraph gave
+`REVIEWS.md` line numbers for the two reviewed files -- 106 and 122,
+correct at
+`5861c0a` and now 99 and 114, because four prune commits have landed
+since. Line numbers into `REVIEWS.md` are the one citation that
+cannot be kept right: the file is generated, it is rewritten by CI
+on every prune, and `plan-phase-landing` forbids this phase from
+regenerating it to check. The dates were correct and are stable, so
+the paragraph now cites those and the entries carry themselves.
+Two citations that are *not* fixed, deliberately: 6a and 6b cite
+`PUSH-AUDIT.md` lines 44--113 and 125--127, which have moved since
+the briefs were issued. A brief is a record of what was asked, not
+a claim about the tree, and rewriting one to match today's runbook
+would falsify the record. Follow the section headings instead.
 
 #### The survival audit
 
@@ -1415,6 +1458,18 @@ moves the plan's index row to `Complete`. Until then the row stays
 `In progress`, because a plan with open findings is not complete
 however many of its rows say otherwise.
 
+Step 8's `Status` is `Complete` deliberately, and it is the audit
+that finished, not the work the audit found: every wave brief ran,
+every finding is written down with a disposition, and nothing
+further is learned by running it again. Recorded here because the
+resulting row -- `Complete`, an empty `Merged` cell, an index row
+saying `In progress` -- is indistinguishable from the carve-out the
+paragraph above disclaims, and only this prose separates them.
+Nothing mechanical does: `plan-audit-phase` passes either way, so if
+development#158 were closed unmerged the gap would not surface. The
+index row is the load-bearing one, because it stays `In progress`
+until every finding has landed.
+
 `pre-commit run --all-files` must pass before each commit is
 proposed; the Python follows the house style (single quotes,
 120-column wrap).
@@ -1471,6 +1526,21 @@ proposed; the Python follows the house style (single quotes,
   itself, which is why the date differs from the measurements above
   -- no other `docs/plans/PLAN-*.md` phase table carried an
   out-of-vocabulary status.
+* A criterion that resolves the `path:line` citations a plan file
+  writes, so citation drift is caught by CI rather than by a
+  reviewer. Phase 6 produced three stale ones and review found two
+  of them; the third -- `REVIEWS.md` line numbers in **Review
+  marks** -- was found only by re-resolving all thirteen by hand
+  afterwards. Nothing mechanical notices: a mutation setting a
+  citation to line 99999 leaves every `plan-*` check passing. Not
+  attempted here, because the hard part is not the resolving but
+  telling a live citation from the several kinds this plan writes
+  that must *not* resolve against `main` -- a path at a named
+  historical commit, a line range in another repository's runbook,
+  and a verbatim subagent brief, which is a record of what was asked
+  rather than a claim about the tree. A check that cannot tell those
+  apart would be noise, and the honest first step is a convention
+  for marking a citation as historical.
 * Revisit capping the issue-body file list if a repo much larger
   than ryll adopts the tooling. Unreached so far: ryll#304's body
   is 76 lines at 63 files, and because the body is never refreshed
@@ -1511,6 +1581,24 @@ proposed; the Python follows the house style (single quotes,
   machinery, against five in-repository precedents for exactly that
   kind of smoke test. See phase 6's "Observations, recorded and not
   acted on" for what each one was found by.
+* Phase 6's F4, F5 and F6, all in ryll and all advisory, recorded
+  here because no pull request carries them and an advisory finding
+  with no carrier is a finding that gets lost. F4: the prune job
+  still grants `GITHUB_TOKEN` `contents: write` at
+  `prune-reviews.yml:40-41`, leftover from the pre-PAT design, where
+  every write has gone through `DEPENDENCIES_TOKEN` since
+  `a0227e05` and a `permissions:` block does not constrain a PAT
+  anyway. F5: "`REVIEWS.md` is generated; never edit it by hand" has
+  disappeared from every agent-facing document in ryll and survives
+  only in the generated file's own header, which is to say only to
+  somebody who has already opened it to edit it -- the one of the
+  three worth doing first, because the warning is load-bearing and
+  the audience that needs it is the audience that cannot see it.
+  F6: `scope-orphans` is documented in neither
+  `tools/review-tracking.sh`'s header nor `docs/development.md`,
+  although it has existed upstream since 2026-08-31. They belong in
+  one small ryll pull request alongside the CI-hygiene bullet below,
+  which is the same repository and the same workflow file.
 * ryll's CI hygiene on the prune job, also from phase 6's
   observations: the job has no `timeout-minutes` where
   development's has ten, and no ryll job runs `actionlint`, so a
