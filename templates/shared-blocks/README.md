@@ -34,29 +34,31 @@ checks) verify that an embedded block:
   `plan-file-conventions`, `plan-status-vocabulary`,
   `subagent-execution-model`, `plan-planning-effort`,
   `subagent-step-guidance`, `subagent-model-roster`,
-  `plan-review-checklist`, `plan-closeout-sections` and
-  `plan-push-audit-phase` in `PLAN-TEMPLATE.md`;
+  `plan-review-checklist`, `plan-closeout-sections`,
+  `plan-push-audit-phase` and `plan-phase-landing` in
+  `PLAN-TEMPLATE.md`;
 - carries the current version number; and
 - matches the canonical wording exactly (modulo trailing
   whitespace).
 
-`plan-phase-landing` is canonical here and embedded in this
-repository's `PLAN-TEMPLATE.md`, but is deliberately **not** in
-`PLAN_TEMPLATE_BLOCKS` in `scripts/audit/checks/plans.py` yet. Adding
-it there marks every repository carrying `PLAN-TEMPLATE.md` that does
-not embed the block non-compliant at once, and files an issue against
-each -- ten repositories are applicable today and eight of them would
-newly fail. The plan-template section of `docs/audits/compliance.md`
-is regenerated daily and is the current figure. The point of the
-block is to reduce documentation round trips rather than to generate
-a fresh batch of them, so add it to that list when there is appetite
-for the sweep; it is a one-line change and nothing else depends on
-the timing.
+`plan-phase-landing` has been enforced since 2026-09-20, the day
+after it was written, rather than left advisory for repositories to
+pick up. An advisory rule is adopted by the repositories that were
+already going to adopt it, and this one is aimed at a systemic
+problem -- merge conflicts in `REVIEWS.md` and plan files, and
+round-trip pull requests spent on prose -- so the repositories it
+exists for are the ones that would decline it. `source-file-size`
+was enforced the same day and for the same reason. The cost was one
+morning of issues: eight of the ten repositories carrying a
+`PLAN-TEMPLATE.md` newly failed `plan-template`, and seven of the
+eleven carrying a `PUSH-AUDIT.md` newly failed `push-audit`. Each
+issue is closed by a verbatim copy of the block and names the file
+to copy it from; `docs/audits/compliance.md` is regenerated daily
+and is the current figure.
 
 Read `plan-phase-landing` together with `plan-push-audit-phase`: the
 first says the push-audit phase records no `Merged` cell, which is
-the one exception to the second's account of that column, and the
-fleet carries the second without the first until the sweep lands.
+the one exception to the second's account of that column.
 
 ## Updating a block
 

@@ -2258,11 +2258,17 @@ class PushAuditTest(unittest.TestCase):
             'Diagram wording.\n'
             '<!-- shared-block-end -->\n'
         )
+        self.size_block = (
+            '<!-- shared-block: source-file-size v1 -->\n'
+            'File size wording.\n'
+            '<!-- shared-block-end -->\n'
+        )
         for name, block in (
             ('readme-discipline', self.readme_block),
             ('llm-doc-discipline', self.llm_doc_block),
             ('diagram-discipline', self.diagram_block),
             ('comment-proportion', self.comment_block),
+            ('source-file-size', self.size_block),
             ('plan-phase-references', self.phase_block),
             ('path-traversal-review', self.path_block),
             ('python-version-discipline', self.python_block),
@@ -2275,8 +2281,9 @@ class PushAuditTest(unittest.TestCase):
         self.canonical = (
             f'{self.readme_block}\n{self.llm_doc_block}\n'
             f'{self.diagram_block}\n{self.comment_block}\n'
-            f'{self.phase_block}\n{self.path_block}\n'
-            f'{self.python_block}\n{self.tests_block}'
+            f'{self.size_block}\n{self.phase_block}\n'
+            f'{self.path_block}\n{self.python_block}\n'
+            f'{self.tests_block}'
         )
 
     def _check(self, files):
@@ -2509,6 +2516,12 @@ class PushAuditTest(unittest.TestCase):
         self.assertEqual(result['status'], 'pass')
         self.assertIn('referenced from AGENTS.md', result['details'])
 
+    def test_source_file_size_is_required(self):
+        # The line of this change with the widest fleet consequence:
+        # naming the block here is what marks seven currently
+        # compliant repositories non-compliant.
+        self.assertIn('source-file-size', PUSH_AUDIT_BLOCKS)
+
     def test_every_required_block_has_a_canonical_copy(self):
         # A name in the list with no file under
         # templates/shared-blocks would report every repository as
@@ -2626,6 +2639,30 @@ class PlanTemplateTest(unittest.TestCase):
         self.assertIn(
             'plan-push-audit-phase', PLAN_TEMPLATE_BLOCKS
         )
+
+    def test_phase_landing_is_required(self):
+        # The widest fleet consequence of enforcing this block:
+        # naming it here marks eight of the ten repositories
+        # carrying a PLAN-TEMPLATE.md non-compliant, leaving this
+        # one compliant.
+        self.assertIn(
+            'plan-phase-landing', PLAN_TEMPLATE_BLOCKS
+        )
+
+    def test_every_required_block_is_named_in_the_spec(self):
+        # A criterion spans several files that must stay in step. A
+        # block required here but absent from the spec page files a
+        # fleet issue naming something that page never mentions.
+        # PushAuditTest has had this guard and this one did not, so
+        # docs/audits/plan-template.md could describe eight of the
+        # nine required blocks with the suite still green -- which is
+        # how it stood until plan-phase-landing was enforced.
+        with open(os.path.join(
+                REPO_ROOT, 'docs', 'audits', 'plan-template.md')) as f:
+            spec = f.read()
+        for name in PLAN_TEMPLATE_BLOCKS:
+            with self.subTest(block=name):
+                self.assertIn(name, spec)
 
     def test_every_required_block_has_a_canonical_copy(self):
         # A name in the list with no file under

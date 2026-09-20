@@ -15,6 +15,11 @@ Repositories that carry a pre-push audit runbook must:
   `plan-phase-references` audits for the policies they enforce);
 * embed the current **`comment-proportion`** shared block in its
   code-quality review section;
+* embed the current **`source-file-size`** shared block alongside it
+  -- the advisory guidance on how long a source file gets before its
+  size is itself worth raising in review, framed as the cost of
+  re-reading a whole file rather than as taste, because where review
+  is tracked per file every change discards the review of all of it;
 * embed the current **`path-traversal-review`**,
   **`python-version-discipline`** and **`functional-test-coverage`**
   shared blocks, which carry the three criteria delegated to the

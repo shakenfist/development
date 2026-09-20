@@ -31,7 +31,7 @@ version of each of:
 * **`plan-review-checklist`** -- what the management session verifies
   after a sub-agent completes;
 * **`plan-closeout-sections`** -- the Future work, Bugs fixed and Back
-  brief sections; and
+  brief sections;
 * **`plan-push-audit-phase`** -- that every master plan ends with a
   phase running the repository's `PUSH-AUDIT.md` over the whole plan's
   work. This is what gives the pre-push audit a trigger; see the
@@ -45,7 +45,17 @@ version of each of:
   where the Execution phases are a table, added last so a row which
   omits it still reaches `Status`, or a `Merged:` line where they are
   prose sections. It never goes in the `Status` cell, which
-  `plan-status-vocabulary` reserves for a single term.
+  `plan-status-vocabulary` reserves for a single term; and
+* **`plan-phase-landing`** -- that a phase is closed out in the first
+  commit of the next phase rather than in a pull request of its own,
+  so that the merge commit the `Merged` cell records is known by the
+  time it is written; that the push-audit phase, being last, closes
+  itself out and is the one row permitted to omit that cell; and that
+  `REVIEWS.md` is not pruned or regenerated in a pull request that
+  changes code or documentation, because the `prune-reviews` workflow
+  heals it on the next push to the default branch. It amends the
+  block above, whose account of the `Merged` column it states the
+  single exception to.
 
 Every embedded block must be verbatim and at the current version.
 
