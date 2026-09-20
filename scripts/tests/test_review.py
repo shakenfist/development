@@ -240,6 +240,48 @@ class ReviewCoverageTest(unittest.TestCase):
         self.assertEqual(result['missing'],
                          [f'never reviewed: f{i}.py' for i in range(5)])
 
+    def test_oserror_is_reported_rather_than_raised(self):
+        # run_check() has no exception handler, so anything raised out
+        # of a check costs the repository all of its other criteria as
+        # well -- the failure mode recorded in checks/packaging.py and
+        # text/python_source.py. The window here is narrow: the scope
+        # file is checked before the exec, so reaching this needs the
+        # checkout to become unusable between the two. The guard is
+        # the same one every other shelling-out check already carries.
+        files = [f'f{i}.py' for i in range(5)]
+        self.make_reviewed_repo(files, reviewed=[])
+
+        def boom(*args, **kwargs):
+            raise PermissionError(13, 'Permission denied')
+
+        original = review.subprocess.run
+        review.subprocess.run = boom
+        try:
+            result = self.check()
+        finally:
+            review.subprocess.run = original
+        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assertIn('could not run', result['details'])
+
+    def test_missing_script_is_reported_not_raised(self):
+        # The neighbouring failure mode, asserted so the two do not get
+        # conflated: a missing review-tracking.py does not raise,
+        # because sys.executable is what subprocess looks for. The
+        # interpreter exits non-zero and the returncode branch reports
+        # it. This is why the guard above is hardening rather than a
+        # fix for a live defect.
+        files = [f'f{i}.py' for i in range(5)]
+        self.make_reviewed_repo(files, reviewed=[])
+        original = review.REVIEW_TRACKING_SCRIPT
+        review.REVIEW_TRACKING_SCRIPT = os.path.join(
+            self.repo, 'moved-away.py')
+        try:
+            result = self.check()
+        finally:
+            review.REVIEW_TRACKING_SCRIPT = original
+        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assertIn('failed', result['details'])
+
 
 class ReviewScopeCompletenessTest(unittest.TestCase):
     """Tests check_review_scope_completeness against fixture repos.
