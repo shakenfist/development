@@ -261,10 +261,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/ci.yml",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/codeql-analysis.yml",
       "author": "mikal"
     },
@@ -374,10 +370,6 @@
     },
     {
       "path": "scripts/test_audit_seams.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/test_audit_snapshot.py",
       "author": "mikal"
     },
     {
@@ -613,14 +605,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/npm-pin-indirect-dependencies.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/npm-undeclared-direct-dependency.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/npm-unused-declared-dependency.md",
       "author": "mikal"
     },
@@ -629,15 +613,7 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/consistency-audits.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/mermaid-lint-ci.md",
       "author": "mikal"
     },
     {
@@ -677,23 +653,7 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_npm_dependencies.py",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/mermaid-lint/mermaid-lint.sh",
-      "author": "mikal"
-    },
-    {
       "path": "templates/mermaid-lint/mermaid-lint.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/mermaid-lint/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/mermaid-lint",
       "author": "mikal"
     },
     {
@@ -717,14 +677,6 @@
       "author": "mikal"
     },
     {
-      "path": "tools/mermaid-lint.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "tools",
-      "author": "mikal"
-    },
-    {
       "path": ".pre-commit-config.yaml",
       "author": "mikal"
     },
@@ -741,15 +693,7 @@
       "author": "mikal"
     },
     {
-      "path": "AGENTS.md",
-      "author": "mikal"
-    },
-    {
       "path": "ARCHITECTURE.md",
-      "author": "mikal"
-    },
-    {
-      "path": "PLAN-TEMPLATE.md",
       "author": "mikal"
     },
     {
