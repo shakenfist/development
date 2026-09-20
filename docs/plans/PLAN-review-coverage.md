@@ -1085,15 +1085,25 @@ describe *this* repository, whose default branch really is `main`.
 **F2. `ReviewCoverage.run()` can take every other criterion down with
 it. Advisory; to be fixed.** `scripts/audit/checks/review.py:195-200`
 wraps its `subprocess.run` in `try: ... except
-subprocess.TimeoutExpired` and catches nothing else. A moved or
-unreadable `review-tracking.py` raises `FileNotFoundError`, and
-`scripts/audit/registry.py:135` appends `run_check(...)` with no
-handler, so the repository loses all fifty-five criteria rather than
-this one. The path is three `os.path.dirname` calls deep
-(`review.py:100-104`), which is exactly the shape a future
-restructure breaks silently -- and this plan's own code has already
-survived one restructure. The repository has been bitten by this
-class twice and says so in place:
+subprocess.TimeoutExpired` and catches nothing else, where every
+other shelling-out check in the package already catches
+`FileNotFoundError` as well and `SfuiVendor` in the same file does
+it correctly. `scripts/audit/registry.py:135` appends
+`run_check(...)` with no handler, so anything raised costs the
+repository all fifty-five criteria rather than one.
+
+*Corrected on 2026-09-20, while fixing it.* Both 6b and 6e said the
+trigger is a moved `review-tracking.py`. It is not: `subprocess`
+looks for `sys.executable`, so the interpreter starts, exits
+non-zero on the missing file, and lands in the `returncode` branch
+which already handles it. What raises is `cwd` -- a checkout that is
+absent or not a directory -- and since the scope file is checked
+before the exec, reaching even that needs the checkout to become
+unusable between the two. F2 is therefore hardening that brings two
+outliers into line with the house convention, not a fix for a live
+defect, and it ships with a test in each direction so the two
+failure modes are not conflated again. The repository has been
+bitten by the wider class twice and says so in place:
 `scripts/audit/checks/packaging.py:1872-1874` ("the AttributeError
 this used to throw propagated out of run_checks and cost the
 repository every other check as well") and
@@ -1103,7 +1113,7 @@ settled. In scope: the subprocess call is step 2's own code, carried
 across the restructure unchanged.
 
 **F3. A filename can forge content in an auto-filed issue body.
-Advisory; to be fixed, but not by this plan.** `never_reviewed` is
+Advisory; fixed here after all.** `never_reviewed` is
 the list of tracked files as `git ls-files -z` returns them, and
 `render_issue_items` at `scripts/audit-manage-issues.py:121` renders
 each as `` `- `{item}`` `` with no escaping. A git path may contain a
@@ -1116,11 +1126,15 @@ confirmed: `defuse()` exists for exactly this class and is applied
 only at `scripts/audit-update-docs.py:243`, to `details`, on the
 compliance-page path. Nothing defuses `missing` on the issue path,
 and `review-coverage` and `review-scope-completeness` are the widest
-producers of repository-derived `missing` in the check set. Declined
-*here* and referred: escaping `render_issue_items` changes every
-criterion's issue bodies fleet-wide, which is
-`PLAN-consistency-audits-v2`'s machinery and not this plan's, the
-same boundary D5.2 drew for development#138.
+producers of repository-derived `missing` in the check set. This
+was first declined and referred, on the D5.2 boundary: escaping
+`render_issue_items` changes every criterion's issue bodies
+fleet-wide, which is `PLAN-consistency-audits-v2`'s machinery
+rather than this plan's. The operator overrode that when asking for
+every finding to be addressed, so it is fixed in the findings pull
+request instead, and the blast radius is stated in that commit
+rather than used as a reason not to act. The referral stands for
+development#138, which is a different problem in the same file.
 
 **F4-F6, ryll, advisory and to be fixed.** The job still grants
 `GITHUB_TOKEN` `contents: write` at `prune-reviews.yml:40-41`,
@@ -1411,19 +1425,18 @@ proposed; the Python follows the house style (single quotes,
   runs, and therefore needs cross-run state it does not keep. ryll
   compounds it: `ci.yml` classifies a `review-scope.toml` change as
   a review artefact, so such a pull request skips every test tier.
-* Escape `render_issue_items` in `scripts/audit-manage-issues.py`.
-  A tracked filename containing a backtick or a newline reaches an
-  auto-filed issue body unescaped, and `defuse()` -- which exists
-  for this class -- is applied only to `details` on the
-  compliance-page path. Fleet-wide behaviour change to every
-  criterion's issue bodies, so it belongs with
-  `PLAN-consistency-audits-v2`, the same boundary D5.2 drew.
-* Catch `OSError` alongside `subprocess.TimeoutExpired` wherever a
-  `Check` shells out. `ReviewCoverage.run()` catches only the
-  timeout, and `run_check` has no handler, so one missing script
-  costs a repository all fifty-five criteria. Twice-established
-  failure mode here (`checks/packaging.py:1872`,
-  `text/python_source.py:129`); worth a sweep rather than one fix.
+* ~~Escape `render_issue_items` in
+  `scripts/audit-manage-issues.py`.~~ Done in the findings pull
+  request rather than deferred, at the operator's direction. The
+  fleet-wide caveat that made it a deferral still applies and is
+  recorded in that commit: it changes every criterion's issue
+  bodies, not only the two review checks'.
+* ~~Catch `OSError` alongside `subprocess.TimeoutExpired` wherever
+  a `Check` shells out.~~ No sweep was needed: a survey found
+  `ReviewCoverage` and `ReviewScopeCompleteness` were the only two
+  sites in the package not already catching it, and both are fixed
+  in the findings pull request. The reachable trigger is `cwd`
+  rather than a missing script -- see F2's correction.
 * The fleet-wide credential and pinning fix `196db2f6` deferred in
   August, raised again by phase 6 and recorded here so it need not
   be raised a third time: `persist-credentials: false` on the
