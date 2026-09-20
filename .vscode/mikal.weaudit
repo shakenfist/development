@@ -277,10 +277,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/review-scope-completeness.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/workflow-standards.md",
       "author": "mikal"
     },
@@ -325,10 +321,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/review.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/__init__.py",
       "author": "mikal"
     },
@@ -342,10 +334,6 @@
     },
     {
       "path": "scripts/tests/test_python_source.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_review.py",
       "author": "mikal"
     },
     {

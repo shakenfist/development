@@ -213,10 +213,6 @@
       "sha": "ce1f4861273d8634c0a9007750585e98637ed38f",
       "date": "2026-09-04"
     },
-    "docs/audits/review-scope-completeness.md": {
-      "sha": "043fcc6e69f9732861a1871b4bdb43b517abc164",
-      "date": "2026-09-01"
-    },
     "docs/audits/rust-unwrap-lint.md": {
       "sha": "ba40d7d57b5567cd25123d1b18f067e7e21815ce",
       "date": "2026-08-29"
@@ -316,10 +312,6 @@
     "scripts/audit/checks/packaging.py": {
       "sha": "a09316ca6f7de57df1ae55e74541c57ca75fd4f7",
       "date": "2026-09-06"
-    },
-    "scripts/audit/checks/review.py": {
-      "sha": "d4306f77753ad6a1bd653905e7ce7c76d05fbfd8",
-      "date": "2026-09-03"
     },
     "scripts/audit/checks/runners.py": {
       "sha": "c7e4ad82421f4784116725b1ca57a8d848ac9e59",
@@ -440,10 +432,6 @@
     "scripts/tests/test_repo.py": {
       "sha": "54db87d6402b28dc30ef642f8ce7463cbf18d62c",
       "date": "2026-09-20"
-    },
-    "scripts/tests/test_review.py": {
-      "sha": "742e2256f8d2c74cb8a65560d075ee11429c9914",
-      "date": "2026-09-04"
     },
     "scripts/tests/test_runners.py": {
       "sha": "b3d0d28144d510677e07d7edff75a46ecfba84e3",
