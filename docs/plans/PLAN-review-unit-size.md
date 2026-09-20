@@ -241,7 +241,11 @@ raise, never a gate.
 
 Second, finish the `CheckTestCase` migration that
 `PLAN-audit-scripts-restructure.md` started and deliberately left
-at 25 of 61 applicable classes. This is the single largest source
+half done. (The figure carried into this plan was 25 of 61
+applicable classes; phase 3's inventory re-derived it from the
+source rather than from a substring heuristic and got 25 of 55.
+Phase 3's table is the number, not this sentence.) This is the
+single largest source
 of reviewable-but-pointless length in `scripts/`, and it also
 closes the variation risk that `base.py` was written to close and
 has only half closed.
@@ -395,14 +399,6 @@ are recorded here rather than left to be discovered.
   it. If the branch is squashed or rebased on the way in those
   SHAs stop resolving: say so on the pull request and replace the
   range with the merge commit.
-* No phase can record its own merge commit, and the `Merged` record
-  is therefore one entry for all six rows rather than six, in the
-  `first..last` range form `plan-push-audit-phase` allows for a
-  phase that landed directly. It is written in phase 5's close-out
-  commit, which is the last point at which the branch's first and
-  last SHAs are both known. If the branch is squashed or rebased on
-  the way in, those SHAs stop resolving: say so on the pull
-  request and replace the range with the merge commit.
 * Phase 6 audits `origin/main...HEAD` on the branch before the
   merge, which is the accumulated diff of all six phases -- the
   thing `plan-push-audit-phase` asks for, reached more directly
@@ -777,7 +773,7 @@ is the failure mode to avoid. Always pass `--page /tmp/compliance.md`.
 
 ### 3. Inventory, and the gaps in `CheckTestCase`
 
-Two jobs, both cheap, both of which de-risk phase 3.
+Two jobs, both cheap, both of which de-risk phase 4.
 
 **The inventory, re-derived by reading every class** in
 `scripts/tests/test_*.py` declared as `(unittest.TestCase)` (a
@@ -1029,8 +1025,26 @@ The helper census, re-run over `scripts/tests/`:
 | `TemporaryDirectory()` sites | 112 | 21 |
 | `def _repo` helpers | 10 | 2 |
 | `def _check` helpers | 20 | 24 |
-| Old-style `(unittest.TestCase)` classes | 68 | 39 |
-| `CheckTestCase` classes | 25 | 58 |
+| Old-style `(unittest.TestCase)` classes | 68 | 44 |
+| `CheckTestCase` classes | 25 | 59 |
+
+The `Now` column is the merged tree, not the branch before the
+merge, because that is the tree the pull request asks anyone to
+read. The two class counts are the ones this matters to: `main`
+moved 34 commits while this plan ran and added five old-style
+classes -- `DefuseTest` (`test_audit_common.py`), `DetailsLimitTest`
+and `ItemDefusingTest` (`test_manage_issues.py`),
+`MarkdownTableCellsTest` (`test_markdown.py`) and
+`PushAuditRunbookRangeTest` (`test_plans.py`). None of the five runs
+a `Check`; each tests a pure helper, so each is a non-candidate by
+the phase 3a rule rather than a miss, and the 39 that phase 4 left
+plus those five is the 44 above. The `CheckTestCase` count is 59
+rather than phase 5's 58 for a duller reason: 58 was an undercount.
+The branch tip carried 59 before the merge as well as after it, so
+no class arrived late -- the phase 5 figure was counted with a
+line-anchored grep, and the numbers here are counted with `ast`
+instead, which is also what caught the `def _reporter` miscount the
+push audit fixed.
 
 Two of those numbers need explaining rather than presenting bare.
 
@@ -1073,15 +1087,24 @@ The five candidate-bearing files from the Situation table, plus
 `test_runners.py` and `test_review.py`, which phase 4 migrated
 first:
 
-| File | Before | After |
-|---|---|---|
-| `test_ci_workflows.py` | 2210 | 2124 |
-| `test_packaging.py` | 2660 | 2531 |
-| `test_plans.py` | 2754 | 2719 |
-| `test_docs_content.py` | 1916 | 1892 |
-| `test_runners.py` | 414 | 366 |
-| `test_review.py` | 457 | 363 |
-| `test_llm_docs.py` | 562 | 496 |
+| File | Before | After phase 4 | On the merged tree |
+|---|---|---|---|
+| `test_ci_workflows.py` | 2210 | 2124 | 2130 |
+| `test_packaging.py` | 2660 | 2531 | 2531 |
+| `test_plans.py` | 2754 | 2719 | 2871 |
+| `test_docs_content.py` | 1916 | 1892 | 1893 |
+| `test_runners.py` | 414 | 366 | 366 |
+| `test_review.py` | 457 | 363 | 427 |
+| `test_llm_docs.py` | 562 | 496 | 496 |
+
+The third column is the honest one to quote at anyone asking what
+this did to the files, and it is worse than the second: `main` added
+152 lines to `test_plans.py` and 64 to `test_review.py` while the
+migration was running, so the largest file in the set finishes 117
+lines *longer* than it started despite being migrated. The
+migration's own effect is the second column. Both are true, and
+reporting only the second would be exactly the kind of number this
+plan was written to distrust.
 
 The big files barely moved: `test_plans.py` fell 35 lines and
 `test_packaging.py` 129, against a Situation section that framed
@@ -1132,7 +1155,7 @@ be given extra weight:
   what every other repository will be measured against if the block
   is ever enforced.
 * **The `comment-proportion` block, applied to this plan's own
-  output.** Phase 3 moves a great many rationale comments. The
+  output.** Phase 4 moves a great many rationale comments. The
   audit should sample them and confirm they arrived intact rather
   than paraphrased.
 * **Templates are shipped code.** The new block is copied into ten
@@ -1176,7 +1199,10 @@ The rest are recorded for a decision rather than fixed here, since
   `os.path.join(self.path, relative)`. Every call site passes a
   string literal from a test module so no escape is reachable, but
   this repository's own `path-traversal-review` block asks that a
-  join which is correct by construction say so.
+  join which is correct by construction say so. **Taken** in the
+  review round rather than deferred: the automated review raised it
+  independently, and it is a comment, so it costs nothing to
+  answer where it was asked.
 * `scripts/tests/base.py` -- the `repo_text` and `write_all`
   docstrings enumerate ten and three affected class names, which
   will rot. Keep the why, trim the lists.
@@ -1185,7 +1211,16 @@ The rest are recorded for a decision rather than fixed here, since
   an open `push-audit` issue never sees the new requirement in its
   body. Pre-existing, but this plan is what makes it bite: it
   changes the required-block set for fifteen check/repository pairs
-  in one morning.
+  in one morning. Three issues are open against the two criteria
+  today and will each carry a body that names every missing block
+  except the one this plan adds: sfui#15 and
+  uncalibrated-sextant#11 on `push-audit`, uncalibrated-sextant#12
+  on `plan-template`. Whoever fixes those three from the issue text
+  alone will re-run and still fail, with nothing telling them why.
+  Recorded under Future work as three manual body edits, which is
+  the cheap half; the durable half is refreshing a changed body on
+  an already-open issue, and that is a separate pull request
+  against code this plan does not touch.
 * Repository-wide, out of scope and not introduced here: there are
   no type annotations on any of the 1,796 `def`s under `scripts/`,
   while the `python-version-discipline` block this repository ships
@@ -1200,8 +1235,9 @@ repository root and symlink into `docs/plans/` to prove a symlinked
 plan out of tree is not read -- and this plan migrated that same
 helper onto `write_all()`, which joins under `self.path` and cannot
 express either. That resolution is real work, not an ours/theirs
-pick, and `main` also added a class the phase 3 inventory does not
-know about.
+pick, and `main` also added five classes the phase 3 inventory does
+not know about -- see the phase 5 results, which are re-derived over
+the merged tree for that reason.
 
 Findings land as their own pull request against `main`, and the
 plan is not complete until they are resolved or declined in
@@ -1431,7 +1467,7 @@ above are:
 
 `test_plans.py` is both a file this plan migrates and the file
 holding the tests for the shared-block machinery phase 1 uses. A
-phase 3 commit that breaks it will look like a phase 1 regression.
+phase 4 commit that breaks it will look like a phase 1 regression.
 Bisect before diagnosing.
 
 ### Management session review checklist
@@ -1576,6 +1612,14 @@ intend to do aligns with that plan.
   whether they close in days or sit for months: that answer is the
   evidence for or against enforcing the next block on its first
   day, and nothing else this plan does will produce it.
+* **Three issue bodies that will not update themselves.** sfui#15,
+  uncalibrated-sextant#11 and uncalibrated-sextant#12 are open
+  against the two criteria this plan changes, and
+  `audit-manage-issues.py` only builds a body when no issue is
+  open -- so after enforcement each will list every missing block
+  except the newly required one. Edit those three bodies by hand
+  once enforcement is live, or fix the refresh; the finding is
+  recorded in the phase 6 audit above.
 * **Split the files the guideline now names.** The seams are
   already visible and are the same in each case -- a module that
   is a bag of independent checks. `scripts/audit/checks/ci_workflows.py`

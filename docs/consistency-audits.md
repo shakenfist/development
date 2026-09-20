@@ -290,6 +290,16 @@ a spec-page comparison -- correctly does not use it; it stays a plain
 `unittest.TestCase`, since there is no check to run and nothing
 `CheckTestCase` would add.
 
+Two conventions in `write_all()` are worth knowing before writing a
+fixture. A `None` content means the file is *absent* and is skipped;
+an empty file is spelled `''`. Both readings were in use before the
+helper existed, and absence is the one that fails silently if a
+caller guesses wrong -- a check that distinguishes a missing file
+from an empty one would quietly pass. And a helper that runs the
+check more than once in a single test method must rebuild the
+fixture first (`self.fixture = FixtureRepo(self.tempdir())`), or the
+first call's files are still on disk for the second.
+
 The tests cover the machinery, not what a check *decides* about a real
 repository. Test that half against local clones:
 

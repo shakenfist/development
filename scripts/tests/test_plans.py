@@ -2418,13 +2418,9 @@ class PushAuditTest(CheckTestCase):
         if named and 'AGENTS.md' not in files:
             files['AGENTS.md'] = f'# Agents\n\nSee {named}.\n'
         # None means "this file is absent", which is how a case opts
-        # out of the default AGENTS.md above. write_all writes a None
-        # as an empty file, which is a different thing entirely, so
-        # the sentinel is filtered out here rather than handed over.
-        self.fixture.write_all({
-            name: content for name, content in files.items()
-            if content is not None
-        })
+        # out of the default AGENTS.md above, and is what write_all
+        # means by it too -- so the mapping goes over as it stands.
+        self.fixture.write_all(files)
         return self.check(check_args={'blocks_dir': self.blocks_dir})
 
     def test_not_applicable_without_file(self):

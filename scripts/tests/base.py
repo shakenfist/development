@@ -81,7 +81,15 @@ class FixtureRepo:
         self.path = path
 
     def write(self, relative, content):
-        """Write a file, creating any directories it needs."""
+        """Write a file, creating any directories it needs.
+
+        `relative` is always a literal spelled in a test module, never
+        repository content, so the join below is contained by
+        construction and needs no traversal check. A case that has to
+        escape the fixture builds the path itself rather than asking
+        for it here -- PlanAuditPhaseTest's symlink target is written
+        above the repository root for exactly that reason.
+        """
         full = os.path.join(self.path, relative)
         directory = os.path.dirname(full)
         if directory:
@@ -102,13 +110,17 @@ class FixtureRepo:
         and the copies already disagree about whether a directory is
         created with makedirs(path) or makedirs(path or tmp).
 
-        A None content writes an empty file, which is what
-        DocsExternalLinksTest's fixtures mean by it. PushAuditTest
-        spells absence the same way, so it filters before calling
-        rather than having this guess which of the two a caller meant.
+        A None content means the file is absent and is skipped; an
+        empty file is spelled ''. The two readings were both in use
+        when this replaced the per-class loops -- DocsExternalLinksTest
+        meant "empty" and PushAuditTest meant "absent" -- and a helper
+        shared by ten suites cannot guess. Absence is the one that
+        fails silently if guessed wrong, so it is the one that is
+        spelled with the sentinel rather than with content.
         """
-        return [self.write(relative, content or '')
-                for relative, content in files.items()]
+        return [self.write(relative, content)
+                for relative, content in files.items()
+                if content is not None]
 
     def workflow(self, name, content):
         """Write a workflow under .github/workflows/."""

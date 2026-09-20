@@ -661,7 +661,13 @@ class MergeGroupCancellationTest(CheckTestCase):
         The name and organisation are named rather than left to the
         default because the check hands them to merge_queue_is_serial,
         so they are part of what each case sets up.
+
+        Each call builds its own fixture rather than adding to the one
+        setUp made: the matrix case runs the check twice in one
+        method, and workflows written by the first call would
+        otherwise still be on disk for the second.
         """
+        self.fixture = FixtureRepo(self.tempdir())
         self.fixture.workflows(workflows)
         return self.check(name='testrepo', org='shakenfist',
                           has_workflows_dir=True)

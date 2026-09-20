@@ -85,6 +85,18 @@ git fetch origin
 # Lines over 120 characters in new Python
 git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- '*.py' | grep -nE '^\+[^+].{120,}'
 
+# Touched source files long enough for `source-file-size` in 2a to
+# be worth raising -- 800 lines to ask the question, 1500 to want an
+# answer. The block is advisory and judging it is wave 2's job; this
+# only produces the number, so that the judgement is made about a
+# named file rather than left to whether anyone happened to notice.
+# The extension list is this repository's: Python and shell are all
+# it ships. --diff-filter=d keeps a deleted path out of wc's argv,
+# and the awk drops wc's own total line
+git diff --name-only --diff-filter=d "${AUDIT_RANGE:-origin/main...HEAD}" \
+    -- '*.py' '*.sh' | xargs -r wc -l | sort -rn | \
+    awk '$1 > 800 && $2 != "total"'
+
 # New third-party imports -- the audit scripts are stdlib plus
 # the git and gh CLIs only, which is why they run on a bare runner.
 # Scoped at '*.py' rather than 'scripts/*.py' because a Python file

@@ -157,10 +157,25 @@ class FixtureRepoBulkWriteTest(CheckTestCase):
              os.path.join(self.fixture.path, 'b', 'c.md')],
             written)
 
-    def test_write_all_treats_none_as_an_empty_file(self):
+    def test_write_all_skips_a_none_content(self):
+        """None means the file is absent, not that it is empty.
+
+        PushAuditTest's cases opt out of its default AGENTS.md that
+        way, and the check they drive distinguishes a missing file
+        from an empty one. The skipped path is left out of the return
+        value too, so a caller counting what it wrote is not told
+        about a file that is not there.
+        """
+        written = self.fixture.write_all({'a.md': 'a\n', 'AGENTS.md': None})
+        self.assertEqual([os.path.join(self.fixture.path, 'a.md')], written)
+        self.assertFalse(
+            os.path.exists(os.path.join(self.fixture.path, 'AGENTS.md')))
+
+    def test_write_all_writes_an_empty_string_as_an_empty_file(self):
         """A link target only has to exist; DocsExternalLinksTest's
-        fixtures say so by supplying no content at all."""
-        self.fixture.write_all({'docs/target.md': None})
+        fixtures say so with '' rather than with the absence
+        sentinel."""
+        self.fixture.write_all({'docs/target.md': ''})
         self.assertEqual('', self.repo().read('docs/target.md'))
 
     def test_workflows_writes_under_the_workflows_directory(self):

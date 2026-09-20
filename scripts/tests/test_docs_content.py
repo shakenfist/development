@@ -87,8 +87,9 @@ class DocsExternalLinksTest(CheckTestCase):
     def _check(self, files=None, props=None):
         """Run the check over a docs/ tree built from {path: content}.
 
-        Paths are repo-relative. A None content creates an empty file,
-        which is enough for link resolution.
+        Paths are repo-relative. A link target is written as '': the
+        check only has to find the file, so its content is beside the
+        point.
 
         Each call builds its own fixture rather than adding to the one
         setUp made: the excludes case runs the check twice in one
@@ -106,7 +107,7 @@ class DocsExternalLinksTest(CheckTestCase):
     def test_internal_relative_link_passes(self):
         result = self._check({
             'docs/index.md': '[guide](guide.md) and [up](../docs/guide.md)\n',
-            'docs/guide.md': None,
+            'docs/guide.md': '',
         })
         self.assert_pass(result)
 
@@ -220,7 +221,7 @@ class DocsExternalLinksTest(CheckTestCase):
     def test_escaping_link_fails(self):
         result = self._check({
             'docs/releasing.md': '[wf](../.github/workflows/release.yml)\n',
-            '.github/workflows/release.yml': None,
+            '.github/workflows/release.yml': '',
         })
         self.assert_fail(result,
                          containing='../.github/workflows/release.yml')
@@ -228,7 +229,7 @@ class DocsExternalLinksTest(CheckTestCase):
     def test_escaping_link_from_subdirectory_fails(self):
         result = self._check({
             'docs/plans/PLAN-x.md': '[app](../../src/app.rs)\n',
-            'src/app.rs': None,
+            'src/app.rs': '',
         })
         self.assert_fail(result, containing='docs/plans/PLAN-x.md')
 
@@ -238,7 +239,7 @@ class DocsExternalLinksTest(CheckTestCase):
         # too, and the fix is the same absolute URL.
         result = self._check({
             'docs/plans/PLAN-x.md': '[app](src/app.rs)\n',
-            'src/app.rs': None,
+            'src/app.rs': '',
         })
         self.assert_fail(result, containing='src/app.rs')
 
@@ -252,7 +253,7 @@ class DocsExternalLinksTest(CheckTestCase):
     def test_fragment_is_not_part_of_the_path(self):
         result = self._check({
             'docs/index.md': '[guide](guide.md#setup)\n',
-            'docs/guide.md': None,
+            'docs/guide.md': '',
         })
         self.assert_pass(result)
 
@@ -265,7 +266,7 @@ class DocsExternalLinksTest(CheckTestCase):
     def test_percent_encoded_target_resolves(self):
         result = self._check({
             'docs/index.md': '[note](my%20note.md)\n',
-            'docs/my note.md': None,
+            'docs/my note.md': '',
         })
         self.assert_pass(result)
 
