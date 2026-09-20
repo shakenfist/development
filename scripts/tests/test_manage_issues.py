@@ -232,5 +232,73 @@ class DetailsLimitTest(unittest.TestCase):
         self.assertNotIn('debian-12', rendered)
 
 
+class ItemDefusingTest(unittest.TestCase):
+    """A filename cannot forge content in a bot-authored issue body.
+
+    `missing` and `findings` are built from `git ls-files`, so an
+    audited repository chooses these bytes. The body is filed by
+    shakenfist-bot, so anything that escapes the code span arrives
+    carrying the bot's authority.
+    """
+
+    def setUp(self):
+        module = _manage_issues()
+        self.defuse = module.defuse_item
+        self.build = module.build_issue_body
+
+    def result(self, **extra):
+        built = {'id': 'eol-distro', 'status': 'fail',
+                 'details': 'two references'}
+        built.update(extra)
+        return built
+
+    def test_an_ordinary_path_is_unchanged(self):
+        self.assertEqual('`src/a.py`', self.defuse('src/a.py'))
+
+    def test_a_newline_cannot_start_a_new_line(self):
+        defused = self.defuse('src/a.py\n\n## Fake heading')
+        self.assertNotIn('\n', defused)
+        self.assertIn('## Fake heading', defused)
+
+    def test_a_backtick_cannot_close_the_span(self):
+        # CommonMark ends a span at the first backtick run matching the
+        # opener, so the opener has to be longer than anything inside.
+        defused = self.defuse('src/we`ird.py')
+        self.assertTrue(defused.startswith('`` '))
+        self.assertTrue(defused.endswith(' ``'))
+
+    def test_the_fence_outgrows_the_longest_run(self):
+        defused = self.defuse('a```b`c')
+        self.assertTrue(defused.startswith('```` '))
+        self.assertTrue(defused.endswith(' ````'))
+
+    def test_a_value_may_begin_and_end_with_a_backtick(self):
+        defused = self.defuse('`both`')
+        self.assertEqual('`` `both` ``', defused)
+
+    def test_nothing_is_dropped(self):
+        """A path needing defusing is still a path somebody must review.
+
+        The expectation is the flattened value verbatim, not a
+        stripped one. Stripping the backticks would make this vacuous
+        for `` `x` `` -- the one input where they are all at the ends
+        -- so the assertion would rest entirely on `we`ird.py`, whose
+        interior backtick survives a strip. Asking for the whole value
+        makes every input here pin the property.
+        """
+        for raw in ['plain.py', 'we`ird.py', 'two\nlines.py', '`x`']:
+            flat = ' '.join(raw.split())
+            self.assertIn(flat, self.defuse(raw))
+
+    def test_an_injected_heading_stays_inside_the_bullet(self):
+        body = self.build('eol-distro', self.result(
+            missing=['ok.py', 'evil.py\n\n## Not a real heading']))
+        self.assertNotIn('\n## Not a real heading', body)
+        self.assertIn('## Not a real heading', body)
+        for line in body.splitlines():
+            if 'Not a real heading' in line:
+                self.assertTrue(line.startswith('- '), line)
+
+
 if __name__ == '__main__':
     unittest.main()

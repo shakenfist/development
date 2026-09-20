@@ -130,7 +130,7 @@ analysis section first -- several design constraints
 exist for non-obvious verified reasons, and the plan's "Back brief"
 section applies. Note the original "prune locally rather than from
 CI" constraint was about developer clones and git hooks; CI pruning
-of a repo's own main branch is the steady-state design, not a
+of a repo's own default branch is the steady-state design, not a
 violation of it.
 
 Deploying the tooling to a repository (and verifying a deployment,

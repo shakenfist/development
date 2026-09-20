@@ -135,6 +135,62 @@ DETAILS_TRAILER = (
 )
 
 
+def defuse_item(item):
+    """Make one harvested item safe to render inside a code span.
+
+    An item is a path out of an audited repository -- `missing` and
+    `findings` are built from `git ls-files`, so the repository chooses
+    the bytes. A git path may hold anything but NUL and `/`, and two
+    of those characters escape the backtick-wrapped rendering below.
+
+    A newline ends the list item, so the rest of the path lands in the
+    body as raw markdown: a heading, a fake footer, a link, or an
+    `@org/team` mention that notifies. The body is authored by
+    shakenfist-bot, so injected content arrives with the bot's
+    authority. Whitespace is collapsed the way defuse() does it in
+    audit-update-docs.py, which is the same problem on the page path.
+
+    A backtick closes the code span early and lets the tail render as
+    markdown. It cannot be escaped inside a span, so the span is
+    widened instead: CommonMark ends a span at the first run of
+    backticks matching the opener, so an opener longer than any run in
+    the item cannot be closed by the item. The padding spaces are what
+    let a value start or end with a backtick, and CommonMark strips
+    one leading and one trailing space when both are present.
+
+    A fence of three or more backticks is the shape of a fenced code
+    block opener rather than a span, which would be a different bug.
+    It cannot happen: the fence only reaches that width when the item
+    itself contains a run of two or more backticks, and it is emitted
+    on the same line as them, so the would-be info string contains a
+    backtick -- which CommonMark forbids. The opener is never valid,
+    and the parser falls back to span rules. This is what makes the
+    ```` a```b`c ```` case render as intended.
+
+    Nothing here rejects an item, but something is transformed: the
+    whitespace collapse means a path whose name contains a newline or
+    a tab is published with those rendered as single spaces, so it no
+    longer names a file that can be copied straight out of the issue.
+    That is the same trade defuse() makes for details in
+    audit_common.py, and it is preferred here for symmetry -- the
+    alternative, escaping losslessly, would make ordinary paths the
+    only thing the two functions disagree about. What matters is that
+    the item is still there: a path that needs defusing is still the
+    path somebody has to go and review, and dropping it would make the
+    work queue lie about what is outstanding.
+    """
+    flat = ' '.join(str(item).split())
+    longest = 0
+    run = 0
+    for char in flat:
+        run = run + 1 if char == '`' else 0
+        longest = max(longest, run)
+    if not longest:
+        return f'`{flat}`'
+    fence = '`' * (longest + 1)
+    return f'{fence} {flat} {fence}'
+
+
 def render_issue_items(heading, items, used):
     """Render one per-item list, stopping before the body gets too big.
 
@@ -147,7 +203,7 @@ def render_issue_items(heading, items, used):
     """
     rendered = f'\n**{heading}:**\n'
     for index, item in enumerate(items):
-        line = f'- `{item}`\n'
+        line = f'- {defuse_item(item)}\n'
         if used + len(rendered) + len(line) > ISSUE_BODY_BUDGET:
             return rendered + (
                 f'- ...and {len(items) - index} more, omitted to stay '
