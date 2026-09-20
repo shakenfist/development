@@ -365,12 +365,12 @@ this repository's convention.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. The `source-file-size` shared block | Complete | 06437a7..(see below) |
-| 2. Enforce both blocks | Complete | 06437a7..(see below) |
-| 3. Inventory, and the gaps in `CheckTestCase` | Complete | 06437a7..(see below) |
-| 4. Migrate the check tests, one file per commit | Complete | 06437a7..(see below) |
-| 5. Retire the helpers and record the convention | In progress | 06437a7..(see below) |
-| 6. Push audit | Not started | |
+| 1. The `source-file-size` shared block | Complete | 06437a7..33a042a |
+| 2. Enforce both blocks | Complete | 06437a7..33a042a |
+| 3. Inventory, and the gaps in `CheckTestCase` | Complete | 06437a7..33a042a |
+| 4. Migrate the check tests, one file per commit | Complete | 06437a7..33a042a |
+| 5. Retire the helpers and record the convention | Complete | 06437a7..33a042a |
+| 6. Push audit | In progress | |
 
 **All six phases ship as a single pull request.** That is an
 operator decision taken when this plan was written, and it has
@@ -386,11 +386,15 @@ are recorded here rather than left to be discovered.
   each phase's first commit sets the previous phase's `Status`
   cell. Nothing is closed out across a merge, because there is only
   one merge.
-* The `Merged` range ends at the branch tip, which phase 6 moves,
-  so the five completed rows carry its start and the audit phase
-  writes the end SHA in its own commit -- the last one on the
-  branch, and the first point at which both ends are known. The
-  branch begins at `06437a7`.
+* The five implementation phases share one `Merged` range,
+  `06437a7..33a042a`, written in the audit phase's own commit --
+  the first point at which both ends are known, because the audit
+  phase is what would otherwise move the tip. The audit phase
+  records no `Merged` cell of its own; it is the last row, which
+  `plan-phase-landing` permits to omit one, and nothing ever reads
+  it. If the branch is squashed or rebased on the way in those
+  SHAs stop resolving: say so on the pull request and replace the
+  range with the merge commit.
 * No phase can record its own merge commit, and the `Merged` record
   is therefore one entry for all six rows rather than six, in the
   `first..last` range form `plan-push-audit-phase` allows for a
@@ -1023,7 +1027,7 @@ The helper census, re-run over `scripts/tests/`:
 | Metric | At plan start | Now |
 |---|---|---|
 | `TemporaryDirectory()` sites | 112 | 21 |
-| `def _repo` helpers | 10 | 3 |
+| `def _repo` helpers | 10 | 2 |
 | `def _check` helpers | 20 | 24 |
 | Old-style `(unittest.TestCase)` classes | 68 | 39 |
 | `CheckTestCase` classes | 25 | 58 |
@@ -1135,6 +1139,69 @@ be given extra weight:
   repositories if it is ever enforced, so it is judged as their
   text: no reference to paths that exist only here, and nothing
   that assumes this repository's tooling.
+
+
+**Result: no blocking findings.** Wave 1 was mechanically clean and
+all four wave 2 sections reported nothing blocking, which is
+recorded here rather than left as an absence. The security section
+found no vulnerabilities at any severity: it traced the path from
+the two new list entries to an issue body and established that the
+only repository-controlled value reaching a `details` string is the
+block name, captured by `[a-z0-9-]+`, so no backtick, angle
+bracket, newline, `@` or `#` can pass into ten other repositories'
+issue trackers.
+
+Three of the plan's own claims were checked mechanically rather
+than accepted. The embedded copy of `source-file-size` in
+`PUSH-AUDIT.md` is byte-identical to the canonical file by
+`sha256`, and so are all thirty other block embeddings in the tree.
+The fleet-impact numbers this plan states in four places -- 8 of 10
+on `plan-template`, 7 of 11 on `push-audit` -- reconcile exactly
+against `docs/audits/compliance.md`. And the coverage claim was
+settled by diffing the test-identity list rather than the count:
+1,093 to 1,108, with zero identities disappearing and fifteen
+added.
+
+**Findings, all advisory.** Two were fixed in this commit because
+they are errors in this plan file: the `def _repo` count said 3
+where it is 2 (the census grep also matched `def _reporter`), and
+the Future work bullet omitted `scripts/audit/checks/plans.py`,
+which is over the threshold the block this plan wrote sets and is
+the one file under `scripts/audit/` this plan edits.
+
+The rest are recorded for a decision rather than fixed here, since
+`plan-phase-landing` lands findings as their own pull request:
+
+* `scripts/tests/base.py` -- `write()` and `write_all()` do a bare
+  `os.path.join(self.path, relative)`. Every call site passes a
+  string literal from a test module so no escape is reachable, but
+  this repository's own `path-traversal-review` block asks that a
+  join which is correct by construction say so.
+* `scripts/tests/base.py` -- the `repo_text` and `write_all`
+  docstrings enumerate ten and three affected class names, which
+  will rot. Keep the why, trim the lists.
+* `scripts/audit-manage-issues.py` -- `build_issue_body()` runs
+  only where no open issue exists, so a repository already holding
+  an open `push-audit` issue never sees the new requirement in its
+  body. Pre-existing, but this plan is what makes it bite: it
+  changes the required-block set for fifteen check/repository pairs
+  in one morning.
+* Repository-wide, out of scope and not introduced here: there are
+  no type annotations on any of the 1,796 `def`s under `scripts/`,
+  while the `python-version-discipline` block this repository ships
+  requires them of ten others.
+
+**What gates the push is not a finding.** `origin/main` moved 34
+commits during this plan and `git merge origin/main` conflicts in
+two files. `docs/plans/index.md` is trivial. `scripts/tests/test_plans.py`
+is not: `main` added a symlink-escape fixture to the
+`plan_audit_phase` helper, with parameters that write *above* the
+repository root and symlink into `docs/plans/` to prove a symlinked
+plan out of tree is not read -- and this plan migrated that same
+helper onto `write_all()`, which joins under `self.path` and cannot
+express either. That resolution is real work, not an ours/theirs
+pick, and `main` also added a class the phase 3 inventory does not
+know about.
 
 Findings land as their own pull request against `main`, and the
 plan is not complete until they are resolved or declined in
@@ -1516,7 +1583,16 @@ intend to do aligns with that plan.
   `scripts/audit/checks/packaging.py` (2,067) would each become a
   package with one module per check and one test file per check,
   which also makes the re-review cost proportional to what
-  changed. `python3 -m unittest discover -s scripts/tests -t
+  changed. `scripts/audit/checks/plans.py` belongs on that list
+  too, and its omission was caught by the push audit rather than
+  by the author: it is 1,508 lines here and 1,605 on `main`, over
+  the 1,500 the block this plan wrote says wants a stated reason
+  to stay whole -- and it is the one file under `scripts/audit/`
+  this plan edits. So are the two largest test files,
+  `test_plans.py` (2,719) and `test_docs_content.py` (1,892),
+  which the "one test file per check" phrasing only covers by
+  implication. Naming them is the block applied to its own
+  author. `python3 -m unittest discover -s scripts/tests -t
   scripts` already discovers new files, so no pre-commit or CI
   configuration moves.
 * **`FuzzNightlyReportingTest`.** It is already on `CheckTestCase`
