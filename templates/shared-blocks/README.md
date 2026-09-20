@@ -28,8 +28,9 @@ embed the whole block -- markers and all -- verbatim.
 checks) verify that an embedded block:
 
 - exists where it is required -- `readme-discipline`,
-  `llm-doc-discipline`, `comment-proportion` and
-  `plan-phase-references` in `PUSH-AUDIT.md`;
+  `llm-doc-discipline`, `comment-proportion`,
+  `plan-phase-references` and `source-file-size` in
+  `PUSH-AUDIT.md`;
   `plan-file-conventions`, `plan-status-vocabulary`,
   `subagent-execution-model`, `plan-planning-effort`,
   `subagent-step-guidance`, `subagent-model-roster`,
