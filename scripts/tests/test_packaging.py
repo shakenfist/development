@@ -7,57 +7,26 @@ Run with: python3 scripts/tests/test_packaging.py
 
 import json
 import os
-import subprocess
 import sys
-import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import packaging  # noqa: E402
 from tests.base import (  # noqa: E402
-    REPO_ROOT, CheckTestCase, run_check,
+    REPO_ROOT, CheckTestCase, FixtureRepo,
 )
 
 
-def check_dependency_name_normalization(path, props=None):
-    return run_check(packaging.DependencyNameNormalization(), path, props)
+class DependencyNameNormalizationTest(CheckTestCase):
+    check_class = packaging.DependencyNameNormalization
 
-
-def check_pin_indirect_deps(path, props=None):
-    return run_check(packaging.PinIndirectDependencies(), path, props)
-
-
-def check_renovate(path, props=None):
-    return run_check(packaging.Renovate(), path, props)
-
-
-def check_console_logging(path, props=None):
-    return run_check(packaging.ConsoleLogging(), path, props)
-
-
-def check_header_sanitization(path, props=None):
-    return run_check(packaging.HeaderSanitization(), path, props)
-
-
-def check_python_version_targeting(path, props=None):
-    return run_check(packaging.PythonVersionTargeting(), path, props)
-
-
-class DependencyNameNormalizationTest(unittest.TestCase):
     def _check(self, pyproject_body):
-        with tempfile.TemporaryDirectory() as tmp:
-            with open(os.path.join(tmp, 'pyproject.toml'), 'w') as f:
-                f.write(pyproject_body)
-            return check_dependency_name_normalization(
-                tmp, {'has_pyproject_toml': True}
-            )
+        self.fixture.write('pyproject.toml', pyproject_body)
+        return self.check(has_pyproject_toml=True)
 
     def test_not_applicable_without_pyproject(self):
-        result = check_dependency_name_normalization(
-            '/nonexistent', {'has_pyproject_toml': False}
-        )
-        self.assertEqual(result['status'], 'not_applicable')
+        self.assert_skip(self.check(has_pyproject_toml=False))
 
     def test_clean_dependencies_pass(self):
         body = (
@@ -66,7 +35,7 @@ class DependencyNameNormalizationTest(unittest.TestCase):
             '    "requests==2.34.2",\n'
             ']\n'
         )
-        self.assertEqual(self._check(body)['status'], 'pass')
+        self.assert_pass(self._check(body))
 
     def test_hyphen_underscore_duplicate_fails(self):
         body = (
@@ -75,9 +44,7 @@ class DependencyNameNormalizationTest(unittest.TestCase):
             '    "typing_extensions==4.15.0",\n'
             ']\n'
         )
-        result = self._check(body)
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('typing-extensions', result['details'])
+        self.assert_fail(self._check(body), containing='typing-extensions')
 
     def test_diverged_exact_versions_fail(self):
         body = (
@@ -86,7 +53,7 @@ class DependencyNameNormalizationTest(unittest.TestCase):
             '    "typing_extensions==4.16.0",\n'
             ']\n'
         )
-        self.assertEqual(self._check(body)['status'], 'fail')
+        self.assert_fail(self._check(body))
 
     def test_floor_plus_exact_pin_passes(self):
         # A direct floor constraint plus the exact pin appended by the
@@ -97,7 +64,7 @@ class DependencyNameNormalizationTest(unittest.TestCase):
             '    "psutil==7.2.2",\n'
             ']\n'
         )
-        self.assertEqual(self._check(body)['status'], 'pass')
+        self.assert_pass(self._check(body))
 
     def test_base_plus_extras_same_version_passes(self):
         body = (
@@ -106,7 +73,7 @@ class DependencyNameNormalizationTest(unittest.TestCase):
             '    "gunicorn==25.3.0",\n'
             ']\n'
         )
-        self.assertEqual(self._check(body)['status'], 'pass')
+        self.assert_pass(self._check(body))
 
     def test_base_plus_extras_conflicting_version_fails(self):
         body = (
@@ -115,7 +82,7 @@ class DependencyNameNormalizationTest(unittest.TestCase):
             '    "gunicorn==26.0.0",\n'
             ']\n'
         )
-        self.assertEqual(self._check(body)['status'], 'fail')
+        self.assert_fail(self._check(body))
 
     def test_same_name_across_separate_arrays_passes(self):
         # A name pinned in the main array and in an optional group is
@@ -130,7 +97,7 @@ class DependencyNameNormalizationTest(unittest.TestCase):
             '    "requests==2.34.2",\n'
             ']\n'
         )
-        self.assertEqual(self._check(body)['status'], 'pass')
+        self.assert_pass(self._check(body))
 
     def test_non_dependency_quoted_strings_ignored(self):
         # URLs, script entry points and classifiers must not be parsed
@@ -145,10 +112,10 @@ class DependencyNameNormalizationTest(unittest.TestCase):
             '[project.scripts]\n'
             'sf-ctl = "shakenfist.client.ctl:cli"\n'
         )
-        self.assertEqual(self._check(body)['status'], 'pass')
+        self.assert_pass(self._check(body))
 
 
-class PinIndirectDepsScopeTest(unittest.TestCase):
+class PinIndirectDepsScopeTest(CheckTestCase):
     """Tests that indirect pinning only applies to projects which pin.
 
     A project that exactly pins its own direct dependencies is declaring
@@ -158,93 +125,67 @@ class PinIndirectDepsScopeTest(unittest.TestCase):
     pinning on their behalf takes that away.
     """
 
-    def _check(self, dependencies, files=None):
-        with tempfile.TemporaryDirectory() as tmp:
-            body = 'dependencies = [\n'
-            for dependency in dependencies:
-                body += f'    "{dependency}",\n'
-            body += ']\n'
-            with open(os.path.join(tmp, 'pyproject.toml'), 'w') as f:
-                f.write('[project]\nname = "example"\n' + body)
-            for path in files or []:
-                full = os.path.join(tmp, path)
-                os.makedirs(os.path.dirname(full), exist_ok=True)
-                with open(full, 'w') as f:
-                    f.write('')
-            return check_pin_indirect_deps(
-                tmp, {'has_pyproject_toml': True}
-            )
+    check_class = packaging.PinIndirectDependencies
+
+    def _check(self, dependencies):
+        body = 'dependencies = [\n'
+        for dependency in dependencies:
+            body += f'    "{dependency}",\n'
+        body += ']\n'
+        self.fixture.write('pyproject.toml',
+                           '[project]\nname = "example"\n' + body)
+        return self.check(has_pyproject_toml=True)
 
     def test_not_applicable_without_pyproject(self):
-        result = check_pin_indirect_deps(
-            '/nonexistent', {'has_pyproject_toml': False}
-        )
-        self.assertEqual(result['status'], 'not_applicable')
+        self.assert_skip(self.check(has_pyproject_toml=False))
 
     def test_library_with_loose_constraints_is_out_of_scope(self):
         result = self._check([
             'click>=8.0.0', 'distro', 'psutil>5.9.0', 'grpcio>=1.70.0',
         ])
-        self.assertEqual(result['status'], 'not_applicable')
-        self.assertIn('library', result['details'])
+        self.assert_skip(result, containing='library')
 
     def test_bare_name_is_not_a_pin(self):
-        result = self._check(['python-debian'])
-        self.assertEqual(result['status'], 'not_applicable')
+        self.assert_skip(self._check(['python-debian']))
 
     def test_application_with_exact_pins_is_in_scope(self):
         # In scope, and missing the tooling, so it fails rather than
         # dropping out as not applicable.
-        result = self._check(['click==8.4.2', 'requests==2.34.2'])
-        self.assertEqual(result['status'], 'fail')
+        self.assert_fail(self._check(['click==8.4.2', 'requests==2.34.2']))
 
     def test_extras_on_an_exact_pin_still_count(self):
-        result = self._check(['gunicorn[gevent]==26.0.0'])
-        self.assertEqual(result['status'], 'fail')
+        self.assert_fail(self._check(['gunicorn[gevent]==26.0.0']))
 
     def test_a_few_loose_pins_do_not_exempt_an_application(self):
         # shakenfist and kerbside each leave a couple of dependencies
         # loose on purpose; that must not read as a library.
-        result = self._check([
+        self.assert_fail(self._check([
             'psutil>=5.9.4', 'uv>=0.8.0', 'click==8.4.2',
             'requests==2.34.2', 'PyYAML==6.0.3',
-        ])
-        self.assertEqual(result['status'], 'fail')
+        ]))
 
     def test_in_scope_project_with_the_tooling_passes(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            os.makedirs(os.path.join(tmp, '.github', 'workflows'))
-            os.makedirs(os.path.join(tmp, 'tools'))
-            open(os.path.join(
-                tmp, '.github', 'workflows',
-                'pin-indirect-dependencies.yml'), 'w').close()
-            open(os.path.join(
-                tmp, 'tools', 'pin-indirect-dependencies.sh'), 'w').close()
-            with open(os.path.join(tmp, 'pyproject.toml'), 'w') as f:
-                f.write(
-                    '[project]\nname = "example"\ndependencies = [\n'
-                    '    "click==8.4.2",\n'
-                    '    # START_OF_INDIRECT_DEPS\n'
-                    '    # END_OF_INDIRECT_DEPS\n'
-                    ']\n'
-                )
-            result = check_pin_indirect_deps(
-                tmp, {'has_pyproject_toml': True}
-            )
-        self.assertEqual(result['status'], 'pass')
+        self.fixture.workflow('pin-indirect-dependencies.yml', '')
+        self.fixture.write('tools/pin-indirect-dependencies.sh', '')
+        self.fixture.write(
+            'pyproject.toml',
+            '[project]\nname = "example"\ndependencies = [\n'
+            '    "click==8.4.2",\n'
+            '    # START_OF_INDIRECT_DEPS\n'
+            '    # END_OF_INDIRECT_DEPS\n'
+            ']\n'
+        )
+        self.assert_pass(self.check(has_pyproject_toml=True))
 
     def test_unparseable_pyproject_is_out_of_scope(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            with open(os.path.join(tmp, 'pyproject.toml'), 'w') as f:
-                f.write('this is not = valid toml [\n')
-            result = check_pin_indirect_deps(
-                tmp, {'has_pyproject_toml': True}
-            )
-        self.assertEqual(result['status'], 'not_applicable')
+        self.fixture.write('pyproject.toml', 'this is not = valid toml [\n')
+        self.assert_skip(self.check(has_pyproject_toml=True))
 
 
-class RenovatePreCommitManagerTest(unittest.TestCase):
+class RenovatePreCommitManagerTest(CheckTestCase):
     """The pre-commit manager is opt-in, so its absence is a finding."""
+
+    check_class = packaging.Renovate
 
     REMOTE_HOOKS = (
         'repos:\n'
@@ -263,81 +204,52 @@ class RenovatePreCommitManagerTest(unittest.TestCase):
         '        language: script\n'
     )
 
-    def _repo(self, tmp, renovate, pre_commit=None):
-        os.makedirs(os.path.join(tmp, '.github', 'workflows'))
-        open(
-            os.path.join(tmp, '.github', 'workflows', 'renovate.yml'), 'w'
-        ).close()
-        with open(os.path.join(tmp, 'renovate.json'), 'w') as f:
-            f.write(json.dumps(renovate))
+    def _repo(self, renovate, pre_commit=None):
+        self.fixture.workflow('renovate.yml', '')
+        self.fixture.write('renovate.json', json.dumps(renovate))
         if pre_commit is not None:
-            with open(
-                os.path.join(tmp, '.pre-commit-config.yaml'), 'w'
-            ) as f:
-                f.write(pre_commit)
-        return check_renovate(tmp, {})
+            self.fixture.write('.pre-commit-config.yaml', pre_commit)
+        return self.check()
 
     def test_remote_hooks_without_the_manager_fail(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            result = self._repo(tmp, {}, self.REMOTE_HOOKS)
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('pre-commit manager', result['details'])
+        self.assert_fail(self._repo({}, self.REMOTE_HOOKS),
+                         containing='pre-commit manager')
 
     def test_explicit_manager_block_passes(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            result = self._repo(
-                tmp, {'pre-commit': {'enabled': True}}, self.REMOTE_HOOKS
-            )
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(self._repo(
+            {'pre-commit': {'enabled': True}}, self.REMOTE_HOOKS))
 
     def test_enabled_managers_list_passes(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            result = self._repo(
-                tmp,
-                {'enabledManagers': ['cargo', 'pre-commit']},
-                self.REMOTE_HOOKS,
-            )
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(self._repo(
+            {'enabledManagers': ['cargo', 'pre-commit']},
+            self.REMOTE_HOOKS,
+        ))
 
     def test_preset_passes(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            result = self._repo(
-                tmp, {'extends': [':enablePreCommit']}, self.REMOTE_HOOKS
-            )
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(self._repo(
+            {'extends': [':enablePreCommit']}, self.REMOTE_HOOKS))
 
     def test_manager_disabled_explicitly_fails(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            result = self._repo(
-                tmp, {'pre-commit': {'enabled': False}}, self.REMOTE_HOOKS
-            )
-        self.assertEqual(result['status'], 'fail')
+        self.assert_fail(self._repo(
+            {'pre-commit': {'enabled': False}}, self.REMOTE_HOOKS))
 
     def test_no_pre_commit_config_passes(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            result = self._repo(tmp, {})
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(self._repo({}))
 
     def test_local_only_hooks_pass(self):
         # A repo: local hook runs a script from the tree and carries no
         # revision, so there is nothing for renovate to bump.
-        with tempfile.TemporaryDirectory() as tmp:
-            result = self._repo(tmp, {}, self.LOCAL_HOOKS)
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(self._repo({}, self.LOCAL_HOOKS))
 
     def test_missing_files_still_reported_first(self):
         # The manager check must not mask the more basic finding.
-        with tempfile.TemporaryDirectory() as tmp:
-            with open(
-                os.path.join(tmp, '.pre-commit-config.yaml'), 'w'
-            ) as f:
-                f.write(self.REMOTE_HOOKS)
-            result = check_renovate(tmp, {})
-        self.assertEqual(result['status'], 'fail')
+        self.fixture.write('.pre-commit-config.yaml', self.REMOTE_HOOKS)
+        result = self.check()
+        self.assert_fail(result)
         self.assertIn('renovate.json', result['missing'])
 
 
-class ConsoleLoggingTest(unittest.TestCase):
+class ConsoleLoggingTest(CheckTestCase):
     """The console-logging check.
 
     The two false positives these guard against are the ones the
@@ -345,6 +257,8 @@ class ConsoleLoggingTest(unittest.TestCase):
     *defines* setup_console(), and the twenty-four occystrap modules
     that call it at import time without being an entry point.
     """
+
+    check_class = packaging.ConsoleLogging
 
     PYPROJECT = (
         '[project]\n'
@@ -373,16 +287,19 @@ class ConsoleLoggingTest(unittest.TestCase):
     )
 
     def _check(self, files, pyproject=None):
-        with tempfile.TemporaryDirectory() as tmp:
-            if pyproject is not False:
-                with open(os.path.join(tmp, 'pyproject.toml'), 'w') as f:
-                    f.write(pyproject or self.PYPROJECT)
-            for path, content in files.items():
-                full = os.path.join(tmp, path)
-                os.makedirs(os.path.dirname(full), exist_ok=True)
-                with open(full, 'w') as f:
-                    f.write(content)
-            return check_console_logging(tmp, {})
+        """Run the check over a {path: content} mapping.
+
+        Each call builds its own fixture rather than adding to the one
+        setUp made: the malformed-declaration case runs the check three
+        times in one method, and a pyproject.toml written by an earlier
+        call would otherwise still be on disk for the next one -- which
+        is what the temporary directory this replaced did.
+        """
+        self.fixture = FixtureRepo(self.tempdir())
+        if pyproject is not False:
+            self.fixture.write('pyproject.toml', pyproject or self.PYPROJECT)
+        self.fixture.write_all(files)
+        return self.check()
 
     def test_a_commented_out_basic_config_does_not_satisfy_it(self):
         # The state of any file somebody was debugging, and the exact
@@ -394,8 +311,7 @@ class ConsoleLoggingTest(unittest.TestCase):
             'LOG.propagate = False\n'
             '# logging.basicConfig(level=logging.INFO)\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('basicConfig', result['details'])
+        self.assert_fail(result, containing='basicConfig')
 
     def test_a_marker_in_a_docstring_does_not_exempt(self):
         # The mirror of the masking defect above: that half stopped a
@@ -405,13 +321,13 @@ class ConsoleLoggingTest(unittest.TestCase):
             '"""We do not use audit-ok: console-logging here."""\n'
             + self.NO_BASIC_CONFIG
         )})
-        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assert_fail(result)
 
     def test_a_marker_in_a_string_constant_does_not_exempt(self):
         result = self._check({'thing/main.py': (
             'DOC = "audit-ok: console-logging"\n' + self.NO_BASIC_CONFIG
         )})
-        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assert_fail(result)
 
     def test_a_marker_in_a_commented_out_string_still_exempts(self):
         # The marker view keeps comments and blanks strings, so a
@@ -421,8 +337,7 @@ class ConsoleLoggingTest(unittest.TestCase):
             "# don't reconfigure: audit-ok: console-logging\n"
             + self.NO_BASIC_CONFIG
         )})
-        self.assertEqual(result['status'], 'not_applicable',
-                         result['details'])
+        self.assert_skip(result)
 
     def test_an_unresolved_entry_point_withholds_the_pass(self):
         # A mixed layout reported pass on the entry points it could
@@ -440,9 +355,7 @@ class ConsoleLoggingTest(unittest.TestCase):
                 'lost = "elsewhere.cli:main"\n'
             ),
         )
-        self.assertEqual(result['status'], 'not_applicable',
-                         result['details'])
-        self.assertIn('elsewhere.cli', result['details'])
+        self.assert_skip(result, containing='elsewhere.cli')
 
     def test_an_unresolved_entry_point_is_named_in_a_failure(self):
         # A demonstrated violation stays a failure, but the entry
@@ -459,8 +372,7 @@ class ConsoleLoggingTest(unittest.TestCase):
                 'lost = "elsewhere.cli:main"\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail', result['details'])
-        self.assertIn('basicConfig', result['details'])
+        self.assert_fail(result, containing='basicConfig')
         self.assertIn('elsewhere.cli', result['details'])
 
     def test_a_docstring_mention_does_not_make_it_a_caller(self):
@@ -473,8 +385,7 @@ class ConsoleLoggingTest(unittest.TestCase):
             'def cli():\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'not_applicable',
-                         result['details'])
+        self.assert_skip(result)
 
     def test_an_earlier_setup_console_does_not_take_the_receiver(self):
         # Receivers used to come from whichever call was first, so an
@@ -488,7 +399,7 @@ class ConsoleLoggingTest(unittest.TestCase):
             'LOG.propagate = False\n'
             'logging.basicConfig(level=logging.INFO)\n'
         )})
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_silencing_someone_elses_logger_is_still_not_enough(self):
         # The other half of the same change: accepting *any* call's
@@ -501,8 +412,7 @@ class ConsoleLoggingTest(unittest.TestCase):
             'OTHER.propagate = False\n'
             'logging.basicConfig(level=logging.INFO)\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('propagate', result['details'])
+        self.assert_fail(result, containing='propagate')
 
     def test_an_attribute_receiver_is_read(self):
         # self.LOG = setup_console(...) is silenced by writing
@@ -517,7 +427,7 @@ class ConsoleLoggingTest(unittest.TestCase):
             '        self.LOG.propagate = False\n'
             'logging.basicConfig(level=logging.INFO)\n'
         )})
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_declared_but_unresolved_entry_points_are_named(self):
         # A repository laying its packages out under lib/ declares
@@ -525,8 +435,7 @@ class ConsoleLoggingTest(unittest.TestCase):
         # "none declared" is a false statement about a file nobody
         # looked at.
         result = self._check({'lib/thing/main.py': self.NO_BASIC_CONFIG})
-        self.assertEqual(result['status'], 'not_applicable')
-        self.assertIn('resolved to no file', result['details'])
+        self.assert_skip(result, containing='resolved to no file')
         self.assertIn('thing.main', result['details'])
 
     def test_a_malformed_scripts_table_does_not_abort_the_run(self):
@@ -545,7 +454,7 @@ class ConsoleLoggingTest(unittest.TestCase):
         ):
             with self.subTest(pyproject=pyproject):
                 result = self._check({}, pyproject=pyproject)
-                self.assertEqual(result['status'], 'not_applicable')
+                self.assert_skip(result)
                 if expected:
                     self.assertIn(expected, result['details'])
 
@@ -553,12 +462,11 @@ class ConsoleLoggingTest(unittest.TestCase):
         result = self._check(
             {}, pyproject='[project]\nname = "thing"\n'
                           '[project.scripts]\nthing = 3\n')
-        self.assertEqual(result['status'], 'not_applicable')
-        self.assertIn('does not name a module', result['details'])
+        self.assert_skip(result, containing='does not name a module')
 
     def test_compliant_entry_point_passes(self):
         result = self._check({'thing/main.py': self.COMPLIANT})
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_missing_basic_config_fails(self):
         result = self._check({'thing/main.py': (
@@ -566,8 +474,7 @@ class ConsoleLoggingTest(unittest.TestCase):
             'LOG = logs.setup_console(__name__)\n'
             'LOG.propagate = False\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('basicConfig', result['details'])
+        self.assert_fail(result, containing='basicConfig')
 
     def test_missing_propagate_fails(self):
         result = self._check({'thing/main.py': (
@@ -576,21 +483,19 @@ class ConsoleLoggingTest(unittest.TestCase):
             'LOG = logs.setup_console(__name__)\n'
             'logging.basicConfig(level=logging.INFO)\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('propagate', result['details'])
+        self.assert_fail(result, containing='propagate')
 
     def test_no_pyproject_is_not_applicable(self):
         result = self._check({'thing/main.py': self.COMPLIANT},
                              pyproject=False)
-        self.assertEqual(result['status'], 'not_applicable')
+        self.assert_skip(result)
 
     def test_no_console_scripts_is_not_applicable(self):
         result = self._check(
             {'thing/main.py': self.COMPLIANT},
             pyproject='[project]\nname = "thing"\n',
         )
-        self.assertEqual(result['status'], 'not_applicable')
-        self.assertIn('No console or GUI entry points', result['details'])
+        self.assert_skip(result, containing='No console or GUI entry points')
 
     def test_a_gui_script_is_an_entry_point(self):
         # [project.scripts] is what the fleet declares today, but a
@@ -604,7 +509,7 @@ class ConsoleLoggingTest(unittest.TestCase):
                 '[project.gui-scripts]\nthing = "thing.main:cli"\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assert_fail(result)
 
     def test_an_explicit_console_scripts_table_is_an_entry_point(self):
         result = self._check(
@@ -615,7 +520,7 @@ class ConsoleLoggingTest(unittest.TestCase):
                 'thing = "thing.main:cli"\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assert_fail(result)
 
     def test_a_non_string_entry_point_does_not_abort_the_run(self):
         # One exception loses every other check's result for the
@@ -629,12 +534,11 @@ class ConsoleLoggingTest(unittest.TestCase):
                 'thing = "thing.main:cli"\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assert_fail(result)
 
     def test_entry_point_not_using_the_helper_is_not_applicable(self):
         result = self._check({'thing/main.py': 'def cli():\n    pass\n'})
-        self.assertEqual(result['status'], 'not_applicable')
-        self.assertIn('none calling', result['details'])
+        self.assert_skip(result, containing='none calling')
 
     def test_a_non_entry_point_module_is_not_examined(self):
         # occystrap calls logs.setup_console(__name__) at the top of
@@ -647,7 +551,7 @@ class ConsoleLoggingTest(unittest.TestCase):
                 'LOG = logs.setup_console(__name__)\n'
             ),
         })
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_the_helpers_own_definition_is_not_a_call(self):
         # library-utilities defines setup_console(); it does not use
@@ -659,7 +563,7 @@ class ConsoleLoggingTest(unittest.TestCase):
             )},
             pyproject='[project]\nname = "shakenfist-utilities"\n',
         )
-        self.assertEqual(result['status'], 'not_applicable')
+        self.assert_skip(result)
 
     def test_audit_ok_marker_exempts_a_file(self):
         result = self._check({'thing/main.py': (
@@ -667,7 +571,7 @@ class ConsoleLoggingTest(unittest.TestCase):
             'from shakenfist_utilities import logs\n'
             'LOG = logs.setup_console(__name__)\n'
         )})
-        self.assertEqual(result['status'], 'not_applicable')
+        self.assert_skip(result)
 
     def test_all_entry_points_exempt_says_so(self):
         # The 'none calling setup_console()' wording would tell a
@@ -678,8 +582,7 @@ class ConsoleLoggingTest(unittest.TestCase):
             'from shakenfist_utilities import logs\n'
             'LOG = logs.setup_console(__name__)\n'
         )})
-        self.assertEqual(result['status'], 'not_applicable')
-        self.assertIn('exempt by audit-ok marker', result['details'])
+        self.assert_skip(result, containing='exempt by audit-ok marker')
         self.assertNotIn('none calling', result['details'])
 
     def test_propagate_on_a_foreign_logger_is_not_enough(self):
@@ -692,8 +595,7 @@ class ConsoleLoggingTest(unittest.TestCase):
             'logging.basicConfig(level=logging.INFO)\n'
             "logging.getLogger('urllib3').propagate = False\n"
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('propagate', result['details'])
+        self.assert_fail(result, containing='propagate')
 
     def test_a_foreign_logger_named_after_the_entry_points_is_not_enough(
             self):
@@ -709,8 +611,7 @@ class ConsoleLoggingTest(unittest.TestCase):
             "URLLIB_LOG = logging.getLogger('urllib3')\n"
             'URLLIB_LOG.propagate = False\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('propagate', result['details'])
+        self.assert_fail(result, containing='propagate')
 
     def test_propagate_on_an_attribute_of_something_else_is_not_enough(self):
         # wrapper.LOG is not this module's LOG either.
@@ -721,8 +622,7 @@ class ConsoleLoggingTest(unittest.TestCase):
             'logging.basicConfig(level=logging.INFO)\n'
             'wrapper.LOG.propagate = False\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('propagate', result['details'])
+        self.assert_fail(result, containing='propagate')
 
     def test_propagate_via_get_logger_on_the_same_name_passes(self):
         result = self._check({'thing/main.py': (
@@ -732,7 +632,7 @@ class ConsoleLoggingTest(unittest.TestCase):
             'logging.basicConfig(level=logging.INFO)\n'
             "logging.getLogger('thing').propagate = False\n"
         )})
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_propagate_on_a_separately_fetched_logger_passes(self):
         # The entry point that fetches its logger by name instead of
@@ -746,7 +646,7 @@ class ConsoleLoggingTest(unittest.TestCase):
             'logging.basicConfig(level=logging.INFO)\n'
             'LOG.propagate = False\n'
         )})
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_a_package_entry_point_resolves_to_its_init(self):
         result = self._check(
@@ -759,11 +659,11 @@ class ConsoleLoggingTest(unittest.TestCase):
                 'thing = "thing:cli"\n'
             ),
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_a_src_layout_entry_point_resolves(self):
         result = self._check({'src/thing/main.py': self.COMPLIANT})
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_only_the_offending_entry_point_is_named(self):
         result = self._check(
@@ -783,13 +683,12 @@ class ConsoleLoggingTest(unittest.TestCase):
                 'bad = "thing.bad:cli"\n'
             ),
         )
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('thing/bad.py', result['details'])
+        self.assert_fail(result, containing='thing/bad.py')
         self.assertNotIn('thing/good.py', result['details'])
         self.assertIn('1 of 2', result['details'])
 
 
-class HeaderSanitizationTest(unittest.TestCase):
+class HeaderSanitizationTest(CheckTestCase):
     """The header-sanitization check.
 
     Position in the bases is the property under test: a subclass
@@ -798,16 +697,13 @@ class HeaderSanitizationTest(unittest.TestCase):
     runs, which is indistinguishable from not having the mixin.
     """
 
+    check_class = packaging.HeaderSanitization
+
     def _check(self, files):
-        with tempfile.TemporaryDirectory() as tmp:
-            subprocess.run(['git', 'init', '-q', tmp], check=True)
-            for path, content in files.items():
-                full = os.path.join(tmp, path)
-                os.makedirs(os.path.dirname(full), exist_ok=True)
-                with open(full, 'w') as f:
-                    f.write(content)
-            subprocess.run(['git', '-C', tmp, 'add', '-A'], check=True)
-            return check_header_sanitization(tmp, {})
+        self.fixture.init_git()
+        self.fixture.write_all(files)
+        self.fixture.git('add', '-A')
+        return self.check()
 
     def test_a_marker_in_a_string_constant_does_not_exempt(self):
         # A false clean bill on a security check, produced by an
@@ -820,7 +716,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             'class Handler(BaseHTTPRequestHandler):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assert_fail(result)
 
     def test_a_marker_in_a_docstring_does_not_exempt(self):
         result = self._check({'a.py': (
@@ -829,7 +725,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             'class Handler(BaseHTTPRequestHandler):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assert_fail(result)
 
     def test_an_apostrophe_in_the_marker_comment_does_not_break_it(self):
         # Comments survive in the marker view, so the scanner has to
@@ -841,8 +737,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             'class Handler(BaseHTTPRequestHandler):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'not_applicable',
-                         result['details'])
+        self.assert_skip(result)
 
     def test_a_multi_line_aliased_import_is_examined(self):
         # An import list long enough to be wrapped is exactly where
@@ -856,9 +751,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             'class Handler(BHR):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail', result['details'])
-        self.assertIn('does not inherit SafeHeaderMixin',
-                      result['details'])
+        self.assert_fail(result, containing='does not inherit SafeHeaderMixin')
 
     def test_a_backslash_continued_aliased_import_is_examined(self):
         result = self._check({'a.py': (
@@ -867,7 +760,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             'class Handler(BHR):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assert_fail(result)
 
     def test_a_generic_class_is_examined(self):
         # PEP 695 puts a type parameter list between the name and the
@@ -878,7 +771,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             'class Handler[T](BaseHTTPRequestHandler):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assert_fail(result)
 
     def test_a_generic_class_with_a_bracketed_bound_is_examined(self):
         # A bound may itself hold brackets, so the parameter list is
@@ -888,7 +781,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             'class Handler[T: dict[str, int]](BaseHTTPRequestHandler):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assert_fail(result)
 
     def test_an_unclosed_type_parameter_list_is_reported_not_skipped(self):
         result = self._check({'a.py': (
@@ -896,8 +789,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             'class Handler[T(BaseHTTPRequestHandler):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail', result['details'])
-        self.assertIn('could not read the base list', result['details'])
+        self.assert_fail(result, containing='could not read the base list')
 
     def test_an_aliased_handler_base_is_examined(self):
         # The import line carries the name, so the file was admitted
@@ -908,9 +800,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             'class Handler(BHR):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('does not inherit SafeHeaderMixin',
-                      result['details'])
+        self.assert_fail(result, containing='does not inherit SafeHeaderMixin')
 
     def test_an_aliased_base_behind_the_mixin_is_still_ordered(self):
         result = self._check({'a.py': (
@@ -918,8 +808,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             'class Handler(BHR, SafeHeaderMixin):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('listed after', result['details'])
+        self.assert_fail(result, containing='listed after')
 
     def test_a_name_merely_containing_a_base_is_out_of_scope(self):
         # Bases are compared as whole names, not searched for as
@@ -930,8 +819,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             'class Handler(MyBaseHTTPRequestHandlerWrapper):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'not_applicable',
-                         result['details'])
+        self.assert_skip(result)
 
     def test_a_class_inside_a_string_is_not_a_class(self):
         # A code sample in a module docstring, an embedded template,
@@ -944,8 +832,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             '    pass\n'
             '"""\n'
         )})
-        self.assertEqual(result['status'], 'not_applicable',
-                         result['details'])
+        self.assert_skip(result)
 
     def test_a_hash_inside_a_base_list_string_does_not_hide_it(self):
         # The paren walk treated it as starting a comment and ran to
@@ -956,9 +843,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             'class Handler(make_base("#"), BaseHTTPRequestHandler):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('does not inherit SafeHeaderMixin',
-                      result['details'])
+        self.assert_fail(result, containing='does not inherit SafeHeaderMixin')
 
     def test_the_reported_line_survives_a_masked_preamble(self):
         # The line is counted in the original from an offset taken
@@ -973,8 +858,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             'class Handler(BaseHTTPRequestHandler):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('a.py:6 (Handler)', result['details'])
+        self.assert_fail(result, containing='a.py:6 (Handler)')
 
     def test_a_marker_survives_a_masked_preamble(self):
         # And the marker window is read out of the original at that
@@ -988,12 +872,11 @@ class HeaderSanitizationTest(unittest.TestCase):
             'class Handler(BaseHTTPRequestHandler):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'not_applicable',
-                         result['details'])
+        self.assert_skip(result)
 
     def test_no_handler_is_not_applicable(self):
         result = self._check({'a.py': 'x = 1\n'})
-        self.assertEqual(result['status'], 'not_applicable')
+        self.assert_skip(result)
 
     def test_mixin_first_passes(self):
         result = self._check({'a.py': (
@@ -1002,15 +885,14 @@ class HeaderSanitizationTest(unittest.TestCase):
             '        http.server.BaseHTTPRequestHandler):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_missing_mixin_fails(self):
         result = self._check({'a.py': (
             'class Handler(http.server.BaseHTTPRequestHandler):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('does not inherit SafeHeaderMixin', result['details'])
+        self.assert_fail(result, containing='does not inherit SafeHeaderMixin')
 
     def test_mixin_after_the_base_class_fails(self):
         result = self._check({'a.py': (
@@ -1018,8 +900,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             '              SafeHeaderMixin):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('listed after', result['details'])
+        self.assert_fail(result, containing='listed after')
 
     def test_a_simple_http_request_handler_subclass_is_examined(self):
         # SimpleHTTPRequestHandler inherits the same unsanitized
@@ -1033,16 +914,14 @@ class HeaderSanitizationTest(unittest.TestCase):
             'class Handler(http.server.SimpleHTTPRequestHandler):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('does not inherit SafeHeaderMixin', result['details'])
+        self.assert_fail(result, containing='does not inherit SafeHeaderMixin')
 
     def test_a_cgi_http_request_handler_subclass_is_examined(self):
         result = self._check({'a.py': (
             'class Handler(CGIHTTPRequestHandler):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('does not inherit SafeHeaderMixin', result['details'])
+        self.assert_fail(result, containing='does not inherit SafeHeaderMixin')
 
     def test_the_mixin_after_a_subclass_base_names_that_base(self):
         result = self._check({'a.py': (
@@ -1050,9 +929,8 @@ class HeaderSanitizationTest(unittest.TestCase):
             '              SafeHeaderMixin):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn(
-            'listed after SimpleHTTPRequestHandler', result['details'])
+        self.assert_fail(
+            result, containing='listed after SimpleHTTPRequestHandler')
 
     def test_a_call_in_the_base_list_is_still_parsed(self):
         # The base list used to be closed with \(([^)]*)\), which
@@ -1063,8 +941,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             '              http.server.BaseHTTPRequestHandler):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('does not inherit SafeHeaderMixin', result['details'])
+        self.assert_fail(result, containing='does not inherit SafeHeaderMixin')
 
     def test_a_closing_paren_in_a_base_list_comment_does_not_hide_it(self):
         # The paren walk used to close here, on the ")" inside the
@@ -1076,8 +953,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             '              SafeHeaderMixin):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('listed after', result['details'])
+        self.assert_fail(result, containing='listed after')
 
     def test_an_unclosable_base_list_is_reported_not_skipped(self):
         # Nothing the paren walk can close. A skip here is
@@ -1087,8 +963,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             'class Handler(http.server.BaseHTTPRequestHandler,\n'
             '              SafeHeaderMixin\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('could not read the base list', result['details'])
+        self.assert_fail(result, containing='could not read the base list')
 
     def test_audit_ok_marker_exempts_one_class(self):
         # A module may hold both a real server and a test fixture, so
@@ -1102,8 +977,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             'class Real(http.server.BaseHTTPRequestHandler):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('Real', result['details'])
+        self.assert_fail(result, containing='Real')
         self.assertNotIn('Fixture', result['details'])
 
     def test_a_handler_defined_inside_a_function_is_examined(self):
@@ -1115,8 +989,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             '    class Handler(http.server.BaseHTTPRequestHandler):\n'
             '        pass\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('does not inherit SafeHeaderMixin', result['details'])
+        self.assert_fail(result, containing='does not inherit SafeHeaderMixin')
 
     def test_a_commented_base_list_is_read_without_the_comment(self):
         # The comment's dot used to be read as attribute access, so
@@ -1127,8 +1000,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             '              SafeHeaderMixin):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('listed after', result['details'])
+        self.assert_fail(result, containing='listed after')
 
     def test_a_handler_named_only_in_a_comment_is_not_a_handler(self):
         # The name is in the base list only as a comment. It used to
@@ -1140,8 +1012,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             '              Base):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'not_applicable',
-                         result['details'])
+        self.assert_skip(result)
 
     def test_a_marker_a_blank_line_above_does_not_exempt(self):
         # security-sanitization.md says 'on or immediately above'.
@@ -1151,7 +1022,7 @@ class HeaderSanitizationTest(unittest.TestCase):
             'class Handler(http.server.BaseHTTPRequestHandler):\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'fail')
+        self.assert_fail(result)
 
     def test_a_marker_on_the_class_line_exempts(self):
         result = self._check({'a.py': (
@@ -1159,18 +1030,16 @@ class HeaderSanitizationTest(unittest.TestCase):
             '# audit-ok: header-sanitization -- fixture\n'
             '    pass\n'
         )})
-        self.assertEqual(result['status'], 'not_applicable')
+        self.assert_skip(result)
 
     def test_a_failing_git_ls_files_is_a_finding(self):
         # Not a repository: stdout is empty, which is otherwise
         # indistinguishable from a clean bill of health.
-        with tempfile.TemporaryDirectory() as tmp:
-            with open(os.path.join(tmp, 'a.py'), 'w') as f:
-                f.write('class H(http.server.BaseHTTPRequestHandler):\n'
-                        '    pass\n')
-            result = check_header_sanitization(tmp, {})
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('git ls-files failed', result['details'])
+        self.fixture.write(
+            'a.py',
+            'class H(http.server.BaseHTTPRequestHandler):\n'
+            '    pass\n')
+        self.assert_fail(self.check(), containing='git ls-files failed')
 
     def test_the_finding_names_a_line(self):
         result = self._check({'pkg/srv.py': (
@@ -1182,7 +1051,7 @@ class HeaderSanitizationTest(unittest.TestCase):
         self.assertIn('pkg/srv.py:3', result['details'])
 
 
-class PythonVersionTargetingTest(unittest.TestCase):
+class PythonVersionTargetingTest(CheckTestCase):
     """The python-version-targeting check.
 
     The interesting case is the agreement between requires-python and
@@ -1192,17 +1061,25 @@ class PythonVersionTargetingTest(unittest.TestCase):
     because renovate goes on working against the stale floor.
     """
 
+    check_class = packaging.PythonVersionTargeting
+
     def _check(self, pyproject=None, renovate=None, props=None):
-        with tempfile.TemporaryDirectory() as tmp:
-            if pyproject is not None:
-                with open(os.path.join(tmp, 'pyproject.toml'), 'w') as f:
-                    f.write(pyproject)
-            if renovate is not None:
-                with open(os.path.join(tmp, 'renovate.json'), 'w') as f:
-                    f.write(renovate)
-            merged = {'has_pyproject_toml': pyproject is not None}
-            merged.update(props or {})
-            return check_python_version_targeting(tmp, merged)
+        """Run the check over an optional pyproject and renovate.json.
+
+        Each call builds its own fixture rather than adding to the one
+        setUp made: the malformed-renovate case runs the check four
+        times in one method, and a file written by an earlier call
+        would otherwise still be on disk for the next one -- which is
+        what the temporary directory this replaced did.
+        """
+        self.fixture = FixtureRepo(self.tempdir())
+        if pyproject is not None:
+            self.fixture.write('pyproject.toml', pyproject)
+        if renovate is not None:
+            self.fixture.write('renovate.json', renovate)
+        merged = {'has_pyproject_toml': pyproject is not None}
+        merged.update(props or {})
+        return self.check(**merged)
 
     def test_a_malformed_renovate_config_does_not_abort_the_run(self):
         # renovate.json's top level can hold any JSON value, and
@@ -1214,39 +1091,35 @@ class PythonVersionTargetingTest(unittest.TestCase):
                 result = self._check(
                     '[project]\nrequires-python = ">=3.8"\n',
                     renovate=renovate)
-                self.assertEqual(result['status'], 'pass',
-                                 result['details'])
+                self.assert_pass(result)
 
     def test_a_project_table_that_is_not_a_table_is_reported(self):
         result = self._check('project = "x"\n')
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('not a table', result['details'])
+        self.assert_fail(result, containing='not a table')
 
     def test_no_pyproject_is_not_applicable(self):
-        self.assertEqual(
-            self._check()['status'], 'not_applicable')
+        self.assert_skip(self._check())
 
     def test_declared_overrides_are_not_applicable(self):
         result = self._check(
             '[project]\nname = "x"\n', props={'not_python': True})
-        self.assertEqual(result['status'], 'not_applicable')
+        self.assert_skip(result)
 
     def test_missing_requires_python_fails(self):
         result = self._check('[project]\nname = "x"\n')
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('requires-python', result['details'])
+        self.assert_fail(result, containing='requires-python')
 
     def test_declared_requires_python_passes(self):
         result = self._check(
             '[project]\nname = "x"\nrequires-python = ">=3.8"\n')
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_matching_renovate_constraint_passes(self):
         result = self._check(
             '[project]\nname = "x"\nrequires-python = ">=3.8"\n',
             '{"constraints": {"python": ">=3.8"}}',
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_a_trailing_zero_is_the_same_floor(self):
         # ">=3.8" and ">=3.8.0" are one floor said two ways. Compared
@@ -1257,14 +1130,14 @@ class PythonVersionTargetingTest(unittest.TestCase):
             '[project]\nname = "x"\nrequires-python = ">=3.8"\n',
             '{"constraints": {"python": ">=3.8.0"}}',
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_clause_order_is_not_a_disagreement(self):
         result = self._check(
             '[project]\nname = "x"\nrequires-python = ">=3.8,<4"\n',
             '{"constraints": {"python": "<4, >=3.8"}}',
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_a_double_digit_minor_keeps_its_zero(self):
         # ">=3.10" must not be trimmed to ">=3.1".
@@ -1272,22 +1145,21 @@ class PythonVersionTargetingTest(unittest.TestCase):
             '[project]\nname = "x"\nrequires-python = ">=3.10"\n',
             '{"constraints": {"python": ">=3.1"}}',
         )
-        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assert_fail(result)
 
     def test_an_extra_clause_is_still_a_disagreement(self):
         result = self._check(
             '[project]\nname = "x"\nrequires-python = ">=3.8"\n',
             '{"constraints": {"python": ">=3.8,<4"}}',
         )
-        self.assertEqual(result['status'], 'fail', result['details'])
+        self.assert_fail(result)
 
     def test_disagreeing_renovate_constraint_fails(self):
         result = self._check(
             '[project]\nname = "x"\nrequires-python = ">=3.8"\n',
             '{"constraints": {"python": ">=3.7"}}',
         )
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('>=3.8', result['details'])
+        self.assert_fail(result, containing='>=3.8')
         self.assertIn('>=3.7', result['details'])
 
     def test_renovate_without_a_constraint_is_not_a_finding(self):
@@ -1296,7 +1168,7 @@ class PythonVersionTargetingTest(unittest.TestCase):
             '[project]\nname = "x"\nrequires-python = ">=3.8"\n',
             '{"extends": [":enablePreCommit"]}',
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_a_rust_project_is_not_applicable(self):
         # Mirrors pyproject-usage: a tooling pyproject.toml in a Rust
@@ -1305,12 +1177,11 @@ class PythonVersionTargetingTest(unittest.TestCase):
             '[project]\nname = "helper-scripts"\n',
             props={'has_cargo_toml': True},
         )
-        self.assertEqual(result['status'], 'not_applicable')
+        self.assert_skip(result)
 
     def test_a_tooling_only_pyproject_is_not_applicable(self):
         result = self._check('[tool.ruff]\nline-length = 79\n')
-        self.assertEqual(result['status'], 'not_applicable')
-        self.assertIn('tool configuration only', result['details'])
+        self.assert_skip(result, containing='tool configuration only')
 
     def test_whitespace_in_the_constraint_is_not_a_disagreement(self):
         # ">= 3.8" and ">=3.8" are the same floor; filing an issue
@@ -1319,7 +1190,7 @@ class PythonVersionTargetingTest(unittest.TestCase):
             '[project]\nname = "x"\nrequires-python = ">= 3.8"\n',
             '{"constraints": {"python": ">=3.8"}}',
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_unparseable_renovate_json_is_not_a_version_finding(self):
         # renovate.json validity is the renovate audit's business.
@@ -1327,7 +1198,7 @@ class PythonVersionTargetingTest(unittest.TestCase):
             '[project]\nname = "x"\nrequires-python = ">=3.8"\n',
             'not json at all',
         )
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
 
 class ReleaseProcessTest(CheckTestCase):
