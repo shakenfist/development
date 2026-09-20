@@ -738,8 +738,11 @@ criterion would be written against a single example.
 
 Steps 7a.1 to 7a.4 are done; see *What implementation found*. 7a
 merged on 2026-09-14, and 7a.5 and 7a.6 both ran on 2026-09-16, so
-all of 7a is now done. 7b waits on the decisions in 7b.0, which
-7a.6's measurement has narrowed from three options to two.
+all of 7a is now done. 7b.0 was answered on 2026-09-21 -- Entra,
+and the publish job into a pinned container -- so 7b now waits on
+the operator work in 7b.2 rather than on a decision. See *Decided:
+Entra, and the publish job moves into a container* for what those
+two answers turned out to mean.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
@@ -749,9 +752,10 @@ all of 7a is now done. 7b waits on the decisions in 7b.0, which
 | 7a.4 | low | sonnet | none | Re-run `pre-commit run --all-files` in hunkydory and the audit (`scripts/audit-check.py --repo-path <clone> --repo-name hunkydory --github-org shakenfist`). The verdict must not move, and the only failure must still be `review-coverage`. Anything else moved is a finding, not a rounding error. |
 | 7a.5 | low | sonnet | none | Dispatch `release.yml` on `develop` once 7a has merged. Confirm the `build` job produces the `.vsix` artifact on `[self-hosted, static]`, that `vscode:prepublish` compiles on a real runner with a real `npm_config_cache`, and that both publishing jobs correctly decline to run. Record the run URL here. This is the run D7.1's argument rests on, and it cannot answer the publish-lane question above, because the guard stops a dispatch reaching that job by design. |
 | 7a.6 | low | sonnet | none | **Measure whether `[self-hosted, vm, debian-13, s]` carries node, and record the answer in *Answered: the publish lane has neither node nor npm* above.** Add a dispatch-only throwaway workflow to hunkydory -- `permissions: {}`, **no `environment:` key**, so it can reach no secret -- whose single job runs on that lane and executes `node --version; npm --version; command -v node npm` without `set -e` stopping at the first absence. `secret-scan.yml` already uses this lane and `workflow_dispatch`, so no new actionlint label is needed. Dispatch it, record the output and the run URL, then delete the workflow in the same PR chain: it is a probe, not a fixture. The point is to reduce 7b.0's question (b) from a three-way guess to either "nothing to do" or "option 2". Do not fold this into `release.yml`'s publish job -- the dispatch guard means that job cannot run until 7b, which is the whole reason the question is open. |
-| 7b.0 | -- | operator | -- | **Decide two things before 7b.1 does any work.** (a) PAT or Entra federated credential: Azure DevOps retires global PATs on 1 December 2026, so a PAT bought now lasts about ten weeks and the Entra path has to be walked either way. The plan leans to going straight to `--azure-credential` and never minting a PAT, on the grounds that the setup cost is paid once rather than twice. (b) How the publish lane gets node. **7a.6 has measured it: the lane carries neither node nor npm.** So there is something to decide, option 3 is eliminated, and the decision is no longer only about 7b -- it has to repair `release.yml`'s publish job, which runs `npm ci` on that lane today, and delete the false node-20 comment inside it. The plan leans to option 2, the `debian-13-docker` lane with a pinned `node:22` container, because it settles the `engines.node` risk in the same move and needs no work in another repository. |
-| 7b.1 | -- | operator | -- | **Hold.** Execute what 7b.0 chose: create the publisher account, create the tag-protected `release` environment, and add the credential to it. Nothing in a repository can do this. |
-| 7b.2 | low | sonnet | none | Once 7b.1 is done: tag `v0.1.0`, watch the run, and record the outcome in this section -- either the Marketplace listing URL, or what failed. If the account never arrives, record that instead and cite the attached `.vsix`. **If it fails, the recovery is a version bump, not a re-tag**: `43b7f59`'s build job asserts the tag matches `package.json`, and the Marketplace rejects a republished version, so a deleted and re-pushed `v0.1.0` either fails the same way or is refused on the far side. Bump to `0.1.1` and tag that. The jobs can also disagree -- `github-release` needs `publish-marketplace`, so Marketplace-succeeded-and-release-failed is the only split possible, and it is repaired by attaching the `.vsix` to the existing release by hand rather than by re-running anything. Add both to `RELEASE-SETUP.md`'s troubleshooting while the reasoning is fresh. |
+| 7b.0 | -- | operator | -- | **Done, 2026-09-21.** Both questions answered: (a) **Entra, and no PAT is ever minted** -- a PAT bought now lasts about ten weeks against the 1 December 2026 global-PAT retirement, and the Entra path has to be walked either way, so the setup cost is paid once rather than twice; (b) **option 2**, the `debian-13-docker` lane with a pinned `node:22` container, which settles the `engines.node` risk in the same move and needs no work in another repository. Reading the pinned vsce rather than trusting the flag's description then changed the mechanism both answers imply: see *Decided: Entra, and the publish job moves into a container* above, which is the authority on what 7b.1 and 7b.2 execute. |
+| 7b.1 | medium | opus | worktree | **The repair 7b.0's answers carry, in hunkydory, before any account exists.** `release.yml`'s publish job runs `npm ci` on a lane with neither node nor npm, and carries a comment claiming "this runner carries Debian 13's node 20, so that's satisfied today" -- a defect in merged code, not a gap in future work. Move the job to `[self-hosted, vm, debian-13-docker, s]`, declare that label in `.github/actionlint.yaml` (7a.2's brief deliberately withheld it pending this decision), add `id-token: write` to the job's `permissions`, and drop `VSCE_PAT` from the workflow entirely. The install and the publish move into `tools/publish-marketplace.sh`, per the fleet's CI-script rule, pinning `node:22-trixie-slim` **by digest as well as tag** the way `tools/mermaid-lint.sh` pins mermaid-cli. The token comes from the client-assertion exchange described above and is passed to `vsce publish -p`, not `--azure-credential`; say in the script's header why, and that re-reading `auth.js` on the next vsce bump is what retires the exchange. `RELEASE-SETUP.md` is rewritten for the Entra path: the PAT steps go, because leaving them as an alternative is how an operator stands up the architecture 7b.0 just declined. **Nothing here is reachable by CI** -- the job is gated on a tag and the `release` environment -- so verify what can be verified locally (the container runs `npm ci --ignore-scripts` and `vsce --version`; actionlint and pre-commit pass) and say plainly in the pull request that the exchange itself is unexercised until 7b.3. Commit subject: `Publish through Entra, in a pinned container.` |
+| 7b.2 | -- | operator | -- | **Hold.** Nothing in a repository can do this. Create the Entra app registration; add a **federated** credential on it with subject `repo:shakenfist/hunkydory:environment:release` and audience `api://AzureADTokenExchange`; add that identity as a member of the `shakenfist` Marketplace publisher; create the `release` environment restricted to `v*` tags, carrying `AZURE_CLIENT_ID` and `AZURE_TENANT_ID` as environment **variables** (neither is a secret). Also close hunkydory #21 while here: the repository has no branch protection and no rulesets, so any `v*` tag on any ref reaches this job. `RELEASE-SETUP.md` as rewritten by 7b.1 is the step-by-step. |
+| 7b.3 | low | sonnet | none | Once 7b.2 is done: tag `v0.1.0`, watch the run, and record the outcome in this section -- either the Marketplace listing URL, or what failed. If the account never arrives, record that instead and cite the attached `.vsix`. **If it fails, the recovery is a version bump, not a re-tag**: `43b7f59`'s build job asserts the tag matches `package.json`, and the Marketplace rejects a republished version, so a deleted and re-pushed `v0.1.0` either fails the same way or is refused on the far side. Bump to `0.1.1` and tag that. The jobs can also disagree -- `github-release` needs `publish-marketplace`, so Marketplace-succeeded-and-release-failed is the only split possible, and it is repaired by attaching the `.vsix` to the existing release by hand rather than by re-running anything. Add both to `RELEASE-SETUP.md`'s troubleshooting while the reasoning is fresh. |
 
 #### Risks and mitigations
 
@@ -777,9 +781,12 @@ falsifiable and is in the definition of done.
 `environment: release` protection rule is what makes "not readable
 from a job on a branch" true; without it the secret is readable from
 any workflow run that names the environment. *Mitigation:* step
-7b.1 creates the environment with its tag rule, and 7a.2 must not
+7b.2 creates the environment with its tag rule, and 7a.2 must not
 pretend the workflow is safe before that exists -- `RELEASE-SETUP.md`
-states the ordering.
+states the ordering. 7b.0's answer strengthens this: with no secret
+on the environment there is nothing to leak, and the federated
+credential's subject names the environment, so a run on another ref
+is refused by Entra rather than trusted by us.
 
 #### Definition of done
 
@@ -1072,6 +1079,83 @@ removed in the same pull request chain, and that did not happen.
 **Phase 8's step 8.0 owns the deletion**, and D8.2's hunkydory range
 covers both `19733c2` and the merge that removes it.
 
+#### Decided: Entra, and the publish job moves into a container
+
+Answered by the operator on 2026-09-21: **(a) Entra, and no PAT is
+ever minted. (b) Option 2 -- `debian-13-docker` with a pinned
+`node:22` container.** What follows is what those two answers turned
+out to mean once the pinned vsce was read rather than trusted,
+because the mechanism is not the one the question assumed.
+
+**`--azure-credential` cannot use GitHub's workload identity
+federation in vsce 3.9.2.** `@vscode/vsce/out/auth.js` builds a
+fixed `ChainedTokenCredential` of five credentials:
+`EnvironmentCredential`, `AzureCliCredential`,
+`ManagedIdentityCredential`, `AzurePowerShellCredential`,
+`AzureDeveloperCliCredential`. `WorkloadIdentityCredential` -- the
+one that reads `AZURE_FEDERATED_TOKEN_FILE`, and the only credential
+in `@azure/identity` that consumes a federated token directly -- is
+**not in that chain**, although the pinned `@azure/identity` 4.13.2
+does ship it. `EnvironmentCredential` does not fill the gap: its
+`credentialEnvironmentVariables` are `AZURE_CLIENT_SECRET`,
+`AZURE_CLIENT_CERTIFICATE_PATH` and `AZURE_USERNAME`, and nothing
+else. So on the paths vsce actually offers, "Entra" is either an
+`az login` that `AzureCliCredential` picks up, or a long-lived
+client secret read by `EnvironmentCredential`.
+
+Neither survives the two answers above. A client secret is a stored
+credential that expires, which is the property that disqualified the
+PAT -- it would buy two years instead of ten weeks and change
+nothing structural. The `az` CLI is on neither the VM image nor a
+`node:22` container, and putting it on the image is option 1: work
+in another repository, which is exactly what option 2 was chosen to
+avoid. Taken together the two answers appear to contradict each
+other, and that is worth stating plainly rather than discovering at
+publish time.
+
+**The way through is that vsce does not care where the token came
+from.** `out/publish.js`'s `getPAT()` returns `options.pat` when
+`-p` is given and `getAzureCredentialAccessToken()` when
+`--azure-credential` is -- into the same variable, used the same
+way. An Entra access token and a PAT are interchangeable strings at
+that seam. So the publish job performs the client-assertion exchange
+itself: GitHub's OIDC JWT from `ACTIONS_ID_TOKEN_REQUEST_URL`,
+presented to Entra's token endpoint for the
+`499b84ac-1321-427f-aa17-267ca6975798/.default` scope that
+`auth.js` names, and the result handed to `vsce publish -p`. No
+`az`, no stored credential, and no dependency beyond node 22's
+global `fetch`. `--azure-credential` stays available as a fallback.
+**Re-read `auth.js` when vsce is next bumped**: if
+`WorkloadIdentityCredential` appears in that chain, the exchange can
+be deleted in favour of the flag. That is the check to run, rather
+than reading release notes, and it is the same check 7a already
+established for the flag surface itself.
+
+This changes what 7b.2 asks the operator for. There is no PAT and no
+environment secret. What has to exist is an Entra app registration,
+a **federated** credential on it whose subject is
+`repo:shakenfist/hunkydory:environment:release` and whose audience
+is `api://AzureADTokenExchange`, and that identity added as a member
+of the Marketplace publisher. The `release` environment is still
+created and still restricted to `v*` tags, but it now gates the job
+twice over: GitHub refuses to run it on another ref, and the subject
+claim GitHub mints names the environment, so Entra refuses a token
+even if the first gate is misconfigured. That is strictly stronger
+than the secret was. HD-1's critical finding -- that a referenced
+environment is auto-created unprotected on first use -- keeps its
+severity as a correctness problem and loses it as a disclosure one:
+the worst case is now a failed publish rather than a leaked token.
+The environment carries `AZURE_CLIENT_ID` and `AZURE_TENANT_ID` as
+non-secret variables.
+
+The `engines.node` risk recorded above closes on the publish lane
+and stays open elsewhere. The container is `node:22-trixie-slim`,
+pinned by digest as well as tag the way `tools/mermaid-lint.sh`
+pins mermaid-cli, so `@azure/identity`'s `">=22.0.0"` is satisfied
+where it is actually asked. `ci.yml` and the `build` job keep
+running on the static pool's node 20, where nothing loads the auth
+path, so the fleet-wide question in *Future work* is unchanged.
+
 #### Risks found during implementation
 
 **The `VSCE_PAT` architecture has a deadline.** Azure DevOps retires
@@ -1094,9 +1178,10 @@ flag surface was established by running
 which is the check to repeat when vsce is next bumped. It needs an
 Entra app registration, a GitHub federated credential, and
 that identity added to the Marketplace publisher. *Mitigation:*
-`RELEASE-SETUP.md` leads with it. **This wants a decision before
-7b.1 rather than after**: standing up a PAT now buys about ten weeks,
-and the Entra path has to be walked eventually either way.
+`RELEASE-SETUP.md` leads with it. **Decided on 2026-09-21: Entra,
+and no PAT is minted at all.** See *Decided: Entra, and the publish
+job moves into a container* for what that turned out to require,
+which is not `--azure-credential` on its own.
 
 **vsce's transitive Azure dependencies already ask for a newer node
 than the runners have.** `@vscode/vsce` declares `engines.node
@@ -1110,9 +1195,12 @@ pool** only, which is where that measurement was taken and where
 `ci.yml` runs. The publish lane carries no node at all -- see
 *Answered: the publish lane has neither node nor npm* -- so on that
 lane the `engines.node` question does not arise yet, and whichever
-option 7b.0 picks decides which version it is asked against.
-*Mitigation:* none available in this repository -- the fix is the
-fleet moving to a newer node. Recorded so the next reader is not
+option 7b.0 picks decides which version it is asked against. 7b.0
+picked option 2, so on that lane the answer is now node 22 and this
+risk is closed there; see *Decided: Entra, and the publish job moves
+into a container*. *Mitigation:* none available in this repository
+for the lanes that remain -- the fix is the fleet moving to a newer
+node. Recorded so the next reader is not
 surprised, and so the two lanes are not read as one.
 
 **hunkydory's release tags are unsigned.** The fleet template has a
@@ -1160,13 +1248,18 @@ the token, and `github-release` on `[self-hosted, static]`. D7.4 --
 the question this plan expected to be argued with -- was accepted
 without argument, so the GitHub release job stays.
 
-The gate that is still ahead is **7b.0**, and it is a harder one,
-because both of its questions change `release.yml` rather than
-merely configuring around it. Going to `--azure-credential` removes
-the `VSCE_PAT` secret this workflow is shaped around, and option 2
-for the publish lane moves that job to another label and into a
-container. Agree both before 7b.1 stands anything up, or the account
-gets configured for an architecture that then changes.
+The second gate, **7b.0**, was passed on 2026-09-21: Entra with no
+PAT, and the publish job into a pinned `node:22` container on
+`debian-13-docker`. The gate earned its place. Both answers change
+`release.yml` rather than merely configuring around it, and the
+reason for agreeing them before 7b.2 stands anything up -- that the
+account otherwise gets configured for an architecture that then
+changes -- turned out to be the live risk rather than a
+precaution: reading `auth.js` showed the two answers pulling against
+each other, and the resolution changes what the operator creates
+from a token to a federated credential. Had the account been stood
+up first, it would have been stood up wrong. No gate remains; 7b.1
+is code and 7b.2 is the operator's, in that order.
 
 ### 8. Push audit
 
@@ -1684,7 +1777,7 @@ actually read.
 | HD-11 | hunkydory | medium | `release.yml`'s `github-release` job calls a reusable workflow at `@main` with `secrets: inherit`, and third-party actions are unpinned. This is fleet convention rather than a hunkydory choice, so fixing it here alone would diverge without improving the fleet. | Future work + issue, fleet-wide |
 | HD-12 | hunkydory | medium | The `build` job runs a bare `npm ci` on the shared static pool. The token is not present in that job, but the `.vsix` the publish job later signs and ships is produced there. Tightening it needs the devDependency install-script question settled first. | Future work + issue |
 | HD-13 | hunkydory | low | The publish step's `.vsix` glob guard passes when the glob matches nothing. | Fix (8.11) |
-| HD-14 | hunkydory | latent | `release.yml`'s publish job runs on `[self-hosted, vm, debian-13, s]`, a lane that carries neither node nor npm, and the workflow header's comment claiming otherwise is false. Found by 7a.6, already recorded; the repair is 7b.0's, not this phase's. | 7b.0 (already assigned) |
+| HD-14 | hunkydory | latent | `release.yml`'s publish job runs on `[self-hosted, vm, debian-13, s]`, a lane that carries neither node nor npm, and the workflow header's comment claiming otherwise is false. Found by 7a.6, already recorded; the repair is 7b.0's, not this phase's. | Fixed in 7b.1 |
 
 ##### Declined, with reasons
 
@@ -1936,15 +2029,6 @@ been superseded.
   like the rest of the fleet's. Phase 7 decided a three-job shape
   without considering the template's `sign-tag` job; the omission is
   recorded in `release.yml`'s header as an open question.
-* **hunkydory's merged `release.yml` cannot publish, and says the
-  opposite.** Its `publish-marketplace` job runs `npm ci
-  --ignore-scripts` on `[self-hosted, vm, debian-13, s]`, which
-  7a.6 measured as carrying neither node nor npm, and it carries a
-  comment asserting "this runner carries Debian 13's node 20, so
-  that's satisfied today". The repair is 7b.0's to decide, and 7b
-  may never run; the false comment is not, and deleting it is a
-  one-line pull request that waits on no decision. Tracked here so
-  an abandoned 7b leaves a recorded defect rather than a silent one.
 * **A check that a `Merged` cell names a merge into the default
   branch.** Two errors of exactly this kind landed in one column and
   were both found by hand: `43b7f59`, a head commit recorded as a
@@ -1993,9 +2077,13 @@ one carrying the defect rather than the one carrying this plan.
   no secrets are set. GitHub auto-creates a referenced environment
   **unprotected** on first use, so the first tag push creates
   exactly the state `RELEASE-SETUP.md` warns against -- and that
-  document's recovery path is to add `VSCE_PAT` to it. 7b.0 is
-  where this is decided; the issue is so that an abandoned 7b
-  leaves a record.
+  document's recovery path is to add `VSCE_PAT` to it. 7b.0 has
+  since decided it, and in doing so changed the finding's shape:
+  there is no `VSCE_PAT` and no environment secret at all, so an
+  auto-created unprotected environment now causes a failed publish
+  rather than a disclosure. The environment is still needed, and
+  still needs its tag rule, which is 7b.2's. The issue remains so
+  that an abandoned 7b leaves a record.
 * **HD-2: the repository has no branch protection and no rulesets**
   (`shakenfist/hunkydory`). `develop` is unprotected (the
   branch-protection API answers 404), there are zero rulesets, and
