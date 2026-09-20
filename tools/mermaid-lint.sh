@@ -18,8 +18,8 @@
 # not a function" for flowchart and stateDiagram-v2 -- the two most
 # common types here -- so it reports false failures on exactly the
 # diagrams that matter. Supplying a DOM with jsdom is no longer ruled
-# out now that the runners carry node, but nobody has tried it; see
-# templates/mermaid-lint/README.md in shakenfist/development.
+# out now that the static runners carry node, but nobody has tried it;
+# see templates/mermaid-lint/README.md in shakenfist/development.
 #
 # Usage:
 #   tools/mermaid-lint.sh            # every tracked markdown file

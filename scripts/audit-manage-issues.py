@@ -21,6 +21,7 @@ import time
 from audit_common import (
     AUDIT_METADATA,
     ISSUE_TITLES,
+    defuse,
     gh_canonical_repo,
     gh_search_issues,
 )
@@ -117,6 +118,78 @@ def gh_close_issue(org, repo, issue_number, comment=None):
 # silence.
 ISSUE_BODY_BUDGET = 60000
 
+# `details` is one field among several competing for that budget, and
+# the only one with no bound at all. Given the whole budget it starves
+# the per-item lists, which are the part a maintainer acts on: the
+# issue still files, it just carries no actionable items. Half leaves
+# both sides room in every realistic case, and where it does bite the
+# trailer says where the rest is.
+DETAILS_BUDGET = ISSUE_BODY_BUDGET // 2
+
+# Module level so a test can compute the exact room `render_details`
+# has, and so pin the truncation boundary rather than approach it.
+DETAILS_HEADING = '\n### Automated check details\n\n'
+DETAILS_TRAILER = (
+    '\n\n*...truncated to stay under GitHub\'s issue body limit. '
+    'Run `scripts/audit-check.py` for the full details.*\n'
+)
+
+
+def defuse_item(item):
+    """Make one harvested item safe to render inside a code span.
+
+    An item is a path out of an audited repository -- `missing` and
+    `findings` are built from `git ls-files`, so the repository chooses
+    the bytes. A git path may hold anything but NUL and `/`, and two
+    of those characters escape the backtick-wrapped rendering below.
+
+    A newline ends the list item, so the rest of the path lands in the
+    body as raw markdown: a heading, a fake footer, a link, or an
+    `@org/team` mention that notifies. The body is authored by
+    shakenfist-bot, so injected content arrives with the bot's
+    authority. Whitespace is collapsed the way defuse() does it in
+    audit-update-docs.py, which is the same problem on the page path.
+
+    A backtick closes the code span early and lets the tail render as
+    markdown. It cannot be escaped inside a span, so the span is
+    widened instead: CommonMark ends a span at the first run of
+    backticks matching the opener, so an opener longer than any run in
+    the item cannot be closed by the item. The padding spaces are what
+    let a value start or end with a backtick, and CommonMark strips
+    one leading and one trailing space when both are present.
+
+    A fence of three or more backticks is the shape of a fenced code
+    block opener rather than a span, which would be a different bug.
+    It cannot happen: the fence only reaches that width when the item
+    itself contains a run of two or more backticks, and it is emitted
+    on the same line as them, so the would-be info string contains a
+    backtick -- which CommonMark forbids. The opener is never valid,
+    and the parser falls back to span rules. This is what makes the
+    ```` a```b`c ```` case render as intended.
+
+    Nothing here rejects an item, but something is transformed: the
+    whitespace collapse means a path whose name contains a newline or
+    a tab is published with those rendered as single spaces, so it no
+    longer names a file that can be copied straight out of the issue.
+    That is the same trade defuse() makes for details in
+    audit_common.py, and it is preferred here for symmetry -- the
+    alternative, escaping losslessly, would make ordinary paths the
+    only thing the two functions disagree about. What matters is that
+    the item is still there: a path that needs defusing is still the
+    path somebody has to go and review, and dropping it would make the
+    work queue lie about what is outstanding.
+    """
+    flat = ' '.join(str(item).split())
+    longest = 0
+    run = 0
+    for char in flat:
+        run = run + 1 if char == '`' else 0
+        longest = max(longest, run)
+    if not longest:
+        return f'`{flat}`'
+    fence = '`' * (longest + 1)
+    return f'{fence} {flat} {fence}'
+
 
 def render_issue_items(heading, items, used):
     """Render one per-item list, stopping before the body gets too big.
@@ -130,7 +203,7 @@ def render_issue_items(heading, items, used):
     """
     rendered = f'\n**{heading}:**\n'
     for index, item in enumerate(items):
-        line = f'- `{item}`\n'
+        line = f'- {defuse_item(item)}\n'
         if used + len(rendered) + len(line) > ISSUE_BODY_BUDGET:
             return rendered + (
                 f'- ...and {len(items) - index} more, omitted to stay '
@@ -139,6 +212,43 @@ def render_issue_items(heading, items, used):
             )
         rendered += line
     return rendered
+
+
+def details_room(used):
+    """How many characters of `details` fit, given a body of `used`.
+
+    Can go negative where the rest of the body has already spent the
+    budget; the caller clamps. Kept separate from the rendering so the
+    boundary is a value a test can ask for rather than one it has to
+    find by bisection.
+    """
+    return (
+        min(ISSUE_BODY_BUDGET - used, DETAILS_BUDGET)
+        - len(DETAILS_HEADING) - len(DETAILS_TRAILER)
+    )
+
+
+def render_details(details, used):
+    """Render the check's own details, under the same budget.
+
+    `details` is written by the criterion and is not bounded by
+    anything the criterion has to think about: several route a per-item
+    list through it, and the npm ones quote a workflow's `run:` line
+    verbatim. Left unaccounted it can push the body past GitHub's
+    limit on its own, at which point the create call returns nothing
+    and the criterion silently stops filing while the audit reports
+    success -- the failure mode the per-item budget already exists to
+    prevent, reached through the one field that was not measured.
+
+    Capped at `DETAILS_BUDGET` rather than at whatever is left, so
+    that a pathological `details` cannot spend the room the per-item
+    lists need.
+    """
+    room = details_room(used)
+    if len(details) + 1 <= room:
+        return f'{DETAILS_HEADING}{details}\n'
+    return (
+        f'{DETAILS_HEADING}{details[:max(room, 0)]}{DETAILS_TRAILER}')
 
 
 def build_issue_body(check_id, check_result):
@@ -166,7 +276,13 @@ def build_issue_body(check_id, check_result):
             f'({DEV_REPO_URL}/{template_dir}README.md)\n'
         )
 
-    body += f'\n### Automated check details\n\n{check_result["details"]}\n'
+    # Defused before it is measured, not spliced raw. The string is
+    # written by a check out of what it found in another repository --
+    # filenames and heading text read from that repository's markdown
+    # -- and an issue body renders a mention to a real notification,
+    # under this workflow's own identity. Defusing first also means the
+    # budget measures the string that actually lands.
+    body += render_details(defuse(check_result['details']), len(body))
 
     if 'missing' in check_result:
         body += render_issue_items(

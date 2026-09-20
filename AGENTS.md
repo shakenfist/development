@@ -81,7 +81,7 @@ says which drawn blocks are deliberately *not* diagrams.
 `pre-commit`, the diff-level greps, then four judgment sub-agents over
 code quality, tests, documentation and security. Its briefs are
 written for this repository's blast radius -- a defect here breaks
-sixteen other repositories quietly rather than breaking a service. It
+twenty other repositories quietly rather than breaking a service. It
 is being made the last phase of every master plan -- see
 `docs/plans/PLAN-push-audit-phase.md`, which is rolling that out;
 drop this qualifier once the sweep has landed.
@@ -132,7 +132,7 @@ analysis section first -- several design constraints
 exist for non-obvious verified reasons, and the plan's "Back brief"
 section applies. Note the original "prune locally rather than from
 CI" constraint was about developer clones and git hooks; CI pruning
-of a repo's own main branch is the steady-state design, not a
+of a repo's own default branch is the steady-state design, not a
 violation of it.
 
 Deploying the tooling to a repository (and verifying a deployment,

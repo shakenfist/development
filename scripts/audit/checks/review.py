@@ -199,6 +199,17 @@ class ReviewCoverage(Check):
             )
         except subprocess.TimeoutExpired:
             return self.fail('review-tracking.py status timed out')
+        except OSError as e:
+            # Reported rather than raised: run_check() has no handler,
+            # so an exception here costs the repository every other
+            # criterion too, the way an AttributeError once did in
+            # checks/packaging.py and text/python_source.py. The
+            # trigger is cwd, not the script path -- a missing
+            # review-tracking.py makes the interpreter exit non-zero
+            # and lands in the returncode branch below, whereas a
+            # repo.path that failed to clone or was cleaned up
+            # mid-run raises here before anything runs.
+            return self.fail(f'review-tracking.py status could not run: {e}')
         if result.returncode != 0:
             return self.fail(
                 f'review-tracking.py status failed: '
@@ -270,6 +281,9 @@ class ReviewScopeCompleteness(Check):
             )
         except subprocess.TimeoutExpired:
             return self.fail('review-tracking.py scope-orphans timed out')
+        except OSError as e:
+            return self.fail(
+                f'review-tracking.py scope-orphans could not run: {e}')
         # Exit status 1 is the reportable outcome, not an error: the
         # subcommand exits non-zero precisely when there are orphans, so
         # only a status outside {0, 1} means the run itself broke.
