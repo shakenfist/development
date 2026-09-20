@@ -757,8 +757,18 @@ against the tree at `5861c0a`:
 
 * `audits/review-coverage.md` is now `docs/audits/review-coverage.md`.
 * `audits/README.md` is now `docs/audits/README.md`.
-* `PROJECT-CONSISTENCY-AUDITS.md` and `PLAN-consistency.md` are
-  both gone.
+* `PROJECT-CONSISTENCY-AUDITS.md` is gone, dissolved into `docs/`
+  by `1276ff2`; the criteria list it held is now
+  `docs/consistency-audits.md`.
+* `PLAN-consistency.md` is now `docs/plans/PLAN-consistency.md`,
+  moved by `3b546d6`, and `docs/plans/index.md:20` still links it as
+  `Superseded`. *Corrected on 2026-09-20: this bullet said the two
+  files were "both gone". Only the first is. That is precisely the
+  failure D6.3 was written to prevent -- a file resolved to no path
+  at all when it has a current one -- and it is the survey making
+  the mistake it wrote the decision against. It also contradicts
+  phase 5's survey above, which says of the same set of names
+  "Every one of those has moved".*
 * `PLAN-review-coverage.md` is now `docs/plans/PLAN-review-coverage.md`.
 * `scripts/test_audit_check.py` is gone; the criterion's tests are
   now `scripts/tests/test_review.py`.
@@ -809,7 +819,8 @@ lines in `a0227e05` and 8 in `196db2f6`. D6.4 scopes it by path.
 merged six weeks ago every one of those commands is empty and
 returns nothing, which is indistinguishable from a clean audit.
 Every brief below therefore states its range explicitly and is
-required to report the file count it saw.
+required to report the file count it saw. *Corrected on 2026-09-20:
+step 5a has since landed, as `4873e95`; see D6.6.*
 
 **ryll's wave 1 cannot see this diff.** `tools/audit/wave1.sh`
 runs `pre-commit`, rustfmt and clippy through Docker, and
@@ -857,7 +868,7 @@ larger job. Three things decide it the other way. The diff is the
 only statement of *intent* available -- what the plan meant to add
 is legible there and nowhere else -- so it is still what each agent
 reads first. But a finding is only actionable where a fix would
-land, and for eight of thirteen files that is a different path or
+land, and for seven of thirteen files that is a different path or
 no path at all; a report saying `scripts/audit-check.py` should
 validate its input would send a reader to a file that has not held
 a check function since the restructure. And the restructure's own
@@ -900,6 +911,18 @@ editing the same sixteen lines in the same week is how one of them
 silently loses. This phase's briefs carry their ranges inline and
 the Outcome notes that step 5a would have removed the need.
 
+*Corrected on 2026-09-20: step 5a landed as `4873e95` ("Give the
+push audit an explicit range") after this branch forked.
+`PUSH-AUDIT.md` now reads `git diff "${AUDIT_RANGE:-origin/main...HEAD}"`
+throughout, `AUDIT_RANGE` appears on 21 lines, and the by-hand
+substitution this decision chose is not needed by the next audit.
+The decision itself stands as the record of what was true when the
+phase ran, and the ownership reasoning was right -- what did not
+need making was the prediction that two plans would collide, since
+they did not. The same correction applies to the survey above, to
+the "Archaeology" risk's sibling below, and to "What the audit did
+not do".*
+
 **D6.7. The ryll audit is run now rather than cited.**
 `plan-push-audit-phase` says a phase that landed in another
 repository is audited as part of the pull request that lands it,
@@ -908,8 +931,9 @@ re-running it. ryll#236 merged on 2026-08-02, before the block
 existed, and no audit was run. There is nothing to cite, so the
 phase runs it -- against `origin/develop`, which is ryll's default
 branch, and from a clone checked out there rather than from
-whatever branch the working clone happens to be on. The local ryll
-clone is currently on `gitleaks-scope-head`.
+whatever branch the working clone happens to be on. The clone used
+for this run was on `gitleaks-scope-head` when the phase started,
+which is the reason the instruction is explicit.
 
 #### Step plan
 
@@ -918,9 +942,9 @@ clone is currently on `gitleaks-scope-head`.
 | 6a | medium | sonnet | none | Wave 1 of `PUSH-AUDIT.md` over the three development ranges named in D6.1: `b677b61^1..b677b61`, `ced6fef^1..ced6fef` and `02924fe^1..02924fe`. Read every `git diff main...HEAD` in the runbook as `git diff <range>` and run each check once per range -- a literal `main...HEAD` is empty here because all three merged weeks ago, and an empty grep reads exactly like a clean audit. Run `pre-commit run --all-files` first, on a clean tree: it is the whole of lint and test in this repository, and `review-tracking.py stamp` takes its SHAs from the git *index*, so an unstaged edit is attested at the staged content rather than at what is on disk. Then run each grep in the wave 1 block (lines 44--113) with the range substituted, and report every hit with a verdict -- hit, looked at, accepted or blocking -- and why. State the file count you saw for each range; they must be 13, 6 and 1, and a count that does not match means the range was read wrong, not that the code changed. Expect and explain rather than ignore: `b677b61` predates `docs/audits/` and its paths will look wrong, which is D6.3's subject and not a finding in itself; `REVIEWS.md` moves inside these ranges and that is the convention working. Report, do not fix. **Do not prune, regenerate or commit `REVIEWS.md`**, per `plan-phase-landing`. Commit subject: none -- this step writes a report into the phase section, not code. |
 | 6b | high | sonnet | none | Wave 2a, code quality, per the brief in `PUSH-AUDIT.md`, over the three ranges in D6.1. Take 6a's grep report as input and triage each hit. Apply D6.3: read the recorded diffs for intent, then resolve every file you want to report on to its path in the tree at `5861c0a` before writing a finding, and say for each finding either the current path or that the code no longer exists. The map you need is in "What the survey found" above -- in particular the `check_review_coverage` function added to `scripts/audit-check.py` in step 2 is now the `ReviewCoverage` class at `scripts/audit/checks/review.py:173`, registered at `scripts/audit/registry.py:78`. The highest-value reading is the coverage arithmetic itself: `ReviewCoverage.run()` and the `status` subcommand in `scripts/review-tracking.py` must agree on what "effective coverage" means, because the criterion files fleet-wide issues off that number and phase 5 D5.3 checked the two agree at one commit in two repositories -- one sample is not a proof. `REVIEW_BACKLOG_THRESHOLD` is at `scripts/audit/checks/review.py:97`; ask what happens at exactly 5 and what happens when the scope file lists a path that no longer exists. Do not read the four-file rule for adding a criterion out of `PUSH-AUDIT.md` lines 125--127 -- `PLAN-scope-coverage` step 5a corrected it, but verify the corrected text against `scripts/audit/registry.py` and `scripts/tests/test_metadata.py` before relying on it. |
 | 6c | high | sonnet | none | Wave 2b, test review, per the brief in `PUSH-AUDIT.md`, over the three ranges in D6.1. Apply D6.3. Step 1 and step 2 added tests to `scripts/test_review_tracking.py` and to `scripts/test_audit_check.py`; the second file no longer exists and the criterion's tests are now `scripts/tests/test_review.py`, so the first question is whether every assertion the plan promised survived that move. Name each assertion that did not. The Success criteria section promises cases covering the scenarios in phases 1 and 2 -- read those two sections and check each promised scenario has a test that actually tests what its name says, not merely a test with a matching name. Read hardest on the boundaries the criterion turns on: a repository with no `.vscode/review-scope.toml` (must be N/A, not pass), a scope file that excludes everything, a stamped SHA that no longer matches its blob, and a file in scope that has never been stamped at all. Note that `scripts/test_review_tracking.py` stayed at `scripts/` while the rest moved under `scripts/tests/`; say whether that is deliberate or drift, but do not move it. |
-| 6d | high | sonnet | none | Wave 2c, documentation review, per the brief in `PUSH-AUDIT.md`, over the three ranges in D6.1. Apply D6.3. The question is whether the documents this plan touched now say the same thing as each other and as the code: `docs/code-review-tracking.md` (rewritten by step 5 and repaired by step 5.1), `docs/audits/review-coverage.md` (moved from `audits/`), `docs/audits/README.md`, `AGENTS.md` and `ARCHITECTURE.md` (both corrected during #139's review). Check specifically that no page still says the prune workflow runs on `main` or on "the repository's own main branch" -- ryll's default branch is `develop` and step 5.1 changed four such references; that `REVIEW_BACKLOG_THRESHOLD` is cited at `scripts/audit/checks/review.py` and nowhere else outside `docs/plans/`; that the loop-termination argument in the Steady state section still matches ryll's `.github/workflows/prune-reviews.yml` header comment, which is the authority; and that the work-queue caveat added by step 5.1 names development#138. Also check the two files `PROJECT-CONSISTENCY-AUDITS.md` and `PLAN-consistency.md`, which step 4 edited and which no longer exist, left no dangling reference anywhere in `docs/`. |
+| 6d | high | sonnet | none | Wave 2c, documentation review, per the brief in `PUSH-AUDIT.md`, over the three ranges in D6.1. Apply D6.3. The question is whether the documents this plan touched now say the same thing as each other and as the code: `docs/code-review-tracking.md` (rewritten by step 5 and repaired by step 5.1), `docs/audits/review-coverage.md` (moved from `audits/`), `docs/audits/README.md`, `AGENTS.md` and `ARCHITECTURE.md` (both corrected during #139's review). Check specifically that no page still says the prune workflow runs on `main` or on "the repository's own main branch" -- ryll's default branch is `develop` and step 5.1 changed four such references; that `REVIEW_BACKLOG_THRESHOLD` is cited at `scripts/audit/checks/review.py` and nowhere else outside `docs/plans/`; that the loop-termination argument in the Steady state section still matches ryll's `.github/workflows/prune-reviews.yml` header comment, which is the authority; and that the work-queue caveat added by step 5.1 names development#138. Also check that the two files step 4 edited left no dangling reference anywhere in `docs/`: `PROJECT-CONSISTENCY-AUDITS.md` was deleted and can dangle, while `PLAN-consistency.md` merely moved to `docs/plans/` and is still linked from the index, so a reference to it is not dangling. |
 | 6e | high | opus | none | Wave 2d, security review, per the brief in `PUSH-AUDIT.md`, over the three ranges in D6.1 **and** the two ryll ranges in D6.4 -- the security surface of this plan is mostly in ryll, so this is the one wave 2 dimension that reads both repositories. Read the actual code. In development: `scripts/review-tracking.py` and `scripts/audit/checks/review.py` read paths out of `.vscode/review-scope.toml` and out of `REVIEWS.md`, both of which are repository content, and feed them to `git` and to the filesystem -- ask what a crafted scope pattern or a crafted mark row reaches, bearing in mind both files require a merged pull request to change. Apply the `path-traversal-review` shared block. In ryll: `.github/workflows/prune-reviews.yml` runs with `contents: write` and checks out with `secrets.DEPENDENCIES_TOKEN`, a personal access token belonging to shakenfist-bot, and `tools/ci-prune-reviews.sh` runs inside that job and pushes. Ask whether the token can reach a log line or a commit message on any path, whether `concurrency: prune-reviews` and the `if: github.ref == 'refs/heads/develop'` guard together actually prevent the retrigger loop from running unbounded, and what the job does on a fork pull request. `196db2f6` added that guard and `a0227e05` made the token switch; both are in the scoped range. |
-| 6f | high | opus | none | The ryll half of the audit: wave 1 scoped per D6.5, then all four wave 2 dimensions except security, which 6e covers. Work in a clone of shakenfist/ryll checked out at `origin/develop` -- the clone at `/home/tars/src/shakenfist/ryll` is on branch `gitleaks-scope-head`, so check out or clone afresh rather than auditing that branch. Ranges are D6.4's: `git diff 1e94d00f^1 1e94d00f` (5 files, +102 -14) and `git diff a0227e05^ 196db2f6 -- .github/workflows/prune-reviews.yml` (+20). State both file counts in the report. Wave 1: run `pre-commit run --all-files` and, separately, `actionlint` on `.github/workflows/prune-reviews.yml` and `shellcheck` on `tools/ci-prune-reviews.sh`. **Do not run `tools/audit/wave1.sh`** -- it builds the Rust toolchain in Docker and runs `cargo test --workspace`, which is evidence about today's `develop` and not about a YAML and a shell script; record the skip and D6.5's reasoning in the report. Wave 2 over the same two ranges, using ryll's own `PUSH-AUDIT.md` briefs for 2a, 2b and 2c: the substance is whether `tools/ci-prune-reviews.sh` is correct when `prune` finds nothing to drop (it regenerates `REVIEWS.md` regardless, so an unconditional commit would push an empty change every run), whether `AGENTS.md` and `docs/development.md` describe the workflow as it is now rather than as `1e94d00f` first wrote it, and whether `tools/review-tracking.sh` and the CI script have drifted apart. ryll has no test suite that touches any of this; say so rather than reporting thin coverage as if a suite existed. Report, do not fix, and do not open or edit any issue. |
+| 6f | high | opus | none | The ryll half of the audit: wave 1 scoped per D6.5, then all four wave 2 dimensions except security, which 6e covers. Work in a clone of shakenfist/ryll checked out at `origin/develop` -- a local clone, wherever it is, may well be sitting on a feature branch (this one was on `gitleaks-scope-head`), so check out `origin/develop` or clone afresh rather than auditing whatever branch you find. Ranges are D6.4's: `git diff 1e94d00f^1 1e94d00f` (5 files, +102 -14) and `git diff a0227e05^ 196db2f6 -- .github/workflows/prune-reviews.yml` (+20). State both file counts in the report. Wave 1: run `pre-commit run --all-files` and, separately, `actionlint` on `.github/workflows/prune-reviews.yml` and `shellcheck` on `tools/ci-prune-reviews.sh`. **Do not run `tools/audit/wave1.sh`** -- it builds the Rust toolchain in Docker and runs `cargo test --workspace`, which is evidence about today's `develop` and not about a YAML and a shell script; record the skip and D6.5's reasoning in the report. Wave 2 over the same two ranges, using ryll's own `PUSH-AUDIT.md` briefs for 2a, 2b and 2c: the substance is whether `tools/ci-prune-reviews.sh` is correct when `prune` finds nothing to drop (it regenerates `REVIEWS.md` regardless, so an unconditional commit would push an empty change every run), whether `AGENTS.md` and `docs/development.md` describe the workflow as it is now rather than as `1e94d00f` first wrote it, and whether `tools/review-tracking.sh` and the CI script have drifted apart. ryll has no test suite that touches any of this; say so rather than reporting thin coverage as if a suite existed. Report, do not fix, and do not open or edit any issue. |
 | 6g | high | opus | none | Management triage, in this session rather than a sub-agent. Read all six reports. Work the management checklist at the end of both `PUSH-AUDIT.md` files. Decide each finding blocking, advisory or declined, and write the outcome into this section under an **Outcome** heading: the ranges audited and the file counts seen, what wave 1 found in each repository, what each wave 2 agent found, and for every finding either where it was fixed or why it was declined, in writing. Record D6.5's skip and D6.6's substitution there too -- an audit's Outcome says what it did not run. Fixes land as their own pull request against each repository's default branch, per the shared block; this branch carries the plan record only. Then close the plan: add the `Bugs fixed during this work` and `Back brief` sections `plan-closeout-sections` requires, set step 8 to `Complete` in the Execution table, and set the plan's row in `docs/plans/index.md` to `Complete`. Per `plan-phase-landing`, step 8 is the last row and records **no** `Merged` cell where the audit found nothing -- it is the one row permitted to omit one, and no follow-up pull request is opened for the sake of that cell. Where the audit did raise findings, the findings pull request is the carrier and records the cell after this phase merges, and the index row does not reach `Complete` until those findings have landed or been declined here in writing. |
 
 Steps 6a and 6b to 6f are sequential in one respect only: the
@@ -937,13 +961,16 @@ to 6f write no code at all, and 6g edits only this plan file.
 #### Risks and mitigations
 
 * **The range trap: an empty diff reads as a clean audit.** Every
-  diff command in `PUSH-AUDIT.md` is written `main...HEAD`, which
-  returns nothing for work that merged in August. *Mitigation:*
+  diff command in `PUSH-AUDIT.md` was written `main...HEAD` when
+  this phase was planned (see D6.6's correction), which returns
+  nothing for work that merged in August. *Mitigation:*
   every brief carries its range inline, and every report must
   state the file count it saw. 6g rejects any report whose counts
   are not 13, 6, 1 for development and 5, 1 for ryll.
-* **Archaeology reported as a finding.** Eight of the thirteen
-  files in `b677b61` have moved or been deleted, so an agent
+* **Archaeology reported as a finding.** Seven of the thirteen
+  files in `b677b61` have moved or been deleted -- four moved, two
+  deleted, and `scripts/audit-check.py`, whose path survives but
+  whose check function does not -- so an agent
   reading that diff alone will write findings against paths that
   no longer exist. *Mitigation:* D6.3 requires every finding to
   resolve to a current path or to be marked as already resolved;
@@ -1034,13 +1061,25 @@ shape of the close-out. No findings means step 8 goes to
 `Complete` with no `Merged` cell and no follow-up pull request;
 findings mean the index row stays `In progress` until they land.
 
-**Outcome.** Run 2026-09-20 over the five ranges D6.1 and D6.4 name.
-Wave 1 passed in both repositories and every agent reported the file
-count it saw: 13, 6 and 1 in development, 5 and 1 in ryll, matching
-the survey's table exactly. The audit found one defect that two
-rounds of review had already passed over, and that is the result
-worth recording: a whole-plan audit found what per-phase review did
-not.
+#### Outcome
+
+Run 2026-09-20 over the five ranges D6.1 and D6.4 name. Wave 1
+passed in both repositories and every agent reported the file count
+it saw: 13, 6 and 1 in development, 5 and 1 in ryll, matching the
+survey's table exactly. The audit found one defect that two rounds
+of review had already passed over, and that is the result worth
+recording: a whole-plan audit found what per-phase review did not.
+
+*Self-audit.* `python3 scripts/audit-check.py --repo-path .
+--repo-name development --github-org shakenfist` on this branch
+reports `plan-audit-phase` and `plan-index` passing, along with
+`plan-template`, `plan-phase-references` and `plan-source-references`.
+`review-coverage` reports 175 of 190 in-scope files reviewed with 15
+needing review, which is what it reports at `5861c0a` as well, so
+this phase's edits leave it unchanged rather than merely no worse.
+The definition-of-done item that measures the phase against its own
+audit is therefore met, and now says so rather than being left to
+be inferred.
 
 *Scheduling.* 6f ran in parallel with 6a rather than after it. The
 gate exists because the runbook wants wave 1 to pass before wave 2 is
@@ -1067,10 +1106,11 @@ distinction D6.3 exists to keep.
 #### Findings, with dispositions
 
 **F1. `AGENTS.md:132-134` still states the false claim phase 5
-chased. Blocking; to be fixed.** The sentence reads "CI pruning of a
-repo's own main branch is the steady-state design, not a violation of
-it". It is a *generic* claim about any adopting repository, and it is
-false: ryll's default branch is `develop`. Seventeen lines earlier,
+chased. Blocking; fixed in development#158, not yet merged.** The
+sentence reads "CI pruning of a repo's own main branch is the
+steady-state design, not a violation of it". It is a *generic* claim
+about any adopting repository, and it is false: ryll's default
+branch is `develop`. Seventeen lines earlier,
 in the same file, `AGENTS.md:116-117` already says "on pushes to its
 default branch" -- corrected during #139's review. This is the fifth
 instance of the claim step 5.1 was scoped away from, and the only one
@@ -1083,8 +1123,9 @@ The other `main` references in `AGENTS.md` (92, 98) and
 describe *this* repository, whose default branch really is `main`.
 
 **F2. `ReviewCoverage.run()` can take every other criterion down with
-it. Advisory; to be fixed.** `scripts/audit/checks/review.py:195-200`
-wraps its `subprocess.run` in `try: ... except
+it. Advisory; fixed in development#158, not yet merged.**
+`scripts/audit/checks/review.py:195-200` wraps its
+`subprocess.run` in `try: ... except
 subprocess.TimeoutExpired` and catches nothing else, where every
 other shelling-out check in the package already catches
 `FileNotFoundError` as well and `SfuiVendor` in the same file does
@@ -1092,7 +1133,8 @@ it correctly. `scripts/audit/registry.py:135` appends
 `run_check(...)` with no handler, so anything raised costs the
 repository all fifty-five criteria rather than one.
 
-*Corrected on 2026-09-20, while fixing it.* Both 6b and 6e said the
+*Corrected on 2026-09-20, while fixing it in development#158.* Both
+6b and 6e said the
 trigger is a moved `review-tracking.py`. It is not: `subprocess`
 looks for `sys.executable`, so the interpreter starts, exits
 non-zero on the missing file, and lands in the `returncode` branch
@@ -1113,7 +1155,7 @@ settled. In scope: the subprocess call is step 2's own code, carried
 across the restructure unchanged.
 
 **F3. A filename can forge content in an auto-filed issue body.
-Advisory; fixed here after all.** `never_reviewed` is
+Advisory; fixed in development#158, not yet merged.** `never_reviewed` is
 the list of tracked files as `git ls-files -z` returns them, and
 `render_issue_items` at `scripts/audit-manage-issues.py:121` renders
 each as `` `- `{item}`` `` with no escaping. A git path may contain a
@@ -1132,12 +1174,13 @@ was first declined and referred, on the D5.2 boundary: escaping
 fleet-wide, which is `PLAN-consistency-audits-v2`'s machinery
 rather than this plan's. The operator overrode that when asking for
 every finding to be addressed, so it is fixed in the findings pull
-request instead, and the blast radius is stated in that commit
-rather than used as a reason not to act. The referral stands for
+request, development#158, instead, and the blast radius is stated in
+that commit rather than used as a reason not to act. The referral stands for
 development#138, which is a different problem in the same file.
 
-**F4-F6, ryll, advisory and to be fixed.** The job still grants
-`GITHUB_TOKEN` `contents: write` at `prune-reviews.yml:40-41`,
+**F4-F6, ryll, advisory; to be fixed, no pull request opened yet.**
+The job still grants `GITHUB_TOKEN` `contents: write` at
+`prune-reviews.yml:40-41`,
 although since `a0227e05` every write goes through
 `DEPENDENCIES_TOKEN` and the `permissions:` block does not constrain
 a PAT at all -- the grant is leftover from the pre-PAT design.
@@ -1224,15 +1267,19 @@ about a YAML file and a twenty-line shell script. Its reasoning about
 *cost* was wrong, and a future phase reusing this decision should
 scope pre-commit too or drop the cost argument.
 
-D6.6 held: the ranges were substituted by hand in every brief and
-`PUSH-AUDIT.md` still writes `main...HEAD` sixteen times.
-`PLAN-push-audit-phase` step 5a remains the owner. Every agent
-reported its file count, which is the compensating control, and every
-count matched.
+D6.6 held: the ranges were substituted by hand in every brief, and
+at the time the audit ran `PUSH-AUDIT.md` still wrote `main...HEAD`
+sixteen times with `PLAN-push-audit-phase` step 5a as the owner.
+Every agent reported its file count, which is the compensating
+control, and every count matched. *Corrected on 2026-09-20: step 5a
+has since landed as `4873e95`, so a reader of the current runbook
+will find `AUDIT_RANGE` rather than the sixteen literals this
+describes. The substitution is a record of the run, not a
+description of the runbook as it now stands; see D6.6.*
 
 #### What the audit corrected about this plan
 
-Four claims in the briefs above were wrong and are corrected at
+Five claims in the briefs above were wrong and are corrected at
 source rather than left for the next reader.
 
 * The 6a brief said `REVIEWS.md` "moves inside these ranges". It does
@@ -1260,6 +1307,21 @@ source rather than left for the next reader.
   while `scripts/test_*.py` are standalone-script tests with one
   pre-commit hook each. The dividing line is exact and
   `review-tracking.py` is on the right side of it.
+
+* The 6d brief said `PROJECT-CONSISTENCY-AUDITS.md` and
+  `PLAN-consistency.md` "no longer exist", inheriting the survey's
+  error. Only the first was deleted; the second moved to
+  `docs/plans/PLAN-consistency.md` and is linked live from
+  `docs/plans/index.md:20`. 6d's conclusion survives the correction,
+  and was re-checked on 2026-09-20 rather than assumed: the only
+  remaining references to `PROJECT-CONSISTENCY-AUDITS.md` are in the
+  historical sections of `PLAN-consistency-audits-v2.md`,
+  `PLAN-plan-template-blocks.md`, `PLAN-consistency.md` and this
+  plan, which phase 5's decision says stand as records of what was
+  written at the time; and every reference to `PLAN-consistency.md`
+  resolves, because the file is there. So nothing dangles -- but the
+  brief asked the question of a file that could not have dangled,
+  which is half the check it thought it was making.
 
 One smaller correction, recorded because a later reader will chase
 it: 6b cited the `REVIEW_TRACKING_SCRIPT` computation at
@@ -1427,7 +1489,8 @@ proposed; the Python follows the house style (single quotes,
   a review artefact, so such a pull request skips every test tier.
 * ~~Escape `render_issue_items` in
   `scripts/audit-manage-issues.py`.~~ Done in the findings pull
-  request rather than deferred, at the operator's direction. The
+  request, development#158 (unmerged at the time of writing), rather
+  than deferred, at the operator's direction. The
   fleet-wide caveat that made it a deferral still applies and is
   recorded in that commit: it changes every criterion's issue
   bodies, not only the two review checks'.
@@ -1435,8 +1498,27 @@ proposed; the Python follows the house style (single quotes,
   a `Check` shells out.~~ No sweep was needed: a survey found
   `ReviewCoverage` and `ReviewScopeCompleteness` were the only two
   sites in the package not already catching it, and both are fixed
-  in the findings pull request. The reachable trigger is `cwd`
+  in the findings pull request, development#158 (unmerged at the
+  time of writing). The reachable trigger is `cwd`
   rather than a missing script -- see F2's correction.
+* The test gaps phase 6's observations name, none of which have a
+  test today: `in_scope == 0` is untested, so the boundary that
+  decides whether a repository has zeroed its own obligation is the
+  one boundary nothing exercises; `test_status_mutates_nothing` is
+  weaker than its sibling `test_scope_orphans_mutates_nothing`,
+  which diffs `git status --porcelain` rather than re-reading three
+  named paths; and ryll has no test at all touching the prune
+  machinery, against five in-repository precedents for exactly that
+  kind of smoke test. See phase 6's "Observations, recorded and not
+  acted on" for what each one was found by.
+* ryll's CI hygiene on the prune job, also from phase 6's
+  observations: the job has no `timeout-minutes` where
+  development's has ten, and no ryll job runs `actionlint`, so a
+  typo in the `if: github.ref` guard would make the job *skip* --
+  green, not red -- and that guard is the only thing standing
+  between the workflow and an unreviewed push to `develop`. The
+  second is the one worth doing first, because its failure mode is
+  silent.
 * The fleet-wide credential and pinning fix `196db2f6` deferred in
   August, raised again by phase 6 and recorded here so it need not
   be raised a third time: `persist-credentials: false` on the
@@ -1460,7 +1542,7 @@ proposed; the Python follows the house style (single quotes,
 * Phase 6 found a fifth instance of the default-branch claim, at
   `AGENTS.md:132-134`, which two rounds of review had passed over.
   It is recorded as F1 in phase 6's Outcome and lands in that
-  phase's findings pull request, not here.
+  phase's findings pull request, development#158, not here.
 * Phase 6 corrected four factual errors in its own briefs at source,
   listed under "What the audit corrected about this plan". The
   largest was the premise that `ReviewCoverage.run()` and
@@ -1475,9 +1557,9 @@ intend to do aligns with that plan.
 
 Phase 6 used two gates rather than one. The first, before any agent
 ran a command, required it to restate its ranges and the file count
-it expected, because every diff in `PUSH-AUDIT.md` is written
-`main...HEAD` and returns nothing against work that merged weeks
-ago -- a report from an empty range is indistinguishable from a
+it expected, because every diff in `PUSH-AUDIT.md` was at that point
+written `main...HEAD` and returns nothing against work that merged
+weeks ago -- a report from an empty range is indistinguishable from a
 clean audit. All six agents passed it and all six file counts
 matched. The second, before the Execution table moved, required a
 statement of whether the audit had produced findings, because that
