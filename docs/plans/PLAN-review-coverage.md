@@ -1049,8 +1049,15 @@ to 6f write no code at all, and 6g edits only this plan file.
   in phase 5; a grep that names its own needle is not a test.*
 * `python3 scripts/audit-check.py --repo-path . --repo-name
   development --github-org shakenfist` reports `plan-audit-phase`
-  and `plan-index` passing, and `review-coverage` no worse than it
-  reported at `5861c0a`.
+  and `plan-index` passing, and `review-coverage` reporting the same
+  figure on this branch as it reported at `5861c0a` -- this phase's
+  edits move it by zero. *Corrected on 2026-09-21, after review:
+  this read "no worse than it reported at `5861c0a`", which is a
+  standing comparison against a tree that CI keeps changing rather
+  than a measurement. By 2026-09-21 `main` reported worse, for
+  reasons -- development#158 and the prune that followed it -- that
+  have nothing to do with this phase, so the criterion as first
+  written was unmet by a result that vindicates it.*
 * `gh issue view 304 --repo shakenfist/ryll --json
   createdAt,updatedAt` and the same for kerbside#227 still show
   `updatedAt == createdAt`, proving no step filed, edited or
@@ -1099,8 +1106,9 @@ prune `8a2750b` that followed it, not this phase, and the
 definition-of-done item this answers is a measurement at a commit
 rather than a standing claim.
 The definition-of-done item that measures the phase against its own
-audit is therefore met, and now says so rather than being left to
-be inferred.
+audit is therefore met as reworded -- zero movement, at `475689e` --
+rather than as a standing comparison against a `main` that has since
+moved, and now says so rather than being left to be inferred.
 
 *Scheduling.* 6f ran in parallel with 6a rather than after it. The
 gate exists because the runbook wants wave 1 to pass before wave 2 is
@@ -1136,8 +1144,13 @@ file, `AGENTS.md:116-117` already said "on pushes to its default
 branch" -- corrected during #139's review. The same range on `main`
 now reads "of a repo's own default branch". This is the fifth
 instance of the claim step 5.1 was scoped away from, and the only one
-that survived; the closeout note above says "the same false claim
-lived in four files", and the honest count is five. `AGENTS.md` is
+that survived in the live documentation; the closeout note above says
+"the same false claim lived in four files", and the honest count is
+five. Two more survive in this plan itself -- the Situation section,
+where phase 5's decision that historical sections stand as records
+leaves it, and a Success criteria bullet, which is a live claim and
+is corrected there. Neither is in the document set step 5.1 was
+scoped over, which is why F1 counts five and not seven. `AGENTS.md` is
 loaded into every session in this repository, so a false generic
 design claim there has more reach than its one-word fix suggests.
 The other `main` references in `AGENTS.md` (92, 98) and
@@ -1225,33 +1238,46 @@ no longer did. Both go through `defuse_item()` on `main` since
 morning is the argument for re-reading the tree at
 correction time and not only at audit time.
 
-**F4-F6, ryll, advisory; declined for this plan and carried in
-Future work below.** *Dispositioned on 2026-09-21, after review.*
-These were first recorded as "no pull request opened yet", which is
-deferral rather than either of the two exits this plan's close-out
-allows, and left the index row's stated exit condition unreachable.
-They are declined here in writing. All three are advisory, all
-three are in ryll rather than in the repository whose machinery
-this plan built, and none of them changes what the review tracking
-does: a leftover permission grant that constrains nothing, and two
-documentation omissions. Holding a finished plan open on three ryll
-nits buys nothing, so they move to Future work recorded in enough
-detail to act on without re-auditing, and the index row reaches
-`Complete`. The findings themselves: the job still grants
-`GITHUB_TOKEN` `contents: write` at `prune-reviews.yml:40-41`,
-although since `a0227e05` every write goes through
-`DEPENDENCIES_TOKEN` and the `permissions:` block does not constrain
-a PAT at all -- the grant is leftover from the pre-PAT design.
-"`REVIEWS.md` is generated; never edit it by hand" has disappeared
-from every agent-facing document: `1e94d00f` put it only in
-`AGENTS.md`, `d1b2f60` deleted that section when moving detail into
-`docs/`, and `docs/development.md` never carried an equivalent. It
-survives only in `REVIEWS.md`'s own generated header, visible to
-somebody who has already opened the file to edit it. And
-`scope-orphans` appears in neither `tools/review-tracking.sh`'s
-header nor `docs/development.md`, although it has existed upstream
-since 2026-08-31. All three verified directly rather than taken on
-report.
+**F4-F6, ryll, advisory; fixed in ryll#389, merged as `205ef7d`.**
+*Dispositioned on 2026-09-21, after review, and corrected later the
+same day after the round that followed.* These were first recorded
+as "no pull request opened yet", which is deferral rather than
+either of the two exits this plan's close-out allows, and left the
+index row's stated exit condition unreachable. The next round
+declined them in writing, arguing that all three were advisory, all
+three were in ryll rather than in the repository whose machinery
+this plan built, and -- the load-bearing clause -- that no pull
+request carried them. That clause was already false when it was
+written. Ryll#389 merged as `205ef7d` at 19:56 on 2026-09-20,
+eleven minutes before this branch's head commit and twenty before
+the review round that read the declining and approved of it.
+Neither the round that wrote it nor the round that reviewed it
+looked at ryll's `develop`; it was found by re-resolving this
+phase's one citation into ryll, which is the whole argument for the
+citation criterion in Future work. The declining is withdrawn. The
+exit is the carrier, not the reasoning for not needing one, and the
+index row reaches `Complete` because all six findings landed rather
+than because three of them were argued away.
+
+The findings themselves, as audited, and where each was fixed --
+all three verified directly at audit time rather than taken on
+report, and all three fixes verified the same way against
+`origin/develop` at `005fe42`. The prune job granted
+`GITHUB_TOKEN` `contents: write` at `prune-reviews.yml:40-41` as
+audited, at `196db2f6`, although since `a0227e05` every write goes
+through `DEPENDENCIES_TOKEN` and the `permissions:` block does not
+constrain a PAT at all -- leftover from the pre-PAT design, and
+replaced with `permissions: {}` by `7c6bc1e`. "`REVIEWS.md` is generated; never
+edit it by hand" had disappeared from every agent-facing document:
+`1e94d00f` put it only in `AGENTS.md`, `d1b2f60` deleted that
+section when moving detail into `docs/`, and `docs/development.md`
+never carried an equivalent, so it survived only in `REVIEWS.md`'s
+own generated header, visible to somebody who had already opened
+the file to edit it; `0fb0d8f` put it into `docs/development.md`.
+And `scope-orphans` appeared in neither `tools/review-tracking.sh`'s
+header nor `docs/development.md`, although it had existed upstream
+since 2026-08-31; `9904770` documents it in the script header and
+`0fb0d8f` in the document.
 
 #### Findings declined, with reasons
 
@@ -1395,8 +1421,12 @@ every `path:line` citation in this phase was re-resolved -- against
 that review did not find. The **Review marks** paragraph gave
 `REVIEWS.md` line numbers for the two reviewed files -- 106 and 122,
 correct at
-`5861c0a` and now 99 and 114, because four prune commits have landed
-since. Line numbers into `REVIEWS.md` are the one citation that
+`5861c0a`, 99 and 114 at `3859865`, and neither pair on `main`: the
+prune `8a2750b` dropped the criterion's row a minute after
+`3859865` merged, so `main` carries `scripts/review-tracking.py`
+alone, at 112 as of `9977681`. Five figures for two rows across
+three trees in two days, and one of the two rows no longer exists.
+Line numbers into `REVIEWS.md` are the one citation that
 cannot be kept right: the file is generated, it is rewritten by CI
 on every prune, and `plan-phase-landing` forbids this phase from
 regenerating it to check. The dates were correct and are stable, so
@@ -1433,6 +1463,47 @@ about a tree the fix had already changed. Every `path:line`
 citation in this phase into a file development#158 touched was
 re-resolved against `main` afterwards, and the dispositions now
 name the merge commit rather than a pending pull request.
+
+*Corrected on 2026-09-21, after the round that followed.* The note
+above fixed the **Review marks** citation by dropping the line
+numbers from that paragraph, and then reported the fix here using
+the numbers it had just abandoned: "106 and 122 ... and now 99 and
+114", where "now" named no tree. It named three, in fact, and none
+of them was `main`: 106 and 122 hold at `5861c0a`, 99 and 114 at
+`3859865`, and on `main` the prune `8a2750b` removed the
+criterion's row outright a minute after `3859865` merged, leaving
+one row at 112. So the correction contradicted the correction it
+was reporting: the **Review marks** paragraph in the survey says
+only one row survives. The figures are now written with the tree
+each belongs to.
+
+Re-resolving every `path:line` citation in this phase mechanically
+rather than by eye -- fifteen into `main` at `9977681`, a tree two
+commits newer than the `8617f7b` the round before measured, and one
+into ryll's `origin/develop` at `005fe42` -- found no further drift
+in the fifteen and something larger in the one. The ryll citation
+is F4's, and it no longer resolved: the `contents: write` F4
+reports had been dropped. Following that turned up ryll#389, which
+fixed all three of F4, F5 and F6 and merged eleven minutes before
+this branch's head commit, while the Outcome, the Future work
+bullet, the step 8 argument and the Back brief all said the three
+were declined because no pull request carried them. Four statements
+of the same false claim, in a phase whose two preceding rounds were
+spent correcting exactly this shape in the other repository.
+Corrected in all four places, with the superseded text kept. What
+found it was a dozen-line script, and that is the argument for the
+citation criterion in Future work: three rounds of re-deriving
+citations by hand had left both the `REVIEWS.md` figures and F4-F6
+wrong, and the first mechanical pass caught both.
+
+The same round narrowed F1's "the only one that survived", which
+review found contradicted by this plan's Situation section;
+sweeping this plan for the shape rather than the reported instance
+turned up a second, in Success criteria, which review did not
+report and which is corrected there because a success criterion is
+a live claim rather than a historical record. The definition-of-done
+item measuring `review-coverage` was reworded in the same pass, for
+the reason given against it.
 
 #### The survival audit
 
@@ -1541,8 +1612,13 @@ that finished, not the work the audit found: every wave brief ran,
 every finding is written down with a disposition, and nothing
 further is learned by running it again. The plan's index row is
 `Complete` too, because every finding now has an exit -- F1 to F3
-landed in development#158 (`3859865`), and F4 to F6 are declined in
-writing in the Outcome -- rather than because the rows say so.
+landed in development#158 (`3859865`) and F4 to F6 in ryll#389
+(`205ef7d`) -- rather than because the rows say so. *Corrected on
+2026-09-21: this read "F4 to F6 are declined in writing in the
+Outcome", which was the exit claimed for them before anyone checked
+ryll's `develop`. They had landed. The conclusion is unchanged and
+the argument for it is stronger; see their disposition in the
+Outcome.*
 Recorded here because the resulting row, `Complete` with an empty
 `Merged` cell, is indistinguishable from the carve-out the
 paragraphs above disclaim, and only this prose separates them.
@@ -1565,8 +1641,12 @@ proposed; the Python follows the house style (single quotes,
 * A daily audit run on the current matrix produces: ryll pass (or
   fail with a correct file list), all other repos N/A, and a
   correctly-managed issue lifecycle.
-* A merge to ryll main is followed by exactly one bot prune
-  commit when marks went stale, and none when they did not.
+* A merge to ryll's default branch is followed by exactly one bot
+  prune commit when marks went stale, and none when they did not.
+  *Corrected on 2026-09-21, after review: this read "ryll main".
+  ryll's default branch is `develop`, so this is another instance of
+  the claim F1 records -- found by sweeping this plan for the shape
+  rather than reported.*
 * The attestation verification story in
   `docs/code-review-tracking.md` remains true end to end.
 
@@ -1679,26 +1759,20 @@ proposed; the Python follows the house style (single quotes,
   whenever the audit phase runs more than one review round. Not
   fixed here: editing a shared block is
   `PLAN-plan-template-blocks`'s work and fans out to every
-  repository carrying it.
-* Phase 6's F4, F5 and F6, all in ryll and all advisory, declined
+  repository carrying it; filed as development#163 so the next plan
+  to hit the inverted ordering finds the amendment rather than
+  re-deriving the exception.
+* ~~Phase 6's F4, F5 and F6, all in ryll and all advisory, declined
   for this plan and recorded here because no pull request carries
-  them and an advisory finding with no carrier is a finding that
-  gets lost. F4: the prune job still grants `GITHUB_TOKEN`
-  `contents: write` at
-  `prune-reviews.yml:40-41`, leftover from the pre-PAT design, where
-  every write has gone through `DEPENDENCIES_TOKEN` since
-  `a0227e05` and a `permissions:` block does not constrain a PAT
-  anyway. F5: "`REVIEWS.md` is generated; never edit it by hand" has
-  disappeared from every agent-facing document in ryll and survives
-  only in the generated file's own header, which is to say only to
-  somebody who has already opened it to edit it -- the one of the
-  three worth doing first, because the warning is load-bearing and
-  the audience that needs it is the audience that cannot see it.
-  F6: `scope-orphans` is documented in neither
-  `tools/review-tracking.sh`'s header nor `docs/development.md`,
-  although it has existed upstream since 2026-08-31. They belong in
-  one small ryll pull request alongside the CI-hygiene bullet below,
-  which is the same repository and the same workflow file.
+  them.~~ Done, and already done when the bullet was written: they
+  landed in ryll#389 (`205ef7d`) on 2026-09-20, as `7c6bc1e`,
+  `0fb0d8f` and `9904770`. The bullet is struck rather than deleted
+  because it is the clearest instance of this plan's recurring
+  failure -- a present-tense claim about another repository's tree,
+  made without reading that tree -- and the Outcome's disposition
+  for F4-F6 is where the corrected record lives. The CI-hygiene
+  bullet below was the one it proposed pairing them with, and that
+  one is still open.
 * ryll's CI hygiene on the prune job, also from phase 6's
   observations: the job has no `timeout-minutes` where
   development's has ten, and no ryll job runs `actionlint`, so a
@@ -1754,7 +1828,8 @@ matched. The second, before the Execution table moved, required a
 statement of whether the audit had produced findings, because that
 decides the shape of the close-out: findings mean the index row
 stays `In progress` until they land or are declined in writing. It
-did produce findings: F1 to F3 landed in development#158
-(`3859865`), which merged ahead of this phase rather than after it,
-and F4 to F6 are declined in the Outcome, so the row reaches
-`Complete` here.
+did produce findings, and all six landed ahead of this phase rather
+than after it: F1 to F3 in development#158 (`3859865`) and F4 to F6
+in ryll#389 (`205ef7d`), so the row reaches `Complete` here.
+*Corrected on 2026-09-21: this said F4 to F6 were declined, which
+is what the Outcome said before ryll's `develop` was re-read.*
