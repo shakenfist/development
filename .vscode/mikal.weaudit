@@ -85,10 +85,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/plan-template.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/python-version.md",
       "author": "mikal"
     },
@@ -126,10 +122,6 @@
     },
     {
       "path": "docs/audits/diagram-format.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/push-audit.md",
       "author": "mikal"
     },
     {
@@ -329,15 +321,7 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_llm_docs.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_python_source.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_runners.py",
       "author": "mikal"
     },
     {
@@ -469,10 +453,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_packaging.py",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/undeclared-direct-dependency.md",
       "author": "mikal"
     },
@@ -557,10 +537,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/base.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_github_config.py",
       "author": "mikal"
     },
@@ -601,10 +577,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/consistency-audits.md",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/distros.py",
       "author": "mikal"
     },
@@ -630,14 +602,6 @@
     },
     {
       "path": "scripts/tests/test_distros.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_docs_content.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_metadata.py",
       "author": "mikal"
     },
     {
@@ -682,14 +646,6 @@
     },
     {
       "path": "ARCHITECTURE.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/shared-blocks/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_repo.py",
       "author": "mikal"
     }
   ],
