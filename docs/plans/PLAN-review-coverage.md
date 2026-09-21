@@ -742,7 +742,7 @@ only ever enough when it is one. Checked with `git log -1
 | `ced6fef^1..ced6fef` (#139, 2026-09-19) | 6 | +519 -97 |
 | `02924fe^1..02924fe` (#146, 2026-09-19) | 1 | +20 -3 |
 | ryll `1e94d00f^1..1e94d00f` (#236, 2026-08-02) | 5 | +102 -14 |
-| ryll `a0227e05^..196db2f6`, scoped | 1 | +20 -0 |
+| ryll `a0227e05^..196db2f6`, scoped | 1 | +17 -3 |
 
 **This repository has been restructured since steps 1--5 landed,
 and most of the paths in the Execution table no longer exist.**
@@ -810,8 +810,9 @@ section the block asks for.
 ryll#262, an unrelated merge-queue pull request, so
 `a0227e05^..196db2f6` carries 190 lines of `PLAN-two-stage-ci` work
 that has nothing to do with this plan. Only
-`.github/workflows/prune-reviews.yml` in that range is ours: 12
-lines in `a0227e05` and 8 in `196db2f6`. D6.4 scopes it by path.
+`.github/workflows/prune-reviews.yml` in that range is ours: 20
+lines changed -- 12 in `a0227e05` and 8 in `196db2f6`, for a
+diffstat of +17 -3. D6.4 scopes it by path.
 
 **`PUSH-AUDIT.md` still writes every diff command as
 `main...HEAD`.** `grep -c AUDIT_RANGE PUSH-AUDIT.md` returns 0, so
@@ -1086,9 +1087,11 @@ are declined in writing.
 Run 2026-09-20 over the five ranges D6.1 and D6.4 name. Wave 1
 passed in both repositories and every agent reported the file count
 it saw: 13, 6 and 1 in development, 5 and 1 in ryll, matching the
-survey's table exactly. The audit found one defect that two rounds
-of review had already passed over, and that is the result worth
-recording: a whole-plan audit found what per-phase review did not.
+survey's table exactly. The audit produced six findings, all of
+which have since landed. The one worth leading with is a defect
+that two rounds of review had already passed over, because it is
+the result that argues for the phase: a whole-plan audit found
+what per-phase review did not.
 
 *Self-audit.* `python3 scripts/audit-check.py --repo-path .
 --repo-name development --github-org shakenfist` on this branch
@@ -1708,6 +1711,28 @@ proposed; the Python follows the house style (single quotes,
   a named commit, and resolved against an unmerged branch -- and
   the third has no honest rendering at all, which is the argument
   for resolving against the default branch and nothing else.
+  Review of this phase then bounded what the criterion would buy,
+  which is the more useful result: the `docs/plans/index.md` row
+  still
+  said F4 to F6 were declined after the Outcome, the Future work
+  bullet, the step 8 argument and the Back brief had all been
+  corrected. A citation criterion would not have caught it, because
+  the drift is in prose rather than in a `path:line`. What would is
+  a criterion relating an index row's claims to the plan body it
+  summarises, and the cheaper half of that -- no `Complete` row
+  asserting a disposition the plan body has withdrawn -- may be
+  worth more per line of check than resolving citations.
+  The same shape covers review item 4 in the round that found the
+  index row: `Bugs fixed during this work` had lost F2, F3 and F4
+  to F6, and nothing noticed either, because
+  `plan-closeout-sections` is a block `plan-template` requires
+  `PLAN-TEMPLATE.md` to carry rather than a check that reads a
+  plan's own sections. Six mutations of this branch's two files
+  confirm the boundary: only a status outside the shared vocabulary
+  is caught, by `plan-index`. A withdrawn disposition left in the
+  index row, a `path:line` citation sent to line 99999, a falsified
+  survey diffstat, and a `Bugs fixed` bullet that stops short all
+  leave every `plan-*` check passing.
 * Revisit capping the issue-body file list if a repo much larger
   than ryll adopts the tooling. Unreached so far: ryll#304's body
   is 76 lines at 63 files, and because the body is never refreshed
@@ -1806,7 +1831,40 @@ proposed; the Python follows the house style (single quotes,
   It is recorded as F1 in phase 6's Outcome and landed in that
   phase's findings pull request, development#158 (`3859865`), not
   here.
-* Phase 6 corrected four factual errors in its own briefs at source,
+* Phase 6 hardened `ReviewCoverage.run()`, which wrapped its
+  `subprocess.run` in a handler for `subprocess.TimeoutExpired`
+  alone where every other shelling-out check in the package also
+  caught `FileNotFoundError`, and `registry.py:135` calls
+  `run_check()` with no handler at all -- so one raise costs the
+  repository all fifty-five criteria rather than one. The `try` now
+  carries `except OSError`, with a test in each direction. Recorded
+  as F2 in phase 6's Outcome and landed in development#158
+  (`3859865`).
+* Phase 6 escaped `render_issue_items` in
+  `scripts/audit-manage-issues.py`, which rendered `git ls-files`
+  paths into issue bodies with no escaping: a path containing a
+  backtick closes the code span, and one containing a newline
+  injects raw lines into a body authored by shakenfist-bot.
+  `missing` and `findings` now go through `defuse_item()` as
+  `details` already did. This is the audit's most consequential
+  finding, and the widest -- it is every criterion's issue bodies
+  fleet-wide, not this plan's machinery, which is why it was first
+  declined and referred before the operator overrode that. Recorded
+  as F3 in phase 6's Outcome and landed in development#158
+  (`3859865`).
+* Phase 6's three ryll findings landed in ryll#389 (`205ef7d`):
+  `prune-reviews.yml` granted `GITHUB_TOKEN` `contents: write` that
+  had been dead since the job moved to a PAT, now `permissions: {}`
+  (`7c6bc1e`); "`REVIEWS.md` is generated; never edit it by hand"
+  had disappeared from every agent-facing document and survived
+  only in the generated header, now back in `docs/development.md`
+  (`0fb0d8f`); and `scope-orphans` was undocumented in both
+  `tools/review-tracking.sh` and `docs/development.md` (`9904770`,
+  `0fb0d8f`). Recorded as F4 to F6 in phase 6's Outcome, whose
+  disposition also records that these were declined in writing
+  *after* the pull request fixing them had already merged, and
+  that the declining is withdrawn.
+* Phase 6 corrected the factual errors in its own briefs at source,
   listed under "What the audit corrected about this plan". The
   largest was the premise that `ReviewCoverage.run()` and
   `review-tracking.py status` might disagree about coverage: there
