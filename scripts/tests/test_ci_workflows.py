@@ -528,6 +528,12 @@ class PrAutoReviewSecretsInheritTest(CheckTestCase):
         # trigger action used, and none of the retired addresser's
         # files deployed. Anything else here shows up as an unrelated
         # finding and masks the one being tested.
+        #
+        # A fresh fixture per call, via CheckTestCase.fresh_fixture,
+        # because the quoted-inherit case runs this once per spelling
+        # in a loop, and an `extra` workflow from one iteration would
+        # answer for the next.
+        self.fresh_fixture()
         self.fixture.workflows({
             'pr-retest.yml':
                 'uses: shakenfist/actions/review-pr-with-claude@main\n',

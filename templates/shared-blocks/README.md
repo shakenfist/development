@@ -28,8 +28,10 @@ embed the whole block -- markers and all -- verbatim.
 checks) verify that an embedded block:
 
 - exists where it is required -- `readme-discipline`,
-  `llm-doc-discipline`, `comment-proportion`,
-  `plan-phase-references` and `source-file-size` in
+  `llm-doc-discipline`, `diagram-discipline`,
+  `comment-proportion`, `source-file-size`,
+  `plan-phase-references`, `path-traversal-review`,
+  `python-version-discipline` and `functional-test-coverage` in
   `PUSH-AUDIT.md`;
   `plan-file-conventions`, `plan-status-vocabulary`,
   `subagent-execution-model`, `plan-planning-effort`,

@@ -282,7 +282,9 @@ which replaces it with an empty one; `self.check(**props)`,
 which runs `check_class` against the fixture with repository
 properties supplied directly rather than detected; `check_args=` on
 `self.check()` for the three checks whose constructors take an
-argument (`PushAudit`, `PlanTemplate`, `SfuiVendor`); and the
+argument (`PushAudit`, `PlanTemplate` and `SfuiVendor` -- a set
+`ContractTest` pins against the registry, so a fourth cannot
+appear without this sentence failing); and the
 `assert_pass(result)` / `assert_fail(result, containing=)` /
 `assert_skip(result, containing=)` triple in place of a bare
 `assertEqual` against `result['status']`. A class that tests a pure

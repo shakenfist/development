@@ -10,9 +10,12 @@ copy lives in shakenfist/development at
   worth raising in review at all.
 - Treat a source file over roughly 800 lines as a candidate to
   split, and one over roughly 1,500 as wanting a stated reason to
-  stay whole. Both are advisory. Neither is a gate, there is no
-  hard cap, and a reviewer who raises one is opening a question,
-  not recording a defect.
+  stay whole. These hold whether or not a repository tracks review
+  per file: tracking is what makes the cost repeat and become
+  measurable, not what makes a long file expensive to read. Both
+  are advisory. Neither is a gate, there is no hard cap, and a
+  reviewer who raises one is opening a question, not recording a
+  defect.
 - Generated files, vendored trees and protocol or data tables are
   exempt: they are not read the way source is, and a tool that
   counts them is measuring the wrong thing.

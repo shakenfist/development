@@ -267,6 +267,49 @@ class TempdirTest(CheckTestCase):
         self.assertFalse(os.path.exists(asked[0]))
 
 
+class FreshFixtureTest(CheckTestCase):
+    """The rebuild a helper called twice in one method needs."""
+
+    def test_it_replaces_the_fixture_with_an_empty_one(self):
+        self.fixture.write('docs/index.md', '# Docs\n')
+        first = self.fixture.path
+
+        returned = self.fresh_fixture()
+
+        self.assertIs(returned, self.fixture)
+        self.assertNotEqual(first, self.fixture.path)
+        self.assertEqual([], os.listdir(self.fixture.path))
+        self.assertIsNone(self.repo().read('docs/index.md'))
+
+    def test_the_repository_follows_the_new_fixture(self):
+        # The failure this guards is silent rather than loud: if
+        # self.repo() kept pointing at the old directory, a case
+        # meaning "and now without that file" would still find it and
+        # pass for the wrong reason.
+        self.fresh_fixture()
+        self.fixture.write('AGENTS.md', '# Agents\n')
+        self.assertEqual('# Agents\n', self.repo().read('AGENTS.md'))
+
+    def test_the_replaced_directory_is_still_cleaned_up(self):
+        # Both directories are registered with addCleanup, so the
+        # discarded one has to be observed from outside the test that
+        # discarded it, the same way TempdirTest does.
+        paths = []
+
+        class Case(CheckTestCase):
+            def runTest(inner):  # noqa: N805
+                paths.append(inner.fixture.path)
+                inner.fresh_fixture()
+                paths.append(inner.fixture.path)
+
+        outcome = unittest.TestResult()
+        Case('runTest').run(outcome)
+        self.assertEqual([], outcome.errors + outcome.failures)
+        self.assertEqual(2, len(set(paths)))
+        for path in paths:
+            self.assertFalse(os.path.exists(path))
+
+
 class RepoTextTest(unittest.TestCase):
     """The decoded sibling of repo_file()."""
 

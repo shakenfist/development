@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from audit.checks import plans  # noqa: E402
 from audit.text import shared_blocks  # noqa: E402
 from tests.base import (  # noqa: E402
-    REPO_ROOT, CheckTestCase, FixtureRepo,
+    REPO_ROOT, CheckTestCase, FixtureRepo, repo_text,
 )
 
 
@@ -2626,6 +2626,18 @@ class PushAuditTest(CheckTestCase):
             with self.subTest(block=name):
                 self.assertIn(name, spec)
 
+    def test_every_required_block_is_named_in_the_blocks_readme(self):
+        # templates/shared-blocks/README.md is the page a repository
+        # fixing one of these issues is pointed at to learn what it
+        # must embed. It named five of the nine required here until a
+        # review round counted them, which is the same cross-file
+        # drift the spec-page guard above exists to catch -- one file
+        # further out.
+        readme = repo_text('templates', 'shared-blocks', 'README.md')
+        for name in PUSH_AUDIT_BLOCKS:
+            with self.subTest(block=name):
+                self.assertIn(name, readme)
+
     def test_the_fixture_covers_every_required_block(self):
         # Otherwise a block added to the list is never exercised
         # here: self.canonical would simply be missing it and every
@@ -2740,6 +2752,15 @@ class PlanTemplateTest(CheckTestCase):
         for name in PLAN_TEMPLATE_BLOCKS:
             with self.subTest(block=name):
                 self.assertIn(name, spec)
+
+    def test_every_required_block_is_named_in_the_blocks_readme(self):
+        # The same guard one file further out: the shared-blocks
+        # README is what a repository fixing this issue reads to
+        # learn what it must embed.
+        readme = repo_text('templates', 'shared-blocks', 'README.md')
+        for name in PLAN_TEMPLATE_BLOCKS:
+            with self.subTest(block=name):
+                self.assertIn(name, readme)
 
     def test_every_required_block_has_a_canonical_copy(self):
         # A name in the list with no file under

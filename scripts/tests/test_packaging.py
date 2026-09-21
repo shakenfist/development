@@ -1500,8 +1500,14 @@ class ReleaseProcessTest(CheckTestCase):
         job: with it, the container rule; without it, the workspace
         rule. A fixture carrying it unconditionally would leave the
         workspace rule untested.
+
+        A fresh fixture per call, via CheckTestCase.fresh_fixture,
+        because the case proving the two path criteria never both
+        fire runs this eight times in a nested loop. Every caller
+        starts here, so nothing is written before the rebuild.
         """
         subject = self.TEMP + '*' if subject is None else subject
+        self.fresh_fixture()
         self.compliant()
         steps = checkout
         steps += (

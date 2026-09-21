@@ -16,6 +16,7 @@ Run with: python3 -m unittest tests.test_metadata
 """
 
 import importlib.util
+import inspect
 import os
 import re
 import sys
@@ -446,6 +447,31 @@ class ContractTest(unittest.TestCase):
     def test_every_check_is_registered_exactly_once(self):
         ids = [check.id for check in CHECKS]
         self.assertEqual(sorted(ids), sorted(set(ids)))
+
+    def test_only_three_checks_take_a_constructor_argument(self):
+        """Pins the set CheckTestCase.check(check_args=) exists for.
+
+        `base.py` and docs/consistency-audits.md both name these three
+        rather than pointing at a grep, because three is the content
+        of the sentence and not an accident of who calls it. Naming
+        them only stays honest if a fourth cannot appear quietly, so
+        it is asserted here rather than left to a reader to re-derive.
+        """
+        takes_argument = {}
+        for check in CHECKS:
+            parameters = inspect.signature(
+                type(check).__init__).parameters
+            named = [name for name, parameter in parameters.items()
+                     if name != 'self'
+                     and parameter.kind not in (parameter.VAR_POSITIONAL,
+                                                parameter.VAR_KEYWORD)]
+            if named:
+                takes_argument[type(check).__name__] = named
+        self.assertEqual(
+            {'PushAudit': ['blocks_dir'],
+             'PlanTemplate': ['blocks_dir'],
+             'SfuiVendor': ['canonical_url']},
+            takes_argument)
 
     def test_every_check_declares_an_id(self):
         for check in CHECKS:

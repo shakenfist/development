@@ -239,8 +239,14 @@ class CheckTestCase(unittest.TestCase):
         Three checks take one: PushAudit and PlanTemplate read their
         canonical blocks from blocks_dir, and SfuiVendor clones
         canonical_url. This method is the only thing that instantiates
-        check_class, so without check_args PushAuditTest,
-        PlanTemplateTest and SfuiVendorTest could not use it at all.
+        check_class, so without check_args their three test classes
+        could not use it at all.
+
+        Those three are named here, where the caller lists elsewhere
+        in this module are not, because three is the content of the
+        sentence rather than a count of who happens to call it. That
+        only stays true if a fourth cannot appear quietly, so
+        test_metadata.ContractTest pins the set against the registry.
         """
         instance = self.check_class(**(check_args or {}))
         repo = self.repo(**kwargs)

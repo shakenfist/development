@@ -1026,7 +1026,7 @@ The helper census, re-run over `scripts/tests/`:
 | `def _repo` helpers | 10 | 2 |
 | `def _check` helpers | 20 | 24 |
 | Old-style `(unittest.TestCase)` classes | 68 | 44 |
-| `CheckTestCase` classes | 25 | 59 |
+| `CheckTestCase` classes | 25 | 58 |
 
 The `Now` column is the merged tree, not the branch before the
 merge, because that is the tree the pull request asks anyone to
@@ -1038,13 +1038,17 @@ and `ItemDefusingTest` (`test_manage_issues.py`),
 `PushAuditRunbookRangeTest` (`test_plans.py`). None of the five runs
 a `Check`; each tests a pure helper, so each is a non-candidate by
 the phase 3a rule rather than a miss, and the 39 that phase 4 left
-plus those five is the 44 above. The `CheckTestCase` count is 59
-rather than phase 5's 58 for a duller reason: 58 was an undercount.
-The branch tip carried 59 before the merge as well as after it, so
-no class arrived late -- the phase 5 figure was counted with a
-line-anchored grep, and the numbers here are counted with `ast`
-instead, which is also what caught the `def _reporter` miscount the
-push audit fixed.
+plus those five is the 44 above. The `CheckTestCase` count is 58,
+which is what phase 5 recorded. An earlier revision of this
+paragraph said 59 and called 58 an undercount; that was wrong. The
+59th is `class Case(CheckTestCase)`, declared inside one of
+`TempdirTest`'s methods to observe cleanup from outside, and an
+`ast.walk` counts it because `walk` descends into nested
+definitions. Only classes declared at module level are suite
+classes. Three counts of this number have now been taken by three
+different methods and the disagreements were all in the method, not
+the tree, which is its own argument for `test_metadata.py`-style
+contract tests over census paragraphs.
 
 Two of those numbers need explaining rather than presenting bare.
 
@@ -1218,11 +1222,11 @@ than waiting on a follow-up:
   an open `push-audit` issue never sees the new requirement in its
   body. Pre-existing, but this plan is what makes it bite: it
   changes the required-block set for fifteen check/repository pairs
-  in one morning. Three issues are open against the two criteria
+  in one morning. Four issues are open against the two criteria
   today and will each carry a body that names every missing block
-  except the one this plan adds: sfui#15 and
-  uncalibrated-sextant#11 on `push-audit`, uncalibrated-sextant#12
-  on `plan-template`. Whoever fixes those three from the issue text
+  except the one this plan adds: sfui#15,
+  uncalibrated-sextant#11 and client-python-k3s#46 on
+  `push-audit`, uncalibrated-sextant#12 on `plan-template`. Whoever fixes those three from the issue text
   alone will re-run and still fail, with nothing telling them why.
   Recorded under Future work as three manual body edits, which is
   the cheap half; the durable half is refreshing a changed body on
@@ -1250,6 +1254,14 @@ express either. That resolution is real work, not an ours/theirs
 pick, and `main` also added five classes the phase 3 inventory does
 not know about -- see the phase 5 results, which are re-derived over
 the merged tree for that reason.
+
+The third review round widened the block's second bullet so its
+thresholds stand where a repository does not track review per
+file, and left the version at v1 rather than bumping it: no
+repository embeds the block yet, so there is no old copy for a
+bump to mark stale, and bumping text that has never shipped would
+file issues about a version nobody carries. A bump becomes
+mandatory the moment this merges.
 
 Findings land as their own pull request against `main`, and the
 plan is not complete until they are resolved or declined in
@@ -1626,14 +1638,18 @@ intend to do aligns with that plan.
   whether they close in days or sit for months: that answer is the
   evidence for or against enforcing the next block on its first
   day, and nothing else this plan does will produce it.
-* **Three issue bodies that will not update themselves.** sfui#15,
-  uncalibrated-sextant#11 and uncalibrated-sextant#12 are open
-  against the two criteria this plan changes, and
+* **Four issue bodies that will not update themselves.** sfui#15,
+  uncalibrated-sextant#11, uncalibrated-sextant#12 and
+  client-python-k3s#46 are open against the two criteria this plan
+  changes, and
   `audit-manage-issues.py` only builds a body when no issue is
   open -- so after enforcement each will list every missing block
-  except the newly required one. Edit those three bodies by hand
+  except the newly required one. Edit those four bodies by hand
   once enforcement is live, or fix the refresh; the finding is
-  recorded in the phase 6 audit above.
+  recorded in the phase 6 audit above. The list was three until the
+  third review round found the fourth, which is the argument for
+  deriving it from `docs/audits/compliance.md` on the day rather
+  than from a list written in advance.
 * **Split the files the guideline now names.** The seams are
   already visible and are the same in each case -- a module that
   is a bag of independent checks. `scripts/audit/checks/ci_workflows.py`
