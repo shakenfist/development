@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""What `Repo` will and will not read from a repository under audit.
+"""What `Repo` and the shared test machinery do with a checkout.
 
 `Repo.read` is the one place every check reaches the filesystem, and
 the paths it is handed are derived from the audited repository's own
@@ -10,6 +10,14 @@ than a wrong answer are covered here: a path that is not a regular
 file, which raises rather than returning None, and one that resolves
 outside the checkout, which reads a file the audit was never pointed
 at.
+
+The helpers `tests/base.py` offers the check suites are covered here
+too. They are not a check and have nowhere else to live, and this is
+already the only suite whose subject is the machinery rather than a
+criterion -- it builds a `FixtureRepo` to exercise `Repo.read`. The
+ones tested below exist for the migration onto `CheckTestCase`, so
+they acquire their callers a file at a time and would otherwise go
+several commits with nothing asserting them.
 
 Run with: python3 -m unittest tests.test_repo
 """
@@ -21,9 +29,12 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from audit.check import Check  # noqa: E402
 from audit.github import FakeGitHub  # noqa: E402
 from audit.repo import Repo  # noqa: E402
-from tests.base import FixtureRepo  # noqa: E402
+from tests.base import (  # noqa: E402
+    CheckTestCase, FixtureRepo, repo_file, repo_text,
+)
 
 
 class RepoReadTest(unittest.TestCase):
@@ -101,6 +112,214 @@ class RepoReadTest(unittest.TestCase):
         through = Repo(link, 'testrepo', 'shakenfist', github=FakeGitHub())
         self.assertEqual('gh issue create\n',
                          through.read('tools/ci/helper.sh'))
+
+
+class ConstructedCheck(Check):
+    """A stand-in for the checks whose behaviour is set at construction.
+
+    PushAudit, PlanTemplate and SfuiVendor all take a constructor
+    argument, and their suites are the reason `check()` accepts
+    check_args. A fixture check rather than one of those three: this is
+    a test of the machinery, and borrowing a real criterion would tie
+    it to whatever that criterion measures this month.
+    """
+
+    id = 'constructed-fixture'
+
+    def __init__(self, detail='default'):
+        self.detail = detail
+
+    def run(self, repo):
+        return self.ok(f'{self.detail}/{repo.props.get("is_docs_only")}')
+
+
+class FixtureRepoBulkWriteTest(CheckTestCase):
+    """The bulk writers the migrated `_repo` helpers hand their fixtures.
+
+    On CheckTestCase rather than unittest.TestCase because the fixture
+    is what is under test here; no check is run, so check_class stays
+    unset.
+    """
+
+    def test_write_all_creates_the_directories_a_path_needs(self):
+        self.fixture.write_all({
+            'docs/index.md': '# Docs\n',
+            'README.md': '# Project\n',
+        })
+        self.assertEqual(
+            '# Docs\n', self.repo().read('docs/index.md'))
+        self.assertEqual('# Project\n', self.repo().read('README.md'))
+
+    def test_write_all_returns_the_paths_it_wrote(self):
+        written = self.fixture.write_all({'a.md': 'a\n', 'b/c.md': 'c\n'})
+        self.assertEqual(
+            [os.path.join(self.fixture.path, 'a.md'),
+             os.path.join(self.fixture.path, 'b', 'c.md')],
+            written)
+
+    def test_write_all_skips_a_none_content(self):
+        """None means the file is absent, not that it is empty.
+
+        PushAuditTest's cases opt out of its default AGENTS.md that
+        way, and the check they drive distinguishes a missing file
+        from an empty one. The skipped path is left out of the return
+        value too, so a caller counting what it wrote is not told
+        about a file that is not there.
+        """
+        written = self.fixture.write_all({'a.md': 'a\n', 'AGENTS.md': None})
+        self.assertEqual([os.path.join(self.fixture.path, 'a.md')], written)
+        self.assertFalse(
+            os.path.exists(os.path.join(self.fixture.path, 'AGENTS.md')))
+
+    def test_write_all_writes_an_empty_string_as_an_empty_file(self):
+        """A link target only has to exist; DocsExternalLinksTest's
+        fixtures say so with '' rather than with the absence
+        sentinel."""
+        self.fixture.write_all({'docs/target.md': ''})
+        self.assertEqual('', self.repo().read('docs/target.md'))
+
+    def test_workflows_writes_under_the_workflows_directory(self):
+        self.fixture.workflows({'ci.yml': 'on:\n  push:\n',
+                                'lint.yml': 'on:\n  pull_request:\n'})
+        self.assertEqual(
+            'on:\n  push:\n',
+            self.repo().read('.github/workflows/ci.yml'))
+        self.assertEqual(
+            'on:\n  pull_request:\n',
+            self.repo().read('.github/workflows/lint.yml'))
+
+    def test_workflows_skips_a_none_content(self):
+        """The absence sentinel survives the composition.
+
+        workflows() delegates to write_all(), so None has to keep
+        meaning "absent" across two helpers rather than one. A check
+        that walks .github/workflows/ counts what is there, so a
+        sentinel that leaked through as an empty file would be
+        counted -- and the case meaning "this workflow is missing"
+        would pass for the wrong reason.
+        """
+        written = self.fixture.workflows({'ci.yml': 'on:\n  push:\n',
+                                          'absent.yml': None})
+        workflows = os.path.join(self.fixture.path, '.github', 'workflows')
+        self.assertEqual([os.path.join(workflows, 'ci.yml')], written)
+        self.assertFalse(
+            os.path.exists(os.path.join(workflows, 'absent.yml')))
+        self.assertEqual(['ci.yml'], sorted(os.listdir(workflows)))
+
+    def test_an_empty_mapping_still_creates_the_directory(self):
+        # The helpers this replaces call makedirs() before the loop, so
+        # a repository with a workflows directory and no workflows is a
+        # fixture they can build and a check can tell from one with no
+        # directory at all.
+        self.fixture.workflows({})
+        self.assertTrue(os.path.isdir(os.path.join(
+            self.fixture.path, '.github', 'workflows')))
+
+
+class CheckArgumentsTest(CheckTestCase):
+    """`check()` separates constructing the check from describing the repo."""
+
+    check_class = ConstructedCheck
+
+    def test_the_check_is_constructed_with_its_defaults(self):
+        self.assertEqual('default/False',
+                         self.assert_pass(self.check())['details'])
+
+    def test_check_args_reach_the_constructor(self):
+        result = self.check(check_args={'detail': 'supplied'})
+        self.assertEqual('supplied/False',
+                         self.assert_pass(result)['details'])
+
+    def test_properties_still_go_to_the_repository(self):
+        # The guard on the split: a property named beside check_args
+        # must not be handed to the check's constructor, which would
+        # raise, and check_args must not land in repo.props.
+        result = self.check(check_args={'detail': 'supplied'},
+                            is_docs_only=True)
+        self.assertEqual('supplied/True',
+                         self.assert_pass(result)['details'])
+
+
+class TempdirTest(CheckTestCase):
+    """The second throwaway directory, for a fixture outside the repo."""
+
+    def test_each_call_is_a_fresh_directory_outside_the_fixture(self):
+        first = self.tempdir()
+        second = self.tempdir()
+        self.assertTrue(os.path.isdir(first))
+        self.assertTrue(os.path.isdir(second))
+        self.assertNotEqual(first, second)
+        self.assertFalse(first.startswith(self.fixture.path + os.sep))
+
+    def test_it_is_cleaned_up_when_the_test_ends(self):
+        # Cleanup is registered with addCleanup, so no assertion inside
+        # the test that asked for the directory can observe it. Run a
+        # throwaway case and look at what it left behind instead.
+        asked = []
+
+        class Case(CheckTestCase):
+            def runTest(inner):  # noqa: N805
+                asked.append(inner.tempdir())
+
+        outcome = unittest.TestResult()
+        Case('runTest').run(outcome)
+        self.assertEqual([], outcome.errors + outcome.failures)
+        self.assertFalse(os.path.exists(asked[0]))
+
+
+class FreshFixtureTest(CheckTestCase):
+    """The rebuild a helper called twice in one method needs."""
+
+    def test_it_replaces_the_fixture_with_an_empty_one(self):
+        self.fixture.write('docs/index.md', '# Docs\n')
+        first = self.fixture.path
+
+        returned = self.fresh_fixture()
+
+        self.assertIs(returned, self.fixture)
+        self.assertNotEqual(first, self.fixture.path)
+        self.assertEqual([], os.listdir(self.fixture.path))
+        self.assertIsNone(self.repo().read('docs/index.md'))
+
+    def test_the_repository_follows_the_new_fixture(self):
+        # The failure this guards is silent rather than loud: if
+        # self.repo() kept pointing at the old directory, a case
+        # meaning "and now without that file" would still find it and
+        # pass for the wrong reason.
+        self.fresh_fixture()
+        self.fixture.write('AGENTS.md', '# Agents\n')
+        self.assertEqual('# Agents\n', self.repo().read('AGENTS.md'))
+
+    def test_the_replaced_directory_is_still_cleaned_up(self):
+        # Both directories are registered with addCleanup, so the
+        # discarded one has to be observed from outside the test that
+        # discarded it, the same way TempdirTest does.
+        paths = []
+
+        class Case(CheckTestCase):
+            def runTest(inner):  # noqa: N805
+                paths.append(inner.fixture.path)
+                inner.fresh_fixture()
+                paths.append(inner.fixture.path)
+
+        outcome = unittest.TestResult()
+        Case('runTest').run(outcome)
+        self.assertEqual([], outcome.errors + outcome.failures)
+        self.assertEqual(2, len(set(paths)))
+        for path in paths:
+            self.assertFalse(os.path.exists(path))
+
+
+class RepoTextTest(unittest.TestCase):
+    """The decoded sibling of repo_file()."""
+
+    def test_it_is_repo_file_decoded(self):
+        self.assertEqual(repo_file('README.md').decode('utf-8'),
+                         repo_text('README.md'))
+
+    def test_it_joins_its_parts_below_the_repository_root(self):
+        self.assertIn('eol-distro.md',
+                      repo_text('docs', 'audits', 'README.md'))
 
 
 if __name__ == '__main__':

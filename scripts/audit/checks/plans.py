@@ -159,8 +159,9 @@ def plan_reference_resolves(repo_path, token, names):
 PUSH_AUDIT_BLOCKS = [
     'readme-discipline', 'llm-doc-discipline',
     'diagram-discipline', 'comment-proportion',
-    'plan-phase-references', 'path-traversal-review',
-    'python-version-discipline', 'functional-test-coverage',
+    'source-file-size', 'plan-phase-references',
+    'path-traversal-review', 'python-version-discipline',
+    'functional-test-coverage',
 ]
 
 
@@ -973,12 +974,16 @@ def plan_audit_phase_state(content):
 # means the issue filed against a lagging repository names the
 # roster rather than the surrounding prose.
 #
-# plan-phase-landing is canonical and embedded in this repository's
-# PLAN-TEMPLATE.md, but is deliberately absent here: requiring it
-# marks most of the fleet non-compliant at once and files an issue
-# against each, which is the round trip the block exists to avoid.
-# See templates/shared-blocks/README.md. Adding it is a one-line
-# change whenever there is appetite for the sweep.
+# plan-phase-landing is enforced as of 2026-09-20, and follows
+# plan-push-audit-phase because it amends it: it states the one
+# exception to that block's account of the Merged column. It was
+# required rather than offered because a rule aimed at a systemic
+# problem -- merge conflicts and round-trip pull requests over
+# prose -- is adopted only by the repositories that were already
+# going to adopt it, which is not the ones causing the problem.
+# The cost was eight of the ten applicable repositories marked
+# non-compliant on the next daily run. See
+# templates/shared-blocks/README.md.
 PLAN_TEMPLATE_BLOCKS = [
     'plan-file-conventions',
     'plan-status-vocabulary',
@@ -989,6 +994,7 @@ PLAN_TEMPLATE_BLOCKS = [
     'plan-review-checklist',
     'plan-closeout-sections',
     'plan-push-audit-phase',
+    'plan-phase-landing',
 ]
 
 

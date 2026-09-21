@@ -64,7 +64,9 @@ Worth doing rather than relying on remembering: CI will catch it on
 the pull request, but the local run is faster and quieter.
 
 The individual test suites, and how to exercise a check against a real
-repository, are in `docs/consistency-audits.md`.
+repository, are in `docs/consistency-audits.md`. So is the
+`CheckTestCase` convention a check's own test follows -- see
+*Testing a change* there.
 
 `pre-commit` does not look at diagrams. Mermaid fails at render time,
 so a broken diagram commits cleanly and breaks a page instead: run

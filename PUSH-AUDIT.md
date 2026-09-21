@@ -85,6 +85,21 @@ git fetch origin
 # Lines over 120 characters in new Python
 git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- '*.py' | grep -nE '^\+[^+].{120,}'
 
+# Touched source files long enough for `source-file-size` in 2a to
+# be worth raising -- 800 lines to ask the question, 1500 to want an
+# answer. The block is advisory and judging it is wave 2's job; this
+# only produces the number, so that the judgement is made about a
+# named file rather than left to whether anyone happened to notice.
+# The extension list is this repository's: Python and shell are all
+# it ships. --diff-filter=d keeps a deleted path out of wc's argv,
+# and the awk drops wc's own total line -- xargs splits a long list
+# over several wc runs, each printing one. -z/-0 rather than a bare
+# pipe because a path with a space in it would otherwise be split,
+# and git C-quotes anything non-ASCII under core.quotePath
+git diff --name-only -z --diff-filter=d \
+    "${AUDIT_RANGE:-origin/main...HEAD}" -- '*.py' '*.sh' | \
+    xargs -0r wc -l | sort -rn | awk '$1 > 800 && $2 != "total"'
+
 # New third-party imports -- the audit scripts are stdlib plus
 # the git and gh CLIs only, which is why they run on a bare runner.
 # Scoped at '*.py' rather than 'scripts/*.py' because a Python file
@@ -249,6 +264,40 @@ copy lives in shakenfist/development at
 - Prose that documents user-visible behaviour rather than the
   implementation usually belongs in `docs/`, with the comment
   reduced to a pointer.
+<!-- shared-block-end -->
+
+<!-- shared-block: source-file-size v1 -->
+Source file size (shared block; do not edit -- the canonical
+copy lives in shakenfist/development at
+`templates/shared-blocks/source-file-size.md`):
+
+- Where a repository tracks whole-file human review, a file's cost
+  is its length times how often it is touched: every change
+  discards the review of the whole file, and the next session
+  re-reads all of it. That, rather than taste, is why length is
+  worth raising in review at all.
+- Treat a source file over roughly 800 lines as a candidate to
+  split, and one over roughly 1,500 as wanting a stated reason to
+  stay whole. These hold whether or not a repository tracks review
+  per file: tracking is what makes the cost repeat and become
+  measurable, not what makes a long file expensive to read. Both
+  are advisory. Neither is a gate, there is no hard cap, and a
+  reviewer who raises one is opening a question, not recording a
+  defect.
+- Generated files, vendored trees and protocol or data tables are
+  exempt: they are not read the way source is, and a tool that
+  counts them is measuring the wrong thing.
+- Split along a seam that already exists -- one module's public
+  entry point, one check, one subcommand, one endpoint -- so that
+  a later change touches one of the pieces rather than all of
+  them. A file split at a line number rather than at a seam is
+  worse than the long file it replaced.
+- Length is never reduced by deleting the comments and docstrings
+  that explain why the code is the way it is. Those are what make
+  a long file reviewable, and trading them for a line count makes
+  the review worse while making the number better. Cut duplicated
+  scaffolding first; see `comment-proportion` for what earns its
+  length.
 <!-- shared-block-end -->
 
 <!-- shared-block: python-version-discipline v1 -->

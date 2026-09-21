@@ -24,27 +24,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from audit.checks import docs_content  # noqa: E402
 from audit.checks import llm_docs as llm_docs_module  # noqa: E402
 from tests.base import (  # noqa: E402
-    REPO_ROOT, CheckTestCase, repo_file, run_check,
+    REPO_ROOT, CheckTestCase, repo_file,
 )
 
 
-def check_readme_structure(path, props=None):
-    return run_check(docs_content.ReadmeStructure(), path, props)
+class ReadmeStructureTest(CheckTestCase):
+    check_class = docs_content.ReadmeStructure
 
-
-def check_docs_external_links(path, props=None):
-    return run_check(docs_content.DocsExternalLinks(), path, props)
-
-
-def check_diagram_format(path, props=None):
-    return run_check(docs_content.DiagramFormat(), path, props)
-
-
-def check_mermaid_lint_ci(path, props=None):
-    return run_check(docs_content.MermaidLintCi(), path, props)
-
-
-class ReadmeStructureTest(unittest.TestCase):
     PITCH = (
         '# Project\n\nA short pitch.\n\n'
         '[docs](https://github.com/shakenfist/x/blob/develop/'
@@ -52,44 +38,39 @@ class ReadmeStructureTest(unittest.TestCase):
     )
 
     def _check(self, readme=None, with_docs_dir=False):
-        with tempfile.TemporaryDirectory() as tmp:
-            if readme is not None:
-                with open(os.path.join(tmp, 'README.md'), 'w') as f:
-                    f.write(readme)
-            if with_docs_dir:
-                os.mkdir(os.path.join(tmp, 'docs'))
-            return check_readme_structure(tmp, {})
+        if readme is not None:
+            self.fixture.write('README.md', readme)
+        if with_docs_dir:
+            os.mkdir(os.path.join(self.fixture.path, 'docs'))
+        return self.check()
 
     def test_not_applicable_without_readme(self):
-        self.assertEqual(self._check()['status'], 'not_applicable')
+        self.assert_skip(self._check())
 
     def test_short_readme_with_docs_link_passes(self):
         result = self._check(self.PITCH, with_docs_dir=True)
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_too_many_lines_fails(self):
         readme = self.PITCH + ('filler\n' * 200)
         result = self._check(readme, with_docs_dir=True)
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('lines', result['details'])
+        self.assert_fail(result, containing='lines')
 
     def test_too_many_words_fails(self):
         # Few lines, but far over the word cap.
         readme = self.PITCH + (('word ' * 300) + '\n') * 5
         result = self._check(readme, with_docs_dir=True)
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('words', result['details'])
+        self.assert_fail(result, containing='words')
 
     def test_missing_docs_link_fails_when_docs_exist(self):
         result = self._check(
             '# Project\n\nA short pitch.\n', with_docs_dir=True
         )
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('no link into docs/', result['details'])
+        self.assert_fail(result, containing='no link into docs/')
 
     def test_docs_link_not_required_without_docs_dir(self):
         result = self._check('# Project\n\nA short pitch.\n')
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_docs_link_in_code_block_does_not_count(self):
         readme = (
@@ -97,33 +78,37 @@ class ReadmeStructureTest(unittest.TestCase):
             '```\n[docs](docs/index.md)\n```\n'
         )
         result = self._check(readme, with_docs_dir=True)
-        self.assertEqual(result['status'], 'fail')
+        self.assert_fail(result)
 
 
-class DocsExternalLinksTest(unittest.TestCase):
+class DocsExternalLinksTest(CheckTestCase):
+    check_class = docs_content.DocsExternalLinks
+
     def _check(self, files=None, props=None):
         """Run the check over a docs/ tree built from {path: content}.
 
-        Paths are repo-relative. A None content creates an empty file,
-        which is enough for link resolution.
+        Paths are repo-relative. A link target is written as '': the
+        check only has to find the file, so its content is beside the
+        point.
+
+        A fresh fixture per call, via CheckTestCase.fresh_fixture,
+        because the excludes case runs the check twice in one method,
+        and files written by the first call would otherwise still be on
+        disk for the second.
         """
-        with tempfile.TemporaryDirectory() as tmp:
-            for path, content in (files or {}).items():
-                full = os.path.join(tmp, path)
-                os.makedirs(os.path.dirname(full), exist_ok=True)
-                with open(full, 'w') as f:
-                    f.write(content or '')
-            return check_docs_external_links(tmp, props or {})
+        self.fresh_fixture()
+        self.fixture.write_all(files or {})
+        return self.check(**(props or {}))
 
     def test_not_applicable_without_docs(self):
-        self.assertEqual(self._check()['status'], 'not_applicable')
+        self.assert_skip(self._check())
 
     def test_internal_relative_link_passes(self):
         result = self._check({
             'docs/index.md': '[guide](guide.md) and [up](../docs/guide.md)\n',
-            'docs/guide.md': None,
+            'docs/guide.md': '',
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_generated_compliance_block_links_are_not_scanned(self):
         # Same reasoning as the plan-phase-references case: a detail
@@ -141,7 +126,7 @@ class DocsExternalLinksTest(unittest.TestCase):
                 '<!-- consistency-audit:end -->\n'
             ),
         })
-        self.assertEqual(result['status'], 'pass', result['details'])
+        self.assert_pass(result)
 
     def test_markers_shown_inside_a_fence_do_not_open_a_block(self):
         """A document may show what a generated block looks like.
@@ -172,6 +157,8 @@ class DocsExternalLinksTest(unittest.TestCase):
                 'Our own [bad link](../tools/x.sh).\n'
             ),
         })
+        # Not assert_fail: the message says which defect a failure here
+        # means, and assert_fail would replace it with result['details'].
         self.assertEqual(
             result['status'], 'fail',
             'a fence delimiter blanked from inside a marker pair left '
@@ -198,6 +185,7 @@ class DocsExternalLinksTest(unittest.TestCase):
                 '<!-- consistency-audit:end -->\n'
             ),
         })
+        # Kept for the same reason as the case above.
         self.assertEqual(
             result['status'], 'fail',
             'prose naming the begin marker was closed by the real end '
@@ -215,8 +203,7 @@ class DocsExternalLinksTest(unittest.TestCase):
                 'Our own [bad link](../tools/x.sh).\n'
             ),
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('../tools/x.sh', result['details'])
+        self.assert_fail(result, containing='../tools/x.sh')
 
     def test_absolute_and_anchor_links_pass(self):
         result = self._check({
@@ -228,23 +215,22 @@ class DocsExternalLinksTest(unittest.TestCase):
                 '[mail](mailto:someone@example.com)\n'
             ),
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_escaping_link_fails(self):
         result = self._check({
             'docs/releasing.md': '[wf](../.github/workflows/release.yml)\n',
-            '.github/workflows/release.yml': None,
+            '.github/workflows/release.yml': '',
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('../.github/workflows/release.yml', result['details'])
+        self.assert_fail(result,
+                         containing='../.github/workflows/release.yml')
 
     def test_escaping_link_from_subdirectory_fails(self):
         result = self._check({
             'docs/plans/PLAN-x.md': '[app](../../src/app.rs)\n',
-            'src/app.rs': None,
+            'src/app.rs': '',
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('docs/plans/PLAN-x.md', result['details'])
+        self.assert_fail(result, containing='docs/plans/PLAN-x.md')
 
     def test_repo_root_relative_link_fails(self):
         # Written as if from the repository root, so it resolves to
@@ -252,58 +238,54 @@ class DocsExternalLinksTest(unittest.TestCase):
         # too, and the fix is the same absolute URL.
         result = self._check({
             'docs/plans/PLAN-x.md': '[app](src/app.rs)\n',
-            'src/app.rs': None,
+            'src/app.rs': '',
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('src/app.rs', result['details'])
+        self.assert_fail(result, containing='src/app.rs')
 
     def test_site_root_absolute_link_passes(self):
         # The mkdocs convention for another page of the same site.
         result = self._check({
             'docs/index.md': '[locks](/operator_guide/locks/)\n',
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_fragment_is_not_part_of_the_path(self):
         result = self._check({
             'docs/index.md': '[guide](guide.md#setup)\n',
-            'docs/guide.md': None,
+            'docs/guide.md': '',
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_escaping_link_in_code_block_is_ignored(self):
         result = self._check({
             'docs/index.md': '```\n[wf](../.github/workflows/ci.yml)\n```\n',
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_percent_encoded_target_resolves(self):
         result = self._check({
             'docs/index.md': '[note](my%20note.md)\n',
-            'docs/my note.md': None,
+            'docs/my note.md': '',
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_reference_definition_is_checked(self):
         result = self._check({
             'docs/index.md': 'See [wf].\n\n[wf]: ../.github/workflows/ci.yml\n',
         })
-        self.assertEqual(result['status'], 'fail')
+        self.assert_fail(result)
 
     def test_doc_content_excludes_are_skipped(self):
         files = {
             'docs/components/ryll/index.md': '[app](../../../ryll/src/app.rs)\n',
         }
-        self.assertEqual(self._check(files)['status'], 'fail')
-        self.assertEqual(
-            self._check(
-                files, props={'doc_content_excludes': ['docs/components/']}
-            )['status'],
-            'pass',
-        )
+        self.assert_fail(self._check(files))
+        self.assert_pass(self._check(
+            files, props={'doc_content_excludes': ['docs/components/']}
+        ))
 
 
-class DiagramFormatTest(unittest.TestCase):
+class DiagramFormatTest(CheckTestCase):
     """The interesting cases are the ones that must NOT be flagged.
 
     Every "passes" case below is a real block from this fleet that an
@@ -313,29 +295,31 @@ class DiagramFormatTest(unittest.TestCase):
     one it should.
     """
 
+    check_class = docs_content.DiagramFormat
+
     def _check(self, files, props=None):
-        """files maps repo-relative paths to content."""
-        with tempfile.TemporaryDirectory() as tmp:
-            for rel, content in files.items():
-                path = os.path.join(tmp, rel)
-                os.makedirs(os.path.dirname(path) or tmp, exist_ok=True)
-                with open(path, 'w') as f:
-                    f.write(content)
-            return check_diagram_format(tmp, props or {})
+        """files maps repo-relative paths to content.
+
+        A fresh fixture per call, via CheckTestCase.fresh_fixture,
+        because two cases run the check twice in one method, and files
+        written by the first call would otherwise still be on disk for
+        the second.
+        """
+        self.fresh_fixture()
+        self.fixture.write_all(files)
+        return self.check(**(props or {}))
 
     def _fenced(self, body):
         return f'# Page\n\nText.\n\n```\n{body}```\n'
 
     def test_not_applicable_without_docs(self):
-        self.assertEqual(
-            self._check({})['status'], 'not_applicable'
-        )
+        self.assert_skip(self._check({}))
 
     def test_prose_passes(self):
         result = self._check({
             'README.md': '# Project\n\nA pitch, with no pictures.\n',
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_mermaid_fence_passes(self):
         result = self._check({
@@ -347,7 +331,7 @@ class DiagramFormatTest(unittest.TestCase):
                 '```\n'
             ),
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_ascii_box_diagram_fails_with_location(self):
         result = self._check({
@@ -357,8 +341,7 @@ class DiagramFormatTest(unittest.TestCase):
                 '+-------------+     +-------------+\n'
             ),
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('ARCHITECTURE.md:5', result['details'])
+        self.assert_fail(result, containing='ARCHITECTURE.md:5')
 
     def test_unicode_box_diagram_fails(self):
         result = self._check({
@@ -373,7 +356,7 @@ class DiagramFormatTest(unittest.TestCase):
                 '└─────────────┘\n'
             ),
         })
-        self.assertEqual(result['status'], 'fail')
+        self.assert_fail(result)
 
     def test_boxless_sequence_diagram_fails(self):
         """Two parties and labelled arrows, drawn with bare verticals."""
@@ -385,7 +368,7 @@ class DiagramFormatTest(unittest.TestCase):
                 ' │ <──── InitMessage ──────── │\n'
             ),
         })
-        self.assertEqual(result['status'], 'fail')
+        self.assert_fail(result)
 
     def test_file_tree_passes(self):
         """A tree has tees and elbows but no corner and no edge.
@@ -405,7 +388,7 @@ class DiagramFormatTest(unittest.TestCase):
                 '└── web/                 # --web mode\n'
             ),
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_memory_map_passes(self):
         result = self._check({
@@ -417,7 +400,7 @@ class DiagramFormatTest(unittest.TestCase):
                 '0x0001_0000    128 KiB  core.bin\n'
             ),
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_bit_field_with_caret_callouts_passes(self):
         """A caret points up at a field; it is not a flow connector."""
@@ -433,7 +416,7 @@ class DiagramFormatTest(unittest.TestCase):
                 '      +-- COMPRESSED = 1\n'
             ),
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_ring_buffer_with_thin_arrow_callouts_passes(self):
         result = self._check({
@@ -448,7 +431,7 @@ class DiagramFormatTest(unittest.TestCase):
                 '└───────────────────────────────┘\n'
             ),
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_register_map_with_thin_arrow_annotations_passes(self):
         result = self._check({
@@ -461,7 +444,7 @@ class DiagramFormatTest(unittest.TestCase):
                 '└────────────────────────────────────────┘\n'
             ),
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_audit_ok_marker_exempts_a_block(self):
         drawn = (
@@ -469,10 +452,7 @@ class DiagramFormatTest(unittest.TestCase):
             '| Config      |---->| Engine      |\n'
             '+-------------+     +-------------+\n'
         )
-        self.assertEqual(
-            self._check({'docs/x.md': self._fenced(drawn)})['status'],
-            'fail',
-        )
+        self.assert_fail(self._check({'docs/x.md': self._fenced(drawn)}))
         result = self._check({
             'docs/x.md': (
                 '# Page\n\n'
@@ -480,7 +460,7 @@ class DiagramFormatTest(unittest.TestCase):
                 f'```\n{drawn}```\n'
             ),
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_audit_ok_marker_survives_a_blank_line(self):
         """A blank line after an HTML comment is ordinary style.
@@ -500,7 +480,7 @@ class DiagramFormatTest(unittest.TestCase):
                 '```\n'
             ),
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_audit_ok_marker_is_not_inherited_from_a_paragraph_above(self):
         result = self._check({
@@ -517,7 +497,7 @@ class DiagramFormatTest(unittest.TestCase):
                 '```\n'
             ),
         })
-        self.assertEqual(result['status'], 'fail')
+        self.assert_fail(result)
 
     def test_mermaid_fence_with_an_info_string_passes(self):
         result = self._check({
@@ -529,7 +509,7 @@ class DiagramFormatTest(unittest.TestCase):
                 '```\n'
             ),
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_plans_are_out_of_scope(self):
         result = self._check({
@@ -539,7 +519,7 @@ class DiagramFormatTest(unittest.TestCase):
                 '+-------------+     +-------------+\n'
             ),
         })
-        self.assertEqual(result['status'], 'not_applicable')
+        self.assert_skip(result)
 
     def test_doc_content_excludes_are_skipped(self):
         """shakenfist's docs/components/ is synced from elsewhere.
@@ -555,11 +535,11 @@ class DiagramFormatTest(unittest.TestCase):
                 '+-------------+     +-------------+\n'
             ),
         }
-        self.assertEqual(self._check(files)['status'], 'fail')
+        self.assert_fail(self._check(files))
         result = self._check(
             files, {'doc_content_excludes': ['docs/components/']}
         )
-        self.assertEqual(result['status'], 'not_applicable')
+        self.assert_skip(result)
 
     def test_unterminated_fence_yields_nothing(self):
         result = self._check({
@@ -568,18 +548,15 @@ class DiagramFormatTest(unittest.TestCase):
                 '+---+\n| a |---->\n+---+\n'
             ),
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
 
-class MermaidLintCiTest(unittest.TestCase):
+class MermaidLintCiTest(CheckTestCase):
+    check_class = docs_content.MermaidLintCi
+
     def _check(self, files):
-        with tempfile.TemporaryDirectory() as tmp:
-            for rel, content in files.items():
-                path = os.path.join(tmp, rel)
-                os.makedirs(os.path.dirname(path) or tmp, exist_ok=True)
-                with open(path, 'w') as f:
-                    f.write(content)
-            return check_mermaid_lint_ci(tmp, {})
+        self.fixture.write_all(files)
+        return self.check()
 
     DIAGRAM = (
         '# Shape\n\n```mermaid\nflowchart TB\n  a --> b\n```\n'
@@ -593,23 +570,21 @@ class MermaidLintCiTest(unittest.TestCase):
 
     def test_not_applicable_without_mermaid(self):
         result = self._check({'README.md': '# Project\n\nNo pictures.\n'})
-        self.assertEqual(result['status'], 'not_applicable')
+        self.assert_skip(result)
 
     def test_fails_without_the_script(self):
         result = self._check({
             'ARCHITECTURE.md': self.DIAGRAM,
             '.github/workflows/mermaid-lint.yml': self.WORKFLOW,
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('tools/mermaid-lint.sh', result['details'])
+        self.assert_fail(result, containing='tools/mermaid-lint.sh')
 
     def test_fails_without_a_workflow(self):
         result = self._check({
             'ARCHITECTURE.md': self.DIAGRAM,
             'tools/mermaid-lint.sh': '#!/bin/bash\n',
         })
-        self.assertEqual(result['status'], 'fail')
-        self.assertIn('CI workflow', result['details'])
+        self.assert_fail(result, containing='CI workflow')
 
     def test_passes_with_both(self):
         result = self._check({
@@ -617,7 +592,7 @@ class MermaidLintCiTest(unittest.TestCase):
             'tools/mermaid-lint.sh': '#!/bin/bash\n',
             '.github/workflows/mermaid-lint.yml': self.WORKFLOW,
         })
-        self.assertEqual(result['status'], 'pass')
+        self.assert_pass(result)
 
     def test_a_workflow_that_only_mentions_it_in_a_comment_fails(self):
         """Describing what something else does is not doing it."""
@@ -629,7 +604,7 @@ class MermaidLintCiTest(unittest.TestCase):
                 '# its own workflow.\nname: CI\n'
             ),
         })
-        self.assertEqual(result['status'], 'fail')
+        self.assert_fail(result)
 
     def test_a_diagram_in_a_plan_still_needs_the_linter(self):
         """The linter renders every tracked markdown file.
@@ -638,7 +613,7 @@ class MermaidLintCiTest(unittest.TestCase):
         still breaks a page, so applicability is the whole tree.
         """
         result = self._check({'docs/plans/PLAN-x.md': self.DIAGRAM})
-        self.assertEqual(result['status'], 'fail')
+        self.assert_fail(result)
 
     def test_a_tilde_fence_does_not_make_it_applicable(self):
         """mmdc recognises backtick fences only.
@@ -658,7 +633,7 @@ class MermaidLintCiTest(unittest.TestCase):
                 '# Page\n\n~~~mermaid\nflowchart TB\n  a --> b\n~~~\n'
             ),
         })
-        self.assertEqual(result['status'], 'not_applicable')
+        self.assert_skip(result)
 
     def test_vendored_trees_do_not_make_it_applicable(self):
         """A Rust registry cache holds other people's diagrams."""
@@ -666,7 +641,7 @@ class MermaidLintCiTest(unittest.TestCase):
             'README.md': '# Project\n',
             '.cargo-cache/registry/src/x/README.md': self.DIAGRAM,
         })
-        self.assertEqual(result['status'], 'not_applicable')
+        self.assert_skip(result)
 
 
 class IssueLinkCheckDeploymentTest(unittest.TestCase):
