@@ -1,9 +1,10 @@
 """The criteria about agent-facing context.
 
-`AGENTS.md` and `ARCHITECTURE.md` exist, say what only they can say
-rather than restating `docs/`, and the skills beside them are linted.
+`AGENTS.md` and `ARCHITECTURE.md` exist, carry the name every agent
+reads rather than one vendor's, say what only they can say rather than
+restating `docs/`, and the skills beside them are linted.
 
-Four criteria, one subject: what an agent reads when it opens the
+Five criteria, one subject: what an agent reads when it opens the
 repository, and whether anything keeps it honest.
 """
 
@@ -55,9 +56,44 @@ ALLOWED_LOOSE_SKILL_FILES = ('readme.md', 'index.md')
 # Files whose presence means a repository has agent context worth
 # linting. A repository with none of these has nothing for skillsaw to
 # look at, and reporting it either way would be noise.
+#
+# CLAUDE.md and GEMINI.md are here although llm-doc-naming asks for
+# them to be renamed, and that is not a contradiction: a repository
+# part-way through the rename still has context an agent loads, and
+# switching the linter off until it finishes would leave the files
+# most in need of linting unlinted.
 AGENT_CONTEXT_MARKERS = (
     '.claude', '.codex', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md',
 )
+
+
+# Agent instruction files named for one vendor rather than for the
+# job. `AGENTS.md` is the name every agent now reads -- Claude Code,
+# Codex and Gemini CLI all load it -- so a file named for a single
+# tool is no longer the way to reach that tool. It is either a copy of
+# AGENTS.md that will drift, or a second set of instructions loaded
+# alongside it, and both are read as authoritative by whichever agent
+# recognises the name.
+#
+# Matched on the basename at any depth, case-insensitively. That is
+# what catches `.claude/CLAUDE.md` and `.gemini/GEMINI.md` without
+# naming those directories, and a nested `subdir/CLAUDE.md`, which is
+# loaded when an agent works in that subdirectory and is the copy
+# nobody remembers to update.
+#
+# CLAUDE.local.md is in the set although it is meant to be a personal
+# override: the paths come from `git ls-files`, so an untracked one is
+# invisible here and a tracked one is a personal override shipped to
+# everybody.
+#
+# The set is a constant so that it can grow. GitHub Copilot's
+# `.github/copilot-instructions.md` is the obvious next member and is
+# deliberately not in it yet: nothing in the fleet has one, and a rule
+# is easier to defend when every repository it names is a repository
+# we have looked at.
+VENDOR_AGENT_DOCS = frozenset({
+    'claude.md', 'claude.local.md', 'gemini.md',
+})
 
 
 # How a repository is expected to invoke skillsaw. The pre-commit hook
@@ -128,6 +164,41 @@ def has_agent_context(repo_path):
     return any(
         check_file_exists(repo_path, marker)
         for marker in AGENT_CONTEXT_MARKERS
+    )
+
+
+def vendor_agent_docs(repo_path):
+    """Tracked agent instruction files named for one vendor.
+
+    Returns repository-relative paths, sorted, matched on the basename
+    against VENDOR_AGENT_DOCS.
+
+    The list comes from `git ls-files` rather than a tree walk for two
+    reasons. An untracked CLAUDE.md is somebody's scratch file in their
+    own clone and not a property of the repository -- the audit itself
+    runs against a fresh clone and would never see one, so a walk would
+    report a finding that only exists when the check is run by hand.
+    And the walk would have to decide what to do about the build output
+    and vendored trees that WALK_SKIP exists for, where a CLAUDE.md
+    belongs to a dependency rather than to us; the index answers that
+    question already.
+
+    A directory that is not a checkout reports nothing rather than
+    raising. That is the same reading PyprojectUsage takes of a failed
+    ls-files, and it is safe here because the finding is a file being
+    present: an empty answer understates, and the audit clones.
+    """
+    try:
+        result = subprocess.run(
+            ['git', '-C', repo_path, 'ls-files'],
+            capture_output=True, text=True, timeout=60,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return []
+
+    return sorted(
+        path for path in (line.strip() for line in result.stdout.splitlines())
+        if path and path.rsplit('/', 1)[-1].lower() in VENDOR_AGENT_DOCS
     )
 
 
@@ -457,3 +528,65 @@ class LlmContextLintCi(Check):
             return self.fail(f'skillsaw does not run from {" or ".join(missing)}')
 
         return self.ok('skillsaw runs in pre-commit and in CI')
+
+
+class LlmDocNaming(Check):
+    id = 'llm-doc-naming'
+    spec = 'docs/audits/llm-doc-naming.md'
+    template = None
+    issue_title = 'Agent instruction file naming'
+
+    def run(self, repo):
+        """Check agent instructions live in AGENTS.md, not a vendor's file.
+
+        `AGENTS.md` is the name every agent we use now reads, so a
+        CLAUDE.md or a GEMINI.md is no longer how a project reaches a
+        particular tool. What it is instead depends on whether AGENTS.md
+        exists beside it, and the two want different fixes, so the
+        detail says which:
+
+         * with no AGENTS.md, the vendor file *is* the project's agent
+           context under a name only one tool reads. The fix is a
+           rename, and llm-tooling is failing for the missing AGENTS.md
+           at the same time -- this check names the file that rename
+           starts from.
+         * with an AGENTS.md, both are loaded, and the vendor file is a
+           second set of instructions with equal authority. The fix is
+           to merge what is still true into AGENTS.md and delete it,
+           which is a read rather than a `git mv`: the fleet's copies
+           run to hundreds of lines and predate the AGENTS.md beside
+           them, so they hold both stale duplication and detail that
+           was never carried across.
+
+        A repository with none reports a pass rather than not_applicable,
+        including one with no agent context at all. "Nothing here is
+        named for a vendor" is a true statement about a repository with
+        no AGENTS.md either, and llm-tooling is the criterion that has an
+        opinion about that.
+        """
+        found = vendor_agent_docs(repo.path)
+        if not found:
+            return self.ok(
+                'No agent instruction files named for a single tool')
+
+        count = len(found)
+        many = count > 1
+        noun = 'files are' if many else 'file is'
+        if repo.exists('AGENTS.md'):
+            fix = (
+                'AGENTS.md exists beside %s, so %s a second set of '
+                'instructions loaded with equal authority: merge what is '
+                'still true into AGENTS.md and delete the original'
+                % (('them', 'each is') if many else ('it', 'it is'))
+            )
+        else:
+            fix = (
+                'there is no AGENTS.md, so %s the project\'s agent context '
+                'under a name only one tool reads: rename %s'
+                % (('these are', 'the top-level one and fold the rest into '
+                    'it') if many else ('this is', 'it'))
+            )
+        return self.fail(
+            f'{count} agent instruction {noun} named for a single tool '
+            f'rather than AGENTS.md ({", ".join(found)}); {fix}',
+            findings=found)

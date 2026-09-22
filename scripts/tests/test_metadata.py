@@ -67,6 +67,10 @@ FROZEN_METADATA = {
         'spec': 'docs/audits/llm-context-lint-ci.md',
         'template': None,
     },
+    'llm-doc-naming': {
+        'spec': 'docs/audits/llm-doc-naming.md',
+        'template': None,
+    },
     'readme-structure': {
         'spec': 'docs/audits/readme-structure.md',
         'template': None,
@@ -275,6 +279,7 @@ FROZEN_ISSUE_TITLES = {
     'llm-doc-structure': 'AGENTS.md / ARCHITECTURE.md structure',
     'llm-context-lint': 'LLM context linting',
     'llm-context-lint-ci': 'LLM context linting in pre-commit and CI',
+    'llm-doc-naming': 'Agent instruction file naming',
     'diagram-format': 'Diagram format',
     'mermaid-lint-ci': 'Mermaid diagrams linted in CI',
     'release-process': 'Release process',

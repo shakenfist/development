@@ -21,7 +21,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import llm_docs  # noqa: E402
-from tests.base import CheckTestCase  # noqa: E402
+from tests.base import CheckTestCase, repo_text  # noqa: E402
 
 LLM_DOC_STRUCTURE_OK = llm_docs.LLM_DOC_STRUCTURE_OK
 
@@ -490,6 +490,132 @@ class LlmContextLintCiTest(CheckTestCase):
 
     def test_repo_without_context_is_not_applicable(self):
         self.assert_skip(self.check())
+
+
+class LlmDocNamingTest(CheckTestCase):
+    check_class = llm_docs.LlmDocNaming
+
+    def _check(self, files, agents=None, untracked=None):
+        """A committed fixture, because the check reads git ls-files.
+
+        `files` is committed; `untracked` is written afterwards and
+        left out of the index, which is the only way to tell the two
+        readings apart. A fresh fixture per call: several cases run
+        the check twice, and the first call's CLAUDE.md would still
+        be on disk -- and committed -- for the second.
+        """
+        self.fresh_fixture()
+        self.fixture.init_git()
+        payload = dict(files)
+        if agents is not None:
+            payload['AGENTS.md'] = agents
+        # A committed repository needs at least one file, or `git
+        # commit` fails and ls-files reports nothing for a reason the
+        # test did not intend.
+        payload.setdefault('README.md', '# Test\n')
+        self.fixture.write_all(payload)
+        self.fixture.commit()
+        if untracked:
+            self.fixture.write_all(untracked)
+        return self.check()
+
+    def test_no_vendor_files_passes(self):
+        self.assert_pass(self._check({}, agents='# AGENTS.md\n'))
+
+    def test_repository_with_no_agent_context_at_all_passes(self):
+        # Whether this repository should have an AGENTS.md is
+        # llm-tooling's question; "nothing here is named for a
+        # vendor" is true of it either way.
+        self.assert_pass(self._check({}))
+
+    def test_claude_md_beside_agents_md_fails_asking_for_a_merge(self):
+        result = self._check(
+            {'CLAUDE.md': '# CLAUDE.md\n'}, agents='# AGENTS.md\n')
+        self.assert_fail(result, containing='merge what is still true')
+        self.assertIn('CLAUDE.md', result['details'])
+        self.assertEqual(['CLAUDE.md'], result['findings'])
+
+    def test_claude_md_alone_fails_asking_for_a_rename(self):
+        # No AGENTS.md: the file is the project's agent context under
+        # a name only one tool reads, so the fix is a git mv rather
+        # than a read and a merge.
+        result = self._check({'CLAUDE.md': '# CLAUDE.md\n'})
+        self.assert_fail(result, containing='rename it')
+        self.assertNotIn('merge', result['details'])
+
+    def test_claude_md_in_the_claude_directory_is_found(self):
+        # Matched on the basename, so the check never has to name
+        # .claude/ or .gemini/ to reach the copies inside them.
+        result = self._check(
+            {'.claude/CLAUDE.md': '# Instructions\n'},
+            agents='# AGENTS.md\n')
+        self.assert_fail(result)
+        self.assertEqual(['.claude/CLAUDE.md'], result['findings'])
+
+    def test_a_nested_copy_is_found(self):
+        # Loaded when an agent works in that subdirectory, and the
+        # copy nobody remembers to update.
+        result = self._check(
+            {'rust/kerbside-proxy/CLAUDE.md': '# Rust\n'},
+            agents='# AGENTS.md\n')
+        self.assert_fail(result)
+        self.assertEqual(
+            ['rust/kerbside-proxy/CLAUDE.md'], result['findings'])
+
+    def test_gemini_and_local_variants_are_found(self):
+        result = self._check(
+            {'GEMINI.md': '# Gemini\n',
+             'CLAUDE.local.md': '# Personal\n'},
+            agents='# AGENTS.md\n')
+        self.assert_fail(result, containing='2 agent instruction files are')
+        self.assertEqual(
+            ['CLAUDE.local.md', 'GEMINI.md'], result['findings'])
+
+    def test_matching_ignores_case(self):
+        result = self._check({'Claude.md': '# Mixed\n'},
+                             agents='# AGENTS.md\n')
+        self.assert_fail(result)
+
+    def test_an_untracked_copy_is_not_a_finding(self):
+        # Somebody's scratch file in their own clone, not a property
+        # of the repository. The daily audit runs against a fresh
+        # clone and would never see one.
+        result = self._check(
+            {}, agents='# AGENTS.md\n',
+            untracked={'CLAUDE.md': '# Scratch\n'})
+        self.assert_pass(result)
+
+    def test_a_symlink_to_agents_md_still_fails(self):
+        # A reasonable bridge while tooling caught up; now a second
+        # name for one file, and a dangling link after a move.
+        self.fresh_fixture()
+        self.fixture.init_git()
+        self.fixture.write('AGENTS.md', '# AGENTS.md\n')
+        os.symlink('AGENTS.md', os.path.join(self.fixture.path, 'CLAUDE.md'))
+        self.fixture.commit()
+        self.assert_fail(self.check())
+
+    def test_a_directory_that_is_not_a_checkout_does_not_raise(self):
+        # ls-files fails rather than raising here, and an empty answer
+        # understates. Safe, because the finding is a file being
+        # present and the audit clones.
+        self.assert_pass(self.check())
+
+
+class VendorAgentDocsSpecTest(unittest.TestCase):
+    """The spec page and the matched set, held to each other.
+
+    The set is documented as a closed list -- a reader deciding
+    whether their GEMINI.md is in scope reads the page, not the
+    constant -- so a member added to one and not the other publishes
+    a rule nobody can look up.
+    """
+
+    def test_every_matched_filename_is_named_on_the_spec_page(self):
+        page = repo_text('docs', 'audits', 'llm-doc-naming.md').lower()
+        for name in sorted(llm_docs.VENDOR_AGENT_DOCS):
+            with self.subTest(name=name):
+                self.assertIn(name, page)
 
 
 if __name__ == '__main__':
