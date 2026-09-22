@@ -751,6 +751,38 @@
     {
       "path": "docs/consistency-audits.md",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/repo.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_audit_seams.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_audit_snapshot.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_audit_update_docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_check_audit_smoke.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_hooks.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_issue_fix_extraction.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_review_tracking.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

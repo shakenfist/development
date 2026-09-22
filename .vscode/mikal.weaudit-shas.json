@@ -385,6 +385,10 @@
       "sha": "b42d0bcd005a8eb5d5c48f87e3a2f769bbffff78",
       "date": "2026-09-15"
     },
+    "scripts/audit/repo.py": {
+      "sha": "56afa0fbc2ae2d0418f6b6b9aef9455f12dbd443",
+      "date": "2026-09-22"
+    },
     "scripts/audit/scope.py": {
       "sha": "1e0464184a211e168fe0b11293a10f4de31e914f",
       "date": "2026-09-10"
@@ -441,6 +445,22 @@
       "sha": "e31d1ac689aab09cfd90a66c0301db9d800f6d74",
       "date": "2026-09-22"
     },
+    "scripts/tests/test_audit_seams.py": {
+      "sha": "4d95dc55886d8838042c6c01cd2635f342186519",
+      "date": "2026-09-22"
+    },
+    "scripts/tests/test_audit_snapshot.py": {
+      "sha": "cc486c60a22a9d0be5c3d2f017a7c67664ada293",
+      "date": "2026-09-22"
+    },
+    "scripts/tests/test_audit_update_docs.py": {
+      "sha": "699967ad3fbc8122bcf89ff786bcf8e9329f06dc",
+      "date": "2026-09-22"
+    },
+    "scripts/tests/test_check_audit_smoke.py": {
+      "sha": "e23f875b2a5d2be98cfb31bb13250637f75ce02c",
+      "date": "2026-09-22"
+    },
     "scripts/tests/test_ci_workflows.py": {
       "sha": "31351fcc2958a8c5de8bbba355f7bcb86023c9ec",
       "date": "2026-09-22"
@@ -456,6 +476,14 @@
     "scripts/tests/test_github_config.py": {
       "sha": "60915542b323e0cf49a245fff06e82d15ffa2a07",
       "date": "2026-09-09"
+    },
+    "scripts/tests/test_hooks.py": {
+      "sha": "f87b63fadcf25dccf18d7350d57863e2a7e1f6c7",
+      "date": "2026-09-22"
+    },
+    "scripts/tests/test_issue_fix_extraction.py": {
+      "sha": "84d34be6471d4e4765aeebf8197cab5849053b36",
+      "date": "2026-09-22"
     },
     "scripts/tests/test_llm_docs.py": {
       "sha": "fc641a9a82621ebcc5f8ee2c08a215a0504b990e",
@@ -499,6 +527,10 @@
     },
     "scripts/tests/test_review.py": {
       "sha": "768b41df98d45e9a8bcadb0a621dce512923c280",
+      "date": "2026-09-22"
+    },
+    "scripts/tests/test_review_tracking.py": {
+      "sha": "92266e7a3d285d7ab142ac6bcd21ea4d0a28d907",
       "date": "2026-09-22"
     },
     "scripts/tests/test_runners.py": {
