@@ -572,6 +572,27 @@ class MermaidLintCiTest(CheckTestCase):
         result = self._check({'README.md': '# Project\n\nNo pictures.\n'})
         self.assert_skip(result)
 
+    def test_a_dangling_markdown_symlink_is_skipped(self):
+        """shakenfist/development#152: this used to raise from the walk."""
+        self.fixture.write('README.md', '# Project\n\nNo pictures.\n')
+        os.symlink('does-not-exist.md',
+                   os.path.join(self.fixture.path, 'CLAUDE.md'))
+        self.assert_skip(self.check())
+
+    def test_a_symlink_out_of_the_checkout_is_not_read(self):
+        outside = self.tempdir()
+        with open(os.path.join(outside, 'elsewhere.md'), 'w') as f:
+            f.write(self.DIAGRAM)
+        os.symlink(os.path.join(outside, 'elsewhere.md'),
+                   os.path.join(self.fixture.path, 'ARCHITECTURE.md'))
+        self.assert_skip(self.check())
+
+    def test_a_symlink_inside_the_checkout_is_read_through(self):
+        self.fixture.write('docs/shape.md', self.DIAGRAM)
+        os.symlink('docs/shape.md',
+                   os.path.join(self.fixture.path, 'ARCHITECTURE.md'))
+        self.assert_fail(self.check(), containing='tools/mermaid-lint.sh')
+
     def test_fails_without_the_script(self):
         result = self._check({
             'ARCHITECTURE.md': self.DIAGRAM,

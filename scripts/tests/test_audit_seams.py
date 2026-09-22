@@ -259,7 +259,7 @@ class RegistryTest(unittest.TestCase):
         self.assertEqual(document['org'], 'shakenfist')
         self.assertEqual(document['summary'],
                          {'total': 3, 'pass': 1, 'fail': 1,
-                          'not_applicable': 1})
+                          'not_applicable': 1, 'error': 0})
 
     def test_a_scoped_repository_skips_without_running(self):
         """Scoping must not pay for the check it is skipping.

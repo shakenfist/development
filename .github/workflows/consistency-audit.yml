@@ -115,6 +115,15 @@ jobs:
           path: /tmp/audit-result-${{ matrix.repo }}.json
           retention-days: 30
 
+      # A check that raised is reported as `error` rather than taking
+      # the other criteria down with it (registry.run_check). Failing
+      # the leg here, after the upload, keeps that bug loud --
+      # report-failure fires and update-docs does not publish a page
+      # with a hole in it -- while manage-issues still gets this
+      # repository's artifact and manages every other criterion.
+      - name: Fail if any check raised
+        run: python3 scripts/audit-raised.py /tmp/audit-result-${{ matrix.repo }}.json
+
       - name: Clean up
         if: always()
         run: |

@@ -702,6 +702,15 @@ class HeaderSanitizationTest(CheckTestCase):
         self.fixture.git('add', '-A')
         return self.check()
 
+    def test_a_handler_under_a_non_ascii_path_is_found(self):
+        """git C-quotes it unless -z is used (development#168)."""
+        result = self._check({'src/\u00fcber/serve.py': (
+            'from http.server import BaseHTTPRequestHandler\n'
+            'class Handler(BaseHTTPRequestHandler):\n'
+            '    pass\n'
+        )})
+        self.assert_fail(result, containing='Handler')
+
     def test_a_marker_in_a_string_constant_does_not_exempt(self):
         # A false clean bill on a security check, produced by an
         # ordinary string constant on the line above the class. The
@@ -1892,6 +1901,27 @@ class RustUnwrapLintTest(CheckTestCase):
         self.assert_fail(self.check(has_cargo_toml=True),
                          containing='clippy.toml')
 
+    def test_a_crate_under_a_non_ascii_path_is_read(self):
+        """This used to raise FileNotFoundError (development#168)."""
+        self.fixture.init_git()
+        self.fixture.write('Cargo.toml', self.WORKSPACE)
+        self.fixture.write('clippy.toml', 'allow-unwrap-in-tests = true\n')
+        self.fixture.write('crates/\u00fcber/Cargo.toml',
+                           '[package]\nname = "uber"\n')
+        self.fixture.commit()
+        self.assert_fail(self.check(has_cargo_toml=True),
+                         containing='crates/\u00fcber/Cargo.toml')
+
+    def test_a_tracked_manifest_missing_from_the_checkout_is_skipped(self):
+        self.fixture.init_git()
+        self.fixture.write('Cargo.toml', self.WORKSPACE)
+        self.fixture.write('clippy.toml', 'allow-unwrap-in-tests = true\n')
+        self.fixture.write('crates/gone/Cargo.toml',
+                           '[package]\nname = "gone"\n')
+        self.fixture.commit()
+        os.remove(os.path.join(self.fixture.path, 'crates/gone/Cargo.toml'))
+        self.assert_pass(self.check(has_cargo_toml=True))
+
     def test_a_crate_that_neither_inherits_nor_defines_fails(self):
         self.fixture.init_git()
         self.fixture.write('Cargo.toml', self.WORKSPACE)
@@ -1974,6 +2004,17 @@ class VersionFileGitignoreTest(CheckTestCase):
         self.assert_fail(self.check(has_pyproject_toml=True),
                          containing='tracked in git')
 
+    def test_a_tracked_non_ascii_version_file_is_named_verbatim(self):
+        """Not C-quoted, so the path can be copied out (development#168)."""
+        self.fixture.init_git()
+        self.fixture.write('pyproject.toml', self.PYPROJECT)
+        self.fixture.write('.gitignore', 'thing/_version.py\n')
+        self.fixture.write('\u00fcber/_version.py', "__version__ = '1.0'\n")
+        self.fixture.commit()
+        result = self.assert_fail(self.check(has_pyproject_toml=True),
+                                  containing='\u00fcber/_version.py')
+        self.assertNotIn('\\303', result['details'])
+
     def test_a_version_file_that_is_not_ignored_fails(self):
         self.fixture.init_git()
         self.fixture.write('pyproject.toml', self.PYPROJECT)
@@ -2022,6 +2063,14 @@ class UnusedDeclaredDependencyTest(CheckTestCase):
     def test_an_imported_dependency_passes(self):
         self.pyproject(['"click==8.4.2",'])
         self.source('import click\n')
+        self.assert_pass(self.check())
+
+    def test_a_dangling_python_symlink_is_skipped(self):
+        """The #152 walk shape, in python_source_files()."""
+        self.pyproject(['"click==8.4.2",'])
+        self.source('import click\n')
+        os.symlink('gone.py',
+                   os.path.join(self.fixture.path, 'thing', 'alias.py'))
         self.assert_pass(self.check())
 
     def test_an_unimported_dependency_fails_and_names_its_line(self):

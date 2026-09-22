@@ -13,6 +13,7 @@ Run with: python3 -m unittest tests.test_registry
 
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -442,7 +443,11 @@ class CheckScopeTest(unittest.TestCase):
         # with the scoping reason, and must not have run: a check that
         # ran would have written its own details, and several of them
         # would reach for the network.
+        # A real (empty) checkout, as the workflow's clone is: the
+        # checks that list the index fail on a directory git does not
+        # recognise, rather than reading it as holding nothing.
         with tempfile.TemporaryDirectory() as tmp:
+            subprocess.run(['git', 'init', '-q', tmp], check=True)
             results = run_all_checks(
                 tmp, 'private-ci', 'shakenfist'
             )
@@ -700,6 +705,136 @@ class MergeRefResolutionTest(unittest.TestCase):
                     f'{name} declares its concurrency group before the '
                     f'authorisation gate, so the group is not on the '
                     f'gated job')
+
+
+class RunCheckBoundaryTest(unittest.TestCase):
+    """One raising check costs one criterion, not the repository's run.
+
+    shakenfist/development#159. Before the boundary, any exception
+    escaping a check aborted run_all() and took every other criterion
+    for the repository with it.
+    """
+
+    def setUp(self):
+        from audit.check import Check
+        from audit.github import FakeGitHub
+        from audit.repo import Repo
+
+        class Raises(Check):
+            id = 'raises'
+            issue_title = 'Raises'
+
+            def run(self, repo):
+                raise FileNotFoundError('dangling.md')
+
+        class RaisesInApplies(Raises):
+            id = 'raises-in-applies'
+
+            def applies(self, repo):
+                raise ValueError('bad applies')
+
+        class Passes(Check):
+            id = 'passes'
+            issue_title = 'Passes'
+
+            def run(self, repo):
+                return self.ok('fine')
+
+        class Interrupted(Check):
+            id = 'interrupted'
+            issue_title = 'Interrupted'
+
+            def run(self, repo):
+                raise KeyboardInterrupt()
+
+        self.Raises, self.RaisesInApplies = Raises, RaisesInApplies
+        self.Passes, self.Interrupted = Passes, Interrupted
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.repo = Repo(self.tmp.name, 'testrepo', 'shakenfist',
+                         github=FakeGitHub())
+
+    def run_quietly(self, checks):
+        import contextlib
+        import io
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            results = registry.run_all(self.repo, checks=checks)
+        return results, stderr.getvalue()
+
+    def test_a_raising_check_does_not_stop_the_others(self):
+        results, _ = self.run_quietly([self.Raises(), self.Passes()])
+        self.assertEqual(
+            [(c['id'], c['status']) for c in results['checks']],
+            [('raises', 'error'), ('passes', 'pass')])
+
+    def test_the_error_names_the_exception_and_the_repository(self):
+        results, _ = self.run_quietly([self.Raises()])
+        details = results['checks'][0]['details']
+        self.assertIn('FileNotFoundError', details)
+        self.assertIn('dangling.md', details)
+        self.assertIn('testrepo', details)
+
+    def test_the_traceback_reaches_stderr(self):
+        """A caught bug must still be findable in the workflow log."""
+        _, stderr = self.run_quietly([self.Raises()])
+        self.assertIn('raises raised against testrepo', stderr)
+        self.assertIn('Traceback', stderr)
+        self.assertIn("raise FileNotFoundError('dangling.md')", stderr)
+
+    def test_applies_is_inside_the_boundary(self):
+        results, _ = self.run_quietly([self.RaisesInApplies()])
+        self.assertEqual(results['checks'][0]['status'], 'error')
+
+    def test_an_error_is_not_a_verdict(self):
+        """Neither fail (files an issue) nor N/A (closes one)."""
+        from audit.check import ERROR, STATUSES
+        self.assertNotIn(ERROR, STATUSES)
+
+    def test_errors_are_counted_and_listed(self):
+        results, _ = self.run_quietly([self.Raises(), self.Passes()])
+        self.assertEqual(results['summary']['error'], 1)
+        self.assertEqual(results['summary']['total'], 2)
+        self.assertEqual([c['id'] for c in registry.errored(results)],
+                         ['raises'])
+
+    def test_an_interrupt_is_not_swallowed(self):
+        with self.assertRaises(KeyboardInterrupt):
+            self.run_quietly([self.Interrupted()])
+
+
+class ErrorResultsLeaveIssuesAloneTest(unittest.TestCase):
+    """An `error` must neither file nor close a consistency issue.
+
+    The not_applicable branch used to be a bare else, so any status it
+    did not recognise -- which `error` would have been -- closed the
+    repository's open issue as though the check no longer applied.
+    """
+
+    def test_an_error_neither_searches_nor_closes(self):
+        import contextlib
+        import importlib.util
+        import io
+        path = os.path.join(REPO_ROOT, 'scripts', 'audit-manage-issues.py')
+        spec = importlib.util.spec_from_file_location('audit_manage_issues', path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        calls = []
+        module.gh_canonical_repo = lambda org, repo: (org, repo)
+        module.gh_search_issues = lambda *a: calls.append(('search', a)) or [{'number': 1}]
+        module.gh_close_issue = lambda *a, **k: calls.append(('close', a))
+        module.gh_create_issue = lambda *a, **k: calls.append(('create', a))
+
+        results = {
+            'org': 'shakenfist', 'repo': 'testrepo',
+            'summary': {'pass': 0, 'fail': 0, 'not_applicable': 0, 'error': 1},
+            'checks': [{'id': 'eol-distro', 'status': 'error', 'details': 'boom'}],
+        }
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            module.process_results(results, dry_run=False)
+        self.assertEqual(calls, [])
+        self.assertIn('ERROR -- issues left alone', out.getvalue())
 
 
 if __name__ == '__main__':

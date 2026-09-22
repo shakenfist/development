@@ -162,15 +162,23 @@ MERMAID_LINT_SCRIPT = 'tools/mermaid-lint.sh'
 MERMAID_FENCE_RE = re.compile(r'^\s*```mermaid\b')
 
 
-def repo_has_mermaid(repo_path):
+def repo_has_mermaid(repo):
     """Does any markdown file here carry a mermaid diagram?
 
     Walks the whole repository rather than the documentation scope:
     the linter renders every tracked markdown file, so a diagram in a
     plan or a template counts for whether the linter is needed even
     though it is out of scope for diagram-format.
+
+    A name the walk lists is opened only if it is a file inside the
+    checkout, the rule `Repo.read` applies. A committed `*.md` symlink
+    whose target does not exist used to raise here, and before the
+    scheduler contained exceptions that took every criterion for the
+    repository down with it (shakenfist/development#152). It is skipped
+    rather than reported: it holds no diagram, and a symlink that does
+    resolve inside the checkout is read through its target anyway.
     """
-    for dirpath, dirnames, filenames in os.walk(repo_path):
+    for dirpath, dirnames, filenames in os.walk(repo.path):
         dirnames[:] = [
             d for d in dirnames
             if d not in ('.git', 'node_modules', 'target', 'vendor')
@@ -180,6 +188,8 @@ def repo_has_mermaid(repo_path):
             if not filename.endswith('.md'):
                 continue
             path = os.path.join(dirpath, filename)
+            if not (os.path.isfile(path) and repo.contains(path)):
+                continue
             with open(path, 'r', errors='replace') as f:
                 for line in f:
                     if MERMAID_FENCE_RE.match(line):
@@ -452,7 +462,7 @@ class MermaidLintCi(Check):
         wrapper is that the docker arguments, the entrypoint override and
         the exit-status handling are written once.
         """
-        if not repo_has_mermaid(repo.path):
+        if not repo_has_mermaid(repo):
             return self.skip('No mermaid diagrams to lint')
 
         missing = []

@@ -355,6 +355,24 @@ class PlanSourceReferenceTest(CheckTestCase):
         })
         self.assert_fail(result, containing='PLAN-gone.md')
 
+    def test_a_non_ascii_path_is_read(self):
+        """git C-quotes it unless -z is used (development#168)."""
+        result = self._check({
+            'src/\u00fcber/note.py': '# See PLAN-nonexistent.md.\n',
+        })
+        self.assert_fail(result, containing='PLAN-nonexistent.md')
+
+    def test_a_non_ascii_markdown_path_is_still_out_of_scope(self):
+        result = self._check({
+            'docs/\u00fcber.md': 'See PLAN-nonexistent.md.\n',
+        })
+        self.assert_skip(result)
+
+    def test_a_directory_that_is_not_a_checkout_fails(self):
+        """A failed listing is not a repository with nothing in it."""
+        self.fixture.write('src/frob.py', '# See PLAN-gone.md.\n')
+        self.assert_fail(self.check(), containing='not the root of a checkout')
+
     def test_a_rotted_reference_in_a_test_still_fails(self):
         # Test files carry prose pointers like any other source, and
         # they rot the same way -- instar's tests/test_adversarial.py

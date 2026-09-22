@@ -18,8 +18,10 @@ to keep in step.
 """
 
 from datetime import datetime, timezone
+import sys
+import traceback
 
-from audit.check import NOT_APPLICABLE
+from audit.check import ERROR, NOT_APPLICABLE
 from audit.checks import (
     ci_workflows, distros, docs_content, github_config, llm_docs, npm_dependencies, packaging, plans, review,
     runners,
@@ -103,11 +105,45 @@ def run_check(check, repo):
     """Run one scheduled check against a repository.
 
     The check is asked whether it applies before it is asked to run.
+
+    An exception escaping a check costs that one criterion, not every
+    criterion for the repository. Before this boundary existed a single
+    raising check aborted the whole run, and the class was closed one
+    call site at a time -- three times -- while the next one waited to
+    be found the same way (shakenfist/development#159).
+
+    The raised check is reported as `error` rather than as a verdict.
+    A `fail` would file an issue on the audited repository, under the
+    bot's identity, for what is a bug in the audit; `not_applicable`
+    would close one it already has. `error` does neither, and the
+    traceback goes to stderr so the bug is still in the workflow log.
+    The workflow then fails the leg on any `error` result, after its
+    results are uploaded, so the bug stays loud without costing the
+    other criteria their issue management.
+
+    Exception rather than BaseException: an interrupt or a
+    SystemExit is a request to stop, not a broken check.
     """
-    reason = check.applies(repo)
-    if reason is not None:
-        return check.skip(reason)
-    return check.run(repo)
+    try:
+        reason = check.applies(repo)
+        if reason is not None:
+            return check.skip(reason)
+        return check.run(repo)
+    except Exception as e:
+        print(f'audit: {check.id} raised against {repo.name}:',
+              file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        return check.result(
+            ERROR,
+            f'The check raised {type(e).__name__}: {e}. This is a bug in '
+            f'the audit rather than a finding about {repo.name}; the '
+            f'traceback is in the audit log.',
+        )
+
+
+def errored(results):
+    """The results in a run_all() document that are errors, not verdicts."""
+    return [c for c in results['checks'] if c['status'] == ERROR]
 
 
 def run_all(repo, checks=None):
@@ -142,6 +178,7 @@ def run_all(repo, checks=None):
         'not_applicable': sum(
             1 for c in results if c['status'] == 'not_applicable'
         ),
+        'error': sum(1 for c in results if c['status'] == ERROR),
     }
 
     return {

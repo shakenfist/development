@@ -15,7 +15,8 @@ import tomllib
 
 from audit.check import Check
 from audit.files import (
-    check_file_contains, check_file_exists, toml_section_has_key,
+    LS_FILES_FAILED, check_file_contains, check_file_exists,
+    toml_section_has_key, tracked_paths,
 )
 from audit.text.workflows import (
     has_workflow_dispatch, job_is_push_guarded, job_is_tag_guarded,
@@ -1505,25 +1506,14 @@ class VersionFileGitignore(Check):
 
         # A tracked generated version file is always wrong, whether or
         # not we can work out the configured path.
-        try:
-            result = subprocess.run(
-                [
-                    'git', '-C', repo.path,
-                    'ls-files', '--', '*_version.py',
-                ],
-                capture_output=True, text=True, timeout=30,
+        tracked = tracked_paths(repo.path, '*_version.py')
+        if tracked is None:
+            issues.append(LS_FILES_FAILED)
+        elif tracked:
+            issues.append(
+                f'Generated version file tracked in git '
+                f'(use git rm --cached): {", ".join(sorted(tracked))}'
             )
-            tracked = [
-                line for line in result.stdout.splitlines()
-                if line.strip()
-            ]
-            if tracked:
-                issues.append(
-                    f'Generated version file tracked in git '
-                    f'(use git rm --cached): {", ".join(sorted(tracked))}'
-                )
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            issues.append(f'Could not run git ls-files: {e}')
 
         if not match:
             if issues:
@@ -1709,29 +1699,17 @@ class HeaderSanitization(Check):
         line break -- and are not applicable here because they have no
         http.server handler subclass to find.
         """
-        try:
-            result = subprocess.run(
-                ['git', '-C', repo.path, 'ls-files', '--', '*.py'],
-                capture_output=True, text=True, timeout=30,
-            )
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            return self.fail(f'Could not run git ls-files: {e}')
-
-        # A non-zero exit leaves stdout empty, which is indistinguishable
-        # from a repository holding no Python at all. On a security check
-        # a silent clean bill is the worse default, so say so instead.
-        if result.returncode != 0:
-            return self.fail(
-                f'git ls-files failed with exit {result.returncode}: '
-                f'{result.stderr.strip()}')
+        # A failed listing is indistinguishable from a repository holding
+        # no Python at all unless it is kept apart. On a security check a
+        # silent clean bill is the worse default, so say so instead.
+        sources = tracked_paths(repo.path, '*.py')
+        if sources is None:
+            return self.fail(LS_FILES_FAILED)
 
         handlers = []
         unreadable = []
         problems = []
-        for relative in result.stdout.splitlines():
-            relative = relative.strip()
-            if not relative:
-                continue
+        for relative in sources:
             path = os.path.join(repo.path, relative)
             try:
                 with open(path, 'r', errors='replace') as f:
@@ -1981,28 +1959,20 @@ class RustUnwrapLint(Check):
 
         # Every other first-party crate manifest must inherit the
         # workspace lints or define the lint itself.
-        try:
-            result = subprocess.run(
-                ['git', '-C', repo.path, 'ls-files', '--', '*Cargo.toml'],
-                capture_output=True, text=True, timeout=30,
-            )
-            manifests = [
-                line for line in result.stdout.splitlines()
-                if line.strip()
-            ]
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            return self.fail(f'Could not run git ls-files: {e}')
+        manifests = tracked_paths(repo.path, '*Cargo.toml')
+        if manifests is None:
+            return self.fail(LS_FILES_FAILED)
 
         for manifest in manifests:
             if manifest == root_manifest:
                 continue
             if 'fuzz' in manifest.split('/'):
                 continue
-            with open(
-                os.path.join(repo.path, manifest), 'r', errors='replace'
-            ) as f:
-                content = f.read()
-            if '[package]' not in content:
+            # Through Repo.read, so a manifest the index lists but the
+            # checkout does not hold -- deleted, or a dangling or
+            # escaping symlink -- is skipped rather than raised on.
+            content = repo.read(manifest)
+            if content is None or '[package]' not in content:
                 continue
             inherits = (
                 toml_section_has_key(
