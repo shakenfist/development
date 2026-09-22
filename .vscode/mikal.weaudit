@@ -157,19 +157,7 @@
       "author": "mikal"
     },
     {
-      "path": "templates/issue-fix/issue-fix.yml",
-      "author": "mikal"
-    },
-    {
       "path": "templates/issue-fix/neutralise-pr-body.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/issue-fix/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/issue-fix",
       "author": "mikal"
     },
     {
@@ -317,10 +305,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_hooks.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_python_source.py",
       "author": "mikal"
     },
@@ -338,18 +322,6 @@
     },
     {
       "path": "scripts/review-tracking.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_audit_seams.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_check_audit_smoke.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_issue_fix_extraction.py",
       "author": "mikal"
     },
     {
@@ -629,10 +601,6 @@
       "author": "mikal"
     },
     {
-      "path": ".pre-commit-config.yaml",
-      "author": "mikal"
-    },
-    {
       "path": "templates/renovate/renovate.yml",
       "author": "mikal"
     },
@@ -642,10 +610,6 @@
     },
     {
       "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ARCHITECTURE.md",
       "author": "mikal"
     },
     {
@@ -698,14 +662,6 @@
     },
     {
       "path": "docs/audits/review-scope-completeness.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/code-review-tracking.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/consistency-audits.md",
       "author": "mikal"
     },
     {
@@ -789,11 +745,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_audit_snapshot.py",
+      "path": "docs/code-review-tracking.md",
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_audit_update_docs.py",
+      "path": "docs/consistency-audits.md",
       "author": "mikal"
     }
   ],
