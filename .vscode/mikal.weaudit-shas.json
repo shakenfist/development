@@ -33,9 +33,17 @@
       "sha": "63b5043da65a8228e4c56540364b6a253ef14cbe",
       "date": "2026-09-01"
     },
+    ".github/workflows/ci.yml": {
+      "sha": "4e391bb74e8a1f5c2ef0b6f5d0e2ecfa7ba390c1",
+      "date": "2026-09-22"
+    },
     ".github/workflows/codeql-analysis.yml": {
       "sha": "c11dc1e33458f31f6da1b87331769aab53c5530e",
       "date": "2026-09-01"
+    },
+    ".github/workflows/consistency-audit.yml": {
+      "sha": "723ead0b442617805c6950d84dd8d9c58356b880",
+      "date": "2026-09-22"
     },
     ".github/workflows/export-repo-config.yml": {
       "sha": "53b5d8eb46e89e228dd88d42d7e1b0c3ea6694cd",
