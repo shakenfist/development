@@ -835,6 +835,30 @@
     {
       "path": "ARCHITECTURE.md",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/registry.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/llm-doc-naming.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/llm_docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_llm_docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_metadata.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
