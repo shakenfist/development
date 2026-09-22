@@ -297,10 +297,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/llm_docs.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/__init__.py",
       "author": "mikal"
     },
@@ -569,10 +565,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/registry.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_distros.py",
       "author": "mikal"
     },
@@ -653,10 +645,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/review-coverage.md",
       "author": "mikal"
     },
@@ -693,19 +681,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_llm_docs.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_manage_issues.py",
       "author": "mikal"
     },
     {
       "path": "scripts/tests/test_markdown.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_metadata.py",
       "author": "mikal"
     },
     {
