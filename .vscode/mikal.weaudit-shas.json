@@ -81,6 +81,26 @@
       "sha": "26a19958e61609c60e1b721594ab8151ddf1634f",
       "date": "2026-09-04"
     },
+    ".pre-commit-config.yaml": {
+      "sha": "6e5662a63f09b888fd47d2bff1f0ca8b95bdc39a",
+      "date": "2026-09-22"
+    },
+    "AGENTS.md": {
+      "sha": "dba2df5ee4eb799cc357376a2a1a4bfc623e8323",
+      "date": "2026-09-22"
+    },
+    "ARCHITECTURE.md": {
+      "sha": "23dcfc5d0b4b8cd2227c0928deea05053791d63f",
+      "date": "2026-09-22"
+    },
+    "PLAN-TEMPLATE.md": {
+      "sha": "a5b19acb9a99252702d8fcea664afc3dad5c5690",
+      "date": "2026-09-22"
+    },
+    "PUSH-AUDIT.md": {
+      "sha": "0ba62241d81094c281d125f90021e0c396132cc5",
+      "date": "2026-09-22"
+    },
     "README.md": {
       "sha": "5ac5a6754b08642183a1425f5a50f114ea907848",
       "date": "2026-09-09"
@@ -740,6 +760,10 @@
     "tools/ci-prune-reviews.sh": {
       "sha": "3e10680265c6b885619e8e08bea30a4fb05cb10b",
       "date": "2026-08-24"
+    },
+    "tools/mermaid-lint.sh": {
+      "sha": "22f14bf915f76875950bb5589212b55ab0a91db1",
+      "date": "2026-09-22"
     },
     "tools/review-tracking.sh": {
       "sha": "fabe2fc68a97b45b5f628f6380893bbfac9d764c",
