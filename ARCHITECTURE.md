@@ -71,7 +71,8 @@ implementation. The criteria live in the `scripts/audit/` package
 beside it:
 
 - `audit/check.py` -- the `Check` base class and the `pass` / `fail` /
-  `not_applicable` vocabulary. A criterion declares its id,
+  `not_applicable` vocabulary, plus the `error` the scheduler reports
+  for a check that raised. A criterion declares its id,
   specification, template and issue title as class attributes, tests
   applicability in `applies()`, and measures in `run()`.
 - `audit/repo.py` -- `Repo`, the checkout under audit: its path,

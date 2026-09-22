@@ -24,6 +24,14 @@ NOT_APPLICABLE = 'not_applicable'
 
 STATUSES = (PASS, FAIL, NOT_APPLICABLE)
 
+#: What the scheduler reports for a check that raised rather than
+#: returning. Deliberately not in STATUSES: those are the verdicts a
+#: check can reach about a repository, and this is a statement about
+#: the audit instead. A check never returns it -- only
+#: `registry.run_check()` does -- and the tests that call `run()`
+#: directly assert a verdict, so a check that raises still fails them.
+ERROR = 'error'
+
 
 class Check(abc.ABC):
     """One consistency criterion.

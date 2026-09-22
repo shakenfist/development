@@ -81,6 +81,7 @@ STATUS_LABELS = {
     'pass': 'compliant',
     'fail': 'non-compliant',
     'not_applicable': 'N/A',
+    'error': 'check error',
 }
 
 

@@ -141,6 +141,19 @@ A check that starts passing closes its issue. A check that becomes
 `not_applicable` closes it too: "we decided this does not apply" and
 "this now complies" are both reasons not to keep a work item open.
 
+A check that raises is reported as `error`, which is not a verdict and
+touches no issue either way: filing one would blame the audited
+repository for a bug in the audit, and closing one would read as the
+repository having fixed it. `registry.run_check()` is the boundary --
+one raising criterion costs that criterion rather than all of them for
+the repository -- and prints the traceback to the audit step's log. The
+leg then fails on its *Fail if any check raised* step, after the
+results are uploaded, so `manage-issues` still manages every other
+criterion for that repository while `report-failure` makes the bug
+visible and `update-docs` holds back the compliance page until it is
+fixed. The tests call `run()` directly and assert a verdict, so a check
+that raises still fails them.
+
 ## Adding a criterion
 
 Two files: the check and its specification.

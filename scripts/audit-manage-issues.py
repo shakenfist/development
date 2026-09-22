@@ -354,7 +354,8 @@ def process_results(results, dry_run=False):
     print(
         f'Results: {results["summary"]["pass"]} pass, '
         f'{results["summary"]["fail"]} fail, '
-        f'{results["summary"]["not_applicable"]} N/A'
+        f'{results["summary"]["not_applicable"]} N/A, '
+        f'{results["summary"].get("error", 0)} error'
     )
 
     for check in results['checks']:
@@ -406,7 +407,7 @@ def process_results(results, dry_run=False):
             else:
                 print(f'  [{check_id}] PASS')
 
-        else:  # not_applicable
+        elif status == 'not_applicable':
             # Close any existing issues if any were opened
             existing = gh_search_issues(org, repo, title_prefix)
             if existing:
@@ -426,6 +427,15 @@ def process_results(results, dry_run=False):
                         time.sleep(1)
             else:
                 print(f'  [{check_id}] N/A')
+
+        else:
+            # 'error': the check raised, so nothing is known about the
+            # repository either way. Its issues are left exactly as they
+            # are -- closing one because the audit broke would read as
+            # the repository having fixed it. Any other status is a
+            # results file this script does not understand, which gets
+            # the same answer for the same reason.
+            print(f'  [{check_id}] {status.upper()} -- issues left alone')
 
     return renamed
 
