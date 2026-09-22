@@ -14,6 +14,8 @@ import os
 import re
 import tomllib
 
+from audit.repo import path_is_within
+
 
 def mask_source(content, comments=True, strings=True):
     """Blank out comment and/or string-literal bodies, keeping offsets.
@@ -424,6 +426,7 @@ def python_source_files(repo_path):
     checkout is always read against its own manifest.
     """
     found = []
+    real_root = os.path.realpath(repo_path)
     for dirpath, dirnames, filenames in os.walk(repo_path):
         dirnames[:] = [
             d for d in dirnames
@@ -433,8 +436,16 @@ def python_source_files(repo_path):
                 os.path.join(dirpath, d, 'pyproject.toml'))
         ]
         for filename in filenames:
-            if filename.endswith('.py'):
-                found.append(os.path.join(dirpath, filename))
+            if not filename.endswith('.py'):
+                continue
+            full = os.path.join(dirpath, filename)
+            # Opened later by imported_top_level_modules(), so the
+            # rule Repo.read applies is applied here: a dangling
+            # symlink would raise there, and one pointing out of the
+            # clone would let the repository choose what is read.
+            if (os.path.isfile(full)
+                    and path_is_within(real_root, full, root_is_real=True)):
+                found.append(full)
     return sorted(found)
 
 

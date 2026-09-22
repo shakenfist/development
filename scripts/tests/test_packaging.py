@@ -2024,6 +2024,14 @@ class UnusedDeclaredDependencyTest(CheckTestCase):
         self.source('import click\n')
         self.assert_pass(self.check())
 
+    def test_a_dangling_python_symlink_is_skipped(self):
+        """The #152 walk shape, in python_source_files()."""
+        self.pyproject(['"click==8.4.2",'])
+        self.source('import click\n')
+        os.symlink('gone.py',
+                   os.path.join(self.fixture.path, 'thing', 'alias.py'))
+        self.assert_pass(self.check())
+
     def test_an_unimported_dependency_fails_and_names_its_line(self):
         self.pyproject(['"click==8.4.2",', '"schedule==1.2.2",'])
         self.source('import click\n')
