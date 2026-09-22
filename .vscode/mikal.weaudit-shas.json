@@ -441,9 +441,25 @@
       "sha": "531d26fbe639291831bc7dff3a4959a702b09fe8",
       "date": "2026-09-04"
     },
+    "scripts/tests/base.py": {
+      "sha": "b55c8394f2b9fd2c195c942863e27754494864e8",
+      "date": "2026-09-22"
+    },
+    "scripts/tests/test_audit_common.py": {
+      "sha": "e31d1ac689aab09cfd90a66c0301db9d800f6d74",
+      "date": "2026-09-22"
+    },
+    "scripts/tests/test_ci_workflows.py": {
+      "sha": "31351fcc2958a8c5de8bbba355f7bcb86023c9ec",
+      "date": "2026-09-22"
+    },
     "scripts/tests/test_distros.py": {
       "sha": "2a43c0a85d59b84b8b675a4a66879446510d3443",
       "date": "2026-09-15"
+    },
+    "scripts/tests/test_docs_content.py": {
+      "sha": "173866e68f9fca5fb43d823f1712118211b3027e",
+      "date": "2026-09-22"
     },
     "scripts/tests/test_github_config.py": {
       "sha": "60915542b323e0cf49a245fff06e82d15ffa2a07",
@@ -452,6 +468,26 @@
     "scripts/tests/test_hooks.py": {
       "sha": "5f9c95f3e2a34e1f237e47c345183a0ec2ca3bd1",
       "date": "2026-09-04"
+    },
+    "scripts/tests/test_llm_docs.py": {
+      "sha": "fc641a9a82621ebcc5f8ee2c08a215a0504b990e",
+      "date": "2026-09-22"
+    },
+    "scripts/tests/test_manage_issues.py": {
+      "sha": "5b494fe6460af72c7d6d32a655941dc6be5379d0",
+      "date": "2026-09-22"
+    },
+    "scripts/tests/test_markdown.py": {
+      "sha": "f79a747418900e25ba050e14d951c526821fbf9d",
+      "date": "2026-09-22"
+    },
+    "scripts/tests/test_metadata.py": {
+      "sha": "ea559ed4cbc9f862aff82ea88f53f3a7d0804a75",
+      "date": "2026-09-22"
+    },
+    "scripts/tests/test_npm_dependencies.py": {
+      "sha": "e7360d31a425b52e8e309921993e392235309faa",
+      "date": "2026-09-22"
     },
     "scripts/tests/test_python_source.py": {
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",

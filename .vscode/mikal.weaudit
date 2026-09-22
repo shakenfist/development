@@ -719,6 +719,42 @@
     {
       "path": "scripts/audit/checks/review.py",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/base.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_audit_common.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_ci_workflows.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_docs_content.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_llm_docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_manage_issues.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_markdown.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_metadata.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_npm_dependencies.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
