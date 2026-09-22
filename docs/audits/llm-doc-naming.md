@@ -36,11 +36,14 @@ check having to name those directories, and it covers a nested
 `subdir/CLAUDE.md` -- which an agent loads when it works in that
 subdirectory, and which is the copy nobody remembers to update.
 
-A symlink to `AGENTS.md` does not pass. It was a reasonable bridge
-while tooling caught up; now that the tools read `AGENTS.md` directly
-it is a second name for one file and nothing more, and the dangling
-one it leaves behind after a move is worse than the tolerance is
-worth.
+A symlink to `AGENTS.md` does not pass either. It was a reasonable
+bridge while tooling caught up; now that the tools read `AGENTS.md`
+directly it is a second name for one file and nothing more, and the
+dangling one it leaves behind after a move is worse than the tolerance
+is worth. It gets its own advice -- `git rm` and nothing else -- since
+there is nothing in it to merge. A symlink pointing somewhere *other*
+than `AGENTS.md` carries content of its own and gets the ordinary
+advice.
 
 The file list comes from `git ls-files`. An untracked `CLAUDE.md` is
 somebody's scratch file in their own clone, not a property of the
@@ -48,11 +51,21 @@ repository, and the daily audit runs against a fresh clone and would
 never see one. `CLAUDE.local.md` is in the matched set for the same
 reason from the other side: it is meant to be gitignored, so an
 untracked one is invisible here and a tracked one is a personal
-override shipped to everybody.
+override shipped to everybody. Whether `AGENTS.md` exists is read from
+that same list, not from the filesystem: a gitignored working copy of
+it is not a file the merge advice can send anybody to.
 
 A repository with no such file passes, including one with no agent
 context at all -- "nothing here is named for a vendor" is true of it,
 and whether it should have an `AGENTS.md` is `llm-tooling`'s question.
+
+A directory `git` cannot list is N/A. Without the index the check
+cannot say anything either way, and what is missing is the audit
+harness's `git` rather than anything about the audited repository, so
+failing would file an issue nobody on that repository could fix. This
+is the reading `llm-context-lint` takes of a missing skillsaw, and it
+carries the same signal: every row flipping to N/A at once is how a
+broken runner announces itself.
 
 The matched set is a constant so that it can grow. GitHub Copilot's
 `.github/copilot-instructions.md` is the obvious next member and is

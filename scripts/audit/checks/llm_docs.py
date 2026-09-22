@@ -167,38 +167,68 @@ def has_agent_context(repo_path):
     )
 
 
-def vendor_agent_docs(repo_path):
-    """Tracked agent instruction files named for one vendor.
+def tracked_paths(repo_path):
+    """Every path in the repository's index, or None if git cannot say.
 
-    Returns repository-relative paths, sorted, matched on the basename
-    against VENDOR_AGENT_DOCS.
+    `-z` rather than a line split, and the reason is not only NUL
+    safety. `git ls-files` C-quotes any path holding a non-ASCII byte
+    unless core.quotePath is off, so a tracked `docs/uber/CLAUDE.md`
+    with an umlaut arrives as `"docs/\303\274ber/CLAUDE.md"` -- whose
+    basename ends in a quote character and matches nothing. That is a
+    silent false negative in exactly the check whose whole job is
+    finding a file by its name. `-z` suppresses the quoting, and
+    review-tracking.py reached the same flag by the same route.
 
-    The list comes from `git ls-files` rather than a tree walk for two
-    reasons. An untracked CLAUDE.md is somebody's scratch file in their
-    own clone and not a property of the repository -- the audit itself
-    runs against a fresh clone and would never see one, so a walk would
-    report a finding that only exists when the check is run by hand.
-    And the walk would have to decide what to do about the build output
-    and vendored trees that WALK_SKIP exists for, where a CLAUDE.md
-    belongs to a dependency rather than to us; the index answers that
-    question already.
+    Decoding errors are replaced rather than raised, for the reason
+    Repo.read gives: an audited repository can contain anything, and a
+    check that crashes on one path reports nothing about any of the
+    other criteria. A replaced byte can only fall in a directory
+    component -- the basenames we match are ASCII -- so it costs the
+    match nothing.
 
-    A directory that is not a checkout reports nothing rather than
-    raising. That is the same reading PyprojectUsage takes of a failed
-    ls-files, and it is safe here because the finding is a file being
-    present: an empty answer understates, and the audit clones.
+    None means git could not answer: the binary is missing, the call
+    timed out, or the directory is not a checkout. That is separated
+    from "the index is empty" because the two mean opposite things to
+    a criterion whose finding is a file being *present*, and
+    collapsing them would report a clean pass for a repository nobody
+    looked at.
     """
     try:
         result = subprocess.run(
-            ['git', '-C', repo_path, 'ls-files'],
-            capture_output=True, text=True, timeout=60,
+            ['git', '-C', repo_path, 'ls-files', '-z'],
+            capture_output=True, text=True, errors='replace', timeout=60,
         )
     except (subprocess.TimeoutExpired, FileNotFoundError):
-        return []
+        return None
 
+    if result.returncode != 0:
+        return None
+
+    return [path for path in result.stdout.split('\0') if path]
+
+
+def vendor_agent_docs(paths):
+    """The paths whose basename names one vendor, sorted.
+
+    Takes the tracked list rather than reading it, so that the caller
+    can ask the same list whether AGENTS.md is tracked. Asking the
+    index for one and the filesystem for the other is how a gitignored
+    working-copy AGENTS.md comes to be named as the destination of a
+    merge it is not part of.
+
+    The list comes from the index rather than a tree walk for two
+    reasons. An untracked CLAUDE.md is somebody's scratch file in
+    their own clone and not a property of the repository -- the audit
+    runs against a fresh clone and would never see one, so a walk
+    would report a finding that only exists when the check is run by
+    hand. And a walk would have to decide what to do about the build
+    output and vendored trees that WALK_SKIP exists for, where a
+    CLAUDE.md belongs to a dependency rather than to us; the index
+    answers that question already.
+    """
     return sorted(
-        path for path in (line.strip() for line in result.stdout.splitlines())
-        if path and path.rsplit('/', 1)[-1].lower() in VENDOR_AGENT_DOCS
+        path for path in paths
+        if path.rsplit('/', 1)[-1].lower() in VENDOR_AGENT_DOCS
     )
 
 
@@ -541,51 +571,101 @@ class LlmDocNaming(Check):
 
         `AGENTS.md` is the name every agent we use now reads, so a
         CLAUDE.md or a GEMINI.md is no longer how a project reaches a
-        particular tool. What it is instead depends on whether AGENTS.md
-        exists beside it, and the two want different fixes, so the
-        detail says which:
+        particular tool. What it is instead decides the fix, and the
+        detail says which of the three it is:
 
-         * with no AGENTS.md, the vendor file *is* the project's agent
-           context under a name only one tool reads. The fix is a
-           rename, and llm-tooling is failing for the missing AGENTS.md
-           at the same time -- this check names the file that rename
-           starts from.
-         * with an AGENTS.md, both are loaded, and the vendor file is a
-           second set of instructions with equal authority. The fix is
-           to merge what is still true into AGENTS.md and delete it,
-           which is a read rather than a `git mv`: the fleet's copies
-           run to hundreds of lines and predate the AGENTS.md beside
-           them, so they hold both stale duplication and detail that
-           was never carried across.
+         * a symlink to AGENTS.md is a second name for one file rather
+           than a second document. It was a reasonable bridge while
+           tooling caught up, and it is `git rm` and nothing else now.
+         * with no AGENTS.md tracked, the vendor file *is* the
+           project's agent context under a name only one tool reads.
+           The fix is a rename, and llm-tooling is failing for the
+           missing AGENTS.md at the same time -- this check names the
+           file that rename starts from.
+         * with an AGENTS.md tracked, both are loaded, and the vendor
+           file is a second set of instructions with equal authority.
+           The fix is to merge what is still true into AGENTS.md and
+           delete the original, which is a read rather than a
+           `git mv`: the fleet's copies run to hundreds of lines and
+           predate the AGENTS.md beside them, so they hold both stale
+           duplication and detail that was never carried across.
 
         A repository with none reports a pass rather than not_applicable,
         including one with no agent context at all. "Nothing here is
         named for a vendor" is a true statement about a repository with
         no AGENTS.md either, and llm-tooling is the criterion that has an
         opinion about that.
+
+        A directory git cannot list reports not_applicable. Unlike
+        PyprojectUsage, which fails on a broken ls-files, this check
+        cannot say anything either way without the index -- and the
+        missing piece is the audit harness's git, not the audited
+        repository, so failing would file an issue nobody on that
+        repository can fix. That is the reading LlmContextLint takes
+        of a missing skillsaw, a few classes up, and the same signal
+        applies: every row flipping to N/A at once is how a broken
+        runner announces itself.
         """
-        found = vendor_agent_docs(repo.path)
+        tracked = tracked_paths(repo.path)
+        if tracked is None:
+            return self.skip(
+                'Not a git checkout, or git could not list its index')
+
+        found = vendor_agent_docs(tracked)
         if not found:
             return self.ok(
                 'No agent instruction files named for a single tool')
 
         count = len(found)
         many = count > 1
-        noun = 'files are' if many else 'file is'
-        if repo.exists('AGENTS.md'):
+
+        # AGENTS.md from the same list the findings came from: see
+        # vendor_agent_docs.
+        agents_tracked = 'AGENTS.md' in tracked
+
+        # A finding that is a symlink resolving to the repository's own
+        # AGENTS.md is an alias, not a document. Resolved rather than
+        # merely islink, because a symlink pointing somewhere else --
+        # or dangling -- carries content that a `git rm` would lose,
+        # and wants the ordinary advice.
+        agents_real = os.path.realpath(repo.join('AGENTS.md'))
+        aliases = [
+            path for path in found
+            if os.path.islink(repo.join(path))
+            and os.path.realpath(repo.join(path)) == agents_real
+        ]
+
+        if agents_tracked and len(aliases) == count:
+            these_are, them = (
+                ('these are', 'them') if many else ('this is', 'it'))
             fix = (
-                'AGENTS.md exists beside %s, so %s a second set of '
-                'instructions loaded with equal authority: merge what is '
-                'still true into AGENTS.md and delete the original'
-                % (('them', 'each is') if many else ('it', 'it is'))
+                f'{these_are} a second name for AGENTS.md rather than a '
+                f'second document: git rm {them}'
+            )
+        elif agents_tracked:
+            them, each_is = (
+                ('them', 'each is') if many else ('it', 'it is'))
+            fix = (
+                f'AGENTS.md is tracked beside {them}, so {each_is} a second '
+                f'set of instructions loaded with equal authority: merge '
+                f'what is still true into AGENTS.md and delete the original'
             )
         else:
+            # Nothing guarantees one of them is at the repository root,
+            # so the plural wording does not name a file that may not
+            # be in the findings list.
+            these_are, rename = (
+                ('these are',
+                 'one of them to AGENTS.md at the repository root and fold '
+                 'the rest into it')
+                if many else ('this is', 'it to AGENTS.md'))
             fix = (
-                'there is no AGENTS.md, so %s the project\'s agent context '
-                'under a name only one tool reads: rename %s'
-                % (('these are', 'the top-level one and fold the rest into '
-                    'it') if many else ('this is', 'it'))
+                f'no AGENTS.md is tracked, so {these_are} the project\'s '
+                f'agent context under a name only one tool reads: rename '
+                f'{rename}'
             )
+
+        noun = 'files are' if many else 'file is'
         return self.fail(
             f'{count} agent instruction {noun} named for a single tool '
             f'rather than AGENTS.md ({", ".join(found)}); {fix}',
