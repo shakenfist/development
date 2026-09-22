@@ -153,6 +153,7 @@ attached rather than quietly disappearing from the table.
 | [llm-doc-structure.md](llm-doc-structure.md) | AGENTS.md and ARCHITECTURE.md are a summary and an index, detail lives in docs/ |
 | [llm-context-lint.md](llm-context-lint.md) | Agent context passes skillsaw at error severity, and every skill actually loads |
 | [llm-context-lint-ci.md](llm-context-lint-ci.md) | skillsaw runs in pre-commit and CI, not just in the daily audit |
+| [llm-doc-naming.md](llm-doc-naming.md) | Agent instructions live in AGENTS.md, not in a file named for one vendor |
 | [release-process.md](release-process.md) | pyproject.toml, release.yml, RELEASE-SETUP.md |
 | [ci-review-automation.md](ci-review-automation.md) | Automated review, developer automation workflows |
 | [renovate.md](renovate.md) | Renovate for dependency bumps |

@@ -33,6 +33,7 @@ CHECKS = [
     llm_docs.LlmDocStructure(),
     llm_docs.LlmContextLint(),
     llm_docs.LlmContextLintCi(),
+    llm_docs.LlmDocNaming(),
     docs_content.ReadmeStructure(),
     docs_content.ReadmeAbsoluteLinks(),
     docs_content.DocsExternalLinks(),

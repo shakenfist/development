@@ -21,7 +21,9 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import llm_docs  # noqa: E402
-from tests.base import CheckTestCase  # noqa: E402
+from tests.base import (  # noqa: E402
+    CheckTestCase, FixtureRepo, repo_text,
+)
 
 LLM_DOC_STRUCTURE_OK = llm_docs.LLM_DOC_STRUCTURE_OK
 
@@ -490,6 +492,282 @@ class LlmContextLintCiTest(CheckTestCase):
 
     def test_repo_without_context_is_not_applicable(self):
         self.assert_skip(self.check())
+
+
+class LlmDocNamingTest(CheckTestCase):
+    check_class = llm_docs.LlmDocNaming
+
+    def _check(self, files, agents=None, untracked=None):
+        """A committed fixture, because the check reads git ls-files.
+
+        `files` is committed; `untracked` is written afterwards and
+        left out of the index, which is the only way to tell the two
+        readings apart. A fresh fixture per call: several cases run
+        the check twice, and the first call's CLAUDE.md would still
+        be on disk -- and committed -- for the second.
+        """
+        self.fresh_fixture()
+        self.fixture.init_git()
+        payload = dict(files)
+        if agents is not None:
+            payload['AGENTS.md'] = agents
+        # A committed repository needs at least one file, or `git
+        # commit` fails and ls-files reports nothing for a reason the
+        # test did not intend.
+        payload.setdefault('README.md', '# Test\n')
+        self.fixture.write_all(payload)
+        self.fixture.commit()
+        if untracked:
+            self.fixture.write_all(untracked)
+        return self.check()
+
+    def test_no_vendor_files_passes(self):
+        self.assert_pass(self._check({}, agents='# AGENTS.md\n'))
+
+    def test_repository_with_no_agent_context_at_all_passes(self):
+        # Whether this repository should have an AGENTS.md is
+        # llm-tooling's question; "nothing here is named for a
+        # vendor" is true of it either way.
+        self.assert_pass(self._check({}))
+
+    def test_claude_md_beside_agents_md_fails_asking_for_a_merge(self):
+        result = self._check(
+            {'CLAUDE.md': '# CLAUDE.md\n'}, agents='# AGENTS.md\n')
+        self.assert_fail(result, containing='merge what is still true')
+        self.assertIn('CLAUDE.md', result['details'])
+        self.assertEqual(['CLAUDE.md'], result['findings'])
+
+    def test_claude_md_alone_fails_asking_for_a_rename(self):
+        # No AGENTS.md: the file is the project's agent context under
+        # a name only one tool reads, so the fix is a git mv rather
+        # than a read and a merge.
+        result = self._check({'CLAUDE.md': '# CLAUDE.md\n'})
+        self.assert_fail(result, containing='rename it')
+        self.assertNotIn('merge', result['details'])
+
+    def test_claude_md_in_the_claude_directory_is_found(self):
+        # Matched on the basename, so the check never has to name
+        # .claude/ or .gemini/ to reach the copies inside them.
+        result = self._check(
+            {'.claude/CLAUDE.md': '# Instructions\n'},
+            agents='# AGENTS.md\n')
+        self.assert_fail(result)
+        self.assertEqual(['.claude/CLAUDE.md'], result['findings'])
+
+    def test_a_nested_copy_is_found(self):
+        # Loaded when an agent works in that subdirectory, and the
+        # copy nobody remembers to update.
+        result = self._check(
+            {'rust/kerbside-proxy/CLAUDE.md': '# Rust\n'},
+            agents='# AGENTS.md\n')
+        self.assert_fail(result)
+        self.assertEqual(
+            ['rust/kerbside-proxy/CLAUDE.md'], result['findings'])
+
+    def test_gemini_and_local_variants_are_found(self):
+        result = self._check(
+            {'GEMINI.md': '# Gemini\n',
+             'CLAUDE.local.md': '# Personal\n'},
+            agents='# AGENTS.md\n')
+        self.assert_fail(result, containing='2 agent instruction files are')
+        self.assertEqual(
+            ['CLAUDE.local.md', 'GEMINI.md'], result['findings'])
+
+    def test_matching_ignores_case(self):
+        result = self._check({'Claude.md': '# Mixed\n'},
+                             agents='# AGENTS.md\n')
+        self.assert_fail(result)
+
+    def test_an_untracked_copy_is_not_a_finding(self):
+        # Somebody's scratch file in their own clone, not a property
+        # of the repository. The daily audit runs against a fresh
+        # clone and would never see one.
+        result = self._check(
+            {}, agents='# AGENTS.md\n',
+            untracked={'CLAUDE.md': '# Scratch\n'})
+        self.assert_pass(result)
+
+    def _symlinked(self, target='AGENTS.md'):
+        """A committed CLAUDE.md symlink beside a real AGENTS.md."""
+        self.fresh_fixture()
+        self.fixture.init_git()
+        self.fixture.write('AGENTS.md', '# AGENTS.md\n')
+        self.fixture.write('docs/notes.md', '# Notes\n')
+        os.symlink(target, os.path.join(self.fixture.path, 'CLAUDE.md'))
+        self.fixture.commit()
+        return self.check()
+
+    def test_a_symlink_to_agents_md_is_told_to_be_deleted(self):
+        # A reasonable bridge while tooling caught up; now a second
+        # name for one file. Telling the maintainer to merge it would
+        # be a read-and-merge of a file whose content is AGENTS.md.
+        result = self._symlinked()
+        self.assert_fail(result, containing='git rm it')
+        self.assertNotIn('merge', result['details'])
+
+    def test_a_symlink_pointing_elsewhere_gets_the_ordinary_advice(self):
+        # Resolved rather than merely islink: this one carries content
+        # of its own, which a git rm would lose.
+        result = self._symlinked(target='docs/notes.md')
+        self.assert_fail(result, containing='merge what is still true')
+        self.assertNotIn('git rm', result['details'])
+
+    def test_many_with_no_agents_md_does_not_name_a_file_that_may_not_exist(
+            self):
+        # The fourth detail branch. Nothing guarantees one of the
+        # findings is at the repository root, so the wording must not
+        # point at a top-level file absent from the findings list.
+        result = self._check({'.claude/CLAUDE.md': '# One\n',
+                              'sub/GEMINI.md': '# Two\n'})
+        self.assert_fail(result, containing='fold the rest into it')
+        self.assertNotIn('the top-level one', result['details'])
+        self.assertEqual(
+            ['.claude/CLAUDE.md', 'sub/GEMINI.md'], result['findings'])
+
+    def test_a_non_ascii_path_component_is_still_matched(self):
+        # git ls-files C-quotes a path holding a non-ASCII byte unless
+        # it is asked for NUL-separated output, and the quote lands on
+        # the end of the basename -- a silent false negative in the
+        # one check whose whole job is matching a basename.
+        result = self._check({'docs/\u00fcber/CLAUDE.md': '# Umlaut\n'},
+                             agents='# AGENTS.md\n')
+        self.assert_fail(result)
+        self.assertEqual(['docs/\u00fcber/CLAUDE.md'], result['findings'])
+
+    def test_an_untracked_agents_md_is_not_named_as_the_destination(self):
+        # The findings come from the index, so the AGENTS.md beside
+        # them must too: a gitignored working-copy AGENTS.md is not a
+        # file the merge advice can send anybody to.
+        result = self._check({'CLAUDE.md': '# CLAUDE.md\n'},
+                             untracked={'AGENTS.md': '# Local only\n'})
+        self.assert_fail(result, containing='no AGENTS.md is tracked')
+
+    def test_a_mix_of_alias_and_real_file_gets_the_merge_advice(self):
+        # The git rm advice is only right when every finding is an
+        # alias. One real document among them and the maintainer has
+        # something to read, so the ordinary advice stands.
+        self.fresh_fixture()
+        self.fixture.init_git()
+        self.fixture.write_all({'AGENTS.md': '# AGENTS.md\n',
+                                'GEMINI.md': '# Real content\n'})
+        os.symlink('AGENTS.md', os.path.join(self.fixture.path, 'CLAUDE.md'))
+        self.fixture.commit()
+        result = self.check()
+        self.assert_fail(result, containing='merge what is still true')
+        self.assertNotIn('git rm', result['details'])
+
+    def test_an_undecodable_path_does_not_crash_the_check(self):
+        # An audited repository can contain anything, and a check that
+        # raises on one path reports nothing about any of the other
+        # criteria -- the reason Repo.read replaces decoding errors.
+        # The bad bytes can only land in a directory component, so the
+        # basename match is unaffected and the CLAUDE.md beside it is
+        # still found.
+        self.fresh_fixture()
+        self.fixture.init_git()
+        raw = os.path.join(self.fixture.path.encode(), b'docs', b'\xff')
+        os.makedirs(raw)
+        with open(os.path.join(raw, b'CLAUDE.md'), 'w') as f:
+            f.write('# Undecodable parent\n')
+        self.fixture.write('AGENTS.md', '# AGENTS.md\n')
+        self.fixture.commit()
+        result = self.check()
+        self.assert_fail(result)
+        self.assertEqual(1, len(result['findings']))
+        self.assertTrue(result['findings'][0].endswith('/CLAUDE.md'))
+
+    def test_agents_md_symlinked_at_a_real_claude_md_is_promoted(self):
+        # The direction a project that started on CLAUDE.md most often
+        # adopts the shared name. Told to merge into AGENTS.md and
+        # delete the original, the maintainer would write the merge
+        # through the link into the file they then delete.
+        self.fresh_fixture()
+        self.fixture.init_git()
+        self.fixture.write('CLAUDE.md', '# The real document\n')
+        os.symlink('CLAUDE.md', os.path.join(self.fixture.path, 'AGENTS.md'))
+        self.fixture.commit()
+        result = self.check()
+        self.assert_fail(result, containing='git mv CLAUDE.md AGENTS.md')
+        self.assertNotIn('merge', result['details'])
+        self.assertNotIn('git rm CLAUDE.md', result['details'])
+
+    def test_a_directory_inside_a_checkout_is_not_applicable(self):
+        # `git -C <dir> ls-files` exits 0 anywhere inside a work tree,
+        # listing whatever the enclosing index holds below it -- so a
+        # tree copied into a subdirectory of an unrelated repository
+        # used to report a confident pass.
+        self.fresh_fixture()
+        self.fixture.init_git()
+        self.fixture.write('tracked.txt', 'x\n')
+        self.fixture.commit()
+        inner = os.path.join(self.fixture.path, 'inner')
+        os.mkdir(inner)
+        self.fixture = FixtureRepo(inner)
+        self.assert_skip(self.check(), containing='Not the root')
+
+    def test_an_unreadable_index_is_not_applicable(self):
+        # The branch where a silent pass would be indistinguishable
+        # from compliance: rev-parse still answers, so only ls-files'
+        # exit code separates this from an empty repository.
+        self.fresh_fixture()
+        self.fixture.init_git()
+        self.fixture.write('CLAUDE.md', '# CLAUDE.md\n')
+        self.fixture.commit()
+        with open(os.path.join(self.fixture.path, '.git', 'index'), 'w') as f:
+            f.write('GARBAGE')
+        self.assert_skip(self.check(), containing='list its index')
+
+    def test_a_directory_that_is_not_a_checkout_is_not_applicable(self):
+        # Without an index the check cannot say anything either way,
+        # and the missing piece is the harness's git rather than the
+        # audited repository -- so N/A, the reading LlmContextLint
+        # takes of a missing skillsaw, rather than a clean pass.
+        self.assert_skip(self.check(), containing='Not the root')
+
+
+class VendorAgentDocsSpecTest(unittest.TestCase):
+    """The spec page and the matched set, held to each other.
+
+    The set is documented as a closed list -- a reader deciding
+    whether their GEMINI.md is in scope reads the page, not the
+    constant -- so a member added to one and not the other publishes
+    a rule nobody can look up.
+
+    The list is parsed out of one sentence rather than searched for
+    anywhere on the page, which is not fussiness: a substring search
+    of the whole page passes on `gemini.md` because the paragraph
+    about `.gemini/GEMINI.md` further down contains it, so deleting
+    the documented list entirely left the test green. A mutation run
+    is what said so.
+
+    Parsed the way audit/scope.py parses docs/audits/README.md, and
+    for the reason AGENTS.md gives for that one: a parse of a document
+    by phrase gets a named constant and a guard, not a bare split, so
+    that rewording the page fails here and says which phrase mattered.
+    """
+
+    #: The phrases delimiting the documented list. Reword the page
+    #: freely; this test is what tells you one of them was load-bearing.
+    LIST_OPENS = 'No file named for a single tool -- '
+    LIST_CLOSES = ' -- is tracked anywhere in the repository.'
+
+    def documented_filenames(self):
+        page = ' '.join(
+            repo_text('docs', 'audits', 'llm-doc-naming.md').split())
+        for phrase in (self.LIST_OPENS, self.LIST_CLOSES):
+            self.assertIn(
+                phrase, page,
+                f'docs/audits/llm-doc-naming.md no longer contains '
+                f'"{phrase.strip()}", which is how the documented list '
+                f'of matched filenames is found')
+        listed = page.split(self.LIST_OPENS, 1)[1]
+        listed = listed.split(self.LIST_CLOSES, 1)[0]
+        return {name.strip().strip('`').lower()
+                for name in listed.split(',')}
+
+    def test_the_documented_list_is_the_matched_set(self):
+        self.assertEqual(
+            set(llm_docs.VENDOR_AGENT_DOCS), self.documented_filenames())
 
 
 if __name__ == '__main__':

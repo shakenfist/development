@@ -1,9 +1,10 @@
 """The criteria about agent-facing context.
 
-`AGENTS.md` and `ARCHITECTURE.md` exist, say what only they can say
-rather than restating `docs/`, and the skills beside them are linted.
+`AGENTS.md` and `ARCHITECTURE.md` exist, carry the name every agent
+reads rather than one vendor's, say what only they can say rather than
+restating `docs/`, and the skills beside them are linted.
 
-Four criteria, one subject: what an agent reads when it opens the
+Five criteria, one subject: what an agent reads when it opens the
 repository, and whether anything keeps it honest.
 """
 
@@ -55,9 +56,44 @@ ALLOWED_LOOSE_SKILL_FILES = ('readme.md', 'index.md')
 # Files whose presence means a repository has agent context worth
 # linting. A repository with none of these has nothing for skillsaw to
 # look at, and reporting it either way would be noise.
+#
+# CLAUDE.md and GEMINI.md are here although llm-doc-naming asks for
+# them to be renamed, and that is not a contradiction: a repository
+# part-way through the rename still has context an agent loads, and
+# switching the linter off until it finishes would leave the files
+# most in need of linting unlinted.
 AGENT_CONTEXT_MARKERS = (
     '.claude', '.codex', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md',
 )
+
+
+# Agent instruction files named for one vendor rather than for the
+# job. `AGENTS.md` is the name every agent now reads -- Claude Code,
+# Codex and Gemini CLI all load it -- so a file named for a single
+# tool is no longer the way to reach that tool. It is either a copy of
+# AGENTS.md that will drift, or a second set of instructions loaded
+# alongside it, and both are read as authoritative by whichever agent
+# recognises the name.
+#
+# Matched on the basename at any depth, case-insensitively. That is
+# what catches `.claude/CLAUDE.md` and `.gemini/GEMINI.md` without
+# naming those directories, and a nested `subdir/CLAUDE.md`, which is
+# loaded when an agent works in that subdirectory and is the copy
+# nobody remembers to update.
+#
+# CLAUDE.local.md is in the set although it is meant to be a personal
+# override: the paths come from `git ls-files`, so an untracked one is
+# invisible here and a tracked one is a personal override shipped to
+# everybody.
+#
+# The set is a constant so that it can grow. GitHub Copilot's
+# `.github/copilot-instructions.md` is the obvious next member and is
+# deliberately not in it yet: nothing in the fleet has one, and a rule
+# is easier to defend when every repository it names is a repository
+# we have looked at.
+VENDOR_AGENT_DOCS = frozenset({
+    'claude.md', 'claude.local.md', 'gemini.md',
+})
 
 
 # How a repository is expected to invoke skillsaw. The pre-commit hook
@@ -128,6 +164,92 @@ def has_agent_context(repo_path):
     return any(
         check_file_exists(repo_path, marker)
         for marker in AGENT_CONTEXT_MARKERS
+    )
+
+
+def tracked_paths(repo_path):
+    """Every path in the repository's index, or None if git cannot say.
+
+    `-z` rather than a line split, and the reason is not only NUL
+    safety. `git ls-files` C-quotes any path holding a non-ASCII byte
+    unless core.quotePath is off, so a tracked `docs/uber/CLAUDE.md`
+    with an umlaut arrives as `"docs/\303\274ber/CLAUDE.md"` -- whose
+    basename ends in a quote character and matches nothing. That is a
+    silent false negative in exactly the check whose whole job is
+    finding a file by its name. `-z` suppresses the quoting, and
+    review-tracking.py reached the same flag by the same route.
+
+    Decoding errors are replaced rather than raised, for the reason
+    Repo.read gives: an audited repository can contain anything, and a
+    check that crashes on one path reports nothing about any of the
+    other criteria. A replaced byte can only fall in a directory
+    component -- the basenames we match are ASCII -- so it costs the
+    match nothing.
+
+    None means git could not answer: the binary is missing, the call
+    timed out, the index is unreadable, or the directory is not the
+    root of a checkout. That is separated from "the index is empty"
+    because the two mean opposite things to a criterion whose finding
+    is a file being *present*, and collapsing them would report a
+    clean pass for a repository nobody looked at.
+
+    Which is why the work tree root is confirmed rather than inferred
+    from a successful listing. `git -C <dir> ls-files` exits 0 for any
+    directory *inside* a checkout, listing whatever the enclosing
+    index holds below it -- typically nothing -- so a tree copied into
+    a subdirectory of an unrelated repository would have reported a
+    confident pass. rev-parse is how review-tracking.py asks the same
+    question, and test_docs_content.py records the same fail-open
+    concern for the mermaid lane.
+    """
+    def git(*args):
+        try:
+            return subprocess.run(
+                ['git', '-C', repo_path] + list(args),
+                capture_output=True, text=True, errors='replace', timeout=60,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            return None
+
+    toplevel = git('rev-parse', '--show-toplevel')
+    if toplevel is None or toplevel.returncode != 0:
+        return None
+    if (os.path.realpath(toplevel.stdout.strip())
+            != os.path.realpath(repo_path)):
+        return None
+
+    result = git('ls-files', '-z')
+    if result is None or result.returncode != 0:
+        return None
+
+    return [path for path in result.stdout.split('\0') if path]
+
+
+def vendor_agent_docs(paths):
+    """The paths whose basename names one vendor, sorted.
+
+    Takes the tracked list rather than reading it, so that the caller
+    can ask the same list whether AGENTS.md is tracked. Asking the
+    index for one and the filesystem for the other is how a gitignored
+    working-copy AGENTS.md comes to be named as the destination of a
+    merge it is not part of.
+
+    The list comes from the index rather than a tree walk for two
+    reasons. An untracked CLAUDE.md is somebody's scratch file in
+    their own clone and not a property of the repository -- the audit
+    runs against a fresh clone and would never see one, so a walk
+    would report a finding that only exists when the check is run by
+    hand. And a walk would have to decide what to do about the build
+    output and vendored trees that WALK_SKIP exists for, where a
+    CLAUDE.md belongs to a dependency rather than to us; the index
+    answers that question already. A submodule falls out the same
+    way and for the same reason: it is one gitlink entry, so its
+    CLAUDE.md is never in the list, and it is audited in its own
+    repository if it is in scope.
+    """
+    return sorted(
+        path for path in paths
+        if path.rsplit('/', 1)[-1].lower() in VENDOR_AGENT_DOCS
     )
 
 
@@ -457,3 +579,139 @@ class LlmContextLintCi(Check):
             return self.fail(f'skillsaw does not run from {" or ".join(missing)}')
 
         return self.ok('skillsaw runs in pre-commit and in CI')
+
+
+class LlmDocNaming(Check):
+    id = 'llm-doc-naming'
+    spec = 'docs/audits/llm-doc-naming.md'
+    template = None
+    issue_title = 'Agent instruction file naming'
+
+    def run(self, repo):
+        """Check agent instructions live in AGENTS.md, not a vendor's file.
+
+        `AGENTS.md` is the name every agent we use now reads, so a
+        CLAUDE.md or a GEMINI.md is no longer how a project reaches a
+        particular tool. What it is instead decides the fix, and the
+        detail says which of the three it is:
+
+         * a symlink to AGENTS.md is a second name for one file rather
+           than a second document. It was a reasonable bridge while
+           tooling caught up, and it is `git rm` and nothing else now.
+         * with no AGENTS.md tracked, the vendor file *is* the
+           project's agent context under a name only one tool reads.
+           The fix is a rename, and llm-tooling is failing for the
+           missing AGENTS.md at the same time -- this check names the
+           file that rename starts from.
+         * with an AGENTS.md tracked, both are loaded, and the vendor
+           file is a second set of instructions with equal authority.
+           The fix is to merge what is still true into AGENTS.md and
+           delete the original, which is a read rather than a
+           `git mv`: the fleet's copies run to hundreds of lines and
+           predate the AGENTS.md beside them, so they hold both stale
+           duplication and detail that was never carried across.
+
+        A repository with none reports a pass rather than not_applicable,
+        including one with no agent context at all. "Nothing here is
+        named for a vendor" is a true statement about a repository with
+        no AGENTS.md either, and llm-tooling is the criterion that has an
+        opinion about that.
+
+        A directory git cannot list reports not_applicable. Unlike
+        PyprojectUsage, which fails on a broken ls-files, this check
+        cannot say anything either way without the index -- and the
+        missing piece is the audit harness's git, not the audited
+        repository, so failing would file an issue nobody on that
+        repository can fix. That is the reading LlmContextLint takes
+        of a missing skillsaw, a few classes up, and the same signal
+        applies: every row flipping to N/A at once is how a broken
+        runner announces itself.
+        """
+        tracked = tracked_paths(repo.path)
+        if tracked is None:
+            return self.skip(
+                'Not the root of a git checkout, or git could not '
+                'list its index')
+
+        found = vendor_agent_docs(tracked)
+        if not found:
+            return self.ok(
+                'No agent instruction files named for a single tool')
+
+        count = len(found)
+        many = count > 1
+
+        # AGENTS.md from the same list the findings came from: see
+        # vendor_agent_docs.
+        agents_tracked = 'AGENTS.md' in tracked
+
+        # A finding resolving to the same file as AGENTS.md is an
+        # alias, not a document. Matched on resolution alone rather
+        # than on which side carries the link, because a project that
+        # started on CLAUDE.md most often adopts the shared name by
+        # symlinking AGENTS.md *at* it -- and two regular files cannot
+        # share a realpath, so nothing else can match this way. A
+        # symlink pointing somewhere else, or dangling, resolves
+        # elsewhere and correctly wants the ordinary advice.
+        agents_path = repo.join('AGENTS.md')
+        agents_real = os.path.realpath(agents_path)
+        aliases = [
+            path for path in found
+            if os.path.realpath(repo.join(path)) == agents_real
+        ]
+
+        # Which side carries the link decides the fix. Told to merge
+        # into AGENTS.md and delete the original, a maintainer whose
+        # AGENTS.md *is* the link would write the merge through it
+        # into the file they then delete, and be left with a dangling
+        # AGENTS.md and no content.
+        promote = [
+            path for path in aliases if not os.path.islink(repo.join(path))
+        ]
+
+        if agents_tracked and len(aliases) == count and promote:
+            # AGENTS.md resolves to one of the findings, so the
+            # document is already written -- it is only under the
+            # wrong name. There is at most one: the others, if any,
+            # are links to it.
+            real = promote[0]
+            fix = (
+                f'AGENTS.md is a symlink to {real}, so the document is '
+                f'already here under the wrong name: git rm AGENTS.md and '
+                f'git mv {real} AGENTS.md'
+            )
+        elif agents_tracked and len(aliases) == count:
+            these_are, them = (
+                ('these are', 'them') if many else ('this is', 'it'))
+            fix = (
+                f'{these_are} a second name for AGENTS.md rather than a '
+                f'second document: git rm {them}'
+            )
+        elif agents_tracked:
+            them, each_is = (
+                ('them', 'each is') if many else ('it', 'it is'))
+            fix = (
+                f'AGENTS.md is tracked beside {them}, so {each_is} a second '
+                f'set of instructions loaded with equal authority: merge '
+                f'what is still true into AGENTS.md and delete the original'
+            )
+        else:
+            # Nothing guarantees one of them is at the repository root,
+            # so the plural wording does not name a file that may not
+            # be in the findings list.
+            these_are, rename = (
+                ('these are',
+                 'one of them to AGENTS.md at the repository root and fold '
+                 'the rest into it')
+                if many else ('this is', 'it to AGENTS.md'))
+            fix = (
+                f'no AGENTS.md is tracked, so {these_are} the project\'s '
+                f'agent context under a name only one tool reads: rename '
+                f'{rename}'
+            )
+
+        noun = 'files are' if many else 'file is'
+        return self.fail(
+            f'{count} agent instruction {noun} named for a single tool '
+            f'rather than AGENTS.md ({", ".join(found)}); {fix}',
+            findings=found)
