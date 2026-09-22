@@ -269,10 +269,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/check.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/markers.py",
       "author": "mikal"
     },
@@ -290,10 +286,6 @@
     },
     {
       "path": "scripts/audit/checks/__init__.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/docs_content.py",
       "author": "mikal"
     },
     {
@@ -417,19 +409,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/packaging.py",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/undeclared-direct-dependency.md",
       "author": "mikal"
     },
     {
       "path": "docs/audits/unused-declared-dependency.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/text/python_source.py",
       "author": "mikal"
     },
     {
@@ -517,10 +501,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_registry.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/scope.py",
       "author": "mikal"
     },
@@ -558,10 +538,6 @@
     },
     {
       "path": "scripts/audit/text/workflows.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/files.py",
       "author": "mikal"
     },
     {
@@ -609,18 +585,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/consistency-audit.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/fuzz-nightly-reporting.md",
       "author": "mikal"
     },
@@ -657,10 +621,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/plans.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/review.py",
       "author": "mikal"
     },
@@ -677,10 +637,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_docs_content.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_manage_issues.py",
       "author": "mikal"
     },
@@ -690,14 +646,6 @@
     },
     {
       "path": "scripts/tests/test_npm_dependencies.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_packaging.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_plans.py",
       "author": "mikal"
     },
     {
@@ -717,27 +665,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit-manage-issues.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit-update-docs.py",
-      "author": "mikal"
-    },
-    {
       "path": "docs/code-review-tracking.md",
       "author": "mikal"
     },
     {
-      "path": "docs/consistency-audits.md",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/repo.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_audit_seams.py",
       "author": "mikal"
     },
     {
@@ -833,23 +765,11 @@
       "author": "mikal"
     },
     {
-      "path": "ARCHITECTURE.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/registry.py",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/llm-doc-naming.md",
       "author": "mikal"
     },
     {
       "path": "docs/audits/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/llm_docs.py",
       "author": "mikal"
     },
     {
