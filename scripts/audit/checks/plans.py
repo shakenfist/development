@@ -11,11 +11,10 @@ against, and splitting them would put one validator in two places.
 
 import os
 import re
-import subprocess
 
 from audit.check import Check
 from audit.repo import path_is_within
-from audit.files import check_file_contains, iter_doc_content_files
+from audit.files import LS_FILES_FAILED, check_file_contains, iter_doc_content_files, tracked_paths
 from audit.text.markdown import (
     blank_generated_blocks, iter_lines_outside_fences,
     iter_markdown_table_rows, markdown_heading,
@@ -1083,20 +1082,15 @@ class PlanSourceReferences(Check):
         paths marks itself with PLAN_SOURCE_FILE_OK rather than being
         skipped by its name.
         """
-        try:
-            result = subprocess.run(
-                ['git', '-C', repo.path, 'ls-files'],
-                capture_output=True, text=True, timeout=60,
-            )
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            return self.fail(f'Could not run git ls-files: {e}')
+        tracked = tracked_paths(repo.path)
+        if tracked is None:
+            return self.fail(LS_FILES_FAILED)
 
         names = plan_file_names(repo.path)
         hits = []
         total = 0
-        for rel in result.stdout.splitlines():
-            rel = rel.strip()
-            if not rel or rel.endswith('.md'):
+        for rel in tracked:
+            if rel.endswith('.md'):
                 continue
             path = os.path.join(repo.path, rel)
             if not os.path.isfile(path):

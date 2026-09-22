@@ -13,6 +13,7 @@ Run with: python3 -m unittest tests.test_registry
 
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -442,7 +443,11 @@ class CheckScopeTest(unittest.TestCase):
         # with the scoping reason, and must not have run: a check that
         # ran would have written its own details, and several of them
         # would reach for the network.
+        # A real (empty) checkout, as the workflow's clone is: the
+        # checks that list the index fail on a directory git does not
+        # recognise, rather than reading it as holding nothing.
         with tempfile.TemporaryDirectory() as tmp:
+            subprocess.run(['git', 'init', '-q', tmp], check=True)
             results = run_all_checks(
                 tmp, 'private-ci', 'shakenfist'
             )

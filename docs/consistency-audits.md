@@ -175,6 +175,16 @@ Two files: the check and its specification.
    on a private repository those calls fail for reasons that say
    nothing about compliance.
 
+   Read the audited repository through the helpers rather than around
+   them. `audit.files.tracked_paths(path, *pathspec)` is how to ask git
+   what the index holds: it lists with `-z`, because `git ls-files`
+   otherwise C-quotes any non-ASCII path into a name that opens
+   nothing, and it returns `None` for a listing that failed, which is
+   not the same answer as an empty index. `repo.read()` is how to open
+   a repository file: it returns `None` for anything that is not a
+   regular file inside the checkout, so a dangling or escaping symlink
+   is skipped rather than raised on or followed.
+
 2. **`docs/audits/<check-id>.md`** -- the specification, following the
    structure in `docs/audits/README.md`, and a line for it in that
    index. Under `## Projects`, link `compliance.md#<check-id>`; the
