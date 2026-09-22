@@ -783,6 +783,50 @@
     {
       "path": "scripts/tests/test_review_tracking.py",
       "author": "mikal"
+    },
+    {
+      "path": "templates/issue-fix/issue-fix.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-fix/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-fix",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/mermaid-lint/mermaid-lint.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/mermaid-lint/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/mermaid-lint",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/plan-phase-landing.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/source-file-size.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

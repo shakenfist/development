@@ -565,6 +565,10 @@
       "sha": "53b5d8eb46e89e228dd88d42d7e1b0c3ea6694cd",
       "date": "2026-08-30"
     },
+    "templates/issue-fix/README.md": {
+      "sha": "04b90676f1d792e814258002fbf1e80d4d9bc2ce",
+      "date": "2026-09-22"
+    },
     "templates/issue-fix/claude-model-fallback.sh": {
       "sha": "2bf1baa7b5782dd5b1490e8ce548ad3029084050",
       "date": "2026-08-30"
@@ -572,6 +576,10 @@
     "templates/issue-fix/extract-model-block.sh": {
       "sha": "ce4f2ab10198501e02ccc70c7824195cb26ab0f2",
       "date": "2026-08-30"
+    },
+    "templates/issue-fix/issue-fix.yml": {
+      "sha": "30a27f350461acac0df47faf3a62c6d7505cc47e",
+      "date": "2026-09-22"
     },
     "templates/issue-fix/neutralise-pr-body.sh": {
       "sha": "4248bb512fa54f024a31cc9e838d0a11092f8da1",
@@ -584,6 +592,14 @@
     "templates/issue-link-check/issue-link-check.yml": {
       "sha": "6d0ce3ba5bf1008a1139a1a1be27959413f8ad0a",
       "date": "2026-09-09"
+    },
+    "templates/mermaid-lint/README.md": {
+      "sha": "d34bf85ccffc18781c1a17acaf225c35cda75647",
+      "date": "2026-09-22"
+    },
+    "templates/mermaid-lint/mermaid-lint.sh": {
+      "sha": "22f14bf915f76875950bb5589212b55ab0a91db1",
+      "date": "2026-09-22"
     },
     "templates/mermaid-lint/mermaid-lint.yml": {
       "sha": "d5b8377f8a98d3f68fd14469ed4d5be8fece1c6a",
@@ -625,6 +641,10 @@
       "sha": "f06f837115324e557b40b961b70a557579744e62",
       "date": "2026-09-19"
     },
+    "templates/shared-blocks/README.md": {
+      "sha": "b49718f71e78d8bfd72af2b0f62e1bccb1a09235",
+      "date": "2026-09-22"
+    },
     "templates/shared-blocks/comment-proportion.md": {
       "sha": "38c366bd44e111f047e5eb2379451ba9c13d04c6",
       "date": "2026-09-04"
@@ -653,6 +673,10 @@
       "sha": "a83f6ef04c625324c520112c17124090c6a926e5",
       "date": "2026-09-04"
     },
+    "templates/shared-blocks/plan-phase-landing.md": {
+      "sha": "f0ff55057e0d7e3bf756810233d6acb0d621a3bd",
+      "date": "2026-09-22"
+    },
     "templates/shared-blocks/plan-phase-references.md": {
       "sha": "54ec78285f680869cfbe65280e17ab783f1d44bb",
       "date": "2026-09-04"
@@ -680,6 +704,10 @@
     "templates/shared-blocks/readme-discipline.md": {
       "sha": "50400365305b95aacedee649285740f5d1d3715c",
       "date": "2026-09-04"
+    },
+    "templates/shared-blocks/source-file-size.md": {
+      "sha": "c0f09ec4d5d500e40be59be0609ff299593bc956",
+      "date": "2026-09-22"
     },
     "templates/shared-blocks/subagent-execution-model.md": {
       "sha": "f67957bb72bbdc1e7aa893780593204f0995ee94",
