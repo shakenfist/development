@@ -36,14 +36,26 @@ check having to name those directories, and it covers a nested
 `subdir/CLAUDE.md` -- which an agent loads when it works in that
 subdirectory, and which is the copy nobody remembers to update.
 
-A symlink to `AGENTS.md` does not pass either. It was a reasonable
-bridge while tooling caught up; now that the tools read `AGENTS.md`
-directly it is a second name for one file and nothing more, and the
-dangling one it leaves behind after a move is worse than the tolerance
-is worth. It gets its own advice -- `git rm` and nothing else -- since
-there is nothing in it to merge. A symlink pointing somewhere *other*
-than `AGENTS.md` carries content of its own and gets the ordinary
-advice.
+A symlink does not pass either, in either direction. It was a
+reasonable bridge while tooling caught up; now that the tools read
+`AGENTS.md` directly it is a second name for one file and nothing
+more, and the dangling one it leaves behind after a move is worse
+than the tolerance is worth. Which side carries the link decides the
+advice, because it decides where the document actually is:
+
+* `CLAUDE.md` symlinked to a real `AGENTS.md` is a spare name for a
+  file that is already correctly named: `git rm` it, and nothing
+  else, since there is nothing in it to merge.
+* `AGENTS.md` symlinked to a real `CLAUDE.md` -- which is how a
+  project that started on `CLAUDE.md` most often adopts the shared
+  name -- is the document under the wrong name. The fix is
+  `git rm AGENTS.md` followed by `git mv CLAUDE.md AGENTS.md`.
+  Merge-and-delete advice would be actively destructive here: the
+  merge would be written through the link into the very file the
+  delete then removes.
+
+A symlink pointing somewhere *other* than `AGENTS.md` carries content
+of its own and gets the ordinary advice.
 
 The file list comes from `git ls-files`. An untracked `CLAUDE.md` is
 somebody's scratch file in their own clone, not a property of the
@@ -66,6 +78,14 @@ failing would file an issue nobody on that repository could fix. This
 is the reading `llm-context-lint` takes of a missing skillsaw, and it
 carries the same signal: every row flipping to N/A at once is how a
 broken runner announces itself.
+
+So is a directory that is not the *root* of a checkout. `git ls-files`
+exits cleanly anywhere inside a work tree, listing whatever the
+enclosing index holds below the directory it was pointed at -- usually
+nothing -- so a tree copied into a subdirectory of an unrelated
+repository would otherwise be reported compliant without having been
+read. The daily audit clones and so always points at a root; this is
+for the audit run by hand.
 
 The matched set is a constant so that it can grow. GitHub Copilot's
 `.github/copilot-instructions.md` is the obvious next member and is

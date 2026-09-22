@@ -187,21 +187,39 @@ def tracked_paths(repo_path):
     match nothing.
 
     None means git could not answer: the binary is missing, the call
-    timed out, or the directory is not a checkout. That is separated
-    from "the index is empty" because the two mean opposite things to
-    a criterion whose finding is a file being *present*, and
-    collapsing them would report a clean pass for a repository nobody
-    looked at.
+    timed out, the index is unreadable, or the directory is not the
+    root of a checkout. That is separated from "the index is empty"
+    because the two mean opposite things to a criterion whose finding
+    is a file being *present*, and collapsing them would report a
+    clean pass for a repository nobody looked at.
+
+    Which is why the work tree root is confirmed rather than inferred
+    from a successful listing. `git -C <dir> ls-files` exits 0 for any
+    directory *inside* a checkout, listing whatever the enclosing
+    index holds below it -- typically nothing -- so a tree copied into
+    a subdirectory of an unrelated repository would have reported a
+    confident pass. rev-parse is how review-tracking.py asks the same
+    question, and test_docs_content.py records the same fail-open
+    concern for the mermaid lane.
     """
-    try:
-        result = subprocess.run(
-            ['git', '-C', repo_path, 'ls-files', '-z'],
-            capture_output=True, text=True, errors='replace', timeout=60,
-        )
-    except (subprocess.TimeoutExpired, FileNotFoundError):
+    def git(*args):
+        try:
+            return subprocess.run(
+                ['git', '-C', repo_path] + list(args),
+                capture_output=True, text=True, errors='replace', timeout=60,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            return None
+
+    toplevel = git('rev-parse', '--show-toplevel')
+    if toplevel is None or toplevel.returncode != 0:
+        return None
+    if (os.path.realpath(toplevel.stdout.strip())
+            != os.path.realpath(repo_path)):
         return None
 
-    if result.returncode != 0:
+    result = git('ls-files', '-z')
+    if result is None or result.returncode != 0:
         return None
 
     return [path for path in result.stdout.split('\0') if path]
@@ -224,7 +242,10 @@ def vendor_agent_docs(paths):
     hand. And a walk would have to decide what to do about the build
     output and vendored trees that WALK_SKIP exists for, where a
     CLAUDE.md belongs to a dependency rather than to us; the index
-    answers that question already.
+    answers that question already. A submodule falls out the same
+    way and for the same reason: it is one gitlink entry, so its
+    CLAUDE.md is never in the list, and it is audited in its own
+    repository if it is in scope.
     """
     return sorted(
         path for path in paths
@@ -609,7 +630,8 @@ class LlmDocNaming(Check):
         tracked = tracked_paths(repo.path)
         if tracked is None:
             return self.skip(
-                'Not a git checkout, or git could not list its index')
+                'Not the root of a git checkout, or git could not '
+                'list its index')
 
         found = vendor_agent_docs(tracked)
         if not found:
@@ -623,19 +645,42 @@ class LlmDocNaming(Check):
         # vendor_agent_docs.
         agents_tracked = 'AGENTS.md' in tracked
 
-        # A finding that is a symlink resolving to the repository's own
-        # AGENTS.md is an alias, not a document. Resolved rather than
-        # merely islink, because a symlink pointing somewhere else --
-        # or dangling -- carries content that a `git rm` would lose,
-        # and wants the ordinary advice.
-        agents_real = os.path.realpath(repo.join('AGENTS.md'))
+        # A finding resolving to the same file as AGENTS.md is an
+        # alias, not a document. Matched on resolution alone rather
+        # than on which side carries the link, because a project that
+        # started on CLAUDE.md most often adopts the shared name by
+        # symlinking AGENTS.md *at* it -- and two regular files cannot
+        # share a realpath, so nothing else can match this way. A
+        # symlink pointing somewhere else, or dangling, resolves
+        # elsewhere and correctly wants the ordinary advice.
+        agents_path = repo.join('AGENTS.md')
+        agents_real = os.path.realpath(agents_path)
         aliases = [
             path for path in found
-            if os.path.islink(repo.join(path))
-            and os.path.realpath(repo.join(path)) == agents_real
+            if os.path.realpath(repo.join(path)) == agents_real
         ]
 
-        if agents_tracked and len(aliases) == count:
+        # Which side carries the link decides the fix. Told to merge
+        # into AGENTS.md and delete the original, a maintainer whose
+        # AGENTS.md *is* the link would write the merge through it
+        # into the file they then delete, and be left with a dangling
+        # AGENTS.md and no content.
+        promote = [
+            path for path in aliases if not os.path.islink(repo.join(path))
+        ]
+
+        if agents_tracked and len(aliases) == count and promote:
+            # AGENTS.md resolves to one of the findings, so the
+            # document is already written -- it is only under the
+            # wrong name. There is at most one: the others, if any,
+            # are links to it.
+            real = promote[0]
+            fix = (
+                f'AGENTS.md is a symlink to {real}, so the document is '
+                f'already here under the wrong name: git rm AGENTS.md and '
+                f'git mv {real} AGENTS.md'
+            )
+        elif agents_tracked and len(aliases) == count:
             these_are, them = (
                 ('these are', 'them') if many else ('this is', 'it'))
             fix = (

@@ -21,7 +21,9 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import llm_docs  # noqa: E402
-from tests.base import CheckTestCase, repo_text  # noqa: E402
+from tests.base import (  # noqa: E402
+    CheckTestCase, FixtureRepo, repo_text,
+)
 
 LLM_DOC_STRUCTURE_OK = llm_docs.LLM_DOC_STRUCTURE_OK
 
@@ -674,12 +676,53 @@ class LlmDocNamingTest(CheckTestCase):
         self.assertEqual(1, len(result['findings']))
         self.assertTrue(result['findings'][0].endswith('/CLAUDE.md'))
 
+    def test_agents_md_symlinked_at_a_real_claude_md_is_promoted(self):
+        # The direction a project that started on CLAUDE.md most often
+        # adopts the shared name. Told to merge into AGENTS.md and
+        # delete the original, the maintainer would write the merge
+        # through the link into the file they then delete.
+        self.fresh_fixture()
+        self.fixture.init_git()
+        self.fixture.write('CLAUDE.md', '# The real document\n')
+        os.symlink('CLAUDE.md', os.path.join(self.fixture.path, 'AGENTS.md'))
+        self.fixture.commit()
+        result = self.check()
+        self.assert_fail(result, containing='git mv CLAUDE.md AGENTS.md')
+        self.assertNotIn('merge', result['details'])
+        self.assertNotIn('git rm CLAUDE.md', result['details'])
+
+    def test_a_directory_inside_a_checkout_is_not_applicable(self):
+        # `git -C <dir> ls-files` exits 0 anywhere inside a work tree,
+        # listing whatever the enclosing index holds below it -- so a
+        # tree copied into a subdirectory of an unrelated repository
+        # used to report a confident pass.
+        self.fresh_fixture()
+        self.fixture.init_git()
+        self.fixture.write('tracked.txt', 'x\n')
+        self.fixture.commit()
+        inner = os.path.join(self.fixture.path, 'inner')
+        os.mkdir(inner)
+        self.fixture = FixtureRepo(inner)
+        self.assert_skip(self.check(), containing='Not the root')
+
+    def test_an_unreadable_index_is_not_applicable(self):
+        # The branch where a silent pass would be indistinguishable
+        # from compliance: rev-parse still answers, so only ls-files'
+        # exit code separates this from an empty repository.
+        self.fresh_fixture()
+        self.fixture.init_git()
+        self.fixture.write('CLAUDE.md', '# CLAUDE.md\n')
+        self.fixture.commit()
+        with open(os.path.join(self.fixture.path, '.git', 'index'), 'w') as f:
+            f.write('GARBAGE')
+        self.assert_skip(self.check(), containing='list its index')
+
     def test_a_directory_that_is_not_a_checkout_is_not_applicable(self):
         # Without an index the check cannot say anything either way,
         # and the missing piece is the harness's git rather than the
         # audited repository -- so N/A, the reading LlmContextLint
         # takes of a missing skillsaw, rather than a clean pass.
-        self.assert_skip(self.check(), containing='Not a git checkout')
+        self.assert_skip(self.check(), containing='Not the root')
 
 
 class VendorAgentDocsSpecTest(unittest.TestCase):
