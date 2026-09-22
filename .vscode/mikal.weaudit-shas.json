@@ -93,6 +93,10 @@
       "sha": "5ac5a6754b08642183a1425f5a50f114ea907848",
       "date": "2026-09-09"
     },
+    "docs/audits/README.md": {
+      "sha": "a3c78a4a228ac581d55511047b5a417e20963321",
+      "date": "2026-09-22"
+    },
     "docs/audits/ci-review-automation.md": {
       "sha": "b0e5dd33cc1c7e7d845ee3b42e63ec31e35b58da",
       "date": "2026-08-27"
@@ -133,6 +137,10 @@
       "sha": "7fba89f8a3f2ac89ed16118e31c637eafb5567c4",
       "date": "2026-08-27"
     },
+    "docs/audits/fuzz-nightly-reporting.md": {
+      "sha": "0b67be3af821deed35d40b0aaddc79e45c3da985",
+      "date": "2026-09-22"
+    },
     "docs/audits/github-security.md": {
       "sha": "59aa05becc43e1c7b5d4f42240b6c20a8ac53dae",
       "date": "2026-08-27"
@@ -161,6 +169,18 @@
       "sha": "30339aeda464965fe7fbcc8562edee9249043126",
       "date": "2026-08-29"
     },
+    "docs/audits/mermaid-lint-ci.md": {
+      "sha": "02e9bfc7925fbbda096fa55b858149b01d5df0c1",
+      "date": "2026-09-22"
+    },
+    "docs/audits/npm-pin-indirect-dependencies.md": {
+      "sha": "f53c20d3ce1540b977add011d01caeb68bc74c1b",
+      "date": "2026-09-22"
+    },
+    "docs/audits/npm-undeclared-direct-dependency.md": {
+      "sha": "874431eb7bb4fb4d965a972b92000095190574f6",
+      "date": "2026-09-22"
+    },
     "docs/audits/npm-unused-declared-dependency.md": {
       "sha": "511f0e6549966f3891746fb98339f37552ee3c49",
       "date": "2026-09-14"
@@ -184,6 +204,14 @@
     "docs/audits/plan-source-references.md": {
       "sha": "b60c33917fff4fae03bdb00dda14b72fb5542556",
       "date": "2026-08-29"
+    },
+    "docs/audits/plan-template.md": {
+      "sha": "50e71108390c26f947875c30bc6358504c97bae2",
+      "date": "2026-09-22"
+    },
+    "docs/audits/push-audit.md": {
+      "sha": "90ee997f4cb64595c05eba243c4a26595dac7a35",
+      "date": "2026-09-22"
     },
     "docs/audits/pyproject-usage.md": {
       "sha": "68926e04a9e10b4af2a2fcd73901a444ab563b43",
@@ -212,6 +240,14 @@
     "docs/audits/renovate.md": {
       "sha": "ce1f4861273d8634c0a9007750585e98637ed38f",
       "date": "2026-09-04"
+    },
+    "docs/audits/review-coverage.md": {
+      "sha": "009750012edcf021ae6f632c9855f0aed5a9373a",
+      "date": "2026-09-22"
+    },
+    "docs/audits/review-scope-completeness.md": {
+      "sha": "2fe6741ad09cd4e3877f8f2d46c3a634b13f95a8",
+      "date": "2026-09-22"
     },
     "docs/audits/rust-unwrap-lint.md": {
       "sha": "ba40d7d57b5567cd25123d1b18f067e7e21815ce",
@@ -260,6 +296,14 @@
     "docs/ci-review-automation.md": {
       "sha": "d0ddaacb7265a1071af7a8463b44c8d5cf28a329",
       "date": "2026-09-07"
+    },
+    "docs/code-review-tracking.md": {
+      "sha": "c5962025479d322a7c6452ff89f74fe9fff12b37",
+      "date": "2026-09-22"
+    },
+    "docs/consistency-audits.md": {
+      "sha": "af6adfe74fcd142bcc67dad0b55f11be03806a3c",
+      "date": "2026-09-22"
     },
     "docs/release-automation.md": {
       "sha": "8a37bddb0db038f25e1d735df9807f9eb3367aa4",

@@ -663,6 +663,50 @@
     {
       "path": ".github",
       "author": "mikal"
+    },
+    {
+      "path": "docs/audits/fuzz-nightly-reporting.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/mermaid-lint-ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/npm-pin-indirect-dependencies.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/npm-undeclared-direct-dependency.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/plan-template.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/push-audit.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/review-coverage.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/review-scope-completeness.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/code-review-tracking.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consistency-audits.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
