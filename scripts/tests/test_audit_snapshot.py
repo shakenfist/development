@@ -2,7 +2,7 @@
 
 """Tests for audit_snapshot.py.
 
-Run with: python3 scripts/test_audit_snapshot.py
+Run with: python3 scripts/tests/test_audit_snapshot.py
 """
 
 import json
@@ -13,12 +13,11 @@ import sys
 import tempfile
 import unittest
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, SCRIPT_DIR)
 
 import audit_snapshot  # noqa: E402
 from audit.registry import CHECKS  # noqa: E402
-
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def result(repo, checks, timestamp='2026-09-01T06:00:00+00:00'):

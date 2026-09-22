@@ -437,26 +437,6 @@
       "sha": "05774d1adffadb12e27fef0954cca30da6b6d373",
       "date": "2026-09-04"
     },
-    "scripts/test_audit_seams.py": {
-      "sha": "5d77497f72b09ef228fc3ac622565f29f12d0f01",
-      "date": "2026-09-04"
-    },
-    "scripts/test_audit_snapshot.py": {
-      "sha": "a840f64855cfa32d7a6e38d31d0049f37021e231",
-      "date": "2026-09-22"
-    },
-    "scripts/test_audit_update_docs.py": {
-      "sha": "853e5106bf572b929c9783d06572ca54f715d275",
-      "date": "2026-09-22"
-    },
-    "scripts/test_check_audit_smoke.py": {
-      "sha": "5b9a022490b2374655fd20c171d3c08bd8f82f4c",
-      "date": "2026-09-04"
-    },
-    "scripts/test_issue_fix_extraction.py": {
-      "sha": "a65f57fa36a5b208cf744d16dddc0963c7e864a5",
-      "date": "2026-09-04"
-    },
     "scripts/tests/__init__.py": {
       "sha": "531d26fbe639291831bc7dff3a4959a702b09fe8",
       "date": "2026-09-04"
@@ -468,6 +448,22 @@
     "scripts/tests/test_audit_common.py": {
       "sha": "e31d1ac689aab09cfd90a66c0301db9d800f6d74",
       "date": "2026-09-22"
+    },
+    "scripts/tests/test_audit_seams.py": {
+      "sha": "5d77497f72b09ef228fc3ac622565f29f12d0f01",
+      "date": "2026-09-04"
+    },
+    "scripts/tests/test_audit_snapshot.py": {
+      "sha": "a840f64855cfa32d7a6e38d31d0049f37021e231",
+      "date": "2026-09-22"
+    },
+    "scripts/tests/test_audit_update_docs.py": {
+      "sha": "853e5106bf572b929c9783d06572ca54f715d275",
+      "date": "2026-09-22"
+    },
+    "scripts/tests/test_check_audit_smoke.py": {
+      "sha": "5b9a022490b2374655fd20c171d3c08bd8f82f4c",
+      "date": "2026-09-04"
     },
     "scripts/tests/test_ci_workflows.py": {
       "sha": "31351fcc2958a8c5de8bbba355f7bcb86023c9ec",
@@ -487,6 +483,10 @@
     },
     "scripts/tests/test_hooks.py": {
       "sha": "5f9c95f3e2a34e1f237e47c345183a0ec2ca3bd1",
+      "date": "2026-09-04"
+    },
+    "scripts/tests/test_issue_fix_extraction.py": {
+      "sha": "a65f57fa36a5b208cf744d16dddc0963c7e864a5",
       "date": "2026-09-04"
     },
     "scripts/tests/test_llm_docs.py": {

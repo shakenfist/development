@@ -341,15 +341,15 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/test_audit_seams.py",
+      "path": "scripts/tests/test_audit_seams.py",
       "author": "mikal"
     },
     {
-      "path": "scripts/test_check_audit_smoke.py",
+      "path": "scripts/tests/test_check_audit_smoke.py",
       "author": "mikal"
     },
     {
-      "path": "scripts/test_issue_fix_extraction.py",
+      "path": "scripts/tests/test_issue_fix_extraction.py",
       "author": "mikal"
     },
     {
@@ -789,11 +789,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/test_audit_snapshot.py",
+      "path": "scripts/tests/test_audit_snapshot.py",
       "author": "mikal"
     },
     {
-      "path": "scripts/test_audit_update_docs.py",
+      "path": "scripts/tests/test_audit_update_docs.py",
       "author": "mikal"
     }
   ],

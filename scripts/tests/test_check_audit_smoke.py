@@ -2,7 +2,7 @@
 
 """Tests for check-audit-smoke.py.
 
-Run with: python3 scripts/test_check_audit_smoke.py
+Run with: python3 scripts/tests/test_check_audit_smoke.py
 """
 
 import importlib.util
@@ -14,9 +14,8 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 
 
-SCRIPT = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), 'check-audit-smoke.py'
-)
+SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SCRIPT = os.path.join(SCRIPT_DIR, 'check-audit-smoke.py')
 
 _spec = importlib.util.spec_from_file_location('check_audit_smoke', SCRIPT)
 smoke = importlib.util.module_from_spec(_spec)

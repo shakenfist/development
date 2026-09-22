@@ -60,9 +60,9 @@
 #   model having complied.
 # - Both blocks are pulled out of the captured output by
 #   tools/extract-model-block.sh rather than by sed or awk inline
-#   here, and are pinned by scripts/test_issue_fix_extraction.py in
-#   the template repository. Extend those tests, not this step, when
-#   a new shape of model output turns up.
+#   here, and are pinned by scripts/tests/test_issue_fix_extraction.py
+#   in the template repository. Extend those tests, not this step,
+#   when a new shape of model output turns up.
 # - The description is model output, so it is passed to gh with
 #   --body-file. Never interpolate it into a shell string.
 # - The issue-fix-<N> branches are owned by this workflow and are
@@ -706,12 +706,12 @@ jobs:
         if: steps.assess.outputs.has_changes == 'true'
         run: |
           # Both blocks are pulled out by extract-model-block.sh, which
-          # is pinned by scripts/test_issue_fix_extraction.py. The marker
-          # semantics have more edge cases than they look -- a repeated
-          # start marker, a block with no closing marker, a fence the
-          # model was told not to emit -- and neither actionlint nor
-          # shellcheck sees anything wrong with an extraction which
-          # silently mangles its input.
+          # is pinned by scripts/tests/test_issue_fix_extraction.py. The
+          # marker semantics have more edge cases than they look -- a
+          # repeated start marker, a block with no closing marker, a
+          # fence the model was told not to emit -- and neither
+          # actionlint nor shellcheck sees anything wrong with an
+          # extraction which silently mangles its input.
           #
           # These come from HEAD rather than from the workspace, which
           # is NOT the reason the model wrapper above is copied. That

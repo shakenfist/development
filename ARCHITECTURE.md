@@ -126,12 +126,13 @@ repos prune stale marks on every push to their default branch via a
 (via a GitHub issue) when five or more in-scope files need review
 (`review-coverage`) and when the scope config leaves a tracked file
 out without saying so (`review-scope-completeness`). Tests are in
-`scripts/test_review_tracking.py`.
+`scripts/tests/test_review_tracking.py`.
 
 ## Testing the automation
 
-The test suites under `scripts/` run as `local` pre-commit hooks,
-and `ci.yml` runs `pre-commit run --all-files` on every pull request.
+The test suites all live in `scripts/tests/` and run as `local`
+pre-commit hooks, and `ci.yml` runs `pre-commit run --all-files` on
+every pull request.
 Until `ci.yml` existed the hooks were the only gate between an edit and
 the 06:00 UTC run, and only in a clone where somebody had installed
 them.

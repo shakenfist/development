@@ -2,7 +2,7 @@
 
 """Tests for audit-update-docs.py.
 
-Run with: python3 scripts/test_audit_update_docs.py
+Run with: python3 scripts/tests/test_audit_update_docs.py
 """
 
 import importlib.util
@@ -17,14 +17,14 @@ import tempfile
 import unittest
 
 
-SCRIPT = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), 'audit-update-docs.py'
-)
+SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+SCRIPT = os.path.join(SCRIPT_DIR, 'audit-update-docs.py')
 
 # audit-update-docs.py is not importable by name (the hyphens are not
 # valid in a module identifier), so load it from its path. It imports
 # audit_common, which lives beside it.
-sys.path.insert(0, os.path.dirname(SCRIPT))
+sys.path.insert(0, SCRIPT_DIR)
 _spec = importlib.util.spec_from_file_location('audit_update_docs', SCRIPT)
 audit_update_docs = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(audit_update_docs)
@@ -105,7 +105,7 @@ class AuditMetadataPathsTest(unittest.TestCase):
     under docs/, which is exactly when one of them is wrong.
     """
 
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    root = REPO_ROOT
 
     def test_every_spec_path_exists(self):
         metadata = audit_update_docs.AUDIT_METADATA
@@ -179,7 +179,7 @@ class DocumentedTestReferencesTest(unittest.TestCase):
     about every prose reference to it.
     """
 
-    REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    REPO = REPO_ROOT
 
     # Prose that explains how this repository works. Everything in
     # docs/ except docs/plans/, which is a record of what was decided
@@ -216,12 +216,12 @@ class DocumentedTestReferencesTest(unittest.TestCase):
                 yield name, f.read()
 
     def _sources(self):
-        """Every test file under scripts/, by basename."""
+        """Every test file under scripts/tests/, by basename."""
         sources = {}
-        scripts = os.path.join(self.REPO, 'scripts')
-        for filename in os.listdir(scripts):
+        suites = os.path.join(self.REPO, self.SUITE_DIR)
+        for filename in os.listdir(suites):
             if filename.startswith('test_') and filename.endswith('.py'):
-                with open(os.path.join(scripts, filename)) as f:
+                with open(os.path.join(suites, filename)) as f:
                     sources[filename] = f.read()
         self.assertTrue(sources)
         return sources
@@ -237,17 +237,16 @@ class DocumentedTestReferencesTest(unittest.TestCase):
                 f'{name} is in the documentation set but missing',
             )
 
-    # Where a test suite can live. The criteria's own tests moved into
-    # scripts/tests/ when they became classes; the suites that test the
-    # scripts around them stayed beside those scripts.
-    SUITE_DIRS = ('scripts', os.path.join('scripts', 'tests'))
+    # Where a test suite lives. All of them, now: the criteria's own
+    # tests moved into scripts/tests/ when they became classes, and
+    # the suites that test the scripts around them followed, so that
+    # prose naming a test names a file in one predictable place.
+    # SuiteLocationTest in tests/test_hooks.py is what keeps that true.
+    SUITE_DIR = os.path.join('scripts', 'tests')
 
     def _suite_path(self, filename):
-        for directory in self.SUITE_DIRS:
-            candidate = os.path.join(self.REPO, directory, filename)
-            if os.path.exists(candidate):
-                return candidate
-        return None
+        candidate = os.path.join(self.REPO, self.SUITE_DIR, filename)
+        return candidate if os.path.exists(candidate) else None
 
     def test_named_test_files_exist(self):
         missing = []
@@ -309,7 +308,7 @@ class AuditIndexIsCompleteTest(unittest.TestCase):
     wholesale rewrite of the page, because nothing compared the two.
     """
 
-    REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    REPO = REPO_ROOT
     INDEX = 'docs/audits/README.md'
 
     def test_every_spec_file_is_named_in_the_index(self):
@@ -351,7 +350,7 @@ class UnmeasuredCriteriaTest(unittest.TestCase):
     which ties the audit matrix to the two places that describe it.
     """
 
-    REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    REPO = REPO_ROOT
     DOC = 'docs/consistency-audits.md'
 
     def _unmeasured(self):

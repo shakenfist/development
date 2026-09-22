@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-"""Every test hook must fire on the files its suite reads.
+"""Every test hook must fire on the files its suite reads, and every
+suite must sit where a hook looks for it.
 
 A `local` pre-commit hook carries a `files:` pattern, and a suite whose
 pattern is narrower than its dependencies is worse than no hook: it
@@ -26,6 +27,11 @@ can name without ambiguity:
 A path a suite computes at runtime is invisible to all three, so this
 is a floor rather than a proof. It is not an over-approximation: a
 false dependency here would fail a green tree.
+
+The second class is the other half of the same property. A pattern
+that covers everything a suite reads is worth nothing if no hook runs
+the suite at all, which is what a test module written outside
+scripts/tests/ amounts to: discovery looks there and nowhere else.
 
 Run with: python3 -m unittest tests.test_hooks
 """
@@ -170,7 +176,8 @@ def dependencies(sources, tracked):
     directories = {os.path.dirname(p) for p in tracked if os.path.dirname(p)}
     found = set(sources)
     for source in sources:
-        text = open(os.path.join(repo_root(), source), 'r').read()
+        with open(os.path.join(repo_root(), source), 'r') as handle:
+            text = handle.read()
         found.update(_imported_modules(text))
         for path in _paths_named(text):
             if path in tracked:
@@ -196,12 +203,18 @@ class HookTriggerTest(unittest.TestCase):
         self.hooks = {
             hook_id: hook for hook_id, hook in hooks().items()
             if 'unittest' in hook['entry'] or re.search(
-                r'python3 scripts/test_\S+\.py', hook['entry'])
+                r'python3 scripts/tests/test_\S+\.py', hook['entry'])
         }
 
     def test_every_python_suite_hook_was_found(self):
-        """Guard the parse: a silent zero here would pass everything."""
-        self.assertGreaterEqual(len(self.hooks), 7, self.hooks)
+        """Guard the parse: a silent zero here would pass everything.
+
+        Named rather than counted, because the count is now two and a
+        count of two is satisfied by any two lines that happen to
+        parse.
+        """
+        self.assertIn('audit-package-tests', self.hooks)
+        self.assertIn('review-tracking-tests', self.hooks)
 
     def test_each_hook_fires_on_everything_its_suite_reads(self):
         for hook_id, hook in sorted(self.hooks.items()):
@@ -221,6 +234,52 @@ class HookTriggerTest(unittest.TestCase):
                     missed, [],
                     f'{hook_id} reads these but does not fire on them:\n  '
                     + '\n  '.join(missed))
+
+
+class SuiteLocationTest(unittest.TestCase):
+    """Every Python suite lives under scripts/tests/, where a hook looks.
+
+    The suites were split across scripts/ and scripts/tests/ for a
+    while, for no better reason than that a migration moved the check
+    tests and stopped. That is confusing to read -- two directories
+    with no rule distinguishing them -- and it is also the shape in
+    which a suite nothing runs goes unnoticed, because the hook that
+    runs everything discovers scripts/tests/ and nowhere else. A test
+    module written beside the script it tests is then a file that runs
+    only when somebody thinks to run it.
+
+    Asserted here rather than in a consistency audit on purpose. The
+    rest of the fleet already puts its tests under a tests/ directory,
+    so a fleet-wide criterion would measure one repository -- this one
+    -- at the price of a check, a specification page and a compliance
+    column, and would have to learn to ignore .tox, node_modules and
+    vendored checkouts to do it.
+    """
+
+    SUITES = os.path.join('scripts', 'tests')
+
+    def _modules(self, tracked):
+        return {path for path in tracked
+                if path.split(os.sep)[0] == 'scripts'
+                and os.path.basename(path).startswith('test_')
+                and path.endswith('.py')}
+
+    def test_every_suite_is_under_scripts_tests(self):
+        stray = sorted(path for path in self._modules(tracked_files())
+                       if os.path.dirname(path) != self.SUITES)
+        self.assertEqual(
+            stray, [],
+            'these are test suites outside ' + self.SUITES + ':\n  '
+            + '\n  '.join(stray))
+
+    def test_a_hook_runs_every_suite(self):
+        covered = set()
+        for hook in hooks().values():
+            covered.update(suite_sources(hook['entry']))
+        missed = sorted(self._modules(tracked_files()) - covered)
+        self.assertEqual(
+            missed, [],
+            'no pre-commit hook runs these:\n  ' + '\n  '.join(missed))
 
 
 if __name__ == '__main__':

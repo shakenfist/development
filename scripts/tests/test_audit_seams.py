@@ -2,7 +2,7 @@
 
 """Tests for the audit package's seams: Check, Repo, the client, the registry.
 
-Run with: python3 scripts/test_audit_seams.py
+Run with: python3 scripts/tests/test_audit_seams.py
 """
 
 import os
@@ -11,7 +11,7 @@ import sys
 import tempfile
 import unittest
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.check import Check, FAIL, NOT_APPLICABLE, PASS  # noqa: E402
 from audit.github import (  # noqa: E402
