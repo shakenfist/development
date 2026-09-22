@@ -707,6 +707,18 @@
     {
       "path": "docs/consistency-audits.md",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/ci_workflows.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/plans.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/review.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
