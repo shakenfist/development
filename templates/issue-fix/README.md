@@ -117,7 +117,7 @@ optionally naming a specific issue.
   to end of file and swallowed the description into the commit
   message, and its first line into the PR title.
 
-  `scripts/test_issue_fix_extraction.py` pins all of that, and
+  `scripts/tests/test_issue_fix_extraction.py` pins all of that, and
   checks the workflow still calls the script for both blocks. None
   of these shapes are syntax errors, so actionlint and shellcheck
   pass over an extraction which quietly publishes marker lines or a

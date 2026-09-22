@@ -96,70 +96,35 @@ repos:
   # so these are enforced rather than merely available. Keep them here
   # too: the local run is what makes the CI run boring.
   #
-  # language: system rather than a managed environment because all
-  # three suites are stdlib-only, which is also why the audit scripts
-  # can run on a bare runner. pass_filenames is off: they take no
-  # arguments and always test the whole surface.
+  # language: system rather than a managed environment because every
+  # suite is stdlib-only, which is also why the audit scripts can run
+  # on a bare runner. pass_filenames is off: they take no arguments
+  # and always test the whole surface.
   - repo: local
     hooks:
-      - id: audit-update-docs-tests
-        name: audit doc rendering tests
-        entry: python3 scripts/test_audit_update_docs.py
-        language: system
-        pass_filenames: false
-        # Markdown as well as scripts/, because this suite also checks
-        # that prose naming a test names one that exists, in the file
-        # it says. The change that breaks that check is a doc edit, so
-        # a scripts-only filter would never run it on the commit that
-        # needs it. Any .md rather than a list of the files the test
-        # reads, so the two cannot drift apart; the suite is stdlib
-        # only and takes milliseconds.
-        #
-        # templates/ too, since AuditMetadataPathsTest resolves every
-        # spec and template path in AUDIT_METADATA against the tree. A
-        # renamed template directory happens to drag a README.md along
-        # today, but that is a coincidence to depend on rather than a
-        # rule.
-        files: ^(scripts/.*\.py|.*\.md|templates/.*)$
-
-      - id: review-tracking-tests
-        name: review tracking tests
-        entry: python3 scripts/test_review_tracking.py
-        language: system
-        pass_filenames: false
-        # No file filter, because this suite asserts properties of the
-        # whole tree rather than of scripts/: that REVIEWS.md is
-        # exactly what the review marks and their sidecar render to,
-        # and that every pattern in review-scope.toml still matches a
-        # tracked path. Both can be broken by a commit that touches
-        # nothing under scripts/ -- adding any in-scope file moves the
-        # header count, and a scope pattern left behind by a directory
-        # move put 36 machine-regenerated files into the review queue
-        # with all four suites passing. A filter listing the extensions
-        # that can be in scope would be the include list copied by
-        # hand, which is the drift this is meant to catch.
-        #
-        # Running it unconditionally also matters for review-only
-        # commits: ci.yml's paths-ignore deliberately skips CI for
-        # those, so this hook is the only thing that ever looks at one.
-        # The suite is stdlib only and takes about a second and a half,
-        # most of it building fixture git repositories.
-        #
-        # always_run is declared rather than left to pre-commit's
-        # empty-pattern default, so that the absence of a `files:` line
-        # reads as a decision, and so a top-level `exclude:` added
-        # later cannot quietly narrow it.
-        always_run: true
-
       - id: audit-package-tests
-        name: audit package check tests
+        name: audit package and script tests
         entry: python3 -m unittest discover -s scripts/tests -t scripts
         language: system
         pass_filenames: false
-        # Markdown and templates as well, for the same reason the
-        # legacy suite watches them: these tests read specification
-        # pages and canonical shared blocks, so the commit that breaks
-        # one of those parses is a documentation commit.
+        # This one hook runs every suite in the repository. There used
+        # to be six more beside it, one per suite that lived in
+        # scripts/ rather than scripts/tests/, each with a pattern of
+        # its own. Once the suites moved, discovery ran them anyway, so
+        # each extra hook was a second run of tests this one had
+        # already run, under a narrower pattern -- and a narrower
+        # pattern is the defect test_hooks.py exists to catch. The
+        # exception is review-tracking-tests below, which is kept for
+        # the one thing discovery under a pattern cannot do.
+        #
+        # Markdown and templates as well as scripts/, because these
+        # tests read specification pages and canonical shared blocks,
+        # so the commit that breaks one of those parses is a
+        # documentation commit. AuditMetadataPathsTest also resolves
+        # every spec and template path in AUDIT_METADATA against the
+        # tree, and DocumentedTestReferencesTest reads every page in
+        # docs/ to check that prose naming a test names one that
+        # exists.
         #
         # Workflows as well, because two of these tests read this
         # repository's own: AuditScopeIsStatedOnceTest compares the
@@ -171,12 +136,14 @@ repos:
         # disagreeing.
         #
         # All of scripts/ rather than just the package, because the
-        # suite reaches outside it in three directions: test_metadata
+        # suite reaches outside it in several directions: test_metadata
         # and test_registry import the derived tables from
         # audit_common.py, test_review shells out to review-tracking.py
-        # the way the check does, and both name audit-check.py. A
-        # pattern listing only the package would be narrower than the
-        # imports, which is the drift these hooks exist to catch.
+        # the way the check does, and the suites that moved here drive
+        # audit-update-docs.py, audit_snapshot.py, check-audit-smoke.py
+        # and review-tracking.py directly. A pattern listing only the
+        # package would be narrower than the imports, which is the
+        # drift this hook exists to catch.
         #
         # And this file, because test_hooks.py reads it to check that
         # every suite hook fires on what its suite reads -- including
@@ -194,40 +161,35 @@ repos:
         # pattern edit nobody remembers to make.
         files: ^(scripts/.*\.py|tools/.*|.*\.md|templates/.*|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml)$
 
-      - id: audit-seams-tests
-        name: audit package seam tests
-        entry: python3 scripts/test_audit_seams.py
+      - id: review-tracking-tests
+        name: review tracking tests
+        entry: python3 scripts/tests/test_review_tracking.py
         language: system
         pass_filenames: false
-        files: ^scripts/(audit/.*\.py|test_audit_seams\.py)$
-
-      - id: audit-snapshot-tests
-        name: audit snapshot tests
-        entry: python3 scripts/test_audit_snapshot.py
-        language: system
-        pass_filenames: false
-        # The whole audit package as well as the helper, because
-        # NetworkCheckListTest re-derives the advisory list by walking
-        # every module a scheduled check can live in. A check that
-        # grows a `gh` call is a change to one file under
-        # scripts/audit/checks/, and that is exactly the commit that
-        # must not leave the list stale.
-        files: ^scripts/(audit/.*\.py|audit_snapshot\.py|test_audit_snapshot\.py|audit-check\.py)$
-
-      - id: check-audit-smoke-tests
-        name: audit smoke checker tests
-        entry: python3 scripts/test_check_audit_smoke.py
-        language: system
-        pass_filenames: false
-        files: ^scripts/.*\.py$
-
-      - id: issue-fix-extraction-tests
-        name: issue-fix marker extraction tests
-        entry: python3 scripts/test_issue_fix_extraction.py
-        language: system
-        pass_filenames: false
-        # The script under test and the workflow which calls it are both
-        # in the pattern: the tests cover the marker semantics and the
-        # seam between the two, and actionlint and shellcheck both pass
-        # over an extraction which silently mangles its input.
-        files: ^(scripts/test_issue_fix_extraction\.py|templates/issue-fix/(issue-fix\.yml|extract-model-block\.sh|neutralise-pr-body\.sh))$
+        # Discovery above runs this suite too, so this hook exists for
+        # one reason: to run it on the commits the pattern above does
+        # not match. It asserts properties of the whole tree rather
+        # than of scripts/ -- that REVIEWS.md is exactly what the
+        # review marks and their sidecar render to, and that every
+        # pattern in review-scope.toml still matches a tracked path --
+        # and both can be broken by a commit that touches nothing the
+        # pattern above names. Adding any in-scope file moves the
+        # header count, and a scope pattern left behind by a directory
+        # move put 36 machine-regenerated files into the review queue
+        # with every suite passing. A filter listing the extensions
+        # that can be in scope would be the include list copied by
+        # hand, which is the drift this is meant to catch.
+        #
+        # Running it unconditionally also matters for review-only
+        # commits: ci.yml's paths-ignore deliberately skips CI for
+        # those, so this hook is the only thing that ever looks at one.
+        # The suite is stdlib only and takes about three seconds, most
+        # of it building fixture git repositories, and the second run
+        # on a commit that matches both hooks is that cost again and
+        # nothing more.
+        #
+        # always_run is declared rather than left to pre-commit's
+        # empty-pattern default, so that the absence of a `files:` line
+        # reads as a decision, and so a top-level `exclude:` added
+        # later cannot quietly narrow it.
+        always_run: true

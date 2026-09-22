@@ -23,7 +23,7 @@ nothing calls is not an extraction, so the workflow must still invoke
 the extractor for both block names and the neutraliser for the
 description alone.
 
-Run with: python3 scripts/test_issue_fix_extraction.py
+Run with: python3 scripts/tests/test_issue_fix_extraction.py
 """
 
 import os
@@ -32,10 +32,9 @@ import tempfile
 import unittest
 
 
-TEMPLATE_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    'templates', 'issue-fix'
-)
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))))
+TEMPLATE_DIR = os.path.join(REPO_ROOT, 'templates', 'issue-fix')
 SCRIPT = os.path.join(TEMPLATE_DIR, 'extract-model-block.sh')
 NEUTRALISE = os.path.join(TEMPLATE_DIR, 'neutralise-pr-body.sh')
 WORKFLOW = os.path.join(TEMPLATE_DIR, 'issue-fix.yml')

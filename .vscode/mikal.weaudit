@@ -157,19 +157,7 @@
       "author": "mikal"
     },
     {
-      "path": "templates/issue-fix/issue-fix.yml",
-      "author": "mikal"
-    },
-    {
       "path": "templates/issue-fix/neutralise-pr-body.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/issue-fix/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/issue-fix",
       "author": "mikal"
     },
     {
@@ -317,10 +305,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_hooks.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_python_source.py",
       "author": "mikal"
     },
@@ -338,18 +322,6 @@
     },
     {
       "path": "scripts/review-tracking.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/test_audit_seams.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/test_check_audit_smoke.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/test_issue_fix_extraction.py",
       "author": "mikal"
     },
     {
@@ -629,10 +601,6 @@
       "author": "mikal"
     },
     {
-      "path": ".pre-commit-config.yaml",
-      "author": "mikal"
-    },
-    {
       "path": "templates/renovate/renovate.yml",
       "author": "mikal"
     },
@@ -642,6 +610,246 @@
     },
     {
       "path": ".github/workflows/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/consistency-audit.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/fuzz-nightly-reporting.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/mermaid-lint-ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/npm-pin-indirect-dependencies.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/npm-undeclared-direct-dependency.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/plan-template.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/push-audit.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/review-coverage.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/review-scope-completeness.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/ci_workflows.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/plans.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/base.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_audit_common.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_ci_workflows.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_docs_content.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_llm_docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_manage_issues.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_markdown.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_metadata.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_npm_dependencies.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_packaging.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_plans.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_repo.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_runners.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit_common.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit-manage-issues.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit-update-docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/code-review-tracking.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consistency-audits.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/repo.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_audit_seams.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_audit_snapshot.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_audit_update_docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_check_audit_smoke.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_hooks.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_issue_fix_extraction.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_review_tracking.py",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-fix/issue-fix.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-fix/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-fix",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/mermaid-lint/mermaid-lint.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/mermaid-lint/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/mermaid-lint",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/plan-phase-landing.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/source-file-size.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/mermaid-lint.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools",
+      "author": "mikal"
+    },
+    {
+      "path": ".pre-commit-config.yaml",
+      "author": "mikal"
+    },
+    {
+      "path": "PUSH-AUDIT.md",
+      "author": "mikal"
+    },
+    {
+      "path": "AGENTS.md",
+      "author": "mikal"
+    },
+    {
+      "path": "PLAN-TEMPLATE.md",
       "author": "mikal"
     },
     {

@@ -2,7 +2,7 @@
 
 """Tests for review-tracking.py, run against a fixture git repository.
 
-Run with: python3 scripts/test_review_tracking.py
+Run with: python3 scripts/tests/test_review_tracking.py
 """
 
 import fnmatch
@@ -16,7 +16,8 @@ import tempfile
 import unittest
 
 
-SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'review-tracking.py')
+SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SCRIPT = os.path.join(SCRIPT_DIR, 'review-tracking.py')
 
 # These tests drive fixture git repositories, and the pre-commit hook
 # runs them during `git commit`, when git exports GIT_INDEX_FILE and
@@ -681,7 +682,7 @@ class ThisRepositoryTest(unittest.TestCase):
     carries no file filter.
     """
 
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    root = os.path.dirname(SCRIPT_DIR)
 
     @classmethod
     def setUpClass(cls):
