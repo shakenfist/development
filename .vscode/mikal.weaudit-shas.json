@@ -317,6 +317,14 @@
       "sha": "97673b9e35622a6049cab81725d8554754e715b5",
       "date": "2026-09-04"
     },
+    "scripts/audit-manage-issues.py": {
+      "sha": "0cddf514bb3afcabae9953f4bbb9c67960dff7e4",
+      "date": "2026-09-22"
+    },
+    "scripts/audit-update-docs.py": {
+      "sha": "a656fb5d720db61864edc95d431941fe2b156bde",
+      "date": "2026-09-22"
+    },
     "scripts/audit/__init__.py": {
       "sha": "86ffeb2a5deffaa05b04df768a1e43d2448435a0",
       "date": "2026-09-02"
@@ -409,6 +417,10 @@
       "sha": "b2ff8e5e60be2380c29d3cc67b06289e343b043b",
       "date": "2026-09-15"
     },
+    "scripts/audit_common.py": {
+      "sha": "d35637cd460fb6d2a69be99e7c90f57e24f4aa89",
+      "date": "2026-09-22"
+    },
     "scripts/audit_snapshot.py": {
       "sha": "4f60df83948b9d7e26083b499095ac5322be05e2",
       "date": "2026-09-06"
@@ -428,6 +440,14 @@
     "scripts/test_audit_seams.py": {
       "sha": "5d77497f72b09ef228fc3ac622565f29f12d0f01",
       "date": "2026-09-04"
+    },
+    "scripts/test_audit_snapshot.py": {
+      "sha": "a840f64855cfa32d7a6e38d31d0049f37021e231",
+      "date": "2026-09-22"
+    },
+    "scripts/test_audit_update_docs.py": {
+      "sha": "853e5106bf572b929c9783d06572ca54f715d275",
+      "date": "2026-09-22"
     },
     "scripts/test_check_audit_smoke.py": {
       "sha": "5b9a022490b2374655fd20c171d3c08bd8f82f4c",

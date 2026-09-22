@@ -775,6 +775,26 @@
     {
       "path": "scripts/tests/test_runners.py",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/audit_common.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit-manage-issues.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit-update-docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/test_audit_snapshot.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/test_audit_update_docs.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
