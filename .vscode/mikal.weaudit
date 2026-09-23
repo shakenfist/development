@@ -859,6 +859,10 @@
     {
       "path": "docs/consistency-audits.md",
       "author": "mikal"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
