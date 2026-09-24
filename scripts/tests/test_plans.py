@@ -2393,12 +2393,18 @@ class PushAuditTest(CheckTestCase):
             'File size wording.\n'
             '<!-- shared-block-end -->\n'
         )
+        self.code_refs_block = (
+            '<!-- shared-block: plan-references-in-code v1 -->\n'
+            'Code plan reference wording.\n'
+            '<!-- shared-block-end -->\n'
+        )
         for name, block in (
             ('readme-discipline', self.readme_block),
             ('llm-doc-discipline', self.llm_doc_block),
             ('diagram-discipline', self.diagram_block),
             ('comment-proportion', self.comment_block),
             ('source-file-size', self.size_block),
+            ('plan-references-in-code', self.code_refs_block),
             ('plan-phase-references', self.phase_block),
             ('path-traversal-review', self.path_block),
             ('python-version-discipline', self.python_block),
@@ -2411,7 +2417,8 @@ class PushAuditTest(CheckTestCase):
         self.canonical = (
             f'{self.readme_block}\n{self.llm_doc_block}\n'
             f'{self.diagram_block}\n{self.comment_block}\n'
-            f'{self.size_block}\n{self.phase_block}\n'
+            f'{self.size_block}\n{self.code_refs_block}\n'
+            f'{self.phase_block}\n'
             f'{self.path_block}\n{self.python_block}\n'
             f'{self.tests_block}'
         )
@@ -2620,6 +2627,11 @@ class PushAuditTest(CheckTestCase):
         # naming the block here is what marks seven currently
         # compliant repositories non-compliant.
         self.assertIn('source-file-size', PUSH_AUDIT_BLOCKS)
+
+    def test_plan_references_in_code_is_required(self):
+        # Like source-file-size, naming the block here marks every
+        # repository carrying a PUSH-AUDIT.md without it non-compliant.
+        self.assertIn('plan-references-in-code', PUSH_AUDIT_BLOCKS)
 
     def test_every_required_block_has_a_canonical_copy(self):
         # A name in the list with no file under

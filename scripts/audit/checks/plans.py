@@ -158,7 +158,8 @@ def plan_reference_resolves(repo_path, token, names):
 PUSH_AUDIT_BLOCKS = [
     'readme-discipline', 'llm-doc-discipline',
     'diagram-discipline', 'comment-proportion',
-    'source-file-size', 'plan-phase-references',
+    'source-file-size', 'plan-references-in-code',
+    'plan-phase-references',
     'path-traversal-review', 'python-version-discipline',
     'functional-test-coverage',
 ]
