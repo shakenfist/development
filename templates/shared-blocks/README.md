@@ -30,7 +30,8 @@ checks) verify that an embedded block:
 - exists where it is required -- `readme-discipline`,
   `llm-doc-discipline`, `diagram-discipline`,
   `comment-proportion`, `source-file-size`,
-  `plan-phase-references`, `path-traversal-review`,
+  `plan-references-in-code`, `plan-phase-references`,
+  `path-traversal-review`,
   `python-version-discipline` and `functional-test-coverage` in
   `PUSH-AUDIT.md`;
   `plan-file-conventions`, `plan-status-vocabulary`,
@@ -56,7 +57,8 @@ morning of issues: eight of the ten repositories carrying a
 eleven carrying a `PUSH-AUDIT.md` newly failed `push-audit`. Each
 issue is closed by a verbatim copy of the block and names the file
 to copy it from; `docs/audits/compliance.md` is regenerated daily
-and is the current figure.
+and is the current figure. `plan-references-in-code` followed on
+2026-09-24 on the same terms.
 
 Read `plan-phase-landing` together with `plan-push-audit-phase`: the
 first says the push-audit phase records no `Merged` cell, which is
