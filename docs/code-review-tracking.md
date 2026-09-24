@@ -18,12 +18,16 @@ wired `stamp` and `prune` into the pre-commit, post-merge,
 post-checkout, and post-rewrite hooks, but review state silently
 changing in the middle of unrelated git operations proved more
 confusing than helpful. That objection does not apply to CI running
-against a repository's own default branch, so in steady state four
-subcommands also run automatically: `prune` and then `import`, in
-that order, from an adopting repo's `prune-reviews` workflow on every
-push to the default branch and daily, and `status` and
-`scope-orphans` from the consistency audit's `review-coverage` and
-`review-scope-completeness` checks (see "Steady state" below).
+against a repository's own default branch, so in steady state three
+subcommands also run automatically: `prune` from an adopting repo's
+`prune-reviews` workflow on every push to the default branch, and
+`status` and `scope-orphans` from the consistency audit's
+`review-coverage` and `review-scope-completeness` checks (see
+"Steady state" below). `import` is run by hand today; once the
+review tracking CI template planned in
+`docs/plans/PLAN-review-import.md` is rolled out, that workflow
+will run `prune` and then `import`, in that order, on every push
+and daily.
 Target repositories carry a thin wrapper (for example ryll's
 `tools/review-tracking.sh`) that locates a local clone of this
 repository and passes through to the script.
@@ -73,7 +77,10 @@ repository and passes through to the script.
   excluded, as should ephemeral working documents like a
   `docs/plans/` archive -- point-in-time records of intended work,
   not living artifacts, and numerous enough to swamp the queue.
-  Whether unit tests are in scope is a per-repo decision.
+  Whether unit tests are in scope is a per-repo decision. An
+  optional `import-exclude` list names files that must never be
+  marked reviewed by import (see "Importing reviews from this
+  repository" under "Steady state").
 
 ## Adopting a repository
 
@@ -333,6 +340,14 @@ gitsign verify \
 git log --show-signature -- .vscode/   # with the config above
 ```
 
+`import` performs the same check, and needs to know which identity
+each reviewer signs as: `REVIEWER_IDENTITIES` in
+`scripts/review-tracking.py` maps a reviewer name (the `<username>`
+of `.vscode/<username>.weaudit`) to their certificate identity.
+When a new reviewer starts signing review-state commits here, add
+an entry for them; until then `import` cannot verify their reviews
+and skips each one with a warning naming them.
+
 Note that GitHub's web UI shows gitsign commits as "Unverified"
 (reason `bad_cert`): GitHub cannot validate Fulcio's short-lived
 certificates. This is expected -- the trust path is gitsign
@@ -568,8 +583,11 @@ means verifying the signed commit that *introduced* its stamp -- an
 unsigned later commit that deletes marks weakens nothing. Removing a
 mark is always safe; it merely queues the file for re-review.
 
-`import` also runs unsigned from the bot, and adds marks, so it
-needs its own argument rather than inheriting prune's. An imported
+`import` will also run unsigned from the bot -- it is run by hand
+until the review tracking CI template planned in
+`docs/plans/PLAN-review-import.md` adds it to the `prune-reviews`
+workflow -- and it adds marks, so it needs its own argument rather
+than inheriting prune's. An imported
 entry is not itself an attestation: it is a pointer to one --
 the repository, path, and introducing commit of a signed
 review-state commit already made in this repository (see
@@ -657,19 +675,32 @@ records whether the introducing commit's signature was checked --
 see the attestation argument above for why `import` checks it before
 trusting the entry, rather than leaving verification to a later
 reader. A commit that fails verification is skipped with a warning
-naming it. `status` does not verify an imported entry's provenance,
-any more than it verifies a native mark's signature: it only checks
-that the blob SHA still matches `HEAD`, the same as it does for a
-native mark. `--no-verify` disables the check outright. Either way
--- disabled, or gitsign not installed -- every run says so on
-stderr, and what it imports is recorded with `verified: false`
-rather than passed off as checked. (A signature that is checked and
-fails is different: that entry is not imported at all.)
+naming it, as is a review by a reviewer with no entry in
+`REVIEWER_IDENTITIES` (see "Commit signing"). `status` does not
+verify an imported entry's provenance, any more than it verifies a
+native mark's signature: it only checks that the blob SHA still
+matches `HEAD`, the same as it does for a native mark.
+
+`--no-verify` is the only way to import without verification. It
+disables the check outright, every run under it says so on stderr,
+and what it imports is recorded with `verified: false` and shown in
+`REVIEWS.md` with an `(unverified)` suffix on its Source cell,
+rather than passed off as checked. A run without gitsign on `PATH`
+does not fall back to that: it imports nothing, leaves the entries
+already recorded alone, ends with a warning banner on stderr saying
+so and pointing at `--no-verify`, and still exits zero, so that a
+CI job on a runner without gitsign neither fails nor marks anything
+reviewed. It still removes entries, which needs no verification.
 
 A file whose native mark has gone stale is not imported until
-`prune` has removed the mark, which is why the workflow runs
+`prune` has removed the mark, which is why the workflow will run
 `prune` first; until then the file's own review history says it
-needs a human. `import` regenerates `REVIEWS.md` when it changes
+needs a human. An imported entry that has itself gone stale -- its
+blob is no longer the file's content at `HEAD` -- is replaced if the
+new content was reviewed here too and can be imported, and
+otherwise removed by `import` itself, with the same message `prune`
+gives, so that `REVIEWS.md` never shows it as reviewed in the
+meantime. `import` regenerates `REVIEWS.md` when it changes
 anything, as `stamp` and `prune` do.
 
 A native review always supersedes an import: if a reviewer marks a
@@ -694,7 +725,8 @@ import-exclude = ['config/local-overrides.yml']
 any existing imported entry that starts matching one.
 
 `REVIEWS.md`'s reviewed-files table gains a `Source` column: `-` for
-a native review, `development@<12-char commit>` for an imported one,
+a native review, `development@<12-char commit>` for an imported one
+(with ` (unverified)` appended if it was imported under `--no-verify`),
 with the `Reviewer` cell taken from the entry's own provenance rather
 than from a `.weaudit` file in this clone.
 

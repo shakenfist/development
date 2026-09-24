@@ -783,7 +783,7 @@ class ImportTest(unittest.TestCase):
         """The imports file's entries, or {} when there is no file."""
         return (self.imports() or {}).get('files', {})
 
-    def source_review(self, stamps, full=None, partial=(), reviewer='mikal', message='review'):
+    def source_review(self, stamps, full=None, partial=(), reviewer='mikal', message='review', commit=True):
         """Commit reviewer state in the source and return the commit.
 
         stamps maps each stamped path to its stamp date, and the sha is
@@ -792,7 +792,8 @@ class ImportTest(unittest.TestCase):
         defaults to every stamped path; partial lists paths carrying a
         region mark. The state file and sidecar are written from
         scratch each time, so an unchanged argument leaves that file
-        unchanged in the commit.
+        unchanged in the commit. commit=False writes without committing,
+        so that the next call's commit carries two reviewers' state.
         """
         if full is None:
             full = list(stamps)
@@ -804,6 +805,8 @@ class ImportTest(unittest.TestCase):
                     json.dumps(make_weaudit(full, [(p, 1, 2) for p in partial], author=reviewer), indent=2))
         self.swrite('.vscode/%s.weaudit-shas.json' % reviewer,
                     json.dumps({'version': 1, 'files': files}, indent=2) + '\n')
+        if not commit:
+            return None
         self.git(self.source, 'add', '-A')
         self.git(self.source, 'commit', '--allow-empty', '-m', message)
         return self.git(self.source, 'rev-parse', 'HEAD').stdout.strip()
@@ -819,6 +822,20 @@ class ImportTest(unittest.TestCase):
         self.git(self.target, 'add', '-A')
         self.run_tool('stamp')
         self.tcommit('reviews')
+
+    def add_reviewer_identity(self, reviewer, identity):
+        """Give a reviewer a signing identity in the source's copy of the script.
+
+        REVIEWER_IDENTITIES is module data in a script run as a separate
+        process, so the seam is the copy itself. The edit is left
+        uncommitted: import reads the source's history, not its tree.
+        """
+        with open(self.script) as f:
+            script = f.read()
+        anchor = "REVIEWER_IDENTITIES = {\n"
+        self.assertIn(anchor, script)
+        with open(self.script, 'w') as f:
+            f.write(script.replace(anchor, anchor + "    '%s': '%s',\n" % (reviewer, identity), 1))
 
     def run_tool(self, *args, cwd=None):
         env = dict(os.environ, PATH=self.bin)
@@ -944,6 +961,26 @@ class ImportTest(unittest.TestCase):
         self.assertEqual(entry['sha'], self.tblob('src/a.py'))
         self.assertEqual(entry['imported']['commit'], old)
         self.assertEqual(entry['date'], '2026-01-01')
+
+    def test_a_stale_import_is_removed_when_the_new_content_was_not_reviewed(self):
+        """Without waiting for prune: until then REVIEWS.md would show it reviewed."""
+        self.swrite('templates/a.py', 'a = 1\n')
+        self.swrite('templates/b.py', 'b = 2\n')
+        commit = self.source_review({'templates/a.py': '2026-01-02', 'templates/b.py': '2026-01-02'})
+        self.run_import()
+        self.tcommit('import')
+        old = self.tblob('src/a.py')
+        self.twrite('src/a.py', 'a = 2\n')
+        self.tcommit('change a')
+
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(sorted(self.imported()), ['src/b.py'])
+        self.assertIn('review-import: src/a.py changed since its review (2026-01-02, %s -> %s, imported from '
+                      'development@%s); treating as unreviewed'
+                      % (old[:12], self.tblob('src/a.py')[:12], commit[:12]), p.stdout)
+        self.assertIn('imported 0 file(s), removed 1 import(s)', p.stdout)
+        self.assertNotIn('| src/a.py |', self.tread('REVIEWS.md'))
 
     def test_a_stale_import_is_replaced_when_the_new_content_was_reviewed_too(self):
         self.review_a(date='2026-01-01')
@@ -1074,14 +1111,33 @@ class ImportTest(unittest.TestCase):
         self.assertIn('no valid signature for this commit', p.stderr)
         self.assertIn('skipped 1 whose source commit did not verify', p.stdout)
 
-    def test_without_gitsign_imports_are_recorded_unverified_with_a_warning(self):
+    def test_without_gitsign_nothing_is_imported_and_existing_imports_are_kept(self):
+        """A missing gitsign must not quietly become --no-verify."""
+        self.swrite('templates/a.py', 'a = 1\n')
+        self.source_review({'templates/a.py': '2026-01-02'})
+        self.run_import()
+        self.tcommit('import')
+        before = self.tread(IMPORTS)
+        self.swrite('templates/b.py', 'b = 2\n')
+        self.source_review({'templates/a.py': '2026-01-02', 'templates/b.py': '2026-01-03'})
         os.remove(self.gitsign)
-        self.review_a()
+
         p = self.run_import()
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        self.assertIs(self.imported()['src/a.py']['imported']['verified'], False)
-        self.assertIn('gitsign not found on PATH', p.stderr)
-        self.assertIn('signature NOT verified', p.stdout)
+        self.assertEqual(self.tread(IMPORTS), before)
+        self.assertEqual(self.git(self.target, 'status', '--porcelain').stdout, '')
+        self.assertIn('imported 0 file(s), removed 0 import(s), skipped 1 because gitsign is not installed',
+                      p.stdout)
+        self.assertIn('GITSIGN NOT FOUND ON PATH -- NOTHING WAS IMPORTED', p.stderr)
+        self.assertIn('--no-verify', p.stderr)
+        self.assertTrue(p.stderr.rstrip().endswith('=' * 72), p.stderr)
+
+    def test_without_gitsign_a_run_with_nothing_to_import_still_says_so(self):
+        os.remove(self.gitsign)
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIsNone(self.imports())
+        self.assertIn('NOTHING WAS IMPORTED', p.stderr)
 
     def test_no_verify_records_unverified_with_a_warning_and_never_runs_gitsign(self):
         self.review_a()
@@ -1090,6 +1146,46 @@ class ImportTest(unittest.TestCase):
         self.assertIs(self.imported()['src/a.py']['imported']['verified'], False)
         self.assertIn('signature verification disabled by --no-verify', p.stderr)
         self.assertEqual(self.gitsign_calls(), [])
+
+    def test_an_unverified_import_is_marked_so_in_reviews_md(self):
+        commit = self.review_a()
+        self.run_import('--no-verify')
+        self.assertIn('| src/a.py | mikal | 2026-01-02 | %s | development@%s (unverified) |'
+                      % (self.tblob('src/a.py')[:12], commit[:12]), self.tread('REVIEWS.md'))
+
+    def test_a_reviewer_with_no_signing_identity_is_not_imported(self):
+        commit = self.review_a()
+        self.swrite('templates/b.py', 'b = 2\n')
+        zed = self.source_review({'templates/b.py': '2026-01-03'}, reviewer='zed')
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(sorted(self.imported()), ['src/a.py'])
+        self.assertIn('not importing src/b.py: the review of templates/b.py was made by zed', p.stderr)
+        self.assertIn('add them to REVIEWER_IDENTITIES', p.stderr)
+        self.assertIn(zed, p.stderr)
+        self.assertIn('skipped 1 whose reviewer has no signing identity', p.stdout)
+        # Never handed to gitsign under someone else's identity.
+        self.assertEqual([c['argv'][-1] for c in self.gitsign_calls()], [commit])
+
+        # --no-verify is the explicit way past it, as for any other check.
+        p = self.run_import('--no-verify')
+        self.assertIs(self.imported()['src/b.py']['imported']['verified'], False)
+        self.assertEqual(self.imported()['src/b.py']['imported']['reviewer'], 'zed')
+
+    def test_each_reviewer_is_verified_against_their_own_identity(self):
+        """One commit carrying two reviewers' state is checked once per signer."""
+        self.add_reviewer_identity('zed', 'zed@example.com')
+        self.swrite('templates/a.py', 'a = 1\n')
+        self.swrite('templates/b.py', 'b = 2\n')
+        self.source_review({'templates/a.py': '2026-01-02'}, commit=False)
+        commit = self.source_review({'templates/b.py': '2026-01-03'}, reviewer='zed')
+        self.run_import()
+        self.assertEqual(sorted(self.imported()), ['src/a.py', 'src/b.py'])
+        identities = sorted(a for c in self.gitsign_calls() for a in c['argv']
+                            if a.startswith('--certificate-identity='))
+        self.assertEqual(identities, ['--certificate-identity=mikal@stillhq.com',
+                                      '--certificate-identity=zed@example.com'])
+        self.assertEqual(set(c['argv'][-1] for c in self.gitsign_calls()), {commit})
 
     def test_the_verification_warning_is_repeated_on_a_run_that_imports_nothing(self):
         self.review_a()
@@ -1127,6 +1223,18 @@ class ImportTest(unittest.TestCase):
         self.assertIsNone(self.imports())
 
     # Writes.
+
+    def test_import_creates_the_vscode_directory_when_there_is_none(self):
+        """A repository with no scope config and no reviewer has no .vscode at all."""
+        self.git(self.target, 'rm', '-q', '.vscode/review-scope.toml')
+        self.tcommit('no scope config')
+        self.assertFalse(os.path.exists(os.path.join(self.target, '.vscode')))
+        self.review_a()
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(sorted(self.imported()), ['src/a.py'])
+        self.assertIn('| src/a.py | mikal |', self.tread('REVIEWS.md'))
+        self.assertIn('1 of 3 in-scope files are currently reviewed.', self.tread('REVIEWS.md'))
 
     def test_import_never_writes_a_state_file_or_a_reviewers_sidecar(self):
         self.review_a()

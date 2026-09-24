@@ -6,8 +6,9 @@ This script implements the automation described in
 docs/code-review-tracking.md. It runs in the repository under review,
 invoked by hand -- deliberately not from git hooks, which proved
 confusing when they fired in the middle of other git operations.
-(Three subcommands also run from CI: prune and import from an adopting
-repo's prune-reviews workflow, and status from the consistency audit's
+(Some subcommands also run from CI: prune from an adopting repo's
+prune-reviews workflow, which will run import after it once the review
+tracking CI template lands, and status from the consistency audit's
 review-coverage check; see the steady state section of the doc.)
 Target repositories typically carry a thin wrapper (for example
 ryll's tools/review-tracking.sh) that locates a clone of the
@@ -104,9 +105,13 @@ SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 SOURCE_REPO = 'shakenfist/development'
 SOURCE_LABEL = 'development'
 
-# The signing identity every review-state commit in the source must
-# carry (docs/code-review-tracking.md, "Commit signing").
-GITSIGN_IDENTITY = 'mikal@stillhq.com'
+# The signing identity each reviewer's review-state commits in the
+# source must carry (docs/code-review-tracking.md, "Commit signing").
+# Add an entry when a new reviewer starts signing review-state commits;
+# until then their reviews cannot be verified, and are not imported.
+REVIEWER_IDENTITIES = {
+    'mikal': 'mikal@stillhq.com',
+}
 GITSIGN_ISSUER = 'https://github.com/login/oauth'
 GITSIGN_TIMEOUT = 120
 
@@ -275,6 +280,11 @@ def write_imports(imports, trailing_newline):
             os.remove(IMPORTS_PATH)
         return
     imports['files'] = dict(sorted(files.items()))
+    # The only write in this script whose directory may not exist yet:
+    # every other one rewrites a file beside a state file already read
+    # from .vscode, or REVIEWS.md at the top level. A repository with
+    # no scope config and no reviewer of its own has no .vscode at all.
+    os.makedirs(os.path.dirname(IMPORTS_PATH), exist_ok=True)
     write_json(IMPORTS_PATH, imports, trailing_newline)
 
 
@@ -328,8 +338,16 @@ def native_marks(tracked, current_sha):
 
 
 def import_source_label(entry):
-    """The REVIEWS.md Source cell for an imported entry."""
-    return '%s@%s' % (SOURCE_LABEL, entry.get('imported', {}).get('commit', '-')[:SHORT_SHA])
+    """The REVIEWS.md Source cell for an imported entry.
+
+    An entry imported under --no-verify says so here, where a reader of
+    REVIEWS.md will see it, rather than only in the imports file.
+    """
+    imported = entry.get('imported', {})
+    label = '%s@%s' % (SOURCE_LABEL, imported.get('commit', '-')[:SHORT_SHA])
+    if imported.get('verified') is False:
+        label += ' (unverified)'
+    return label
 
 
 def render_reviews_md():
@@ -630,23 +648,33 @@ def prune_imports():
     nothing about it. Returns the paths dropped.
     """
     imports, nl = load_imports()
-    entries = imports.get('files', {})
+    stale = drop_stale_imports(imports.get('files', {}), lambda path: blob_sha('HEAD:%s' % path),
+                               'review-prune')
+    if stale:
+        write_imports(imports, nl)
+    return stale
+
+
+def drop_stale_imports(entries, current_sha, prefix):
+    """Remove, and report, entries whose blob is not current_sha(path). Returns their paths.
+
+    Shared by prune and import so that the two apply one rule and say
+    the same thing when they apply it.
+    """
     stale = []
     for path in sorted(entries):
         entry = entries[path]
-        current = blob_sha('HEAD:%s' % path)
+        current = current_sha(path)
         recorded = entry.get('sha')
         if recorded is not None and current == recorded:
             continue
         stale.append(path)
         now = current[:SHORT_SHA] if current else 'gone'
-        print('review-prune: %s changed since its review (%s, %s -> %s, imported from %s); '
+        print('%s: %s changed since its review (%s, %s -> %s, imported from %s); '
               'treating as unreviewed'
-              % (path, entry.get('date', 'undated'), (recorded or 'nothing')[:SHORT_SHA], now,
+              % (prefix, path, entry.get('date', 'undated'), (recorded or 'nothing')[:SHORT_SHA], now,
                  import_source_label(entry)))
         del entries[path]
-    if stale:
-        write_imports(imports, nl)
     return stale
 
 
@@ -777,8 +805,12 @@ def reviewed_blobs(source):
     return blobs
 
 
-def verify_commit(git_dir, commit):
-    """Check a source commit's gitsign signature. Returns (ok, detail).
+def verify_commit(git_dir, commit, identity):
+    """Check a source commit's gitsign signature by identity. Returns (ok, detail).
+
+    identity is the certificate identity the reviewer who made the
+    review signs as (REVIEWER_IDENTITIES): a commit signed by anyone
+    else is not that reviewer's attestation.
 
     git_dir is the source's common git directory, not its working tree.
     gitsign reads the repository through go-git, which cannot follow a
@@ -798,7 +830,7 @@ def verify_commit(git_dir, commit):
     """
     try:
         p = subprocess.run(['gitsign', 'verify',
-                            '--certificate-identity=%s' % GITSIGN_IDENTITY,
+                            '--certificate-identity=%s' % identity,
                             '--certificate-oidc-issuer=%s' % GITSIGN_ISSUER,
                             commit],
                            capture_output=True, text=True, cwd=git_dir, timeout=GITSIGN_TIMEOUT)
@@ -853,14 +885,16 @@ def cmd_import(args):
         return 1
 
     verify = not args.no_verify
+    # Without gitsign nothing can be verified, and the only way to
+    # import unverified is to ask for it. Falling back to "verified":
+    # false instead would let a runner that merely lacks gitsign mark
+    # files reviewed on the strength of commits nobody checked. The run
+    # still exits zero, so such a CI job does not fail, and it still
+    # removes what should go, which needs no verification.
+    gitsign_missing = verify and shutil.which('gitsign') is None
     if not verify:
         print('review-import: WARNING: signature verification disabled by --no-verify; reviews '
               'imported by this run are recorded with "verified": false', file=sys.stderr)
-    elif shutil.which('gitsign') is None:
-        verify = False
-        print('review-import: WARNING: gitsign not found on PATH, so source commit signatures '
-              'cannot be verified; reviews imported by this run are recorded with "verified": false',
-              file=sys.stderr)
     if git('rev-parse', '--is-shallow-repository', cwd=SOURCE_ROOT).stdout.strip() == 'true':
         print('review-import: WARNING: %s is a shallow clone, so reviews older than its history '
               'cannot be found; fetch its full history to import them' % SOURCE_ROOT, file=sys.stderr)
@@ -875,8 +909,8 @@ def cmd_import(args):
     entries = imports.setdefault('files', {})
 
     # First, what this run should no longer be carrying. A stale entry
-    # (its sha no longer HEAD's) is prune's to remove, not import's; it
-    # is replaced below if the new content was reviewed too.
+    # (its sha no longer HEAD's) is left for now: it is replaced below
+    # if the new content was reviewed too, and removed after that if not.
     removed = []
     for path in sorted(entries):
         if path in valid:
@@ -894,6 +928,8 @@ def cmd_import(args):
     verified = {}
     added = []
     unverified = 0
+    no_identity = 0
+    blocked = 0
     for path in sorted(tracked):
         if not in_scope(path, include, exclude) or excluded_by(path, import_exclude):
             continue
@@ -912,10 +948,25 @@ def cmd_import(args):
             continue
         origin = blobs[sha]
         commit = origin['commit']
+        if gitsign_missing:
+            blocked += 1
+            continue
         if verify:
-            if commit not in verified:
-                verified[commit] = verify_commit(source_id[1], commit)
-            ok, detail = verified[commit]
+            identity = REVIEWER_IDENTITIES.get(origin['reviewer'])
+            if identity is None:
+                no_identity += 1
+                print('review-import: WARNING: not importing %s: the review of %s was made by %s, who '
+                      'has no signing identity in REVIEWER_IDENTITIES, so %s cannot be verified; add '
+                      'them to REVIEWER_IDENTITIES in %s'
+                      % (path, origin['path'], origin['reviewer'], commit, os.path.basename(__file__)),
+                      file=sys.stderr)
+                continue
+            # Per identity as well as per commit: a commit carrying two
+            # reviewers' state is two attestations, each checked
+            # against its own signer.
+            if (commit, identity) not in verified:
+                verified[(commit, identity)] = verify_commit(source_id[1], commit, identity)
+            ok, detail = verified[(commit, identity)]
             if not ok:
                 unverified += 1
                 print('review-import: WARNING: not importing %s: the review of %s was introduced by '
@@ -940,17 +991,52 @@ def cmd_import(args):
               % (path, origin['path'], commit[:SHORT_SHA], origin['reviewer'], origin['date'],
                  'signature verified' if verify else 'signature NOT verified'))
 
+    # Then whatever is still stale. Its content changed and was not
+    # replaced above -- the new blob was never reviewed, or its review
+    # could not be imported by this run -- so the entry attests to
+    # nothing at HEAD and would otherwise render as reviewed in
+    # REVIEWS.md until the next prune. Removal only, as prune does it.
+    removed.extend(drop_stale_imports(entries, head.get, 'review-import'))
+
     if added or removed:
         write_imports(imports, nl)
     regenerated = generate_reviews_md()
     summary = 'review-import: imported %d file(s), removed %d import(s)' % (len(added), len(removed))
     if unverified:
         summary += ', skipped %d whose source commit did not verify' % unverified
+    if no_identity:
+        summary += ', skipped %d whose reviewer has no signing identity' % no_identity
+    if blocked:
+        summary += ', skipped %d because gitsign is not installed' % blocked
     print(summary)
     changed = ([IMPORTS_PATH] if added or removed else []) + ([REVIEWS_PATH] if regenerated else [])
     if changed:
         print('review-import: updated %s' % ', '.join(changed))
+    if gitsign_missing:
+        report_gitsign_missing(blocked)
     return 0
+
+
+def report_gitsign_missing(blocked):
+    """Announce, loudly and last, that import imported nothing for want of gitsign.
+
+    A run that exits zero and imports nothing looks exactly like a run
+    with nothing to import, so this has to be impossible to scroll past.
+    """
+    sys.stdout.flush()
+    lines = ['', RULE,
+             'review-import: GITSIGN NOT FOUND ON PATH -- NOTHING WAS IMPORTED',
+             RULE,
+             'Every imported review must point at a source commit whose signature was',
+             'checked, and without gitsign none can be. %d file(s) whose content was' % blocked,
+             'reviewed in %s were therefore left unreviewed here; existing' % SOURCE_REPO,
+             'imports were kept, except any this run would have removed anyway.',
+             '',
+             'Install gitsign and run import again. To import without verification',
+             'instead, say so explicitly with --no-verify: those entries are then',
+             'recorded, and shown in %s, as unverified.' % REVIEWS_PATH,
+             RULE]
+    print('\n'.join(lines), file=sys.stderr)
 
 
 def cmd_regen(_args):

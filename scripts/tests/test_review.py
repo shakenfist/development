@@ -182,6 +182,37 @@ class ReviewCoverageTest(CheckTestCase):
         self.assertEqual(result['missing'],
                          [f'never reviewed: f{i}.py' for i in range(5)])
 
+    def test_imported_reviews_count_and_are_named(self):
+        files = [f'f{i}.py' for i in range(6)]
+        self.make_reviewed_repo(files, reviewed=files[:2])
+        # What import would write for two files whose bytes were
+        # reviewed in shakenfist/development; status only checks the
+        # blob SHA against HEAD.
+        entries = {}
+        for path in files[2:4]:
+            sha = subprocess.run(['git', 'rev-parse', f'HEAD:{path}'],
+                                 cwd=self.fixture.path, capture_output=True,
+                                 text=True, check=True).stdout.strip()
+            entries[path] = {'sha': sha, 'date': '2026-01-02',
+                             'imported': {'repo': 'shakenfist/development'}}
+        self.fixture.write('.vscode/imports.weaudit-shas.json',
+                           json.dumps({'version': 1, 'files': entries}))
+        self.fixture.commit('import')
+        result = self.check()
+        self.assert_pass(result)
+        self.assertEqual(
+            result['details'],
+            '4 of 6 in-scope files reviewed at HEAD (2 imported from '
+            'shakenfist/development); 2 need review (threshold 5)')
+
+    def test_no_imported_note_without_imports(self):
+        files = [f'f{i}.py' for i in range(2)]
+        self.make_reviewed_repo(files, reviewed=files)
+        self.assertEqual(
+            self.check()['details'],
+            '2 of 2 in-scope files reviewed at HEAD; 0 need review '
+            '(threshold 5)')
+
     def test_oserror_is_reported_rather_than_raised(self):
         # run_check() has no exception handler, so anything raised out
         # of a check costs the repository all of its other criteria as

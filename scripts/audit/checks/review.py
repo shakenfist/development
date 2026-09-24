@@ -219,9 +219,19 @@ class ReviewCoverage(Check):
         except json.JSONDecodeError:
             return self.fail('review-tracking.py status emitted unparseable JSON')
 
+        # Imported reviews count: they attest to the same bytes, and
+        # import verified the attestation when it recorded them. Named
+        # anyway, so a jump in coverage from an import is not mistaken
+        # for a review session.
+        imported = status.get('imported', 0)
+        imported_note = (
+            f' ({imported} imported from shakenfist/development)'
+            if imported else ''
+        )
         details = (
             f'{status["reviewed"]} of {status["in_scope"]} in-scope '
-            f'files reviewed at HEAD; {status["needing_review"]} need '
+            f'files reviewed at HEAD{imported_note}; '
+            f'{status["needing_review"]} need '
             f'review (threshold {REVIEW_BACKLOG_THRESHOLD})'
         )
         if status['needing_review'] >= REVIEW_BACKLOG_THRESHOLD:

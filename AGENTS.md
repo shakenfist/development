@@ -117,8 +117,12 @@ wrapper like ryll's `tools/review-tracking.sh`), deliberately not from
 git hooks. Three subcommands also run from CI in steady state: `prune`
 from an adopting repo's `prune-reviews` workflow on pushes to its
 default branch, and `status` and `scope-orphans` from the consistency
-audit's `review-coverage` and `review-scope-completeness` checks --
-see `docs/code-review-tracking.md`.
+audit's `review-coverage` and `review-scope-completeness` checks.
+`import` marks files reviewed whose bytes were reviewed here, recording
+them in `.vscode/imports.weaudit-shas.json`; it is run by hand until
+`prune-reviews` runs it after `prune`
+(`docs/plans/PLAN-review-import.md`) -- see
+`docs/code-review-tracking.md`.
 
 ## Working on review tracking
 

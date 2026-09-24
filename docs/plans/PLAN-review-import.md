@@ -1079,6 +1079,15 @@ intend to do aligns with that plan.
   when a later, signed commit attests to the same blob. Rare, since
   review commits are signed, but falling back to the next
   attestation would be more correct.
+  The same applies when the earliest attestation is by a reviewer
+  with no entry in `REVIEWER_IDENTITIES`.
+* **Split `scripts/review-tracking.py`.** Phase 1 took it from 636
+  to about 1,230 lines, past the ~800-line mark in
+  `templates/shared-blocks/source-file-size.md` that this repository
+  publishes to the fleet. The file is under whole-file review, so
+  every change to it costs a re-read of all of it. Raised by the
+  automated review of #177 and deliberately not done there, where
+  it would have buried the logic change in the diff.
 
 Related issues: shakenfist/development#173 is this repository's
 own review-coverage issue; import does not affect it, because this
