@@ -15,198 +15,198 @@ for how this works, including how to verify the attestations.
 
 ## Reviewed files
 
-| File | Reviewer | Date | Blob SHA |
-|------|----------|------|----------|
-| .claude/skills/diagram-conversion/SKILL.md | mikal | 2026-09-06 | da73cad9f9e2 |
-| .claude/skills/review-tracking-adoption/SKILL.md | mikal | 2026-09-01 | 3987ddabe20a |
-| .claude/skills/standards-alignment/SKILL.md | mikal | 2026-09-01 | 098dc512cfb1 |
-| .flake8 | mikal | 2026-09-04 | cf7c807de18a |
-| .github/actionlint.yaml | mikal | 2026-09-14 | 8cdbc00c61e3 |
-| .github/exported-config/repository-settings.json | mikal | 2026-09-01 | e1e9f80b8dfc |
-| .github/exported-config/ruleset-protect-default-branch-history.json | mikal | 2026-09-01 | 25af15fa8586 |
-| .github/exported-config/rulesets-summary.json | mikal | 2026-09-01 | 63b5043da65a |
-| .github/workflows/ci.yml | mikal | 2026-09-22 | 4e391bb74e8a |
-| .github/workflows/codeql-analysis.yml | mikal | 2026-09-01 | c11dc1e33458 |
-| .github/workflows/consistency-audit.yml | mikal | 2026-09-24 | 3f6ce7ecba11 |
-| .github/workflows/export-repo-config.yml | mikal | 2026-08-24 | 53b5d8eb46e8 |
-| .github/workflows/issue-link-check.yml | mikal | 2026-09-09 | 6d0ce3ba5bf1 |
-| .github/workflows/mermaid-lint.yml | mikal | 2026-09-14 | d5b8377f8a98 |
-| .github/workflows/pr-re-review.yml | mikal | 2026-09-07 | 983a5e26834f |
-| .github/workflows/pr-retest.yml | mikal | 2026-09-07 | 12fc85a25e35 |
-| .github/workflows/prune-reviews.yml | mikal | 2026-09-01 | feb474e2510c |
-| .github/workflows/secret-scan.yml | mikal | 2026-08-24 | afd9d7247b03 |
-| .gitignore | mikal | 2026-09-04 | 26a19958e616 |
-| .pre-commit-config.yaml | mikal | 2026-09-22 | 6e5662a63f09 |
-| AGENTS.md | mikal | 2026-09-22 | dba2df5ee4eb |
-| ARCHITECTURE.md | mikal | 2026-09-24 | c16d0c514f76 |
-| PLAN-TEMPLATE.md | mikal | 2026-09-22 | a5b19acb9a99 |
-| PUSH-AUDIT.md | mikal | 2026-09-25 | 498788906186 |
-| README.md | mikal | 2026-09-09 | 5ac5a6754b08 |
-| docs/audits/README.md | mikal | 2026-09-23 | 9c0961ebcdb4 |
-| docs/audits/ci-review-automation.md | mikal | 2026-08-27 | b0e5dd33cc1c |
-| docs/audits/console-logging.md | mikal | 2026-08-27 | 89fc842904ab |
-| docs/audits/default-branch-naming.md | mikal | 2026-08-27 | 8a213d692499 |
-| docs/audits/delete-branch-on-merge.md | mikal | 2026-08-27 | 941d50366e32 |
-| docs/audits/dependency-name-normalization.md | mikal | 2026-08-27 | 9cda252fa5e0 |
-| docs/audits/diagram-format.md | mikal | 2026-08-30 | 878a89164a5f |
-| docs/audits/docs-external-links.md | mikal | 2026-08-27 | 9b09c0d4f5d4 |
-| docs/audits/eol-distro.md | mikal | 2026-09-14 | 862c0198a994 |
-| docs/audits/expensive-lane-path-filter.md | mikal | 2026-08-27 | a73639bc27b1 |
-| docs/audits/export-repo-config.md | mikal | 2026-08-27 | 7fba89f8a3f2 |
-| docs/audits/fuzz-nightly-reporting.md | mikal | 2026-09-22 | 0b67be3af821 |
-| docs/audits/github-security.md | mikal | 2026-08-27 | 59aa05becc43 |
-| docs/audits/llm-context-lint-ci.md | mikal | 2026-09-01 | f00697148a34 |
-| docs/audits/llm-context-lint.md | mikal | 2026-08-27 | 45885eb745a5 |
-| docs/audits/llm-doc-naming.md | mikal | 2026-09-23 | 6da06b3b9f7e |
-| docs/audits/llm-doc-structure.md | mikal | 2026-08-27 | 4bfd7ae30e60 |
-| docs/audits/llm-tooling.md | mikal | 2026-08-27 | d3ea450f3add |
-| docs/audits/merge-group-cancellation.md | mikal | 2026-09-07 | 7f08a96244d0 |
-| docs/audits/merge-queue-config.md | mikal | 2026-08-29 | 30339aeda464 |
-| docs/audits/mermaid-lint-ci.md | mikal | 2026-09-22 | 02e9bfc7925f |
-| docs/audits/npm-pin-indirect-dependencies.md | mikal | 2026-09-22 | f53c20d3ce15 |
-| docs/audits/npm-undeclared-direct-dependency.md | mikal | 2026-09-22 | 874431eb7bb4 |
-| docs/audits/npm-unused-declared-dependency.md | mikal | 2026-09-14 | 511f0e654996 |
-| docs/audits/pin-indirect-dependencies.md | mikal | 2026-08-29 | 6141c51ac838 |
-| docs/audits/plan-audit-phase.md | mikal | 2026-09-14 | 903513cb7c98 |
-| docs/audits/plan-index.md | mikal | 2026-09-04 | 8fe492a81b93 |
-| docs/audits/plan-phase-references.md | mikal | 2026-08-29 | 4439f2afbeec |
-| docs/audits/plan-source-references.md | mikal | 2026-09-25 | 315f1dd1c9f6 |
-| docs/audits/plan-template.md | mikal | 2026-09-22 | 50e71108390c |
-| docs/audits/push-audit.md | mikal | 2026-09-25 | 9b78ae44533b |
-| docs/audits/pyproject-usage.md | mikal | 2026-09-09 | 68926e04a9e1 |
-| docs/audits/python-version.md | mikal | 2026-08-29 | 6666fd792cb1 |
-| docs/audits/readme-absolute-links.md | mikal | 2026-08-29 | 7fa029c20199 |
-| docs/audits/readme-structure.md | mikal | 2026-08-29 | 8c37a570e596 |
-| docs/audits/release-process.md | mikal | 2026-09-06 | de2ea9bee07e |
-| docs/audits/renovate-lockstep-groups.md | mikal | 2026-09-04 | 6c07a2d2bada |
-| docs/audits/renovate.md | mikal | 2026-09-04 | ce1f4861273d |
-| docs/audits/review-coverage.md | mikal | 2026-09-22 | 009750012edc |
-| docs/audits/review-scope-completeness.md | mikal | 2026-09-22 | 2fe6741ad09c |
-| docs/audits/rust-unwrap-lint.md | mikal | 2026-08-29 | ba40d7d57b55 |
-| docs/audits/scope-coverage.md | mikal | 2026-09-09 | cfce4d8281d1 |
-| docs/audits/secret-handling.md | mikal | 2026-08-29 | 9d43f69848de |
-| docs/audits/security-sanitization.md | mikal | 2026-08-29 | e6413c87b8fb |
-| docs/audits/sfui-vendor.md | mikal | 2026-09-10 | 059563604e21 |
-| docs/audits/test-coverage.md | mikal | 2026-08-29 | 54f7bfcad8af |
-| docs/audits/undeclared-direct-dependency.md | mikal | 2026-09-04 | a89f44752f2b |
-| docs/audits/unused-declared-dependency.md | mikal | 2026-09-04 | a86255bf6150 |
-| docs/audits/version-file-gitignore.md | mikal | 2026-08-29 | 27a18426ea30 |
-| docs/audits/workflow-standards.md | mikal | 2026-09-01 | bb9205a884de |
-| docs/automated-pr-review.md | mikal | 2026-08-30 | d60479307223 |
-| docs/ci-review-automation.md | mikal | 2026-09-07 | d0ddaacb7265 |
-| docs/code-review-tracking.md | mikal | 2026-09-22 | 264227fdacf8 |
-| docs/consistency-audits.md | mikal | 2026-09-24 | a6694b3a157c |
-| docs/release-automation.md | mikal | 2026-09-06 | 8a37bddb0db0 |
-| renovate.json | mikal | 2026-09-04 | f6014271a980 |
-| scripts/audit-check.py | mikal | 2026-09-04 | 97673b9e3562 |
-| scripts/audit-manage-issues.py | mikal | 2026-09-24 | 8cfcd0bbe0c0 |
-| scripts/audit-raised.py | mikal | 2026-09-24 | 5349a3921a82 |
-| scripts/audit-update-docs.py | mikal | 2026-09-24 | 9800becd8d74 |
-| scripts/audit/__init__.py | mikal | 2026-09-02 | 86ffeb2a5def |
-| scripts/audit/check.py | mikal | 2026-09-24 | 7dee16201fba |
-| scripts/audit/checks/__init__.py | mikal | 2026-09-02 | d54faddeed24 |
-| scripts/audit/checks/ci_workflows.py | mikal | 2026-09-22 | 368d0c0c010f |
-| scripts/audit/checks/distros.py | mikal | 2026-09-15 | 81c0aa6c3a38 |
-| scripts/audit/checks/docs_content.py | mikal | 2026-09-24 | 53aa7bbc2467 |
-| scripts/audit/checks/github_config.py | mikal | 2026-09-09 | 5346495d6285 |
-| scripts/audit/checks/llm_docs.py | mikal | 2026-09-24 | ae974a77264d |
-| scripts/audit/checks/npm_dependencies.py | mikal | 2026-09-15 | 01853364578a |
-| scripts/audit/checks/packaging.py | mikal | 2026-09-24 | 06f2d582b5ff |
-| scripts/audit/checks/plans.py | mikal | 2026-09-25 | 48c79d69c8ee |
-| scripts/audit/checks/review.py | mikal | 2026-09-22 | 21fd5bf0dc26 |
-| scripts/audit/checks/runners.py | mikal | 2026-09-15 | c7e4ad82421f |
-| scripts/audit/files.py | mikal | 2026-09-24 | 576192351437 |
-| scripts/audit/github.py | mikal | 2026-09-06 | 5fdb28856b27 |
-| scripts/audit/markers.py | mikal | 2026-09-02 | ef1d4a201566 |
-| scripts/audit/registry.py | mikal | 2026-09-24 | e8a391a0f440 |
-| scripts/audit/repo.py | mikal | 2026-09-22 | 56afa0fbc2ae |
-| scripts/audit/scope.py | mikal | 2026-09-10 | 1e0464184a21 |
-| scripts/audit/text/__init__.py | mikal | 2026-09-02 | dc2515cc9e2c |
-| scripts/audit/text/markdown.py | mikal | 2026-09-04 | b05356143ac8 |
-| scripts/audit/text/python_source.py | mikal | 2026-09-24 | 1e273dd7c16e |
-| scripts/audit/text/shared_blocks.py | mikal | 2026-09-02 | 100a6bcd559d |
-| scripts/audit/text/workflows.py | mikal | 2026-09-15 | b2ff8e5e60be |
-| scripts/audit_common.py | mikal | 2026-09-22 | d35637cd460f |
-| scripts/audit_snapshot.py | mikal | 2026-09-06 | 4f60df83948b |
-| scripts/check-audit-smoke.py | mikal | 2026-09-04 | d63445626e8f |
-| scripts/commit-audit-docs.sh | mikal | 2026-09-04 | cc6bcdab6674 |
-| scripts/review-tracking.py | mikal | 2026-09-04 | 05774d1adffa |
-| scripts/tests/__init__.py | mikal | 2026-09-04 | 531d26fbe639 |
-| scripts/tests/base.py | mikal | 2026-09-22 | b55c8394f2b9 |
-| scripts/tests/test_audit_common.py | mikal | 2026-09-22 | e31d1ac689aa |
-| scripts/tests/test_audit_seams.py | mikal | 2026-09-24 | 8c2839c763fc |
-| scripts/tests/test_audit_snapshot.py | mikal | 2026-09-22 | cc486c60a22a |
-| scripts/tests/test_audit_update_docs.py | mikal | 2026-09-22 | 699967ad3fbc |
-| scripts/tests/test_check_audit_smoke.py | mikal | 2026-09-22 | e23f875b2a5d |
-| scripts/tests/test_ci_workflows.py | mikal | 2026-09-22 | 31351fcc2958 |
-| scripts/tests/test_distros.py | mikal | 2026-09-15 | 2a43c0a85d59 |
-| scripts/tests/test_docs_content.py | mikal | 2026-09-24 | 3a615508f2ae |
-| scripts/tests/test_github_config.py | mikal | 2026-09-09 | 60915542b323 |
-| scripts/tests/test_hooks.py | mikal | 2026-09-22 | f87b63fadcf2 |
-| scripts/tests/test_issue_fix_extraction.py | mikal | 2026-09-22 | 84d34be6471d |
-| scripts/tests/test_llm_docs.py | mikal | 2026-09-23 | 3c4c74df2e19 |
-| scripts/tests/test_manage_issues.py | mikal | 2026-09-22 | 5b494fe6460a |
-| scripts/tests/test_markdown.py | mikal | 2026-09-22 | f79a74741890 |
-| scripts/tests/test_metadata.py | mikal | 2026-09-23 | 83146af45de2 |
-| scripts/tests/test_npm_dependencies.py | mikal | 2026-09-22 | e7360d31a425 |
-| scripts/tests/test_packaging.py | mikal | 2026-09-24 | 0740592ab6cb |
-| scripts/tests/test_plans.py | mikal | 2026-09-25 | 800b4705a9ba |
-| scripts/tests/test_python_source.py | mikal | 2026-09-04 | 5ac39fc5a13c |
-| scripts/tests/test_registry.py | mikal | 2026-09-24 | 7efe49f84780 |
-| scripts/tests/test_repo.py | mikal | 2026-09-22 | 89987f23cb42 |
-| scripts/tests/test_review.py | mikal | 2026-09-22 | 768b41df98d4 |
-| scripts/tests/test_review_tracking.py | mikal | 2026-09-22 | 92266e7a3d28 |
-| scripts/tests/test_runners.py | mikal | 2026-09-22 | 7aed137d41b1 |
-| templates/ci-review-automation/README.md | mikal | 2026-09-09 | d885ff92a103 |
-| templates/ci-review-automation/pr-re-review.yml | mikal | 2026-09-07 | 983a5e26834f |
-| templates/ci-review-automation/pr-retest.yml | mikal | 2026-09-07 | 5741391a21cf |
-| templates/codeql/README.md | mikal | 2026-08-30 | d8ad7a6bed16 |
-| templates/codeql/codeql-analysis.yml | mikal | 2026-09-04 | 33ec0a9eeaf8 |
-| templates/export-repo-config/README.md | mikal | 2026-08-30 | bbc6b820824b |
-| templates/export-repo-config/export-repo-config.yml | mikal | 2026-08-30 | 53b5d8eb46e8 |
-| templates/issue-fix/README.md | mikal | 2026-09-22 | 04b90676f1d7 |
-| templates/issue-fix/claude-model-fallback.sh | mikal | 2026-08-30 | 2bf1baa7b578 |
-| templates/issue-fix/extract-model-block.sh | mikal | 2026-08-30 | ce4f2ab10198 |
-| templates/issue-fix/issue-fix.yml | mikal | 2026-09-22 | 30a27f350461 |
-| templates/issue-fix/neutralise-pr-body.sh | mikal | 2026-08-30 | 4248bb512fa5 |
-| templates/issue-link-check/README.md | mikal | 2026-09-09 | 28489dc2b569 |
-| templates/issue-link-check/issue-link-check.yml | mikal | 2026-09-09 | 6d0ce3ba5bf1 |
-| templates/mermaid-lint/README.md | mikal | 2026-09-22 | d34bf85ccffc |
-| templates/mermaid-lint/mermaid-lint.sh | mikal | 2026-09-22 | 22f14bf915f7 |
-| templates/mermaid-lint/mermaid-lint.yml | mikal | 2026-09-16 | d5b8377f8a98 |
-| templates/pin-indirect-dependencies/README.md | mikal | 2026-08-30 | c20c7590e1b3 |
-| templates/pin-indirect-dependencies/pin-indirect-dependencies.sh | mikal | 2026-08-30 | 241b462c281d |
-| templates/pin-indirect-dependencies/pin-indirect-dependencies.yml | mikal | 2026-09-16 | ac69b68d8b24 |
-| templates/release-automation/README.md | mikal | 2026-08-30 | 1b567888baa5 |
-| templates/release-automation/RELEASE-SETUP.md | mikal | 2026-09-06 | 33f4b4e69c07 |
-| templates/release-automation/release.yml | mikal | 2026-09-16 | 38b26358b5de |
-| templates/renovate/README.md | mikal | 2026-08-30 | ae88c3ede7ec |
-| templates/renovate/renovate.json | mikal | 2026-08-30 | 2ddd5e0b8169 |
-| templates/shared-blocks/README.md | mikal | 2026-09-25 | 3b381f429dbe |
-| templates/shared-blocks/comment-proportion.md | mikal | 2026-09-04 | 38c366bd44e1 |
-| templates/shared-blocks/diagram-discipline.md | mikal | 2026-09-04 | 7f99cb461af2 |
-| templates/shared-blocks/functional-test-coverage.md | mikal | 2026-09-04 | 61c3580c1231 |
-| templates/shared-blocks/llm-doc-discipline.md | mikal | 2026-09-04 | dd5d5ac09a9b |
-| templates/shared-blocks/path-traversal-review.md | mikal | 2026-09-04 | a61ddf84c108 |
-| templates/shared-blocks/plan-closeout-sections.md | mikal | 2026-09-04 | 6cb9ee7e7d5d |
-| templates/shared-blocks/plan-file-conventions.md | mikal | 2026-09-04 | a83f6ef04c62 |
-| templates/shared-blocks/plan-phase-landing.md | mikal | 2026-09-22 | f0ff55057e0d |
-| templates/shared-blocks/plan-phase-references.md | mikal | 2026-09-04 | 54ec78285f68 |
-| templates/shared-blocks/plan-planning-effort.md | mikal | 2026-09-04 | 1e7f1b0747ba |
-| templates/shared-blocks/plan-push-audit-phase.md | mikal | 2026-09-16 | d2b289157a3d |
-| templates/shared-blocks/plan-references-in-code.md | mikal | 2026-09-25 | 9432aa8e0135 |
-| templates/shared-blocks/plan-review-checklist.md | mikal | 2026-09-04 | 797ddae188bc |
-| templates/shared-blocks/plan-status-vocabulary.md | mikal | 2026-09-04 | a235e4266971 |
-| templates/shared-blocks/python-version-discipline.md | mikal | 2026-09-04 | 6040dde51ad3 |
-| templates/shared-blocks/readme-discipline.md | mikal | 2026-09-04 | 50400365305b |
-| templates/shared-blocks/source-file-size.md | mikal | 2026-09-22 | c0f09ec4d5d5 |
-| templates/shared-blocks/subagent-execution-model.md | mikal | 2026-09-04 | f67957bb72bb |
-| templates/shared-blocks/subagent-model-roster.md | mikal | 2026-09-04 | c2a8c1130b99 |
-| templates/shared-blocks/subagent-step-guidance.md | mikal | 2026-09-04 | add2cdd152a7 |
-| templates/test-drift-fix/README.md | mikal | 2026-08-30 | e3d6692995bb |
-| templates/test-drift-fix/pr-fix-tests.yml | mikal | 2026-08-30 | e0dc3d2fa903 |
-| templates/test-drift-fix/test-drift-fix.yml | mikal | 2026-09-04 | c3d300505da2 |
-| tools/audit-snapshot.sh | mikal | 2026-09-04 | 9d7efbf68a9f |
-| tools/ci-prune-reviews.sh | mikal | 2026-08-24 | 3e10680265c6 |
-| tools/mermaid-lint.sh | mikal | 2026-09-22 | 22f14bf915f7 |
-| tools/review-tracking.sh | mikal | 2026-08-24 | fabe2fc68a97 |
+| File | Reviewer | Date | Blob SHA | Source |
+|------|----------|------|----------|--------|
+| .claude/skills/diagram-conversion/SKILL.md | mikal | 2026-09-06 | da73cad9f9e2 | - |
+| .claude/skills/review-tracking-adoption/SKILL.md | mikal | 2026-09-01 | 3987ddabe20a | - |
+| .claude/skills/standards-alignment/SKILL.md | mikal | 2026-09-01 | 098dc512cfb1 | - |
+| .flake8 | mikal | 2026-09-04 | cf7c807de18a | - |
+| .github/actionlint.yaml | mikal | 2026-09-14 | 8cdbc00c61e3 | - |
+| .github/exported-config/repository-settings.json | mikal | 2026-09-01 | e1e9f80b8dfc | - |
+| .github/exported-config/ruleset-protect-default-branch-history.json | mikal | 2026-09-01 | 25af15fa8586 | - |
+| .github/exported-config/rulesets-summary.json | mikal | 2026-09-01 | 63b5043da65a | - |
+| .github/workflows/ci.yml | mikal | 2026-09-22 | 4e391bb74e8a | - |
+| .github/workflows/codeql-analysis.yml | mikal | 2026-09-01 | c11dc1e33458 | - |
+| .github/workflows/consistency-audit.yml | mikal | 2026-09-24 | 3f6ce7ecba11 | - |
+| .github/workflows/export-repo-config.yml | mikal | 2026-08-24 | 53b5d8eb46e8 | - |
+| .github/workflows/issue-link-check.yml | mikal | 2026-09-09 | 6d0ce3ba5bf1 | - |
+| .github/workflows/mermaid-lint.yml | mikal | 2026-09-14 | d5b8377f8a98 | - |
+| .github/workflows/pr-re-review.yml | mikal | 2026-09-07 | 983a5e26834f | - |
+| .github/workflows/pr-retest.yml | mikal | 2026-09-07 | 12fc85a25e35 | - |
+| .github/workflows/prune-reviews.yml | mikal | 2026-09-01 | feb474e2510c | - |
+| .github/workflows/secret-scan.yml | mikal | 2026-08-24 | afd9d7247b03 | - |
+| .gitignore | mikal | 2026-09-04 | 26a19958e616 | - |
+| .pre-commit-config.yaml | mikal | 2026-09-22 | 6e5662a63f09 | - |
+| AGENTS.md | mikal | 2026-09-22 | dba2df5ee4eb | - |
+| ARCHITECTURE.md | mikal | 2026-09-24 | c16d0c514f76 | - |
+| PLAN-TEMPLATE.md | mikal | 2026-09-22 | a5b19acb9a99 | - |
+| PUSH-AUDIT.md | mikal | 2026-09-25 | 498788906186 | - |
+| README.md | mikal | 2026-09-09 | 5ac5a6754b08 | - |
+| docs/audits/README.md | mikal | 2026-09-23 | 9c0961ebcdb4 | - |
+| docs/audits/ci-review-automation.md | mikal | 2026-08-27 | b0e5dd33cc1c | - |
+| docs/audits/console-logging.md | mikal | 2026-08-27 | 89fc842904ab | - |
+| docs/audits/default-branch-naming.md | mikal | 2026-08-27 | 8a213d692499 | - |
+| docs/audits/delete-branch-on-merge.md | mikal | 2026-08-27 | 941d50366e32 | - |
+| docs/audits/dependency-name-normalization.md | mikal | 2026-08-27 | 9cda252fa5e0 | - |
+| docs/audits/diagram-format.md | mikal | 2026-08-30 | 878a89164a5f | - |
+| docs/audits/docs-external-links.md | mikal | 2026-08-27 | 9b09c0d4f5d4 | - |
+| docs/audits/eol-distro.md | mikal | 2026-09-14 | 862c0198a994 | - |
+| docs/audits/expensive-lane-path-filter.md | mikal | 2026-08-27 | a73639bc27b1 | - |
+| docs/audits/export-repo-config.md | mikal | 2026-08-27 | 7fba89f8a3f2 | - |
+| docs/audits/fuzz-nightly-reporting.md | mikal | 2026-09-22 | 0b67be3af821 | - |
+| docs/audits/github-security.md | mikal | 2026-08-27 | 59aa05becc43 | - |
+| docs/audits/llm-context-lint-ci.md | mikal | 2026-09-01 | f00697148a34 | - |
+| docs/audits/llm-context-lint.md | mikal | 2026-08-27 | 45885eb745a5 | - |
+| docs/audits/llm-doc-naming.md | mikal | 2026-09-23 | 6da06b3b9f7e | - |
+| docs/audits/llm-doc-structure.md | mikal | 2026-08-27 | 4bfd7ae30e60 | - |
+| docs/audits/llm-tooling.md | mikal | 2026-08-27 | d3ea450f3add | - |
+| docs/audits/merge-group-cancellation.md | mikal | 2026-09-07 | 7f08a96244d0 | - |
+| docs/audits/merge-queue-config.md | mikal | 2026-08-29 | 30339aeda464 | - |
+| docs/audits/mermaid-lint-ci.md | mikal | 2026-09-22 | 02e9bfc7925f | - |
+| docs/audits/npm-pin-indirect-dependencies.md | mikal | 2026-09-22 | f53c20d3ce15 | - |
+| docs/audits/npm-undeclared-direct-dependency.md | mikal | 2026-09-22 | 874431eb7bb4 | - |
+| docs/audits/npm-unused-declared-dependency.md | mikal | 2026-09-14 | 511f0e654996 | - |
+| docs/audits/pin-indirect-dependencies.md | mikal | 2026-08-29 | 6141c51ac838 | - |
+| docs/audits/plan-audit-phase.md | mikal | 2026-09-14 | 903513cb7c98 | - |
+| docs/audits/plan-index.md | mikal | 2026-09-04 | 8fe492a81b93 | - |
+| docs/audits/plan-phase-references.md | mikal | 2026-08-29 | 4439f2afbeec | - |
+| docs/audits/plan-source-references.md | mikal | 2026-09-25 | 315f1dd1c9f6 | - |
+| docs/audits/plan-template.md | mikal | 2026-09-22 | 50e71108390c | - |
+| docs/audits/push-audit.md | mikal | 2026-09-25 | 9b78ae44533b | - |
+| docs/audits/pyproject-usage.md | mikal | 2026-09-09 | 68926e04a9e1 | - |
+| docs/audits/python-version.md | mikal | 2026-08-29 | 6666fd792cb1 | - |
+| docs/audits/readme-absolute-links.md | mikal | 2026-08-29 | 7fa029c20199 | - |
+| docs/audits/readme-structure.md | mikal | 2026-08-29 | 8c37a570e596 | - |
+| docs/audits/release-process.md | mikal | 2026-09-06 | de2ea9bee07e | - |
+| docs/audits/renovate-lockstep-groups.md | mikal | 2026-09-04 | 6c07a2d2bada | - |
+| docs/audits/renovate.md | mikal | 2026-09-04 | ce1f4861273d | - |
+| docs/audits/review-coverage.md | mikal | 2026-09-22 | 009750012edc | - |
+| docs/audits/review-scope-completeness.md | mikal | 2026-09-22 | 2fe6741ad09c | - |
+| docs/audits/rust-unwrap-lint.md | mikal | 2026-08-29 | ba40d7d57b55 | - |
+| docs/audits/scope-coverage.md | mikal | 2026-09-09 | cfce4d8281d1 | - |
+| docs/audits/secret-handling.md | mikal | 2026-08-29 | 9d43f69848de | - |
+| docs/audits/security-sanitization.md | mikal | 2026-08-29 | e6413c87b8fb | - |
+| docs/audits/sfui-vendor.md | mikal | 2026-09-10 | 059563604e21 | - |
+| docs/audits/test-coverage.md | mikal | 2026-08-29 | 54f7bfcad8af | - |
+| docs/audits/undeclared-direct-dependency.md | mikal | 2026-09-04 | a89f44752f2b | - |
+| docs/audits/unused-declared-dependency.md | mikal | 2026-09-04 | a86255bf6150 | - |
+| docs/audits/version-file-gitignore.md | mikal | 2026-08-29 | 27a18426ea30 | - |
+| docs/audits/workflow-standards.md | mikal | 2026-09-01 | bb9205a884de | - |
+| docs/automated-pr-review.md | mikal | 2026-08-30 | d60479307223 | - |
+| docs/ci-review-automation.md | mikal | 2026-09-07 | d0ddaacb7265 | - |
+| docs/code-review-tracking.md | mikal | 2026-09-22 | 264227fdacf8 | - |
+| docs/consistency-audits.md | mikal | 2026-09-24 | a6694b3a157c | - |
+| docs/release-automation.md | mikal | 2026-09-06 | 8a37bddb0db0 | - |
+| renovate.json | mikal | 2026-09-04 | f6014271a980 | - |
+| scripts/audit-check.py | mikal | 2026-09-04 | 97673b9e3562 | - |
+| scripts/audit-manage-issues.py | mikal | 2026-09-24 | 8cfcd0bbe0c0 | - |
+| scripts/audit-raised.py | mikal | 2026-09-24 | 5349a3921a82 | - |
+| scripts/audit-update-docs.py | mikal | 2026-09-24 | 9800becd8d74 | - |
+| scripts/audit/__init__.py | mikal | 2026-09-02 | 86ffeb2a5def | - |
+| scripts/audit/check.py | mikal | 2026-09-24 | 7dee16201fba | - |
+| scripts/audit/checks/__init__.py | mikal | 2026-09-02 | d54faddeed24 | - |
+| scripts/audit/checks/ci_workflows.py | mikal | 2026-09-22 | 368d0c0c010f | - |
+| scripts/audit/checks/distros.py | mikal | 2026-09-15 | 81c0aa6c3a38 | - |
+| scripts/audit/checks/docs_content.py | mikal | 2026-09-24 | 53aa7bbc2467 | - |
+| scripts/audit/checks/github_config.py | mikal | 2026-09-09 | 5346495d6285 | - |
+| scripts/audit/checks/llm_docs.py | mikal | 2026-09-24 | ae974a77264d | - |
+| scripts/audit/checks/npm_dependencies.py | mikal | 2026-09-15 | 01853364578a | - |
+| scripts/audit/checks/packaging.py | mikal | 2026-09-24 | 06f2d582b5ff | - |
+| scripts/audit/checks/plans.py | mikal | 2026-09-25 | 48c79d69c8ee | - |
+| scripts/audit/checks/review.py | mikal | 2026-09-22 | 21fd5bf0dc26 | - |
+| scripts/audit/checks/runners.py | mikal | 2026-09-15 | c7e4ad82421f | - |
+| scripts/audit/files.py | mikal | 2026-09-24 | 576192351437 | - |
+| scripts/audit/github.py | mikal | 2026-09-06 | 5fdb28856b27 | - |
+| scripts/audit/markers.py | mikal | 2026-09-02 | ef1d4a201566 | - |
+| scripts/audit/registry.py | mikal | 2026-09-24 | e8a391a0f440 | - |
+| scripts/audit/repo.py | mikal | 2026-09-22 | 56afa0fbc2ae | - |
+| scripts/audit/scope.py | mikal | 2026-09-10 | 1e0464184a21 | - |
+| scripts/audit/text/__init__.py | mikal | 2026-09-02 | dc2515cc9e2c | - |
+| scripts/audit/text/markdown.py | mikal | 2026-09-04 | b05356143ac8 | - |
+| scripts/audit/text/python_source.py | mikal | 2026-09-24 | 1e273dd7c16e | - |
+| scripts/audit/text/shared_blocks.py | mikal | 2026-09-02 | 100a6bcd559d | - |
+| scripts/audit/text/workflows.py | mikal | 2026-09-15 | b2ff8e5e60be | - |
+| scripts/audit_common.py | mikal | 2026-09-22 | d35637cd460f | - |
+| scripts/audit_snapshot.py | mikal | 2026-09-06 | 4f60df83948b | - |
+| scripts/check-audit-smoke.py | mikal | 2026-09-04 | d63445626e8f | - |
+| scripts/commit-audit-docs.sh | mikal | 2026-09-04 | cc6bcdab6674 | - |
+| scripts/review-tracking.py | mikal | 2026-09-04 | 05774d1adffa | - |
+| scripts/tests/__init__.py | mikal | 2026-09-04 | 531d26fbe639 | - |
+| scripts/tests/base.py | mikal | 2026-09-22 | b55c8394f2b9 | - |
+| scripts/tests/test_audit_common.py | mikal | 2026-09-22 | e31d1ac689aa | - |
+| scripts/tests/test_audit_seams.py | mikal | 2026-09-24 | 8c2839c763fc | - |
+| scripts/tests/test_audit_snapshot.py | mikal | 2026-09-22 | cc486c60a22a | - |
+| scripts/tests/test_audit_update_docs.py | mikal | 2026-09-22 | 699967ad3fbc | - |
+| scripts/tests/test_check_audit_smoke.py | mikal | 2026-09-22 | e23f875b2a5d | - |
+| scripts/tests/test_ci_workflows.py | mikal | 2026-09-22 | 31351fcc2958 | - |
+| scripts/tests/test_distros.py | mikal | 2026-09-15 | 2a43c0a85d59 | - |
+| scripts/tests/test_docs_content.py | mikal | 2026-09-24 | 3a615508f2ae | - |
+| scripts/tests/test_github_config.py | mikal | 2026-09-09 | 60915542b323 | - |
+| scripts/tests/test_hooks.py | mikal | 2026-09-22 | f87b63fadcf2 | - |
+| scripts/tests/test_issue_fix_extraction.py | mikal | 2026-09-22 | 84d34be6471d | - |
+| scripts/tests/test_llm_docs.py | mikal | 2026-09-23 | 3c4c74df2e19 | - |
+| scripts/tests/test_manage_issues.py | mikal | 2026-09-22 | 5b494fe6460a | - |
+| scripts/tests/test_markdown.py | mikal | 2026-09-22 | f79a74741890 | - |
+| scripts/tests/test_metadata.py | mikal | 2026-09-23 | 83146af45de2 | - |
+| scripts/tests/test_npm_dependencies.py | mikal | 2026-09-22 | e7360d31a425 | - |
+| scripts/tests/test_packaging.py | mikal | 2026-09-24 | 0740592ab6cb | - |
+| scripts/tests/test_plans.py | mikal | 2026-09-25 | 800b4705a9ba | - |
+| scripts/tests/test_python_source.py | mikal | 2026-09-04 | 5ac39fc5a13c | - |
+| scripts/tests/test_registry.py | mikal | 2026-09-24 | 7efe49f84780 | - |
+| scripts/tests/test_repo.py | mikal | 2026-09-22 | 89987f23cb42 | - |
+| scripts/tests/test_review.py | mikal | 2026-09-22 | 768b41df98d4 | - |
+| scripts/tests/test_review_tracking.py | mikal | 2026-09-22 | 92266e7a3d28 | - |
+| scripts/tests/test_runners.py | mikal | 2026-09-22 | 7aed137d41b1 | - |
+| templates/ci-review-automation/README.md | mikal | 2026-09-09 | d885ff92a103 | - |
+| templates/ci-review-automation/pr-re-review.yml | mikal | 2026-09-07 | 983a5e26834f | - |
+| templates/ci-review-automation/pr-retest.yml | mikal | 2026-09-07 | 5741391a21cf | - |
+| templates/codeql/README.md | mikal | 2026-08-30 | d8ad7a6bed16 | - |
+| templates/codeql/codeql-analysis.yml | mikal | 2026-09-04 | 33ec0a9eeaf8 | - |
+| templates/export-repo-config/README.md | mikal | 2026-08-30 | bbc6b820824b | - |
+| templates/export-repo-config/export-repo-config.yml | mikal | 2026-08-30 | 53b5d8eb46e8 | - |
+| templates/issue-fix/README.md | mikal | 2026-09-22 | 04b90676f1d7 | - |
+| templates/issue-fix/claude-model-fallback.sh | mikal | 2026-08-30 | 2bf1baa7b578 | - |
+| templates/issue-fix/extract-model-block.sh | mikal | 2026-08-30 | ce4f2ab10198 | - |
+| templates/issue-fix/issue-fix.yml | mikal | 2026-09-22 | 30a27f350461 | - |
+| templates/issue-fix/neutralise-pr-body.sh | mikal | 2026-08-30 | 4248bb512fa5 | - |
+| templates/issue-link-check/README.md | mikal | 2026-09-09 | 28489dc2b569 | - |
+| templates/issue-link-check/issue-link-check.yml | mikal | 2026-09-09 | 6d0ce3ba5bf1 | - |
+| templates/mermaid-lint/README.md | mikal | 2026-09-22 | d34bf85ccffc | - |
+| templates/mermaid-lint/mermaid-lint.sh | mikal | 2026-09-22 | 22f14bf915f7 | - |
+| templates/mermaid-lint/mermaid-lint.yml | mikal | 2026-09-16 | d5b8377f8a98 | - |
+| templates/pin-indirect-dependencies/README.md | mikal | 2026-08-30 | c20c7590e1b3 | - |
+| templates/pin-indirect-dependencies/pin-indirect-dependencies.sh | mikal | 2026-08-30 | 241b462c281d | - |
+| templates/pin-indirect-dependencies/pin-indirect-dependencies.yml | mikal | 2026-09-16 | ac69b68d8b24 | - |
+| templates/release-automation/README.md | mikal | 2026-08-30 | 1b567888baa5 | - |
+| templates/release-automation/RELEASE-SETUP.md | mikal | 2026-09-06 | 33f4b4e69c07 | - |
+| templates/release-automation/release.yml | mikal | 2026-09-16 | 38b26358b5de | - |
+| templates/renovate/README.md | mikal | 2026-08-30 | ae88c3ede7ec | - |
+| templates/renovate/renovate.json | mikal | 2026-08-30 | 2ddd5e0b8169 | - |
+| templates/shared-blocks/README.md | mikal | 2026-09-25 | 3b381f429dbe | - |
+| templates/shared-blocks/comment-proportion.md | mikal | 2026-09-04 | 38c366bd44e1 | - |
+| templates/shared-blocks/diagram-discipline.md | mikal | 2026-09-04 | 7f99cb461af2 | - |
+| templates/shared-blocks/functional-test-coverage.md | mikal | 2026-09-04 | 61c3580c1231 | - |
+| templates/shared-blocks/llm-doc-discipline.md | mikal | 2026-09-04 | dd5d5ac09a9b | - |
+| templates/shared-blocks/path-traversal-review.md | mikal | 2026-09-04 | a61ddf84c108 | - |
+| templates/shared-blocks/plan-closeout-sections.md | mikal | 2026-09-04 | 6cb9ee7e7d5d | - |
+| templates/shared-blocks/plan-file-conventions.md | mikal | 2026-09-04 | a83f6ef04c62 | - |
+| templates/shared-blocks/plan-phase-landing.md | mikal | 2026-09-22 | f0ff55057e0d | - |
+| templates/shared-blocks/plan-phase-references.md | mikal | 2026-09-04 | 54ec78285f68 | - |
+| templates/shared-blocks/plan-planning-effort.md | mikal | 2026-09-04 | 1e7f1b0747ba | - |
+| templates/shared-blocks/plan-push-audit-phase.md | mikal | 2026-09-16 | d2b289157a3d | - |
+| templates/shared-blocks/plan-references-in-code.md | mikal | 2026-09-25 | 9432aa8e0135 | - |
+| templates/shared-blocks/plan-review-checklist.md | mikal | 2026-09-04 | 797ddae188bc | - |
+| templates/shared-blocks/plan-status-vocabulary.md | mikal | 2026-09-04 | a235e4266971 | - |
+| templates/shared-blocks/python-version-discipline.md | mikal | 2026-09-04 | 6040dde51ad3 | - |
+| templates/shared-blocks/readme-discipline.md | mikal | 2026-09-04 | 50400365305b | - |
+| templates/shared-blocks/source-file-size.md | mikal | 2026-09-22 | c0f09ec4d5d5 | - |
+| templates/shared-blocks/subagent-execution-model.md | mikal | 2026-09-04 | f67957bb72bb | - |
+| templates/shared-blocks/subagent-model-roster.md | mikal | 2026-09-04 | c2a8c1130b99 | - |
+| templates/shared-blocks/subagent-step-guidance.md | mikal | 2026-09-04 | add2cdd152a7 | - |
+| templates/test-drift-fix/README.md | mikal | 2026-08-30 | e3d6692995bb | - |
+| templates/test-drift-fix/pr-fix-tests.yml | mikal | 2026-08-30 | e0dc3d2fa903 | - |
+| templates/test-drift-fix/test-drift-fix.yml | mikal | 2026-09-04 | c3d300505da2 | - |
+| tools/audit-snapshot.sh | mikal | 2026-09-04 | 9d7efbf68a9f | - |
+| tools/ci-prune-reviews.sh | mikal | 2026-08-24 | 3e10680265c6 | - |
+| tools/mermaid-lint.sh | mikal | 2026-09-22 | 22f14bf915f7 | - |
+| tools/review-tracking.sh | mikal | 2026-08-24 | fabe2fc68a97 | - |

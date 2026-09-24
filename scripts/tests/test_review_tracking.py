@@ -10,6 +10,7 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -536,6 +537,7 @@ class ReviewTrackingTest(unittest.TestCase):
         self.assertEqual(json.loads(p.stdout), {
             'in_scope': 3,
             'reviewed': 1,
+            'imported': 0,
             'needing_review': 2,
             'stale': ['src/b.py'],
             'never_reviewed': ['src/c.py'],
@@ -669,6 +671,610 @@ class ReviewTrackingTest(unittest.TestCase):
         # status reports; it never prunes, stamps, or regenerates.
         for path in state_paths:
             self.assertEqual(self.read(path), before[path])
+
+
+# A stand-in for gitsign, which needs Sigstore's network services. It
+# logs every invocation beside itself and fails exactly the commits
+# listed in gitsign.bad, so a test can say which signatures are good.
+GITSIGN_STUB = """#!%s
+import json
+import os
+import sys
+
+here = os.path.dirname(os.path.abspath(__file__))
+with open(os.path.join(here, 'gitsign.log'), 'a') as f:
+    f.write(json.dumps({'argv': sys.argv[1:], 'cwd': os.getcwd()}) + '\\n')
+bad_path = os.path.join(here, 'gitsign.bad')
+bad = open(bad_path).read().split() if os.path.exists(bad_path) else []
+if sys.argv[-1] in bad:
+    print('error: no valid signature for this commit', file=sys.stderr)
+    sys.exit(1)
+print('Good signature', file=sys.stderr)
+"""
+
+IMPORTS = '.vscode/imports.weaudit-shas.json'
+
+
+class ImportTest(unittest.TestCase):
+    """import, run in a target fixture against a source fixture.
+
+    The script takes its source from the clone it lives in, so each test
+    builds a throwaway "development" repository with a copy of the
+    script under scripts/ and runs that copy in the target, exactly as
+    an adopted repository's wrapper does. The tool runs with a PATH
+    holding only git and, unless a test removes it, a gitsign stub --
+    the real gitsign needs the network, and a host that has it
+    installed must not stop the "gitsign absent" path being tested.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = os.path.realpath(self.tmp.name)
+        self.source = os.path.join(root, 'source')
+        self.target = os.path.join(root, 'target')
+        self.bin = os.path.join(root, 'bin')
+        for path in (self.source, self.target, self.bin):
+            os.mkdir(path)
+        os.symlink(shutil.which('git'), os.path.join(self.bin, 'git'))
+        self.gitsign = os.path.join(self.bin, 'gitsign')
+        with open(self.gitsign, 'w') as f:
+            f.write(GITSIGN_STUB % sys.executable)
+        os.chmod(self.gitsign, 0o755)
+
+        for repo in (self.source, self.target):
+            self.git(repo, 'init', '-b', 'main')
+            self.git(repo, 'config', 'user.email', 'test@example.com')
+            self.git(repo, 'config', 'user.name', 'Test User')
+            self.git(repo, 'config', 'commit.gpgsign', 'false')
+            os.mkdir(os.path.join(repo, '.vscode'))
+
+        os.mkdir(os.path.join(self.source, 'scripts'))
+        self.script = os.path.join(self.source, 'scripts', 'review-tracking.py')
+        shutil.copy(SCRIPT, self.script)
+        self.git(self.source, 'add', '-A')
+        self.git(self.source, 'commit', '-m', 'tooling')
+
+        os.mkdir(os.path.join(self.target, 'src'))
+        self.twrite('src/a.py', 'a = 1\n')
+        self.twrite('src/b.py', 'b = 2\n')
+        self.twrite('src/gen_pb2.py', 'generated = True\n')
+        self.twrite('.vscode/review-scope.toml', 'exclude = ["*_pb2.py"]\n')
+        self.tcommit('initial')
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    # Fixture plumbing.
+
+    def git(self, repo, *args):
+        return subprocess.run(['git'] + list(args), cwd=repo, check=True, capture_output=True, text=True)
+
+    def write(self, repo, path, content):
+        full = os.path.join(repo, path)
+        os.makedirs(os.path.dirname(full), exist_ok=True)
+        with open(full, 'w') as f:
+            f.write(content)
+
+    def swrite(self, path, content):
+        self.write(self.source, path, content)
+
+    def twrite(self, path, content):
+        self.write(self.target, path, content)
+
+    def tread(self, path):
+        with open(os.path.join(self.target, path)) as f:
+            return f.read()
+
+    def tcommit(self, message):
+        self.git(self.target, 'add', '-A')
+        self.git(self.target, 'commit', '-m', message)
+
+    def tblob(self, path):
+        return self.git(self.target, 'rev-parse', 'HEAD:%s' % path).stdout.strip()
+
+    def imports(self):
+        path = os.path.join(self.target, IMPORTS)
+        if not os.path.exists(path):
+            return None
+        with open(path) as f:
+            return json.load(f)
+
+    def imported(self):
+        """The imports file's entries, or {} when there is no file."""
+        return (self.imports() or {}).get('files', {})
+
+    def source_review(self, stamps, full=None, partial=(), reviewer='mikal', message='review'):
+        """Commit reviewer state in the source and return the commit.
+
+        stamps maps each stamped path to its stamp date, and the sha is
+        the path's content in the source working tree -- so write the
+        file first. full lists the paths carrying a full-file mark and
+        defaults to every stamped path; partial lists paths carrying a
+        region mark. The state file and sidecar are written from
+        scratch each time, so an unchanged argument leaves that file
+        unchanged in the commit.
+        """
+        if full is None:
+            full = list(stamps)
+        files = {}
+        for path, date in sorted(stamps.items()):
+            sha = self.git(self.source, 'hash-object', path).stdout.strip()
+            files[path] = {'sha': sha, 'date': date}
+        self.swrite('.vscode/%s.weaudit' % reviewer,
+                    json.dumps(make_weaudit(full, [(p, 1, 2) for p in partial], author=reviewer), indent=2))
+        self.swrite('.vscode/%s.weaudit-shas.json' % reviewer,
+                    json.dumps({'version': 1, 'files': files}, indent=2) + '\n')
+        self.git(self.source, 'add', '-A')
+        self.git(self.source, 'commit', '--allow-empty', '-m', message)
+        return self.git(self.source, 'rev-parse', 'HEAD').stdout.strip()
+
+    def review_a(self, path='templates/a.py', date='2026-01-02'):
+        """Have the source fully review a copy of the target's src/a.py."""
+        self.swrite(path, 'a = 1\n')
+        return self.source_review({path: date})
+
+    def target_review(self, audited, partial=None):
+        """Mark and stamp files natively in the target, and commit."""
+        self.twrite('.vscode/testuser.weaudit', json.dumps(make_weaudit(audited, partial), indent=2))
+        self.git(self.target, 'add', '-A')
+        self.run_tool('stamp')
+        self.tcommit('reviews')
+
+    def run_tool(self, *args, cwd=None):
+        env = dict(os.environ, PATH=self.bin)
+        return subprocess.run([sys.executable, self.script] + list(args), cwd=cwd or self.target,
+                              capture_output=True, text=True, env=env)
+
+    def run_import(self, *args, cwd=None):
+        p = self.run_tool('import', *args, cwd=cwd)
+        self.assertIn(p.returncode, (0, 1), p.stdout + p.stderr)
+        return p
+
+    def gitsign_calls(self):
+        log = os.path.join(self.bin, 'gitsign.log')
+        if not os.path.exists(log):
+            return []
+        with open(log) as f:
+            return [json.loads(line) for line in f]
+
+    def vscode_snapshot(self):
+        """Bytes of every file in the target's .vscode except the imports file."""
+        snapshot = {}
+        vscode = os.path.join(self.target, '.vscode')
+        for name in sorted(os.listdir(vscode)):
+            if name == os.path.basename(IMPORTS):
+                continue
+            with open(os.path.join(vscode, name), 'rb') as f:
+                snapshot[name] = f.read()
+        return snapshot
+
+    # What is imported.
+
+    def test_import_records_a_full_mark_with_its_provenance(self):
+        commit = self.review_a()
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.imports(), {
+            'version': 1,
+            'files': {
+                'src/a.py': {
+                    'sha': self.tblob('src/a.py'),
+                    'date': '2026-01-02',
+                    'imported': {
+                        'repo': 'shakenfist/development',
+                        'reviewer': 'mikal',
+                        'path': 'templates/a.py',
+                        'commit': commit,
+                        'verified': True,
+                    },
+                },
+            },
+        })
+        self.assertIn('imported src/a.py from templates/a.py @ %s' % commit[:12], p.stdout)
+        self.assertIn('imported 1 file(s), removed 0 import(s)', p.stdout)
+        self.assertTrue(self.tread(IMPORTS).endswith('\n'))
+
+    def test_import_verifies_the_introducing_commit_against_the_signing_identity(self):
+        commit = self.review_a()
+        self.run_import()
+        calls = self.gitsign_calls()
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]['argv'][0], 'verify')
+        self.assertEqual(calls[0]['argv'][-1], commit)
+        self.assertIn('--certificate-identity=mikal@stillhq.com', calls[0]['argv'])
+        self.assertIn('--certificate-oidc-issuer=https://github.com/login/oauth', calls[0]['argv'])
+        # The common git directory, which gitsign can open from a
+        # worktree as well as a plain clone.
+        self.assertEqual(os.path.realpath(calls[0]['cwd']), os.path.join(self.source, '.git'))
+
+    def test_a_partial_mark_alone_is_not_imported(self):
+        """stamp stamps partially reviewed files too; a stamp is not a full review."""
+        self.swrite('templates/a.py', 'a = 1\n')
+        self.source_review({'templates/a.py': '2026-01-02'}, full=[], partial=['templates/a.py'])
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIsNone(self.imports())
+        self.assertIn('imported 0 file(s)', p.stdout)
+
+    def test_upgrading_a_partial_mark_imports_from_the_upgrading_commit(self):
+        """The commit that upgrades a partial mark touches only the state file.
+
+        stamp never restamps an already-stamped blob, so a history walk
+        that looked only at sidecar commits would either miss the full
+        review or credit the partial one.
+        """
+        self.swrite('templates/a.py', 'a = 1\n')
+        partial = self.source_review({'templates/a.py': '2026-01-02'}, full=[], partial=['templates/a.py'])
+        full = self.source_review({'templates/a.py': '2026-01-02'}, message='finish review')
+        self.assertEqual(self.git(self.source, 'diff', '--name-only', partial, full).stdout.split(),
+                         ['.vscode/mikal.weaudit'])
+
+        self.run_import()
+        entry = self.imported()['src/a.py']
+        self.assertEqual(entry['imported']['commit'], full)
+        self.assertEqual(entry['date'], '2026-01-02')
+
+    def test_the_earliest_of_two_paths_reviewing_a_blob_wins(self):
+        self.swrite('first/a.py', 'a = 1\n')
+        first = self.source_review({'first/a.py': '2026-01-01'})
+        self.swrite('second/a.py', 'a = 1\n')
+        self.source_review({'second/a.py': '2026-02-02'}, reviewer='zed')
+        self.run_import()
+        self.assertEqual(self.imported()['src/a.py']['imported'],
+                         {'repo': 'shakenfist/development', 'reviewer': 'mikal', 'path': 'first/a.py',
+                          'commit': first, 'verified': True})
+        self.assertEqual(self.imported()['src/a.py']['date'], '2026-01-01')
+
+    def test_the_earliest_of_two_reviews_of_one_path_wins(self):
+        first = self.review_a(date='2026-01-01')
+        self.source_review({}, message='unmark')
+        self.review_a(date='2026-03-03')
+        self.run_import()
+        entry = self.imported()['src/a.py']
+        self.assertEqual(entry['imported']['commit'], first)
+        self.assertEqual(entry['date'], '2026-01-01')
+
+    def test_a_lagging_copy_is_imported_from_history(self):
+        """The target has the template as it was before the source changed and re-reviewed it."""
+        old = self.review_a(date='2026-01-01')
+        self.swrite('templates/a.py', 'a = 99\n')
+        self.source_review({'templates/a.py': '2026-05-05'}, message='change and re-review')
+        self.run_import()
+        entry = self.imported()['src/a.py']
+        self.assertEqual(entry['sha'], self.tblob('src/a.py'))
+        self.assertEqual(entry['imported']['commit'], old)
+        self.assertEqual(entry['date'], '2026-01-01')
+
+    def test_a_stale_import_is_replaced_when_the_new_content_was_reviewed_too(self):
+        self.review_a(date='2026-01-01')
+        self.run_import()
+        self.tcommit('import')
+        self.swrite('templates/a.py', 'a = 99\n')
+        newer = self.source_review({'templates/a.py': '2026-05-05'}, message='change and re-review')
+        self.twrite('src/a.py', 'a = 99\n')
+        self.tcommit('update a')
+
+        p = self.run_import()
+        entry = self.imported()['src/a.py']
+        self.assertEqual(entry['sha'], self.tblob('src/a.py'))
+        self.assertEqual(entry['imported']['commit'], newer)
+        self.assertIn('imported 1 file(s)', p.stdout)
+
+    # What is not imported.
+
+    def test_a_file_with_a_valid_native_mark_is_not_imported(self):
+        self.review_a()
+        self.target_review(['src/a.py'])
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIsNone(self.imports())
+
+    def test_a_stale_native_mark_blocks_import_until_pruned(self):
+        """Until prune removes it, the file's own review history says it needs a human."""
+        self.twrite('src/a.py', 'a = 0\n')
+        self.tcommit('older a')
+        self.target_review(['src/a.py'])
+        self.twrite('src/a.py', 'a = 1\n')
+        self.tcommit('a now matches the reviewed source blob')
+        self.review_a()
+
+        self.run_import()
+        self.assertIsNone(self.imports())
+
+        self.run_tool('prune')
+        self.tcommit('prune')
+        self.run_import()
+        self.assertIn('src/a.py', self.imported())
+
+    def test_a_native_mark_supersedes_an_existing_import(self):
+        self.review_a()
+        self.run_import()
+        self.tcommit('import')
+        self.target_review(['src/a.py'])
+
+        p = self.run_import()
+        self.assertIn('removed import of src/a.py (superseded by a native review by testuser)', p.stdout)
+        self.assertFalse(os.path.exists(os.path.join(self.target, IMPORTS)),
+                         'an emptied imports file should be removed, not left as an empty shell')
+        rows = [line for line in self.tread('REVIEWS.md').splitlines() if line.startswith('| src/a.py ')]
+        self.assertEqual(rows, ['| src/a.py | testuser | %s | %s | - |'
+                                % (json.loads(self.tread('.vscode/testuser.weaudit-shas.json'))
+                                   ['files']['src/a.py']['date'], self.tblob('src/a.py')[:12])])
+
+    def test_a_partial_native_mark_does_not_block_import(self):
+        self.review_a()
+        self.target_review([], partial=[('src/a.py', 1, 1)])
+        self.run_import()
+        self.assertIn('src/a.py', self.imported())
+        reviews = self.tread('REVIEWS.md')
+        self.assertIn('## Partially reviewed files', reviews)
+        self.assertRegex(reviews, r'\| src/a\.py \| 1-1 \| testuser \|')
+        self.assertRegex(reviews, r'\| src/a\.py \| mikal \| 2026-01-02 \|')
+
+    def test_an_out_of_scope_file_is_not_imported(self):
+        self.swrite('templates/gen_pb2.py', 'generated = True\n')
+        self.source_review({'templates/gen_pb2.py': '2026-01-02'})
+        self.run_import()
+        self.assertIsNone(self.imports())
+
+    def test_an_import_that_leaves_scope_is_removed(self):
+        self.review_a()
+        self.run_import()
+        self.tcommit('import')
+        self.twrite('.vscode/review-scope.toml', 'exclude = ["*_pb2.py", "src/a.py"]\n')
+        self.tcommit('narrow scope')
+
+        p = self.run_import()
+        self.assertIn('removed import of src/a.py (no longer in review scope)', p.stdout)
+        self.assertIsNone(self.imports())
+
+    def test_import_exclude_prevents_an_import_and_a_re_include_restores_it(self):
+        self.swrite('templates/a.py', 'a = 1\n')
+        self.swrite('templates/b.py', 'b = 2\n')
+        self.source_review({'templates/a.py': '2026-01-02', 'templates/b.py': '2026-01-02'})
+        self.twrite('.vscode/review-scope.toml',
+                    'exclude = ["*_pb2.py"]\nimport-exclude = ["src/*", "!src/b.py"]\n')
+        self.tcommit('reject imports')
+        self.run_import()
+        self.assertEqual(sorted(self.imported()), ['src/b.py'])
+
+    def test_import_exclude_removes_an_existing_import(self):
+        self.review_a()
+        self.run_import()
+        self.tcommit('import')
+        self.twrite('.vscode/review-scope.toml', 'exclude = ["*_pb2.py"]\nimport-exclude = ["src/a.py"]\n')
+        self.tcommit('reject the import')
+
+        p = self.run_import()
+        self.assertIn('removed import of src/a.py (matches import-exclude in .vscode/review-scope.toml)',
+                      p.stdout)
+        self.assertIsNone(self.imports())
+        # And it stays out: the next run does not bring it back.
+        self.run_import()
+        self.assertIsNone(self.imports())
+
+    def test_the_sources_own_imports_are_never_re_exported(self):
+        """An import is not a review made in the source, so it is not the source's to pass on."""
+        self.swrite('templates/a.py', 'a = 1\n')
+        self.source_review({'templates/a.py': '2026-01-02'}, reviewer='imports')
+        self.run_import()
+        self.assertIsNone(self.imports())
+
+    # Verification.
+
+    def test_a_commit_that_fails_verification_is_skipped_with_a_warning(self):
+        commit = self.review_a()
+        with open(os.path.join(self.bin, 'gitsign.bad'), 'w') as f:
+            f.write(commit + '\n')
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIsNone(self.imports())
+        self.assertIn('not importing src/a.py', p.stderr)
+        self.assertIn(commit, p.stderr)
+        self.assertIn('no valid signature for this commit', p.stderr)
+        self.assertIn('skipped 1 whose source commit did not verify', p.stdout)
+
+    def test_without_gitsign_imports_are_recorded_unverified_with_a_warning(self):
+        os.remove(self.gitsign)
+        self.review_a()
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIs(self.imported()['src/a.py']['imported']['verified'], False)
+        self.assertIn('gitsign not found on PATH', p.stderr)
+        self.assertIn('signature NOT verified', p.stdout)
+
+    def test_no_verify_records_unverified_with_a_warning_and_never_runs_gitsign(self):
+        self.review_a()
+        p = self.run_import('--no-verify')
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIs(self.imported()['src/a.py']['imported']['verified'], False)
+        self.assertIn('signature verification disabled by --no-verify', p.stderr)
+        self.assertEqual(self.gitsign_calls(), [])
+
+    def test_the_verification_warning_is_repeated_on_a_run_that_imports_nothing(self):
+        self.review_a()
+        self.run_import('--no-verify')
+        self.tcommit('import')
+        p = self.run_import('--no-verify')
+        self.assertIn('imported 0 file(s)', p.stdout)
+        self.assertIn('signature verification disabled by --no-verify', p.stderr)
+
+    # Refusals.
+
+    def test_import_refuses_to_run_in_the_source_itself(self):
+        self.review_a()
+        p = self.run_import(cwd=self.source)
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn('refusing to import shakenfist/development into itself', p.stderr)
+        self.assertFalse(os.path.exists(os.path.join(self.source, IMPORTS)))
+
+    def test_import_refuses_to_run_in_a_worktree_of_the_source(self):
+        self.review_a()
+        worktree = os.path.join(os.path.dirname(self.source), 'source-wt')
+        self.git(self.source, 'worktree', 'add', '-b', 'wt', worktree)
+        p = self.run_import(cwd=worktree)
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn('refusing to import shakenfist/development into itself', p.stderr)
+        self.assertFalse(os.path.exists(os.path.join(worktree, IMPORTS)))
+
+    def test_import_refuses_when_an_imports_state_file_exists(self):
+        """Its sidecar would be the imports file, so weAudit would tick every import."""
+        self.review_a()
+        self.twrite('.vscode/imports.weaudit', json.dumps(make_weaudit([], author='imports')))
+        p = self.run_import()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn('.vscode/imports.weaudit exists', p.stderr)
+        self.assertIsNone(self.imports())
+
+    # Writes.
+
+    def test_import_never_writes_a_state_file_or_a_reviewers_sidecar(self):
+        self.review_a()
+        self.target_review(['src/b.py'], partial=[('src/a.py', 1, 1)])
+        before = self.vscode_snapshot()
+        source_before = self.git(self.source, 'status', '--porcelain').stdout
+
+        self.run_import()
+        self.assertIn('src/a.py', self.imported())
+        self.assertEqual(self.vscode_snapshot(), before)
+        self.assertEqual(self.git(self.source, 'status', '--porcelain').stdout, source_before)
+
+        # Nor when it removes an import.
+        self.tcommit('import')
+        self.target_review(['src/a.py', 'src/b.py'])
+        before = self.vscode_snapshot()
+        self.run_import()
+        self.assertIsNone(self.imports())
+        self.assertEqual(self.vscode_snapshot(), before)
+
+    def test_a_second_import_changes_nothing(self):
+        self.review_a()
+        self.run_import()
+        self.tcommit('import')
+        p = self.run_import()
+        self.assertIn('imported 0 file(s), removed 0 import(s)', p.stdout)
+        self.assertNotIn('updated', p.stdout)
+        self.assertEqual(self.git(self.target, 'status', '--porcelain').stdout, '')
+
+    def test_import_regenerates_reviews_md_when_it_changes_the_imports_file(self):
+        self.review_a()
+        p = self.run_import()
+        self.assertIn('updated %s, REVIEWS.md' % IMPORTS, p.stdout)
+        self.assertIn('| src/a.py | mikal |', self.tread('REVIEWS.md'))
+
+    # The other subcommands.
+
+    def test_prune_drops_a_stale_import_and_removes_the_emptied_file(self):
+        self.swrite('templates/a.py', 'a = 1\n')
+        self.swrite('templates/b.py', 'b = 2\n')
+        commit = self.source_review({'templates/a.py': '2026-01-02', 'templates/b.py': '2026-01-02'})
+        self.run_import()
+        self.tcommit('import')
+
+        self.twrite('src/a.py', 'a = 2\n')
+        self.tcommit('change a')
+        p = self.run_tool('prune')
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn('src/a.py changed since its review', p.stdout)
+        self.assertIn('imported from development@%s' % commit[:12], p.stdout)
+        self.assertEqual(sorted(self.imported()), ['src/b.py'])
+        self.assertNotIn('| src/a.py |', self.tread('REVIEWS.md'))
+        self.tcommit('prune')
+
+        self.git(self.target, 'rm', 'src/b.py')
+        self.tcommit('remove b')
+        p = self.run_tool('prune')
+        self.assertIn('src/b.py changed since its review', p.stdout)
+        self.assertFalse(os.path.exists(os.path.join(self.target, IMPORTS)))
+
+    def test_prune_keeps_a_valid_import(self):
+        self.review_a()
+        self.run_import()
+        self.tcommit('import')
+        before = self.tread(IMPORTS)
+        p = self.run_tool('prune')
+        self.assertNotIn('changed since its review', p.stdout)
+        self.assertEqual(self.tread(IMPORTS), before)
+
+    def test_stamp_ignores_the_imports_file(self):
+        self.review_a()
+        self.run_import()
+        self.tcommit('import')
+        # A stale import too: stamp must not report it as a stale stamp
+        # either -- that is prune's to deal with.
+        self.twrite('src/a.py', 'a = 2\n')
+        self.tcommit('change a')
+        before = self.tread(IMPORTS)
+
+        p = self.run_tool('stamp')
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(p.stderr, '')
+        self.assertEqual(self.tread(IMPORTS), before)
+
+    def test_status_counts_valid_imports_and_reports_stale_ones(self):
+        self.review_a()
+        self.run_import()
+        self.tcommit('import')
+        p = self.run_tool('status', '--json')
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(json.loads(p.stdout), {
+            'in_scope': 2,
+            'reviewed': 1,
+            'imported': 1,
+            'needing_review': 1,
+            'stale': [],
+            'never_reviewed': ['src/b.py'],
+        })
+        p = self.run_tool('status')
+        self.assertIn('1 of those reviews were imported from shakenfist/development', p.stdout)
+
+        self.twrite('src/a.py', 'a = 2\n')
+        self.tcommit('change a')
+        p = self.run_tool('status', '--json')
+        self.assertEqual(json.loads(p.stdout), {
+            'in_scope': 2,
+            'reviewed': 0,
+            'imported': 0,
+            'needing_review': 2,
+            'stale': ['src/a.py'],
+            'never_reviewed': ['src/b.py'],
+        })
+
+    def test_next_never_offers_an_imported_file(self):
+        self.swrite('templates/a.py', 'a = 1\n')
+        self.swrite('templates/b.py', 'b = 2\n')
+        self.source_review({'templates/a.py': '2026-01-02', 'templates/b.py': '2026-01-02'})
+        self.run_import()
+        p = self.run_tool('next', '--no-open')
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn('every in-scope file is reviewed', p.stdout)
+
+    def test_reviews_md_gives_an_import_a_row_with_its_source(self):
+        commit = self.review_a()
+        self.target_review(['src/b.py'])
+        self.run_import()
+        reviews = self.tread('REVIEWS.md')
+        self.assertIn('2 of 2 in-scope files are currently reviewed.', reviews)
+        self.assertIn('| File | Reviewer | Date | Blob SHA | Source |', reviews)
+        self.assertIn('| src/a.py | mikal | 2026-01-02 | %s | development@%s |'
+                      % (self.tblob('src/a.py')[:12], commit[:12]), reviews)
+        self.assertRegex(reviews, r'\| src/b\.py \| testuser \| [0-9-]+ \| [0-9a-f]{12} \| - \|')
+
+    def test_reviews_md_shows_the_native_row_when_a_file_is_also_imported(self):
+        """render_reviews_md keeps one row per file even before import removes its entry."""
+        self.review_a()
+        self.run_import()
+        self.tcommit('import')
+        # Marked natively after the import, and rendered before the next
+        # import run has had the chance to remove the imported entry.
+        self.target_review(['src/a.py'])
+        self.assertIn('src/a.py', self.imported())
+        self.run_tool('regen')
+        reviews = self.tread('REVIEWS.md')
+        rows = [line for line in reviews.splitlines() if line.startswith('| src/a.py ')]
+        self.assertEqual(len(rows), 1, reviews)
+        self.assertRegex(rows[0], r'^\| src/a\.py \| testuser \| .* \| - \|$')
+        self.assertIn('1 of 2 in-scope files are currently reviewed.', reviews)
 
 
 class ThisRepositoryTest(unittest.TestCase):
