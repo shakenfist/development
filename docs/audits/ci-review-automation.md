@@ -55,8 +55,10 @@ reads no secrets -- it and `review-pr-with-claude` authenticate with
 `github.token` from the caller's `permissions:` block -- so inheriting
 buys nothing while putting every secret the repository holds, including
 publishing tokens, within reach of a workflow in another repository.
-Callers of `smoke-cluster.yml` and `export-repo-config.yml` do read
-secrets and inherit correctly.
+Callers of `smoke-cluster.yml` do read secrets and inherit correctly.
+`export-repo-config.yml` reads none either, and the
+[export-repo-config](export-repo-config.md) criterion makes the same
+finding for its callers.
 
 **Same-repository pull requests only.** The reviewer runs Claude Code
 with `--dangerously-skip-permissions` while holding a write-capable

@@ -22,7 +22,7 @@ import subprocess
 
 from audit import scope
 from audit.check import Check
-from audit.files import check_file_exists
+from audit.files import check_file_exists, workflows_inheriting_secrets_into
 
 
 def evaluate_merge_queue_rules(rules):
@@ -84,11 +84,31 @@ class ExportRepoConfig(Check):
     issue_title = 'Export repo config'
 
     def run(self, repo):
-        """Check for repo config export workflow."""
+        """Check for repo config export workflow.
+
+        The shared export-repo-config.yml reads no secrets: it
+        authenticates with github.token under the caller's permissions:
+        block. So "secrets: inherit" on the calling job buys nothing and
+        hands every secret the repository holds to a workflow in another
+        repository, called at a moving @main. The template carried that
+        line until September 2026, which is how every caller came to,
+        so it is checked rather than left to the template being right
+        from here on -- the same reasoning, and the same matcher, as the
+        pr-auto-review.yml finding under ci-review-automation.
+        """
         if not check_file_exists(
             repo.path, '.github/workflows/export-repo-config.yml'
         ):
             return self.fail('Missing .github/workflows/export-repo-config.yml')
+        inheriting = workflows_inheriting_secrets_into(
+            repo.path, 'export-repo-config.yml')
+        if inheriting:
+            return self.fail(
+                f'{", ".join(inheriting)} passes "secrets: inherit" to '
+                'export-repo-config.yml, which reads no secrets and '
+                'authenticates with github.token, so every secret this '
+                'repository holds is handed to a workflow in another '
+                'repository for no benefit. Delete the line.')
         return self.ok('export-repo-config.yml exists')
 
 

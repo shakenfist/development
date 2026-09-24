@@ -213,6 +213,34 @@ announces its own limits, not a failure. And the fallback comment is
 posted fresh on each request rather than edited in place, so the
 notice sits next to the review it describes.
 
+### Review feedback from two deployments (2026-09-25)
+
+Raised by the automated reviews of shakenfist/agent-python#141 and
+shakenfist/visual-digest-rust#25, both of which adopted these files
+verbatim, and filed here as shakenfist/development#172 and #174 because
+fixing them in one consumer would only have created drift.
+
+* **The checkout is confirmed on the fallback path too.** The confirm
+  step ran only when the merge ref was used. The head fallback checks
+  out `refs/pull/N/head`, which is just as much a name as the merge
+  ref and has the same race, so a push in that window was reviewed
+  with no warning. The step now always runs: it compares `HEAD^2` with
+  the validated head on the merge path and `HEAD` itself on the head
+  path, and fails the same way on either.
+* **The trigger job asserts that `same-repo` was reported.** Both files
+  require `same_repo` as well as `authorized`. If `pr-bot-trigger` ever
+  renamed or dropped its `same-repo` output, that expression would read
+  empty and the work would silently never run, after the rocket
+  reaction had been posted. The guard was fail-closed either way; the
+  failure is now visible as a red trigger job.
+* **`pr-retest.yml` repeats the fork guard.** It checked only
+  `authorized`, although its job dispatches a workflow against the pull
+  request's ref with a write-scoped token. It now exports and requires
+  `same_repo`, for the reason given above for `pr-re-review.yml`.
+
+`MergeRefResolutionTest` holds the first and third on this repository's
+copies.
+
 ### The fork guard
 
 `pr-bot-trigger`'s `pr-ref` output is `.head.ref`: the branch name in the

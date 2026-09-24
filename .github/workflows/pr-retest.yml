@@ -40,6 +40,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       authorized: ${{ steps.trigger.outputs.authorized }}
+      same_repo: ${{ steps.trigger.outputs.same-repo }}
       pr_ref: ${{ steps.trigger.outputs.pr-ref }}
       pr_number: ${{ github.event.issue.number }}
 
@@ -51,10 +52,37 @@ jobs:
           trigger-phrase: 'please retest'
           reaction: 'rocket'
 
+      # The retest job below requires same_repo as well as authorized,
+      # so if pr-bot-trigger renames or drops its same-repo output the
+      # retest silently never runs after the rocket reaction. Fail
+      # loudly instead. pr-re-review.yml carries the same step.
+      - name: Confirm pr-bot-trigger reported the pull request's origin
+        if: steps.trigger.outputs.authorized == 'true'
+        env:
+          SAME_REPO: ${{ steps.trigger.outputs.same-repo }}
+        run: |
+          if [ "${SAME_REPO}" != "true" ]; then
+            echo "pr-bot-trigger authorized this request but reported"
+            echo "same-repo as '${SAME_REPO}' rather than 'true'. Either"
+            echo "the output was renamed or dropped in shakenfist/actions,"
+            echo "or the action's fork guard and its outputs disagree."
+            echo "Refusing to go on to a retest that would not run."
+            exit 1
+          fi
+
   retest:
     name: "Retest PR"
     needs: trigger-retest
-    if: needs.trigger-retest.outputs.authorized == 'true'
+    # same_repo is redundant -- pr-bot-trigger already folds it into
+    # authorized -- and it is here anyway. This job dispatches a
+    # workflow against the pull request's ref with a write-scoped
+    # token, so the fork guard is worth stating twice: a regression in
+    # the shared action cannot quietly widen what runs here, and a
+    # reader can see the restriction without leaving the file.
+    # pr-re-review.yml does the same for the same reason.
+    if: >-
+      needs.trigger-retest.outputs.authorized == 'true' &&
+      needs.trigger-retest.outputs.same_repo == 'true'
     runs-on: [self-hosted, static]
     # A dispatch and a comment, so anything beyond this is a hang.
     timeout-minutes: 10

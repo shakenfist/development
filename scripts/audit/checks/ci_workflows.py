@@ -18,7 +18,8 @@ from audit.check import Check
 from audit.github import GhCli
 from audit.files import (
     WALK_SKIP, any_workflow_contains, check_file_contains,
-    check_file_exists, list_workflow_files, workflow_has_permissions,
+    check_file_exists, workflow_has_permissions,
+    workflows_inheriting_secrets_into,
 )
 from audit.text.workflows import (
     RUNS_ON_RE, STATIC_ALLOWED_LABELS, indented_block, parse_runner_labels,
@@ -191,20 +192,6 @@ def pr_re_review_open_codes_the_trigger(repo_path):
         repo_path, path, re.escape(CI_REVIEW_TRIGGER_ACTION.split('/')[-1]))
 
 
-# Quoting and a trailing comment are both forms GitHub Actions treats
-# as identical to a bare "secrets: inherit", and the commented form is
-# the realistic evasion: a maintainer who reads the template text or
-# receives the audit issue is more likely to write
-# "secrets: inherit  # TODO: drop once migrated" than to delete the
-# line. Anchoring on end-of-line let both through, and a security guard
-# reporting pass while the exposure stands is worse than no guard --
-# the compliance page then positively asserts the repository is clean.
-# The explicit mapping form ("secrets:" followed by named entries) is
-# still deliberately not matched: that caller passes what it names.
-SECRETS_INHERIT_RE = re.compile(
-    r"""\s*secrets:\s*['"]?inherit['"]?\s*(#.*)?$""")
-
-
 def pr_auto_review_callers_inheriting_secrets(repo_path):
     """Find reviewer jobs which hand the shared workflow every secret.
 
@@ -233,21 +220,7 @@ def pr_auto_review_callers_inheriting_secrets(repo_path):
 
     Returns the workflow files whose reviewer job still inherits.
     """
-    offenders = []
-    for wf in list_workflow_files(repo_path):
-        filepath = os.path.join(repo_path, '.github', 'workflows', wf)
-        with open(filepath, 'r', errors='replace') as f:
-            content = f.read()
-        for _, body in workflow_job_blocks(content):
-            lines = [line for line in body.splitlines()
-                     if not line.lstrip().startswith('#')]
-            if not any(re.search(r'uses:.*pr-auto-review\.yml', line)
-                       for line in lines):
-                continue
-            if any(SECRETS_INHERIT_RE.match(line) for line in lines):
-                offenders.append(wf)
-                break
-    return sorted(offenders)
+    return workflows_inheriting_secrets_into(repo_path, 'pr-auto-review.yml')
 
 
 def secrets_inherit_issues(repo_path):

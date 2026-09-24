@@ -201,6 +201,38 @@ def workflow_job_blocks(content):
     return [(name, '\n'.join(body)) for name, body in blocks]
 
 
+# Quoting and a trailing comment are both forms GitHub Actions treats
+# as identical to a bare "secrets: inherit", and the commented form is
+# the realistic evasion: a maintainer who reads the template text or
+# receives the audit issue is more likely to write
+# "secrets: inherit  # TODO: drop once migrated" than to delete the
+# line. Anchoring on end-of-line let both through, and a security guard
+# reporting pass while the exposure stands is worse than no guard --
+# the compliance page then positively asserts the repository is clean.
+# The explicit mapping form ("secrets:" followed by named entries) is
+# still deliberately not matched: that caller passes what it names.
+SECRETS_INHERIT_RE = re.compile(
+    r"""\s*secrets:\s*['"]?inherit['"]?\s*(#.*)?$""")
+
+
+def calls_with_inherited_secrets(content, reusable):
+    """Does any job call the named reusable workflow with "secrets: inherit"?
+
+    reusable is the called workflow's file name, such as
+    "pr-auto-review.yml". Commented-out lines are ignored, so a job
+    which has had its inherit commented away is not a finding.
+    """
+    uses_re = re.compile(r'uses:.*' + re.escape(reusable))
+    for _, body in workflow_job_blocks(content):
+        lines = [line for line in body.splitlines()
+                 if not line.lstrip().startswith('#')]
+        if not any(uses_re.search(line) for line in lines):
+            continue
+        if any(SECRETS_INHERIT_RE.match(line) for line in lines):
+            return True
+    return False
+
+
 def strip_trailing_comment(line):
     """Cut a line at the `#` that starts a comment, if there is one.
 

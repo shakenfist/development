@@ -671,12 +671,40 @@ class MergeRefResolutionTest(unittest.TestCase):
                     f'{name} names a merge ref in a checkout rather '
                     f'than resolving one')
 
+    CONFIRM_STEP = '- name: Confirm the checkout is the validated commit'
+
+    def test_the_checkout_is_confirmed_on_both_paths(self):
+        # The head fallback checks out refs/pull/N/head, a name with the
+        # same race as the merge ref. An earlier version gated this step
+        # on merged == 'true', so the fallback path reviewed whatever
+        # the name reached with no warning (shakenfist/development#172).
+        for name in [self.DEPLOYED_RE_REVIEW, self.TEMPLATE_RE_REVIEW]:
+            with self.subTest(workflow=name):
+                with open(os.path.join(REPO_ROOT, name)) as f:
+                    body = f.read()
+                self.assertIn(
+                    self.CONFIRM_STEP, body,
+                    f'{name} must confirm the checkout is the commit the '
+                    f'resolve step validated')
+                step = body.split(self.CONFIRM_STEP, 1)[1]
+                step = step.split('\n      - name:', 1)[0]
+                self.assertNotRegex(
+                    step, r'(?m)^\s*if:', f'{name} makes the confirm step '
+                    f'conditional, so one checkout path goes unconfirmed')
+                self.assertIn('HEAD^2', step)
+                self.assertIn('git rev-parse HEAD)', step)
+
     DEPLOYED_RETEST = os.path.join('.github', 'workflows', 'pr-retest.yml')
     TEMPLATE_RETEST = os.path.join(
         'templates', 'ci-review-automation', 'pr-retest.yml')
 
     GROUP = 'group: pr-retest-${{ github.event.issue.number }}'
-    GATE = "if: needs.trigger-retest.outputs.authorized == 'true'"
+    GATE = "needs.trigger-retest.outputs.authorized == 'true'"
+    # Redundant with GATE, since pr-bot-trigger folds the fork check
+    # into authorized, and required anyway for the reason
+    # pr-re-review.yml gives: the retest job dispatches a workflow
+    # against the pull request's ref with a write-scoped token.
+    FORK_GATE = "needs.trigger-retest.outputs.same_repo == 'true'"
 
     def test_retest_dispatch_is_grouped_and_gated(self):
         # The group has to sit on a job that unauthorised comments
@@ -705,6 +733,14 @@ class MergeRefResolutionTest(unittest.TestCase):
                     f'{name} declares its concurrency group before the '
                     f'authorisation gate, so the group is not on the '
                     f'gated job')
+                self.assertIn(
+                    self.FORK_GATE, body,
+                    f'{name} must require same_repo on the retest job '
+                    f'as well as authorized, as pr-re-review.yml does')
+                self.assertLess(
+                    body.index(self.FORK_GATE), body.index(self.GROUP),
+                    f'{name} declares its concurrency group before the '
+                    f'fork gate, so the group is not on the gated job')
 
 
 class RunCheckBoundaryTest(unittest.TestCase):
