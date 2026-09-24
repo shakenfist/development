@@ -280,7 +280,7 @@ answers.
 
 | Phase | Status |
 |-------|--------|
-| 1. `import` subcommand | Not started |
+| 1. `import` subcommand | In progress |
 | 2. Review tracking CI template and rollout | Not started |
 | 3. Template convergence | Not started |
 | 4. Verification | Not started |
@@ -1068,6 +1068,17 @@ intend to do aligns with that plan.
   enough on its own.
 * **Shared blocks.** See the mission statement for why they are
   out of scope.
+* **Upgrading unverified imports.** An entry imported with
+  `"verified": false` (gitsign absent, or `--no-verify`) is never
+  re-checked. If phase 2 finds the runners cannot reach Rekor, those
+  entries stay unverified after the runners are fixed; `import`
+  should re-verify them when it can, and drop any that fail.
+* **A failed verification hides later attestations.** The history
+  walk records only the earliest commit that attests to a blob. If
+  that commit's signature does not verify, the blob is skipped even
+  when a later, signed commit attests to the same blob. Rare, since
+  review commits are signed, but falling back to the next
+  attestation would be more correct.
 
 Related issues: shakenfist/development#173 is this repository's
 own review-coverage issue; import does not affect it, because this
