@@ -124,11 +124,12 @@ drift is of four kinds, which want different treatment:
   `${{ github.repository }}` would supply the same value at run
   time. `mermaid-lint.yml` expects a repository with its own
   exclusions to add a `!path/**` pair, and says so.
-* **Copies lagging the template.** ryll's `mermaid-lint.yml` still
-  names `debian-12-docker` where the template moved to
-  `debian-13-docker`; `renovate.yml` copies pin
-  `renovatebot/github-action` at different patch versions because
-  Renovate bumps each repository independently.
+* **Copies lagging the template.** kerbside's and ryll's
+  `mermaid-lint` files are blob-identical to older versions of the
+  template; `pr-re-review.yml` in three repositories predates the
+  template's merge-ref hardening. (A local clone of ryll also
+  showed a runner label lagging, and Renovate pins can drift the
+  same way, but step 3a's fresh clones found neither.)
 * **Local improvements never upstreamed.** actions'
   `renovate.yml` has a `concurrency` block the template lacks;
   ryll's `codeql-analysis.yml` has the review-state `paths-ignore`
@@ -205,21 +206,32 @@ template conformance; both are recorded as future work.
 Each question carries the default the plan takes if nobody
 answers.
 
-1. **Which state file do imported marks go in?** *Decided
-   2026-09-24:* a separate `.vscode/imports.weaudit` and its
-   sidecar `.vscode/imports.weaudit-shas.json`, never a human
-   reviewer's file. It draws an explicit boundary between what a
-   human did in this repository and what an automated process
-   brought in, and it means a reviewer working in VSCode is not
-   told they have reviewed a file they have not read here. It also
-   keeps the bot out of the file a review session commits, so the
-   two cannot conflict. The original reviewer is recorded in each
-   entry's `author` and in the sidecar's provenance. What is still
-   open is whether weAudit shows ticks from a state file that is
-   not the current user's, and whether that can be turned off;
-   step 1a finds out, and if it shows them with no way to hide
-   them, the boundary holds on disk and in `REVIEWS.md` but not in
-   the editor, and the docs have to say so.
+1. **Where do imported marks live?** *Decided 2026-09-24:* only
+   in `.vscode/imports.weaudit-shas.json`, a sidecar-shaped file
+   with no `.weaudit` file beside it, and never in a human
+   reviewer's state file. The boundary between what a human did in
+   this repository and what an automated process brought in is
+   then explicit, and a reviewer working in VSCode is never shown
+   a tick for a file they have not read here.
+
+   A `.weaudit` file was the first choice and step 1a ruled it out.
+   weAudit loads every `.vscode/*.weaudit` file and decorates a
+   file as audited from its path alone, whatever file or author the
+   entry came from (`src/codeMarker.ts:626-628` in
+   trailofbits/vscode-weaudit), and hiding another file's marks is
+   a per-session toggle that is not persisted and only works when
+   the entries' `author` equals the file's basename. Worse, weAudit
+   writes an `auditedFiles` change to `<author>.weaudit`
+   (`codeMarker.ts:559-586`, `:931`), so an imported entry authored
+   by the original reviewer would, once un-ticked, be written into
+   that reviewer's own state file. weAudit only globs `*.weaudit`,
+   so it never reads the sidecar-shaped file.
+
+   The name also matches the `.gitignore` exception and the
+   `paths-ignore` entry (`.vscode/*.weaudit-shas.json`) that step 8
+   of the adoption procedure already put in every adopted
+   repository, so an import commit neither needs a new exception
+   nor triggers the expensive CI lanes.
 2. **What triggers an import after a review lands here?** Default:
    add a daily `schedule` trigger to `prune-reviews.yml`. A rollout
    usually reaches the targets before the template is re-reviewed
@@ -242,20 +254,27 @@ answers.
    case is rare, and running import against its own clone is a
    no-op worth making explicit rather than an edge worth
    supporting.
-5. **Is gitsign available on the static runners?** Default:
-   phase 1 lands import with signature verification behind a flag
-   that is on by default, and phase 2 surveys the runners. If
-   gitsign cannot be installed there, import records provenance
-   without verifying it, and the `import` step says so in its
-   output on every run -- not silently.
-6. **ryll's checkout token.** Default: the template uses
-   `${{ secrets.DEPENDENCIES_TOKEN || github.token }}`, so the
-   copies stay byte-identical while ryll keeps its bypass. Phase 2
-   must confirm whether `DEPENDENCIES_TOKEN` is an organisation
-   secret visible to all four repositories; if it is, every
-   repository would push as the bot with a PAT and retrigger
-   `prune-reviews` once, which is safe (ryll already does it) but
-   changes what the other three do.
+5. **Is gitsign available on the static runners?** *Answered by
+   step 2a, 2026-09-24:* no. The static runners are provisioned by
+   `mach33labs/33fl/static_runner.yml` with a minimal base package
+   set. The workflow downloads a pinned `sigstore/gitsign` release
+   binary and checks it against the release's `checksums.txt`, the
+   same way other workflows fetch pinned release tarballs; baking
+   it into the runner image can follow once the workflow has proven
+   out. Verification also needs egress to Rekor
+   (`rekor.sigstore.dev`) and Sigstore's TUF root, which nothing in
+   the fleet yet proves the runners have; the first scheduled run
+   in phase 2 is the test. If verification cannot run there, import
+   records provenance without verifying it and says so on stderr on
+   every run.
+6. **The checkout token.** *Answered by step 2a, 2026-09-24:*
+   `DEPENDENCIES_TOKEN` is a per-repository secret, present in
+   exactly the three adopted repositories whose `develop` ruleset
+   requires a pull request (hunkydory, kerbside, ryll) and absent
+   from the two whose `main` rulesets do not (actions, this
+   repository). The template's checkout uses
+   `${{ secrets.DEPENDENCIES_TOKEN || github.token }}`, which
+   reproduces today's behaviour in all five from one file.
 
 ## Execution
 
@@ -510,65 +529,80 @@ the verification outcome per import in the run's output.
 **What gets imported.** For each in-scope tracked file in the
 target (existing `load_scope()`, `in_scope()`, `tracked_files()`)
 whose `HEAD` blob is in the map, which does not already carry a
-full-file mark in a human reviewer's state file, and which no
-`import-exclude` pattern matches (below), add:
+valid full-file mark in a reviewer's state file, and which no
+`import-exclude` pattern matches (below), add an entry to
+`.vscode/imports.weaudit-shas.json` (open question 1):
 
-* an `auditedFiles` entry `{"path": ..., "author": <reviewer>}` to
-  `.vscode/imports.weaudit` (open question 1), creating the file
-  with the same top-level keys as an existing weAudit file if it
-  does not exist. Imports are only ever written here, never to a
-  human reviewer's state file;
-* an entry in its sidecar, `.vscode/imports.weaudit-shas.json`:
-  `{"sha": ..., "date": <source stamp date>, "imported": {"repo":
-  "shakenfist/development", "reviewer": <reviewer>, "path":
-  <source path>, "commit": <introducing commit>}}`.
+```json
+{
+  "version": 1,
+  "files": {
+    "<target path>": {
+      "sha": "<blob sha>",
+      "date": "<source stamp date>",
+      "imported": {
+        "repo": "shakenfist/development",
+        "reviewer": "<reviewer>",
+        "path": "<source path>",
+        "commit": "<introducing commit>",
+        "verified": true
+      }
+    }
+  }
+}
+```
 
-A native review supersedes an import: when a human reviewer's
-state file carries a valid full-file mark for a file the imports
-file also marks, `import` removes its own entry, so that
-`REVIEWS.md` shows one row per file and the human's is the one
-kept.
+`import` writes nothing else: no `.weaudit` file, and never a
+human reviewer's state file or sidecar. The `date` is the source
+stamp's date, not today, because it records when the content was
+read. `verified` records whether the introducing commit's
+signature was checked.
 
-**Rejecting an import.** A human cannot un-tick an imported file in
-weAudit, because the mark is not in their state file, and deleting
-the entry by hand would only see it re-imported on the next
-scheduled run. So `.vscode/review-scope.toml` gains an optional
-`import-exclude` list of fnmatch patterns, with the same semantics
-as `exclude` (including `!` re-includes). `import` never adds a
-matching file and removes any existing imported entry that
-matches. Like the other exclusions in that file, an entry should
-say why in a comment.
+A native review supersedes an import: when a reviewer's state file
+carries a valid full-file mark for a file the imports file also
+lists, `import` removes its own entry, so `REVIEWS.md` shows one
+row per file and the human's is the one kept.
 
-The `date` is the source stamp's date, not today: it records when
-the content was read.
+A file carrying a stale native mark is not a candidate until
+`prune` has removed that mark, which is why the CI script runs
+`prune` first. A file carrying only a partial native mark can be
+imported; the partial row stays as well.
 
-A file carrying a stale mark is not a candidate until `prune` has
-removed it, which is why the CI script runs `prune` first. A file
-carrying only a partial mark in the target gets the full mark
-added beside it.
+**Rejecting an import.** An import has no tick in weAudit, so
+there is nothing there to un-tick, and deleting the entry by hand
+would only see it re-imported on the next scheduled run. So
+`.vscode/review-scope.toml` gains an optional `import-exclude`
+list of fnmatch patterns with the same semantics as `exclude`
+(including `!` re-includes). `import` never adds a matching file
+and removes any existing imported entry that matches. Like the
+other exclusions in that file, an entry should say why in a
+comment.
 
-**Interaction with the other subcommands.**
+**Interaction with the other subcommands.** The imports file is a
+source of marks for every read path, and is a separate code path
+from `state_files()`, which keeps globbing `*.weaudit` only.
 
-* `prune` treats an imported stamp exactly as a native one. The
-  blob SHA is what the review attests to, so the same staleness
-  rule applies.
-* `stamp` skips `.vscode/imports.weaudit` entirely: it is not a
-  reviewer's file, nothing in it was marked in this clone, and the
-  out-of-scope banner must not fire for it. `stamp` never writes
-  to the imports sidecar.
-* `next` counts imported files as reviewed and does not offer them.
-* `status` counts imported marks as valid. It does not verify
-  provenance: native marks are not signature-checked by `status`
-  either, and the audit workflow's depth-1 checkout of this
-  repository has no history to check against. `status --json`
-  gains an `imported` count so the audit can report it.
-* `render_reviews_md()` gains a `Source` column: `-` for a native
-  review, `development@<12-char commit>` for an imported one. The
-  `Reviewer` cell of an imported row is the original reviewer from
-  the entry's `author`, not the state file's basename, which is
-  what `reviewer_name()` returns today.
-  Regenerate this repository's `REVIEWS.md` in the same commit
-  (see the landing note above).
+* `prune` drops an imported entry whose sha no longer matches
+  `HEAD`, exactly as it does a native stamp; the blob SHA is what
+  the review attests to. It removes the imports file when it
+  empties.
+* `stamp` ignores the imports file entirely. Nothing in it was
+  marked in this clone.
+* `status` counts an imported entry whose sha matches `HEAD` as a
+  valid review. It does not verify provenance: native marks are
+  not signature-checked by `status` either, and the audit
+  workflow's depth-1 checkout of this repository has no history to
+  check against. `status --json` gains an `imported` count so the
+  audit can report it.
+* `next` treats imported files as reviewed and does not offer
+  them.
+* `render_reviews_md()` counts imported files toward the header's
+  reviewed count and gives them rows in the reviewed-files table,
+  with a new `Source` column: `-` for a native review,
+  `development@<12-char commit>` for an imported one, and the
+  `Reviewer` cell from the entry's `imported.reviewer`. Regenerate
+  this repository's `REVIEWS.md` in the same commit (see the
+  landing note above).
 
 **Output and exit status.** Print one line per import naming the
 target path, the source path and the short commit, and a summary
@@ -579,9 +613,9 @@ does for `prune`.
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
 | 1a | medium | sonnet | none | Before any code, read the weAudit extension source (`trailofbits.weaudit`, on GitHub) and report only: whether it shows audited-file ticks from a `.vscode/*.weaudit` file that is not the current user's (here `.vscode/imports.weaudit`), whether that can be turned off in the UI or settings, whether it ever writes to a state file other than the current user's, and which top-level keys a state file needs for weAudit to load it without error. Settles the part of open question 1 that is still open. |
-| 1b | high | opus | worktree | Implement `import` in `scripts/review-tracking.py` exactly as the phase 1 section of `docs/plans/PLAN-review-import.md` describes: history walk with full-mark filtering, gitsign verification with `--no-verify`, candidate selection, writes confined to `.vscode/imports.weaudit` and its sidecar, native marks superseding imports, the `import-exclude` list in `load_scope()`'s config, the self-import refusal, `stamp` and `next` treating the imports file as described, `status --json` `imported` count, and the `Source` column in `render_reviews_md()`. Follow the file's existing style (module-level helpers, `git()` wrapper, `load_json`/`write_json` preserving trailing newlines, single quotes, 120 columns). Update the module docstring's subcommand list. Regenerate this repository's `REVIEWS.md`. |
-| 1c | high | opus | none | Tests in `scripts/tests/test_review_tracking.py`, following its existing fixture repos: a source fixture with signed-commit verification stubbed out, covering full-mark import, partial-mark-only source not imported, earliest review preferred, lagging copy imported from history, already-marked target untouched, stale target mark not replaced before prune, out-of-scope target file ignored, nothing ever written to a human reviewer's state file, native mark superseding an import, `import-exclude` preventing and removing an import, self-import refused, `stamp` ignoring the imports file, `next` not offering an imported file, `status` counting imports, and the `Source` column. |
-| 1d | medium | sonnet | none | Document `import` in `docs/code-review-tracking.md`: a new subsection under "Steady state" covering what is imported, the separate imports state file and why a human's file is never touched, rejecting an import with `import-exclude`, the provenance record, why verification happens at import time (amplification), and a rewrite of the "prune only removes marks" argument so it is scoped to prune and a parallel argument covers import. Update the subcommand list near the top of the file. |
+| 1b | high | opus | worktree | Implement `import` in `scripts/review-tracking.py` exactly as the phase 1 section of `docs/plans/PLAN-review-import.md` describes: history walk with full-mark filtering, gitsign verification with `--no-verify`, candidate selection, writes confined to `.vscode/imports.weaudit-shas.json` (no `.weaudit` file is ever written or read for imports), native marks superseding imports, the `import-exclude` list in `load_scope()`'s config, the self-import refusal, `prune`, `stamp`, `status`, `next` and `render_reviews_md()` treating the imports file as described, `status --json` `imported` count, and the `Source` column in `render_reviews_md()`. Follow the file's existing style (module-level helpers, `git()` wrapper, `load_json`/`write_json` preserving trailing newlines, single quotes, 120 columns). Update the module docstring's subcommand list. Regenerate this repository's `REVIEWS.md`. |
+| 1c | high | opus | none | Tests in `scripts/tests/test_review_tracking.py`, following its existing fixture repos: a source fixture with signed-commit verification stubbed out, covering full-mark import, partial-mark-only source not imported, earliest review preferred, lagging copy imported from history, already-marked target untouched, stale target mark not replaced before prune, out-of-scope target file ignored, nothing ever written to any `.weaudit` file or a human reviewer's sidecar, `prune` dropping a stale import and removing an emptied imports file, native mark superseding an import, `import-exclude` preventing and removing an import, self-import refused, `stamp` ignoring the imports file, `next` not offering an imported file, `status` counting imports, and the `Source` column. |
+| 1d | medium | sonnet | none | Document `import` in `docs/code-review-tracking.md`: a new subsection under "Steady state" covering what is imported, why imports live in a sidecar-shaped file weAudit never reads (with the weAudit behaviour from open question 1 that ruled out a `.weaudit` file), rejecting an import with `import-exclude`, the provenance record, why verification happens at import time (amplification), and a rewrite of the "prune only removes marks" argument so it is scoped to prune and a parallel argument covers import. Update the subcommand list near the top of the file. |
 
 ### Phase 2: review tracking CI template and rollout
 
@@ -654,6 +688,37 @@ copy into the four kinds in "Situation", and act:
 Record the classification as a table in this section: template,
 repositories, kind, action taken. The survey in "Situation" is the
 starting point but was taken from local clones, so re-measure.
+
+**Survey (step 3a, 2026-09-24, fresh clones).** 6 of the 29 real
+copies of a template in the four adopted repositories are
+byte-identical today (hunkydory 3, kerbside 2, ryll 1, actions 0).
+In order of copies made identical per unit of work:
+
+| Order | Template | Kind | Action | Copies gained |
+|-------|----------|------|--------|---------------|
+| 1 | `mermaid-lint` (`.sh` and `.yml`) | lagging | Re-sync kerbside and ryll verbatim; no template change | 4 |
+| 2 | `ci-review-automation/pr-re-review.yml` | lagging | Re-sync actions, kerbside and ryll verbatim; actions first, as its copy lacks `persist-credentials: false` | 3 |
+| 3 | `renovate/renovate.yml` | parameter, local improvement | Filter becomes `${{ github.repository }}`; upstream actions' `timeout-minutes` and `concurrency`; re-sync | 4 |
+| 4 | `ci-review-automation/pr-retest.yml` | parameter, lagging | Workflow to dispatch from `vars.RETEST_WORKFLOW` with a default and neutral wording; re-sync all four (kerbside and ryll also lack the bot guard) | 4 |
+| 5 | `codeql/codeql-analysis.yml` | local improvement, lagging | `branches: [main, develop]`, `timeout-minutes`, PR-only cancelling concurrency, a review-path skip; drop the obsolete `HEAD^2` checkout in kerbside and ryll. Blocked on the decision below | 2 |
+| 6 | `pin-indirect-dependencies/pin-indirect-dependencies.yml` | parameter, per-repo | Replace `{{PROJECT_NAME}}`; move kerbside's extra apt packages to a tracked file | 1 |
+| -- | `release-automation/*`, `renovate/renovate.json` | per-repo | Record as per-repo in the READMEs; upstream kerbside's `vm` sign-tag label; fix renovate.json's "Automatically merge" description, which contradicts `automerge: false` | 0 |
+
+Items 1 to 4 take the identical count from 6 to 21; item 5 to 23.
+`export-repo-config.yml` is already identical in the three
+repositories that call it, and the file at that path in actions is
+the reusable workflow rather than a copy, which its README should
+say.
+
+**Decision needed before item 5.** hunkydory's `develop` ruleset
+requires CodeQL's `Analyze` check, so a trigger-level
+`paths-ignore` in the template would leave every review-only pull
+request there waiting on a check that never runs -- the hazard
+step 8 of the adoption procedure warns about. Either drop
+`Analyze` from hunkydory's required checks, or have the template
+skip at job level (a `check_paths` job and an `if:`), since a job
+skipped by `if:` satisfies a required check. Default: the
+job-level skip, which works whatever a repository requires.
 
 Renovate will keep moving action pins independently in the
 template and in each copy. That drift is transient -- it converges
@@ -914,8 +979,8 @@ because the following statements will be true:
   new failures, or the plan states which verdicts moved and why.
 * `prune` still only ever removes marks, and `import` is the only
   code path by which a mark is added without a human. It writes
-  only to `.vscode/imports.weaudit` and its sidecar; no automated
-  process writes to a human reviewer's state file.
+  only to `.vscode/imports.weaudit-shas.json`; no automated
+  process writes to any `.weaudit` file or a reviewer's sidecar.
 * Every imported mark names a signed commit in this repository
   that introduced a full-file review of the same blob, or the
   run that imported it said on stderr that it could not verify.
