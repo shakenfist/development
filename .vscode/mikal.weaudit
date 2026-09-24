@@ -831,6 +831,42 @@
     {
       "path": "ARCHITECTURE.md",
       "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/plan-references-in-code.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
+    },
+    {
+      "path": "PUSH-AUDIT.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/plan-source-references.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/push-audit.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/plans.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_plans.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
