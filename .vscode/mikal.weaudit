@@ -81,10 +81,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/plan-source-references.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/python-version.md",
       "author": "mikal"
     },
@@ -605,10 +601,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/push-audit.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/review-coverage.md",
       "author": "mikal"
     },
@@ -725,19 +717,7 @@
       "author": "mikal"
     },
     {
-      "path": "templates/shared-blocks/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/shared-blocks/source-file-size.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/shared-blocks",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     },
     {
@@ -750,10 +730,6 @@
     },
     {
       "path": ".pre-commit-config.yaml",
-      "author": "mikal"
-    },
-    {
-      "path": "PUSH-AUDIT.md",
       "author": "mikal"
     },
     {
@@ -817,10 +793,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/plans.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/text/python_source.py",
       "author": "mikal"
     },
@@ -834,10 +806,6 @@
     },
     {
       "path": "scripts/tests/test_packaging.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_plans.py",
       "author": "mikal"
     },
     {

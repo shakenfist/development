@@ -97,10 +97,6 @@
       "sha": "a5b19acb9a99252702d8fcea664afc3dad5c5690",
       "date": "2026-09-22"
     },
-    "PUSH-AUDIT.md": {
-      "sha": "0ba62241d81094c281d125f90021e0c396132cc5",
-      "date": "2026-09-22"
-    },
     "README.md": {
       "sha": "5ac5a6754b08642183a1425f5a50f114ea907848",
       "date": "2026-09-09"
@@ -217,16 +213,8 @@
       "sha": "4439f2afbeec94f684684393993202a860f411c8",
       "date": "2026-08-29"
     },
-    "docs/audits/plan-source-references.md": {
-      "sha": "b60c33917fff4fae03bdb00dda14b72fb5542556",
-      "date": "2026-08-29"
-    },
     "docs/audits/plan-template.md": {
       "sha": "50e71108390c26f947875c30bc6358504c97bae2",
-      "date": "2026-09-22"
-    },
-    "docs/audits/push-audit.md": {
-      "sha": "90ee997f4cb64595c05eba243c4a26595dac7a35",
       "date": "2026-09-22"
     },
     "docs/audits/pyproject-usage.md": {
@@ -385,10 +373,6 @@
       "sha": "06f2d582b5ff714df29f11cc7e5b6b636e31bc55",
       "date": "2026-09-24"
     },
-    "scripts/audit/checks/plans.py": {
-      "sha": "eff26c7ad36f0e3f154318c6138df76f61d0d167",
-      "date": "2026-09-24"
-    },
     "scripts/audit/checks/review.py": {
       "sha": "21fd5bf0dc26ab772f320133f20f180a6329cc40",
       "date": "2026-09-22"
@@ -537,10 +521,6 @@
       "sha": "0740592ab6cb5c67988e1d37efe7a7e192a535ab",
       "date": "2026-09-24"
     },
-    "scripts/tests/test_plans.py": {
-      "sha": "d6ba1660e12020dffbd23a663b3b43e692a2da18",
-      "date": "2026-09-24"
-    },
     "scripts/tests/test_python_source.py": {
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",
       "date": "2026-09-04"
@@ -668,10 +648,6 @@
     "templates/renovate/renovate.yml": {
       "sha": "f06f837115324e557b40b961b70a557579744e62",
       "date": "2026-09-19"
-    },
-    "templates/shared-blocks/README.md": {
-      "sha": "b49718f71e78d8bfd72af2b0f62e1bccb1a09235",
-      "date": "2026-09-22"
     },
     "templates/shared-blocks/comment-proportion.md": {
       "sha": "38c366bd44e111f047e5eb2379451ba9c13d04c6",
