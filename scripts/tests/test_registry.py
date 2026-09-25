@@ -724,23 +724,67 @@ class MergeRefResolutionTest(unittest.TestCase):
                     f'{name} must carry a per-pull-request concurrency '
                     f'group, or two "please retest" comments dispatch '
                     f'the test suite twice')
+                gate = self._job_gate(body, 'retest')
                 self.assertIn(
-                    self.GATE, body,
+                    self.GATE, gate,
                     f'{name} must gate the grouped job on '
                     f'pr-bot-trigger having authorised the request')
-                self.assertLess(
-                    body.index(self.GATE), body.index(self.GROUP),
-                    f'{name} declares its concurrency group before the '
-                    f'authorisation gate, so the group is not on the '
-                    f'gated job')
                 self.assertIn(
-                    self.FORK_GATE, body,
+                    self.FORK_GATE, gate,
                     f'{name} must require same_repo on the retest job '
                     f'as well as authorized, as pr-re-review.yml does')
                 self.assertLess(
-                    body.index(self.FORK_GATE), body.index(self.GROUP),
+                    body.index(gate), body.index(self.GROUP),
                     f'{name} declares its concurrency group before the '
-                    f'fork gate, so the group is not on the gated job')
+                    f'authorisation gate, so the group is not on the '
+                    f'gated job')
+
+    @staticmethod
+    def _job_gate(body, job):
+        """Return the text of one job's `if:`, comments excluded.
+
+        The gate expressions are quoted in the comments that explain
+        them, so matching them anywhere in the file would pass with the
+        `if:` itself deleted.
+        """
+        job_body = body.split(f'\n  {job}:\n', 1)[1]
+        job_body = re.split(r'\n  \S', job_body, maxsplit=1)[0]
+        lines = [line for line in job_body.splitlines()
+                 if not line.lstrip().startswith('#')]
+        for i, line in enumerate(lines):
+            if line.startswith('    if:'):
+                gate = [line]
+                for more in lines[i + 1:]:
+                    if not more.startswith('      '):
+                        break
+                    gate.append(more)
+                return '\n'.join(gate)
+        raise AssertionError(f'job {job} has no if:')
+
+    ORIGIN_STEP = "- name: Confirm pr-bot-trigger reported the pull request's origin"
+
+    def test_trigger_outputs_are_confirmed(self):
+        # The work jobs gate on outputs of a shared action pinned at
+        # @main, so a renamed output reads empty and the job skips after
+        # the rocket reaction. The step that catches that must not be
+        # conditional on one of those outputs, or it skips itself in the
+        # very case it exists for (shakenfist/development#180).
+        for name in [self.DEPLOYED_RE_REVIEW, self.TEMPLATE_RE_REVIEW,
+                     self.DEPLOYED_RETEST, self.TEMPLATE_RETEST]:
+            with self.subTest(workflow=name):
+                with open(os.path.join(REPO_ROOT, name)) as f:
+                    body = f.read()
+                self.assertIn(
+                    self.ORIGIN_STEP, body,
+                    f'{name} must confirm pr-bot-trigger reported the '
+                    f'outputs its work job depends on')
+                step = body.split(self.ORIGIN_STEP, 1)[1]
+                step = re.split(r'\n  \S|\n      - name:', step, maxsplit=1)[0]
+                self.assertNotRegex(
+                    step, r'(?m)^\s*if:', f'{name} makes the output check '
+                    f'conditional, so it skips when an output goes missing')
+                for output in ['triggered', 'authorized', 'same-repo']:
+                    self.assertIn(f'steps.trigger.outputs.{output} }}}}', step)
 
 
 class RunCheckBoundaryTest(unittest.TestCase):

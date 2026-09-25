@@ -109,7 +109,7 @@ class ExportRepoConfig(Check):
                 'authenticates with github.token, so every secret this '
                 'repository holds is handed to a workflow in another '
                 'repository for no benefit. Delete the line.')
-        return self.ok('export-repo-config.yml exists')
+        return self.ok('export-repo-config.yml exists and no caller inherits secrets')
 
 
 class DefaultBranchNaming(Check):

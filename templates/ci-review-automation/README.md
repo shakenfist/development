@@ -227,19 +227,22 @@ fixing them in one consumer would only have created drift.
   with no warning. The step now always runs: it compares `HEAD^2` with
   the validated head on the merge path and `HEAD` itself on the head
   path, and fails the same way on either.
-* **The trigger job asserts that `same-repo` was reported.** Both files
-  require `same_repo` as well as `authorized`. If `pr-bot-trigger` ever
-  renamed or dropped its `same-repo` output, that expression would read
-  empty and the work would silently never run, after the rocket
-  reaction had been posted. The guard was fail-closed either way; the
-  failure is now visible as a red trigger job.
+* **The trigger job asserts that `pr-bot-trigger` reported its
+  outputs.** Both files require `same_repo` as well as `authorized`. If
+  `pr-bot-trigger` ever renamed or dropped either output, that
+  expression would read empty and the work would silently never run,
+  after the rocket reaction had been posted. The guard was fail-closed
+  either way; the failure is now visible as a red trigger job. The
+  check is unconditional and reads `triggered` and `authorized` as well
+  as `same-repo`, because a check gated on `authorized` would skip
+  itself exactly when `authorized` went missing.
 * **`pr-retest.yml` repeats the fork guard.** It checked only
   `authorized`, although its job dispatches a workflow against the pull
   request's ref with a write-scoped token. It now exports and requires
   `same_repo`, for the reason given above for `pr-re-review.yml`.
 
-`MergeRefResolutionTest` holds the first and third on this repository's
-copies.
+`MergeRefResolutionTest` holds all three, on this repository's copies
+and on the templates.
 
 ### The fork guard
 

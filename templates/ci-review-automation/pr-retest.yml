@@ -51,18 +51,38 @@ jobs:
       # so if pr-bot-trigger renames or drops its same-repo output the
       # retest silently never runs after the rocket reaction. Fail
       # loudly instead. pr-re-review.yml carries the same step.
+      #
+      # Every output the job below depends on is checked, not only
+      # same-repo: a step gated on authorized == 'true' would skip
+      # itself exactly when authorized goes missing. triggered is read
+      # first because the job's contains() is case-insensitive and the
+      # action's phrase match is not, so a comment that differs only in
+      # case legitimately gets triggered=false and no authorized at all.
       - name: Confirm pr-bot-trigger reported the pull request's origin
-        if: steps.trigger.outputs.authorized == 'true'
         env:
+          TRIGGERED: ${{ steps.trigger.outputs.triggered }}
+          AUTHORIZED: ${{ steps.trigger.outputs.authorized }}
           SAME_REPO: ${{ steps.trigger.outputs.same-repo }}
         run: |
-          if [ "${SAME_REPO}" != "true" ]; then
-            echo "pr-bot-trigger authorized this request but reported"
-            echo "same-repo as '${SAME_REPO}' rather than 'true'. Either"
-            echo "the output was renamed or dropped in shakenfist/actions,"
-            echo "or the action's fork guard and its outputs disagree."
+          fail() {
+            echo "$1"
+            echo "Either the output was renamed or dropped in"
+            echo "shakenfist/actions, or the action and this file disagree."
             echo "Refusing to go on to a retest that would not run."
             exit 1
+          }
+          case "${TRIGGERED}" in
+            false) exit 0 ;;
+            true) ;;
+            *) fail "pr-bot-trigger reported triggered as '${TRIGGERED}'." ;;
+          esac
+          case "${AUTHORIZED}" in
+            false) exit 0 ;;
+            true) ;;
+            *) fail "pr-bot-trigger reported authorized as '${AUTHORIZED}'." ;;
+          esac
+          if [ "${SAME_REPO}" != "true" ]; then
+            fail "pr-bot-trigger authorized this request but reported same-repo as '${SAME_REPO}'."
           fi
 
   retest:
