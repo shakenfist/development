@@ -10,7 +10,9 @@
 #
 # Typical session: "prune" after a pull, "stamp" before committing
 # review marks. On main itself the prune-reviews workflow runs prune
-# automatically after every push (via tools/ci-prune-reviews.sh).
+# then import automatically after every push and once a day (via
+# tools/ci-prune-reviews.sh); import against this repository is a
+# no-op, since it is the source reviews are imported from.
 #
 # Adopting repositories carry a wrapper that goes looking for a clone
 # of this repository, because the implementation lives here. This one

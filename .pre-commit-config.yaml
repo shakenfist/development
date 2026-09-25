@@ -60,12 +60,10 @@ repos:
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.11.0.1
     hooks:
-      # scripts/ and tools/ both hold code this repository runs.
-      # templates/ is excluded by the pattern on purpose: those files
-      # are shipped to other repositories, and several reference
-      # variables defined by the workflow that calls them.
+      # scripts/ and tools/ both hold code this repository runs, and
+      # templates/ holds shell scripts shipped to other repositories.
       - id: shellcheck
-        files: ^(scripts|tools)/
+        files: ^(scripts|tools)/|templates/.*\.sh$
         types_or: [sh, bash, shell]
         args: ['-x']
 

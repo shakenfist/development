@@ -6,9 +6,9 @@ This script implements the automation described in
 docs/code-review-tracking.md. It runs in the repository under review,
 invoked by hand -- deliberately not from git hooks, which proved
 confusing when they fired in the middle of other git operations.
-(Some subcommands also run from CI: prune from an adopting repo's
-prune-reviews workflow, which will run import after it once the review
-tracking CI template lands, and status from the consistency audit's
+(Some subcommands also run from CI: prune then import from an
+adopting repo's prune-reviews workflow, on every push to the default
+branch and once a day, and status from the consistency audit's
 review-coverage check; see the steady state section of the doc.)
 Target repositories typically carry a thin wrapper (for example
 ryll's tools/review-tracking.sh) that locates a clone of the

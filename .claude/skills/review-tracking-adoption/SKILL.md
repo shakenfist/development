@@ -19,6 +19,29 @@ current content; the scope config is what opts the repo into the
 `review-coverage` and `review-scope-completeness` audits). This
 skill adds the verification pass the doc cannot make mechanical.
 
+Steps 5 and 7 of that list mean copying
+`templates/review-tracking/{review-tracking.sh,ci-prune-reviews.sh,prune-reviews.yml}`
+into the target repo verbatim, not writing a repository-specific
+version of any of them -- to `tools/review-tracking.sh`,
+`tools/ci-prune-reviews.sh`, and
+`.github/workflows/prune-reviews.yml` respectively. After copying,
+verify byte-for-byte equality rather than trusting the copy:
+
+```bash
+for f in review-tracking.sh:tools/review-tracking.sh \
+         ci-prune-reviews.sh:tools/ci-prune-reviews.sh \
+         prune-reviews.yml:.github/workflows/prune-reviews.yml; do
+    src=${f%%:*}; dst=${f#*:}
+    diff <(git -C "$SHAKENFIST_DEVELOPMENT" hash-object "templates/review-tracking/$src") \
+         <(git hash-object "$dst")
+done
+```
+
+A mismatch means the copy drifted from the template -- fix the copy,
+never the template to match it, since the whole point of a
+byte-identical copy is that `import` can credit it against this
+repository's own review of the template file.
+
 After writing or editing `.vscode/review-scope.toml`, run
 `review-tracking.py scope-orphans` in the target repo. It lists
 tracked files that are out of scope only because no `include`

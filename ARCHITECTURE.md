@@ -123,16 +123,15 @@ import reviews of byte-identical files made here into
 `.vscode/imports.weaudit-shas.json`),
 run by hand in target repositories via a thin wrapper (for example
 ryll's `tools/review-tracking.sh`) -- deliberately not from git
-hooks. In steady state three subcommands also run from CI: adopting
-repos prune stale marks on every push to their default branch via a
-`prune-reviews` workflow, and the daily consistency audit alerts
-(via a GitHub issue) when five or more in-scope files need review
-(`review-coverage`) and when the scope config leaves a tracked file
-out without saying so (`review-scope-completeness`). `import` is run
-by hand until the `prune-reviews` workflow runs it after `prune`
-(`docs/plans/PLAN-review-import.md`); see
-`docs/code-review-tracking.md`. Tests are in
-`scripts/tests/test_review_tracking.py`.
+hooks. In steady state four subcommands also run from CI: adopting
+repos prune stale marks and import reviews made here on every push
+to their default branch and once a day, via a `prune-reviews`
+workflow copied from `templates/review-tracking/`, and the daily
+consistency audit alerts (via a GitHub issue) when five or more
+in-scope files need review (`review-coverage`) and when the scope
+config leaves a tracked file out without saying so
+(`review-scope-completeness`); see `docs/code-review-tracking.md`.
+Tests are in `scripts/tests/test_review_tracking.py`.
 
 ## Testing the automation
 
