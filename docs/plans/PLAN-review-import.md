@@ -278,13 +278,13 @@ answers.
 
 ## Execution
 
-| Phase | Status |
-|-------|--------|
-| 1. `import` subcommand | In progress |
-| 2. Review tracking CI template and rollout | Not started |
-| 3. Template convergence | Not started |
-| 4. Verification | Not started |
-| 5. Push audit | Not started |
+| Phase | Status | Merged |
+|-------|--------|--------|
+| 1. `import` subcommand | Complete | 54c7ecc (#177) |
+| 2. Review tracking CI template and rollout | In progress | |
+| 3. Template convergence | Not started | |
+| 4. Verification | Not started | |
+| 5. Push audit | Not started | |
 
 <!-- shared-block: plan-status-vocabulary v1 -->
 Plan status vocabulary (shared block; do not edit -- the canonical
