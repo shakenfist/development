@@ -357,10 +357,6 @@
       "sha": "d54faddeed246c3b084571825d542bf04c1bb930",
       "date": "2026-09-02"
     },
-    "scripts/audit/checks/ci_workflows.py": {
-      "sha": "368d0c0c010f5438f6fe2ee0cb94b1f9610d8101",
-      "date": "2026-09-22"
-    },
     "scripts/audit/checks/distros.py": {
       "sha": "81c0aa6c3a383d6a46ec931e57e71f89b2828158",
       "date": "2026-09-15"
@@ -396,10 +392,6 @@
     "scripts/audit/checks/runners.py": {
       "sha": "c7e4ad82421f4784116725b1ca57a8d848ac9e59",
       "date": "2026-09-15"
-    },
-    "scripts/audit/files.py": {
-      "sha": "5761923514372702b36918937f26b8c306aca018",
-      "date": "2026-09-24"
     },
     "scripts/audit/github.py": {
       "sha": "5fdb28856b27d63920448d38d2d77ae30c7aa061",
@@ -487,10 +479,6 @@
     },
     "scripts/tests/test_check_audit_smoke.py": {
       "sha": "e23f875b2a5d2be98cfb31bb13250637f75ce02c",
-      "date": "2026-09-22"
-    },
-    "scripts/tests/test_ci_workflows.py": {
-      "sha": "31351fcc2958a8c5de8bbba355f7bcb86023c9ec",
       "date": "2026-09-22"
     },
     "scripts/tests/test_distros.py": {
