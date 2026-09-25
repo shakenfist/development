@@ -732,8 +732,11 @@ than from a `.weaudit` file in this clone.
 
 This repository does not import from itself. A template and this
 repository's own instance of it could in principle cross-import, but
-the case is rare enough that `import` simply refuses to run when the
-target is this repository, whether this clone or a worktree of it.
+the case is rare enough that `import` run against this repository,
+whether this clone or a worktree of it, is a no-op: it prints
+`review-import: nothing to do; shakenfist/development is the source
+of imported reviews`, writes nothing, and exits zero, so that the
+shared `prune-reviews` workflow can run it here unchanged.
 
 **Backlog alerting.** The daily consistency audit runs a
 `review-coverage` check (`docs/audits/review-coverage.md`) against

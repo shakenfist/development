@@ -801,6 +801,46 @@ class MermaidLintDeploymentTest(unittest.TestCase):
             self.assertIn(':(exclude)%s' % name, script)
 
 
+class ReviewTrackingDeploymentTest(unittest.TestCase):
+    """This repository's copies must match the template exactly.
+
+    templates/review-tracking/README.md promises that the files copy
+    byte-for-byte into every adopted repository, this one included for
+    the workflow and its script. As with mermaid-lint, shellcheck is
+    scoped to ^(scripts|tools)/, so the template script is linted only
+    through its tools/ twin. tools/review-tracking.sh is deliberately
+    not a copy of the template wrapper, and is not checked here.
+    """
+
+    TEMPLATES = ('prune-reviews.yml', 'ci-prune-reviews.sh', 'review-tracking.sh')
+
+    def test_script_matches_the_template(self):
+        self.assertEqual(
+            repo_file('tools', 'ci-prune-reviews.sh'),
+            repo_file('templates', 'review-tracking', 'ci-prune-reviews.sh'),
+        )
+
+    def test_workflow_matches_the_template(self):
+        self.assertEqual(
+            repo_file('.github', 'workflows', 'prune-reviews.yml'),
+            repo_file('templates', 'review-tracking', 'prune-reviews.yml'),
+        )
+
+    def test_the_templates_name_no_branch(self):
+        """The default branch differs across the fleet, so it must come from the event.
+
+        A branch written into any of the three would make the copy in
+        a repository with the other default either wrong or different,
+        and a different copy cannot import this repository's review of
+        the template. URLs are stripped first: the documentation link
+        names this repository's own branch, which is not a parameter.
+        """
+        for name in self.TEMPLATES:
+            text = repo_file('templates', 'review-tracking', name).decode('utf-8')
+            text = re.sub(r'https://\S+', '', text)
+            self.assertEqual(re.findall(r'\b(main|develop|master)\b', text), [], name)
+
+
 class MermaidLintScriptTest(unittest.TestCase):
     """The script's own behaviour, run rather than read.
 
