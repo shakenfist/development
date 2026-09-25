@@ -300,6 +300,25 @@ class RetiredCommentAddresserTest(CheckTestCase):
         # from in there are not actionable.
         self.assert_pass(self._check(['.git/stash/render-review.py']))
 
+    def test_a_crate_cache_is_not_walked(self):
+        # The shape that was reported: a kerbside developer clone's
+        # gitignored crate cache held a git checkout of ryll from before
+        # ryll removed the addresser, and every file in it was named as
+        # kerbside's own deployment.
+        checkout = ('rust/kerbside-proxy/.cargo-cache/git/checkouts/'
+                    'ryll-8b6fc74ccb01fb3d/5f986e9/')
+        self.assert_pass(self._check([
+            checkout + '.github/workflows/pr-address-comments.yml',
+            checkout + 'tools/address-comments-with-claude.sh',
+            checkout + 'tools/render-review.py',
+        ]))
+
+    def test_a_cargo_config_directory_is_still_walked(self):
+        # instar tracks .cargo/ directories of its own configuration, so
+        # the skip is the cache's exact name rather than a prefix.
+        result = self._check(['src/core/.cargo/render-review.py'])
+        self.assert_fail(result, containing='render-review.py')
+
     def test_a_docs_only_project_is_checked_too(self):
         # cloudgood is exempt from most of this audit, but a workflow
         # holding contents: write is not a documentation concern.
@@ -1909,8 +1928,8 @@ class FuzzNightlyReportingTest(CheckTestCase):
     #: does, so deleting an entry would pass. This list has to be
     #: edited alongside it, which is the point.
     SKIPPED_DIRECTORIES = (
-        '.git', '.tox', '.venv', 'build', 'dist', 'node_modules',
-        'target', 'third_party', 'vendor', 'venv',
+        '.cargo-cache', '.git', '.tox', '.venv', 'build', 'dist',
+        'node_modules', 'target', 'third_party', 'vendor', 'venv',
     )
 
     def test_a_repository_with_a_fuzz_lane_is_never_walked(self):

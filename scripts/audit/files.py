@@ -17,13 +17,21 @@ import subprocess
 #: audited -- `target` is the realistic case, and the rest are defence
 #: in depth against the same mistake reached by another route.
 #:
+#: `.cargo-cache` is the crate cache the fleet's containerised Rust
+#: builds bind-mount into the checkout (ryll, kerbside,
+#: visual-digest-rust). It is gitignored, so a fresh CI clone never has
+#: one, but a developer clone does, and it holds git checkouts of other
+#: repositories -- a kerbside clone carried a whole ryll tree, retired
+#: workflows included. Matched exactly: instar tracks `.cargo/`
+#: directories holding its own cargo configuration.
+#:
 #: Shared because two criteria walk for different things and want the
 #: same answer about what is not ours. They had a copy each, identical
 #: and commented as such, which is the arrangement that drifts the
 #: first time somebody adds `.mypy_cache` to one of them.
 WALK_SKIP = frozenset({
-    '.git', '.tox', '.venv', 'build', 'dist', 'node_modules',
-    'target', 'third_party', 'vendor', 'venv',
+    '.cargo-cache', '.git', '.tox', '.venv', 'build', 'dist',
+    'node_modules', 'target', 'third_party', 'vendor', 'venv',
 })
 
 

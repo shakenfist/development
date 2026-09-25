@@ -126,9 +126,12 @@ def carries_retired_comment_addresser(repo_path):
     """
     found = []
     for dirpath, dirnames, filenames in os.walk(repo_path):
-        # .git holds whatever another branch left behind, which is not
-        # something this repository can act on.
-        dirnames[:] = [d for d in dirnames if d != '.git']
+        # WALK_SKIP rather than .git alone: .git holds whatever another
+        # branch left behind, and the rest hold other people's trees. A
+        # kerbside clone's .cargo-cache carried a checkout of ryll from
+        # before ryll removed the addresser, and was reported as
+        # kerbside's own deployment.
+        dirnames[:] = [d for d in dirnames if d not in WALK_SKIP]
         # See COMPOSITE_ACTION_MANIFESTS: the action's own source is not
         # a deployed copy of the retired chain.
         if any(m in filenames for m in COMPOSITE_ACTION_MANIFESTS):
