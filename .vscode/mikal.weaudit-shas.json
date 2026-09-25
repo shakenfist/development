@@ -69,6 +69,10 @@
       "sha": "feb474e2510c2bfdd2011573e57c87976b62f1ad",
       "date": "2026-09-01"
     },
+    ".github/workflows/renovate.yml": {
+      "sha": "6d979d389b5c82317c913a5e78a663bba56d2ba9",
+      "date": "2026-09-26"
+    },
     ".github/workflows/secret-scan.yml": {
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
       "date": "2026-08-24"
@@ -80,6 +84,14 @@
     ".pre-commit-config.yaml": {
       "sha": "6e5662a63f09b888fd47d2bff1f0ca8b95bdc39a",
       "date": "2026-09-22"
+    },
+    "AGENTS.md": {
+      "sha": "d7e887a926f58fce84a0ee3316f3dbca17b89c7e",
+      "date": "2026-09-26"
+    },
+    "ARCHITECTURE.md": {
+      "sha": "803bc2f483b9b687abc0e6d46eddf8618e3c8e36",
+      "date": "2026-09-26"
     },
     "PLAN-TEMPLATE.md": {
       "sha": "a5b19acb9a99252702d8fcea664afc3dad5c5690",
@@ -245,6 +257,10 @@
       "sha": "ce1f4861273d8634c0a9007750585e98637ed38f",
       "date": "2026-09-04"
     },
+    "docs/audits/review-coverage.md": {
+      "sha": "e4b0c375873b08c7f2cba712624536de679445ab",
+      "date": "2026-09-26"
+    },
     "docs/audits/review-scope-completeness.md": {
       "sha": "2fe6741ad09cd4e3877f8f2d46c3a634b13f95a8",
       "date": "2026-09-22"
@@ -296,6 +312,10 @@
     "docs/ci-review-automation.md": {
       "sha": "d0ddaacb7265a1071af7a8463b44c8d5cf28a329",
       "date": "2026-09-07"
+    },
+    "docs/code-review-tracking.md": {
+      "sha": "7f267df375d4db9aecb798ce1d6d4e5f1b6a847e",
+      "date": "2026-09-26"
     },
     "docs/consistency-audits.md": {
       "sha": "a6694b3a157c63886799aa17c7bf81546578c106",
@@ -369,6 +389,10 @@
       "sha": "48c79d69c8eeab8043aff6485cdbf5ae8261d103",
       "date": "2026-09-25"
     },
+    "scripts/audit/checks/review.py": {
+      "sha": "e32ae9a6de09ad0f0c2ec2bb44c5b87280078a6a",
+      "date": "2026-09-26"
+    },
     "scripts/audit/checks/runners.py": {
       "sha": "c7e4ad82421f4784116725b1ca57a8d848ac9e59",
       "date": "2026-09-15"
@@ -432,6 +456,10 @@
     "scripts/commit-audit-docs.sh": {
       "sha": "cc6bcdab6674b2c7c135fa9e59bebdb88b8576f6",
       "date": "2026-09-04"
+    },
+    "scripts/review-tracking.py": {
+      "sha": "387e64abe372bcac583b6ac368b6a668d895ef4f",
+      "date": "2026-09-26"
     },
     "scripts/tests/__init__.py": {
       "sha": "531d26fbe639291831bc7dff3a4959a702b09fe8",
@@ -524,6 +552,14 @@
     "scripts/tests/test_repo.py": {
       "sha": "89987f23cb42ec217670bda7881661ecdd8b0614",
       "date": "2026-09-22"
+    },
+    "scripts/tests/test_review.py": {
+      "sha": "93079587c44eb79cca3c705e283ee755bffcf360",
+      "date": "2026-09-26"
+    },
+    "scripts/tests/test_review_tracking.py": {
+      "sha": "2dfd05fd5f452e3437ca3a602e33a5630577b9e3",
+      "date": "2026-09-26"
     },
     "scripts/tests/test_runners.py": {
       "sha": "7aed137d41b191ce4cc7e547cba6ed168a961662",
@@ -628,6 +664,10 @@
     "templates/renovate/renovate.json": {
       "sha": "2ddd5e0b8169050eed659789ddcbfb95b6a8f299",
       "date": "2026-08-30"
+    },
+    "templates/renovate/renovate.yml": {
+      "sha": "3ab2b7e683ae37a240f3c5b585454a2918c87791",
+      "date": "2026-09-26"
     },
     "templates/shared-blocks/README.md": {
       "sha": "3b381f429dbe8084eaba41fd162e719039c25150",
