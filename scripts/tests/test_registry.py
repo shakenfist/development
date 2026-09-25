@@ -23,6 +23,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from audit import registry, scope  # noqa: E402
 from audit.repo import REPO_OVERRIDES, detect_repo_properties  # noqa: E402
 from audit_common import AUDIT_METADATA, ISSUE_TITLES  # noqa: E402
+from audit.checks import ci_workflows  # noqa: E402
+from audit.text.workflows import (  # noqa: E402
+    indented_block, job_level_keys, workflow_job_blocks,
+)
 from tests.base import REPO_ROOT  # noqa: E402
 
 sys.path.insert(0, REPO_ROOT)
@@ -692,7 +696,7 @@ class MergeRefResolutionTest(unittest.TestCase):
                     step, r'(?m)^\s*if:', f'{name} makes the confirm step '
                     f'conditional, so one checkout path goes unconfirmed')
                 self.assertIn('HEAD^2', step)
-                self.assertIn('git rev-parse HEAD)', step)
+                self.assertRegex(step, ci_workflows.REV_PARSE_HEAD_RE)
 
     DEPLOYED_RETEST = os.path.join('.github', 'workflows', 'pr-retest.yml')
     TEMPLATE_RETEST = os.path.join(
@@ -700,11 +704,6 @@ class MergeRefResolutionTest(unittest.TestCase):
 
     GROUP = 'group: pr-retest-${{ github.event.issue.number }}'
     GATE = "needs.trigger-retest.outputs.authorized == 'true'"
-    # Redundant with GATE, since pr-bot-trigger folds the fork check
-    # into authorized, and required anyway for the reason
-    # pr-re-review.yml gives: the retest job dispatches a workflow
-    # against the pull request's ref with a write-scoped token.
-    FORK_GATE = "needs.trigger-retest.outputs.same_repo == 'true'"
 
     def test_retest_dispatch_is_grouped_and_gated(self):
         # The group has to sit on a job that unauthorised comments
@@ -715,51 +714,46 @@ class MergeRefResolutionTest(unittest.TestCase):
         # Asserting both together because either alone is the bug:
         # a group with no gate is that cancellation, and a gate with
         # no group is the double dispatch this fixed.
+        #
+        # Read through the job blocks rather than searched for in the
+        # file: the gate expressions are quoted in the comments that
+        # explain them, so a match anywhere would pass with the `if:`
+        # itself deleted.
         for name in [self.DEPLOYED_RETEST, self.TEMPLATE_RETEST]:
             with self.subTest(workflow=name):
                 with open(os.path.join(REPO_ROOT, name)) as f:
-                    body = f.read()
+                    jobs = dict(workflow_job_blocks(f.read()))
+                self.assertIn('retest', jobs, f'{name} has no retest job')
+                retest = jobs['retest']
                 self.assertIn(
-                    self.GROUP, body,
+                    self.GROUP, indented_block(retest, 'concurrency') or '',
                     f'{name} must carry a per-pull-request concurrency '
-                    f'group, or two "please retest" comments dispatch '
-                    f'the test suite twice')
-                gate = self._job_gate(body, 'retest')
+                    f'group on the retest job, or two "please retest" '
+                    f'comments dispatch the test suite twice')
                 self.assertIn(
-                    self.GATE, gate,
+                    self.GATE, job_level_keys(retest).get('if', ''),
                     f'{name} must gate the grouped job on '
                     f'pr-bot-trigger having authorised the request')
-                self.assertIn(
-                    self.FORK_GATE, gate,
-                    f'{name} must require same_repo on the retest job '
-                    f'as well as authorized, as pr-re-review.yml does')
-                self.assertLess(
-                    body.index(gate), body.index(self.GROUP),
-                    f'{name} declares its concurrency group before the '
-                    f'authorisation gate, so the group is not on the '
-                    f'gated job')
 
-    @staticmethod
-    def _job_gate(body, job):
-        """Return the text of one job's `if:`, comments excluded.
-
-        The gate expressions are quoted in the comments that explain
-        them, so matching them anywhere in the file would pass with the
-        `if:` itself deleted.
-        """
-        job_body = body.split(f'\n  {job}:\n', 1)[1]
-        job_body = re.split(r'\n  \S', job_body, maxsplit=1)[0]
-        lines = [line for line in job_body.splitlines()
-                 if not line.lstrip().startswith('#')]
-        for i, line in enumerate(lines):
-            if line.startswith('    if:'):
-                gate = [line]
-                for more in lines[i + 1:]:
-                    if not more.startswith('      '):
-                        break
-                    gate.append(more)
-                return '\n'.join(gate)
-        raise AssertionError(f'job {job} has no if:')
+    def test_the_fork_gate_is_wired_end_to_end(self):
+        # Two halves, either of which alone is no gate: the trigger job
+        # exports same-repo, and the work job requires the export.
+        # Deleting only the export leaves the `if:` reading an empty
+        # string, so the work job silently never runs. The criterion
+        # the fleet is measured by is what decides it here too, so this
+        # repository cannot hold a different standard from the one it
+        # files issues for.
+        for name in [self.DEPLOYED_RE_REVIEW, self.TEMPLATE_RE_REVIEW,
+                     self.DEPLOYED_RETEST, self.TEMPLATE_RETEST]:
+            with self.subTest(workflow=name):
+                with open(os.path.join(REPO_ROOT, name)) as f:
+                    content = f.read()
+                wf = os.path.basename(name)
+                findings = ci_workflows.fork_gate_findings(wf, content)
+                if wf == 'pr-re-review.yml':
+                    findings += ci_workflows.confirm_step_findings(
+                        wf, content)
+                self.assertEqual([], findings)
 
     ORIGIN_STEP = "- name: Confirm pr-bot-trigger reported the pull request's origin"
 

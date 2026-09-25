@@ -333,7 +333,11 @@ jobs:
               what="merge commit checked out merges"
               ;;
             false)
-              reviewed=$(git rev-parse HEAD)
+              if ! reviewed=$(git rev-parse HEAD 2>/dev/null); then
+                echo "The tree checked out has no HEAD, so it is not"
+                echo "the ${HEAD_SHA} the resolve step validated."
+                exit 1
+              fi
               what="head checked out is"
               ;;
             *)

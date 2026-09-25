@@ -384,7 +384,24 @@ def step_with_inputs(step):
     "fetch-depth: 0  # needed for setuptools_scm" is how the fleet
     actually writes these.
     """
-    block = indented_block(step, 'with')
+    return mapping_entries(indented_block(step, 'with'))
+
+
+def job_outputs(body):
+    """The outputs a job declares, as a dict of name to raw value string.
+
+    Read the same way as step_with_inputs(), and for the same reasons:
+    the top level of the mapping only, trailing comments dropped.
+    """
+    return mapping_entries(indented_block(body, 'outputs'))
+
+
+def mapping_entries(block):
+    """The top-level `key: value` pairs of a mapping block, as a dict.
+
+    `block` is what indented_block() returned, so None -- no such key
+    -- is an empty mapping rather than an absent one.
+    """
     if block is None:
         return {}
 
@@ -401,6 +418,18 @@ def step_with_inputs(step):
             value = re.sub(r'\s+#.*$', '', match.group(3)).strip()
             entries[match.group(2)] = value
     return entries
+
+
+def step_keys(step):
+    """A step's own keys, mapped to their inline value.
+
+    job_level_keys() applied to one step. The sequence marker is
+    replaced by the indentation it stands for first, so the step's
+    first key sits at the same depth as the rest of them rather than
+    being read as a level of its own -- without that, `if:` on the line
+    after `- name:` is not a key of the step at all.
+    """
+    return job_level_keys(re.sub(r'^(\s*)- ', r'\1  ', step, count=1))
 
 
 # The three spellings of a manual trigger: a mapping key under `on:`,

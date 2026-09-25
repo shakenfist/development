@@ -104,11 +104,11 @@ class ExportRepoConfig(Check):
             repo.path, 'export-repo-config.yml')
         if inheriting:
             return self.fail(
-                f'{", ".join(inheriting)} passes "secrets: inherit" to '
-                'export-repo-config.yml, which reads no secrets and '
-                'authenticates with github.token, so every secret this '
-                'repository holds is handed to a workflow in another '
-                'repository for no benefit. Delete the line.')
+                'Passing "secrets: inherit" to export-repo-config.yml: '
+                f'{", ".join(inheriting)}. The shared workflow reads no '
+                'secrets and authenticates with github.token, so every '
+                'secret this repository holds is handed to a workflow in '
+                'another repository for no benefit. Delete the line.')
         return self.ok('export-repo-config.yml exists and no caller inherits secrets')
 
 

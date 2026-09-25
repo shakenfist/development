@@ -242,7 +242,12 @@ fixing them in one consumer would only have created drift.
   `same_repo`, for the reason given above for `pr-re-review.yml`.
 
 `MergeRefResolutionTest` holds all three, on this repository's copies
-and on the templates.
+and on the templates. The fork gate and the confirm step are also part
+of the `ci-review-automation` criterion, so a repository whose copy
+predates them gets an issue asking it to resync, rather than keeping
+the defect with nothing to say so. The output assertion is not
+measured: it changes how a failure is reported, not whether the gate
+holds.
 
 ### The fork guard
 

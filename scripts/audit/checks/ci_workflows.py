@@ -22,8 +22,9 @@ from audit.files import (
     workflows_inheriting_secrets_into,
 )
 from audit.text.workflows import (
-    RUNS_ON_RE, STATIC_ALLOWED_LABELS, indented_block, parse_runner_labels,
-    strip_yaml_comments, workflow_job_blocks,
+    RUNS_ON_RE, STATIC_ALLOWED_LABELS, indented_block, job_level_keys,
+    job_outputs, parse_runner_labels, step_action, step_keys,
+    strip_yaml_comments, workflow_job_blocks, workflow_step_blocks,
 )
 
 
@@ -221,6 +222,141 @@ def pr_auto_review_callers_inheriting_secrets(repo_path):
     Returns the workflow files whose reviewer job still inherits.
     """
     return workflows_inheriting_secrets_into(repo_path, 'pr-auto-review.yml')
+
+
+# The workflows whose work job must repeat pr-bot-trigger's fork guard.
+# Both put a pull request's code, or a dispatch against its ref, next to
+# a write-scoped token (shakenfist/development#174).
+CI_REVIEW_FORK_GATED_WORKFLOWS = ('pr-re-review.yml', 'pr-retest.yml')
+
+
+def fork_gate_findings(wf, content):
+    """Findings for a work job which does not require same_repo itself.
+
+    pr-bot-trigger folds its fork check into `authorized`, so requiring
+    `same-repo` again on the work job is redundant, and required anyway:
+    a regression in the shared action, which callers take at @main,
+    cannot then quietly widen what runs. The gate has two halves, and
+    either alone is no gate. The trigger job has to export the action's
+    `same-repo` output, and the work job's `if:` has to require that
+    export to be 'true'. Delete the export and the `if:` reads an empty
+    string, so the job never runs -- silently, after the rocket
+    reaction. Both halves are measured, and the link between them is
+    followed by name rather than assumed.
+
+    Jobs are found by what they do rather than what the template calls
+    them: the trigger job is the one with a pr-bot-trigger step, and the
+    work jobs are the ones which need it. A workflow with no such step
+    has no fork guard at all, and says so.
+    """
+    action = CI_REVIEW_TRIGGER_ACTION.split('@')[0]
+    jobs = workflow_job_blocks(content)
+    for trigger, body in jobs:
+        steps = [step for step in workflow_step_blocks(body)
+                 if step_action(step) == action]
+        if steps:
+            break
+    else:
+        return [f'{wf} has no {CI_REVIEW_TRIGGER_ACTION} step, so '
+                f'nothing refuses fork pull requests before it runs']
+
+    step_id = step_keys(steps[0]).get('id')
+    source = f'steps.{step_id}.outputs.same-repo' if step_id else None
+    exported = [name for name, value in job_outputs(body).items()
+                if source and source in value]
+    if not exported:
+        return [f"{wf}: job {trigger} does not export pr-bot-trigger's "
+                f'same-repo output, so the job that needs it cannot '
+                f'require a same-repository pull request']
+
+    findings = []
+    dependants = 0
+    needs_re = re.compile(r'(?<![\w-])' + re.escape(trigger) + r'(?![\w-])')
+    for name, work in jobs:
+        keys = job_level_keys(work)
+        if not needs_re.search(keys.get('needs', '')):
+            continue
+        dependants += 1
+        gate = keys.get('if', '')
+        if not any(re.search(
+                r'needs\.' + re.escape(trigger) + r'\.outputs\.'
+                + re.escape(output) + r"\s*==\s*'true'", gate)
+                for output in exported):
+            findings.append(
+                f"{wf}: job {name} does not require "
+                f"needs.{trigger}.outputs.{exported[0]} to be 'true', "
+                f'so it relies on pr-bot-trigger alone to keep fork pull '
+                f'requests away from a write-scoped token')
+    if not dependants:
+        # Otherwise a workflow whose work has come loose from its
+        # trigger -- run in the trigger job itself, or in a job which
+        # no longer needs it -- would pass with nothing gated at all.
+        findings.append(
+            f'{wf}: no job needs {trigger}, so none is gated on the '
+            f'same-repo output it exports')
+    return findings
+
+
+# `git rev-parse HEAD` and nothing after it: the head path of the
+# confirm step. HEAD^2 is the merge path, and is matched separately.
+REV_PARSE_HEAD_RE = re.compile(r'rev-parse\s+HEAD(?![\^~\w])')
+
+
+def confirm_step_findings(wf, content):
+    """Findings for a re-review that does not confirm what it checked out.
+
+    The resolve step validates a sha, then the checkout names a ref, and
+    a push between the two moves what the ref reaches. The confirm step
+    closes that on both paths: HEAD^2 against the validated head on the
+    merge path, HEAD itself on the head fallback path. An earlier
+    template ran it on the merge path only, behind an `if:`, so a
+    fallback review could be of a commit nobody validated
+    (shakenfist/development#172).
+
+    Read from the step's shell rather than its name, since the shell is
+    what does the confirming: a step which compares HEAD^2 is the
+    confirm step, whatever it is called.
+    """
+    for _, body in workflow_job_blocks(content):
+        for step in workflow_step_blocks(body):
+            script = strip_yaml_comments(step)
+            if 'rev-parse HEAD^2' not in script:
+                continue
+            condition = step_keys(step).get('if')
+            if condition or not REV_PARSE_HEAD_RE.search(script):
+                return [
+                    f'{wf} confirms the checkout on the merge path only'
+                    + (f' (if: {condition})' if condition else '')
+                    + ', so a review of the head fallback can be of a '
+                    'commit the resolve step never validated']
+            return []
+    return [f'{wf} does not confirm that the tree it checked out is the '
+            f'commit it resolved, so a push between the two is reviewed '
+            f'with no warning']
+
+
+def fork_gate_and_confirm_issues(repo_path):
+    """The fork gate and confirm step findings for a repository.
+
+    Absent workflows are skipped: their absence is already a finding.
+    """
+    findings = []
+    for wf in CI_REVIEW_FORK_GATED_WORKFLOWS:
+        path = os.path.join(repo_path, '.github', 'workflows', wf)
+        if not os.path.isfile(path):
+            continue
+        with open(path, 'r', errors='replace') as f:
+            content = f.read()
+        if wf == 'pr-re-review.yml':
+            # A hand-rolled trigger is already a finding of its own (see
+            # pr_re_review_open_codes_the_trigger()), and a second one
+            # saying the same thing about the same file would be noise.
+            if not pr_re_review_open_codes_the_trigger(repo_path):
+                findings.extend(fork_gate_findings(wf, content))
+            findings.extend(confirm_step_findings(wf, content))
+        else:
+            findings.extend(fork_gate_findings(wf, content))
+    return findings
 
 
 def secrets_inherit_issues(repo_path):
@@ -801,6 +937,9 @@ class CiReviewAutomation(Check):
             inheriting = secrets_inherit_issues(repo.path)
             if inheriting:
                 return self.fail('; '.join(inheriting))
+            unguarded = fork_gate_and_confirm_issues(repo.path)
+            if unguarded:
+                return self.fail('; '.join(unguarded))
             if missing:
                 return self.fail(
                     f'Missing workflows: {", ".join(missing)}', missing=missing)
@@ -835,6 +974,11 @@ class CiReviewAutomation(Check):
         # repository holds to a workflow in another one, for a workflow
         # which reads none. See the helper's docstring.
         issues.extend(secrets_inherit_issues(repo.path))
+
+        # The fork gate on the work jobs, and the re-review's check that
+        # it reviews the commit it validated. See the helpers'
+        # docstrings.
+        issues.extend(fork_gate_and_confirm_issues(repo.path))
 
         # The comment addresser is retired. See the helper's docstring.
         deployed = carries_retired_comment_addresser(repo.path)

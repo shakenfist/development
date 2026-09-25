@@ -2,12 +2,20 @@
 
 ## What we check
 
+### Measured
+
+These are the requirements the check decides a pass or a failure on,
+and the only ones that produce an issue.
+
 * `.github/workflows/export-repo-config.yml` exists.
+* No job passes `secrets: inherit` to `export-repo-config.yml`.
+
+### Required, but confirmed by a reviewer
+
 * The workflow delegates to the shared reusable workflow in
   `shakenfist/actions` and runs daily at 00:30 UTC.
 * The workflow is project-agnostic and can be copied directly with
   no modifications.
-* No job passes `secrets: inherit` to `export-repo-config.yml`.
 
 ## Why
 
