@@ -305,10 +305,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/review-tracking.py",
-      "author": "mikal"
-    },
-    {
       "path": "templates/codeql/codeql-analysis.yml",
       "author": "mikal"
     },
@@ -589,19 +585,11 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/review-coverage.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/review-scope-completeness.md",
       "author": "mikal"
     },
     {
       "path": "scripts/audit/checks/ci_workflows.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/review.py",
       "author": "mikal"
     },
     {
@@ -633,19 +621,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_review.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_runners.py",
       "author": "mikal"
     },
     {
       "path": "scripts/audit_common.py",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/code-review-tracking.md",
       "author": "mikal"
     },
     {
@@ -670,10 +650,6 @@
     },
     {
       "path": "scripts/tests/test_issue_fix_extraction.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_review_tracking.py",
       "author": "mikal"
     },
     {
@@ -718,10 +694,6 @@
     },
     {
       "path": ".pre-commit-config.yaml",
-      "author": "mikal"
-    },
-    {
-      "path": "AGENTS.md",
       "author": "mikal"
     },
     {
@@ -806,10 +778,6 @@
     },
     {
       "path": "docs/consistency-audits.md",
-      "author": "mikal"
-    },
-    {
-      "path": "ARCHITECTURE.md",
       "author": "mikal"
     },
     {

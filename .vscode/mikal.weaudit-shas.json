@@ -81,14 +81,6 @@
       "sha": "6e5662a63f09b888fd47d2bff1f0ca8b95bdc39a",
       "date": "2026-09-22"
     },
-    "AGENTS.md": {
-      "sha": "dba2df5ee4eb799cc357376a2a1a4bfc623e8323",
-      "date": "2026-09-22"
-    },
-    "ARCHITECTURE.md": {
-      "sha": "c16d0c514f76e25b4e0c46c8cb598ccbfb5ed829",
-      "date": "2026-09-24"
-    },
     "PLAN-TEMPLATE.md": {
       "sha": "a5b19acb9a99252702d8fcea664afc3dad5c5690",
       "date": "2026-09-22"
@@ -253,10 +245,6 @@
       "sha": "ce1f4861273d8634c0a9007750585e98637ed38f",
       "date": "2026-09-04"
     },
-    "docs/audits/review-coverage.md": {
-      "sha": "009750012edcf021ae6f632c9855f0aed5a9373a",
-      "date": "2026-09-22"
-    },
     "docs/audits/review-scope-completeness.md": {
       "sha": "2fe6741ad09cd4e3877f8f2d46c3a634b13f95a8",
       "date": "2026-09-22"
@@ -308,10 +296,6 @@
     "docs/ci-review-automation.md": {
       "sha": "d0ddaacb7265a1071af7a8463b44c8d5cf28a329",
       "date": "2026-09-07"
-    },
-    "docs/code-review-tracking.md": {
-      "sha": "264227fdacf8fa127ea19778066811f8f44b037a",
-      "date": "2026-09-22"
     },
     "docs/consistency-audits.md": {
       "sha": "a6694b3a157c63886799aa17c7bf81546578c106",
@@ -385,10 +369,6 @@
       "sha": "48c79d69c8eeab8043aff6485cdbf5ae8261d103",
       "date": "2026-09-25"
     },
-    "scripts/audit/checks/review.py": {
-      "sha": "21fd5bf0dc26ab772f320133f20f180a6329cc40",
-      "date": "2026-09-22"
-    },
     "scripts/audit/checks/runners.py": {
       "sha": "c7e4ad82421f4784116725b1ca57a8d848ac9e59",
       "date": "2026-09-15"
@@ -451,10 +431,6 @@
     },
     "scripts/commit-audit-docs.sh": {
       "sha": "cc6bcdab6674b2c7c135fa9e59bebdb88b8576f6",
-      "date": "2026-09-04"
-    },
-    "scripts/review-tracking.py": {
-      "sha": "05774d1adffadb12e27fef0954cca30da6b6d373",
       "date": "2026-09-04"
     },
     "scripts/tests/__init__.py": {
@@ -547,14 +523,6 @@
     },
     "scripts/tests/test_repo.py": {
       "sha": "89987f23cb42ec217670bda7881661ecdd8b0614",
-      "date": "2026-09-22"
-    },
-    "scripts/tests/test_review.py": {
-      "sha": "768b41df98d45e9a8bcadb0a621dce512923c280",
-      "date": "2026-09-22"
-    },
-    "scripts/tests/test_review_tracking.py": {
-      "sha": "92266e7a3d285d7ab142ac6bcd21ea4d0a28d907",
       "date": "2026-09-22"
     },
     "scripts/tests/test_runners.py": {
