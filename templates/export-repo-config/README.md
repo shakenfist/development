@@ -31,6 +31,11 @@ with no modifications.
 - The caller workflow must set `permissions: contents: write`
   and `pull-requests: write` so the default token can push
   branches and create PRs
+- No `secrets: inherit` on the calling job. The shared workflow
+  reads no secrets, so inheriting would only hand every secret the
+  repository holds to a workflow in another repository. The
+  template passed it until September 2026; delete the line from an
+  older copy. The `export-repo-config` audit criterion reports it.
 
 ## Projects using this template
 

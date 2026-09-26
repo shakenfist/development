@@ -57,6 +57,49 @@ jobs:
           trigger-phrase: 'please re-review'
           reaction: 'rocket'
 
+      # The re-review job below requires same_repo as well as
+      # authorized. If pr-bot-trigger ever renames or drops its
+      # same-repo output, that expression reads empty and the re-review
+      # silently never runs -- after the rocket reaction has been
+      # posted, the acknowledgement-followed-by-silence the resolve step
+      # works to avoid. The guard stays fail-closed either way; this
+      # makes the failure visible. authorized already requires a
+      # same-repository head inside the action, so anything other than
+      # 'true' here is the action and this file disagreeing.
+      #
+      # Every output the job below depends on is checked, not only
+      # same-repo: a step gated on authorized == 'true' would skip
+      # itself exactly when authorized goes missing. triggered is read
+      # first because the job's contains() is case-insensitive and the
+      # action's phrase match is not, so a comment that differs only in
+      # case legitimately gets triggered=false and no authorized at all.
+      - name: Confirm pr-bot-trigger reported the pull request's origin
+        env:
+          TRIGGERED: ${{ steps.trigger.outputs.triggered }}
+          AUTHORIZED: ${{ steps.trigger.outputs.authorized }}
+          SAME_REPO: ${{ steps.trigger.outputs.same-repo }}
+        run: |
+          fail() {
+            echo "$1"
+            echo "Either the output was renamed or dropped in"
+            echo "shakenfist/actions, or the action and this file disagree."
+            echo "Refusing to go on to a re-review that would not run."
+            exit 1
+          }
+          case "${TRIGGERED}" in
+            false) exit 0 ;;
+            true) ;;
+            *) fail "pr-bot-trigger reported triggered as '${TRIGGERED}'." ;;
+          esac
+          case "${AUTHORIZED}" in
+            false) exit 0 ;;
+            true) ;;
+            *) fail "pr-bot-trigger reported authorized as '${AUTHORIZED}'." ;;
+          esac
+          if [ "${SAME_REPO}" != "true" ]; then
+            fail "pr-bot-trigger authorized this request but reported same-repo as '${SAME_REPO}'."
+          fi
+
   re-review:
     name: "Re-review PR"
     needs: trigger-re-review
@@ -258,27 +301,59 @@ jobs:
       # the resolve step exists to close, so confirm what is actually
       # in the tree and fail loudly rather than quietly reviewing it.
       # The requester can ask again; a wrong review looks right.
-      - name: Confirm the checkout is the validated merge commit
-        if: steps.ref.outputs.merged == 'true'
+      #
+      # This runs on both paths. The head fallback checks out
+      # refs/pull/N/head, which is just as much a name as the merge ref
+      # and has the same race; an earlier version of this step ran only
+      # on the merge path, so a push landing in that window on the
+      # fallback path was reviewed with no warning.
+      #
+      # The two races are not the same failure. On the merge path the
+      # tree is a merge of *superseded* code. On the head path it is the
+      # *newer* head, which agrees with the diff the review fetches, so
+      # the review would be current -- but of a commit the resolve step
+      # never looked at. Failing on both is deliberate: the property
+      # this step holds is "the tree is what was validated", not "the
+      # review is stale", and one rule is easier to trust than two.
+      - name: Confirm the checkout is the validated commit
         env:
           HEAD_SHA: ${{ steps.ref.outputs.head_sha }}
+          MERGED: ${{ steps.ref.outputs.merged }}
         run: |
-          # Explicit rather than left to `bash -e`, which would abort
-          # the step on a non-merge HEAD with git's own message and
-          # nothing about why this job cared.
-          if ! parent=$(git rev-parse HEAD^2 2>/dev/null); then
-            echo "The tree checked out is not a merge commit, so it is"
-            echo "not the merge of ${HEAD_SHA} the resolve step validated."
+          case "${MERGED}" in
+            true)
+              # Explicit rather than left to `bash -e`, which would
+              # abort the step on a non-merge HEAD with git's own
+              # message and nothing about why this job cared.
+              if ! reviewed=$(git rev-parse HEAD^2 2>/dev/null); then
+                echo "The tree checked out is not a merge commit, so it is"
+                echo "not the merge of ${HEAD_SHA} the resolve step validated."
+                exit 1
+              fi
+              what="merge commit checked out merges"
+              ;;
+            false)
+              if ! reviewed=$(git rev-parse HEAD 2>/dev/null); then
+                echo "The tree checked out has no HEAD, so it is not"
+                echo "the ${HEAD_SHA} the resolve step validated."
+                exit 1
+              fi
+              what="head checked out is"
+              ;;
+            *)
+              echo "The resolve step reported merged as '${MERGED}', so"
+              echo "there is no way to say what this checkout should be."
+              exit 1
+              ;;
+          esac
+          if [ "${reviewed}" != "${HEAD_SHA}" ]; then
+            echo "The ${what} ${reviewed}, but the resolve step validated"
+            echo "${HEAD_SHA}. The head moved between the two, so this tree"
+            echo "is not the code the review was asked for. Comment again"
+            echo "to review the new head."
             exit 1
           fi
-          if [ "${parent}" != "${HEAD_SHA}" ]; then
-            echo "The merge commit checked out merges ${parent}, but the"
-            echo "resolve step validated a merge of ${HEAD_SHA}. The head"
-            echo "moved between the two, so this tree is not the code the"
-            echo "review was asked for. Comment again to review the new head."
-            exit 1
-          fi
-          echo "Reviewing the merge of ${HEAD_SHA} into the base"
+          echo "Checkout confirmed as ${HEAD_SHA} (merged=${MERGED})"
 
       # Which ref was reviewed is a property of the review, so say it on
       # the pull request rather than only in the run log. A review of the
