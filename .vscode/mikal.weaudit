@@ -5,10 +5,6 @@
   "treeEntries": [],
   "auditedFiles": [
     {
-      "path": ".github/workflows/export-repo-config.yml",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/secret-scan.yml",
       "author": "mikal"
     },
@@ -18,10 +14,6 @@
     },
     {
       "path": "tools/review-tracking.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/ci-review-automation.md",
       "author": "mikal"
     },
     {
@@ -46,10 +38,6 @@
     },
     {
       "path": "docs/audits/expensive-lane-path-filter.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/export-repo-config.md",
       "author": "mikal"
     },
     {
@@ -133,18 +121,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/export-repo-config/export-repo-config.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/export-repo-config/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/export-repo-config",
-      "author": "mikal"
-    },
-    {
       "path": "templates/issue-fix/claude-model-fallback.sh",
       "author": "mikal"
     },
@@ -174,10 +150,6 @@
     },
     {
       "path": "templates/renovate/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate/renovate.json",
       "author": "mikal"
     },
     {
@@ -393,10 +365,6 @@
       "author": "mikal"
     },
     {
-      "path": "renovate.json",
-      "author": "mikal"
-    },
-    {
       "path": ".gitignore",
       "author": "mikal"
     },
@@ -425,26 +393,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/ci-review-automation/pr-re-review.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/ci-review-automation/pr-retest.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/pr-retest.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/pr-re-review.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/ci-review-automation.md",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/issue-link-check.yml",
       "author": "mikal"
     },
@@ -469,23 +417,7 @@
       "author": "mikal"
     },
     {
-      "path": "templates/ci-review-automation/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/ci-review-automation",
-      "author": "mikal"
-    },
-    {
       "path": "README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_github_config.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/github_config.py",
       "author": "mikal"
     },
     {
@@ -526,10 +458,6 @@
     },
     {
       "path": "scripts/audit/checks/runners.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/text/workflows.py",
       "author": "mikal"
     },
     {
@@ -757,10 +685,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_registry.py",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/consistency-audit.yml",
       "author": "mikal"
     },
@@ -825,14 +749,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
-      "author": "mikal"
-    },
-    {
       "path": "AGENTS.md",
       "author": "mikal"
     },
@@ -842,14 +758,6 @@
     },
     {
       "path": "templates/renovate/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     }
   ],
