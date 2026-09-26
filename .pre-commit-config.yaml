@@ -68,7 +68,7 @@ repos:
         args: ['-x']
 
   - repo: https://github.com/pycqa/flake8
-    rev: 7.3.0
+    rev: 7.4.1
     hooks:
       - id: flake8
         files: ^(scripts|tools)/.*\.py$
