@@ -704,12 +704,12 @@ class IssueLinkCheckDeploymentTest(unittest.TestCase):
 class MermaidLintDeploymentTest(unittest.TestCase):
     """This repository's copies must match the template exactly.
 
-    templates/mermaid-lint/README.md promises byte-identity, and the
-    promise is load-bearing for the shell script in particular:
-    .pre-commit-config.yaml scopes shellcheck to ^(scripts|tools)/, so
-    the template copy -- the one that goes out to the fleet -- is only
-    linted by proxy through its tools/ twin. If the two drift, the
-    shipped copy is the one nothing checks.
+    templates/mermaid-lint/README.md promises byte-identity.
+    shellcheck lints the template scripts in place, so this is not
+    about lint coverage: an identical copy can inherit this
+    repository's review of the template through import, and if the
+    two drift, the copy shipped to the fleet is not the one this
+    repository runs.
     """
 
     def test_script_matches_the_template(self):
@@ -799,6 +799,49 @@ class MermaidLintDeploymentTest(unittest.TestCase):
         self.assertEqual(negated, ['REVIEWS.md'], negated)
         for name in negated:
             self.assertIn(':(exclude)%s' % name, script)
+
+
+class ReviewTrackingDeploymentTest(unittest.TestCase):
+    """This repository's copies must match the template exactly.
+
+    templates/review-tracking/README.md promises that the files copy
+    byte-for-byte into every adopted repository, this one included for
+    the workflow and its script. As with mermaid-lint, the reason is
+    import rather than lint coverage: shellcheck lints the template
+    script in place, while an identical copy inherits this
+    repository's review of the template, and a drifted one means the
+    copy shipped is not the copy run. tools/review-tracking.sh is
+    deliberately not a copy of the template wrapper, and is not
+    checked here.
+    """
+
+    TEMPLATES = ('prune-reviews.yml', 'ci-prune-reviews.sh', 'review-tracking.sh')
+
+    def test_script_matches_the_template(self):
+        self.assertEqual(
+            repo_file('tools', 'ci-prune-reviews.sh'),
+            repo_file('templates', 'review-tracking', 'ci-prune-reviews.sh'),
+        )
+
+    def test_workflow_matches_the_template(self):
+        self.assertEqual(
+            repo_file('.github', 'workflows', 'prune-reviews.yml'),
+            repo_file('templates', 'review-tracking', 'prune-reviews.yml'),
+        )
+
+    def test_the_templates_name_no_branch(self):
+        """The default branch differs across the fleet, so it must come from the event.
+
+        A branch written into any of the three would make the copy in
+        a repository with the other default either wrong or different,
+        and a different copy cannot import this repository's review of
+        the template. URLs are stripped first: the documentation link
+        names this repository's own branch, which is not a parameter.
+        """
+        for name in self.TEMPLATES:
+            text = repo_file('templates', 'review-tracking', name).decode('utf-8')
+            text = re.sub(r'https://\S+', '', text)
+            self.assertEqual(re.findall(r'\b(main|develop|master)\b', text), [], name)
 
 
 class MermaidLintScriptTest(unittest.TestCase):

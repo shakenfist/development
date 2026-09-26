@@ -6,9 +6,9 @@ This script implements the automation described in
 docs/code-review-tracking.md. It runs in the repository under review,
 invoked by hand -- deliberately not from git hooks, which proved
 confusing when they fired in the middle of other git operations.
-(Some subcommands also run from CI: prune from an adopting repo's
-prune-reviews workflow, which will run import after it once the review
-tracking CI template lands, and status from the consistency audit's
+(Some subcommands also run from CI: prune then import from an
+adopting repo's prune-reviews workflow, on every push to the default
+branch and once a day, and status from the consistency audit's
 review-coverage check; see the steady state section of the doc.)
 Target repositories typically carry a thin wrapper (for example
 ryll's tools/review-tracking.sh) that locates a clone of the
@@ -26,8 +26,10 @@ development repository and passes through to this script:
   fully reviewed in the clone of shakenfist/development this script
   lives in, recording where the signed attestation lives in
   .vscode/imports.weaudit-shas.json, then regenerate REVIEWS.md. Never
-  writes a reviewer's own state file or sidecar. Always exits zero,
-  except that it refuses to import a clone into itself.
+  writes a reviewer's own state file or sidecar. Run in that clone
+  itself, or a worktree of it, it says so and does nothing. Always
+  exits zero, except that it refuses to run beside a stray
+  .vscode/imports.weaudit.
 - regen: regenerate REVIEWS.md from the current state.
 - next: pick a random in-scope file with no current review mark and
   open it in VSCode.
@@ -870,9 +872,12 @@ def cmd_import(args):
         print('review-import: ERROR: %s' % e, file=sys.stderr)
         return 1
     if target_id[0] == source_id[0] or target_id[1] == source_id[1]:
-        print('review-import: ERROR: refusing to import %s into itself; import brings reviews made '
-              'there into other repositories' % SOURCE_REPO, file=sys.stderr)
-        return 1
+        # A no-op rather than an error, so that the shared prune-reviews
+        # template can run import unchanged in every repository,
+        # including the one the reviews come from. Nothing is written,
+        # REVIEWS.md included.
+        print('review-import: nothing to do; %s is the source of imported reviews' % SOURCE_REPO)
+        return 0
     stray = os.path.join('.vscode', IMPORTS_REVIEWER + '.weaudit')
     if os.path.exists(stray):
         # Its sidecar would be the imports file, so a reviewer of this

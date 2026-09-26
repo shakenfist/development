@@ -70,8 +70,10 @@ pre-commit run --all-files
 
 That one command is the whole of lint and test here:
 actionlint over `.github/workflows/` and over the shipped
-templates, shellcheck over `scripts/` and `tools/`, flake8,
-skillsaw, and four Python test suites. `ci.yml` runs the same
+templates, shellcheck over `scripts/`, `tools/` and the template
+scripts, flake8, skillsaw, and the Python tests -- every suite
+under `scripts/tests/` by discovery, plus the review tracking
+suite, which runs on every commit. `ci.yml` runs the same
 command on every pull request, so a clean local run is what
 makes the CI run boring.
 
