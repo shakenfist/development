@@ -225,10 +225,6 @@
       "sha": "50e71108390c26f947875c30bc6358504c97bae2",
       "date": "2026-09-22"
     },
-    "docs/audits/push-audit.md": {
-      "sha": "9b78ae44533bea05dece1aa3ce67aae935a3184b",
-      "date": "2026-09-25"
-    },
     "docs/audits/pyproject-usage.md": {
       "sha": "68926e04a9e10b4af2a2fcd73901a444ab563b43",
       "date": "2026-09-09"

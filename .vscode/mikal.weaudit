@@ -789,10 +789,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/push-audit.md",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/plans.py",
       "author": "mikal"
     },
