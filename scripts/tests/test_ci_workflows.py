@@ -585,6 +585,34 @@ class ForkGateAndConfirmStepTest(CheckTestCase):
         self.assert_fail(self._check(retest=retest), containing=(
             'pr-retest.yml: no job needs trigger-retest'))
 
+    def test_every_spelling_of_needs_is_followed(self):
+        # The round-three review of #180 found the block sequence read
+        # as no dependency at all, which reported "no job needs" on a
+        # workflow whose gate was completely wired.
+        for spelling in ('    needs: [trigger-retest]\n',
+                         "    needs: ['trigger-retest']\n",
+                         '    needs:\n      - trigger-retest\n',
+                         '    needs:\n      # the trigger\n'
+                         '      - trigger-retest  # the one\n'):
+            with self.subTest(spelling=spelling):
+                self.fresh_fixture()
+                retest = self._mutate(
+                    'pr-retest.yml', '    needs: trigger-retest\n', spelling)
+                self.assert_pass(self._check(retest=retest))
+
+    def test_an_ungated_job_with_a_block_sequence_needs_fails(self):
+        # Reading the block form must count the job in, not merely stop
+        # the "no job needs" finding: an ungated dependant still fails.
+        retest = self._mutate(
+            'pr-retest.yml', '    needs: trigger-retest\n',
+            '    needs:\n      - trigger-retest\n')
+        retest = retest.replace(
+            self.RETEST_FORK_GATE,
+            "needs.trigger-retest.outputs.authorized == 'true'")
+        self.assert_fail(self._check(retest=retest), containing=(
+            'pr-retest.yml: job retest does not require '
+            'needs.trigger-retest.outputs.same_repo'))
+
     def test_retest_without_the_trigger_action_fails(self):
         retest = self._mutate(
             'pr-retest.yml',
@@ -635,6 +663,47 @@ class ForkGateAndConfirmStepTest(CheckTestCase):
         self.fixture.workflow('pr-re-review.yml', re_review)
         self.assert_fail(self.check(is_docs_only=True),
                          containing='does not export')
+
+
+class JobNeedsTest(unittest.TestCase):
+    """Every spelling of `needs:`, and only the job's own."""
+
+    def test_each_spelling(self):
+        for needs, expected in (
+                ('    needs: build\n', ['build']),
+                ("    needs: 'build'\n", ['build']),
+                ('    needs: [build, test-unit]\n', ['build', 'test-unit']),
+                ('    needs: [\n      build,\n      test-unit\n    ]\n',
+                 ['build', 'test-unit']),
+                ('    needs:\n      - build\n      - "test-unit"\n',
+                 ['build', 'test-unit']),
+                ('    needs:\n      - build  # first\n'
+                 '      # - commented-out\n      - test-unit\n',
+                 ['build', 'test-unit']),
+                ('    runs-on: ubuntu-latest\n', [])):
+            with self.subTest(needs=needs):
+                self.assertEqual(expected, workflows.job_needs(
+                    needs + '    steps:\n      - run: echo hi\n'))
+
+    def test_the_block_ends_at_the_next_job_key(self):
+        body = ('    needs:\n      - build\n'
+                '    if: always()\n'
+                '    steps:\n      - run: echo test\n')
+        self.assertEqual(['build'], workflows.job_needs(body))
+
+    def test_a_needs_key_inside_a_step_is_not_the_jobs(self):
+        # The job's own block comes after the step's here, so reading
+        # the first `needs:` at any depth would answer with the step's.
+        body = ('    runs-on: ubuntu-latest\n'
+                '    steps:\n'
+                '      - uses: some/action@v1\n'
+                '        with:\n'
+                '          needs:\n'
+                '            - lint\n'
+                '    needs:\n'
+                '      - build\n')
+        self.assertEqual(['build'], workflows.job_needs(body))
+        self.assertEqual([], workflows.job_needs(body.split('    needs:')[0]))
 
 
 class StepKeysTest(unittest.TestCase):

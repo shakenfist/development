@@ -509,6 +509,49 @@ def job_level_keys(body):
     return keys
 
 
+# A job name as GitHub Actions accepts one. Finding names rather than
+# splitting on punctuation is what lets one reader cover all three
+# spellings of `needs:` -- the brackets, commas, quotes and sequence
+# dashes are all simply not part of a name.
+JOB_NAME_RE = re.compile(r'[A-Za-z_][A-Za-z0-9_-]*')
+
+
+def job_needs(body):
+    """The jobs a job needs, as a list of names.
+
+    `needs:` has three spellings -- a scalar, a flow sequence, and a
+    block sequence -- and job_level_keys() only sees the first two,
+    because the third introduces a block and so reads as the empty
+    string. A dependency read as absent is a job counted out of
+    whatever the caller was measuring, so the block form is read here
+    rather than left to each caller to remember.
+
+    Only the job's own `needs:` is read, at the job's own indentation,
+    for the same reason job_level_keys() reads only that level.
+    """
+    keys = job_level_keys(body)
+    if 'needs' not in keys:
+        return []
+    if keys['needs']:
+        return JOB_NAME_RE.findall(keys['needs'])
+
+    lines = [strip_trailing_comment(line)
+             for line in body.splitlines()
+             if line.strip() and not line.lstrip().startswith('#')]
+    indent = min(len(line) - len(line.lstrip()) for line in lines)
+    block = None
+    for line in lines:
+        depth = len(line) - len(line.lstrip())
+        if block is None:
+            if depth == indent and re.match(r'^\s*needs:\s*$', line):
+                block = []
+            continue
+        if depth <= indent:
+            break
+        block.append(line)
+    return JOB_NAME_RE.findall('\n'.join(block or []))
+
+
 # An `if:` which confines a job to a tag. The fleet writes the first
 # form; the second is the equivalent GitHub offers, accepted so the
 # criterion is about the property rather than one spelling of it.

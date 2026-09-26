@@ -23,7 +23,7 @@ from audit.files import (
 )
 from audit.text.workflows import (
     RUNS_ON_RE, STATIC_ALLOWED_LABELS, indented_block, job_level_keys,
-    job_outputs, parse_runner_labels, step_action, step_keys,
+    job_needs, job_outputs, parse_runner_labels, step_action, step_keys,
     strip_yaml_comments, workflow_job_blocks, workflow_step_blocks,
 )
 
@@ -271,20 +271,20 @@ def fork_gate_findings(wf, content):
 
     findings = []
     dependants = 0
-    needs_re = re.compile(r'(?<![\w-])' + re.escape(trigger) + r'(?![\w-])')
     for name, work in jobs:
-        keys = job_level_keys(work)
-        if not needs_re.search(keys.get('needs', '')):
+        if trigger not in job_needs(work):
             continue
         dependants += 1
-        gate = keys.get('if', '')
+        gate = job_level_keys(work).get('if', '')
         if not any(re.search(
                 r'needs\.' + re.escape(trigger) + r'\.outputs\.'
                 + re.escape(output) + r"\s*==\s*'true'", gate)
                 for output in exported):
+            required = ' or '.join(
+                f'needs.{trigger}.outputs.{output}' for output in exported)
             findings.append(
                 f"{wf}: job {name} does not require "
-                f"needs.{trigger}.outputs.{exported[0]} to be 'true', "
+                f"{required} to be 'true', "
                 f'so it relies on pr-bot-trigger alone to keep fork pull '
                 f'requests away from a write-scoped token')
     if not dependants:
@@ -316,6 +316,12 @@ def confirm_step_findings(wf, content):
     Read from the step's shell rather than its name, since the shell is
     what does the confirming: a step which compares HEAD^2 is the
     confirm step, whatever it is called.
+
+    This measures the step's shape, not its semantics: a step which
+    names both revisions but no longer compares them, or no longer
+    fails when they differ, still passes. The failure it is built to
+    catch is a stale verbatim copy of the earlier template, which it
+    does; a pass is not evidence that a rewritten step still works.
     """
     for _, body in workflow_job_blocks(content):
         for step in workflow_step_blocks(body):
