@@ -21,9 +21,15 @@ name: Prune and import review marks
 
 on:
   # Any push to the default branch can make a mark stale. The branch
-  # is not named here, because it differs across the fleet; the job's
-  # guard below skips pushes to every other branch.
+  # cannot be named here, because it differs across the fleet, so
+  # pushes to every branch start a run and the job's guard below
+  # skips all but the default. Tags can be filtered without naming
+  # anything, so they are, which keeps releases out of the Actions
+  # tab. The branches line is not redundant: a push trigger that
+  # filters only tags does not run for branch pushes at all.
   push:
+    branches: ['**']
+    tags-ignore: ['**']
   # Daily as well, because what import can bring in changes when
   # shakenfist/development reviews something, and nothing is pushed
   # here when that happens.
@@ -42,12 +48,14 @@ concurrency:
 jobs:
   prune-and-import:
     name: Prune and import review marks
-    # ci-prune-reviews.sh rebases onto the default branch and pushes to
-    # it, whatever ref was checked out, so a run on any other branch
-    # would push that branch's unmerged commits straight to the default
-    # branch and skip review entirely. Scheduled runs always use the
-    # default branch, and their event carries no repository object to
-    # compare against, so they pass on the event name alone.
+    # The job runs the checked-out copy of ci-prune-reviews.sh with a
+    # token that can push to the default branch, so a run on any other
+    # branch would land review state on the default branch using that
+    # branch's copy of the script, before anybody has merged it. A
+    # scheduled run only ever runs on the default branch, so
+    # its event name is a sufficient guard, and the disjunct keeps the
+    # guard independent of whether the payload carries a repository
+    # object.
     if: >-
       github.event_name == 'schedule' ||
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
@@ -75,5 +83,7 @@ jobs:
         run: tools/ci-prune-reviews.sh
         env:
           # The guard above means this is the default branch in every
-          # run that gets here; ref_name covers the scheduled runs.
+          # run that gets here. ref_name is the fallback should an
+          # event lack a repository object; for a scheduled run it is
+          # the default branch too.
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch || github.ref_name }}

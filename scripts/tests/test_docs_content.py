@@ -704,12 +704,11 @@ class IssueLinkCheckDeploymentTest(unittest.TestCase):
 class MermaidLintDeploymentTest(unittest.TestCase):
     """This repository's copies must match the template exactly.
 
-    templates/mermaid-lint/README.md promises byte-identity, and the
-    promise is load-bearing for the shell script in particular:
-    .pre-commit-config.yaml scopes shellcheck to ^(scripts|tools)/, so
-    the template copy -- the one that goes out to the fleet -- is only
-    linted by proxy through its tools/ twin. If the two drift, the
-    shipped copy is the one nothing checks.
+    templates/mermaid-lint/README.md promises byte-identity.
+    shellcheck lints the template scripts in place, so this is not
+    about lint coverage: an identical copy can inherit this
+    repository's review of the template through import, and if the two drift, the
+    copy shipped to the fleet is not the one this repository runs.
     """
 
     def test_script_matches_the_template(self):
@@ -806,10 +805,13 @@ class ReviewTrackingDeploymentTest(unittest.TestCase):
 
     templates/review-tracking/README.md promises that the files copy
     byte-for-byte into every adopted repository, this one included for
-    the workflow and its script. As with mermaid-lint, shellcheck is
-    scoped to ^(scripts|tools)/, so the template script is linted only
-    through its tools/ twin. tools/review-tracking.sh is deliberately
-    not a copy of the template wrapper, and is not checked here.
+    the workflow and its script. As with mermaid-lint, the reason is
+    import rather than lint coverage: shellcheck lints the template
+    script in place, while an identical copy inherits this
+    repository's review of the template, and a drifted one means the
+    copy shipped is not the copy run. tools/review-tracking.sh is
+    deliberately not a copy of the template wrapper, and is not
+    checked here.
     """
 
     TEMPLATES = ('prune-reviews.yml', 'ci-prune-reviews.sh', 'review-tracking.sh')

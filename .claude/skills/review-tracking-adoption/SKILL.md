@@ -37,6 +37,11 @@ for f in review-tracking.sh:tools/review-tracking.sh \
 done
 ```
 
+In shakenfist/development itself, `tools/review-tracking.sh`
+deliberately differs from the template (its wrapper runs the script
+in its own tree; see `templates/review-tracking/README.md`), so the
+first pair is expected to mismatch there and only there.
+
 A mismatch means the copy drifted from the template -- fix the copy,
 never the template to match it, since the whole point of a
 byte-identical copy is that `import` can credit it against this

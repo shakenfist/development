@@ -68,61 +68,116 @@ clone_development() {
     export SHAKENFIST_DEVELOPMENT="${dir}"
 }
 
-# Everything below uses relative paths and relative git pathspecs, so
-# anchor to the root of the repository this script is in rather than
-# trusting the caller's cwd. An assignment, so that set -e stops the
-# run if git cannot find it; a bare cd "$(...)" would carry on
-# wherever it was.
-repo_root="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
-cd "${repo_root}"
+# Refuse to report success over review state git cannot see. In a
+# repository that ignores .vscode/ without the .gitignore exception
+# for the sidecars, the imports file import writes is ignored: git
+# status does not list it and git add does not stage it, so every run
+# would clone, verify and import the same reviews, commit nothing, and
+# go green. git check-ignore reports only untracked files, which is
+# exactly the case that matters -- a tracked sidecar is staged either
+# way.
+check_sidecars_are_committable() {
+    local sidecars ignored rc=0
 
-install_gitsign
-clone_development
+    shopt -s nullglob
+    sidecars=(.vscode/*.weaudit-shas.json)
+    shopt -u nullglob
+    if [ "${#sidecars[@]}" -eq 0 ]; then
+        return
+    fi
+    ignored="$(git check-ignore -- "${sidecars[@]}")" || rc=$?
+    if [ "${rc}" -gt 1 ]; then
+        exit "${rc}"
+    fi
+    if [ -n "${ignored}" ]; then
+        echo 'These review state files are gitignored, so they can never be committed:' >&2
+        echo "${ignored}" >&2
+        echo 'Add the .gitignore exception for .vscode/*.weaudit-shas.json, ignoring' >&2
+        echo '.vscode/* rather than .vscode/ so that the exception can apply: step 1 of' >&2
+        echo '"Adopting a repository" in docs/code-review-tracking.md in shakenfist/development.' >&2
+        exit 1
+    fi
+}
 
-# Prune first: import will not import over a native mark, stale or
-# not, until prune has removed it.
-tools/review-tracking.sh prune
-tools/review-tracking.sh import
+# Land the review state on the default branch, regenerating it on
+# every attempt rather than rebasing a commit made earlier. Everything
+# committed here is derived from the tree it is committed on top of,
+# so resetting to the branch's current tip and running prune and
+# import again always produces the right commit and can never
+# conflict. It also prunes marks for any file that a merge landing
+# mid-run changed, which a rebase would carry over unpruned. The
+# workflow checked out the commit that triggered it, which may
+# already be behind; the reset to the fetched tip is intended.
+#
+# The concurrency group serialises these runs against each other but
+# not against human merges, so a merge can still land between the
+# fetch and the push and get the push rejected as non-fast-forward.
+# The retry is what closes that window: without it the run goes red
+# for a reason unrelated to correctness, which is how a workflow
+# trains people to stop reading it. Only the push is retried. A
+# failing fetch, prune or import stops the run under -e, because
+# retrying would not change the answer.
+land() {
+    local attempts=3 attempt
 
-# git status --porcelain rather than git diff --quiet: the latter only
-# sees tracked paths, and import creates .vscode/imports.weaudit-shas.json
-# the first time it imports anything. A new file missed here would be
-# silently discarded when the workspace is next cleaned.
-if [ -z "$(git status --porcelain -- .vscode/ REVIEWS.md)" ]; then
-    echo "No review marks to prune or import."
-    exit 0
-fi
+    git config user.name 'shakenfist-bot'
+    git config user.email 'bot@shakenfist.com'
 
-git config user.name 'shakenfist-bot'
-git config user.email 'bot@shakenfist.com'
+    for ((attempt = 1; attempt <= attempts; attempt++)); do
+        git fetch --quiet origin "${DEFAULT_BRANCH}"
+        git reset --quiet --hard FETCH_HEAD
 
-git add .vscode/ REVIEWS.md
-git commit -m 'Prune and import review marks.
+        # Prune first: import will not import over a native mark,
+        # stale or not, until prune has removed it.
+        tools/review-tracking.sh prune
+        tools/review-tracking.sh import
+        check_sidecars_are_committable
+
+        # git status --porcelain rather than git diff --quiet: the
+        # latter only sees tracked paths, and import creates
+        # .vscode/imports.weaudit-shas.json the first time it imports
+        # anything. A new file missed here would be silently
+        # discarded when the workspace is next cleaned.
+        if [ -z "$(git status --porcelain -- .vscode/ REVIEWS.md)" ]; then
+            echo 'No review marks to prune or import.'
+            exit 0
+        fi
+
+        git add .vscode/ REVIEWS.md
+        git commit --quiet -m 'Prune and import review marks.
 
 Automated commit by the prune-reviews workflow.'
 
-# Another push may have landed while we ran; rebase our commit on top
-# rather than failing the workflow. The concurrency group serialises
-# these runs against each other but not against human merges, so a
-# merge landing between the rebase and the push still gets a
-# non-fast-forward rejection. The retry is what closes that window:
-# without it the run goes red for a reason unrelated to correctness,
-# which is how a workflow trains people to stop reading it.
-attempts=3
-for attempt in $(seq ${attempts}); do
-    if git pull --rebase origin "${DEFAULT_BRANCH}" && git push origin "HEAD:${DEFAULT_BRANCH}"; then
-        exit 0
-    fi
-    # A conflicting merge leaves a rebase in progress, and the next
-    # attempt would fail on that rather than on the race we are
-    # retrying for.
-    git rebase --abort 2> /dev/null || true
-    # Only claim a retry that is actually coming.
-    if [ "${attempt}" -lt "${attempts}" ]; then
-        echo "Landing attempt ${attempt} of ${attempts} was rejected; retrying."
-        sleep 5
-    fi
-done
+        if git push origin "HEAD:${DEFAULT_BRANCH}"; then
+            exit 0
+        fi
+        # Only claim a retry that is actually coming.
+        if [ "${attempt}" -lt "${attempts}" ]; then
+            echo "Landing attempt ${attempt} of ${attempts} was rejected; retrying."
+            sleep 5
+        fi
+    done
 
-echo "Could not land the review state after ${attempts} attempts." >&2
-exit 1
+    echo "Could not land the review state after ${attempts} attempts." >&2
+    exit 1
+}
+
+run() {
+    # Everything uses relative paths and relative git pathspecs, so
+    # anchor to the root of the repository this script is in rather
+    # than trusting the caller's cwd. An assignment, so that set -e
+    # stops the run if git cannot find it; a bare cd "$(...)" would
+    # carry on wherever it was.
+    local repo_root
+    repo_root="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
+    cd "${repo_root}"
+
+    install_gitsign
+    clone_development
+    land
+}
+
+# All of the work is in functions, called from the last line, because
+# land resets the checkout, and a merge that changed this file would
+# otherwise have bash read the rest of it at a stale offset.
+run "$@"

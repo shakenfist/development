@@ -16,8 +16,10 @@ projects consistent. It contains no application code.
   `docs/audits/README.md` holds the index, and says which
   repositories are in scope, excluded, or audited for part of it.
 - `tools/` -- the review tracking wrappers: `review-tracking.sh` for
-  local use, and `ci-prune-reviews.sh` which `prune-reviews.yml` runs
-  on every push to main; plus `mermaid-lint.sh`, this repository's
+  local use, and `ci-prune-reviews.sh`, this repository's deployed
+  copy of `templates/review-tracking/`, which `prune-reviews.yml` runs
+  on every push to the default branch and daily to prune and import
+  review marks; plus `mermaid-lint.sh`, this repository's
   deployed copy of `templates/mermaid-lint/`. The pull request automation's helpers used to
   live here too; they went with the retired comment addresser, and what
   the reviewer still needs ships inside
@@ -131,7 +133,8 @@ consistency audit alerts (via a GitHub issue) when five or more
 in-scope files need review (`review-coverage`) and when the scope
 config leaves a tracked file out without saying so
 (`review-scope-completeness`); see `docs/code-review-tracking.md`.
-Tests are in `scripts/tests/test_review_tracking.py`.
+Tests are in `scripts/tests/test_review_tracking.py`, and for the CI
+script in `scripts/tests/test_ci_prune_reviews.py`.
 
 ## Testing the automation
 

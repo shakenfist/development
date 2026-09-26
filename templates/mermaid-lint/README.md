@@ -123,11 +123,12 @@ and `.github/workflows/mermaid-lint.yml` there are byte-identical
 copies of the two files in this directory, so drift between the
 template and a real deployment shows up as a diff rather than as a
 surprise. `MermaidLintDeploymentTest` in
-`scripts/tests/test_docs_content.py` asserts it, which matters most
-for the shell script: `.pre-commit-config.yaml` scopes shellcheck to
-`^(scripts|tools)/`, so the copy in this directory -- the one that
-goes out to the fleet -- is linted only by proxy through its `tools/`
-twin. Sync from here rather than editing either copy in place.
+`scripts/tests/test_docs_content.py` asserts it. shellcheck lints
+the copy in this directory in place, so identity is not about lint
+coverage: an identical copy can inherit this repository's review of
+the template through review tracking's `import`, and a copy that drifted means the file
+shipped to the fleet is not the file run here. Sync from here rather
+than editing either copy in place.
 
 ## Using it by hand
 

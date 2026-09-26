@@ -91,6 +91,13 @@ repository and passes through to the script.
    !.vscode/review-scope.toml
    ```
 
+   The ignore rule must then be `.vscode/*` rather than `.vscode/`:
+   git cannot re-include a file whose parent directory is excluded,
+   so exceptions under a bare `.vscode/` do nothing. The
+   `prune-reviews` workflow fails the run if the imports file it
+   writes is ignored, rather than importing the same reviews every
+   day and committing none of them.
+
    Exceptions rather than un-ignoring `.vscode/` wholesale, because
    weAudit also writes `.vscode/.weauditdaylog`, a log of which files
    each session opened. Nothing reads it, it is not attestation, and
@@ -580,10 +587,14 @@ the script, runs `prune` then `import`, and commits the updated
 review state and regenerated `REVIEWS.md` whenever either changed
 -- including a regeneration that pruned nothing, which is what
 corrects a moved header count -- directly back to that branch as
-shakenfist-bot, in one commit, `Prune and import review marks.`,
-using the same rebase-then-push landing pattern as this
-repository's audit compliance-table commits. A concurrency group
-serialises overlapping merges, and the loop terminates either way:
+shakenfist-bot, in one commit, `Prune and import review marks.`.
+It lands that commit by regenerating rather than rebasing: each of
+up to three attempts fetches the branch, resets to its tip, runs
+`prune` and `import` there, and pushes. Everything in the commit is
+derived from the tree beneath it, so a merge that lands mid-run
+costs a retry, never a conflict, and the retry also prunes the marks
+that merge made stale. A concurrency group serialises the
+workflow's own runs, and the loop terminates either way:
 a repository that can push with the default `GITHUB_TOKEN` never
 retriggers the workflow at all, while one whose ruleset forces a
 PAT instead -- as ryll's does, since develop requires a pull

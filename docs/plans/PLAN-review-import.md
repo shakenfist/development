@@ -1088,6 +1088,19 @@ intend to do aligns with that plan.
   every change to it costs a re-read of all of it. Raised by the
   automated review of #177 and deliberately not done there, where
   it would have buried the logic change in the diff.
+* **Automate the gitsign bump.** `GITSIGN_VERSION` and
+  `GITSIGN_SHA256` in `templates/review-tracking/ci-prune-reviews.sh`
+  are bumped by hand. A Renovate regex manager can bump the version
+  but not the binary's digest, so a half-automated bump would fail
+  the checksum check; this wants either a Renovate post-upgrade
+  task or a small scheduled job. Raised by the automated review of
+  #186.
+* **Stagger the daily run.** Every adopted repository runs the
+  template's `23 4 * * *` schedule at the same minute on the shared
+  static runners. They queue rather than fail, so this is left
+  alone unless phase 4 shows the queue matters; a per-repository
+  cron would break byte-identity for that file. Raised by the
+  automated review of #186.
 
 Related issues: shakenfist/development#173 is this repository's
 own review-coverage issue; import does not affect it, because this

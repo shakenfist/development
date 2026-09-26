@@ -14,11 +14,13 @@ why an unsigned bot commit may do either, is in
 | File | Destination | Description |
 |------|-------------|-------------|
 | `prune-reviews.yml` | `.github/workflows/prune-reviews.yml` | Runs the script on push, daily, and on dispatch, on the default branch only |
-| `ci-prune-reviews.sh` | `tools/ci-prune-reviews.sh` | Installs gitsign, clones this repository, runs `prune` then `import`, and lands the result |
+| `ci-prune-reviews.sh` | `tools/ci-prune-reviews.sh` | Installs gitsign, clones this repository, runs `prune` then `import` against the branch tip, and lands the result, regenerating it on a new tip if a push is rejected |
 | `review-tracking.sh` | `tools/review-tracking.sh` | The by-hand wrapper: finds a clone of this repository and passes its arguments to `scripts/review-tracking.py` |
 
 All three copy directly, with no per-project substitution, and must
-stay byte-identical to the template. That is not only tidiness: a
+stay byte-identical to the template in every adopted repository
+except shakenfist/development, whose wrapper is described below.
+That is not only tidiness: a
 review mark attests to a blob SHA, so an identical copy picks up this
 repository's review of the template through `import`, and a copy
 that differs by a branch name has to be reviewed again in every
@@ -37,9 +39,10 @@ the workflow does not work without them.
 - **`.vscode/review-scope.toml`**, defining what is in review scope
   (step 4).
 - **The `.gitignore` exception** for `.vscode/*.weaudit-shas.json`
-  (step 1), if the repository ignores `.vscode/`. The imports file,
+  (step 1), if the repository ignores `.vscode/*`. The imports file,
   `.vscode/imports.weaudit-shas.json`, is covered by it; without it
-  `git add .vscode/` stages nothing the import wrote.
+  git cannot see what the import wrote, so the script fails the run
+  rather than import the same reviews every day and commit none.
 - **The `paths-ignore` block** in the code-shaped workflows (step 8),
   so that the bot's commit does not start the expensive CI lanes.
 - **Optionally, a `DEPENDENCIES_TOKEN` secret.** A repository whose
@@ -90,9 +93,12 @@ This repository runs the same workflow and script:
 `.github/workflows/prune-reviews.yml` and `tools/ci-prune-reviews.sh`
 here are byte-identical copies of the files in this directory, and
 `ReviewTrackingDeploymentTest` in `scripts/tests/test_docs_content.py`
-asserts it. That matters most for the script, because shellcheck is
-scoped to `^(scripts|tools)/` and so lints the template copy only
-through its `tools/` twin. Sync from here rather than editing either
+asserts it, and `scripts/tests/test_ci_prune_reviews.py` runs the
+template script against a throwaway origin. shellcheck lints the
+template scripts in place, so identity is not about lint coverage:
+an identical copy inherits this repository's review of the template
+through `import`, and a copy that drifted means the file shipped is
+not the file run here. Sync from here rather than editing either
 copy in place.
 
 Its `tools/review-tracking.sh` deliberately differs. It runs
@@ -113,11 +119,10 @@ run against this repository is a no-op that says so and exits zero.
 
 ## Projects using these templates
 
-The repositories adopted into review tracking. Until the rollout in
-phase 2 of
+The repositories adopted into review tracking. Until the rollout
 [PLAN-review-import.md](https://github.com/shakenfist/development/blob/main/docs/plans/PLAN-review-import.md)
-lands, the four other than this one still carry their earlier,
-per-repository copies.
+describes lands, the four other than this one still carry their
+earlier, per-repository copies.
 
 | Project | Default branch | Token |
 |---------|----------------|-------|

@@ -36,7 +36,7 @@ repos:
       # {{PROJECT_NAME}} parses as a mapping, not a string -- so they
       # cannot be linted where they are stored. They are excluded by
       # name rather than by a pattern, so adding a sixth is a decision
-      # somebody makes rather than one that happens quietly. The seven
+      # somebody makes rather than one that happens quietly. The eight
       # copy-directly templates, which are the ones the fleet actually
       # runs unmodified, are all checked.
       - id: actionlint
