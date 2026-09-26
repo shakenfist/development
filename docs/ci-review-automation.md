@@ -80,8 +80,8 @@ elevated permissions. Security is enforced through multiple layers:
    what runs next to a write-scoped token without any change in the
    calling repository. The trigger job also fails if the action stops
    reporting the outputs it reads, rather than letting the work job
-   skip silently. `check_ci_review_automation` measures both halves of
-   the gate on every adopter
+   skip silently. The `ci-review-automation` criterion measures both
+   halves of the gate on every adopter.
 2. **Trusted tools** -- scripts are checked out from the base branch,
    not the PR, preventing execution of malicious PR code
 3. **No credential persistence** -- `persist-credentials: false`

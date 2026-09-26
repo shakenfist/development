@@ -74,7 +74,11 @@ request's code, or a dispatch against its ref, next to a write-scoped
 token, and the action is taken at `@main`, so a regression there must
 not be able to quietly widen what runs. Both halves are measured
 because either alone is no gate -- without the export the `if:` reads
-an empty string and the job silently never runs.
+an empty string and the job silently never runs. The rule covers
+every job which `needs:` the trigger job, not only the one doing the
+work: an adopter who adds a third job downstream of it -- a cleanup or
+a notification -- gates that job too, or hangs it off the work job
+instead.
 
 **Confirm the checkout on both paths.** The resolve step validates a
 sha and the checkout then names a ref, and a push between the two moves

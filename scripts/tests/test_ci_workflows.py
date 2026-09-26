@@ -516,6 +516,7 @@ class ForkGateAndConfirmStepTest(CheckTestCase):
         "needs.trigger-re-review.outputs.authorized == 'true' &&\n"
         "      needs.trigger-re-review.outputs.same_repo == 'true'")
     CONFIRM_STEP = '      - name: Confirm the checkout is the validated commit\n'
+    TRIGGER_STEP = '      - name: Handle trigger\n        id: trigger\n'
 
     def _mutate(self, wf, old, new):
         body = template_workflow(wf)
@@ -632,14 +633,39 @@ class ForkGateAndConfirmStepTest(CheckTestCase):
         self.assertNotIn('has no shakenfist/actions/pr-bot-trigger@main',
                          result['details'])
 
-    def test_a_confirm_step_on_the_merge_path_only_fails(self):
+    def test_a_conditional_confirm_step_fails(self):
         # The shape every adopter copied before #172.
         re_review = self._mutate(
             'pr-re-review.yml', self.CONFIRM_STEP,
             self.CONFIRM_STEP
             + "        if: steps.ref.outputs.merged == 'true'\n")
         self.assert_fail(self._check(re_review=re_review), containing=(
-            "merge path only (if: steps.ref.outputs.merged == 'true')"))
+            "confirm step is conditional "
+            "(if: steps.ref.outputs.merged == 'true')"))
+
+    def test_a_conditional_confirm_step_with_the_dash_alone_fails(self):
+        # With the dash on its own line the step used to merge into the
+        # one before it, and its `if:` went unread.
+        re_review = self._mutate(
+            'pr-re-review.yml', self.CONFIRM_STEP,
+            '      -\n' + self.CONFIRM_STEP.replace('      - ', '        ')
+            + "        if: steps.ref.outputs.merged == 'true'\n")
+        self.assert_fail(self._check(re_review=re_review),
+                         containing='confirm step is conditional')
+
+    def test_a_trigger_step_with_the_dash_alone_passes(self):
+        retest = self._mutate(
+            'pr-retest.yml', self.TRIGGER_STEP,
+            '      -\n' + self.TRIGGER_STEP.replace('      - ', '        '))
+        self.assert_pass(self._check(retest=retest))
+
+    def test_a_trigger_step_without_an_id_fails(self):
+        retest = self._mutate(
+            'pr-retest.yml', self.TRIGGER_STEP,
+            self.TRIGGER_STEP.replace('        id: trigger\n', ''))
+        self.assert_fail(self._check(retest=retest), containing=(
+            'pr-retest.yml: the shakenfist/actions/pr-bot-trigger@main '
+            'step in job trigger-retest has no id:'))
 
     def test_a_confirm_step_without_the_head_comparison_fails(self):
         re_review = self._mutate(
@@ -717,6 +743,21 @@ class StepKeysTest(unittest.TestCase):
         keys = workflows.step_keys(step)
         self.assertEqual("steps.ref.outputs.merged == 'true'", keys['if'])
         self.assertEqual('Confirm', keys['name'])
+
+    def test_a_dash_alone_on_its_line_starts_a_step(self):
+        body = ('    steps:\n'
+                '      - name: First\n'
+                '        run: true\n'
+                '      -\n'
+                '        name: Second\n'
+                '        id: second\n'
+                "        if: github.event_name == 'push'\n")
+        steps = workflows.workflow_step_blocks(body)
+        self.assertEqual(2, len(steps))
+        keys = workflows.step_keys(steps[1])
+        self.assertEqual('second', keys['id'])
+        self.assertEqual("github.event_name == 'push'", keys['if'])
+        self.assertNotIn('if', workflows.step_keys(steps[0]))
 
     def test_an_if_inside_the_script_is_not_a_step_key(self):
         step = ('      - name: Confirm\n'

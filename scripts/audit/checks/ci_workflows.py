@@ -261,9 +261,13 @@ def fork_gate_findings(wf, content):
                 f'nothing refuses fork pull requests before it runs']
 
     step_id = step_keys(steps[0]).get('id')
-    source = f'steps.{step_id}.outputs.same-repo' if step_id else None
+    if not step_id:
+        return [f'{wf}: the {CI_REVIEW_TRIGGER_ACTION} step in job '
+                f'{trigger} has no id:, so no job output can read its '
+                f'same-repo output']
+    source = f'steps.{step_id}.outputs.same-repo'
     exported = [name for name, value in job_outputs(body).items()
-                if source and source in value]
+                if source in value]
     if not exported:
         return [f"{wf}: job {trigger} does not export pr-bot-trigger's "
                 f'same-repo output, so the job that needs it cannot '
@@ -329,12 +333,16 @@ def confirm_step_findings(wf, content):
             if 'rev-parse HEAD^2' not in script:
                 continue
             condition = step_keys(step).get('if')
-            if condition or not REV_PARSE_HEAD_RE.search(script):
+            if condition:
                 return [
-                    f'{wf} confirms the checkout on the merge path only'
-                    + (f' (if: {condition})' if condition else '')
-                    + ', so a review of the head fallback can be of a '
-                    'commit the resolve step never validated']
+                    f'{wf}: the confirm step is conditional (if: '
+                    f'{condition}), so at least one checkout path goes '
+                    f'unconfirmed']
+            if not REV_PARSE_HEAD_RE.search(script):
+                return [
+                    f'{wf} confirms the checkout on the merge path only, '
+                    f'so a review of the head fallback can be of a '
+                    f'commit the resolve step never validated']
             return []
     return [f'{wf} does not confirm that the tree it checked out is the '
             f'commit it resolved, so a push between the two is reviewed '

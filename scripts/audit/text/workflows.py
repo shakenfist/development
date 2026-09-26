@@ -312,7 +312,9 @@ def indented_block(body, key):
     return '\n'.join(collected)
 
 
-STEP_ITEM_RE = re.compile(r'^(\s*)-\s')
+# A sequence item: the dash followed by the step's first key, or alone
+# on its line with the keys starting on the next.
+STEP_ITEM_RE = re.compile(r'^(\s*)-(?:\s|$)')
 
 
 def workflow_step_blocks(body):
@@ -427,8 +429,11 @@ def step_keys(step):
     replaced by the indentation it stands for first, so the step's
     first key sits at the same depth as the rest of them rather than
     being read as a level of its own -- without that, `if:` on the line
-    after `- name:` is not a key of the step at all.
+    after `- name:` is not a key of the step at all. A dash alone on its
+    line carries no key, and its keys below already sit at their own
+    depth, so that line is simply dropped.
     """
+    step = re.sub(r'^[ \t]*-[ \t]*(?:\n|$)', '', step, count=1)
     return job_level_keys(re.sub(r'^(\s*)- ', r'\1  ', step, count=1))
 
 
