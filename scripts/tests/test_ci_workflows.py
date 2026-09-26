@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import ci_workflows  # noqa: E402
 from audit.text import workflows  # noqa: E402
-from tests.base import CheckTestCase, REPO_ROOT  # noqa: E402
+from tests.base import CheckTestCase, REPO_ROOT, repo_text  # noqa: E402
 
 CI_REVIEW_DEVELOPER_WORKFLOWS = ci_workflows.CI_REVIEW_DEVELOPER_WORKFLOWS
 CI_REVIEW_SHARED_ACTION = ci_workflows.CI_REVIEW_SHARED_ACTION
@@ -23,6 +23,18 @@ RETIRED_ADDRESSER_SCRIPTS = ci_workflows.RETIRED_ADDRESSER_SCRIPTS
 RETIRED_ADDRESSER_WORKFLOW = ci_workflows.RETIRED_ADDRESSER_WORKFLOW
 is_dedicated_scanner_workflow = ci_workflows.is_dedicated_scanner_workflow
 workflow_job_blocks = workflows.workflow_job_blocks
+
+
+def template_workflow(wf):
+    """The canonical copy of a ci-review-automation workflow.
+
+    The fixture for a compliant deployment. A stub would pass only the
+    requirements it was written for, and the next one added to the
+    criterion would turn every test built on it into a failure about
+    something else; the template is what adopters copy, so it is also
+    what the criterion has to accept.
+    """
+    return repo_text('templates', 'ci-review-automation', wf)
 
 
 class CiReviewAutomationSpecTest(unittest.TestCase):
@@ -246,8 +258,7 @@ class RetiredCommentAddresserTest(CheckTestCase):
         """
         self.fresh_fixture()
         self.fixture.workflows({
-            wf: ('uses: shakenfist/actions/pr-bot-trigger@main\n'
-                 'uses: shakenfist/actions/review-pr-with-claude@main\n')
+            wf: template_workflow(wf)
             for wf in ('pr-re-review.yml', 'pr-retest.yml')
         })
         self.fixture.write_all({path: 'x\n' for path in leftovers})
@@ -464,14 +475,7 @@ class PrReReviewTriggerTest(CheckTestCase):
         '      - name: Check commenter permissions\n'
         '        run: gh api repos/x/collaborators/y/permission\n'
     )
-    USES_ACTION = (
-        'name: PR Re-review\n'
-        'on:\n  issue_comment:\n    types: [created]\n'
-        'jobs:\n  trigger-re-review:\n'
-        '    runs-on: [self-hosted, static]\n'
-        '    steps:\n'
-        '      - uses: shakenfist/actions/pr-bot-trigger@main\n'
-    )
+    USES_ACTION = template_workflow('pr-re-review.yml')
 
     def _check(self, re_review_body=None, docs_only=False):
         """The check over a repository whose pr-re-review.yml is this.
@@ -479,9 +483,7 @@ class PrReReviewTriggerTest(CheckTestCase):
         A body of None means the workflow is absent, which is a case of
         its own rather than an empty one.
         """
-        self.fixture.workflow(
-            'pr-retest.yml',
-            'uses: shakenfist/actions/review-pr-with-claude@main\n')
+        self.fixture.workflow('pr-retest.yml', template_workflow('pr-retest.yml'))
         if re_review_body is not None:
             self.fixture.workflow('pr-re-review.yml', re_review_body)
         return self.check(is_docs_only=docs_only)
@@ -510,6 +512,277 @@ class PrReReviewTriggerTest(CheckTestCase):
 
     def test_the_docs_only_path_passes_when_the_action_is_used(self):
         self.assert_pass(self._check(self.USES_ACTION, docs_only=True))
+
+
+class ForkGateAndConfirmStepTest(CheckTestCase):
+    """Deployed copies must carry the fork gate and the confirm step.
+
+    Both were fixed in the templates (shakenfist/development#172, #174),
+    and every adopter had copied the earlier versions verbatim, so the
+    fix reaches the fleet only if the criterion measures it. Each case
+    below is a mutation of the real template, so a template edit that
+    the criterion no longer accepts fails here rather than in twenty
+    repositories the next morning.
+    """
+
+    check_class = ci_workflows.CiReviewAutomation
+
+    SAME_REPO_OUTPUT = '      same_repo: ${{ steps.trigger.outputs.same-repo }}\n'
+    RETEST_FORK_GATE = (
+        "needs.trigger-retest.outputs.authorized == 'true' &&\n"
+        "      needs.trigger-retest.outputs.same_repo == 'true'")
+    RE_REVIEW_FORK_GATE = (
+        "needs.trigger-re-review.outputs.authorized == 'true' &&\n"
+        "      needs.trigger-re-review.outputs.same_repo == 'true'")
+    CONFIRM_STEP = '      - name: Confirm the checkout is the validated commit\n'
+    TRIGGER_STEP = '      - name: Handle trigger\n        id: trigger\n'
+
+    def _mutate(self, wf, old, new):
+        body = template_workflow(wf)
+        self.assertIn(old, body, f'the {wf} template no longer carries '
+                      f'the text this mutation replaces')
+        return body.replace(old, new)
+
+    def _check(self, re_review=None, retest=None, docs_only=False):
+        self.fixture.workflows({
+            'pr-re-review.yml': re_review or template_workflow('pr-re-review.yml'),
+            'pr-retest.yml': retest or template_workflow('pr-retest.yml'),
+        })
+        return self.check(is_docs_only=docs_only)
+
+    def test_the_templates_pass(self):
+        self.assert_pass(self._check())
+
+    def test_retest_without_the_same_repo_export_fails(self):
+        # The half the round-two review of #180 found unguarded: the
+        # `if:` still names same_repo, but it now reads empty.
+        retest = self._mutate('pr-retest.yml', self.SAME_REPO_OUTPUT, '')
+        self.assert_fail(self._check(retest=retest), containing=(
+            "pr-retest.yml: job trigger-retest does not export "
+            "pr-bot-trigger's same-repo output"))
+
+    def test_re_review_without_the_same_repo_export_fails(self):
+        re_review = self._mutate('pr-re-review.yml', self.SAME_REPO_OUTPUT, '')
+        self.assert_fail(self._check(re_review=re_review), containing=(
+            'pr-re-review.yml: job trigger-re-review does not export'))
+
+    def test_retest_gated_on_authorized_alone_fails(self):
+        retest = self._mutate(
+            'pr-retest.yml', self.RETEST_FORK_GATE,
+            "needs.trigger-retest.outputs.authorized == 'true'")
+        self.assert_fail(self._check(retest=retest), containing=(
+            'pr-retest.yml: job retest does not require '
+            'needs.trigger-retest.outputs.same_repo'))
+
+    def test_re_review_gated_on_authorized_alone_fails(self):
+        re_review = self._mutate(
+            'pr-re-review.yml', self.RE_REVIEW_FORK_GATE,
+            "needs.trigger-re-review.outputs.authorized == 'true'")
+        self.assert_fail(self._check(re_review=re_review), containing=(
+            'pr-re-review.yml: job re-review does not require'))
+
+    def test_a_gate_only_quoted_in_a_comment_fails(self):
+        # The comments above each `if:` quote the expression they
+        # explain, so the gate has to be read from the key itself.
+        retest = self._mutate(
+            'pr-retest.yml', self.RETEST_FORK_GATE,
+            "needs.trigger-retest.outputs.authorized == 'true'\n"
+            "    # needs.trigger-retest.outputs.same_repo == 'true'")
+        self.assert_fail(self._check(retest=retest),
+                         containing='job retest does not require')
+
+    def test_renamed_jobs_are_followed_by_role(self):
+        # Jobs are found by what they do, so a repository which renamed
+        # them is measured on the same property, not failed on a name.
+        retest = template_workflow('pr-retest.yml').replace(
+            'trigger-retest', 'handle-comment')
+        self.assert_pass(self._check(retest=retest))
+
+    def test_a_work_job_which_no_longer_needs_the_trigger_fails(self):
+        # Nothing to follow the gate into is not the same as a gate.
+        retest = self._mutate(
+            'pr-retest.yml', '    needs: trigger-retest\n', '')
+        self.assert_fail(self._check(retest=retest), containing=(
+            'pr-retest.yml: no job needs trigger-retest'))
+
+    def test_every_spelling_of_needs_is_followed(self):
+        # The round-three review of #180 found the block sequence read
+        # as no dependency at all, which reported "no job needs" on a
+        # workflow whose gate was completely wired.
+        for spelling in ('    needs: [trigger-retest]\n',
+                         "    needs: ['trigger-retest']\n",
+                         '    needs:\n      - trigger-retest\n',
+                         '    needs:\n      # the trigger\n'
+                         '      - trigger-retest  # the one\n'):
+            with self.subTest(spelling=spelling):
+                self.fresh_fixture()
+                retest = self._mutate(
+                    'pr-retest.yml', '    needs: trigger-retest\n', spelling)
+                self.assert_pass(self._check(retest=retest))
+
+    def test_an_ungated_job_with_a_block_sequence_needs_fails(self):
+        # Reading the block form must count the job in, not merely stop
+        # the "no job needs" finding: an ungated dependant still fails.
+        retest = self._mutate(
+            'pr-retest.yml', '    needs: trigger-retest\n',
+            '    needs:\n      - trigger-retest\n')
+        retest = retest.replace(
+            self.RETEST_FORK_GATE,
+            "needs.trigger-retest.outputs.authorized == 'true'")
+        self.assert_fail(self._check(retest=retest), containing=(
+            'pr-retest.yml: job retest does not require '
+            'needs.trigger-retest.outputs.same_repo'))
+
+    def test_retest_without_the_trigger_action_fails(self):
+        retest = self._mutate(
+            'pr-retest.yml',
+            'uses: shakenfist/actions/pr-bot-trigger@main',
+            'run: echo hand-rolled')
+        self.assert_fail(self._check(retest=retest), containing=(
+            'pr-retest.yml has no shakenfist/actions/pr-bot-trigger@main '
+            'step'))
+
+    def test_a_hand_rolled_re_review_is_reported_once(self):
+        re_review = self._mutate(
+            'pr-re-review.yml',
+            'uses: shakenfist/actions/pr-bot-trigger@main',
+            'run: echo hand-rolled')
+        result = self._check(re_review=re_review)
+        self.assert_fail(result, containing='does not use')
+        self.assertNotIn('has no shakenfist/actions/pr-bot-trigger@main',
+                         result['details'])
+
+    def test_a_conditional_confirm_step_fails(self):
+        # The shape every adopter copied before #172.
+        re_review = self._mutate(
+            'pr-re-review.yml', self.CONFIRM_STEP,
+            self.CONFIRM_STEP
+            + "        if: steps.ref.outputs.merged == 'true'\n")
+        self.assert_fail(self._check(re_review=re_review), containing=(
+            "confirm step is conditional "
+            "(if: steps.ref.outputs.merged == 'true')"))
+
+    def test_a_conditional_confirm_step_with_the_dash_alone_fails(self):
+        # With the dash on its own line the step used to merge into the
+        # one before it, and its `if:` went unread.
+        re_review = self._mutate(
+            'pr-re-review.yml', self.CONFIRM_STEP,
+            '      -\n' + self.CONFIRM_STEP.replace('      - ', '        ')
+            + "        if: steps.ref.outputs.merged == 'true'\n")
+        self.assert_fail(self._check(re_review=re_review),
+                         containing='confirm step is conditional')
+
+    def test_a_trigger_step_with_the_dash_alone_passes(self):
+        retest = self._mutate(
+            'pr-retest.yml', self.TRIGGER_STEP,
+            '      -\n' + self.TRIGGER_STEP.replace('      - ', '        '))
+        self.assert_pass(self._check(retest=retest))
+
+    def test_a_trigger_step_without_an_id_fails(self):
+        retest = self._mutate(
+            'pr-retest.yml', self.TRIGGER_STEP,
+            self.TRIGGER_STEP.replace('        id: trigger\n', ''))
+        self.assert_fail(self._check(retest=retest), containing=(
+            'pr-retest.yml: the shakenfist/actions/pr-bot-trigger@main '
+            'step in job trigger-retest has no id:'))
+
+    def test_a_confirm_step_without_the_head_comparison_fails(self):
+        re_review = self._mutate(
+            'pr-re-review.yml',
+            'if ! reviewed=$(git rev-parse HEAD 2>/dev/null); then',
+            'if ! reviewed=$(echo "${HEAD_SHA}"); then')
+        self.assert_fail(self._check(re_review=re_review),
+                         containing='merge path only')
+
+    def test_no_confirm_step_fails(self):
+        body = template_workflow('pr-re-review.yml')
+        start = body.index(self.CONFIRM_STEP)
+        end = body.index('\n      # Which ref was reviewed', start)
+        result = self._check(re_review=body[:start] + body[end + 1:])
+        self.assert_fail(result, containing=(
+            'pr-re-review.yml does not confirm that the tree it checked '
+            'out is the commit it resolved'))
+
+    def test_the_docs_only_path_checks_it_too(self):
+        re_review = self._mutate('pr-re-review.yml', self.SAME_REPO_OUTPUT, '')
+        self.fixture.workflow('pr-re-review.yml', re_review)
+        self.assert_fail(self.check(is_docs_only=True),
+                         containing='does not export')
+
+
+class JobNeedsTest(unittest.TestCase):
+    """Every spelling of `needs:`, and only the job's own."""
+
+    def test_each_spelling(self):
+        for needs, expected in (
+                ('    needs: build\n', ['build']),
+                ("    needs: 'build'\n", ['build']),
+                ('    needs: [build, test-unit]\n', ['build', 'test-unit']),
+                ('    needs: [\n      build,\n      test-unit\n    ]\n',
+                 ['build', 'test-unit']),
+                ('    needs:\n      - build\n      - "test-unit"\n',
+                 ['build', 'test-unit']),
+                ('    needs:\n      - build  # first\n'
+                 '      # - commented-out\n      - test-unit\n',
+                 ['build', 'test-unit']),
+                ('    runs-on: ubuntu-latest\n', [])):
+            with self.subTest(needs=needs):
+                self.assertEqual(expected, workflows.job_needs(
+                    needs + '    steps:\n      - run: echo hi\n'))
+
+    def test_the_block_ends_at_the_next_job_key(self):
+        body = ('    needs:\n      - build\n'
+                '    if: always()\n'
+                '    steps:\n      - run: echo test\n')
+        self.assertEqual(['build'], workflows.job_needs(body))
+
+    def test_a_needs_key_inside_a_step_is_not_the_jobs(self):
+        # The job's own block comes after the step's here, so reading
+        # the first `needs:` at any depth would answer with the step's.
+        body = ('    runs-on: ubuntu-latest\n'
+                '    steps:\n'
+                '      - uses: some/action@v1\n'
+                '        with:\n'
+                '          needs:\n'
+                '            - lint\n'
+                '    needs:\n'
+                '      - build\n')
+        self.assertEqual(['build'], workflows.job_needs(body))
+        self.assertEqual([], workflows.job_needs(body.split('    needs:')[0]))
+
+
+class StepKeysTest(unittest.TestCase):
+    """A step's own keys, not its inputs' or its script's."""
+
+    def test_the_key_after_the_sequence_marker_is_a_step_key(self):
+        step = ('      - name: Confirm\n'
+                "        if: steps.ref.outputs.merged == 'true'\n"
+                '        run: |\n'
+                '          if [ x ]; then exit 1; fi\n')
+        keys = workflows.step_keys(step)
+        self.assertEqual("steps.ref.outputs.merged == 'true'", keys['if'])
+        self.assertEqual('Confirm', keys['name'])
+
+    def test_a_dash_alone_on_its_line_starts_a_step(self):
+        body = ('    steps:\n'
+                '      - name: First\n'
+                '        run: true\n'
+                '      -\n'
+                '        name: Second\n'
+                '        id: second\n'
+                "        if: github.event_name == 'push'\n")
+        steps = workflows.workflow_step_blocks(body)
+        self.assertEqual(2, len(steps))
+        keys = workflows.step_keys(steps[1])
+        self.assertEqual('second', keys['id'])
+        self.assertEqual("github.event_name == 'push'", keys['if'])
+        self.assertNotIn('if', workflows.step_keys(steps[0]))
+
+    def test_an_if_inside_the_script_is_not_a_step_key(self):
+        step = ('      - name: Confirm\n'
+                '        run: |\n'
+                '          if: not a key\n')
+        self.assertNotIn('if', workflows.step_keys(step))
 
 
 class PrAutoReviewSecretsInheritTest(CheckTestCase):
@@ -554,10 +827,8 @@ class PrAutoReviewSecretsInheritTest(CheckTestCase):
         # answer for the next.
         self.fresh_fixture()
         self.fixture.workflows({
-            'pr-retest.yml':
-                'uses: shakenfist/actions/review-pr-with-claude@main\n',
-            'pr-re-review.yml':
-                '  - uses: shakenfist/actions/pr-bot-trigger@main\n',
+            'pr-retest.yml': template_workflow('pr-retest.yml'),
+            'pr-re-review.yml': template_workflow('pr-re-review.yml'),
             'ci.yml': 'jobs:\n' + reviewer_job,
         })
         self.fixture.workflows(extra or {})

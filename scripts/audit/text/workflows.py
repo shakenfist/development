@@ -201,6 +201,38 @@ def workflow_job_blocks(content):
     return [(name, '\n'.join(body)) for name, body in blocks]
 
 
+# Quoting and a trailing comment are both forms GitHub Actions treats
+# as identical to a bare "secrets: inherit", and the commented form is
+# the realistic evasion: a maintainer who reads the template text or
+# receives the audit issue is more likely to write
+# "secrets: inherit  # TODO: drop once migrated" than to delete the
+# line. Anchoring on end-of-line let both through, and a security guard
+# reporting pass while the exposure stands is worse than no guard --
+# the compliance page then positively asserts the repository is clean.
+# The explicit mapping form ("secrets:" followed by named entries) is
+# still deliberately not matched: that caller passes what it names.
+SECRETS_INHERIT_RE = re.compile(
+    r"""\s*secrets:\s*['"]?inherit['"]?\s*(#.*)?$""")
+
+
+def calls_with_inherited_secrets(content, reusable):
+    """Does any job call the named reusable workflow with "secrets: inherit"?
+
+    reusable is the called workflow's file name, such as
+    "pr-auto-review.yml". Commented-out lines are ignored, so a job
+    which has had its inherit commented away is not a finding.
+    """
+    uses_re = re.compile(r'uses:.*' + re.escape(reusable))
+    for _, body in workflow_job_blocks(content):
+        lines = [line for line in body.splitlines()
+                 if not line.lstrip().startswith('#')]
+        if not any(uses_re.search(line) for line in lines):
+            continue
+        if any(SECRETS_INHERIT_RE.match(line) for line in lines):
+            return True
+    return False
+
+
 def strip_trailing_comment(line):
     """Cut a line at the `#` that starts a comment, if there is one.
 
@@ -280,7 +312,9 @@ def indented_block(body, key):
     return '\n'.join(collected)
 
 
-STEP_ITEM_RE = re.compile(r'^(\s*)-\s')
+# A sequence item: the dash followed by the step's first key, or alone
+# on its line with the keys starting on the next.
+STEP_ITEM_RE = re.compile(r'^(\s*)-(?:\s|$)')
 
 
 def workflow_step_blocks(body):
@@ -352,7 +386,24 @@ def step_with_inputs(step):
     "fetch-depth: 0  # needed for setuptools_scm" is how the fleet
     actually writes these.
     """
-    block = indented_block(step, 'with')
+    return mapping_entries(indented_block(step, 'with'))
+
+
+def job_outputs(body):
+    """The outputs a job declares, as a dict of name to raw value string.
+
+    Read the same way as step_with_inputs(), and for the same reasons:
+    the top level of the mapping only, trailing comments dropped.
+    """
+    return mapping_entries(indented_block(body, 'outputs'))
+
+
+def mapping_entries(block):
+    """The top-level `key: value` pairs of a mapping block, as a dict.
+
+    `block` is what indented_block() returned, so None -- no such key
+    -- is an empty mapping rather than an absent one.
+    """
     if block is None:
         return {}
 
@@ -369,6 +420,21 @@ def step_with_inputs(step):
             value = re.sub(r'\s+#.*$', '', match.group(3)).strip()
             entries[match.group(2)] = value
     return entries
+
+
+def step_keys(step):
+    """A step's own keys, mapped to their inline value.
+
+    job_level_keys() applied to one step. The sequence marker is
+    replaced by the indentation it stands for first, so the step's
+    first key sits at the same depth as the rest of them rather than
+    being read as a level of its own -- without that, `if:` on the line
+    after `- name:` is not a key of the step at all. A dash alone on its
+    line carries no key, and its keys below already sit at their own
+    depth, so that line is simply dropped.
+    """
+    step = re.sub(r'^[ \t]*-[ \t]*(?:\n|$)', '', step, count=1)
+    return job_level_keys(re.sub(r'^(\s*)- ', r'\1  ', step, count=1))
 
 
 # The three spellings of a manual trigger: a mapping key under `on:`,
@@ -446,6 +512,49 @@ def job_level_keys(body):
             ).strip()
         keys[match.group(2)] = value
     return keys
+
+
+# A job name as GitHub Actions accepts one. Finding names rather than
+# splitting on punctuation is what lets one reader cover all three
+# spellings of `needs:` -- the brackets, commas, quotes and sequence
+# dashes are all simply not part of a name.
+JOB_NAME_RE = re.compile(r'[A-Za-z_][A-Za-z0-9_-]*')
+
+
+def job_needs(body):
+    """The jobs a job needs, as a list of names.
+
+    `needs:` has three spellings -- a scalar, a flow sequence, and a
+    block sequence -- and job_level_keys() only sees the first two,
+    because the third introduces a block and so reads as the empty
+    string. A dependency read as absent is a job counted out of
+    whatever the caller was measuring, so the block form is read here
+    rather than left to each caller to remember.
+
+    Only the job's own `needs:` is read, at the job's own indentation,
+    for the same reason job_level_keys() reads only that level.
+    """
+    keys = job_level_keys(body)
+    if 'needs' not in keys:
+        return []
+    if keys['needs']:
+        return JOB_NAME_RE.findall(keys['needs'])
+
+    lines = [strip_trailing_comment(line)
+             for line in body.splitlines()
+             if line.strip() and not line.lstrip().startswith('#')]
+    indent = min(len(line) - len(line.lstrip()) for line in lines)
+    block = None
+    for line in lines:
+        depth = len(line) - len(line.lstrip())
+        if block is None:
+            if depth == indent and re.match(r'^\s*needs:\s*$', line):
+                block = []
+            continue
+        if depth <= indent:
+            break
+        block.append(line)
+    return JOB_NAME_RE.findall('\n'.join(block or []))
 
 
 # An `if:` which confines a job to a tag. The fleet writes the first

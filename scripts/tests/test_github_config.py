@@ -93,6 +93,43 @@ class ExportRepoConfigTest(CheckTestCase):
         self.fixture.workflow('export-repo-config.yml', 'on: schedule\n')
         self.assert_pass(self.check())
 
+    CALLER = (
+        'jobs:\n'
+        '  export-config:\n'
+        '    uses: shakenfist/actions/.github/workflows/'
+        'export-repo-config.yml@main\n'
+    )
+
+    def test_the_template_shape_passes(self):
+        self.fixture.workflow('export-repo-config.yml', self.CALLER)
+        self.assert_pass(self.check())
+
+    def test_inheriting_secrets_fails(self):
+        """The shared workflow reads none, so inheriting only exposes them."""
+        self.fixture.workflow(
+            'export-repo-config.yml', self.CALLER + '    secrets: inherit\n')
+        result = self.check()
+        self.assert_fail(result, containing='secrets: inherit')
+        self.assertIn('export-repo-config.yml', result['details'])
+
+    def test_a_commented_out_inherit_passes(self):
+        self.fixture.workflow(
+            'export-repo-config.yml', self.CALLER + '    # secrets: inherit\n')
+        self.assert_pass(self.check())
+
+    def test_other_callers_may_inherit(self):
+        """smoke-cluster.yml reads real secrets; only this caller is the finding."""
+        self.fixture.workflows({
+            'export-repo-config.yml': self.CALLER,
+            'functional-tests.yml': (
+                'jobs:\n'
+                '  smoke:\n'
+                '    uses: shakenfist/actions/.github/workflows/'
+                'smoke-cluster.yml@main\n'
+                '    secrets: inherit\n'),
+        })
+        self.assert_pass(self.check())
+
     def test_a_docs_only_repository_is_still_expected_to_export(self):
         """No exemption here, deliberately.
 

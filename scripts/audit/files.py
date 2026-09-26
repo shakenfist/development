@@ -10,6 +10,8 @@ import os
 import re
 import subprocess
 
+from audit.text.workflows import calls_with_inherited_secrets
+
 
 #: Directories a tree walk skips: build output, vendored trees and
 #: virtualenvs. Whatever a criterion is looking for, a copy inside one
@@ -95,6 +97,20 @@ def list_workflow_files(repo_path):
         f for f in os.listdir(workflows_dir)
         if f.endswith('.yml') or f.endswith('.yaml')
     ]
+
+
+def workflows_inheriting_secrets_into(repo_path, reusable):
+    """The workflow files with a job passing "secrets: inherit" to reusable.
+
+    Returned sorted, so a finding naming them is stable from run to run.
+    """
+    offenders = []
+    for wf in list_workflow_files(repo_path):
+        filepath = os.path.join(repo_path, '.github', 'workflows', wf)
+        with open(filepath, 'r', errors='replace') as f:
+            if calls_with_inherited_secrets(f.read(), reusable):
+                offenders.append(wf)
+    return sorted(offenders)
 
 
 def workflow_has_permissions(repo_path, workflow_file):
