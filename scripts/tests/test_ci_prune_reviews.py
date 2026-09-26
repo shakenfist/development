@@ -40,13 +40,17 @@ DEVELOPMENT_URL = 'https://github.com/shakenfist/development'
 COMMIT_MESSAGE = 'Prune and import review marks.\n\nAutomated commit by the prune-reviews workflow.'
 
 # Stands in for tools/review-tracking.sh. It logs each subcommand with
-# the HEAD it ran against; import writes the imports file from HEAD
+# the HEAD it ran against; prune generates REVIEWS.md if it is missing,
+# as the real one regenerates it; import writes the imports file from HEAD
 # when asked to import anything; and import can push a concurrent
 # commit to origin, a set number of times, which is the race the
 # landing loop exists for.
 REVIEW_TRACKING_STUB = '''#!/bin/bash
 set -e
 echo "$1 $(git rev-parse HEAD)" >> "${PRUNE_TEST_LOG}"
+if [ "$1" = 'prune' ] && [ ! -e REVIEWS.md ]; then
+    echo '# Reviews' > REVIEWS.md
+fi
 if [ "$1" != 'import' ]; then
     exit 0
 fi
@@ -183,7 +187,7 @@ class CiPruneReviewsTest(unittest.TestCase):
     def set_races(self, count):
         _write(self.races, '%d\n' % count)
 
-    def make_repository(self, gitignore=None):
+    def make_repository(self, gitignore=None, reviews_md=True, pre_receive=None):
         """An origin holding an adopted repository, and the runner's checkout of it."""
         seed = os.path.join(self.tmp, 'seed')
         self.git('init', '-q', '--bare', self.origin)
@@ -191,13 +195,16 @@ class CiPruneReviewsTest(unittest.TestCase):
         _write(os.path.join(seed, 'tools', 'review-tracking.sh'), REVIEW_TRACKING_STUB, 0o755)
         shutil.copy(TEMPLATE_SCRIPT, os.path.join(seed, 'tools', 'ci-prune-reviews.sh'))
         _write(os.path.join(seed, '.vscode', 'mikal.weaudit-shas.json'), '{}\n')
-        _write(os.path.join(seed, 'REVIEWS.md'), '# Reviews\n')
+        if reviews_md:
+            _write(os.path.join(seed, 'REVIEWS.md'), '# Reviews\n')
         if gitignore is not None:
             _write(os.path.join(seed, '.gitignore'), gitignore)
         self.git('-C', seed, 'add', '--force', '.')
         self.git('-C', seed, 'commit', '-q', '-m', 'Adopt review tracking.')
         self.git('-C', seed, 'push', '-q', self.origin, 'HEAD:%s' % BRANCH)
         self.git('clone', '-q', self.origin, self.checkout)
+        if pre_receive is not None:
+            _write(os.path.join(self.origin, 'hooks', 'pre-receive'), pre_receive, 0o755)
         return self.tip()
 
     def push_concurrent_commit(self):
@@ -296,6 +303,29 @@ class CiPruneReviewsTest(unittest.TestCase):
         self.assertEqual(self.read_log('sleep'), ['5', '5'])
         self.assertEqual(self.message(self.tip()), 'A concurrent merge.')
         self.assertEqual(len([line for line in self.read_log('review') if line.startswith('import ')]), 3)
+
+    def test_a_push_refused_for_another_reason_is_not_retried(self):
+        """A token or ruleset problem is not a race, and regenerating will not fix it."""
+        before = self.make_repository(
+            pre_receive='#!/bin/sh\necho "Changes must be made through a pull request."\nexit 1\n')
+        result = self.run_script(PRUNE_TEST_IMPORT='1')
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('Changes must be made through a pull request.', result.stderr)
+        self.assertIn('not because a merge landed first', result.stderr)
+        self.assertNotIn('retrying', result.stdout)
+        self.assertNotIn('Could not land the review state', result.stderr)
+        self.assertEqual(self.read_log('sleep'), [])
+        self.assertEqual(len([line for line in self.read_log('review') if line.startswith('import ')]), 1)
+        self.assertEqual(self.tip(), before)
+
+    def test_a_gitignored_reviews_md_fails_the_run(self):
+        """A REVIEWS.md ignored before it was first generated can never be committed either."""
+        before = self.make_repository(gitignore='REVIEWS.md\n', reviews_md=False)
+        result = self.run_script(PRUNE_TEST_IMPORT='1')
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('REVIEWS.md\nREVIEWS.md must not be ignored', result.stderr)
+        self.assertNotIn('imports.weaudit-shas.json', result.stderr)
+        self.assertEqual(self.tip(), before)
 
     def test_a_gitignored_imports_file_fails_the_run(self):
         """Otherwise every run imports, commits nothing, and goes green."""

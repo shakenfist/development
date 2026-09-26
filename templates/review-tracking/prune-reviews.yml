@@ -26,7 +26,13 @@ on:
   # skips all but the default. Tags can be filtered without naming
   # anything, so they are, which keeps releases out of the Actions
   # tab. The branches line is not redundant: a push trigger that
-  # filters only tags does not run for branch pushes at all.
+  # filters only tags does not run for branch pushes at all. Listing
+  # the fleet's usual default branches instead, as
+  # templates/mermaid-lint does, would spare the skipped runs, but a
+  # repository whose default is not listed would then only ever prune
+  # daily, with nothing to say so: a missed lint run fails loudly on
+  # its pull request, a missed prune leaves stale marks counting as
+  # reviewed.
   push:
     branches: ['**']
     tags-ignore: ['**']
@@ -62,7 +68,11 @@ jobs:
     runs-on: [self-hosted, static]
     # Import verifies each source commit's signature against Rekor,
     # with a two minute timeout per commit, so a run that cannot reach
-    # it is slow rather than stuck.
+    # it is slow rather than stuck. The budget covers one slow pass,
+    # not three: a push rejected by a concurrent merge re-runs prune
+    # and import in full, verification included. A run that needs both
+    # a Rekor outage and two races to exceed it is killed, and the
+    # next push or daily run lands the same state.
     timeout-minutes: 30
     # Repositories whose default branch ruleset requires a pull request
     # push with DEPENDENCIES_TOKEN, as shakenfist-bot: GitHub does not

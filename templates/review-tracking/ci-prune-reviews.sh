@@ -73,28 +73,33 @@ clone_development() {
 # for the sidecars, the imports file import writes is ignored: git
 # status does not list it and git add does not stage it, so every run
 # would clone, verify and import the same reviews, commit nothing, and
-# go green. git check-ignore reports only untracked files, which is
-# exactly the case that matters -- a tracked sidecar is staged either
-# way.
-check_sidecars_are_committable() {
-    local sidecars ignored rc=0
+# go green. The same holds for a REVIEWS.md that is gitignored before
+# it is first generated. git check-ignore reports only untracked
+# files, which is exactly the case that matters -- a tracked file is
+# staged either way.
+check_state_is_committable() {
+    local paths ignored rc=0
 
     shopt -s nullglob
-    sidecars=(.vscode/*.weaudit-shas.json)
+    paths=(.vscode/*.weaudit-shas.json)
     shopt -u nullglob
-    if [ "${#sidecars[@]}" -eq 0 ]; then
+    if [ -e REVIEWS.md ]; then
+        paths+=(REVIEWS.md)
+    fi
+    if [ "${#paths[@]}" -eq 0 ]; then
         return
     fi
-    ignored="$(git check-ignore -- "${sidecars[@]}")" || rc=$?
+    ignored="$(git check-ignore -- "${paths[@]}")" || rc=$?
     if [ "${rc}" -gt 1 ]; then
         exit "${rc}"
     fi
     if [ -n "${ignored}" ]; then
         echo 'These review state files are gitignored, so they can never be committed:' >&2
         echo "${ignored}" >&2
-        echo 'Add the .gitignore exception for .vscode/*.weaudit-shas.json, ignoring' >&2
-        echo '.vscode/* rather than .vscode/ so that the exception can apply: step 1 of' >&2
-        echo '"Adopting a repository" in docs/code-review-tracking.md in shakenfist/development.' >&2
+        echo 'REVIEWS.md must not be ignored at all. For the sidecars, add the .gitignore' >&2
+        echo 'exception for .vscode/*.weaudit-shas.json, ignoring .vscode/* rather than' >&2
+        echo '.vscode/ so that the exception can apply: step 1 of "Adopting a repository"' >&2
+        echo 'in docs/code-review-tracking.md in shakenfist/development.' >&2
         exit 1
     fi
 }
@@ -114,11 +119,14 @@ check_sidecars_are_committable() {
 # fetch and the push and get the push rejected as non-fast-forward.
 # The retry is what closes that window: without it the run goes red
 # for a reason unrelated to correctness, which is how a workflow
-# trains people to stop reading it. Only the push is retried. A
-# failing fetch, prune or import stops the run under -e, because
-# retrying would not change the answer.
+# trains people to stop reading it. Only that rejection is retried.
+# A push refused for any other reason -- a token that cannot write,
+# a ruleset that wants a pull request -- fails at once with the
+# push's own error, since regenerating would not change the answer;
+# so does a failing fetch, prune or import, under -e. The push runs
+# under LC_ALL=C so that its rejection reason can be matched.
 land() {
-    local attempts=3 attempt
+    local attempts=3 attempt push_output
 
     git config user.name 'shakenfist-bot'
     git config user.email 'bot@shakenfist.com'
@@ -131,7 +139,7 @@ land() {
         # stale or not, until prune has removed it.
         tools/review-tracking.sh prune
         tools/review-tracking.sh import
-        check_sidecars_are_committable
+        check_state_is_committable
 
         # git status --porcelain rather than git diff --quiet: the
         # latter only sees tracked paths, and import creates
@@ -148,9 +156,20 @@ land() {
 
 Automated commit by the prune-reviews workflow.'
 
-        if git push origin "HEAD:${DEFAULT_BRANCH}"; then
+        if push_output="$(LC_ALL=C git push origin "HEAD:${DEFAULT_BRANCH}" 2>&1)"; then
+            echo "${push_output}"
             exit 0
         fi
+        echo "${push_output}" >&2
+        case "${push_output}" in
+            *'(fetch first)'* | *'(non-fast-forward)'*) ;;
+            *)
+                echo 'The push was refused, and not because a merge landed first. Check the' >&2
+                echo 'token and ruleset requirements in templates/review-tracking/README.md' >&2
+                echo 'in shakenfist/development.' >&2
+                exit 1
+                ;;
+        esac
         # Only claim a retry that is actually coming.
         if [ "${attempt}" -lt "${attempts}" ]; then
             echo "Landing attempt ${attempt} of ${attempts} was rejected; retrying."

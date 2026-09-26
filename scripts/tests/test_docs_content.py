@@ -707,8 +707,9 @@ class MermaidLintDeploymentTest(unittest.TestCase):
     templates/mermaid-lint/README.md promises byte-identity.
     shellcheck lints the template scripts in place, so this is not
     about lint coverage: an identical copy can inherit this
-    repository's review of the template through import, and if the two drift, the
-    copy shipped to the fleet is not the one this repository runs.
+    repository's review of the template through import, and if the
+    two drift, the copy shipped to the fleet is not the one this
+    repository runs.
     """
 
     def test_script_matches_the_template(self):

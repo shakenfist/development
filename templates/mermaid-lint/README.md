@@ -125,10 +125,10 @@ template and a real deployment shows up as a diff rather than as a
 surprise. `MermaidLintDeploymentTest` in
 `scripts/tests/test_docs_content.py` asserts it. shellcheck lints
 the copy in this directory in place, so identity is not about lint
-coverage: an identical copy can inherit this repository's review of
-the template through review tracking's `import`, and a copy that drifted means the file
-shipped to the fleet is not the file run here. Sync from here rather
-than editing either copy in place.
+coverage: an identical copy can inherit this repository's review
+of the template through review tracking's `import`, and a copy
+that drifted means the file shipped to the fleet is not the file
+run here. Sync from here rather than editing either copy in place.
 
 ## Using it by hand
 

@@ -119,15 +119,16 @@ run against this repository is a no-op that says so and exits zero.
 
 ## Projects using these templates
 
-The repositories adopted into review tracking. Until the rollout
+The repositories adopted into review tracking. The Templates
+column says whether a repository runs these files yet, or still
+carries its earlier, per-repository copies pending the rollout
 [PLAN-review-import.md](https://github.com/shakenfist/development/blob/main/docs/plans/PLAN-review-import.md)
-describes lands, the four other than this one still carry their
-earlier, per-repository copies.
+describes.
 
-| Project | Default branch | Token |
-|---------|----------------|-------|
-| [actions](https://github.com/shakenfist/actions) | `main` | `GITHUB_TOKEN` |
-| [development](https://github.com/shakenfist/development) | `main` | `GITHUB_TOKEN` |
-| [hunkydory](https://github.com/shakenfist/hunkydory) | `develop` | `DEPENDENCIES_TOKEN` |
-| [kerbside](https://github.com/shakenfist/kerbside) | `develop` | `DEPENDENCIES_TOKEN` |
-| [ryll](https://github.com/shakenfist/ryll) | `develop` | `DEPENDENCIES_TOKEN` |
+| Project | Default branch | Token | Templates |
+|---------|----------------|-------|-----------|
+| [actions](https://github.com/shakenfist/actions) | `main` | `GITHUB_TOKEN` | pending |
+| [development](https://github.com/shakenfist/development) | `main` | `GITHUB_TOKEN` | adopted |
+| [hunkydory](https://github.com/shakenfist/hunkydory) | `develop` | `DEPENDENCIES_TOKEN` | pending |
+| [kerbside](https://github.com/shakenfist/kerbside) | `develop` | `DEPENDENCIES_TOKEN` | pending |
+| [ryll](https://github.com/shakenfist/ryll) | `develop` | `DEPENDENCIES_TOKEN` | pending |
