@@ -683,6 +683,42 @@
     {
       "path": "templates/renovate/renovate.yml",
       "author": "mikal"
+    },
+    {
+      "path": ".claude/skills/review-tracking-adoption/SKILL.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".claude/skills/review-tracking-adoption",
+      "author": "mikal"
+    },
+    {
+      "path": ".claude/skills",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/export-repo-config.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/pr-re-review.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/pr-retest.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/prune-reviews.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
