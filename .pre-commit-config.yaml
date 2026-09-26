@@ -36,7 +36,7 @@ repos:
       # {{PROJECT_NAME}} parses as a mapping, not a string -- so they
       # cannot be linted where they are stored. They are excluded by
       # name rather than by a pattern, so adding a sixth is a decision
-      # somebody makes rather than one that happens quietly. The seven
+      # somebody makes rather than one that happens quietly. The eight
       # copy-directly templates, which are the ones the fleet actually
       # runs unmodified, are all checked.
       - id: actionlint
@@ -60,12 +60,10 @@ repos:
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.11.0.1
     hooks:
-      # scripts/ and tools/ both hold code this repository runs.
-      # templates/ is excluded by the pattern on purpose: those files
-      # are shipped to other repositories, and several reference
-      # variables defined by the workflow that calls them.
+      # scripts/ and tools/ both hold code this repository runs, and
+      # templates/ holds shell scripts shipped to other repositories.
       - id: shellcheck
-        files: ^(scripts|tools)/
+        files: ^(scripts|tools)/|templates/.*\.sh$
         types_or: [sh, bash, shell]
         args: ['-x']
 

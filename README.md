@@ -24,7 +24,8 @@ the Shaken Fist project.
   ([`scripts/review-tracking.py`](https://github.com/shakenfist/development/blob/main/scripts/review-tracking.py), run by hand
   from target repositories) that stamps reviews with blob SHAs,
   prunes stale reviews when files change, and generates a per-repo
-  REVIEWS.md
+  REVIEWS.md; each target's `prune-reviews` workflow prunes and
+  imports reviews made here on its default branch
   (plan: [PLAN-code-review-tracking.md](https://github.com/shakenfist/development/blob/main/docs/plans/PLAN-code-review-tracking.md))
 
 ## Consistency Audits
@@ -77,6 +78,9 @@ to Shaken Fist projects:
   Renders every mermaid diagram in a repository's markdown on pull
   requests that touch markdown, so a diagram that does not parse fails
   CI rather than a documentation page
+- [`templates/review-tracking/`](https://github.com/shakenfist/development/tree/main/templates/review-tracking) --
+  The `prune-reviews` workflow, its script and the by-hand wrapper
+  for repositories adopted into code review tracking
 - [`templates/shared-blocks/`](https://github.com/shakenfist/development/tree/main/templates/shared-blocks) --
   Versioned blocks of canonical wording embedded verbatim across
   repositories, in each one's `PUSH-AUDIT.md` and

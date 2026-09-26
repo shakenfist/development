@@ -1195,23 +1195,32 @@ class ImportTest(unittest.TestCase):
         self.assertIn('imported 0 file(s)', p.stdout)
         self.assertIn('signature verification disabled by --no-verify', p.stderr)
 
-    # Refusals.
+    # Self-import, which is a no-op, and refusals.
 
-    def test_import_refuses_to_run_in_the_source_itself(self):
+    def test_import_is_a_no_op_in_the_source_itself(self):
+        """The shared prune-reviews template runs import there too, so it must succeed."""
         self.review_a()
         p = self.run_import(cwd=self.source)
-        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
-        self.assertIn('refusing to import shakenfist/development into itself', p.stderr)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn('review-import: nothing to do; shakenfist/development is the source of imported reviews',
+                      p.stdout)
+        self.assertNotIn('ERROR', p.stdout + p.stderr)
         self.assertFalse(os.path.exists(os.path.join(self.source, IMPORTS)))
+        # Nothing at all, REVIEWS.md included: it is a no-op, not an import of nothing.
+        self.assertEqual(self.git(self.source, 'status', '--porcelain').stdout, '')
 
-    def test_import_refuses_to_run_in_a_worktree_of_the_source(self):
+    def test_import_is_a_no_op_in_a_worktree_of_the_source(self):
         self.review_a()
         worktree = os.path.join(os.path.dirname(self.source), 'source-wt')
         self.git(self.source, 'worktree', 'add', '-b', 'wt', worktree)
         p = self.run_import(cwd=worktree)
-        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
-        self.assertIn('refusing to import shakenfist/development into itself', p.stderr)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn('review-import: nothing to do; shakenfist/development is the source of imported reviews',
+                      p.stdout)
+        self.assertNotIn('ERROR', p.stdout + p.stderr)
         self.assertFalse(os.path.exists(os.path.join(worktree, IMPORTS)))
+        # Nothing at all, REVIEWS.md included: it is a no-op, not an import of nothing.
+        self.assertEqual(self.git(worktree, 'status', '--porcelain').stdout, '')
 
     def test_import_refuses_when_an_imports_state_file_exists(self):
         """Its sidecar would be the imports file, so weAudit would tick every import."""
