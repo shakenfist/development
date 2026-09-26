@@ -9,14 +9,6 @@
       "author": "mikal"
     },
     {
-      "path": "tools/ci-prune-reviews.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "tools/review-tracking.sh",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/console-logging.md",
       "author": "mikal"
     },
@@ -169,27 +161,11 @@
       "author": "mikal"
     },
     {
-      "path": ".claude/skills/review-tracking-adoption/SKILL.md",
-      "author": "mikal"
-    },
-    {
-      "path": ".claude/skills/review-tracking-adoption",
-      "author": "mikal"
-    },
-    {
       "path": ".claude/skills/standards-alignment/SKILL.md",
       "author": "mikal"
     },
     {
       "path": ".claude/skills/standards-alignment",
-      "author": "mikal"
-    },
-    {
-      "path": ".claude/skills",
-      "author": "mikal"
-    },
-    {
-      "path": ".claude",
       "author": "mikal"
     },
     {
@@ -210,10 +186,6 @@
     },
     {
       "path": ".github/workflows/codeql-analysis.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/prune-reviews.yml",
       "author": "mikal"
     },
     {
@@ -417,10 +389,6 @@
       "author": "mikal"
     },
     {
-      "path": "README.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/sfui-vendor.md",
       "author": "mikal"
     },
@@ -589,14 +557,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/mermaid-lint/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/mermaid-lint",
-      "author": "mikal"
-    },
-    {
       "path": "templates/shared-blocks/plan-phase-landing.md",
       "author": "mikal"
     },
@@ -606,14 +566,6 @@
     },
     {
       "path": "tools/mermaid-lint.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "tools",
-      "author": "mikal"
-    },
-    {
-      "path": ".pre-commit-config.yaml",
       "author": "mikal"
     },
     {
@@ -677,10 +629,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_docs_content.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_packaging.py",
       "author": "mikal"
     },
@@ -705,10 +653,6 @@
       "author": "mikal"
     },
     {
-      "path": "PUSH-AUDIT.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/plan-source-references.md",
       "author": "mikal"
     },
@@ -721,23 +665,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_review_tracking.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_review.py",
       "author": "mikal"
     },
     {
-      "path": "scripts/review-tracking.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/review.py",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/code-review-tracking.md",
       "author": "mikal"
     },
     {
@@ -746,14 +678,6 @@
     },
     {
       "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "AGENTS.md",
-      "author": "mikal"
-    },
-    {
-      "path": "ARCHITECTURE.md",
       "author": "mikal"
     },
     {

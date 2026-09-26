@@ -5,10 +5,6 @@
       "sha": "da73cad9f9e2a81aca7aff32d644c0197d747ec2",
       "date": "2026-09-06"
     },
-    ".claude/skills/review-tracking-adoption/SKILL.md": {
-      "sha": "3987ddabe20a5467ad70ec24fae255c7b304de4a",
-      "date": "2026-09-01"
-    },
     ".claude/skills/standards-alignment/SKILL.md": {
       "sha": "098dc512cfb1d4eff9886cd63cc4f66e74c3f9cb",
       "date": "2026-09-01"
@@ -53,10 +49,6 @@
       "sha": "d5b8377f8a98d3f68fd14469ed4d5be8fece1c6a",
       "date": "2026-09-14"
     },
-    ".github/workflows/prune-reviews.yml": {
-      "sha": "feb474e2510c2bfdd2011573e57c87976b62f1ad",
-      "date": "2026-09-01"
-    },
     ".github/workflows/renovate.yml": {
       "sha": "6d979d389b5c82317c913a5e78a663bba56d2ba9",
       "date": "2026-09-26"
@@ -69,29 +61,9 @@
       "sha": "26a19958e61609c60e1b721594ab8151ddf1634f",
       "date": "2026-09-04"
     },
-    ".pre-commit-config.yaml": {
-      "sha": "6e5662a63f09b888fd47d2bff1f0ca8b95bdc39a",
-      "date": "2026-09-22"
-    },
-    "AGENTS.md": {
-      "sha": "d7e887a926f58fce84a0ee3316f3dbca17b89c7e",
-      "date": "2026-09-26"
-    },
-    "ARCHITECTURE.md": {
-      "sha": "803bc2f483b9b687abc0e6d46eddf8618e3c8e36",
-      "date": "2026-09-26"
-    },
     "PLAN-TEMPLATE.md": {
       "sha": "a5b19acb9a99252702d8fcea664afc3dad5c5690",
       "date": "2026-09-22"
-    },
-    "PUSH-AUDIT.md": {
-      "sha": "498788906186879a10a9591d091984e593fb73a2",
-      "date": "2026-09-25"
-    },
-    "README.md": {
-      "sha": "5ac5a6754b08642183a1425f5a50f114ea907848",
-      "date": "2026-09-09"
     },
     "docs/audits/README.md": {
       "sha": "9c0961ebcdb448a9eef50ee57944e6a192ebe050",
@@ -285,10 +257,6 @@
       "sha": "d60479307223048db30a9651ee8492b89c8b4049",
       "date": "2026-08-30"
     },
-    "docs/code-review-tracking.md": {
-      "sha": "7f267df375d4db9aecb798ce1d6d4e5f1b6a847e",
-      "date": "2026-09-26"
-    },
     "docs/consistency-audits.md": {
       "sha": "a6694b3a157c63886799aa17c7bf81546578c106",
       "date": "2026-09-24"
@@ -409,10 +377,6 @@
       "sha": "cc6bcdab6674b2c7c135fa9e59bebdb88b8576f6",
       "date": "2026-09-04"
     },
-    "scripts/review-tracking.py": {
-      "sha": "387e64abe372bcac583b6ac368b6a668d895ef4f",
-      "date": "2026-09-26"
-    },
     "scripts/tests/__init__.py": {
       "sha": "531d26fbe639291831bc7dff3a4959a702b09fe8",
       "date": "2026-09-04"
@@ -444,10 +408,6 @@
     "scripts/tests/test_distros.py": {
       "sha": "2a43c0a85d59b84b8b675a4a66879446510d3443",
       "date": "2026-09-15"
-    },
-    "scripts/tests/test_docs_content.py": {
-      "sha": "3a615508f2ae8aaed80ec27875ac0e156512def6",
-      "date": "2026-09-24"
     },
     "scripts/tests/test_hooks.py": {
       "sha": "f87b63fadcf25dccf18d7350d57863e2a7e1f6c7",
@@ -497,10 +457,6 @@
       "sha": "93079587c44eb79cca3c705e283ee755bffcf360",
       "date": "2026-09-26"
     },
-    "scripts/tests/test_review_tracking.py": {
-      "sha": "2dfd05fd5f452e3437ca3a602e33a5630577b9e3",
-      "date": "2026-09-26"
-    },
     "scripts/tests/test_runners.py": {
       "sha": "7aed137d41b191ce4cc7e547cba6ed168a961662",
       "date": "2026-09-22"
@@ -540,10 +496,6 @@
     "templates/issue-link-check/issue-link-check.yml": {
       "sha": "6d0ce3ba5bf1008a1139a1a1be27959413f8ad0a",
       "date": "2026-09-09"
-    },
-    "templates/mermaid-lint/README.md": {
-      "sha": "d34bf85ccffc18781c1a17acaf225c35cda75647",
-      "date": "2026-09-22"
     },
     "templates/mermaid-lint/mermaid-lint.sh": {
       "sha": "22f14bf915f76875950bb5589212b55ab0a91db1",
@@ -685,17 +637,9 @@
       "sha": "9d7efbf68a9f510b036f0db47cff860b635bb41f",
       "date": "2026-09-04"
     },
-    "tools/ci-prune-reviews.sh": {
-      "sha": "3e10680265c6b885619e8e08bea30a4fb05cb10b",
-      "date": "2026-08-24"
-    },
     "tools/mermaid-lint.sh": {
       "sha": "22f14bf915f76875950bb5589212b55ab0a91db1",
       "date": "2026-09-22"
-    },
-    "tools/review-tracking.sh": {
-      "sha": "fabe2fc68a97b45b5f628f6380893bbfac9d764c",
-      "date": "2026-08-24"
     }
   }
 }
