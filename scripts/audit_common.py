@@ -86,7 +86,12 @@ def gh_canonical_repo(org, repo):
 
 
 def gh_search_issues(org, repo, title_prefix, label='consistency'):
-    """Search for open issues matching a title prefix and label."""
+    """Search for open issues matching a title prefix and label.
+
+    Each issue carries its body as well as its number and title, so that
+    a caller can tell whether an open issue still says what the latest
+    audit result would have it say.
+    """
     org, repo = gh_canonical_repo(org, repo)
     try:
         result = subprocess.run(
@@ -96,7 +101,7 @@ def gh_search_issues(org, repo, title_prefix, label='consistency'):
                 '--label', label,
                 '--state', 'open',
                 '--search', f'"{title_prefix}" in:title',
-                '--json', 'number,title',
+                '--json', 'number,title,body',
                 '--limit', '10',
             ],
             capture_output=True, text=True, timeout=30,

@@ -300,5 +300,89 @@ class ItemDefusingTest(unittest.TestCase):
                 self.assertTrue(line.startswith('- '), line)
 
 
+class OpenIssueRefreshTest(unittest.TestCase):
+    """A failing check's open issue follows the latest result.
+
+    It used to be left as the snapshot it was filed with: ryll#304 went
+    on reporting 63 files needing review when the audit measured 120,
+    and kerbside#227 went on reporting none reviewed after 114 had
+    been, both still linking a spec path that had since moved.
+    """
+
+    def setUp(self):
+        import contextlib
+        import io
+        import types
+        self.module = _manage_issues()
+        self.module.time = types.SimpleNamespace(sleep=lambda seconds: None)
+        self.calls = []
+        self.open_issues = []
+        self.module.gh_canonical_repo = lambda org, repo: (org, repo)
+        self.module.gh_search_issues = lambda *a: self.open_issues
+        self.module.gh_create_issue = (
+            lambda *a, **k: self.calls.append(('create', a[1:])))
+        self.module.gh_edit_issue_body = (
+            lambda *a: self.calls.append(('edit', a[1:])))
+        self.module.gh_close_issue = (
+            lambda *a, **k: self.calls.append(('close', a[1:])))
+        self.out = self.enterContext(contextlib.redirect_stdout(io.StringIO()))
+
+    def check(self, details='120 of 214 need review'):
+        return {'id': 'eol-distro', 'status': 'fail', 'details': details}
+
+    def process(self, check, dry_run=False):
+        self.module.process_results({
+            'org': 'shakenfist', 'repo': 'testrepo',
+            'summary': {'pass': 0, 'fail': 1, 'not_applicable': 0},
+            'checks': [check],
+        }, dry_run=dry_run)
+
+    def test_a_stale_body_is_rewritten_to_the_latest_result(self):
+        self.open_issues = [{'number': 7, 'title': 't',
+                             'body': self.module.build_issue_body(
+                                 'eol-distro', self.check('63 need review'))}]
+        self.process(self.check())
+        expected = self.module.build_issue_body('eol-distro', self.check())
+        self.assertEqual(self.calls, [('edit', ('testrepo', 7, expected))])
+
+    def test_a_current_body_is_left_alone(self):
+        body = self.module.build_issue_body('eol-distro', self.check())
+        self.open_issues = [{'number': 7, 'title': 't', 'body': body}]
+        self.process(self.check())
+        self.assertEqual(self.calls, [])
+        self.assertIn('already open and current', self.out.getvalue())
+
+    def test_line_endings_and_trailing_space_are_not_a_change(self):
+        """Otherwise every issue is rewritten on every run."""
+        body = self.module.build_issue_body('eol-distro', self.check())
+        self.open_issues = [{'number': 7, 'title': 't',
+                             'body': body.replace('\n', '\r\n').rstrip()}]
+        self.process(self.check())
+        self.assertEqual(self.calls, [])
+
+    def test_an_issue_with_no_body_is_filled_in(self):
+        self.open_issues = [{'number': 7, 'title': 't', 'body': None}]
+        self.process(self.check())
+        self.assertEqual([c[0] for c in self.calls], ['edit'])
+
+    def test_a_dry_run_reports_the_update_without_making_it(self):
+        self.open_issues = [{'number': 7, 'title': 't', 'body': 'old'}]
+        self.process(self.check(), dry_run=True)
+        self.assertEqual(self.calls, [])
+        self.assertIn('#7 already open, updating body', self.out.getvalue())
+
+    def test_only_the_surviving_original_is_updated(self):
+        self.open_issues = [{'number': 7, 'title': 't', 'body': 'old'},
+                            {'number': 9, 'title': 't', 'body': 'old'}]
+        self.process(self.check())
+        self.assertEqual([(c[0], c[1][1]) for c in self.calls],
+                         [('edit', 7), ('close', 9)])
+
+    def test_the_footer_says_the_body_is_maintained(self):
+        """A reader should know the list is live, not a filing snapshot."""
+        body = self.module.build_issue_body('eol-distro', self.check())
+        self.assertIn('rewrites this description on every run', body)
+
+
 if __name__ == '__main__':
     unittest.main()
