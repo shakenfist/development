@@ -81,9 +81,29 @@
       "sha": "26a19958e61609c60e1b721594ab8151ddf1634f",
       "date": "2026-09-04"
     },
+    ".pre-commit-config.yaml": {
+      "sha": "cf423aef9825a4e32ea85ffdb3f41acff911e635",
+      "date": "2026-09-27"
+    },
+    "AGENTS.md": {
+      "sha": "7b665874fbdfbeca6f9807747f9409ca23fd3270",
+      "date": "2026-09-27"
+    },
+    "ARCHITECTURE.md": {
+      "sha": "9c6bb4be1d3b5b65d96b24054a4d0110b76ab8a2",
+      "date": "2026-09-27"
+    },
     "PLAN-TEMPLATE.md": {
       "sha": "a5b19acb9a99252702d8fcea664afc3dad5c5690",
       "date": "2026-09-22"
+    },
+    "PUSH-AUDIT.md": {
+      "sha": "4a437d238167cc4cc139c3a599ce38ff58af00b3",
+      "date": "2026-09-27"
+    },
+    "README.md": {
+      "sha": "fb737c2640b44f664d9c97f7f43856a2f34261a6",
+      "date": "2026-09-27"
     },
     "docs/audits/README.md": {
       "sha": "9c0961ebcdb448a9eef50ee57944e6a192ebe050",
@@ -304,6 +324,10 @@
     "docs/release-automation.md": {
       "sha": "8a37bddb0db038f25e1d735df9807f9eb3367aa4",
       "date": "2026-09-06"
+    },
+    "renovate.json": {
+      "sha": "1255d62568362a8c44341f008d8c3c4c143eba7c",
+      "date": "2026-09-27"
     },
     "scripts/audit-check.py": {
       "sha": "97673b9e35622a6049cab81725d8554754e715b5",
