@@ -493,10 +493,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_manage_issues.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_markdown.py",
       "author": "mikal"
     },
@@ -510,10 +506,6 @@
     },
     {
       "path": "scripts/tests/test_runners.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit_common.py",
       "author": "mikal"
     },
     {
@@ -597,10 +589,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit-manage-issues.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit-raised.py",
       "author": "mikal"
     },
@@ -634,10 +622,6 @@
     },
     {
       "path": ".github/workflows/consistency-audit.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/consistency-audits.md",
       "author": "mikal"
     },
     {
