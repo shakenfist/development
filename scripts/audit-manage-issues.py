@@ -81,6 +81,40 @@ def gh_create_issue(org, repo, title, body, label='consistency'):
         return None
 
 
+def gh_edit_issue_body(org, repo, issue_number, body):
+    """Replace the body of an existing issue."""
+    result = subprocess.run(
+        [
+            'gh', 'issue', 'edit',
+            '--repo', f'{org}/{repo}',
+            str(issue_number),
+            '--body', body,
+        ],
+        capture_output=True, text=True, timeout=30,
+    )
+    if result.returncode == 0:
+        print(f'  Updated body of issue #{issue_number}')
+    else:
+        print(
+            f'  ERROR updating issue #{issue_number}: '
+            f'{result.stderr.strip()}',
+            file=sys.stderr,
+        )
+
+
+def body_is_current(existing_body, body):
+    """Whether an open issue's body already says what `body` says.
+
+    GitHub hands a body back with CRLF line endings once anyone has
+    touched it in the web editor, and is free to trim the trailing
+    newline. Neither is a change in content, and treating either as one
+    would rewrite the issue on every run.
+    """
+    def normalise(text):
+        return (text or '').replace('\r\n', '\n').strip()
+    return normalise(existing_body) == normalise(body)
+
+
 def gh_close_issue(org, repo, issue_number, comment=None):
     """Close an issue with an optional comment."""
     if comment:
@@ -302,7 +336,8 @@ def build_issue_body(check_id, check_result):
     body += (
         '\n---\n'
         '*This issue was created automatically by the '
-        'consistency audit workflow.*\n'
+        'consistency audit workflow, which rewrites this description '
+        'on every run to match the latest result.*\n'
     )
     return body
 
@@ -364,21 +399,36 @@ def process_results(results, dry_run=False):
         title_prefix = f'Consistency: {ISSUE_TITLES.get(check_id, check_id)}'
 
         if status == 'fail':
-            # Search for existing open issue
+            body = build_issue_body(check_id, check)
             existing = gh_search_issues(org, repo, title_prefix)
             if existing:
-                print(
-                    f'  [{check_id}] FAIL -- issue '
-                    f'#{existing[0]["number"]} already open'
-                )
+                original = existing[0]
+                # The body is the work queue, so it has to follow the
+                # numbers: an issue left as the snapshot it was filed
+                # with goes on listing files already reviewed and
+                # omitting ones added since, and on linking specs that
+                # have moved.
+                if body_is_current(original.get('body'), body):
+                    print(
+                        f'  [{check_id}] FAIL -- issue '
+                        f'#{original["number"]} already open and current'
+                    )
+                else:
+                    print(
+                        f'  [{check_id}] FAIL -- issue '
+                        f'#{original["number"]} already open, updating body'
+                    )
+                    if not dry_run:
+                        gh_edit_issue_body(
+                            org, repo, original['number'], body)
+                        time.sleep(1)  # Rate limiting
                 close_duplicates(
-                    org, repo, check_id, existing[1:], existing[0],
+                    org, repo, check_id, existing[1:], original,
                     dry_run,
                 )
             else:
                 print(f'  [{check_id}] FAIL -- creating issue')
                 if not dry_run:
-                    body = build_issue_body(check_id, check)
                     gh_create_issue(
                         org, repo, title_prefix, body,
                     )
