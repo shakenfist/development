@@ -545,6 +545,18 @@
       "sha": "7aed137d41b191ce4cc7e547cba6ed168a961662",
       "date": "2026-09-22"
     },
+    "templates/ci-review-automation/README.md": {
+      "sha": "1d24e4e67415b7a8b7288ea804358615c940ee9b",
+      "date": "2026-09-27"
+    },
+    "templates/ci-review-automation/pr-re-review.yml": {
+      "sha": "72059c8c57e2111baa5004d517d5ec188e960be3",
+      "date": "2026-09-27"
+    },
+    "templates/ci-review-automation/pr-retest.yml": {
+      "sha": "95bb87a48c7ed375ab0796c08d310fc26723d23f",
+      "date": "2026-09-27"
+    },
     "templates/codeql/README.md": {
       "sha": "d8ad7a6bed168b66f51af9e0484ccb84840af7bb",
       "date": "2026-08-30"
@@ -552,6 +564,14 @@
     "templates/codeql/codeql-analysis.yml": {
       "sha": "33ec0a9eeaf82ad7f5c32a771a80707d90b3fea6",
       "date": "2026-09-04"
+    },
+    "templates/export-repo-config/README.md": {
+      "sha": "84909c33b3a4c526342f9858602cff320761afb5",
+      "date": "2026-09-27"
+    },
+    "templates/export-repo-config/export-repo-config.yml": {
+      "sha": "b9b3936053b8685ef0ae47f656b2f35aa62ba637",
+      "date": "2026-09-27"
     },
     "templates/issue-fix/README.md": {
       "sha": "04b90676f1d792e814258002fbf1e80d4d9bc2ce",
@@ -580,6 +600,10 @@
     "templates/issue-link-check/issue-link-check.yml": {
       "sha": "6d0ce3ba5bf1008a1139a1a1be27959413f8ad0a",
       "date": "2026-09-09"
+    },
+    "templates/mermaid-lint/README.md": {
+      "sha": "5deb7cf997d81ce52818f65a0c72260481324da0",
+      "date": "2026-09-27"
     },
     "templates/mermaid-lint/mermaid-lint.sh": {
       "sha": "22f14bf915f76875950bb5589212b55ab0a91db1",
@@ -617,9 +641,29 @@
       "sha": "ae88c3ede7ec64844b7e1186cb36432db2f176cd",
       "date": "2026-08-30"
     },
+    "templates/renovate/renovate.json": {
+      "sha": "bc3d203dd9e9ab9c2f83e551382dbfb7e60e08fd",
+      "date": "2026-09-27"
+    },
     "templates/renovate/renovate.yml": {
       "sha": "3ab2b7e683ae37a240f3c5b585454a2918c87791",
       "date": "2026-09-26"
+    },
+    "templates/review-tracking/README.md": {
+      "sha": "6b24f5a5c6c00c82778c3370201f8818e5d59fab",
+      "date": "2026-09-27"
+    },
+    "templates/review-tracking/ci-prune-reviews.sh": {
+      "sha": "cb496c3933ea26aa855b91eb7b8927aa5597e263",
+      "date": "2026-09-27"
+    },
+    "templates/review-tracking/prune-reviews.yml": {
+      "sha": "7fc119ce46252ba56037d99ddf90ea9dc180e3b8",
+      "date": "2026-09-27"
+    },
+    "templates/review-tracking/review-tracking.sh": {
+      "sha": "db83f953a7b90229111cf75bd24504a19a032c2f",
+      "date": "2026-09-27"
     },
     "templates/shared-blocks/README.md": {
       "sha": "3b381f429dbe8084eaba41fd162e719039c25150",
@@ -721,9 +765,17 @@
       "sha": "9d7efbf68a9f510b036f0db47cff860b635bb41f",
       "date": "2026-09-04"
     },
+    "tools/ci-prune-reviews.sh": {
+      "sha": "cb496c3933ea26aa855b91eb7b8927aa5597e263",
+      "date": "2026-09-27"
+    },
     "tools/mermaid-lint.sh": {
       "sha": "22f14bf915f76875950bb5589212b55ab0a91db1",
       "date": "2026-09-22"
+    },
+    "tools/review-tracking.sh": {
+      "sha": "1e1eca1209a714310e8c007daa33a2a58b0b0e0b",
+      "date": "2026-09-27"
     }
   }
 }
