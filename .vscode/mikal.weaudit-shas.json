@@ -317,6 +317,10 @@
       "sha": "205b0da8f601f2d7681ac5e96bfcc09ea956fadb",
       "date": "2026-09-27"
     },
+    "docs/consistency-audits.md": {
+      "sha": "326d24f1512e88d25c5b09c5dc8c431bcaf03272",
+      "date": "2026-09-28"
+    },
     "docs/release-automation.md": {
       "sha": "8a37bddb0db038f25e1d735df9807f9eb3367aa4",
       "date": "2026-09-06"
@@ -328,6 +332,10 @@
     "scripts/audit-check.py": {
       "sha": "97673b9e35622a6049cab81725d8554754e715b5",
       "date": "2026-09-04"
+    },
+    "scripts/audit-manage-issues.py": {
+      "sha": "b478e2008c7523fd01e83c1c110be1b1765d1169",
+      "date": "2026-09-28"
     },
     "scripts/audit-raised.py": {
       "sha": "5349a3921a828cda0feca51d1c1d4a4853ad4286",
@@ -433,6 +441,10 @@
       "sha": "cdfa739677a56fcb087e2e2138a043d752a7fb56",
       "date": "2026-09-27"
     },
+    "scripts/audit_common.py": {
+      "sha": "53c959992d0272dd37384505d7d95401a1f15a72",
+      "date": "2026-09-28"
+    },
     "scripts/audit_snapshot.py": {
       "sha": "4f60df83948b9d7e26083b499095ac5322be05e2",
       "date": "2026-09-06"
@@ -508,6 +520,10 @@
     "scripts/tests/test_llm_docs.py": {
       "sha": "3c4c74df2e19155683e0b7c50ca163ae8643f219",
       "date": "2026-09-23"
+    },
+    "scripts/tests/test_manage_issues.py": {
+      "sha": "77774c5cbf18d16d9a1428343c0476e18e8107eb",
+      "date": "2026-09-28"
     },
     "scripts/tests/test_markdown.py": {
       "sha": "f79a747418900e25ba050e14d951c526821fbf9d",
