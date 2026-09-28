@@ -1,8 +1,9 @@
 """The criteria about what CI does and how it is wired.
 
 Permissions, linting, path filters on the expensive lanes, merge group
-cancellation, the review automation, secret scanning, and the devpi
-fallback the self-hosted runners depend on.
+cancellation, the review automation, secret scanning, the devpi
+fallback the self-hosted runners depend on, and whether a workflow that
+fires unattended has ever actually worked.
 
 These are the criteria most often about a workflow's shape rather than
 its content: which jobs a trigger reaches, what a concurrency key is
@@ -1995,3 +1996,154 @@ class FuzzNightlyReporting(Check):
         return self.ok(
             '%s fuzzes on a schedule and files issues for crashes'
             % ', '.join(name for name, _, _ in scheduled))
+
+
+# The events that fire with nobody watching. A pull_request or
+# merge_group run fails in front of whoever opened the pull request,
+# and a workflow_dispatch run in front of whoever started it; a
+# scheduled run, or one fired by a push to the default branch, fails in
+# front of nobody. Those are the ones that can sit broken for a week.
+UNWATCHED_EVENTS = frozenset({'schedule', 'push'})
+
+
+# The conclusions that mean the workflow ran and did not work.
+# `cancelled` is left out because concurrency groups cancel superseded
+# runs as a matter of course, and `skipped` because a run whose jobs
+# were all guarded off -- the review automation on a comment that was
+# not a command, say -- is a workflow deciding not to act, not one
+# failing to.
+FAILED_CONCLUSIONS = frozenset({'failure', 'startup_failure', 'timed_out'})
+
+
+# How many unwatched failures, with no success ever, make a finding.
+# One failure is a workflow installed an hour ago whose first run hit a
+# flake; three is a pattern. An hourly workflow reaches it within the
+# day it was installed and a daily one within three days, which is
+# the week this criterion exists to shorten.
+NEVER_SUCCEEDED_MIN_FAILURES = 3
+
+
+class ScheduledWorkflowHealth(Check):
+    id = 'scheduled-workflow-health'
+    spec = 'docs/audits/scheduled-workflow-health.md'
+    template = None
+    issue_title = 'Scheduled workflow health'
+
+    def applies(self, repo):
+        if not repo.props['has_workflows_dir']:
+            return 'No .github/workflows/ directory'
+        if not repo.workflows():
+            return 'No workflow files found'
+        return None
+
+    def run(self, repo):
+        """Check no unwatched workflow has failed and never succeeded.
+
+        A scheduled workflow that has never worked is indistinguishable,
+        from outside, from one nobody has needed yet: both are silent
+        (shakenfist/development#165). Every other criterion that looks
+        at a workflow looks at its shape, and a workflow missing the
+        secret it needs has a perfect shape.
+
+        Only a workflow that has *never* succeeded on the default
+        branch is a finding. One that worked for months and broke
+        yesterday is a different defect with a different fix, and
+        reporting it here would make the criterion noisy enough to be
+        ignored. A success from any event counts -- a manual dispatch
+        that worked proves the installation was finished -- while only
+        unwatched failures count towards the threshold, and a workflow
+        that has never fired at all (release.yml before the first
+        release) has no failures to count.
+
+        The finding does not diagnose. The reason is in the run's log,
+        which needs more access than the audit has, and "this has never
+        worked" is what the reader needs to know to go and look.
+        """
+        client = repo.github
+        base = f'repos/{repo.org}/{repo.name}'
+        try:
+            result = client.api(base, jq='.default_branch')
+            if result.returncode != 0:
+                return self.fail(
+                    f'Could not query GitHub API for the default '
+                    f'branch: {result.stderr.strip()}')
+            branch = result.stdout.strip()
+
+            result = client.api(f'{base}/actions/workflows?per_page=100')
+            if result.returncode != 0:
+                return self.fail(
+                    f'Could not query GitHub API for workflows: '
+                    f'{result.stderr.strip()}')
+            try:
+                registered = json.loads(result.stdout)['workflows']
+            except (json.JSONDecodeError, KeyError, TypeError):
+                return self.fail('Could not parse the workflows response')
+
+            # GitHub keeps a workflow registered after its file is
+            # deleted, and lists dynamic ones (Pages, Dependabot) that
+            # have no file at all. Only the files in the checkout are
+            # this repository's to fix.
+            present = set(repo.workflows())
+            examined = 0
+            findings = []
+            for workflow in sorted(registered, key=lambda w: w.get('path', '')):
+                path = workflow.get('path', '')
+                name = os.path.basename(path)
+                if path != f'.github/workflows/{name}' or name not in present:
+                    continue
+                if workflow.get('state') != 'active':
+                    continue
+                examined += 1
+
+                runs = f'{base}/actions/workflows/{workflow["id"]}/runs?branch={branch}'
+                result = client.api(f'{runs}&status=success&per_page=1', jq='.total_count')
+                if result.returncode != 0:
+                    return self.fail(
+                        f'Could not query GitHub API for the runs of '
+                        f'{name}: {result.stderr.strip()}')
+                if result.stdout.strip() != '0':
+                    continue
+
+                result = client.api(
+                    f'{runs}&per_page=100',
+                    jq='[.workflow_runs[] | {event, conclusion, created_at, html_url}]')
+                if result.returncode != 0:
+                    return self.fail(
+                        f'Could not query GitHub API for the runs of '
+                        f'{name}: {result.stderr.strip()}')
+                try:
+                    history = json.loads(result.stdout)
+                except json.JSONDecodeError:
+                    return self.fail(f'Could not parse the runs of {name}')
+
+                failed = [
+                    run for run in history
+                    if run.get('event') in UNWATCHED_EVENTS
+                    and run.get('conclusion') in FAILED_CONCLUSIONS
+                ]
+                if len(failed) < NEVER_SUCCEEDED_MIN_FAILURES:
+                    continue
+                latest = failed[0]
+                events = '/'.join(sorted({run['event'] for run in failed}))
+                findings.append(
+                    f'{name}: {len(failed)} {events} run(s) on {branch} '
+                    f'failed and none has ever succeeded; most recent '
+                    f'{latest.get("created_at", "")[:10]} '
+                    f'{latest.get("html_url", "")}'.rstrip())
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            return self.fail(f'Error checking workflow runs: {e}')
+
+        if findings:
+            return self.fail(
+                f'{len(findings)} workflow(s) that fire unattended have '
+                f'failed on {branch} at least '
+                f'{NEVER_SUCCEEDED_MIN_FAILURES} times and never once '
+                f'succeeded, so whatever they are meant to do has never '
+                f'happened. The usual cause is an installation that was '
+                f'not finished -- a missing secret, or an organisation '
+                f'secret not granted to this repository -- and the '
+                f'reason is in the log of the linked run',
+                findings=findings)
+        return self.ok(
+            f'No unattended workflow among {examined} has failed '
+            f'without ever succeeding')

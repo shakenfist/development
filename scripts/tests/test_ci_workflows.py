@@ -5,7 +5,9 @@
 Run with: python3 scripts/tests/test_ci_workflows.py
 """
 
+import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -13,6 +15,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import ci_workflows  # noqa: E402
+from audit.github import CompletedCommand, FakeGitHub  # noqa: E402
 from audit.text import workflows  # noqa: E402
 from tests.base import CheckTestCase, REPO_ROOT, repo_text  # noqa: E402
 
@@ -2420,6 +2423,142 @@ class FuzzNightlyReportingTest(CheckTestCase):
                                   containing='cannot file an issue')
         self.assertIn('fuzz-min.yml', result['details'])
         self.assertNotIn('coverage-fuzz.yml', result['details'])
+
+
+class ScheduledWorkflowHealthTest(CheckTestCase):
+    """Unattended workflows that have failed and never succeeded."""
+
+    check_class = ci_workflows.ScheduledWorkflowHealth
+
+    BASE = 'repos/shakenfist/testrepo'
+    RUNS_JQ = '[.workflow_runs[] | {event, conclusion, created_at, html_url}]'
+
+    def setUp(self):
+        super().setUp()
+        self.responses = {
+            f'api {self.BASE} --jq .default_branch': CompletedCommand(stdout='develop\n'),
+        }
+        self.registered = []
+
+    def register(self, wid, name, successes, runs=None, state='active', path=None):
+        """Script one workflow: its listing, its success count and its history."""
+        self.registered.append({
+            'id': wid, 'state': state,
+            'path': path if path is not None else f'.github/workflows/{name}',
+        })
+        runs_path = f'{self.BASE}/actions/workflows/{wid}/runs?branch=develop'
+        self.responses[f'api {runs_path}&status=success&per_page=1 --jq .total_count'] = (
+            CompletedCommand(stdout=f'{successes}\n'))
+        if runs is not None:
+            self.responses[f'api {runs_path}&per_page=100 --jq {self.RUNS_JQ}'] = (
+                CompletedCommand(stdout=json.dumps(runs)))
+
+    def failed(self, event, count, conclusion='failure'):
+        return [{'event': event, 'conclusion': conclusion,
+                 'created_at': f'2026-09-{22 - i:02d}T06:00:00Z',
+                 'html_url': f'https://github.com/shakenfist/testrepo/actions/runs/{100 - i}'}
+                for i in range(count)]
+
+    def run_check(self, workflows=None):
+        self.fixture.workflows({name: 'on: push\n' for name in (workflows or {
+            os.path.basename(w['path']) for w in self.registered
+            if w['path'].startswith('.github/workflows/')})})
+        self.responses[f'api {self.BASE}/actions/workflows?per_page=100'] = CompletedCommand(
+            stdout=json.dumps({'total_count': len(self.registered), 'workflows': self.registered}))
+        self.github = FakeGitHub(self.responses)
+        return self.check(github=self.github, has_workflows_dir=True)
+
+    def test_no_workflows_directory_is_not_applicable(self):
+        self.assert_skip(self.check(has_workflows_dir=False))
+
+    def test_a_workflow_that_has_succeeded_passes_without_reading_history(self):
+        self.register(1, 'ci.yml', successes=25)
+        self.assert_pass(self.run_check())
+        self.assertFalse([c for c in self.github.calls if 'per_page=100 ' in c])
+
+    def test_the_hunkydory_case_fails(self):
+        """prune-reviews.yml: eight pushes to develop, eight failures, no success."""
+        self.register(1, 'prune-reviews.yml', successes=0, runs=self.failed('push', 8))
+        result = self.assert_fail(self.run_check(), containing='never once succeeded')
+        self.assertEqual(len(result['findings']), 1)
+        finding = result['findings'][0]
+        self.assertIn('prune-reviews.yml: 8 push run(s) on develop', finding)
+        self.assertIn('2026-09-22', finding)
+        self.assertIn('actions/runs/100', finding)
+
+    def test_scheduled_failures_count(self):
+        self.register(1, 'renovate.yml', successes=0, runs=self.failed('schedule', 19))
+        result = self.assert_fail(self.run_check())
+        self.assertIn('renovate.yml: 19 schedule run(s)', result['findings'][0])
+
+    def test_below_the_threshold_passes(self):
+        """A first-run flake on a workflow installed an hour ago is not a pattern."""
+        self.register(1, 'functional-tests.yml', successes=0,
+                      runs=self.failed('push', ci_workflows.NEVER_SUCCEEDED_MIN_FAILURES - 1))
+        self.assert_pass(self.run_check())
+
+    def test_watched_failures_do_not_count(self):
+        """A pull request or dispatch failure happened in front of somebody."""
+        self.register(1, 'functional-tests.yml', successes=0,
+                      runs=self.failed('workflow_dispatch', 5) + self.failed('pull_request', 5))
+        self.assert_pass(self.run_check())
+
+    def test_skipped_and_cancelled_runs_do_not_count(self):
+        """The review automation skips every comment that is not a command."""
+        self.register(1, 'pr-retest.yml', successes=0,
+                      runs=self.failed('schedule', 50, conclusion='skipped')
+                      + self.failed('push', 5, conclusion='cancelled'))
+        self.assert_pass(self.run_check())
+
+    def test_startup_failures_and_timeouts_count(self):
+        self.register(1, 'nightly.yml', successes=0,
+                      runs=self.failed('schedule', 2, conclusion='startup_failure')
+                      + self.failed('schedule', 1, conclusion='timed_out'))
+        self.assert_fail(self.run_check())
+
+    def test_a_workflow_that_never_fired_passes(self):
+        """release.yml before the first release: zero runs is not zero successes."""
+        self.register(1, 'release.yml', successes=0, runs=[])
+        self.assert_pass(self.run_check())
+
+    def test_workflows_without_a_file_are_ignored(self):
+        """Deleted files and dynamic workflows are not the repository's to fix."""
+        self.register(1, 'ci.yml', successes=4)
+        self.register(2, 'deleted.yml', successes=0, runs=self.failed('schedule', 9))
+        self.register(3, 'pages-build-deployment', successes=0,
+                      runs=self.failed('push', 9), path='dynamic/pages/pages-build-deployment')
+        self.assert_pass(self.run_check(workflows={'ci.yml'}))
+
+    def test_disabled_workflows_are_ignored(self):
+        self.register(1, 'old.yml', successes=0, runs=self.failed('schedule', 9),
+                      state='disabled_manually')
+        self.assert_pass(self.run_check())
+
+    def test_every_finding_is_reported(self):
+        self.register(1, 'a.yml', successes=0, runs=self.failed('schedule', 3))
+        self.register(2, 'b.yml', successes=3)
+        self.register(3, 'c.yml', successes=0, runs=self.failed('push', 4))
+        result = self.assert_fail(self.run_check(), containing='2 workflow(s)')
+        self.assertEqual([f.split(':')[0] for f in result['findings']], ['a.yml', 'c.yml'])
+
+    def test_an_api_error_fails_with_the_reason(self):
+        self.register(1, 'ci.yml', successes=0)
+        self.responses[f'api {self.BASE}/actions/workflows/1/runs?branch=develop'
+                       f'&status=success&per_page=1 --jq .total_count'] = CompletedCommand(
+            returncode=1, stderr='HTTP 403: Resource not accessible\n')
+        self.assert_fail(self.run_check(), containing='HTTP 403')
+
+    def test_a_timeout_fails(self):
+        self.register(1, 'ci.yml', successes=1)
+        self.responses[f'api {self.BASE} --jq .default_branch'] = subprocess.TimeoutExpired('gh', 30)
+        self.assert_fail(self.run_check(), containing='Error checking workflow runs')
+
+    def test_the_threshold_matches_the_specification(self):
+        spec = repo_text('docs', 'audits', 'scheduled-workflow-health.md')
+        words = {3: 'three'}
+        self.assertIn(f'at least {words[ci_workflows.NEVER_SUCCEEDED_MIN_FAILURES]} times', spec)
+        for conclusion in ci_workflows.FAILED_CONCLUSIONS:
+            self.assertIn(f'`{conclusion}`', spec)
 
 
 if __name__ == '__main__':

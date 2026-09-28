@@ -36,6 +36,8 @@ NETWORK_CHECKS = frozenset({
     'merge-queue-config',
     'merge-group-cancellation',
     'sfui-vendor',
+    # Reads run history, which moves every time a workflow fires.
+    'scheduled-workflow-health',
     # The one that differs for a reason outside this repository
     # entirely: it lists the organisation, so somebody creating a
     # repository moves its verdict without a line here changing.
