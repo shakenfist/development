@@ -77,6 +77,7 @@ CHECKS = [
     ci_workflows.MergeGroupCancellation(),
     ci_workflows.SecretScanningCi(),
     ci_workflows.FuzzNightlyReporting(),
+    ci_workflows.ScheduledWorkflowHealth(),
     review.ReviewMarksPreCommit(),
     review.ReviewCoverage(),
     review.ReviewScopeCompleteness(),
