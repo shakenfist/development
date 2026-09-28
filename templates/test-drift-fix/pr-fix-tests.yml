@@ -51,4 +51,9 @@ jobs:
       ref: ${{ needs.trigger-fix.outputs.pr_ref }}
       pr_number: ${{ needs.trigger-fix.outputs.pr_number }}
       max_turns: '50'
-    secrets: inherit
+    # No "secrets: inherit". test-drift-fix.yml reads no secret: it
+    # authenticates to GitHub with github.token and Claude Code uses the
+    # credentials already on the runner. If it ever needs one, declare
+    # it under on.workflow_call.secrets there and pass it by name here.
+    # See docs/audits/reusable-workflow-secrets.md in
+    # shakenfist/development.

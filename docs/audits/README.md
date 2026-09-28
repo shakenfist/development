@@ -176,6 +176,7 @@ attached rather than quietly disappearing from the table.
 | [expensive-lane-path-filter.md](expensive-lane-path-filter.md) | Expensive PR lanes skip docs-only and review-marks-only changes |
 | [fuzz-nightly-reporting.md](fuzz-nightly-reporting.md) | Fuzz targets run nightly and file issues for crashes, rather than gating the merge queue |
 | [scheduled-workflow-health.md](scheduled-workflow-health.md) | No workflow that fires unattended has failed without ever succeeding |
+| [reusable-workflow-secrets.md](reusable-workflow-secrets.md) | Reusable workflows are passed named secrets, never `secrets: inherit` |
 | [console-logging.md](console-logging.md) | Console script logging setup |
 | [python-version.md](python-version.md) | Python version targeting and type hints |
 | [pyproject-usage.md](pyproject-usage.md) | Python projects use pyproject.toml |

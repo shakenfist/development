@@ -24,8 +24,9 @@ from audit.files import (
 )
 from audit.text.workflows import (
     RUNS_ON_RE, STATIC_ALLOWED_LABELS, indented_block, job_level_keys,
-    job_needs, job_outputs, parse_runner_labels, step_action, step_keys,
-    strip_yaml_comments, workflow_job_blocks, workflow_step_blocks,
+    job_needs, job_outputs, jobs_inheriting_secrets, parse_runner_labels,
+    step_action, step_keys, strip_yaml_comments, workflow_job_blocks,
+    workflow_step_blocks,
 )
 
 
@@ -2147,3 +2148,69 @@ class ScheduledWorkflowHealth(Check):
         return self.ok(
             f'No unattended workflow among {examined} has failed '
             f'without ever succeeding')
+
+
+# Callees whose "secrets: inherit" is already a finding under their own
+# criterion, with an explanation specific to that workflow. Reporting
+# them here as well would file two issues for one line.
+SECRETS_INHERIT_OWNED_ELSEWHERE = {
+    'export-repo-config.yml': 'export-repo-config',
+    'pr-auto-review.yml': 'ci-review-automation',
+}
+
+
+class ReusableWorkflowSecrets(Check):
+    id = 'reusable-workflow-secrets'
+    spec = 'docs/audits/reusable-workflow-secrets.md'
+    template = None
+    issue_title = 'Reusable workflow secrets'
+
+    def applies(self, repo):
+        if not repo.props['has_workflows_dir']:
+            return 'No .github/workflows/ directory'
+        if not repo.workflows():
+            return 'No workflow files found'
+        return None
+
+    def run(self, repo):
+        """Check no job calls a reusable workflow with "secrets: inherit".
+
+        "secrets: inherit" hands the callee every secret the calling
+        job can see, and most of the fleet's callees live in
+        shakenfist/actions and are called at @main, so what can read
+        them is whatever that branch holds at the time rather than
+        anything reviewed in the calling repository
+        (shakenfist/development#153). The fleet convention is instead
+        that a reusable workflow declares each secret it reads under
+        on.workflow_call.secrets and the caller passes it by name. A
+        callee that reads none, which on 2026-09-29 was every callee in
+        the fleet, is passed nothing.
+
+        Local callees ("uses: ./.github/workflows/...") are measured
+        too. The moving-ref half does not apply to them, but a declared
+        list is still what makes a secret being read visible in review,
+        and one rule is easier to hold than one with an exception.
+
+        The two callees with criteria of their own are left to those
+        criteria (SECRETS_INHERIT_OWNED_ELSEWHERE).
+        """
+        findings = []
+        for wf in sorted(repo.workflows()):
+            content = repo.read(os.path.join('.github', 'workflows', wf))
+            if content is None:
+                continue
+            for job, callee in jobs_inheriting_secrets(content):
+                name = callee.split('@')[0].rsplit('/', 1)[-1]
+                if name in SECRETS_INHERIT_OWNED_ELSEWHERE:
+                    continue
+                findings.append(f'{wf}: job {job} calls {callee}')
+
+        if findings:
+            return self.fail(
+                f'{len(findings)} job(s) pass "secrets: inherit" to a '
+                f'reusable workflow, handing it every secret this '
+                f'repository holds. Declare the secrets the called '
+                f'workflow reads under on.workflow_call.secrets and pass '
+                f'those by name; if it reads none, delete the line',
+                findings=findings)
+        return self.ok('No job passes "secrets: inherit" to a reusable workflow')

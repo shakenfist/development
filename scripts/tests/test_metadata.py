@@ -235,6 +235,10 @@ FROZEN_METADATA = {
         'spec': 'docs/audits/scheduled-workflow-health.md',
         'template': None,
     },
+    'reusable-workflow-secrets': {
+        'spec': 'docs/audits/reusable-workflow-secrets.md',
+        'template': None,
+    },
     'review-marks-pre-commit': {
         'spec': 'docs/audits/workflow-standards.md',
         'template': None,
@@ -331,6 +335,7 @@ FROZEN_ISSUE_TITLES = {
     'secret-scanning-ci': 'Secret scanning in CI',
     'fuzz-nightly-reporting': 'Fuzz nightly reporting',
     'scheduled-workflow-health': 'Scheduled workflow health',
+    'reusable-workflow-secrets': 'Reusable workflow secrets',
     'review-coverage': 'Human review coverage',
     'review-scope-completeness': 'Human review scope completeness',
     'sfui-vendor': 'sfui vendored copy',
