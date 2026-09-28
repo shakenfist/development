@@ -863,6 +863,34 @@
     {
       "path": "docs/consistency-audits.md",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/registry.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/ci_workflows.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit_snapshot.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/scheduled-workflow-health.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_metadata.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_ci_workflows.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
