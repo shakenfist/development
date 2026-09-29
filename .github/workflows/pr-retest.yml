@@ -170,4 +170,7 @@ jobs:
             gh pr comment "${PR_NUMBER}" \
               --repo "${REPO}" \
               --body "Unable to trigger CI on \`${PR_REF}\`. Check that \`ci.yml\` exists on the default branch, carries a \`workflow_dispatch\` trigger, and is not disabled -- or re-run the failed workflow from the Actions tab instead."
+            # Fail the run too, after the comment has explained why, so a
+            # request that did nothing does not show green in Actions.
+            exit 1
           fi
