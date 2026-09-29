@@ -126,7 +126,10 @@ gh api -X PUT repos/shakenfist/<repo>/automated-security-fixes
   that one does read secrets. The `ci-review-automation` audit checks
   for this.
 - `functional-tests.yml` must keep a `workflow_dispatch:` trigger or
-  the `pr-retest.yml` bot automation cannot re-run it.
+  the `pr-retest.yml` bot automation cannot re-run it, and the
+  repository needs the `RETEST_WORKFLOW` variable set to
+  `functional-tests.yml`: the template dispatches `ci.yml` when it is
+  unset.
 - gitleaks: invoke the binary directly (`gitleaks-action@v2` refuses
   organization repos without a paid licence) and run on `debian-13`
   (bookworm does not package gitleaks). Add `debian-13` to

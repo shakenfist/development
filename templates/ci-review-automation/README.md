@@ -19,7 +19,37 @@ suites), see the separate
 | File | Destination | Description |
 |------|-------------|-------------|
 | `pr-re-review.yml` | `.github/workflows/pr-re-review.yml` | Manual re-review trigger |
-| `pr-retest.yml` | `.github/workflows/pr-retest.yml` | Manual functional test re-run (dispatches `functional-tests.yml`; substitute the project's own test workflow name if it differs, as development does for `ci.yml`) |
+| `pr-retest.yml` | `.github/workflows/pr-retest.yml` | Manual test re-run (dispatches the `RETEST_WORKFLOW` repository variable, default `ci.yml`; see below) |
+
+## Choosing what a retest dispatches
+
+`pr-retest.yml` dispatches the workflow named by the `RETEST_WORKFLOW`
+repository variable, or `ci.yml` when the variable is unset. That
+default suits actions, hunkydory, ryll and development. A repository
+whose test workflow has another name sets the variable instead of
+editing the file, so the copy stays byte-identical to the template:
+
+```bash
+gh variable set RETEST_WORKFLOW --repo shakenfist/<repo> \
+    --body functional-tests.yml
+```
+
+kerbside is the known case (`functional-tests.yml`), as is any
+repository following `standards-alignment`'s `functional-tests.yml`
+convention: set the variable before, or with, the pull request that
+syncs this template in, because an unset variable dispatches
+`ci.yml`, which does not exist there, and the bot answers the next
+"please retest" with a failure comment. Whatever the variable names
+must carry a `workflow_dispatch:` trigger.
+
+A retest dispatch is not a re-run of a pull request's own checks.
+In kerbside, dispatching `functional-tests.yml` runs its merge tier
+with the dispatch defaults rather than the smoke lanes that gate a
+pull request, and a dispatched run never attaches to the pull
+request's check rollup. Whether the bot should re-run the pull
+request's gating lanes instead is recorded as future work in
+[the review import plan](https://github.com/shakenfist/development/blob/main/docs/plans/PLAN-review-import.md);
+the variable only chooses which workflow is dispatched.
 
 ## Syncing deployed copies
 
@@ -32,9 +62,8 @@ is running pre-fix copies of the two workflows in this directory
 unless you have checked that one.** development's own
 `.github/workflows/pr-re-review.yml` is the exception, kept in step
 with the template because the README points at this repository as the
-worked example. Its `pr-retest.yml` is not: that one dispatches
-`ci.yml` rather than `functional-tests.yml`, which is the per-project
-substitution its own header tells you to preserve when syncing.
+worked example, and so is its `pr-retest.yml`, which dispatches the
+default `ci.yml`.
 Being out of date here is about these files, not about which reviewer
 a project uses: every repository that has an automatic review at all
 now gets it from the reusable `pr-auto-review.yml`, and that is a

@@ -629,21 +629,26 @@ class MergeRefResolutionTest(unittest.TestCase):
     TEMPLATE_RE_REVIEW = os.path.join(
         'templates', 'ci-review-automation', 'pr-re-review.yml')
 
-    # docs/ci-review-automation.md lists this template's customisation
-    # as "None", which is what makes byte-identical the right
-    # assertion here. pr-retest.yml is deliberately excluded from it:
-    # its ci.yml / functional-tests.yml divergence is documented in
-    # its own header.
+    # docs/ci-review-automation.md tells the fleet both templates are
+    # copied unmodified, which is what makes byte-identical the right
+    # assertion here. pr-retest.yml used to be excluded, because each
+    # copy edited in the name of the workflow it dispatched; that name
+    # is now the RETEST_WORKFLOW repository variable, and this
+    # repository uses its ci.yml default.
     def test_the_two_copies_are_identical(self):
-        with open(os.path.join(REPO_ROOT, self.DEPLOYED_RE_REVIEW)) as f:
-            deployed = f.read()
-        with open(os.path.join(REPO_ROOT, self.TEMPLATE_RE_REVIEW)) as f:
-            template = f.read()
-        self.assertEqual(
-            deployed, template,
-            f'{self.DEPLOYED_RE_REVIEW} and {self.TEMPLATE_RE_REVIEW} '
-            f'must be byte-identical: docs/ci-review-automation.md '
-            f'tells the fleet this template is copied unmodified')
+        for deployed_name, template_name in [
+                (self.DEPLOYED_RE_REVIEW, self.TEMPLATE_RE_REVIEW),
+                (self.DEPLOYED_RETEST, self.TEMPLATE_RETEST)]:
+            with self.subTest(workflow=deployed_name):
+                with open(os.path.join(REPO_ROOT, deployed_name)) as f:
+                    deployed = f.read()
+                with open(os.path.join(REPO_ROOT, template_name)) as f:
+                    template = f.read()
+                self.assertEqual(
+                    deployed, template,
+                    f'{deployed_name} and {template_name} must be '
+                    f'byte-identical: docs/ci-review-automation.md tells '
+                    f'the fleet this template is copied unmodified')
 
     # Matched on the step name rather than on any line of its shell,
     # because the shell is the part expected to change. A rename is a
