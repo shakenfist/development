@@ -266,7 +266,10 @@ answers.
    the fleet yet proves the runners have; the first scheduled run
    in phase 2 is the test. If verification cannot run there, import
    records provenance without verifying it and says so on stderr on
-   every run.
+   every run. *Settled 2026-09-30:* the first runs after the
+   rollout imported 16 entries across the four repositories (actions
+   3, hunkydory 6, kerbside 4, ryll 3), every one `verified: true`,
+   so the static runners reach Rekor and the TUF root.
 6. **The checkout token.** *Answered by step 2a, 2026-09-24:*
    `DEPENDENCIES_TOKEN` is a per-repository secret, present in
    exactly the three adopted repositories whose `develop` ruleset
@@ -281,7 +284,7 @@ answers.
 | Phase | Status | Merged |
 |-------|--------|--------|
 | 1. `import` subcommand | Complete | 54c7ecc (#177) |
-| 2. Review tracking CI template and rollout | In progress | |
+| 2. Review tracking CI template and rollout | Complete | 02d6dbb (#186); actions 74a33c9 (#111); hunkydory f24d413 (#57); kerbside 62ccbcb (#504); ryll ce3ebb3 (#418) |
 | 3. Template convergence | Not started | |
 | 4. Verification | Not started | |
 | 5. Push audit | Not started | |
@@ -661,6 +664,19 @@ match.
 | 2b | high | opus | none | Write `templates/review-tracking/` as the phase 2 section describes, starting from actions' `tools/ci-prune-reviews.sh` and ryll's `.github/workflows/prune-reviews.yml`, and replace this repository's two copies. Run `actionlint` and `shellcheck` via `pre-commit run --all-files`. |
 | 2c | medium | sonnet | none | Update `docs/code-review-tracking.md` step 7 and the steady-state description of the workflow, and `.claude/skills/review-tracking-adoption/SKILL.md`, to point at the template. |
 | 2d | medium | sonnet | worktree | In each of actions, hunkydory, kerbside and ryll, one branch and pull request per repository replacing the three files with byte-identical copies of the template; confirm with `git hash-object` that each copy matches. Do not merge. |
+
+**Outcome.** All four rollout pull requests merged on 2026-09-28,
+and each repository's copies match the template. Two things came up
+that the steps above did not anticipate. actions carried a test
+(`PruneGuardTest`) asserting the old workflow's literal
+`refs/heads/main` guard, updated in its rollout pull request. And
+hunkydory had never done adoption step 8: its expensive workflows
+ran in full on review-only changes, and since `Build, test and
+lint`, `Pre-commit hooks` and `Analyze` are required checks there,
+its rollout pull request added a job-level `check_paths` skip rather
+than a trigger-level `paths-ignore`. Step 8 and the adoption skill
+still describe only the trigger-level form, and phase 3 picks that
+up.
 
 ### Phase 3: template convergence
 
