@@ -831,6 +831,70 @@
     {
       "path": "docs/audits/scheduled-workflow-health.md",
       "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/workflows.py",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/test-drift-fix/test-drift-fix.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_metadata.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/registry.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/reusable-workflow-secrets.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/test-drift-fix/pr-fix-tests.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/test-drift-fix",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/ci_workflows.py",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_ci_workflows.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
