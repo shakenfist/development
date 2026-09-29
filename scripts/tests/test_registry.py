@@ -786,6 +786,107 @@ class MergeRefResolutionTest(unittest.TestCase):
                     self.assertIn(f'steps.trigger.outputs.{output} }}}}', step)
 
 
+class CodeqlTemplateTest(unittest.TestCase):
+    """The CodeQL template's review-only skip must fail open.
+
+    templates/codeql/codeql-analysis.yml skips Analyze at the job level
+    for pull requests touching only review state and docs/, and for
+    fork pull requests. Analyze is a required status check in some of
+    the repositories that copy it, and a skipped job satisfies a
+    required check, so every way this skip can go wrong reads as green:
+    a check_paths that fails without !cancelled() skips Analyze, an
+    output that defaults to 'false' skips it, and an inverted fork
+    guard skips every same-repository pull request. Nothing else in the
+    tree would notice, so the conditions are pinned here, as exact
+    strings: rewording one should be a decision, made by editing this
+    test, not something that happens in passing.
+
+    Read through the job blocks rather than searched for in the file,
+    because the comments explaining each condition quote it.
+    """
+
+    DEPLOYED = os.path.join('.github', 'workflows', 'codeql-analysis.yml')
+    TEMPLATE = os.path.join('templates', 'codeql', 'codeql-analysis.yml')
+
+    ANALYZE_IF = (
+        "!cancelled() "
+        "&& needs.check_paths.outputs.code_changed != 'false' "
+        "&& (github.event_name != 'pull_request' "
+        "|| github.event.pull_request.head.repo.full_name == github.repository)")
+    CODE_CHANGED = "${{ steps.filter.outputs.code || 'true' }}"
+
+    def _read(self, name):
+        with open(os.path.join(REPO_ROOT, name)) as f:
+            return f.read()
+
+    def _jobs(self):
+        return dict(workflow_job_blocks(self._read(self.TEMPLATE)))
+
+    def test_this_repository_runs_the_template_verbatim(self):
+        self.assertEqual(
+            self._read(self.DEPLOYED), self._read(self.TEMPLATE),
+            f'{self.DEPLOYED} and {self.TEMPLATE} must be byte-identical: '
+            f'the template README tells the fleet to copy it unmodified')
+
+    def test_analyze_fails_open_and_guards_forks(self):
+        analyze = self._jobs()['analyze']
+        keys = job_level_keys(analyze)
+        self.assertEqual('Analyze', keys.get('name'),
+                         'Analyze is a required check name; renaming the '
+                         'job strands every repository that requires it')
+        self.assertEqual('[check_paths]', keys.get('needs'))
+        self.assertEqual(
+            self.ANALYZE_IF, re.sub(r'\s+', ' ', keys.get('if', '')),
+            'analyze must run unless check_paths positively reported a '
+            'review-only pull request (!cancelled() and the != \'false\' '
+            'test), and must not run for a fork pull request')
+        self.assertNotIn('HEAD^2', analyze)
+        self.assertNotIn('fetch-depth', analyze)
+        self.assertIn('timeout-minutes', keys)
+        concurrency = indented_block(analyze, 'concurrency') or ''
+        self.assertIn(
+            "cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
+            concurrency, 'only pull request runs may cancel: push and '
+            'schedule runs upload the standing results')
+
+    def test_check_paths_defaults_to_code_changed(self):
+        check_paths = self._jobs()['check_paths']
+        outputs = indented_block(check_paths, 'outputs') or ''
+        self.assertIn(f'code_changed: {self.CODE_CHANGED}', outputs,
+                      'the output must fall back to \'true\' when the '
+                      'filter step did not run or produced nothing')
+        self.assertNotIn('actions/checkout', check_paths,
+                         'check_paths must not check out a pull '
+                         'request\'s content')
+        self.assertIn("predicate-quantifier: 'every'", check_paths,
+                      'without it the \'!\' exclusions are no-ops')
+        self.assertIn("if: github.event_name == 'pull_request'",
+                      check_paths)
+
+    def test_the_two_path_lists_agree(self):
+        content = self._read(self.TEMPLATE)
+        on = indented_block(content, 'on') or ''
+        push = indented_block(on, 'push') or ''
+        ignored = re.findall(
+            r"^\s+- '(.+)'$", indented_block(push, 'paths-ignore') or '',
+            re.M)
+        filtered = re.findall(r"^\s+- '!(.+)'$", self._jobs()['check_paths'],
+                              re.M)
+        self.assertEqual(ignored, filtered)
+        # The four review paths of docs/code-review-tracking.md step 8.
+        # Written inline rather than as a class constant: this test
+        # reads the patterns, not the files, and test_hooks.py takes a
+        # constant naming a tracked file as a file the suite reads.
+        for path in ['REVIEWS.md', '.vscode/*.weaudit',
+                     '.vscode/*.weaudit-shas.json',
+                     '.vscode/review-scope.toml', 'docs/**']:
+            self.assertIn(path, ignored)
+        pull_request = indented_block(on, 'pull_request') or ''
+        self.assertNotIn('paths', pull_request,
+                         'a trigger-level filter on pull_request leaves '
+                         'a required Analyze pending forever')
+
+
 class RunCheckBoundaryTest(unittest.TestCase):
     """One raising check costs one criterion, not the repository's run.
 

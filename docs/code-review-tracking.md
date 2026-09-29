@@ -340,7 +340,10 @@ repository and passes through to the script.
    hunkydory's default branch, so pull requests skip it at the job
    level rather than with a trigger-level filter, while `push`
    carries no required check and keeps `paths-ignore` directly
-   (trimmed):
+   (trimmed). The fleet's CodeQL template,
+   [`templates/codeql/codeql-analysis.yml`](https://github.com/shakenfist/development/blob/main/templates/codeql/codeql-analysis.yml),
+   has the same shape and also skips `docs/**` and fork pull
+   requests:
 
    ```yaml
    on:
