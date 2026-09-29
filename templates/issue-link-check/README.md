@@ -17,6 +17,13 @@ template being the copy which goes to the fleet. No such promise is made
 about an adopter's copy: adopters are expected to edit the `with:` block,
 and the Customisation section below says when to.
 
+shakenfist/actions carries a file at that same relative path -- see
+"Prerequisites" below -- but it is the reusable workflow itself, not a
+copy of this caller template, and it is not expected to match. A
+fleet-wide comparison of this template's copies should treat that
+repository's file as out of scope rather than as a stale or drifted
+copy.
+
 ## The problem it solves
 
 GitHub only acts on issue-closing keywords found in a pull request's

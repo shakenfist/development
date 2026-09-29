@@ -3,6 +3,15 @@
 These templates set up automated PyPI releases with Sigstore signing
 for Shaken Fist Python projects.
 
+`release.yml` is a per-repository adaptation, not expected to be
+byte-identical between repositories. Deployments differ in how many
+jobs they run and how each publishes -- kerbside adds a Rust wheel
+build, ryll signs the tag on a GitHub-hosted runner rather than a
+self-hosted `vm` (both throwaway, for the same reason: see "The
+sign-tag runner" below), and hunkydory runs no `sign-tag` job at all,
+so its release tags are unsigned. A fleet-wide comparison of copies
+against this template should expect drift here rather than report it.
+
 ## Files
 
 | File | Destination | Description |
@@ -24,6 +33,24 @@ The `release.yml` workflow only uses `{{PROJECT_DISPLAY_NAME}}` (in the
 header comment). The workflow itself is project-agnostic since PyPI
 trusted publishers and GitHub environments handle the per-project
 binding.
+
+## The sign-tag runner
+
+`sign-tag` installs gitsign with a `sudo mv` into `/usr/local/bin` and
+writes global git config, so it mutates the runner and cannot use the
+shared static pool, which grants no passwordless sudo and would carry
+that global git config into whatever else lands on the same machine
+next. The template runs it on `[self-hosted, vm, debian-13, s]`.
+Phase 3 of the review import plan
+(`docs/plans/PLAN-review-import.md`) found the template missing the
+`vm` label -- `[self-hosted, debian-13, s]` names neither `static` nor
+`vm`, so it matched no runner and the job queued forever -- the same
+class of bug kerbside hit and fixed in commit 631a936 ("Run the
+release signing job on a vm runner"), there against
+`[self-hosted, debian-12, static]`. ryll reaches the same throwaway
+property a different way, on a GitHub-hosted `ubuntu-latest` runner
+with an `audit-ok: github-hosted-runner` marker -- a legitimate
+per-repository choice, not something to converge on.
 
 ## Prerequisites
 

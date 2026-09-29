@@ -20,6 +20,14 @@ When repository configuration has changed since the last export,
 the shared workflow creates a PR with the updated settings for
 review.
 
+shakenfist/actions carries a file at the same relative path,
+[`.github/workflows/export-repo-config.yml`](https://github.com/shakenfist/actions/blob/main/.github/workflows/export-repo-config.yml).
+That is the reusable workflow itself -- the `uses:` target above --
+not a copy of this caller template, and it is not expected to be
+byte-identical to it. A fleet-wide comparison of this template's
+copies should treat that repository's file as out of scope rather
+than as a stale or drifted copy.
+
 ## Customisation
 
 This workflow is project-agnostic and can be copied directly
