@@ -145,10 +145,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/test-drift-fix/pr-fix-tests.yml",
-      "author": "mikal"
-    },
-    {
       "path": "templates/test-drift-fix/README.md",
       "author": "mikal"
     },
@@ -254,14 +250,6 @@
     },
     {
       "path": "templates/codeql",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/test-drift-fix/test-drift-fix.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/test-drift-fix",
       "author": "mikal"
     },
     {
@@ -697,10 +685,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/text/workflows.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/files.py",
       "author": "mikal"
     },
@@ -841,31 +825,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/registry.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/ci_workflows.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit_snapshot.py",
       "author": "mikal"
     },
     {
       "path": "docs/audits/scheduled-workflow-health.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_metadata.py",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_ci_workflows.py",
       "author": "mikal"
     }
   ],
