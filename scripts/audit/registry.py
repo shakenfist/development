@@ -78,6 +78,7 @@ CHECKS = [
     ci_workflows.SecretScanningCi(),
     ci_workflows.FuzzNightlyReporting(),
     ci_workflows.ScheduledWorkflowHealth(),
+    ci_workflows.ReusableWorkflowSecrets(),
     review.ReviewMarksPreCommit(),
     review.ReviewCoverage(),
     review.ReviewScopeCompleteness(),

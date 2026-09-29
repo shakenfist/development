@@ -233,6 +233,42 @@ def calls_with_inherited_secrets(content, reusable):
     return False
 
 
+JOB_USES_RE = re.compile(r"""uses:\s*['"]?([^'"\s#]+)""")
+
+
+def jobs_inheriting_secrets(content):
+    """Every job which calls a reusable workflow with "secrets: inherit".
+
+    Returns (job name, called workflow) pairs in file order, whatever
+    the callee: a reusable workflow in another repository, or one in
+    this repository by relative path.
+
+    Only a job-level uses: is a call. A step's uses: names an action,
+    and a step written "- name: ..." with its uses: on the next line
+    looks just like a job key but for its indentation, so the job's
+    own keys are taken to be the ones at the shallowest indentation in
+    its body. Commented-out lines are ignored, as they are in
+    calls_with_inherited_secrets().
+    """
+    found = []
+    for name, body in workflow_job_blocks(content):
+        lines = [line for line in body.splitlines()
+                 if line.strip() and not line.lstrip().startswith('#')]
+        if not lines:
+            continue
+        indent = min(len(line) - len(line.lstrip()) for line in lines)
+        keys = [line for line in lines
+                if len(line) - len(line.lstrip()) == indent]
+        callee = None
+        for line in keys:
+            match = JOB_USES_RE.match(line.lstrip())
+            if match:
+                callee = match.group(1)
+        if callee and any(SECRETS_INHERIT_RE.match(line) for line in keys):
+            found.append((name, callee))
+    return found
+
+
 def strip_trailing_comment(line):
     """Cut a line at the `#` that starts a comment, if there is one.
 

@@ -808,8 +808,8 @@ class PrAutoReviewSecretsInheritTest(CheckTestCase):
         'pr-auto-review.yml@main\n'
     )
     INHERITS = REVIEWER + '    secrets: inherit\n'
-    # smoke-cluster.yml genuinely needs the cluster secrets. Only the
-    # reviewer job is the finding.
+    # Another callee inheriting is reusable-workflow-secrets' finding,
+    # not this criterion's, so only the reviewer job is reported here.
     SMOKE_INHERITS = (
         '  smoke:\n'
         '    uses: shakenfist/actions/.github/workflows/'
@@ -845,9 +845,9 @@ class PrAutoReviewSecretsInheritTest(CheckTestCase):
         self.assert_fail(result, containing='secrets: inherit')
         self.assertIn('ci.yml', result['details'])
 
-    def test_other_callers_may_inherit(self):
-        # smoke-cluster.yml reads real secrets. Sweeping it up in this
-        # finding would be telling projects to break their own CI.
+    def test_other_callers_are_not_this_criterions_finding(self):
+        # ReusableWorkflowSecrets reports them. Reporting them here too
+        # would file two issues for one line.
         self.assert_pass(self._check(self.REVIEWER + self.SMOKE_INHERITS))
 
     def test_a_commented_out_inherit_is_not_a_finding(self):
@@ -2563,3 +2563,121 @@ class ScheduledWorkflowHealthTest(CheckTestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class JobsInheritingSecretsTest(unittest.TestCase):
+    """Only a job-level uses: is a reusable workflow call."""
+
+    def test_a_step_uses_is_not_a_call(self):
+        # The second key of a step looks like a job key but for its
+        # indentation, and a job with a step action and an inherit it
+        # cannot legally carry must not be read as a call.
+        content = (
+            'jobs:\n'
+            '  build:\n'
+            '    runs-on: static\n'
+            '    steps:\n'
+            '      - name: Checkout\n'
+            '        uses: actions/checkout@v7\n'
+        )
+        self.assertEqual([], workflows.jobs_inheriting_secrets(content))
+
+    def test_local_and_remote_callees_are_both_named(self):
+        content = (
+            'jobs:\n'
+            '  smoke:\n'
+            '    uses: shakenfist/actions/.github/workflows/'
+            'smoke-cluster.yml@main\n'
+            '    secrets: inherit\n'
+            '  fix:\n'
+            "    uses: './.github/workflows/test-drift-fix.yml'\n"
+            '    secrets: inherit  # TODO\n'
+        )
+        self.assertEqual(
+            [('smoke', 'shakenfist/actions/.github/workflows/smoke-cluster.yml@main'),
+             ('fix', './.github/workflows/test-drift-fix.yml')],
+            workflows.jobs_inheriting_secrets(content))
+
+
+class ReusableWorkflowSecretsTest(CheckTestCase):
+    """No job hands a reusable workflow every secret the repository holds."""
+
+    check_class = ci_workflows.ReusableWorkflowSecrets
+
+    SMOKE = (
+        '  smoke:\n'
+        '    uses: shakenfist/actions/.github/workflows/'
+        'smoke-cluster.yml@main\n'
+    )
+    FIX = (
+        '  fix-tests:\n'
+        '    needs: trigger-fix\n'
+        '    uses: ./.github/workflows/test-drift-fix.yml\n'
+        '    with:\n'
+        "      max_turns: '50'\n"
+    )
+
+    def run_check(self, workflows):
+        self.fixture.workflows(workflows)
+        return self.check(has_workflows_dir=True)
+
+    def test_no_workflows_is_not_applicable(self):
+        self.assert_skip(self.check(has_workflows_dir=False))
+
+    def test_a_call_without_inherit_passes(self):
+        self.assert_pass(self.run_check({'ci.yml': 'jobs:\n' + self.SMOKE}))
+
+    def test_a_named_secret_passes(self):
+        named = self.SMOKE + (
+            '    secrets:\n'
+            '      PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}\n')
+        self.assert_pass(self.run_check({'ci.yml': 'jobs:\n' + named}))
+
+    def test_a_remote_callee_inheriting_fails(self):
+        result = self.run_check({
+            'functional-tests.yml': 'jobs:\n' + self.SMOKE + '    secrets: inherit\n'})
+        self.assert_fail(result, containing='secrets: inherit')
+        self.assertEqual(
+            ['functional-tests.yml: job smoke calls '
+             'shakenfist/actions/.github/workflows/smoke-cluster.yml@main'],
+            result['findings'])
+
+    def test_a_local_callee_inheriting_fails(self):
+        # The moving-ref half of #153 does not apply, but the rule does.
+        result = self.run_check({
+            'pr-fix-tests.yml': 'jobs:\n' + self.FIX + '    secrets: inherit\n'})
+        self.assert_fail(result)
+        self.assertIn('pr-fix-tests.yml: job fix-tests calls ./.github/workflows/test-drift-fix.yml',
+                      result['findings'])
+
+    def test_a_commented_out_inherit_passes(self):
+        self.assert_pass(self.run_check({
+            'ci.yml': 'jobs:\n' + self.SMOKE + '    # secrets: inherit\n'}))
+
+    def test_callees_with_their_own_criterion_are_left_to_it(self):
+        # export-repo-config and ci-review-automation each report their
+        # own callee's inherit. A second issue for the same line is noise.
+        self.assert_pass(self.run_check({
+            'export-repo-config.yml': (
+                'jobs:\n  export-config:\n'
+                '    uses: shakenfist/actions/.github/workflows/'
+                'export-repo-config.yml@main\n'
+                '    secrets: inherit\n'),
+            'ci.yml': (
+                'jobs:\n  automated_reviewer:\n'
+                '    uses: shakenfist/actions/.github/workflows/'
+                'pr-auto-review.yml@main\n'
+                "    secrets: 'inherit'\n"),
+        }))
+
+    def test_findings_are_sorted_by_workflow(self):
+        inherits = 'jobs:\n' + self.SMOKE + '    secrets: inherit\n'
+        result = self.run_check({'z.yml': inherits, 'a.yml': inherits})
+        self.assertEqual(['a.yml', 'z.yml'],
+                         [f.split(':')[0] for f in result['findings']])
+
+    def test_the_template_passes(self):
+        # templates/test-drift-fix/pr-fix-tests.yml carried the inherit
+        # until #153, which is how three repositories came to.
+        self.assert_pass(self.run_check({
+            'pr-fix-tests.yml': repo_text('templates', 'test-drift-fix', 'pr-fix-tests.yml')}))
