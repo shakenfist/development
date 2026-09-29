@@ -91,9 +91,12 @@ The procedure:
    - *Code-shaped / expensive* -- unit tests, lint, builds,
      functional test lanes, CodeQL, dependency-pin reconciliation:
      anything whose result cannot change when only review state
-     changes. These must carry the `paths-ignore` block with all
-     four review paths (`REVIEWS.md`, `.vscode/*.weaudit`,
-     `.vscode/*.weaudit-shas.json`, `.vscode/review-scope.toml`).
+     changes. If the workflow backs no required status check, it
+     must carry the trigger-level `paths-ignore` block with all four
+     review paths (`REVIEWS.md`, `.vscode/*.weaudit`,
+     `.vscode/*.weaudit-shas.json`, `.vscode/review-scope.toml`). If
+     it does back a required check, trigger-level `paths-ignore` is
+     the wrong tool -- see step 3.
    - *Content scanners* -- gitleaks, bidi/zero-width or other
      Unicode smuggling checks, anything that reads prose: these
      must **not** skip review-only changes. Review notes are prose,
@@ -102,10 +105,12 @@ The procedure:
      and say so in your report -- a wasted CI run is cheaper than
      an unscanned secret.
 
-3. **Check the merge is not wedged.** Skipping is only safe while
-   no skipped workflow provides a required status check: a skipped
-   required check sits "expected" forever and blocks the merge.
-   Check rulesets and branch protection for the default branch:
+3. **Check the merge is not wedged.** Trigger-level `paths-ignore`
+   is only safe while no skipped workflow provides a required status
+   check: a workflow whose trigger never fires never starts, so it
+   never reports any of its jobs, and a required check that never
+   reports blocks the merge forever. Check rulesets and branch
+   protection for the default branch:
 
    ```bash
    gh api repos/shakenfist/<repo>/rulesets --jq '.[].id' | while read -r id; do
@@ -116,10 +121,16 @@ The procedure:
        --jq '.required_status_checks.contexts' 2>/dev/null
    ```
 
-   If a required check's job would be skipped by `paths-ignore`,
-   flag it rather than silently narrowing the ignore list -- the
-   right fix (drop the requirement, or keep that lane running) is
-   Michael's call.
+   If a required check's job would be skipped by `paths-ignore`, do
+   not silently narrow the ignore list -- use the job-level form
+   instead (see step 8 of `docs/code-review-tracking.md`, worked
+   example in hunkydory's `codeql-analysis.yml`): a `check_paths`
+   job feeding the real job's `needs:`/`if:`, so the workflow still
+   starts and the required check reports "skipped" rather than never
+   reporting at all. Still flag it, rather than restructuring it
+   yourself, if the required check comes from a workflow the adopter
+   cannot restructure (for example a third-party reusable workflow
+   whose job graph is not under this repository's control).
 
 4. **Report** the classification table honestly: which workflows
    skip, which deliberately do not and why, and any you were unsure
