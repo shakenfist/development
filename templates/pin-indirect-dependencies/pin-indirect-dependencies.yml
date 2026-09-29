@@ -17,9 +17,14 @@
 #     to tools/pin-indirect-dependencies.sh (keep it executable).
 #   - A repository secret called DEPENDENCIES_TOKEN with push and PR
 #     permissions.
+#   - Optionally, a tools/pin-indirect-dependencies-apt.txt listing
+#     extra apt packages the resolve needs (one per line, "#" comments
+#     allowed). Read only if present; see
+#     pin-indirect-dependencies-apt.sh.
 #
-# Placeholders to replace:
-#   {{PROJECT_NAME}}  -- repository / checkout directory name
+# No placeholders: this file is copied verbatim. The checkout directory
+# used to be filled in by hand; it now comes from
+# ${{ github.event.repository.name }} at runtime.
 #
 # Template source:
 #   https://github.com/shakenfist/development/tree/main/templates/pin-indirect-dependencies/
@@ -100,18 +105,18 @@ jobs:
       # credentials, so every git operation in the script below fails for
       # a non-obvious reason.
       #
-      # Add any additional system-level build dependencies to this same
-      # invocation. The resolve runs in an isolated venv, so anything
-      # which compiles at install time needs its build dependencies
-      # present. For example, kerbside appends:
-      #   pkg-config build-essential default-libmysqlclient-dev
-      # because mysqlclient ships no wheel and builds against
-      # libmysqlclient.
+      # Project-specific build dependencies (e.g. mysqlclient needing
+      # libmysqlclient-dev, because it ships no wheel) are not installed
+      # here: this step runs before the target repository is checked
+      # out, so it cannot yet read a file from it. They go in an
+      # optional tools/pin-indirect-dependencies-apt.txt in the target
+      # repository instead, installed by "Install project-specific
+      # build dependencies" below once the checkout has happened.
       #
-      # Keep this to one invocation, and keep the lock-timeout and confold
-      # options on every apt call added below. A bare "apt install" on an
-      # ephemeral vm that boots into an unattended-upgrades window either
-      # fails on the dpkg lock or hangs on a conffile prompt.
+      # Keep the lock-timeout and confold options on every apt call in
+      # this workflow. A bare "apt install" on an ephemeral vm that
+      # boots into an unattended-upgrades window either fails on the
+      # dpkg lock or hangs on a conffile prompt.
       - name: Install system build dependencies
         run: |
           sudo apt update
@@ -146,13 +151,29 @@ jobs:
       # values, and an empty string is falsy, so a falsy true-branch is
       # discarded and the || arm fires regardless of the condition. The
       # true-branch therefore has to be the truthy value.
-      - name: Checkout {{PROJECT_NAME}}
+      - name: Checkout ${{ github.event.repository.name }}
         uses: actions/checkout@v7
         with:
-          path: {{PROJECT_NAME}}
+          path: ${{ github.event.repository.name }}
           fetch-depth: 0
           token: ${{ github.event_name != 'pull_request' && secrets.DEPENDENCIES_TOKEN || github.token }}
           persist-credentials: ${{ github.event_name != 'pull_request' }}
+
+      # Project-specific build dependencies live in the repository just
+      # checked out, so this can only run afterwards.
+      # pin-indirect-dependencies-apt.sh does nothing when
+      # tools/pin-indirect-dependencies-apt.txt is absent -- the common
+      # case, which is why this is a no-op rather than a required file.
+      #
+      # PROJECT_DIR is an env var rather than the expression inlined
+      # into the run: script directly, so a repository name is never
+      # substituted straight into shell text.
+      - name: Install project-specific build dependencies
+        env:
+          PROJECT_DIR: ${{ github.event.repository.name }}
+        run: |
+          cd "${GITHUB_WORKSPACE}/${PROJECT_DIR}"
+          tools/pin-indirect-dependencies-apt.sh
 
       - name: Reconcile pinned indirect dependencies
         env:
@@ -161,6 +182,7 @@ jobs:
           # HEAD at the merge commit, so pushing a branch from one would
           # carry the whole pull request into an automated pin update.
           GITHUB_TOKEN: ${{ github.event_name != 'pull_request' && secrets.DEPENDENCIES_TOKEN || '' }}
+          PROJECT_DIR: ${{ github.event.repository.name }}
         run: |
-          cd ${GITHUB_WORKSPACE}/{{PROJECT_NAME}}
+          cd "${GITHUB_WORKSPACE}/${PROJECT_DIR}"
           tools/pin-indirect-dependencies.sh

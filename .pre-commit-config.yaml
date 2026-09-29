@@ -31,16 +31,18 @@ repos:
       # one thing about a template actionlint cannot judge from where it
       # is stored; everything else it checks is checked.
       #
-      # Four templates carry {{PLACEHOLDER}} substitutions that are not
+      # Three templates carry {{PLACEHOLDER}} substitutions that are not
       # valid YAML until an adopting project fills them in -- a bare
       # {{PROJECT_NAME}} parses as a mapping, not a string -- so they
       # cannot be linted where they are stored. They are excluded by
-      # name rather than by a pattern, so adding a fifth is a decision
+      # name rather than by a pattern, so adding a fourth is a decision
       # somebody makes rather than one that happens quietly. Phase 3 of
-      # the review import plan parameterised renovate.yml onto
-      # ${{ github.repository }} instead, which is why it is no longer
-      # in this list. The nine copy-directly templates, which are the
-      # ones the fleet actually runs unmodified, are all checked.
+      # the review import plan parameterised renovate.yml and
+      # pin-indirect-dependencies.yml onto runtime expressions
+      # (${{ github.repository }}, ${{ github.event.repository.name }})
+      # instead, which is why they are no longer in this list. The ten
+      # copy-directly templates, which are the ones the fleet actually
+      # runs unmodified, are all checked.
       - id: actionlint
         alias: actionlint-templates
         name: Lint the workflow templates
@@ -48,7 +50,6 @@ repos:
         exclude: |
           (?x)^templates/(
             issue-fix/issue-fix\.yml|
-            pin-indirect-dependencies/pin-indirect-dependencies\.yml|
             release-automation/release\.yml|
             test-drift-fix/test-drift-fix\.yml
           )$
