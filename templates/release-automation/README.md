@@ -41,15 +41,17 @@ writes global git config, so it mutates the runner and cannot use the
 shared static pool, which grants no passwordless sudo and would carry
 that global git config into whatever else lands on the same machine
 next. The template runs it on `[self-hosted, vm, debian-13, s]`.
-Phase 3 of the review import plan
-(`docs/plans/PLAN-review-import.md`) found the template missing the
-`vm` label -- `[self-hosted, debian-13, s]` names neither `static` nor
-`vm`, so it matched no runner and the job queued forever -- the same
-class of bug kerbside hit and fixed in commit 631a936 ("Run the
-release signing job on a vm runner"), there against
-`[self-hosted, debian-12, static]`. ryll reaches the same throwaway
-property a different way, on a GitHub-hosted `ubuntu-latest` runner
-with an `audit-ok: github-hosted-runner` marker -- a legitimate
+
+The `vm` label is what makes that a requirement. GitHub gives a job
+to any runner carrying every label it lists, so a job asking only for
+`[self-hosted, debian-13, s]` can land on a vm runner (they carry
+`debian-13` and `s`) but equally on any other runner that happens to
+carry those two labels. Naming `vm` is the only way to insist on a
+throwaway runner. kerbside moved its `sign-tag` job to a vm runner for
+the same reason in commit 631a936 ("Run the release signing job on a
+vm runner"). ryll reaches the same throwaway property a different
+way, on a GitHub-hosted `ubuntu-latest` runner with an
+`audit-ok: github-hosted-runner` marker -- a legitimate
 per-repository choice, not something to converge on.
 
 ## Prerequisites
