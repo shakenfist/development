@@ -249,6 +249,17 @@ the defect with nothing to say so. The output assertion is not
 measured: it changes how a failure is reported, not whether the gate
 holds.
 
+### A failed dispatch fails the run (2026-09-30)
+
+Raised by the automated review of shakenfist/kerbside#496 and filed
+here as shakenfist/development#192. When `gh workflow run` failed,
+`pr-retest.yml` posted "Unable to trigger functional tests" on the pull
+request and then exited 0, so Actions showed a green run for a request
+that did nothing. The confirmation step now exits 1 after posting that
+comment: the comment still comes first, so the requester gets the
+explanation, and maintainers scanning Actions see the failure. Like the
+output assertion above, this is not measured by the criterion.
+
 ### The fork guard
 
 `pr-bot-trigger`'s `pr-ref` output is `.head.ref`: the branch name in the
