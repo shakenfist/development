@@ -291,6 +291,31 @@ comment: the comment still comes first, so the requester gets the
 explanation, and maintainers scanning Actions see the failure. Like the
 output assertion above, this is not measured by the criterion.
 
+### A failure after the reaction is said on the pull request (2026-10-01)
+
+Raised in the round-three review of shakenfist/development#180 and
+filed as #187. By the time either workflow can fail, the requester has
+had the rocket reaction, and the only place a failure was explained
+was the run log -- including the confirm step's "comment again to
+review the new head", the one failure with a known remedy. Each job
+now ends with an `if: failure()` step that posts a comment:
+
+* **Both trigger jobs** say the request will not run when the output
+  assertion fails. Gated on that step's outcome, so a failure inside
+  `pr-bot-trigger`, which may not have acknowledged anything, is left
+  to the action.
+* **The re-review job** says no review was posted, naming the moved
+  head when the confirm step failed and pointing at the run log
+  otherwise. Gated on the reviewer having been skipped, because
+  `review-pr-with-claude` reports its own failures.
+
+The bodies are fixed text, so nothing from the triggering comment
+reaches them. `MergeRefResolutionTest` holds the notices as the last
+step of each job and checks that the step ids their gates read exist.
+Like the output assertion, this changes how a failure is reported
+rather than whether a gate holds, so the criterion does not measure
+it.
+
 ### The fork guard
 
 `pr-bot-trigger`'s `pr-ref` output is `.head.ref`: the branch name in the
