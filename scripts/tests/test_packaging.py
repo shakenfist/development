@@ -175,6 +175,50 @@ class PinIndirectDepsScopeTest(CheckTestCase):
         )
         self.assert_pass(self.check(has_pyproject_toml=True))
 
+    def _in_scope_with_template_workflow(self):
+        template = os.path.join(REPO_ROOT, 'templates',
+                                'pin-indirect-dependencies',
+                                'pin-indirect-dependencies.yml')
+        with open(template) as f:
+            self.fixture.workflow('pin-indirect-dependencies.yml', f.read())
+        self.fixture.write('tools/pin-indirect-dependencies.sh', '')
+        self.fixture.write(
+            'pyproject.toml',
+            '[project]\nname = "example"\ndependencies = [\n'
+            '    "click==8.4.2",\n'
+            '    # START_OF_INDIRECT_DEPS\n'
+            '    # END_OF_INDIRECT_DEPS\n'
+            ']\n'
+        )
+
+    def test_a_helper_the_workflow_runs_is_required(self):
+        # The template runs pin-indirect-dependencies-apt.sh on every
+        # run, so a repository that re-syncs only the workflow fails
+        # daily with "No such file or directory".
+        self._in_scope_with_template_workflow()
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='tools/pin-indirect-dependencies-apt.sh')
+
+    def test_the_template_with_its_helpers_passes(self):
+        self._in_scope_with_template_workflow()
+        self.fixture.write('tools/pin-indirect-dependencies-apt.sh', '')
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_a_script_named_only_in_a_comment_is_not_required(self):
+        self.fixture.workflow(
+            'pin-indirect-dependencies.yml',
+            '# tools/something-else.sh used to run here\n')
+        self.fixture.write('tools/pin-indirect-dependencies.sh', '')
+        self.fixture.write(
+            'pyproject.toml',
+            '[project]\nname = "example"\ndependencies = [\n'
+            '    "click==8.4.2",\n'
+            '    # START_OF_INDIRECT_DEPS\n'
+            '    # END_OF_INDIRECT_DEPS\n'
+            ']\n'
+        )
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
     def test_unparseable_pyproject_is_out_of_scope(self):
         self.fixture.write('pyproject.toml', 'this is not = valid toml [\n')
         self.assert_skip(self.check(has_pyproject_toml=True))

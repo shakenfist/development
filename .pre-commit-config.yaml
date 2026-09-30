@@ -38,11 +38,11 @@ repos:
       # name rather than by a pattern, so adding a fourth is a decision
       # somebody makes rather than one that happens quietly. Phase 3 of
       # the review import plan parameterised renovate.yml and
-      # pin-indirect-dependencies.yml onto runtime expressions
-      # (${{ github.repository }}, ${{ github.event.repository.name }})
-      # instead, which is why they are no longer in this list. The ten
-      # copy-directly templates, which are the ones the fleet actually
-      # runs unmodified, are all checked.
+      # pin-indirect-dependencies.yml (${{ github.repository }}, and a
+      # checkout into the workspace root) instead, which is why they
+      # are no longer in this list. The ten copy-directly templates,
+      # which are the ones the fleet actually runs unmodified, are all
+      # checked.
       - id: actionlint
         alias: actionlint-templates
         name: Lint the workflow templates

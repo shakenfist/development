@@ -887,6 +887,163 @@ class CodeqlTemplateTest(unittest.TestCase):
                          'a required Analyze pending forever')
 
 
+class ConvergedTemplatesTest(unittest.TestCase):
+    """Templates copied verbatim must stay copyable verbatim.
+
+    Phase 3 of the review import plan took the {{PLACEHOLDER}}
+    substitutions out of renovate.yml and pin-indirect-dependencies.yml
+    so that every copy could be byte-identical to its template, and
+    dropped both from actionlint's exclude list in .pre-commit-config.yaml
+    on the strength of it. A placeholder reintroduced into either would
+    break that quietly: actionlint would reject it, but only as a YAML
+    error in a file nobody reads as a template any more. So the exclude
+    list and the templates are held to each other here.
+    """
+
+    PRE_COMMIT = '.pre-commit-config.yaml'
+    # A {{ that is not the tail of an Actions ${{ expression.
+    PLACEHOLDER_RE = re.compile(r'(?<!\$)\{\{')
+
+    def _read(self, name):
+        with open(os.path.join(REPO_ROOT, name)) as f:
+            return f.read()
+
+    def _excluded_templates(self):
+        config = self._read(self.PRE_COMMIT)
+        hook = config.split('alias: actionlint-templates', 1)[1]
+        exclude = hook.split('exclude: |', 1)[1].split('args:', 1)[0]
+        return set(re.findall(r'([\w-]+/[\w-]+\\\.ya?ml)', exclude))
+
+    def test_only_excluded_templates_carry_placeholders(self):
+        excluded = {e.replace('\\', '') for e in self._excluded_templates()}
+        self.assertTrue(excluded, 'could not find the actionlint-templates '
+                                  'exclude list in .pre-commit-config.yaml')
+        with_placeholders = set()
+        templates = os.path.join(REPO_ROOT, 'templates')
+        for directory, _, files in os.walk(templates):
+            for name in files:
+                if not name.endswith(('.yml', '.yaml')):
+                    continue
+                path = os.path.join(directory, name)
+                relative = os.path.relpath(path, templates)
+                # Comments included: an adopter fills in every
+                # placeholder, and some templates carry them only there.
+                with open(path) as f:
+                    if self.PLACEHOLDER_RE.search(f.read()):
+                        with_placeholders.add(relative)
+        self.assertEqual(
+            excluded, with_placeholders,
+            'the actionlint-templates exclude list must name exactly the '
+            'templates that carry {{PLACEHOLDER}} substitutions')
+
+    def test_this_repository_runs_renovate_verbatim(self):
+        self.assertEqual(
+            self._read('.github/workflows/renovate.yml'),
+            self._read('templates/renovate/renovate.yml'),
+            '.github/workflows/renovate.yml must be byte-identical to '
+            'templates/renovate/renovate.yml: the template README tells '
+            'the fleet to copy it unmodified')
+
+    def test_pin_indirect_does_not_read_the_event_repository(self):
+        # A schedule event's payload has no repository object, so on
+        # the daily run -- this workflow's main trigger -- any
+        # github.event.repository expression is empty.
+        template = 'templates/pin-indirect-dependencies/' \
+            'pin-indirect-dependencies.yml'
+        for line in self._read(template).splitlines():
+            if line.lstrip().startswith('#'):
+                continue
+            self.assertNotIn('github.event.repository', line)
+
+    def test_pin_indirect_self_test_triggers_on_what_it_runs(self):
+        # The pull_request self-test exists to exercise a change to the
+        # scripts this workflow runs, so it must fire on every one of
+        # them, and on the apt list the helper reads.
+        template = self._read('templates/pin-indirect-dependencies/'
+                              'pin-indirect-dependencies.yml')
+        on = indented_block(template, 'on') or ''
+        paths = indented_block(indented_block(on, 'pull_request') or '',
+                               'paths') or ''
+        run = [line for line in template.splitlines()
+               if 'run:' in line and not line.lstrip().startswith('#')]
+        scripts = set(re.findall(r'tools/[\w.-]+\.sh', '\n'.join(run)))
+        self.assertIn('tools/pin-indirect-dependencies-apt.sh', scripts)
+        for path in sorted(scripts) + [
+                'tools/pin-indirect-dependencies-apt.txt']:
+            self.assertIn(f'- {path}\n', paths + '\n')
+
+
+class PinIndirectAptScriptTest(unittest.TestCase):
+    """The apt helper's paths that must not reach apt-get at all.
+
+    sudo is replaced on PATH by a stub that records being called, so a
+    path that should have exited early fails the test rather than
+    installing anything.
+    """
+
+    SCRIPT = os.path.join(REPO_ROOT, 'templates', 'pin-indirect-dependencies',
+                          'pin-indirect-dependencies-apt.sh')
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.work = os.path.join(self.tmp.name, 'repo')
+        self.bin = os.path.join(self.tmp.name, 'bin')
+        self.called = os.path.join(self.tmp.name, 'sudo-called')
+        os.makedirs(os.path.join(self.work, 'tools'))
+        os.makedirs(self.bin)
+        stub = os.path.join(self.bin, 'sudo')
+        with open(stub, 'w') as f:
+            f.write(f'#!/bin/bash\necho "$@" >> {self.called}\n')
+        os.chmod(stub, 0o755)
+
+    def _run(self, apt_list=None):
+        if apt_list is not None:
+            with open(os.path.join(
+                    self.work, 'tools',
+                    'pin-indirect-dependencies-apt.txt'), 'w') as f:
+                f.write(apt_list)
+        env = dict(os.environ)
+        env['PATH'] = self.bin + os.pathsep + env['PATH']
+        return subprocess.run(['bash', self.SCRIPT], cwd=self.work, env=env,
+                              capture_output=True, text=True)
+
+    def _sudo_calls(self):
+        if not os.path.exists(self.called):
+            return []
+        with open(self.called) as f:
+            return f.read().splitlines()
+
+    def test_absent_list_is_a_no_op(self):
+        result = self._run()
+        self.assertEqual(0, result.returncode)
+        self.assertEqual(
+            ['No tools/pin-indirect-dependencies-apt.txt, nothing extra to '
+             'install.'], result.stdout.splitlines())
+        self.assertEqual([], self._sudo_calls())
+
+    def test_empty_list_is_a_no_op(self):
+        self.assertEqual(0, self._run('').returncode)
+        self.assertEqual([], self._sudo_calls())
+
+    def test_comments_only_list_is_a_no_op(self):
+        self.assertEqual(0, self._run('# nothing\n\n   # here\n').returncode)
+        self.assertEqual([], self._sudo_calls())
+
+    def test_an_option_is_not_a_package(self):
+        result = self._run('pkg-config\n-o APT::Get::Assume-Yes=false\n')
+        self.assertEqual(1, result.returncode)
+        self.assertIn('is not a package name', result.stderr)
+        self.assertEqual([], self._sudo_calls())
+
+    def test_packages_follow_the_end_of_options_marker(self):
+        result = self._run('# mysqlclient\npkg-config\nlibfoo2.0-dev\n')
+        self.assertEqual(0, result.returncode, result.stderr)
+        install = self._sudo_calls()[-1]
+        self.assertTrue(install.endswith(' install -- pkg-config libfoo2.0-dev'),
+                        install)
+
+
 class RunCheckBoundaryTest(unittest.TestCase):
     """One raising check costs one criterion, not the repository's run.
 

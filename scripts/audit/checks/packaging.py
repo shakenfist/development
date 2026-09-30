@@ -170,6 +170,10 @@ DEP_ARRAY_OPEN_RE = re.compile(r'=\s*\[')
 
 TOML_SECTION_RE = re.compile(r'^\s*\[[A-Za-z_]')
 
+# A tools/ shell script a workflow names, for checking the repository
+# carries every script its workflow will run.
+TOOLS_SCRIPT_RE = re.compile(r'\btools/[A-Za-z0-9_.-]+\.sh\b')
+
 
 def canonical_dependency_name(name):
     """Return the PEP 503 canonical form of a distribution name.
@@ -902,10 +906,40 @@ class PinIndirectDependencies(Check):
                 'Missing tools/pin-indirect-dependencies.sh '
                 '(reconciler script from the template)'
             )
+        for script in workflow_tools_scripts(
+                repo.path, '.github/workflows/pin-indirect-dependencies.yml'):
+            if script == 'tools/pin-indirect-dependencies.sh':
+                continue
+            if not check_file_exists(repo.path, script):
+                issues.append(
+                    f'Missing {script}, which pin-indirect-dependencies.yml '
+                    f'runs (copy it from the template)'
+                )
 
         if issues:
             return self.fail('; '.join(issues))
         return self.ok('Indirect dependency pinning is configured')
+
+
+def workflow_tools_scripts(repo_path, workflow):
+    """The tools/ shell scripts a workflow names, outside its comments.
+
+    Derived from the workflow rather than listed in the check, so a
+    template that starts running another helper is covered the day it
+    does: a repository which re-syncs the workflow but not the helper
+    otherwise fails every run with "No such file or directory", and
+    nothing else notices. A missing workflow names nothing.
+    """
+    path = os.path.join(repo_path, workflow)
+    if not os.path.exists(path):
+        return []
+    scripts = set()
+    with open(path, 'r', errors='replace') as f:
+        for line in f:
+            if line.lstrip().startswith('#'):
+                continue
+            scripts.update(TOOLS_SCRIPT_RE.findall(line))
+    return sorted(scripts)
 
 
 class DependencyNameNormalization(Check):

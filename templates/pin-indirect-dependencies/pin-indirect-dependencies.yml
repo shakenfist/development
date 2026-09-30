@@ -23,8 +23,12 @@
 #     pin-indirect-dependencies-apt.sh.
 #
 # No placeholders: this file is copied verbatim. The checkout directory
-# used to be filled in by hand; it now comes from
-# ${{ github.event.repository.name }} at runtime.
+# used to be named after the project and filled in by hand; the
+# repository is now checked out into the workspace root instead. Do not
+# reintroduce a path derived from github.event.repository: a schedule
+# event's payload has no repository object, so on the daily run that
+# expression is empty and the scheduled and pull_request runs would lay
+# the checkout out differently.
 #
 # Template source:
 #   https://github.com/shakenfist/development/tree/main/templates/pin-indirect-dependencies/
@@ -39,6 +43,8 @@ on:
     paths:
       - .github/workflows/pin-indirect-dependencies.yml
       - tools/pin-indirect-dependencies.sh
+      - tools/pin-indirect-dependencies-apt.sh
+      - tools/pin-indirect-dependencies-apt.txt
   workflow_dispatch:
   schedule:
     - cron: '00 00 * * *'        # utc
@@ -151,10 +157,9 @@ jobs:
       # values, and an empty string is falsy, so a falsy true-branch is
       # discarded and the || arm fires regardless of the condition. The
       # true-branch therefore has to be the truthy value.
-      - name: Checkout ${{ github.event.repository.name }}
+      - name: Checkout
         uses: actions/checkout@v7
         with:
-          path: ${{ github.event.repository.name }}
           fetch-depth: 0
           token: ${{ github.event_name != 'pull_request' && secrets.DEPENDENCIES_TOKEN || github.token }}
           persist-credentials: ${{ github.event_name != 'pull_request' }}
@@ -163,17 +168,11 @@ jobs:
       # checked out, so this can only run afterwards.
       # pin-indirect-dependencies-apt.sh does nothing when
       # tools/pin-indirect-dependencies-apt.txt is absent -- the common
-      # case, which is why this is a no-op rather than a required file.
-      #
-      # PROJECT_DIR is an env var rather than the expression inlined
-      # into the run: script directly, so a repository name is never
-      # substituted straight into shell text.
+      # case, which is why the list is optional. The script itself is
+      # not: the consistency audit fails a repository whose workflow
+      # names a tools/ script it does not carry.
       - name: Install project-specific build dependencies
-        env:
-          PROJECT_DIR: ${{ github.event.repository.name }}
-        run: |
-          cd "${GITHUB_WORKSPACE}/${PROJECT_DIR}"
-          tools/pin-indirect-dependencies-apt.sh
+        run: tools/pin-indirect-dependencies-apt.sh
 
       - name: Reconcile pinned indirect dependencies
         env:
@@ -182,7 +181,4 @@ jobs:
           # HEAD at the merge commit, so pushing a branch from one would
           # carry the whole pull request into an automated pin update.
           GITHUB_TOKEN: ${{ github.event_name != 'pull_request' && secrets.DEPENDENCIES_TOKEN || '' }}
-          PROJECT_DIR: ${{ github.event.repository.name }}
-        run: |
-          cd "${GITHUB_WORKSPACE}/${PROJECT_DIR}"
-          tools/pin-indirect-dependencies.sh
+        run: tools/pin-indirect-dependencies.sh

@@ -72,12 +72,15 @@ the applies-to test is now made.
 
 1. Copy `pin-indirect-dependencies.yml` to
    `.github/workflows/pin-indirect-dependencies.yml`. It has no
-   placeholders and needs no edits: the checkout directory comes from
-   `${{ github.event.repository.name }}` at runtime.
+   placeholders and needs no edits: the repository is checked out into
+   the workspace root, so nothing in it names the project.
 2. Copy `pin-indirect-dependencies.sh` to
    `tools/pin-indirect-dependencies.sh`, keeping it executable.
    Likewise `pin-indirect-dependencies-apt.sh` to
-   `tools/pin-indirect-dependencies-apt.sh`.
+   `tools/pin-indirect-dependencies-apt.sh`: the workflow runs it on
+   every run, so it is required even with no apt list, and the
+   consistency audit fails a repository whose workflow names a
+   `tools/` script it does not carry.
 3. Add `# START_OF_INDIRECT_DEPS` and `# END_OF_INDIRECT_DEPS` marker
    comments to `pyproject.toml` delimiting the pinned block (which may
    initially be empty) inside the `[project] dependencies` list.
