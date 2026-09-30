@@ -633,8 +633,8 @@ class MergeRefResolutionTest(unittest.TestCase):
     # copied unmodified, which is what makes byte-identical the right
     # assertion here. pr-retest.yml used to be excluded, because each
     # copy edited in the name of the workflow it dispatched; that name
-    # is now the RETEST_WORKFLOW repository variable, and this
-    # repository uses its ci.yml default.
+    # is now the RETEST_WORKFLOW repository variable, which this
+    # repository sets to ci.yml.
     def test_the_two_copies_are_identical(self):
         for deployed_name, template_name in [
                 (self.DEPLOYED_RE_REVIEW, self.TEMPLATE_RE_REVIEW),

@@ -122,10 +122,10 @@ Templates are in
 | Template | Customisation | Description |
 |----------|---------------|-------------|
 | `pr-re-review.yml` | None | Manual re-review trigger |
-| `pr-retest.yml` | `RETEST_WORKFLOW` repository variable, if the test workflow is not `ci.yml` | Manual test re-run |
+| `pr-retest.yml` | `RETEST_WORKFLOW` repository variable, if the test workflow is not `functional-tests.yml` | Manual test re-run |
 
 Both files are project-agnostic and can be copied directly.
-`pr-retest.yml` dispatches `ci.yml` unless the `RETEST_WORKFLOW`
+`pr-retest.yml` dispatches `functional-tests.yml` unless the `RETEST_WORKFLOW`
 repository variable names another workflow; see the
 [template README](https://github.com/shakenfist/development/tree/main/templates/ci-review-automation/README.md#choosing-what-a-retest-dispatches).
 

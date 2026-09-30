@@ -19,28 +19,30 @@ suites), see the separate
 | File | Destination | Description |
 |------|-------------|-------------|
 | `pr-re-review.yml` | `.github/workflows/pr-re-review.yml` | Manual re-review trigger |
-| `pr-retest.yml` | `.github/workflows/pr-retest.yml` | Manual test re-run (dispatches the `RETEST_WORKFLOW` repository variable, default `ci.yml`; see below) |
+| `pr-retest.yml` | `.github/workflows/pr-retest.yml` | Manual test re-run (dispatches the `RETEST_WORKFLOW` repository variable, default `functional-tests.yml`; see below) |
 
 ## Choosing what a retest dispatches
 
 `pr-retest.yml` dispatches the workflow named by the `RETEST_WORKFLOW`
-repository variable, or `ci.yml` when the variable is unset. That
-default suits actions, hunkydory, ryll and development. A repository
-whose test workflow has another name sets the variable instead of
-editing the file, so the copy stays byte-identical to the template:
+repository variable, or `functional-tests.yml` when the variable is
+unset. That default is the fleet's `standards-alignment` convention
+and what this template always dispatched, so most repositories
+(kerbside among them) need nothing. A repository whose test workflow
+has another name sets the variable instead of editing the file, so
+the copy stays byte-identical to the template:
 
 ```bash
-gh variable set RETEST_WORKFLOW --repo shakenfist/<repo> \
-    --body functional-tests.yml
+gh variable set RETEST_WORKFLOW --repo shakenfist/<repo> --body ci.yml
 ```
 
-kerbside is the known case (`functional-tests.yml`), as is any
-repository following `standards-alignment`'s `functional-tests.yml`
-convention: set the variable before, or with, the pull request that
-syncs this template in, because an unset variable dispatches
-`ci.yml`, which does not exist there, and the bot answers the next
-"please retest" with a failure comment. Whatever the variable names
-must carry a `workflow_dispatch:` trigger.
+The `ci.yml` repositories -- actions, development, hunkydory, ryll,
+library-utilities and visual-digest-rust -- set it to `ci.yml`, and
+divergulent to `unit-tests.yml`. Set the variable before the pull
+request that syncs this template in merges: an unset variable
+dispatches `functional-tests.yml`, which does not exist there, and
+the bot answers the next "please retest" with a failure comment.
+Whatever the variable names must carry a `workflow_dispatch:`
+trigger.
 
 A retest dispatch is not a re-run of a pull request's own checks.
 In kerbside, dispatching `functional-tests.yml` runs its merge tier
@@ -62,8 +64,8 @@ is running pre-fix copies of the two workflows in this directory
 unless you have checked that one.** development's own
 `.github/workflows/pr-re-review.yml` is the exception, kept in step
 with the template because the README points at this repository as the
-worked example, and so is its `pr-retest.yml`, which dispatches the
-default `ci.yml`.
+worked example, and so is its `pr-retest.yml`, which dispatches
+`ci.yml` through the `RETEST_WORKFLOW` repository variable.
 Being out of date here is about these files, not about which reviewer
 a project uses: every repository that has an automatic review at all
 now gets it from the reusable `pr-auto-review.yml`, and that is a

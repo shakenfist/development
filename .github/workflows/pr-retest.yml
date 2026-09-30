@@ -5,8 +5,8 @@
 # want to re-run checks without pushing a new commit.
 #
 # The workflow it dispatches is the RETEST_WORKFLOW repository variable,
-# or ci.yml when that is unset. A repository whose tests live in another
-# file -- functional-tests.yml, say -- sets the variable (Settings >
+# or functional-tests.yml when that is unset. A repository whose tests
+# live in another file -- ci.yml, say -- sets the variable (Settings >
 # Secrets and variables > Actions > Variables) rather than editing this
 # file, so every copy stays byte-identical to the template. Whatever it
 # names must carry a workflow_dispatch trigger.
@@ -133,7 +133,7 @@ jobs:
     # and only through the environment, so both steps name the same
     # file and neither interpolates it into shell text.
     env:
-      RETEST_WORKFLOW: ${{ vars.RETEST_WORKFLOW || 'ci.yml' }}
+      RETEST_WORKFLOW: ${{ vars.RETEST_WORKFLOW || 'functional-tests.yml' }}
 
     steps:
       - name: Dispatch the retest workflow
@@ -176,7 +176,7 @@ jobs:
           else
             gh pr comment "${PR_NUMBER}" \
               --repo "${REPO}" \
-              --body "Unable to trigger \`${RETEST_WORKFLOW}\` on \`${PR_REF}\`. Check that \`${RETEST_WORKFLOW}\` exists on the default branch, carries a \`workflow_dispatch\` trigger, and is not disabled, and that the \`RETEST_WORKFLOW\` repository variable names this repository's test workflow if it is not \`ci.yml\` -- or re-run the failed workflow from the Actions tab instead."
+              --body "Unable to trigger \`${RETEST_WORKFLOW}\` on \`${PR_REF}\`. Check that \`${RETEST_WORKFLOW}\` exists on the default branch, carries a \`workflow_dispatch\` trigger, and is not disabled, and that the \`RETEST_WORKFLOW\` repository variable names this repository's test workflow if it is not \`functional-tests.yml\` -- or re-run the failed workflow from the Actions tab instead."
             # Fail the run too, after the comment has explained why, so a
             # request that did nothing does not show green in Actions.
             exit 1
