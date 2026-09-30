@@ -629,21 +629,26 @@ class MergeRefResolutionTest(unittest.TestCase):
     TEMPLATE_RE_REVIEW = os.path.join(
         'templates', 'ci-review-automation', 'pr-re-review.yml')
 
-    # docs/ci-review-automation.md lists this template's customisation
-    # as "None", which is what makes byte-identical the right
-    # assertion here. pr-retest.yml is deliberately excluded from it:
-    # its ci.yml / functional-tests.yml divergence is documented in
-    # its own header.
+    # docs/ci-review-automation.md tells the fleet both templates are
+    # copied unmodified, which is what makes byte-identical the right
+    # assertion here. pr-retest.yml used to be excluded, because each
+    # copy edited in the name of the workflow it dispatched; that name
+    # is now the RETEST_WORKFLOW repository variable, which this
+    # repository sets to ci.yml.
     def test_the_two_copies_are_identical(self):
-        with open(os.path.join(REPO_ROOT, self.DEPLOYED_RE_REVIEW)) as f:
-            deployed = f.read()
-        with open(os.path.join(REPO_ROOT, self.TEMPLATE_RE_REVIEW)) as f:
-            template = f.read()
-        self.assertEqual(
-            deployed, template,
-            f'{self.DEPLOYED_RE_REVIEW} and {self.TEMPLATE_RE_REVIEW} '
-            f'must be byte-identical: docs/ci-review-automation.md '
-            f'tells the fleet this template is copied unmodified')
+        for deployed_name, template_name in [
+                (self.DEPLOYED_RE_REVIEW, self.TEMPLATE_RE_REVIEW),
+                (self.DEPLOYED_RETEST, self.TEMPLATE_RETEST)]:
+            with self.subTest(workflow=deployed_name):
+                with open(os.path.join(REPO_ROOT, deployed_name)) as f:
+                    deployed = f.read()
+                with open(os.path.join(REPO_ROOT, template_name)) as f:
+                    template = f.read()
+                self.assertEqual(
+                    deployed, template,
+                    f'{deployed_name} and {template_name} must be '
+                    f'byte-identical: docs/ci-review-automation.md tells '
+                    f'the fleet this template is copied unmodified')
 
     # Matched on the step name rather than on any line of its shell,
     # because the shell is the part expected to change. A rename is a
@@ -779,6 +784,264 @@ class MergeRefResolutionTest(unittest.TestCase):
                     f'conditional, so it skips when an output goes missing')
                 for output in ['triggered', 'authorized', 'same-repo']:
                     self.assertIn(f'steps.trigger.outputs.{output} }}}}', step)
+
+
+class CodeqlTemplateTest(unittest.TestCase):
+    """The CodeQL template's review-only skip must fail open.
+
+    templates/codeql/codeql-analysis.yml skips Analyze at the job level
+    for pull requests touching only review state and docs/, and for
+    fork pull requests. Analyze is a required status check in some of
+    the repositories that copy it, and a skipped job satisfies a
+    required check, so every way this skip can go wrong reads as green:
+    a check_paths that fails without !cancelled() skips Analyze, an
+    output that defaults to 'false' skips it, and an inverted fork
+    guard skips every same-repository pull request. Nothing else in the
+    tree would notice, so the conditions are pinned here, as exact
+    strings: rewording one should be a decision, made by editing this
+    test, not something that happens in passing.
+
+    Read through the job blocks rather than searched for in the file,
+    because the comments explaining each condition quote it.
+    """
+
+    DEPLOYED = os.path.join('.github', 'workflows', 'codeql-analysis.yml')
+    TEMPLATE = os.path.join('templates', 'codeql', 'codeql-analysis.yml')
+
+    ANALYZE_IF = (
+        "!cancelled() "
+        "&& needs.check_paths.outputs.code_changed != 'false' "
+        "&& (github.event_name != 'pull_request' "
+        "|| github.event.pull_request.head.repo.full_name == github.repository)")
+    CODE_CHANGED = "${{ steps.filter.outputs.code || 'true' }}"
+
+    def _read(self, name):
+        with open(os.path.join(REPO_ROOT, name)) as f:
+            return f.read()
+
+    def _jobs(self):
+        return dict(workflow_job_blocks(self._read(self.TEMPLATE)))
+
+    def test_this_repository_runs_the_template_verbatim(self):
+        self.assertEqual(
+            self._read(self.DEPLOYED), self._read(self.TEMPLATE),
+            f'{self.DEPLOYED} and {self.TEMPLATE} must be byte-identical: '
+            f'the template README tells the fleet to copy it unmodified')
+
+    def test_analyze_fails_open_and_guards_forks(self):
+        analyze = self._jobs()['analyze']
+        keys = job_level_keys(analyze)
+        self.assertEqual('Analyze', keys.get('name'),
+                         'Analyze is a required check name; renaming the '
+                         'job strands every repository that requires it')
+        self.assertEqual('[check_paths]', keys.get('needs'))
+        self.assertEqual(
+            self.ANALYZE_IF, re.sub(r'\s+', ' ', keys.get('if', '')),
+            'analyze must run unless check_paths positively reported a '
+            'review-only pull request (!cancelled() and the != \'false\' '
+            'test), and must not run for a fork pull request')
+        self.assertNotIn('HEAD^2', analyze)
+        self.assertNotIn('fetch-depth', analyze)
+        self.assertIn('timeout-minutes', keys)
+        concurrency = indented_block(analyze, 'concurrency') or ''
+        self.assertIn(
+            "cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
+            concurrency, 'only pull request runs may cancel: push and '
+            'schedule runs upload the standing results')
+
+    def test_check_paths_defaults_to_code_changed(self):
+        check_paths = self._jobs()['check_paths']
+        outputs = indented_block(check_paths, 'outputs') or ''
+        self.assertIn(f'code_changed: {self.CODE_CHANGED}', outputs,
+                      'the output must fall back to \'true\' when the '
+                      'filter step did not run or produced nothing')
+        self.assertNotIn('actions/checkout', check_paths,
+                         'check_paths must not check out a pull '
+                         'request\'s content')
+        self.assertIn("predicate-quantifier: 'every'", check_paths,
+                      'without it the \'!\' exclusions are no-ops')
+        self.assertIn("if: github.event_name == 'pull_request'",
+                      check_paths)
+
+    def test_the_two_path_lists_agree(self):
+        content = self._read(self.TEMPLATE)
+        on = indented_block(content, 'on') or ''
+        push = indented_block(on, 'push') or ''
+        ignored = re.findall(
+            r"^\s+- '(.+)'$", indented_block(push, 'paths-ignore') or '',
+            re.M)
+        filtered = re.findall(r"^\s+- '!(.+)'$", self._jobs()['check_paths'],
+                              re.M)
+        self.assertEqual(ignored, filtered)
+        # The four review paths of docs/code-review-tracking.md step 8.
+        # Written inline rather than as a class constant: this test
+        # reads the patterns, not the files, and test_hooks.py takes a
+        # constant naming a tracked file as a file the suite reads.
+        for path in ['REVIEWS.md', '.vscode/*.weaudit',
+                     '.vscode/*.weaudit-shas.json',
+                     '.vscode/review-scope.toml', 'docs/**']:
+            self.assertIn(path, ignored)
+        pull_request = indented_block(on, 'pull_request') or ''
+        self.assertNotIn('paths', pull_request,
+                         'a trigger-level filter on pull_request leaves '
+                         'a required Analyze pending forever')
+
+
+class ConvergedTemplatesTest(unittest.TestCase):
+    """Templates copied verbatim must stay copyable verbatim.
+
+    Phase 3 of the review import plan took the {{PLACEHOLDER}}
+    substitutions out of renovate.yml and pin-indirect-dependencies.yml
+    so that every copy could be byte-identical to its template, and
+    dropped both from actionlint's exclude list in .pre-commit-config.yaml
+    on the strength of it. A placeholder reintroduced into either would
+    break that quietly: actionlint would reject it, but only as a YAML
+    error in a file nobody reads as a template any more. So the exclude
+    list and the templates are held to each other here.
+    """
+
+    PRE_COMMIT = '.pre-commit-config.yaml'
+    # A {{ that is not the tail of an Actions ${{ expression.
+    PLACEHOLDER_RE = re.compile(r'(?<!\$)\{\{')
+
+    def _read(self, name):
+        with open(os.path.join(REPO_ROOT, name)) as f:
+            return f.read()
+
+    def _excluded_templates(self):
+        config = self._read(self.PRE_COMMIT)
+        hook = config.split('alias: actionlint-templates', 1)[1]
+        exclude = hook.split('exclude: |', 1)[1].split('args:', 1)[0]
+        return set(re.findall(r'([\w-]+/[\w-]+\\\.ya?ml)', exclude))
+
+    def test_only_excluded_templates_carry_placeholders(self):
+        excluded = {e.replace('\\', '') for e in self._excluded_templates()}
+        self.assertTrue(excluded, 'could not find the actionlint-templates '
+                                  'exclude list in .pre-commit-config.yaml')
+        with_placeholders = set()
+        templates = os.path.join(REPO_ROOT, 'templates')
+        for directory, _, files in os.walk(templates):
+            for name in files:
+                if not name.endswith(('.yml', '.yaml')):
+                    continue
+                path = os.path.join(directory, name)
+                relative = os.path.relpath(path, templates)
+                # Comments included: an adopter fills in every
+                # placeholder, and some templates carry them only there.
+                with open(path) as f:
+                    if self.PLACEHOLDER_RE.search(f.read()):
+                        with_placeholders.add(relative)
+        self.assertEqual(
+            excluded, with_placeholders,
+            'the actionlint-templates exclude list must name exactly the '
+            'templates that carry {{PLACEHOLDER}} substitutions')
+
+    def test_this_repository_runs_renovate_verbatim(self):
+        self.assertEqual(
+            self._read('.github/workflows/renovate.yml'),
+            self._read('templates/renovate/renovate.yml'),
+            '.github/workflows/renovate.yml must be byte-identical to '
+            'templates/renovate/renovate.yml: the template README tells '
+            'the fleet to copy it unmodified')
+
+    def test_pin_indirect_does_not_read_the_event_repository(self):
+        # A schedule event's payload has no repository object, so on
+        # the daily run -- this workflow's main trigger -- any
+        # github.event.repository expression is empty.
+        template = 'templates/pin-indirect-dependencies/' \
+            'pin-indirect-dependencies.yml'
+        for line in self._read(template).splitlines():
+            if line.lstrip().startswith('#'):
+                continue
+            self.assertNotIn('github.event.repository', line)
+
+    def test_pin_indirect_self_test_triggers_on_what_it_runs(self):
+        # The pull_request self-test exists to exercise a change to the
+        # scripts this workflow runs, so it must fire on every one of
+        # them, and on the apt list the helper reads.
+        template = self._read('templates/pin-indirect-dependencies/'
+                              'pin-indirect-dependencies.yml')
+        on = indented_block(template, 'on') or ''
+        paths = indented_block(indented_block(on, 'pull_request') or '',
+                               'paths') or ''
+        run = [line for line in template.splitlines()
+               if 'run:' in line and not line.lstrip().startswith('#')]
+        scripts = set(re.findall(r'tools/[\w.-]+\.sh', '\n'.join(run)))
+        self.assertIn('tools/pin-indirect-dependencies-apt.sh', scripts)
+        for path in sorted(scripts) + [
+                'tools/pin-indirect-dependencies-apt.txt']:
+            self.assertIn(f'- {path}\n', paths + '\n')
+
+
+class PinIndirectAptScriptTest(unittest.TestCase):
+    """The apt helper's paths that must not reach apt-get at all.
+
+    sudo is replaced on PATH by a stub that records being called, so a
+    path that should have exited early fails the test rather than
+    installing anything.
+    """
+
+    SCRIPT = os.path.join(REPO_ROOT, 'templates', 'pin-indirect-dependencies',
+                          'pin-indirect-dependencies-apt.sh')
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.work = os.path.join(self.tmp.name, 'repo')
+        self.bin = os.path.join(self.tmp.name, 'bin')
+        self.called = os.path.join(self.tmp.name, 'sudo-called')
+        os.makedirs(os.path.join(self.work, 'tools'))
+        os.makedirs(self.bin)
+        stub = os.path.join(self.bin, 'sudo')
+        with open(stub, 'w') as f:
+            f.write(f'#!/bin/bash\necho "$@" >> {self.called}\n')
+        os.chmod(stub, 0o755)
+
+    def _run(self, apt_list=None):
+        if apt_list is not None:
+            with open(os.path.join(
+                    self.work, 'tools',
+                    'pin-indirect-dependencies-apt.txt'), 'w') as f:
+                f.write(apt_list)
+        env = dict(os.environ)
+        env['PATH'] = self.bin + os.pathsep + env['PATH']
+        return subprocess.run(['bash', self.SCRIPT], cwd=self.work, env=env,
+                              capture_output=True, text=True)
+
+    def _sudo_calls(self):
+        if not os.path.exists(self.called):
+            return []
+        with open(self.called) as f:
+            return f.read().splitlines()
+
+    def test_absent_list_is_a_no_op(self):
+        result = self._run()
+        self.assertEqual(0, result.returncode)
+        self.assertEqual(
+            ['No tools/pin-indirect-dependencies-apt.txt, nothing extra to '
+             'install.'], result.stdout.splitlines())
+        self.assertEqual([], self._sudo_calls())
+
+    def test_empty_list_is_a_no_op(self):
+        self.assertEqual(0, self._run('').returncode)
+        self.assertEqual([], self._sudo_calls())
+
+    def test_comments_only_list_is_a_no_op(self):
+        self.assertEqual(0, self._run('# nothing\n\n   # here\n').returncode)
+        self.assertEqual([], self._sudo_calls())
+
+    def test_an_option_is_not_a_package(self):
+        result = self._run('pkg-config\n-o APT::Get::Assume-Yes=false\n')
+        self.assertEqual(1, result.returncode)
+        self.assertIn('is not a package name', result.stderr)
+        self.assertEqual([], self._sudo_calls())
+
+    def test_packages_follow_the_end_of_options_marker(self):
+        result = self._run('# mysqlclient\npkg-config\nlibfoo2.0-dev\n')
+        self.assertEqual(0, result.returncode, result.stderr)
+        install = self._sudo_calls()[-1]
+        self.assertTrue(install.endswith(' install -- pkg-config libfoo2.0-dev'),
+                        install)
 
 
 class RunCheckBoundaryTest(unittest.TestCase):

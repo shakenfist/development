@@ -10,17 +10,17 @@ in Shaken Fist projects.
 | `renovate.yml` | `.github/workflows/renovate.yml` | Hourly workflow |
 | `renovate.json` | `renovate.json` (repo root) | Renovate config |
 
-## Placeholders
+## Copying these files
 
-Replace when copying:
+`renovate.yml` has no placeholders and is copied verbatim: its
+autodiscover filter is `${{ github.repository }}`, which the runtime
+supplies, so nothing changes per repository.
 
-| Placeholder | Example | Description |
-|-------------|---------|-------------|
-| `{{GITHUB_REPO_NAME}}` | `agent-python` | GitHub repository name |
-
-Only `renovate.yml` has a placeholder (the autodiscover filter).
-`renovate.json` can be copied directly, then customised with
-project-specific package grouping rules.
+`renovate.json` is a per-repository adaptation, not expected to be
+byte-identical between repositories. It is copied as a starting point
+and then customised with project-specific package grouping rules, a
+Python version constraint, or a range strategy, as the sections below
+describe.
 
 ## The pre-commit manager
 

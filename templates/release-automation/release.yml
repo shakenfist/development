@@ -70,7 +70,13 @@ jobs:
     name: Sign release tag with Sigstore
     needs: build
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    runs-on: [self-hosted, debian-13, s]
+    # This job mutates the runner -- it installs gitsign with a sudo
+    # move into /usr/local/bin and writes global git config -- so it
+    # needs a throwaway runner rather than the shared static pool,
+    # which grants no passwordless sudo and would carry the global git
+    # config into whatever else lands on it next. vm is ephemeral and
+    # has sudo; s is a small job (download a binary, sign, push).
+    runs-on: [self-hosted, vm, debian-13, s]
     environment: release
 
     permissions:

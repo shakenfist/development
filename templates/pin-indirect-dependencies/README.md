@@ -71,10 +71,16 @@ the applies-to test is now made.
 ## Rollout
 
 1. Copy `pin-indirect-dependencies.yml` to
-   `.github/workflows/pin-indirect-dependencies.yml`, replacing the
-   `{{PROJECT_NAME}}` placeholder.
+   `.github/workflows/pin-indirect-dependencies.yml`. It has no
+   placeholders and needs no edits: the repository is checked out into
+   the workspace root, so nothing in it names the project.
 2. Copy `pin-indirect-dependencies.sh` to
    `tools/pin-indirect-dependencies.sh`, keeping it executable.
+   Likewise `pin-indirect-dependencies-apt.sh` to
+   `tools/pin-indirect-dependencies-apt.sh`: the workflow runs it on
+   every run, so it is required even with no apt list, and the
+   consistency audit fails a repository whose workflow names a
+   `tools/` script it does not carry.
 3. Add `# START_OF_INDIRECT_DEPS` and `# END_OF_INDIRECT_DEPS` marker
    comments to `pyproject.toml` delimiting the pinned block (which may
    initially be empty) inside the `[project] dependencies` list.
@@ -91,11 +97,15 @@ the applies-to test is now made.
    `pull_request` self-test runs the pull request's own copy of the
    script, so it gets the job's default token, persists no credentials
    and is skipped entirely for forks.
-5. If anything in the dependency closure compiles at install time, add
-   its build dependencies to the commented placeholder step in the
-   workflow. The isolated venv means a package can no longer fall back
-   to a distro build of itself (kerbside needs
-   `default-libmysqlclient-dev` for mysqlclient).
+5. If anything in the dependency closure compiles at install time, list
+   its build dependencies, one per line, in an optional
+   `tools/pin-indirect-dependencies-apt.txt` (`#` comments allowed).
+   `pin-indirect-dependencies-apt.sh` installs them after checkout, in
+   addition to the workflow's own baseline; a project with nothing
+   extra to install has no reason to carry the file. The isolated venv
+   means a package can no longer fall back to a distro build of itself
+   (kerbside needs `pkg-config build-essential
+   default-libmysqlclient-dev` for mysqlclient).
 6. Generate the first reconciled block by running the script by hand
    and committing the result, so the adoption PR proves CI passes with
    the reconciled set. Run it in a `debian:12` container rather than
