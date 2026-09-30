@@ -5,14 +5,6 @@
       "sha": "da73cad9f9e2a81aca7aff32d644c0197d747ec2",
       "date": "2026-09-06"
     },
-    ".claude/skills/review-tracking-adoption/SKILL.md": {
-      "sha": "65cb8e31277288b155b5beffefadcc9e88347bd0",
-      "date": "2026-09-27"
-    },
-    ".claude/skills/standards-alignment/SKILL.md": {
-      "sha": "098dc512cfb1d4eff9886cd63cc4f66e74c3f9cb",
-      "date": "2026-09-01"
-    },
     ".flake8": {
       "sha": "cf7c807de18a9170b83aa2a57d719f8fc3b3935e",
       "date": "2026-09-04"
@@ -37,10 +29,6 @@
       "sha": "4e391bb74e8a1f5c2ef0b6f5d0e2ecfa7ba390c1",
       "date": "2026-09-22"
     },
-    ".github/workflows/codeql-analysis.yml": {
-      "sha": "c11dc1e33458f31f6da1b87331769aab53c5530e",
-      "date": "2026-09-01"
-    },
     ".github/workflows/consistency-audit.yml": {
       "sha": "3f6ce7ecba1130565c2c76cf056c4f69f779260d",
       "date": "2026-09-24"
@@ -57,17 +45,9 @@
       "sha": "d5b8377f8a98d3f68fd14469ed4d5be8fece1c6a",
       "date": "2026-09-14"
     },
-    ".github/workflows/pr-re-review.yml": {
-      "sha": "72059c8c57e2111baa5004d517d5ec188e960be3",
-      "date": "2026-09-27"
-    },
     ".github/workflows/prune-reviews.yml": {
       "sha": "7fc119ce46252ba56037d99ddf90ea9dc180e3b8",
       "date": "2026-09-27"
-    },
-    ".github/workflows/renovate.yml": {
-      "sha": "320d2e0cd615427eb72681a025bc325f5d1ddef6",
-      "date": "2026-09-30"
     },
     ".github/workflows/secret-scan.yml": {
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
@@ -76,10 +56,6 @@
     ".gitignore": {
       "sha": "26a19958e61609c60e1b721594ab8151ddf1634f",
       "date": "2026-09-04"
-    },
-    ".pre-commit-config.yaml": {
-      "sha": "cf423aef9825a4e32ea85ffdb3f41acff911e635",
-      "date": "2026-09-27"
     },
     "AGENTS.md": {
       "sha": "7b665874fbdfbeca6f9807747f9409ca23fd3270",
@@ -197,10 +173,6 @@
       "sha": "511f0e6549966f3891746fb98339f37552ee3c49",
       "date": "2026-09-14"
     },
-    "docs/audits/pin-indirect-dependencies.md": {
-      "sha": "6141c51ac838a8550f1b301e26bfb4c6fb092978",
-      "date": "2026-08-29"
-    },
     "docs/audits/plan-audit-phase.md": {
       "sha": "903513cb7c98eb8b1836e653e92715bd7cf36adc",
       "date": "2026-09-14"
@@ -247,10 +219,6 @@
     },
     "docs/audits/renovate-lockstep-groups.md": {
       "sha": "6c07a2d2badae9066a5715df5a6dbd54860a1ab9",
-      "date": "2026-09-04"
-    },
-    "docs/audits/renovate.md": {
-      "sha": "ce1f4861273d8634c0a9007750585e98637ed38f",
       "date": "2026-09-04"
     },
     "docs/audits/reusable-workflow-secrets.md": {
@@ -312,14 +280,6 @@
     "docs/automated-pr-review.md": {
       "sha": "d60479307223048db30a9651ee8492b89c8b4049",
       "date": "2026-08-30"
-    },
-    "docs/ci-review-automation.md": {
-      "sha": "a7413c8e0a7ee92cb807f2a2894109bd2b907e7f",
-      "date": "2026-09-27"
-    },
-    "docs/code-review-tracking.md": {
-      "sha": "205b0da8f601f2d7681ac5e96bfcc09ea956fadb",
-      "date": "2026-09-27"
     },
     "docs/consistency-audits.md": {
       "sha": "326d24f1512e88d25c5b09c5dc8c431bcaf03272",
@@ -384,10 +344,6 @@
     "scripts/audit/checks/npm_dependencies.py": {
       "sha": "01853364578a6139d3787ebfa9d09a65211bb37c",
       "date": "2026-09-15"
-    },
-    "scripts/audit/checks/packaging.py": {
-      "sha": "06f2d582b5ff714df29f11cc7e5b6b636e31bc55",
-      "date": "2026-09-24"
     },
     "scripts/audit/checks/plans.py": {
       "sha": "48c79d69c8eeab8043aff6485cdbf5ae8261d103",
@@ -541,10 +497,6 @@
       "sha": "e7360d31a425b52e8e309921993e392235309faa",
       "date": "2026-09-22"
     },
-    "scripts/tests/test_packaging.py": {
-      "sha": "0740592ab6cb5c67988e1d37efe7a7e192a535ab",
-      "date": "2026-09-24"
-    },
     "scripts/tests/test_plans.py": {
       "sha": "800b4705a9bae1d7163982941a161fdaf738ae53",
       "date": "2026-09-25"
@@ -552,10 +504,6 @@
     "scripts/tests/test_python_source.py": {
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",
       "date": "2026-09-04"
-    },
-    "scripts/tests/test_registry.py": {
-      "sha": "7633f0ac74fe6c50d614029c2d981ff72bc51846",
-      "date": "2026-09-27"
     },
     "scripts/tests/test_repo.py": {
       "sha": "89987f23cb42ec217670bda7881661ecdd8b0614",
@@ -572,22 +520,6 @@
     "scripts/tests/test_runners.py": {
       "sha": "7aed137d41b191ce4cc7e547cba6ed168a961662",
       "date": "2026-09-22"
-    },
-    "templates/ci-review-automation/pr-re-review.yml": {
-      "sha": "72059c8c57e2111baa5004d517d5ec188e960be3",
-      "date": "2026-09-27"
-    },
-    "templates/codeql/README.md": {
-      "sha": "d8ad7a6bed168b66f51af9e0484ccb84840af7bb",
-      "date": "2026-08-30"
-    },
-    "templates/codeql/codeql-analysis.yml": {
-      "sha": "33ec0a9eeaf82ad7f5c32a771a80707d90b3fea6",
-      "date": "2026-09-04"
-    },
-    "templates/export-repo-config/README.md": {
-      "sha": "84909c33b3a4c526342f9858602cff320761afb5",
-      "date": "2026-09-27"
     },
     "templates/export-repo-config/export-repo-config.yml": {
       "sha": "b9b3936053b8685ef0ae47f656b2f35aa62ba637",
@@ -613,10 +545,6 @@
       "sha": "4248bb512fa54f024a31cc9e838d0a11092f8da1",
       "date": "2026-08-30"
     },
-    "templates/issue-link-check/README.md": {
-      "sha": "28489dc2b569f8b645bcf3d80fb027c021a268a6",
-      "date": "2026-09-09"
-    },
     "templates/issue-link-check/issue-link-check.yml": {
       "sha": "6d0ce3ba5bf1008a1139a1a1be27959413f8ad0a",
       "date": "2026-09-09"
@@ -633,41 +561,17 @@
       "sha": "d5b8377f8a98d3f68fd14469ed4d5be8fece1c6a",
       "date": "2026-09-16"
     },
-    "templates/pin-indirect-dependencies/README.md": {
-      "sha": "c20c7590e1b3311e1696db887296410c95b7183b",
-      "date": "2026-08-30"
-    },
     "templates/pin-indirect-dependencies/pin-indirect-dependencies.sh": {
       "sha": "241b462c281d6e33fa1d4023d15762a95d69112a",
-      "date": "2026-08-30"
-    },
-    "templates/pin-indirect-dependencies/pin-indirect-dependencies.yml": {
-      "sha": "ac69b68d8b24fbca72c61785ec294e6e7950e2a8",
-      "date": "2026-09-16"
-    },
-    "templates/release-automation/README.md": {
-      "sha": "1b567888baa5b772742c73256d159780dca8eaca",
       "date": "2026-08-30"
     },
     "templates/release-automation/RELEASE-SETUP.md": {
       "sha": "33f4b4e69c07a1ff84daade84341b3a6591ff501",
       "date": "2026-09-06"
     },
-    "templates/release-automation/release.yml": {
-      "sha": "38b26358b5de0f4f478a7d7064816cd1fc11b98a",
-      "date": "2026-09-16"
-    },
-    "templates/renovate/README.md": {
-      "sha": "ae88c3ede7ec64844b7e1186cb36432db2f176cd",
-      "date": "2026-08-30"
-    },
     "templates/renovate/renovate.json": {
       "sha": "bc3d203dd9e9ab9c2f83e551382dbfb7e60e08fd",
       "date": "2026-09-27"
-    },
-    "templates/renovate/renovate.yml": {
-      "sha": "5188328bbd154791e5d0aef57a7bd958dc64f2de",
-      "date": "2026-09-30"
     },
     "templates/review-tracking/README.md": {
       "sha": "6b24f5a5c6c00c82778c3370201f8818e5d59fab",

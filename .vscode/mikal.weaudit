@@ -53,10 +53,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/pin-indirect-dependencies.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/plan-phase-references.md",
       "author": "mikal"
     },
@@ -109,10 +105,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/codeql/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/issue-fix/claude-model-fallback.sh",
       "author": "mikal"
     },
@@ -129,19 +121,7 @@
       "author": "mikal"
     },
     {
-      "path": "templates/pin-indirect-dependencies/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/release-automation/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/release-automation/RELEASE-SETUP.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate/README.md",
       "author": "mikal"
     },
     {
@@ -154,14 +134,6 @@
     },
     {
       "path": ".claude/skills/diagram-conversion",
-      "author": "mikal"
-    },
-    {
-      "path": ".claude/skills/standards-alignment/SKILL.md",
-      "author": "mikal"
-    },
-    {
-      "path": ".claude/skills/standards-alignment",
       "author": "mikal"
     },
     {
@@ -181,15 +153,7 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/codeql-analysis.yml",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/llm-context-lint-ci.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/renovate.md",
       "author": "mikal"
     },
     {
@@ -242,14 +206,6 @@
     },
     {
       "path": "scripts/commit-audit-docs.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/codeql/codeql-analysis.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/codeql",
       "author": "mikal"
     },
     {
@@ -357,14 +313,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/issue-link-check/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/issue-link-check",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/pyproject-usage.md",
       "author": "mikal"
     },
@@ -418,22 +366,6 @@
     },
     {
       "path": "templates/mermaid-lint/mermaid-lint.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/pin-indirect-dependencies/pin-indirect-dependencies.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/pin-indirect-dependencies",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/release-automation/release.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/release-automation",
       "author": "mikal"
     },
     {
@@ -577,19 +509,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/packaging.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/text/python_source.py",
       "author": "mikal"
     },
     {
       "path": "scripts/tests/test_audit_seams.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_packaging.py",
       "author": "mikal"
     },
     {
@@ -633,23 +557,7 @@
       "author": "mikal"
     },
     {
-      "path": ".claude/skills/review-tracking-adoption/SKILL.md",
-      "author": "mikal"
-    },
-    {
-      "path": ".claude/skills/review-tracking-adoption",
-      "author": "mikal"
-    },
-    {
-      "path": ".claude/skills",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/export-repo-config.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/pr-re-review.yml",
       "author": "mikal"
     },
     {
@@ -666,14 +574,6 @@
     },
     {
       "path": "docs/audits/push-audit.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/ci-review-automation.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/code-review-tracking.md",
       "author": "mikal"
     },
     {
@@ -697,10 +597,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_registry.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_review_tracking.py",
       "author": "mikal"
     },
@@ -709,19 +605,7 @@
       "author": "mikal"
     },
     {
-      "path": "templates/ci-review-automation/pr-re-review.yml",
-      "author": "mikal"
-    },
-    {
       "path": "templates/export-repo-config/export-repo-config.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/export-repo-config/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/export-repo-config",
       "author": "mikal"
     },
     {
@@ -769,10 +653,6 @@
       "author": "mikal"
     },
     {
-      "path": ".pre-commit-config.yaml",
-      "author": "mikal"
-    },
-    {
       "path": "AGENTS.md",
       "author": "mikal"
     },
@@ -817,10 +697,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/text/workflows.py",
       "author": "mikal"
     },
@@ -850,14 +726,6 @@
     },
     {
       "path": "scripts/audit/checks/ci_workflows.py",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate",
       "author": "mikal"
     },
     {
