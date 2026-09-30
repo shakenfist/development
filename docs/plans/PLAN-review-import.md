@@ -749,6 +749,9 @@ all five repositories:
     well as pull request runs.
   * actions' CodeQL `paths-ignore` lacks the review paths, so it
     misses adoption step 8.
+* **Decision 3 as first written counted only the five
+  review-tracking repositories**, which made `ci.yml` look like the
+  majority default; across the fleet it is `functional-tests.yml`.
 * **Required checks:** only hunkydory has status checks CodeQL
   would affect (`Analyze`). kerbside and ryll require only their
   merge-queue gates; actions and this repository require none.
@@ -777,7 +780,7 @@ of work:
 | 1 | `mermaid-lint` (`.sh` and `.yml`) | lagging | Re-sync kerbside and ryll verbatim; no template change | 4 |
 | 2 | `export-repo-config.yml` | lagging | Re-sync kerbside and ryll verbatim; the template README says actions' file at that path is the reusable workflow, not a copy (likewise `issue-link-check.yml`) | 2 |
 | 3 | `renovate/renovate.yml` | parameter, local improvement | Filter becomes `${{ github.repository }}`; upstream actions' `timeout-minutes` and `concurrency`; re-sync all four and this repository | 4 |
-| 4 | `ci-review-automation/pr-retest.yml` | parameter | Dispatch `${{ vars.RETEST_WORKFLOW \|\| 'ci.yml' }}` with neutral wording; re-sync all four and this repository; kerbside sets `RETEST_WORKFLOW` | 4 |
+| 4 | `ci-review-automation/pr-retest.yml` | parameter | Dispatch `${{ vars.RETEST_WORKFLOW \|\| 'functional-tests.yml' }}` with neutral wording; re-sync all four and this repository; actions, development, hunkydory and ryll set `RETEST_WORKFLOW=ci.yml` | 4 |
 | 5 | `ci-review-automation/pr-re-review.yml` | parameter (comment only) | Neutral wording for where `pr-auto-review.yml` lives; re-sync actions | 1 |
 | 6 | `codeql/codeql-analysis.yml` | local improvement, lagging | Job-level review-only skip (decision 2) and the rest of decision 2; re-sync hunkydory and ryll; kerbside and actions stay per-repository | 2 |
 | 7 | `pin-indirect-dependencies/pin-indirect-dependencies.yml` | parameter, local improvement | `{{PROJECT_NAME}}` becomes `${{ github.event.repository.name }}`; extra apt packages move to a tracked file the workflow reads if present; re-sync kerbside | 1 |
@@ -809,10 +812,14 @@ That takes the identical count from 5 to 23 of 29.
    per-repository copies rather than growing a parameter for two
    repositories.
 3. **pr-retest reads its target from a repository variable.** The
-   default `ci.yml` is right for four of the five repositories.
-   kerbside sets `RETEST_WORKFLOW=functional-tests.yml`, which is a
-   change to kerbside's repository settings and so happens only on
-   Michael's go-ahead. kerbside's caveat -- the dispatched workflow
+   default is `functional-tests.yml`: it is the fleet majority (nine
+   repositories, against six on `ci.yml` and one on
+   `unit-tests.yml`) and what the template dispatched before, so most
+   repositories are unaffected on their next sync. The variable is
+   set to `ci.yml` in actions, development, hunkydory and ryll; each
+   is a change to that repository's settings made by Michael, and
+   development's must be set before this phase's pull request merges.
+   kerbside needs none. kerbside's caveat -- the dispatched workflow
    is not what gates a pull request there -- is a design question
    about the retest bot, recorded as future work rather than solved
    here.
@@ -845,7 +852,7 @@ it.
 | 3b | medium | sonnet | none | Items 1, 2 (README only), 3, 5 and 7 and the per-repo README notes. Per template, one commit in this repository: change the template as the table says, update its README, and where this repository carries its own copy (`.github/workflows/renovate.yml`) re-sync it. Keep the `CiReviewAutomation` properties (`rev-parse HEAD^2` confirm step, fork gates; see `scripts/audit/checks/ci_workflows.py:932`). For item 7, the apt list is a tracked `tools/pin-indirect-dependencies-apt.txt`, read only if present. Run `pre-commit run --all-files` and `python3 scripts/audit-check.py --repo-path . --repo-name development`. |
 | 3c | high | opus | none | Items 4 and 6: pr-retest's `vars.RETEST_WORKFLOW` and the CodeQL template of decision 2, starting from hunkydory's `codeql-analysis.yml` (origin/develop, commit cd098f5) and actions' fork guard and concurrency. Walk every event (review-only pull request, code pull request, fork pull request, push, schedule, dispatch) and state each job's outcome in the commit message. Re-sync this repository's copies. Keep `test_registry.py`'s ci-review-automation tests passing. |
 | 3d | medium | sonnet | none | Rewrite step 8 of "Adopting a repository" in `docs/code-review-tracking.md` and steps 2-3 of `.claude/skills/review-tracking-adoption/SKILL.md` to give the job-level `check_paths` skip as the answer for a required check, with hunkydory's shape as the worked example. |
-| 3e | medium | sonnet | worktree | After the 3b-3d pull request merges: one branch and pull request each in actions, hunkydory, kerbside and ryll re-syncing that repository's copies from the table, verified with `git hash-object`, plus the renovate.json description fix (hunkydory, ryll) and the review paths in actions' CodeQL. Do not push or open pull requests until asked; kerbside's `RETEST_WORKFLOW` variable is set by Michael, before its pull request merges. |
+| 3e | medium | sonnet | worktree | After the 3b-3d pull request merges: one branch and pull request each in actions, hunkydory, kerbside and ryll re-syncing that repository's copies from the table, verified with `git hash-object`, plus the renovate.json description fix (hunkydory, ryll) and the review paths in actions' CodeQL. Do not push or open pull requests until asked. `RETEST_WORKFLOW=ci.yml` is set by Michael in actions, hunkydory and ryll before each pull request merges (development's is set before the 3b-3d pull request merges); kerbside needs none. |
 
 **Risks.**
 
