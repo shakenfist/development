@@ -61,10 +61,6 @@
       "sha": "72059c8c57e2111baa5004d517d5ec188e960be3",
       "date": "2026-09-27"
     },
-    ".github/workflows/pr-retest.yml": {
-      "sha": "60d01c0ee9cc8b8beb826b6ff3afc2b346a45bb4",
-      "date": "2026-09-27"
-    },
     ".github/workflows/prune-reviews.yml": {
       "sha": "7fc119ce46252ba56037d99ddf90ea9dc180e3b8",
       "date": "2026-09-27"
@@ -577,16 +573,8 @@
       "sha": "7aed137d41b191ce4cc7e547cba6ed168a961662",
       "date": "2026-09-22"
     },
-    "templates/ci-review-automation/README.md": {
-      "sha": "1d24e4e67415b7a8b7288ea804358615c940ee9b",
-      "date": "2026-09-27"
-    },
     "templates/ci-review-automation/pr-re-review.yml": {
       "sha": "72059c8c57e2111baa5004d517d5ec188e960be3",
-      "date": "2026-09-27"
-    },
-    "templates/ci-review-automation/pr-retest.yml": {
-      "sha": "95bb87a48c7ed375ab0796c08d310fc26723d23f",
       "date": "2026-09-27"
     },
     "templates/codeql/README.md": {
