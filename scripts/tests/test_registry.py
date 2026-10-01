@@ -25,7 +25,8 @@ from audit.repo import REPO_OVERRIDES, detect_repo_properties  # noqa: E402
 from audit_common import AUDIT_METADATA, ISSUE_TITLES  # noqa: E402
 from audit.checks import ci_workflows  # noqa: E402
 from audit.text.workflows import (  # noqa: E402
-    indented_block, job_level_keys, workflow_job_blocks,
+    indented_block, job_level_keys, step_keys, workflow_job_blocks,
+    workflow_step_blocks,
 )
 from tests.base import REPO_ROOT  # noqa: E402
 
@@ -784,6 +785,53 @@ class MergeRefResolutionTest(unittest.TestCase):
                     f'conditional, so it skips when an output goes missing')
                 for output in ['triggered', 'authorized', 'same-repo']:
                     self.assertIn(f'steps.trigger.outputs.{output} }}}}', step)
+
+    # (job, step name, the step id its gate reads) for each notice.
+    FAILURE_NOTICES = {
+        'pr-re-review.yml': [
+            ('trigger-re-review',
+             '- name: Tell the requester the re-review will not run',
+             'origin'),
+            ('re-review',
+             '- name: Tell the requester the re-review did not run',
+             'review'),
+        ],
+        'pr-retest.yml': [
+            ('trigger-retest',
+             '- name: Tell the requester the retest will not run',
+             'origin'),
+        ],
+    }
+
+    def test_a_failure_after_the_reaction_is_said_on_the_pull_request(self):
+        # By the time these jobs fail the requester has had the rocket
+        # reaction, and the run log is not somewhere they will look, so
+        # each job ends by saying so on the pull request
+        # (shakenfist/development#187). The notice has to be the last
+        # step, or a failure after it is silent again, and the id its
+        # gate reads has to exist: a renamed id reads empty, and the
+        # notice then never fires with nothing to show it.
+        for name in [self.DEPLOYED_RE_REVIEW, self.TEMPLATE_RE_REVIEW,
+                     self.DEPLOYED_RETEST, self.TEMPLATE_RETEST]:
+            with self.subTest(workflow=name):
+                with open(os.path.join(REPO_ROOT, name)) as f:
+                    jobs = dict(workflow_job_blocks(f.read()))
+                wf = os.path.basename(name)
+                for job, step_name, gate_id in self.FAILURE_NOTICES[wf]:
+                    steps = workflow_step_blocks(jobs[job])
+                    self.assertIn(
+                        step_name, steps[-1],
+                        f'{name}: the last step of {job} must be '
+                        f'"{step_name}"')
+                    condition = step_keys(steps[-1]).get('if', '')
+                    self.assertIn('failure()', condition)
+                    self.assertIn(f'steps.{gate_id}.outcome', condition)
+                    self.assertIn('gh pr comment', steps[-1])
+                    self.assertTrue(
+                        any(step_keys(step).get('id') == gate_id
+                            for step in steps[:-1]),
+                        f'{name}: no step in {job} has id {gate_id}, so '
+                        f'the notice gated on it never fires')
 
 
 class CodeqlTemplateTest(unittest.TestCase):
