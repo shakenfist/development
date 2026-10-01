@@ -737,10 +737,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_registry.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/packaging.py",
       "author": "mikal"
     },
@@ -773,10 +769,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/ci-review-automation/pr-retest.yml",
-      "author": "mikal"
-    },
-    {
       "path": "templates/renovate/renovate.yml",
       "author": "mikal"
     },
@@ -802,10 +794,6 @@
     },
     {
       "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/ci-review-automation/pr-re-review.yml",
       "author": "mikal"
     },
     {
@@ -837,22 +825,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/pr-retest.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/pr-re-review.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
-      "author": "mikal"
-    },
-    {
       "path": "templates/release-automation/release.yml",
       "author": "mikal"
     },
@@ -881,23 +853,11 @@
       "author": "mikal"
     },
     {
-      "path": "templates/ci-review-automation/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/ci-review-automation",
-      "author": "mikal"
-    },
-    {
       "path": "templates/pin-indirect-dependencies/pin-indirect-dependencies.yml",
       "author": "mikal"
     },
     {
       "path": "templates/pin-indirect-dependencies",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     }
   ],
