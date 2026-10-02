@@ -1785,18 +1785,14 @@ for phase 5 to trip over, and phase 5's Debian 12 follow-up gates on
 startable now, as it has been since phase 1 completed.
 
 #### Definition of done
-All twelve bullets hold as of 2026-10-02, and each is ticked against
-evidence rather than against a reading of the step that owned it. Six
-are 4j's checks and their output is under *What 4j confirmed* below:
-the first bullet is 4j (1), the second is 4j (4), the fourth, fifth and
-sixth are 4j (5), the eighth is 4j (6), the tenth is 4j (2) and the
-eleventh is 4j (3). The remaining four -- the third, seventh, ninth and
-twelfth -- are **not** among 4j's checks, so the evidence for them is
-recorded on the bullet itself. That gap was found in review of this
-close-out, not by the phase: a checklist and an observation step's
-brief were written at different times and overlap only in part, and
-ticking the four without running them would have been the cheapest
-possible way to close the phase.
+All twelve bullets hold as of 2026-10-02. Eight are covered by 4j,
+whose output is under *What 4j confirmed* below: bullet 1 is 4j (1),
+bullet 2 is 4j (4), bullets 4, 5 and 6 are 4j (5), bullet 8 is 4j (6),
+bullet 10 is 4j (2) and bullet 11 is 4j (3). **Bullets 3, 7, 9 and 12
+are not among 4j's checks**, so each carries its own evidence inline.
+A checklist and an observation step's brief written weeks apart
+overlap only in part, which is worth knowing before the next phase
+writes both.
 
 - [x] `docs/audits/compliance.md`'s `eol-distro` table has no
       `non-compliant` row, on a page generated after the last merge.
@@ -2015,10 +2011,8 @@ transfer traffic wanting a `database_load_budget.yaml` entry, and it
 belongs to the database-load work. It has an owner there:
 shakenfist#4401, filed automatically from run 36938755972 at 2026-10-02
 01:06 UTC, names the same four pairs and the same Debian 13 slim-tier
-lane. So this paragraph is a pointer, not the only record of a
-recurring failure on another repository's default branch -- which it
-was for sixteen minutes, between this section being written and the
-automation filing.
+lane. So this paragraph is a pointer rather than the only
+record of a recurring failure on another repository's default branch.
 
 **A note for later steps that quote a commit subject.** 4h part 1's
 brief prescribes the subject `Read the cluster image artifact as debian,
@@ -2394,11 +2388,19 @@ Out, and why:
    labels, and `test_web.py` is renamed although it does not
    fail.** Two surviving labels, not one, because of the ordering
    dependency in finding 3. No synthetic entries in test setup. And
-   the done criterion is the test *count*, not a green run: 1267
-   passed and 2 skipped before and after, so a sweep that deletes
-   coverage to make the suite pass fails the criterion. This is the
-   decision that matters most to get right, because the cheap
-   alternatives all leave a green suite.
+   the done criterion is the test *count*, not a green run: the same
+   passed and skipped totals before and after, so a sweep that
+   deletes coverage to make the suite pass fails the criterion. The
+   reference point is **the parent of 5a's merge commit, measured at
+   the time**, not a number written down here. `master` moves while
+   a phase runs -- it was `8816709` when the survey ran and
+   `bc00be0` hours later -- so an absolute target would fail the
+   criterion for an unrelated commit that added a test, or hide
+   coverage this phase deleted behind one that did. 1267 passed and
+   2 skipped is what `8816709` gave on 2026-10-02, recorded so the
+   expected magnitude is known. This is the decision that matters
+   most to get right, because the cheap alternatives all leave a
+   green suite.
 
 5.4. **The four frozen cache entries stay, and the reason is
    written down rather than inferred.** Decision 4.7 deferred them
@@ -2440,12 +2442,12 @@ No step prunes or regenerates `REVIEWS.md`.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 5a | high | opus | worktree | **The phase's substance, in `shakenfist/private-ci`, one pull request and two commits** (decision 5.2). Commit one removes the `debian-11` and `debian-gnome-12` entries from `IMAGE_BUILDS` in `conductor/imagebuilder.py` and the `debian-11` entry from `CI_IMAGES` in `conductor/provisioner.py` (`:45-100`; there is no gnome entry there, see finding 2), and rewords the `STALE_LABEL_SECONDS` comment at `:195-198` which explains itself by naming "the debian-11 case in #40". Commit two removes `debian-12` and `debian-12-docker` from both lists and deletes `debian-12` from `.github/actionlint.yaml` (finding 9; decision 4.2's reasoning). **The test sweep is the work, not the deletion.** Baseline first -- `pytest conductor/tests` must report 1267 passed, 2 skipped before you touch anything -- then expect 22 failures in `test_provisioner_claims.py`, `test_imagebuilder.py` and `test_provisioner_create_workers.py`, every one of them a fixture naming a label that no longer provisions. Rename fixtures to surviving labels; do **not** add synthetic entries to the lists in test setup, and do not delete a test to make the count go green. `test_provisioner_create_workers.py:256-263` needs two *different* surviving labels and depends on their order in `CI_IMAGES`, so read its comment before choosing: `debian-13` and `debian-13-docker` satisfy it, one label used twice does not. Then sweep the files that do **not** fail: `test_web.py:176-182` asserts a 200 for a "known image" with `request_build` mocked, so it keeps passing while asserting something false (finding 4) -- rename it; `test_db.py`, `test_db_costs.py`, `test_provisioner_costs.py` and `test_staticrunners.py` use the label as an opaque `runner_os` or metadata string, so rename them for honesty and say in the commit message that nothing there was load-bearing. Finish on 1267 passed, 2 skipped. Verify with `pre-commit run --all-files` and `tox -e flake8`. Commit subjects: `Retire the debian-11 and gnome-12 images.` and `Retire the Debian 12 runner images.` Do not touch `ansible/` in any repository -- that is 5b. |
-| 5b | medium | sonnet | worktree | **After 5a has merged *and* one nightly cycle has built with the shortened list**, and gated on a grep rather than on this sentence: `git grep -n "'name': 'debian-11'" conductor/imagebuilder.py` in a fresh `private-ci` clone must return nothing, and the conductor's cycle summary for the night after must show no `debian-11` build. Then, in `shakenfist/actions`, delete the four dead `debian:11` conditions in `ansible/ci-image.yml` (`:49`, `:60`, `:455`, `:466`) and collapse each pair of `add_host` tasks into one. Two pairs: the rebuild host at `:39-60` and the test host at `:445-466`. They differ only in `ansible_python_interpreter: /usr/bin/python3`, which the surviving task must **not** carry -- the detect-system-python arm is the one that stays, which is what the `!= "debian:11"` condition meant. `IMAGE_BUILDS` is the only caller of this playbook, so after 5a nothing invokes it with `base_image: debian:11`; this is decision 3.3's reasoning applied to the file phase 3 did not reach, and decision 3.2's ordering is why it cannot land first. Afterwards `grep -n 'debian.11' ansible/ci-image.yml` returns nothing and `grep -c 'name: Add to ansible' ansible/ci-image.yml` returns **2**, which is the check that catches deleting the wrong arm of a pair. Run `tools/ansible-syntax-check.sh` and `pre-commit run --all-files`. **The conductor reads this repository at `main` (`imagebuilder.py:41`, `ACTIONS_BRANCH = 'main'`), so the change is live on merge with no pinning to protect you** -- the same flag-day property 4h had. Commit subject: `Drop the dead bullseye python branches.` |
+| 5a | high | opus | worktree | **The phase's substance, in `shakenfist/private-ci`, one pull request and two commits** (decision 5.2). Commit one removes the `debian-11` and `debian-gnome-12` entries from `IMAGE_BUILDS` in `conductor/imagebuilder.py` and the `debian-11` entry from `CI_IMAGES` in `conductor/provisioner.py` (`:45-100`; there is no gnome entry there, see finding 2), and rewords the `STALE_LABEL_SECONDS` comment at `:195-198` which explains itself by naming "the debian-11 case in #40". Commit two removes `debian-12` and `debian-12-docker` from both lists and deletes `debian-12` from `.github/actionlint.yaml` (finding 9; decision 4.2's reasoning). **The test sweep is the work, not the deletion.** Baseline first, on your own branch point, and record the numbers: `pytest conductor/tests` gave 1267 passed, 2 skipped on `8816709` on 2026-10-02, and if your branch point gives something else then that is your target rather than this -- then expect 22 failures in `test_provisioner_claims.py`, `test_imagebuilder.py` and `test_provisioner_create_workers.py`, every one of them a fixture naming a label that no longer provisions. Rename fixtures to surviving labels; do **not** add synthetic entries to the lists in test setup, and do not delete a test to make the count go green. `test_provisioner_create_workers.py:256-263` needs two *different* surviving labels and depends on their order in `CI_IMAGES`, so read its comment before choosing: `debian-13` and `debian-13-docker` satisfy it, one label used twice does not. Then sweep the files that do **not** fail: `test_web.py:176-182` asserts a 200 for a "known image" with `request_build` mocked, so it keeps passing while asserting something false (finding 4) -- rename it; `test_db.py`, `test_db_costs.py`, `test_provisioner_costs.py` and `test_staticrunners.py` use the label as an opaque `runner_os` or metadata string, so rename them for honesty and say in the commit message that nothing there was load-bearing. Finish on the counts your own baseline gave. Verify with `pre-commit run --all-files` and `tox -e flake8`. Commit subjects: `Retire the debian-11 and gnome-12 images.` and `Retire the Debian 12 runner images.` Do not touch `ansible/` in any repository -- that is 5b. |
+| 5b | medium | sonnet | worktree | **After 5a has merged *and* one nightly cycle has built with the shortened list**, and gated on a grep rather than on this sentence: `git grep -n "'debian-11'" conductor/imagebuilder.py` in a fresh `private-ci` clone must return nothing, and the conductor's cycle summary for the night after must show no `debian-11` build. **That grep is known to fire rather than assumed to**: on `8816709`, the survey commit, it returns two lines -- the entry's `name` at `:59` and its `label` at `:62`, the `base_image` spelling `debian:11` deliberately not matching -- so zero means 5a landed rather than meaning the pattern was wrong. The quoted-label form is chosen over one naming the `'name':` key for the same reason: a pattern tied to the dict layout returns nothing if the layout is ever reshaped, which is a gate that cannot tell the two worlds apart. Then, in `shakenfist/actions`, delete the four dead `debian:11` conditions in `ansible/ci-image.yml` (`:49`, `:60`, `:455`, `:466`) and collapse each pair of `add_host` tasks into one. Two pairs: the rebuild host at `:39-60` and the test host at `:445-466`. They differ only in `ansible_python_interpreter: /usr/bin/python3`, which the surviving task must **not** carry -- the detect-system-python arm is the one that stays, which is what the `!= "debian:11"` condition meant. `IMAGE_BUILDS` is the only caller of this playbook, so after 5a nothing invokes it with `base_image: debian:11`; this is decision 3.3's reasoning applied to the file phase 3 did not reach, and decision 3.2's ordering is why it cannot land first. Afterwards `grep -n 'debian.11' ansible/ci-image.yml` returns nothing and `grep -c 'name: Add to ansible' ansible/ci-image.yml` returns **2**, which is the check that catches deleting the wrong arm of a pair. Run `tools/ansible-syntax-check.sh` and `pre-commit run --all-files`. **The conductor reads this repository at `main` (`imagebuilder.py:41`, `ACTIONS_BRANCH = 'main'`), so the change is live on merge with no pinning to protect you** -- the same flag-day property 4h had. **Second commit in the same pull request, and this half carries no ordering constraint at all:** in `ansible/ci-dependencies.yml`, add a comment to each of the four frozen cached image entries -- `debian:11`, `debian:12`, `ubuntu:20.04` and `fedora:40` -- saying it is deliberately frozen per decision 5.4 and naming what would justify removing it (nothing boots it any more, or the cache starts serving reads so that keeping it stops being free). Remove no entry, and do not touch `debian:13`, `rocky:10`, `ubuntu:22.04`, `ubuntu:24.04` or `centos:9-stream`. This is the only step that writes those comments, which 5f check (4) and the sixth done bullet both require; it is here rather than in 5a because 5a opens no pull request against `actions`, and it is called out as gate-free so a held-up bullseye deletion does not hold up a comment nothing depends on. Commit subjects: `Drop the dead bullseye python branches.` and `Say which cached images are frozen.` |
 | 5c | medium | sonnet | worktree | **`33fl`, and read before you edit** (decision 5.5). The premise of 33fl#826 is that the two GitLab static runners have no automated path off bookworm. `tools/retire-gitlab-runners.py` is that path, it has existed since 2026-07-30, and `rundaily.sh:262` runs it in the `--weekly` block; `static_runner_debian_release` became 13 on 2026-09-12 (`fa0e79d8`). So first establish what the eight runners in `static_runner_fleet` are actually running -- the `static-runners` namespace on sfcbr, via `sf-client instance list` and the instance creation times, or `ansible_distribution_release` from a one-off fact gather -- and report it before changing anything. If all eight are on trixie: delete nothing, and fix the three stale statements -- the comment at `group_vars/all/static_runners.yml:52-53` ("The gitlab runners have no retire tool") must name the tool and say the roll happens on the weekly cycle. If the two GitLab instances are still bookworm, delete them so the next reconcile rebuilds them, wait for it, then make the same correction. Either way leave `static_runner_debian_release: 13` alone and leave the paragraph about the audit's blindness to this fleet alone -- it is still true and phase 6 is where it goes. Do not close #826; 5e does that. Commit subject: `Say the gitlab runners do roll over.` |
-| 5d | low | sonnet | worktree | One paragraph in this repository. `docs/audits/eol-distro.md:57-63` says `debian-gnome-12` "is listed although the CI conductor advertises no `debian-gnome-13` label yet" and that "what is missing is an entry in private-ci's `IMAGE_BUILDS` table, not an image". Phase 3 added that entry, so rewrite the paragraph to say the successor label exists and that a finding naming `debian-gnome-12` is now a request to retire the old entry rather than to add a new one. **Leave the end-of-life table at `:31-32` exactly as it is** -- it is the registry of banned labels and it must keep listing `debian-11`, `debian-11-docker`, `debian-12`, `debian-12-docker` and `debian-gnome-12` after they are gone, because its job is to name what a workflow may not ask for. Do not touch `FROZEN_METADATA` or `FROZEN_ISSUE_TITLES`; the criterion's id, spec path and issue title do not change. Do not prune `REVIEWS.md`. Verify with `pre-commit run --all-files`. Commit subject: `Say debian-gnome-13 exists.` |
+| 5d | low | sonnet | worktree | One paragraph in this repository. `docs/audits/eol-distro.md:57-63` says `debian-gnome-12` "is listed although the CI conductor advertises no `debian-gnome-13` label yet" and that "what is missing is an entry in private-ci's `IMAGE_BUILDS` table, not an image". Phase 3 added that entry, so rewrite the paragraph to say the successor label exists and that a finding naming `debian-gnome-12` is now a request to retire the old entry rather than to add a new one. **Leave the end-of-life table at `:31-32` exactly as it is** -- it is the registry of banned labels and it must keep listing all five of `debian-11`, `debian-11-docker`, `debian-12`, `debian-12-docker` and `debian-gnome-12` after this phase, because its job is to name what a workflow may not ask for. Five banned labels against four retirements is not an inconsistency to resolve: `debian-11-docker` was never produced, and `debian-gnome-12` is a desktop image rather than a runner boot image. Do not touch `FROZEN_METADATA` or `FROZEN_ISSUE_TITLES`; the criterion's id, spec path and issue title do not change. Do not prune `REVIEWS.md`. Verify with `pre-commit run --all-files`. Commit subject: `Say debian-gnome-13 exists.` |
 | 5e | low | haiku | none | Housekeeping, no commit. File one issue in `shakenfist/shakenfist`: the nested cluster fetches `debian:11` from `images.shakenfist.com` although the bytes are on the attached `/srv/ci` cache disk, costing a cold ~407 MiB download inside `ansible_module_ci/004.yml`'s await budget, observed at 578 seconds against a 600 second timeout (shakenfist#4000). Give it the evidence from finding 6 -- `build-smoke-cluster/action.yml:257` uploads one cached image and no topology playbook sets a mirror -- and say explicitly that decision 5.4 keeps the cache entries and that this is about how they are served, not whether they exist. Then close private-ci#40, private-ci#45 and 33fl#826 with their merge commits, and close private-ci#38 last (decision 5.6), its comment carrying the before-and-after: what the fleet named when the inventory was written against what it names now. **Do not claim the audit confirms any of this** -- `eol-distro` does not read either list, and saying otherwise is the defect 4i produced in development#123's closing comment. **Never write a bot trigger phrase in any comment.** |
-| 5f | medium | sonnet | none | **Confirms the phase, which nothing else does**, and cannot lean on the audit (see the status paragraph). Run after every pull request above has merged and at least one nightly cycle has completed. Six checks: (1) in a fresh `private-ci` clone, `grep -n "'debian-11'\|'debian-12'\|'debian-12-docker'\|'debian-gnome-12'" conductor/imagebuilder.py conductor/provisioner.py` returns nothing, and `grep -rn 'debian-12' .github/` returns nothing; (2) `pytest conductor/tests` reports **1267 passed, 2 skipped**, the same counts as 2026-10-02 on `8816709` -- a lower pass count means coverage was deleted, a higher one means tests were added and wants explaining; (3) in `actions`, `grep -n 'debian.11' ansible/ci-image.yml` returns nothing and `grep -c 'name: Add to ansible' ansible/ci-image.yml` returns 2; (4) the cached image list in `ansible/ci-dependencies.yml` still contains `debian:11`, `debian:12`, `ubuntu:20.04` and `fedora:40`, each carrying the freeze comment -- a check whose passing output is non-empty, deliberately (decision 5.4); (5) the conductor's nightly cycle summary for a night after 5a shows builds for the surviving labels only, with no `debian-11`, `debian-12`, `debian-12-docker` or `debian-gnome-12` line and no permanent `False`, read from the summary rather than inferred from the absence of a failure; (6) all eight entries of `static_runner_fleet` report Debian 13, read from the fleet. Report each check with its output. **A stale read looks healthy here too**: check (5) wants a cycle summary generated after 5a merged, not the most recent one you can find. |
+| 5f | medium | sonnet | none | **Confirms the phase, which nothing else does**, and cannot lean on the audit (see the status paragraph). Run after every pull request above has merged and at least one nightly cycle has completed. Six checks: (1) in a fresh `private-ci` clone, `grep -n "'debian-11'\|'debian-12'\|'debian-12-docker'\|'debian-gnome-12'" conductor/imagebuilder.py conductor/provisioner.py` returns nothing, and `grep -rn 'debian-12' .github/` returns nothing; (2) `pytest conductor/tests` gives the same passed and skipped counts on 5a's merge commit as on its parent -- run it on both, because `master` moves and an absolute figure drifts; a lower count on the merge means coverage was deleted. For scale, `8816709` gave 1267 passed and 2 skipped; (3) in `actions`, `grep -n 'debian.11' ansible/ci-image.yml` returns nothing and `grep -c 'name: Add to ansible' ansible/ci-image.yml` returns 2; (4) the cached image list in `ansible/ci-dependencies.yml` still contains `debian:11`, `debian:12`, `ubuntu:20.04` and `fedora:40`, each carrying the freeze comment -- a check whose passing output is non-empty, deliberately (decision 5.4); (5) the conductor's nightly cycle summary for a night after 5a shows builds for the surviving labels only, with no `debian-11`, `debian-12`, `debian-12-docker` or `debian-gnome-12` line and no permanent `False`, read from the summary rather than inferred from the absence of a failure; (6) all eight entries of `static_runner_fleet` report Debian 13, read from the fleet. Report each check with its output. **A stale read looks healthy here too**: check (5) wants a cycle summary generated after 5a merged, not the most recent one you can find. |
 
 #### Risks and mitigations
 
@@ -2465,9 +2467,11 @@ Debian 12 half is its own commit, so a revert is one commit.
 
 **The test sweep can be satisfied by removing coverage.** Twenty-two
 failing tests and a deadline is how a suite loses assertions. The
-mitigation is a number rather than a judgement: 1267 passed and 2
-skipped before and after, named in 5a's brief and re-checked in 5f
-check (2). The subtler version is the mocked boundary in finding 4,
+mitigation is a count rather than a judgement: the same passed and
+skipped totals on 5a's merge commit as on its parent, named in 5a's
+brief and re-checked in 5f check (2). Against the parent rather than
+against 1267, because `master` moves while the phase runs. The
+subtler version is the mocked boundary in finding 4,
 which no count catches -- that one is mitigated by naming the file
 and the line in the brief, because nothing else would find it.
 
@@ -2509,10 +2513,13 @@ evidence that the retirement worked.
       nothing. This is the one repository phase 4's equivalent
       bullet exempted, because it has no workflows for the
       declaration to govern; the declaration goes with the entries.
-- [ ] `pytest conductor/tests` reports **1267 passed, 2 skipped** --
-      the counts measured on `8816709` on 2026-10-02, before any of
-      this phase's edits. A green run with a lower pass count fails
-      this bullet. The count is the criterion precisely because 22
+- [ ] `pytest conductor/tests` gives the same passed and skipped
+      counts on 5a's merge commit as on its parent. A green run with
+      a lower pass count on the merge fails this bullet. Measured
+      against the parent rather than against a figure written here,
+      because `master` moves while the phase runs; for scale,
+      `8816709` gave 1267 passed and 2 skipped on 2026-10-02. The
+      count is the criterion precisely because 22
       tests fail on the deletion alone and the cheapest ways to make
       them pass are all wrong (decision 5.3).
 - [ ] `conductor/tests/test_web.py`'s `test_build_known_image` names
@@ -2551,7 +2558,12 @@ evidence that the retirement worked.
       this fleet stays: it is still true and it is phase 6's.
 - [ ] `docs/audits/eol-distro.md` no longer says the conductor
       advertises no `debian-gnome-13` label, and its end-of-life
-      table still lists all five retired runner labels. Both
+      table still lists all five labels it bans -- `debian-11`,
+      `debian-11-docker`, `debian-12`, `debian-12-docker` and
+      `debian-gnome-12`, which is not the set of four entries this
+      phase retires: `debian-11-docker` has never been produced and
+      `debian-gnome-12` is a desktop image rather than a runner boot
+      image. Both
       halves: the table is the registry of what a workflow may not
       name, and emptying it as the labels go would make the
       criterion unable to report a regression.
@@ -2583,8 +2595,11 @@ settle now and expensive to redo.
    call is defensible and it is a four-line deletion, but it
    forecloses the fix in finding 6 and it contradicts decision 4.7,
    which deferred the question here rather than deciding it. If they
-   are to go, say so before 5a, because the comment 5a writes is
-   the thing that would have to be unwritten.
+   are to go, say so before 5b, because the comment it writes is the
+   thing that would have to be unwritten. (5b's second commit, not
+   5a's: 5a opens no pull request against `actions`. The first draft
+   of this plan said 5a and gave the comments to no step at all,
+   which the review of it found.)
 3. **Two commits in `private-ci`, not two pull requests** (decision
    5.2). The revert granularity is the point; the cost is one review
    covering both halves.
