@@ -11,7 +11,7 @@ projects consistent. It contains no application code.
 - `docs/` -- longer-form documentation of the automation systems, and
   `docs/audits/`: one hand-written specification file per audit
   criterion, plus `docs/audits/compliance.md`, the per-project
-  compliance page regenerated daily by the audit workflow (between the
+  compliance page regenerated weekly by the audit workflow (between the
   consistency-audit markers) and the only generated file there.
   `docs/audits/README.md` holds the index, and says which
   repositories are in scope, excluded, or audited for part of it.
@@ -24,7 +24,7 @@ projects consistent. It contains no application code.
   live here too; they went with the retired comment addresser, and what
   the reviewer still needs ships inside
   `shakenfist/actions/review-pr-with-claude`.
-- `.github/workflows/consistency-audit.yml` -- the daily audit workflow.
+- `.github/workflows/consistency-audit.yml` -- the weekly audit workflow.
 - `.github/workflows/ci.yml` -- this repository's own pull request
   checks: the pre-commit gate, a smoke run of the audit, and the
   automated reviewer gated on both.
@@ -43,7 +43,7 @@ projects consistent. It contains no application code.
 
 ## The consistency audit pipeline
 
-The daily `consistency-audit.yml` workflow turns "are the projects
+The weekly `consistency-audit.yml` workflow turns "are the projects
 consistent" into a measurement, in four stages:
 
 1. A matrix job per target repository shallow-clones it and runs
@@ -128,7 +128,7 @@ ryll's `tools/review-tracking.sh`) -- deliberately not from git
 hooks. In steady state four subcommands also run from CI: adopting
 repos prune stale marks and import reviews made here on every push
 to their default branch and once a day, via a `prune-reviews`
-workflow copied from `templates/review-tracking/`, and the daily
+workflow copied from `templates/review-tracking/`, and the weekly
 consistency audit alerts (via a GitHub issue) when five or more
 in-scope files need review (`review-coverage`) and when the scope
 config leaves a tracked file out without saying so
@@ -142,7 +142,7 @@ The test suites all live in `scripts/tests/` and run as `local`
 pre-commit hooks, and `ci.yml` runs `pre-commit run --all-files` on
 every pull request.
 Until `ci.yml` existed the hooks were the only gate between an edit and
-the 06:00 UTC run, and only in a clone where somebody had installed
+the scheduled run, and only in a clone where somebody had installed
 them.
 
 `ci.yml` also runs `audit-check.py` against this repository, which is

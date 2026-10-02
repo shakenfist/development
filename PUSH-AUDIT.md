@@ -8,7 +8,7 @@ audits twenty other repositories, the specifications that
 automation implements, and the workflow templates the fleet
 copies. A defect here does not break a running system; it
 breaks other repositories quietly, or files a hundred wrong
-issues at 06:00 UTC. The briefs below are written for that
+issues on the next scheduled run. The briefs below are written for that
 blast radius rather than for a product.
 
 The audit splits into two waves:
@@ -114,13 +114,13 @@ git diff --name-only -z --diff-filter=d \
 git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- '*.py' | grep -nE '^\+import |^\+from '
 
 # Hand-edited compliance data. compliance.md is regenerated and
-# pushed by the daily workflow, so an edit to it is reverted tomorrow
-# morning and confuses whoever reads it today
+# pushed by the weekly workflow, so an edit to it is reverted on the
+# next run and confuses whoever reads it until then
 git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- 'docs/audits/compliance.md' | grep -nE '^\+'
 
 # A generated block, or a status table, appearing in a criterion
 # spec. The specs are hand-written and in scope for human review; one
-# carrying a line the daily run rewrites can never hold a review mark
+# carrying a line every run rewrites can never hold a review mark
 # again, which is the regression the compliance page exists to prevent
 git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- 'docs/audits/*.md' ':!docs/audits/compliance.md' | \
     grep -nE '^\+.*consistency-audit:(begin|end)|^\+\| .* \| (compliant|non-compliant|N/A) \|'
@@ -160,7 +160,7 @@ looked at and accepted. The greps report; they do not block.
 If the diff touches `templates/shared-blocks/`, confirm the
 version bump is deliberate before going further. Bumping a block
 marks every repository carrying the old version non-compliant on
-the next daily run and files issues automatically -- that is the
+the next scheduled run and files issues automatically -- that is the
 mechanism working, but it should be a decision rather than a
 side effect.
 

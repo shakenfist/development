@@ -2,8 +2,16 @@ name: Consistency audit
 
 on:
   schedule:
-    # Run daily at 06:00 UTC (after export-repo-config at 00:30)
-    - cron: '0 6 * * *'
+    # Weekly, at 18:00 UTC on Sunday: 05:00 on Monday in Canberra
+    # under daylight saving, 04:00 outside it. A daily run filed and
+    # closed issues faster than the fleet could absorb them, and the
+    # fixes were most of the PRs in some repositories. Once a week
+    # turns that into a small backlog to start the working week on.
+    # workflow_dispatch below re-runs it on demand, which is how to
+    # close issues for fixes that did not close them from the PR body.
+    # export-repo-config still runs daily at 00:30, so its output is
+    # never more than a day old when this reads it.
+    - cron: '0 18 * * 0'
   workflow_dispatch:
 
 permissions: {}
@@ -216,8 +224,8 @@ jobs:
 
   # A scheduled workflow that fails emails whoever last pushed, which
   # is nobody's inbox in particular and is easy to miss for a workflow
-  # that runs at 06:00 UTC. The August 2026 PEP 668 breakage went a full
-  # day that way, with the compliance page and issue filing stopped
+  # that runs before anyone is up. The August 2026 PEP 668 breakage went
+  # a full day that way, with the compliance page and issue filing stopped
   # the whole time and the tables still showing the previous run's
   # verdicts -- so the audit looked like it was working. This puts a
   # failure somewhere it will be seen, and updates one issue rather than

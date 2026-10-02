@@ -515,9 +515,9 @@ class SpecsLinkTheirComplianceSectionTest(unittest.TestCase):
         """Each measured spec links the anchor named after itself.
 
         Deliberately not checked against the committed page. The page
-        is generated daily and lags the specs by one run, so a
-        criterion registered today has no section there until tomorrow
-        morning -- which is exactly what the documented "Adding a
+        is generated weekly and lags the specs by one run, so a
+        criterion registered today has no section there until the
+        next run -- which is exactly what the documented "Adding a
         criterion" recipe produces. An earlier version of this test
         required the section to exist already and would have failed
         the first commit of every future criterion.

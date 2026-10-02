@@ -56,7 +56,7 @@ morning of issues: eight of the ten repositories carrying a
 `PLAN-TEMPLATE.md` newly failed `plan-template`, and seven of the
 eleven carrying a `PUSH-AUDIT.md` newly failed `push-audit`. Each
 issue is closed by a verbatim copy of the block and names the file
-to copy it from; `docs/audits/compliance.md` is regenerated daily
+to copy it from; `docs/audits/compliance.md` is regenerated weekly
 and is the current figure. `plan-references-in-code` followed on
 2026-09-24 on the same terms.
 
@@ -68,7 +68,7 @@ the one exception to the second's account of that column.
 
 1. Edit the canonical file here.
 2. Bump the version number in its begin marker.
-3. Commit. The next daily consistency-audit run marks every
+3. Commit. The next consistency-audit run marks every
    repository carrying the old version non-compliant and files
    issues automatically -- no per-repository chasing needed.
 

@@ -254,7 +254,7 @@ def render_page(results, no_issues):
     # whatever unrelated .md files happened to sit beside the scratch
     # page as criteria nobody measures, which is noise in exactly the
     # diff the plan relies on to check a change before the unattended
-    # 06:00 run makes it live.
+    # scheduled run makes it live.
     unmeasured = unmeasured_specs()
     if unmeasured:
         lines.append('')

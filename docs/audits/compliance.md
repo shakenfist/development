@@ -1,7 +1,7 @@
 # Consistency audit compliance
 
 Which project currently meets which criterion. This page is
-regenerated every morning by the consistency audit workflow and
+regenerated weekly by the consistency audit workflow and
 committed by it, and it is the only generated file in `docs/audits/`
 -- every criterion specification beside it is hand-written and
 changes only when a person changes it.

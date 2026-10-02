@@ -219,7 +219,7 @@ def pr_auto_review_callers_inheriting_secrets(repo_path):
     two of them rather than zero, so it is a guard which has seen real
     repositories and not only fixtures. Which repositories are
     outstanding today is the ci-review-automation section of
-    docs/audits/compliance.md, which regenerates daily. That is
+    docs/audits/compliance.md, which regenerates weekly. That is
     deliberately not restated here: one of the two the survey named had
     merged its own removal within the day, and this change is the
     other.
