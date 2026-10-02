@@ -83,18 +83,23 @@ nobody reviewed in the calling repository runs inside its CI.
 job that passes `secrets: inherit` to a reusable workflow, and
 leaves two callees to criteria that already owned them
 (`export-repo-config`, `ci-review-automation`). The fix in the
-calling repositories is still rolling out. As of the compliance
-page at 72d863e:
+calling repositories is still rolling out. These are the live
+`secrets: inherit` lines on each repository's default branch, read
+through the GitHub API on 2026-10-02 (the phase 1 survey; local
+clones were stale and overcounted):
 
-| Criterion | Non-compliant | Open issues |
-|-----------|---------------|-------------|
+| Criterion | Repositories | Open issues |
+|-----------|--------------|-------------|
 | `reusable-workflow-secrets` | 4 | client-python#410, instar#610, occystrap#150, shakenfist#4380 |
-| `export-repo-config` | 10+ | for example agent-python#146, client-python#409 |
-| `ci-review-automation` | 10+ | for example agent-python#145, client-python#408 |
+| `export-repo-config` (its inherit finding) | 9 | agent-python#146, client-python#409, client-python-k3s#79, clingwrap#138, divergulent#121, instar#600, library-utilities#63, occystrap#148, sfui#38 |
+| `ci-review-automation` (its inherit finding) | 0 | none; its open issues are about other findings |
 
-When the criterion was added, no reusable workflow in the fleet
-read a secret. Every one of these inherits is therefore fixed by
-deleting a line.
+fe4b3ba says no reusable workflow in the fleet read a secret. That is
+true of the shared callees in `actions` (`smoke-cluster.yml` and
+`export-repo-config.yml`) and of the `test-drift-fix.yml` template. It
+is **not** true of instar's local `test-drift-fix.yml`, which reads
+`secrets.GITLAB_TESTDATA_TOKEN` to fetch its test data. Deleting
+instar's inherit would leave that token empty. Phase 1 handles this.
 
 **The pinning half has not been started.** The spec of
 `reusable-workflow-secrets` explicitly leaves it out. These
@@ -230,23 +235,140 @@ Out of scope:
 
 ### Phase 1: finish the inherit rollout
 
-This work is all in other repositories. Use the `consistency-fix`
-skill there, one pull request per repository, and skip any issue
-already in flight. Record each landing as `<repo> <sha> (#pr)`. The
-phase is done when `reusable-workflow-secrets`, and the
-`secrets: inherit` part of `export-repo-config` and
-`ci-review-automation`, are compliant fleet-wide. Nothing in this
-repository changes. The point of putting this phase first is that
-phase 2's "after the inherit rollout" premise only becomes true
-here.
+Planning effort: medium. Review effort: high for instar (step 1a),
+which is the only repository where a callee reads a real secret.
 
-Planning effort: medium. The fix is a deleted line, and the
-criteria already exist.
+**Scope.** Remove every live `secrets: inherit` in the fleet: 17
+lines in 10 repositories, closing 13 issues. In this repository, one
+correction to a spec and a docstring. Out of scope: the other
+findings on the `export-repo-config` and `ci-review-automation`
+issues, and any other drift between the local `test-drift-fix.yml`
+copies and their template. Phase 1 changes only the token
+references in those copies.
+
+**What the survey found** (2026-10-02, against default branches
+through the GitHub API; the master plan's Situation section was
+corrected to match, and later steps should not redo that):
+
+- There are no live `pr-auto-review.yml` inherits. The ones in
+  sfui and client-python-k3s that the master plan counted were in
+  stale local clones. `ci-review-automation` has no part in this
+  phase, and the original brief 1b's mention of it is dropped.
+- The live `export-repo-config.yml` inherits are in nine
+  repositories (table in Situation). None of their issues has a pull
+  request in flight.
+- `actions/.github/workflows/smoke-cluster.yml` and
+  `export-repo-config.yml` read no secret. Each already carries a
+  comment saying so (lines 18 and 9), so for those two, deleting the
+  line is the whole fix.
+- The local `test-drift-fix.yml` copies in instar, occystrap and
+  shakenfist have drifted from the template.
+  `templates/test-drift-fix/test-drift-fix.yml` uses `github.token`
+  (lines 169, 378, 394, 441). The copies still use
+  `secrets.GITHUB_TOKEN`: instar at lines 145, 248, 644, 661 and
+  711, occystrap at 173, 394, 410 and 457, shakenfist at 156, 375,
+  391 and 438.
+- **instar's copy reads `secrets.GITLAB_TESTDATA_TOKEN`** (line
+  120, the "Prepare instar-testdata" step). That contradicts both
+  the fe4b3ba commit message and `docs/audits/reusable-workflow-secrets.md`,
+  which say no callee in the fleet reads a secret. The original
+  brief told the implementer to stop and report if this happened,
+  so the plan now decides it instead (decision 2).
+- shakenfist has one open pull request (#4396) that mentions
+  secrets. It is about the Ansible modules probe and does not touch
+  these files.
+
+**Decisions.**
+
+1. **This phase is planned on the master plan's branch, not a new
+   worktree.** The master plan has not merged yet, a branch cut from
+   main would not contain it, and phase 1's code lands in other
+   repositories anyway. Only step 1f lands here, as its own commit
+   on this branch.
+2. **instar passes `GITLAB_TESTDATA_TOKEN` by name rather than
+   losing it.** `test-drift-fix.yml` declares it under
+   `on.workflow_call.secrets` with a description and
+   `required: false`, so the copy still works when triggered
+   directly. `pr-fix-tests.yml` passes
+   `GITLAB_TESTDATA_TOKEN: ${{ secrets.GITLAB_TESTDATA_TOKEN }}`.
+   This is the named form that the `reusable-workflow-secrets` spec
+   asks for, and the first live use of it in the fleet, so it is
+   the worked example phase 4 will cite.
+3. **Every local `test-drift-fix.yml` moves from
+   `secrets.GITHUB_TOKEN` to `github.token`**, matching the
+   template. Whether `secrets.GITHUB_TOKEN` resolves in a called
+   workflow that was passed nothing is a question nobody here has
+   verified. `github.token` makes it moot, and it is what fe4b3ba
+   already did to the template for the same reason.
+4. **One pull request per repository, one commit per issue**, as
+   `consistency-fix` prescribes. client-python, instar and occystrap
+   each close two issues from one pull request.
+5. **Merge order: low risk first, shakenfist last.** The six
+   repositories with only an export-repo-config line go first. They
+   have nothing to break: the callee reads nothing, and the workflow
+   runs on its own schedule. Then client-python and occystrap, then
+   instar, then shakenfist, whose four smoke-cluster callers sit on
+   its most expensive lanes.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 1a | medium | sonnet | worktree | In each of client-python, instar, occystrap and shakenfist, run the `consistency-fix` skill for its open `Consistency: Reusable workflow secrets` issue (#410, #610, #150, #4380). Delete each `secrets: inherit` line under jobs that call `smoke-cluster.yml` or `test-drift-fix.yml`. Before deleting, grep the callee in `shakenfist/actions` (or locally) for `secrets.` to confirm it still reads none. If it reads one, stop and report rather than passing it. |
-| 1b | medium | sonnet | worktree | The same for the open `Export repo config` and `CI review automation` issues, limited to their `secrets: inherit` findings. Leave their other findings to those issues' own fixes. |
+| 1a | high | opus | worktree | instar, closing #610 and #600. (1) In `.github/workflows/export-repo-config.yml`, delete the `secrets: inherit` line under the job calling `shakenfist/actions/.github/workflows/export-repo-config.yml@main`. Commit, citing #600. (2) In `.github/workflows/test-drift-fix.yml`, add `secrets: GITLAB_TESTDATA_TOKEN: {description: 'Read access to the instar-testdata GitLab repository, used by Prepare instar-testdata.', required: false}` under `on.workflow_call`, and replace every `${{ secrets.GITHUB_TOKEN }}` (lines 145, 248, 644, 661, 711) with `${{ github.token }}`. In `.github/workflows/pr-fix-tests.yml`, replace `secrets: inherit` under job `fix-tests` with `secrets:` / `GITLAB_TESTDATA_TOKEN: ${{ secrets.GITLAB_TESTDATA_TOKEN }}`. Commit, citing #610. Then grep both files for any other `secrets.` reference; anything else must be declared and passed the same way. Run `actionlint` and `pre-commit run --all-files`. Re-run `scripts/audit-check.py` from shakenfist/development against the worktree, and confirm `reusable-workflow-secrets` and `export-repo-config` no longer report the inherit. Open one pull request whose body closes both issues. Do not merge. |
+| 1b | medium | sonnet | worktree | shakenfist, closing #4380. Delete the `secrets: inherit` line under jobs `smoke_collection`, `functional_matrix_merge_collection` and `ansible_modules_collection` in `.github/workflows/functional-tests.yml`, under `functional_matrix_collection` in `scheduled-tests.yml`, and under `fix-tests` in `pr-fix-tests.yml`. The callee `smoke-cluster.yml` in shakenfist/actions reads no secret; its line 18 says so. In `test-drift-fix.yml`, replace `${{ secrets.GITHUB_TOKEN }}` at lines 156, 375, 391 and 438 with `${{ github.token }}`, then grep for any remaining `secrets.`; there should be none, and if there is one, stop and report. Run pre-commit and the audit check as in 1a. Open the pull request with "Fixes #4380". The pull request's own functional-tests run is the verification for the smoke-cluster callers, so wait for it to pass. |
+| 1c | medium | sonnet | worktree | occystrap, closing #150 and #148. Same shape as 1b: delete the export-repo-config inherit (commit citing #148), delete the `fix-tests` inherit in `pr-fix-tests.yml`, and replace `${{ secrets.GITHUB_TOKEN }}` at `test-drift-fix.yml` lines 173, 394, 410 and 457 with `${{ github.token }}` (commit citing #150). Run pre-commit and the audit check, then open one pull request closing both issues. |
+| 1d | medium | sonnet | worktree | client-python, closing #410 and #409. Delete the `secrets: inherit` under job `functional_matrix` in `.github/workflows/functional-tests.yml` (callee `smoke-cluster.yml`, reads no secret; commit citing #410), and the one in `export-repo-config.yml` (commit citing #409). Run pre-commit and the audit check, then open one pull request closing both issues, and let its functional-tests run pass. |
+| 1e | low | sonnet | worktree | In each of agent-python (#146), client-python-k3s (#79), clingwrap (#138), divergulent (#121), library-utilities (#63) and sfui (#38): delete the `secrets: inherit` line in `.github/workflows/export-repo-config.yml`, run pre-commit, and open a pull request with "Fixes #N". One pull request per repository. Touch nothing else, even if the same issue lists other findings. |
+| 1f | low | sonnet | none | In this repository (branch `reusable-workflow-secrets`), correct the claim that no callee reads a secret. The Why section of `docs/audits/reusable-workflow-secrets.md` says "no reusable workflow in the fleet read a secret" and that every inherit "is fixed by deleting the line". The `ReusableWorkflowSecrets.run` docstring in `scripts/audit/checks/ci_workflows.py` (around line 2186) says "on 2026-09-29 was every callee in the fleet". Both should say that instar's local `test-drift-fix.yml` read `GITLAB_TESTDATA_TOKEN` and was moved to the named form, and every other inherit was a deleted line. Do not add a `consistency-audit` marker or touch `compliance.md`. Run `pre-commit run --all-files`. |
+
+**Risks and mitigations.**
+
+- *instar's test data fetch fails silently after the change.* If
+  the secret name is wrong, the step gets an empty token.
+  `prepare-testdata.sh` should then fail at authentication rather
+  than carry on. Once 1a has merged, the management session
+  triggers `pr-fix-tests` once on a throwaway instar pull request
+  and reads the "Prepare instar-testdata" step log. That trigger is
+  maintainer-only, through `pr-bot-trigger`: comment
+  `@shakenfist-bot please attempt to fix`
+  (`templates/test-drift-fix/README.md:20`).
+- *`pr-fix-tests` in occystrap and shakenfist is not exercised by
+  pull request CI*, because it runs only on a maintainer comment.
+  The same post-merge trigger, once per repository, is the check.
+- *A smoke-cluster caller breaks.* The callee reads no secret and
+  says so. Each pull request's own functional-tests run exercises
+  every changed caller except shakenfist's scheduled one, which runs
+  that night. The management session checks the next scheduled run.
+
+**Definition of done.**
+
+- This prints nothing:
+
+  ```
+  for r in agent-python client-python client-python-k3s clingwrap \
+      divergulent instar library-utilities occystrap sfui shakenfist; do
+    for f in $(gh api repos/shakenfist/$r/contents/.github/workflows --jq '.[].name'); do
+      gh api repos/shakenfist/$r/contents/.github/workflows/$f --jq .content | base64 -d |
+        grep -qE '^\s*secrets:\s*inherit' && echo "$r: $f"
+    done
+  done
+  ```
+
+- The 13 issues are closed: client-python#410 and #409, instar#610
+  and #600, occystrap#150 and #148, shakenfist#4380,
+  agent-python#146, client-python-k3s#79, clingwrap#138,
+  divergulent#121, library-utilities#63 and sfui#38. The next
+  morning's audit closes any that the pull request bodies did not.
+- `gh api repos/shakenfist/instar/contents/.github/workflows/test-drift-fix.yml --jq .content | base64 -d | grep -c 'secrets\.'`
+  prints 1, the `GITLAB_TESTDATA_TOKEN` reference.
+- The post-merge `pr-fix-tests` triggers in instar, occystrap and
+  shakenfist each got past their token-using steps.
+- The `Merged` cell records each landing as `<repo> <sha> (#pr)`.
+
+**Back brief gate.** Step 1a is implemented first, and its pull
+request is reviewed before 1b to 1e start. This is about the order
+of the work, not the order of merging; decision 5 still decides
+when each pull request merges. It is the only step that adds rather than deletes, and
+its shape (declared, optional, described) is the pattern phase 4
+documents.
 
 ### Phase 2: make `actions` main mean reviewed
 
