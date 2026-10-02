@@ -769,10 +769,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/renovate/renovate.yml",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/codeql-analysis.yml",
       "author": "mikal"
     },
@@ -786,14 +782,6 @@
     },
     {
       "path": "templates/renovate/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/renovate.yml",
       "author": "mikal"
     },
     {
@@ -845,10 +833,6 @@
       "author": "mikal"
     },
     {
-      "path": ".pre-commit-config.yaml",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_packaging.py",
       "author": "mikal"
     },
@@ -877,14 +861,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
-      "author": "mikal"
-    },
-    {
       "path": "templates/ci-review-automation/README.md",
       "author": "mikal"
     },
@@ -894,10 +870,6 @@
     },
     {
       "path": "templates/ci-review-automation",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     }
   ],
