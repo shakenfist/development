@@ -228,7 +228,7 @@ needs the same treatment, and phase 6 says so.
 | 1. Alarm on absence | Complete | images acccd2b (#5), images 47ed141 (#6), private-ci ae7b1f8 (#49), private-ci e1f8fb1 (#54), 33fl 6de1764 (#827) |
 | 2. Verify the artifact, not the name | Complete | images 6028647 (#7), images 4800c72 (#8), images b872641 (#9), actions 2ac4a94 (#74), 33fl bbbd842 (#836) |
 | 3. Unblock the migration | Complete | private-ci 9eace9d (#60), private-ci 2e18c13 (#61), private-ci dbb78ca (#63), actions 8684eec (#78), actions 781d267 (#80), kerbside 79c2506 (#435), kerbside cfef26a (#450) |
-| 4. The consumer sweep | In progress | |
+| 4. The consumer sweep | Complete | Label half: actions 5a677a9 (#90), agent-python 8303e99 (#140), client-python 93a0999 (#405), client-python-k3s 1576e72 (#67), clingwrap d5eb4ea (#136), divergulent 53136f2 (#117), library-utilities 6f63b95 (#60), ryll 060e649 (#397), sfui 30f5501 (#35), instar a1c09aa (#589), occystrap 4b9d5ff (#143), shakenfist 54b18a0 (#4306), with visual-digest-rust #23 closed as superseded. Guest-image half: actions 8c02ab0 (#97, 4f), shakenfist 2a94e58 (#4379, 4g), shakenfist 984fdd1 (#4385, 4h part 1), actions 227593c (#124, 4h part 2). 4i and 4j carry no commit. |
 | 5. Retire the end-of-life producers | Not started | |
 | 6. Close the audit's blind spot | Not started | |
 | 7. Push audit | Not started | |
@@ -1021,7 +1021,9 @@ fortnight stale in both directions, and because the criterion that
 produced it cannot see the half of the migration that actually
 gates phase 5.
 
-**Status: in progress; 4f is verified and 4g to 4j remain.** One step
+**Status: complete, 2026-10-02.** 4j ran on 2026-10-02 and all six of
+its checks pass; what they found is recorded under *What 4j confirmed*
+at the end of this section. One step
 landed out of band, one marker the phase was going to add turned out
 to be already there and broken, and a bug in another repository
 blocked the under-cloud half for three days. All of that is recorded
@@ -1906,6 +1908,75 @@ startable now, as it has been since phase 1 completed.
       run completed after 4g.
 - [ ] development#123 is closed; private-ci#38 is still open and
       carries the guest-image inventory.
+
+#### What 4j confirmed
+
+4j ran on 2026-10-02, after the morning audit regenerated the
+compliance page. All six checks pass. Recorded here because the phase
+is not confirmed by its merges and nothing else in this document says
+so.
+
+(1) The `eol-distro` table on `main` lists no `non-compliant` row -- 19
+compliant, `cloudgood` and `private-ci` N/A -- and the page was
+generated at 2026-10-01 12:44:43 UTC, after the phase's last merge at
+08:04:28 UTC. Both halves, because a stale page looks healthy: the
+check was genuinely blocked on 2026-10-01, when the then-current page
+predated the last two merges, and it was not run until that cleared.
+
+(2) The renamed artifact is both written and read, read out of run logs
+rather than workflow files, with both ends anchored. In the three
+merge_group runs completed after 4g (36651832849, 36661716274,
+36669390897, each confirmed a descendant of `2a94e582f`) the write side
+shows the expected *two* upload lines for that date, the read side
+shows `base=sf://upload/system/debian` unsuffixed, and the under-cloud
+shows `sf://label/ci-images/debian-13`. The post-4h state -- *one*
+upload line -- was then read out of run 36938755972, whose build log
+postdates 4h part 2: exactly one upload, `debian /srv/ci/debian:13`,
+and no occurrence of `debian-12` or `debian:12` anywhere in its 9,090
+lines. The brief asks for the source check and the log check as a pair;
+both agree.
+
+(3) `tools/ci_headroom_harvest.py` matches all five `BUNDLE_TOPOLOGIES`
+entries against a merge run completed after 4g, with no
+`UnknownBundleError`. This is item (2) of 4g's own work, whose failure
+mode was silent.
+
+(4) The anchored `actionlint.yaml` list-item grep across fresh clones of
+all 29 non-archived repositories returns one line, `private-ci`, which
+is step 4d's stated exception for having no workflows. The anchor is
+load-bearing and was checked: an unanchored grep also reports
+`development` and `hunkydory`, both comments explaining why the label is
+*not* declared.
+
+(5) `/srv/ci/debian:12` returns nothing across those clones,
+`build-smoke-cluster/action.yml` carries exactly one `/srv/ci/debian:13`,
+gate A returns nothing, and gate B returns one line: a docstring in
+`shakenfist/tests/test_mariadb_capacity_admission.py` naming a *runner*,
+not the artifact. The runtime-assembly grep returns the same three known
+benign lines it did on 2026-09-30.
+
+(6) `docs/actions.md` describes the finished state: the under-cloud
+paragraph says trixie, the guest-image paragraph describes a single
+upload named `debian`, and `in flight` and `transition` no longer appear.
+
+**One failure in that post-4h run is not this phase's.** The Debian 13
+tier lane failed on
+`test_no_unbudgeted_fixed_rate_database_polling`, which found four
+undeclared fixed-rate polls above its 0.25/s ceiling --
+`GetBlobAttributes/queues`, `UpdateBlobTransfer/transfers`,
+`UpdateBlobLastUsed/queues` and `GetObjectsByState/queues`. The same
+lane failed the same way in run 36806873191, *before* 4h merged, so it
+predates this phase and is recurring rather than a flake. It is blob and
+transfer traffic wanting a `database_load_budget.yaml` entry, and it
+belongs to the database-load work.
+
+**A note for later steps that quote a commit subject.** 4h part 1's
+brief prescribes the subject `Read the cluster image artifact as debian,
+not debian-12.`, which is 57 characters; the commit convention wants 50
+or fewer. The step followed the brief, because a plan file carries
+Michael's authority and substituting a different subject quietly is
+worse than landing a long one. A brief that dictates a subject should
+count it first.
 
 #### Back brief
 
