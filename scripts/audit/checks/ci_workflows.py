@@ -2183,9 +2183,9 @@ class ReusableWorkflowSecrets(Check):
         (shakenfist/development#153). The fleet convention is instead
         that a reusable workflow declares each secret it reads under
         on.workflow_call.secrets and the caller passes it by name. A
-        callee that reads none, which is every callee in the fleet
-        except instar's local test-drift-fix.yml (it reads
-        GITLAB_TESTDATA_TOKEN, now passed by name), is passed nothing.
+        callee that reads none is passed nothing. Which callees read
+        what is not this check's business: it reports the inherit, and
+        the spec records what the fleet's callees were found to read.
 
         Local callees ("uses: ./.github/workflows/...") are measured
         too. The moving-ref half does not apply to them, but a declared

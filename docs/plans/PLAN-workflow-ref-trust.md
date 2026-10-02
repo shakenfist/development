@@ -83,10 +83,12 @@ nobody reviewed in the calling repository runs inside its CI.
 job that passes `secrets: inherit` to a reusable workflow, and
 leaves two callees to criteria that already owned them
 (`export-repo-config`, `ci-review-automation`). The fix in the
-calling repositories is still rolling out. These are the live
-`secrets: inherit` lines on each repository's default branch, read
-through the GitHub API on 2026-10-02 (the phase 1 survey; local
-clones were stale and overcounted):
+calling repositories is phase 1 of this plan. These were the live
+`secrets: inherit` lines on each repository's default branch at the
+phase 1 survey, read through the GitHub API on 2026-10-02 before any
+phase 1 pull request was opened (local clones were stale and
+overcounted). The pull requests that remove them are listed in the
+phase 1 section.
 
 | Criterion | Repositories | Open issues |
 |-----------|--------------|-------------|
@@ -109,7 +111,8 @@ worktree copies excluded, on 2026-10-02:
 - There are 633 remote `uses:` references, and none is pinned to a
   sha.
 - 93 of them are `shakenfist/actions/...@main`, in 14 repositories.
-- The other 540 are third-party tag references. The largest
+- The other 540 are third-party references, all by tag except one
+  branch, noted below. The largest
   groups are `actions/checkout` (272), `actions/upload-artifact`
   (93), `actions/download-artifact` (36), `dtolnay/rust-toolchain`
   (16), `renovatebot/github-action` (15), `github/codeql-action/*`
@@ -140,17 +143,23 @@ that falls back to `github.token`
 (`actions/.github/workflows/prune-reviews.yml:90`). Today, anything
 that can push to `actions` main runs, at the next CI run, in every
 one of the 14 consuming repositories. That includes anyone holding
-that token. It runs with whatever those jobs can reach, which after
-the inherit rollout is `github.token` and the caller's
-`permissions:` block. This is the narrowest point of the whole
+that token. It runs with whatever those jobs can reach. After the
+inherit rollout that is `github.token` under the caller's
+`permissions:` block, but it is also everything on the self-hosted
+runner the job lands on: `smoke-cluster.yml` authenticates to its
+clusters with an on-disk key (its lines 18-20). Composite actions
+from `actions` (for example `pr-bot-trigger@main`) are worse again:
+they run inside the caller's own job, with its environment and any
+secrets that job was given. This is the narrowest point of the whole
 problem: one setting in one repository, rather than 93 references
 spread over 14.
 
 **What sha-pinning `shakenfist/actions` would cost.** At 146 changes
-per quarter, about 1.6 a day, Renovate would open roughly one
-digest pull request per consuming repository per change. That is
-on the order of 20 pull requests a day across the fleet, each one
-needing a human. The audit also has callers that hard-code `@main`
+per quarter, about 1.6 a day, nearly every day would bring a change.
+Renovate updates an open digest pull request in place and runs once
+a night, so the cost is at most one pull request per consuming
+repository per day: an upper bound of 14 a day across the fleet,
+each one needing a human. The audit also has callers that hard-code `@main`
 as the expected form: `CI_REVIEW_SHARED_ACTION` and
 `CI_REVIEW_TRIGGER_ACTION` in
 `scripts/audit/checks/ci_workflows.py:162-165`, and the rationale
@@ -165,9 +174,11 @@ mechanically. In brief, the policy is:
 
 1. **Finish the inherit rollout** that fe4b3ba started, so no
    callee can see a secret it was not given by name.
-2. **Make `@main` on `shakenfist/actions` mean "reviewed".** Change
-   that repository's ruleset so that changes reach main only
-   through a pull request that passed its checks. First-party
+2. **Make `@main` on `shakenfist/actions` mean "landed through a
+   pull request that passed CI".** Change that repository's ruleset
+   so that changes reach main only that way. With one maintainer
+   this is a record and a CI gate, not a second reviewer (open
+   question 2), and the specs say so. First-party
    reusable workflows and composite actions keep the moving ref.
    The decision not to sha-pin them, and its cost, is recorded in
    the specs.
@@ -190,21 +201,43 @@ Out of scope:
    ruleset bypass actor, the PAT path stays open. If it is not,
    `prune-reviews` has to open a pull request and auto-merge it,
    which is a template change across every adopted repository.
-   *Default:* bypass for `shakenfist-bot` only. State the residual
-   risk in the spec, which is that `DEPENDENCIES_TOKEN` is a
-   credential that can write code that 14 repositories execute.
-   Raise rotation and scoping of that PAT as future work. Revisit
-   if the review-import plan already moves prune to pull requests.
+   A ruleset bypass cannot name a user, only an organisation admin,
+   a repository role, a team, an app or a deploy key, so "bypass for
+   the bot" means a team whose only member is `shakenfist-bot`, or a
+   GitHub App. A repository-role bypass would let every writer
+   through and is not acceptable.
+   *Default:* a team of one, `shakenfist-bot`, as the only bypass
+   actor, with the bypass narrowed to the review-tracking paths if
+   GitHub can express that for this repository (step 2a finds out).
+   The spec states the residual risk accurately: the bypass moves
+   the boundary from "can push to main" to "can run a workflow that
+   has `DEPENDENCIES_TOKEN` in scope", which is wider than one
+   setting in one repository. The `|| github.token` fallback stays
+   harmless, because `github.token` is not a bypass actor and its
+   push is simply refused; nobody should add the Actions app as a
+   bypass actor to "fix" that refusal. Replacing the PAT with a
+   GitHub App token or a fine-grained token limited to `actions` is
+   future work. `PLAN-review-import.md` does not move prune to pull
+   requests, so that alternative remains a template change this plan
+   does not make.
 2. **What does "a pull request is required" mean with one
    maintainer?** A required approval count of one cannot be met by
    the author. *Default:* require a pull request with zero required
-   approvals, plus `ci.yml` as a required status check. The gain is
-   that nothing lands without CI and a visible record. It is not
-   gated on a second person, and the spec says so rather than
-   implying otherwise.
+   approvals, plus required status checks. Rulesets require check
+   contexts by job name, not workflow file, so step 2a names them
+   from `actions`' `ci.yml` (today `Check paths`, `Lint` and
+   `Unit tests`, the latter two skipped by its path filter on
+   review-only changes). The gain is that nothing lands without CI
+   and a visible record. It is not gated on a second person. And a
+   required check that runs workflow code from the pull request
+   itself can be edited by that pull request to pass, so step 2a
+   also looks at an organisation "require workflows" rule, sourced
+   from a protected ref, as the stronger form. The spec says all of
+   this rather than implying more.
 3. **Should GitHub-owned actions (`actions/*`, `github/*`) be exempt
    from sha-pinning?** They are the bulk of the references (about
-   75%) and the lowest risk. *Default:* no exemption. One rule is
+   70% of all 633, and over 80% of the 540 third-party ones) and the
+   lowest risk. *Default:* no exemption. One rule is
    easier to hold than one with a carve-out (the same reasoning
    `reusable-workflow-secrets` gives for local callees), and the
    Renovate preset makes the cost of the pins uniform.
@@ -227,8 +260,8 @@ Out of scope:
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. Finish the inherit rollout | Not started | |
-| 2. Make `actions` main mean reviewed | Not started | |
+| 1. Finish the inherit rollout | In progress | |
+| 2. Make `actions` main require a pull request | Not started | |
 | 3. Pin third-party actions to a sha | Not started | |
 | 4. Record the policy and close #153 | Not started | |
 | 5. Push audit | Not started | |
@@ -238,8 +271,8 @@ Out of scope:
 Planning effort: medium. Review effort: high for instar (step 1a),
 which is the only repository where a callee reads a real secret.
 
-**Scope.** Remove every live `secrets: inherit` in the fleet: 17
-lines in 10 repositories, closing 13 issues. In this repository, one
+**Scope.** Remove every live `secrets: inherit` in the fleet: at
+the survey, 17 lines in 10 repositories, closing 13 issues. In this repository, one
 correction to a spec and a docstring. Out of scope: the other
 findings on the `export-repo-config` and `ci-review-automation`
 issues, and any other drift between the local `test-drift-fix.yml`
@@ -250,13 +283,13 @@ references in those copies.
 through the GitHub API; the master plan's Situation section was
 corrected to match, and later steps should not redo that):
 
-- There are no live `pr-auto-review.yml` inherits. The ones in
-  sfui and client-python-k3s that the master plan counted were in
-  stale local clones. `ci-review-automation` has no part in this
-  phase, and the original brief 1b's mention of it is dropped.
-- The live `export-repo-config.yml` inherits are in nine
-  repositories (table in Situation). None of their issues has a pull
-  request in flight.
+- There are no live `pr-auto-review.yml` inherits. Local clones of
+  sfui and client-python-k3s still had them, but the default
+  branches did not. `ci-review-automation` has no part in this
+  phase.
+- The live `export-repo-config.yml` inherits were in nine
+  repositories (table in Situation). At the survey none of their
+  issues had a pull request in flight.
 - `actions/.github/workflows/smoke-cluster.yml` and
   `export-repo-config.yml` read no secret. Each already carries a
   comment saying so (lines 18 and 9), so for those two, deleting the
@@ -274,9 +307,11 @@ corrected to match, and later steps should not redo that):
   which say no callee in the fleet reads a secret. The original
   brief told the implementer to stop and report if this happened,
   so the plan now decides it instead (decision 2).
-- shakenfist has one open pull request (#4396) that mentions
-  secrets. It is about the Ansible modules probe and does not touch
-  these files.
+- instar's `GITLAB_TESTDATA_TOKEN` is set in the `env:` of the one
+  "Prepare instar-testdata" step, not job-wide, so passing it by
+  name does not expose it to the later steps that run pull request
+  code. The calling workflow is maintainer-triggered through
+  `pr-bot-trigger`.
 
 **Decisions.**
 
@@ -313,7 +348,7 @@ corrected to match, and later steps should not redo that):
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
 | 1a | high | opus | worktree | instar, closing #610 and #600. (1) In `.github/workflows/export-repo-config.yml`, delete the `secrets: inherit` line under the job calling `shakenfist/actions/.github/workflows/export-repo-config.yml@main`. Commit, citing #600. (2) In `.github/workflows/test-drift-fix.yml`, add `secrets: GITLAB_TESTDATA_TOKEN: {description: 'Read access to the instar-testdata GitLab repository, used by Prepare instar-testdata.', required: false}` under `on.workflow_call`, and replace every `${{ secrets.GITHUB_TOKEN }}` (lines 145, 248, 644, 661, 711) with `${{ github.token }}`. In `.github/workflows/pr-fix-tests.yml`, replace `secrets: inherit` under job `fix-tests` with `secrets:` / `GITLAB_TESTDATA_TOKEN: ${{ secrets.GITLAB_TESTDATA_TOKEN }}`. Commit, citing #610. Then grep both files for any other `secrets.` reference; anything else must be declared and passed the same way. Run `actionlint` and `pre-commit run --all-files`. Re-run `scripts/audit-check.py` from shakenfist/development against the worktree, and confirm `reusable-workflow-secrets` and `export-repo-config` no longer report the inherit. Open one pull request whose body closes both issues. Do not merge. |
-| 1b | medium | sonnet | worktree | shakenfist, closing #4380. Delete the `secrets: inherit` line under jobs `smoke_collection`, `functional_matrix_merge_collection` and `ansible_modules_collection` in `.github/workflows/functional-tests.yml`, under `functional_matrix_collection` in `scheduled-tests.yml`, and under `fix-tests` in `pr-fix-tests.yml`. The callee `smoke-cluster.yml` in shakenfist/actions reads no secret; its line 18 says so. In `test-drift-fix.yml`, replace `${{ secrets.GITHUB_TOKEN }}` at lines 156, 375, 391 and 438 with `${{ github.token }}`, then grep for any remaining `secrets.`; there should be none, and if there is one, stop and report. Run pre-commit and the audit check as in 1a. Open the pull request with "Fixes #4380". The pull request's own functional-tests run is the verification for the smoke-cluster callers, so wait for it to pass. |
+| 1b | medium | sonnet | worktree | shakenfist, closing #4380. Delete the `secrets: inherit` line under jobs `smoke_collection`, `functional_matrix_merge_collection` and `ansible_modules_collection` in `.github/workflows/functional-tests.yml`, under `functional_matrix_collection` in `scheduled-tests.yml`, and under `fix-tests` in `pr-fix-tests.yml`. The callee `smoke-cluster.yml` in shakenfist/actions reads no secret; its line 18 says so. In `test-drift-fix.yml`, replace `${{ secrets.GITHUB_TOKEN }}` at lines 156, 375, 391 and 438 with `${{ github.token }}`, then grep for any remaining `secrets.`; there should be none, and if there is one, stop and report. Run pre-commit and the audit check as in 1a. Open the pull request with "Fixes #4380". Only `smoke_collection` runs on a pull request; `functional_matrix_merge_collection` and `ansible_modules_collection` run in the merge queue, so the merge queue run is the verification for those two. |
 | 1c | medium | sonnet | worktree | occystrap, closing #150 and #148. Same shape as 1b: delete the export-repo-config inherit (commit citing #148), delete the `fix-tests` inherit in `pr-fix-tests.yml`, and replace `${{ secrets.GITHUB_TOKEN }}` at `test-drift-fix.yml` lines 173, 394, 410 and 457 with `${{ github.token }}` (commit citing #150). Run pre-commit and the audit check, then open one pull request closing both issues. |
 | 1d | medium | sonnet | worktree | client-python, closing #410 and #409. Delete the `secrets: inherit` under job `functional_matrix` in `.github/workflows/functional-tests.yml` (callee `smoke-cluster.yml`, reads no secret; commit citing #410), and the one in `export-repo-config.yml` (commit citing #409). Run pre-commit and the audit check, then open one pull request closing both issues, and let its functional-tests run pass. |
 | 1e | low | sonnet | worktree | In each of agent-python (#146), client-python-k3s (#79), clingwrap (#138), divergulent (#121), library-utilities (#63) and sfui (#38): delete the `secrets: inherit` line in `.github/workflows/export-repo-config.yml`, run pre-commit, and open a pull request with "Fixes #N". One pull request per repository. Touch nothing else, even if the same issue lists other findings. |
@@ -334,9 +369,11 @@ corrected to match, and later steps should not redo that):
   pull request CI*, because it runs only on a maintainer comment.
   The same post-merge trigger, once per repository, is the check.
 - *A smoke-cluster caller breaks.* The callee reads no secret and
-  says so. Each pull request's own functional-tests run exercises
-  every changed caller except shakenfist's scheduled one, which runs
-  that night. The management session checks the next scheduled run.
+  says so. client-python's pull request run and shakenfist's
+  `smoke_collection` exercise a changed caller on the pull request.
+  shakenfist's other two run in its merge queue before landing, and
+  its scheduled caller runs that night. The management session
+  checks the next scheduled run.
 
 **Definition of done.**
 
@@ -366,19 +403,45 @@ corrected to match, and later steps should not redo that):
 **Back brief gate.** Step 1a is implemented first, and its pull
 request is reviewed before 1b to 1e start. This is about the order
 of the work, not the order of merging; decision 5 still decides
-when each pull request merges. It is the only step that adds rather than deletes, and
-its shape (declared, optional, described) is the pattern phase 4
-documents.
+when each pull request merges. Step 1a is the only step that adds
+rather than deletes, and its shape (declared, optional, described)
+is the pattern phase 4 documents.
 
-### Phase 2: make `actions` main mean reviewed
+**Pull requests.** Opened 2026-10-02. The `Merged` cell is filled
+from this list at close-out.
+
+| Step | Pull request | Closes | State |
+|------|--------------|--------|-------|
+| 1a | instar#617 | #600, #610 | Open |
+| 1b | shakenfist#4404 | #4380 | Open |
+| 1c | occystrap#152 | #148, #150 | Open |
+| 1d | client-python#415 | #409, #410 | Open |
+| 1e | agent-python#148 | #146 | Open |
+| 1e | client-python-k3s#83 | #79 | Open |
+| 1e | clingwrap#141 | #138 | Merged as 125eb20 |
+| 1e | divergulent#125 | #121 | Open |
+| 1e | library-utilities#67 | #63 | Open |
+| 1e | sfui#44 | #38 | Open |
+| 1f | this branch | -- | -- |
+
+In review, divergulent#125 and library-utilities#67 also replaced a
+comment that called the deleted `secrets: inherit` necessary, with
+the template's comment. The comment was wrong: the callee reads no
+secret.
+
+### Phase 2: make `actions` main require a pull request
+
+This covers everything `actions` serves at `@main`: reusable
+workflows and composite actions alike. Composite actions are the
+stronger case for it, since they run inside the caller's job.
 
 Change the existing "Protect default branch history" ruleset on
 `shakenfist/actions` (or add a second ruleset beside it) to:
 
 - require a pull request, with the approval count from open
   question 2;
-- require `ci.yml` to pass;
-- give the bypass decided in open question 1.
+- require the status check contexts named in open question 2;
+- give only the bypass decided in open question 1.
 
 Do this by hand, as an operator, and record the ruleset JSON in the
 phase. Then add a criterion so that this does not quietly regress.
@@ -388,15 +451,19 @@ repositories that the fleet consumes at a moving ref, named in a
 module constant (today only `actions`). Everywhere else it reports
 `not_applicable` with that reason. It reads
 `repos/{org}/{repo}/rules/branches/{default}` and fails unless a
-`pull_request` rule is present.
+`pull_request` rule and a `required_status_checks` rule are both
+present. That endpoint does not list bypass actors, so the check also
+reads each contributing ruleset (`repos/{org}/{repo}/rulesets/{id}`)
+and fails unless `enforcement` is `active` and `bypass_actors` is
+exactly the documented set.
 
 Planning effort: high. This is what decides what the fleet trusts,
 and it touches GitHub settings that this repository cannot test.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 2a | high | opus | none | Operator step, done by the management session with the operator, not by a sub-agent. Apply the ruleset change. Then prove it on a throwaway branch: a direct push to main is rejected, and a `prune-reviews` run still lands (or opens its pull request, per open question 1). |
-| 2b | high | opus | worktree | Add a `MovingRefSourceProtection` class to `scripts/audit/checks/github_config.py`, with the id `moving-ref-source-protection`, its `spec` and its `issue_title` (`Moving ref source protection`), following `DeleteBranchOnMerge` at line 213 for the API-call shape. Register it in `CHECKS` in `scripts/audit/registry.py`. Write `docs/audits/moving-ref-source-protection.md`, following the structure in `docs/audits/README.md`; its Why section cites the landing counts from this plan's Situation. Add the file to `docs/audits/README.md`, and add its lines to `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`. Add pass, fail and not-applicable tests to the github_config test file, using `CheckTestCase` and a stubbed GitHub client. |
+| 2a | high | opus | none | Operator step, done by the management session with the operator, not by a sub-agent. Settle how open question 1's bypass can be expressed (team of one or app; path-narrowed if possible) and which check contexts open question 2 requires, then apply the ruleset change. Then prove it on a throwaway branch: a direct push to main is rejected, and a `prune-reviews` run still lands (or opens its pull request, per open question 1). |
+| 2b | high | opus | worktree | Add a `MovingRefSourceProtection` class to `scripts/audit/checks/github_config.py`, with the id `moving-ref-source-protection`, its `spec` and its `issue_title` (`Moving ref source protection`), following `DeleteBranchOnMerge` at line 213 for the API-call shape. Register it in `CHECKS` in `scripts/audit/registry.py`. Write `docs/audits/moving-ref-source-protection.md`, following the structure in `docs/audits/README.md`; its Why section cites the landing counts from this plan's Situation. Add the file to `docs/audits/README.md`, and add its lines to `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`. Add pass, fail and not-applicable tests to the github_config test file, using `CheckTestCase` and a stubbed GitHub client, including fail cases for a missing status-check rule, `enforcement: evaluate`, and an extra bypass actor. |
 
 ### Phase 3: pin third-party actions to a sha
 
@@ -407,21 +474,25 @@ requirement as a worked example.
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
 | 3a | high | opus | worktree | Probe in this repository. Add `"extends": ["helpers:pinGitHubActionDigests"]` to `renovate.json`. The existing `managerFilePatterns` already cover `templates/`. Let one Renovate run produce its pinning pull request, and record: the comment format it writes; whether `pypa/gh-action-pypi-publish@release/v1` (a branch) pins cleanly; whether `actionlint` and the template byte-identity checks still pass; and the digest pull request count over the following two weeks. Answer open questions 4 and 5 in the plan, with numbers. |
-| 3b | medium | sonnet | none | Add the same `extends` to `templates/renovate/renovate.json`, and say why in `templates/renovate/README.md`. Pin every third-party `uses:` under `templates/` to a sha with a `# vX.Y.Z` comment, keeping template copies and their deployed twins here byte-identical. Grep `scripts/audit/` for any check that matches a `uses:` line by tag (for example `@v`), and update it to accept a pinned form. |
+| 3b | medium | sonnet | none | Add the same `extends` to `templates/renovate/renovate.json`, and say why in `templates/renovate/README.md`. Pin `renovatebot/github-action` first: it runs with `DEPENDENCIES_TOKEN` and write access to its repository, so it is the third-party action most worth pinning. Pin every other third-party `uses:` under `templates/` to a sha with a `# vX.Y.Z` comment, keeping template copies and their deployed twins here byte-identical. Grep `scripts/audit/` for any check that matches a `uses:` line by tag (for example `@v`), and update it to accept a pinned form. |
 | 3c | medium | sonnet | worktree | Add the criterion `third-party-action-pinning` to `scripts/audit/checks/ci_workflows.py`, beside `ReusableWorkflowSecrets` (line 2162). It is measured: every remote `uses:` whose owner is not `shakenfist` ends in a 40-hex sha. It is confirmed by a reviewer: the trailing version comment, and the Renovate preset being on. Reuse the existing workflow-parsing helpers in that file rather than adding a YAML dependency. Give it the five criterion files as in 2b, plus tests for a tag ref, a sha ref, a branch ref, a commented-out line, a `docker://` ref (out of scope, not a finding) and a local `./` ref (not a finding). Run it against fresh clones of the fleet. The commit message states how many repositories it newly fails, including this one, which must already pass after 3b. |
 
 ### Phase 4: record the policy and close #153
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 4a | medium | sonnet | none | In `docs/audits/reusable-workflow-secrets.md`, replace "What this does not cover" with the settled policy: first-party refs move, and the `moving-ref-source-protection` criterion is what makes that acceptable; third-party refs are pinned, under `third-party-action-pinning`. Include the roughly 20 pull requests a day this avoids, and the PAT residual from open question 1. Link both new specs. Close #153 from the pull request body, and link phase 1's landings. |
+| 4a | medium | sonnet | none | In `docs/audits/reusable-workflow-secrets.md`, replace "What this does not cover" with the settled policy: first-party refs move, and the `moving-ref-source-protection` criterion is what makes that acceptable; third-party refs are pinned, under `third-party-action-pinning`. Include the upper bound of 14 pull requests a day this avoids, what a moving ref can reach (Situation: the runner's filesystem, and the caller's job for composite actions), the "pull request and CI, not a second reviewer" limit from open question 2, and the residual from open question 1. Link both new specs. Close #153 from the pull request body, and link phase 1's landings. |
 
 ### Phase 5: push audit
 
-Run `PUSH-AUDIT.md` over the union of the `Merged` cells above, read
-as `origin/main...` ranges after a fetch. Phase 1's landings are in
-other repositories and were audited by their own pull requests, so
-this phase cites those audits rather than re-running them.
+Run `PUSH-AUDIT.md` once per landing recorded in the `Merged` cells
+above, with `AUDIT_RANGE` set as its "How to use this runbook"
+section says: `<sha>^1..<sha>` for a merge commit, `<first>^..<last>`
+for a direct landing. Do not use `origin/main...`: once the phases
+have merged that range is empty and reads as a clean audit. Phase
+1's landings are in other repositories and were reviewed in their
+own pull requests, so this phase cites those rather than re-running
+them.
 
 <!-- shared-block: plan-status-vocabulary v1 -->
 Plan status vocabulary (shared block; do not edit -- the canonical
@@ -938,16 +1009,22 @@ intend to do aligns with that plan.
 
 **In this repository.** Future work, as of writing:
 
-- Rotate and narrow `DEPENDENCIES_TOKEN`. While it can bypass the
-  `actions` ruleset, it is the one credential that can put
-  unreviewed code into every consumer's CI (open question 1).
+- Replace `DEPENDENCIES_TOKEN` with a GitHub App token or a
+  fine-grained token limited to what it pushes. While it can bypass
+  the `actions` ruleset, anything that can run a workflow with it in
+  scope can put unreviewed code into every consumer's CI (open
+  question 1).
+- `PLAN-TEMPLATE.md`'s "In this repository" note after the
+  push-audit block says `PUSH-AUDIT.md`'s commands are written
+  against `main...HEAD`. They now use
+  `${AUDIT_RANGE:-origin/main...HEAD}`. Correct the template, which
+  this plan copies but does not own.
+- `scripts/audit-check.py` appears to write more than its JSON
+  document to stdout when redirected to a file, so `json.load` of
+  its output fails. Reproduce and file it.
 - `visual-digest-rust` and `private-ci` have no `renovate.json`.
   Phase 3's pins would rot in those two repositories. The
   `renovate` criterion already owns that.
-- Composite actions in `shakenfist/actions` (for example
-  `pr-bot-trigger@main`) run inside the caller's job, with its
-  environment and `github.token`. Phase 2 covers them, because they
-  live on the same branch, but the specs should say so explicitly.
 
 Related issues, as of writing:
 
