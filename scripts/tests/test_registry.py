@@ -833,6 +833,36 @@ class MergeRefResolutionTest(unittest.TestCase):
                         f'{name}: no step in {job} has id {gate_id}, so '
                         f'the notice gated on it never fires')
 
+    MOVED = 'echo "cause=moved" >> "${GITHUB_OUTPUT}"'
+
+    def test_only_a_moved_head_is_blamed_on_a_moved_head(self):
+        # The confirm step also fails when the checkout is not a merge
+        # commit, has no HEAD, or merged is neither true nor false.
+        # Those are defects in the workflow, and "comment again" sends
+        # the requester round the same failure, so the notice names the
+        # moved head only when the confirm step says that is the cause
+        # (shakenfist/development#206). A notice keyed on the outcome
+        # would compile, run and read well, and be wrong.
+        for name in [self.DEPLOYED_RE_REVIEW, self.TEMPLATE_RE_REVIEW]:
+            with self.subTest(workflow=name):
+                with open(os.path.join(REPO_ROOT, name)) as f:
+                    body = f.read()
+                step = body.split(self.CONFIRM_STEP, 1)[1]
+                step = step.split('\n      - name:', 1)[0]
+                self.assertEqual(
+                    step.count(self.MOVED), 1,
+                    f'{name}: the confirm step must record cause=moved '
+                    f'exactly once')
+                comparison = step.index('if [ "${reviewed}" != "${HEAD_SHA}" ]')
+                self.assertGreater(
+                    step.index(self.MOVED), comparison,
+                    f'{name}: cause=moved must be recorded only once the '
+                    f'head comparison has failed')
+                jobs = dict(workflow_job_blocks(body))
+                notice = workflow_step_blocks(jobs['re-review'])[-1]
+                self.assertIn('steps.confirm.outputs.cause', notice)
+                self.assertNotIn('steps.confirm.outcome', notice)
+
 
 class CodeqlTemplateTest(unittest.TestCase):
     """The CodeQL template's review-only skip must fail open.

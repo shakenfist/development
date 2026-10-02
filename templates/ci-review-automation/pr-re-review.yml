@@ -370,6 +370,11 @@ jobs:
               ;;
           esac
           if [ "${reviewed}" != "${HEAD_SHA}" ]; then
+            # Only this branch is a race. The exits above are defects in
+            # this workflow, and the notice must not tell the requester
+            # to comment again for those, so it reads this, not the
+            # step's outcome.
+            echo "cause=moved" >> "${GITHUB_OUTPUT}"
             echo "The ${what} ${reviewed}, but the resolve step validated"
             echo "${HEAD_SHA}. The head moved between the two, so this tree"
             echo "is not the code the review was asked for. Comment again"
@@ -442,18 +447,20 @@ jobs:
       # newer request is not a failure, so this stays quiet then too.
       #
       # The head moving is the one failure with a known remedy, so it
-      # gets its own sentence; anything else points at the run log. The
-      # body is fixed text: nothing from the comment reaches it.
+      # gets its own sentence; anything else points at the run log,
+      # including the confirm step's other failures, which are defects
+      # here rather than a race (shakenfist/development#206). The body
+      # is fixed text: nothing from the comment reaches it.
       - name: Tell the requester the re-review did not run
         if: failure() && steps.review.outcome == 'skipped'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ needs.trigger-re-review.outputs.pr_number }}
           REPO: ${{ github.repository }}
-          CONFIRM: ${{ steps.confirm.outcome }}
+          CAUSE: ${{ steps.confirm.outputs.cause }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          if [ "${CONFIRM}" = "failure" ]; then
+          if [ "${CAUSE}" = "moved" ]; then
             body="No review was posted: this pull request's head moved"
             body="${body} while the re-review was starting, so the tree it"
             body="${body} checked out is not the commit it was asked to"

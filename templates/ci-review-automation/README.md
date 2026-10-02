@@ -316,6 +316,20 @@ Like the output assertion, this changes how a failure is reported
 rather than whether a gate holds, so the criterion does not measure
 it.
 
+### Only a moved head is blamed on a moved head (2026-10-03)
+
+Raised by the automated review of shakenfist/visual-digest-rust#30 and
+filed here as #206. The re-review notice named the moved head whenever
+the confirm step failed, but that step also fails when the checkout is
+not a merge commit, has no `HEAD`, or the resolve step reported
+`merged` as neither `true` nor `false`. Those are defects in the
+workflow, and "comment again to review the new head" sent the
+requester round the same failure. The confirm step now writes
+`cause=moved` to its outputs on the head comparison alone, and the
+notice keys on that rather than on the step's outcome; every other
+failure points at the run log. `MergeRefResolutionTest` holds both
+halves. Like the notice itself, this is not measured by the criterion.
+
 ### The fork guard
 
 `pr-bot-trigger`'s `pr-ref` output is `.head.ref`: the branch name in the
