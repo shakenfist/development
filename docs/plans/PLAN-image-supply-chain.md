@@ -1034,12 +1034,12 @@ requests have resolved -- ten in the first sweep, occystrap#143 and
 shakenfist#4306 on 2026-09-24, and visual-digest-rust#23 closed as
 superseded by a change that moved the label anyway -- and 4f merged as
 actions#97 the same day. 4g merged as shakenfist#4379 on 2026-09-29
-(22:03 UTC), so 4h to 4j remain. Running 4g found a defect in 4h's own
-safety gate: the gate grepped the artifact's URL spelling, and seven
-live consumers name it by its bare short name, so it would have
-returned clean while the step broke them. 4h's brief now moves those
-consumers in a `shakenfist` pull request that merges before the
-`actions` one, and gives both gates as commands, amended 2026-09-30.
+(22:03 UTC). Running 4g found a defect in 4h's own safety gate: the
+gate grepped the artifact's URL spelling, and seven live consumers
+name it by its bare short name, so it would have returned clean while
+the step broke them. 4h then moved those consumers in shakenfist#4385
+before removing the upload in actions#124, and its brief gives both
+gates as commands, amended 2026-09-30.
 **4f's post-merge verification has now passed on both runs**, which
 discharges 4g's hold: see the 2026-09-29 amendment below. The
 2026-09-26 amendment recording it as failing is left as the snapshot
@@ -1785,10 +1785,22 @@ for phase 5 to trip over, and phase 5's Debian 12 follow-up gates on
 startable now, as it has been since phase 1 completed.
 
 #### Definition of done
+All twelve bullets hold as of 2026-10-02, and each is ticked against
+evidence rather than against a reading of the step that owned it. Six
+are 4j's checks and their output is under *What 4j confirmed* below:
+the first bullet is 4j (1), the second is 4j (4), the fourth, fifth and
+sixth are 4j (5), the eighth is 4j (6), the tenth is 4j (2) and the
+eleventh is 4j (3). The remaining four -- the third, seventh, ninth and
+twelfth -- are **not** among 4j's checks, so the evidence for them is
+recorded on the bullet itself. That gap was found in review of this
+close-out, not by the phase: a checklist and an observation step's
+brief were written at different times and overlap only in part, and
+ticking the four without running them would have been the cheapest
+possible way to close the phase.
 
-- [ ] `docs/audits/compliance.md`'s `eol-distro` table has no
+- [x] `docs/audits/compliance.md`'s `eol-distro` table has no
       `non-compliant` row, on a page generated after the last merge.
-- [ ] `grep -E "^[[:space:]]*-[[:space:]]*['\"]?debian-12"` over the
+- [x] `grep -E "^[[:space:]]*-[[:space:]]*['\"]?debian-12"` over the
       `.github/actionlint.yaml` of every non-archived repository in
       the organisation returns only `private-ci`, which has no
       workflows for a declaration to govern. The anchor matters:
@@ -1799,7 +1811,7 @@ startable now, as it has been since phase 1 completed.
       has already migrated is where a declaration outlives its
       last user -- `kerbside-patches` was exactly that when this
       phase was planned.
-- [ ] `grep -rn --exclude='*.md' --exclude-dir=.git
+- [x] `grep -rn --exclude='*.md' --exclude-dir=.git
       "ci-images/debian-12"` over fresh clones of every non-archived
       repository returns nothing outside
       `private-ci/conductor/tests/test_imagebuilder.py`, whose eight
@@ -1823,9 +1835,18 @@ startable now, as it has been since phase 1 completed.
       extensionless script is still read. `private-ci` is in the clone
       set deliberately: it is excluded from the criterion, so it is
       exactly the repository a criterion-shaped check would miss.
-- [ ] 4h's gate A, the same grep for `sf://upload/system/debian-12`
+      **Run 2026-10-02 over fresh `--depth 1` clones of all 29
+      non-archived repositories, with no clone failures:** eight hits,
+      all in `private-ci/conductor/tests/test_imagebuilder.py` --
+      `:121`, `:156`, `:167`, `:180`, `:187`, `:197`, `:216` naming the
+      label and `:874` the `-docker` variant, which is the seven and
+      one this bullet predicted. Nothing anywhere else. This is the
+      bullet no step owned: it is not one of 4j's six checks, and until
+      this was run the phase was being declared complete on a
+      criterion with no result.
+- [x] 4h's gate A, the same grep for `sf://upload/system/debian-12`
       with `-I` added, returns nothing at all.
-- [ ] 4h's gate B, the short-name read, run over the same clones from
+- [x] 4h's gate B, the short-name read, run over the same clones from
       a directory holding only them, shows nothing that reads the
       artifact:
 
@@ -1846,7 +1867,7 @@ startable now, as it has been since phase 1 completed.
       as its URL, and on 2026-09-30 seven such reads were live in
       `shakenfist` after all three of 4g's greps had returned clean.
       What each filter subtracts, and why, is in 4h's brief.
-- [ ] The same grep for `/srv/ci/debian:12` returns nothing, and
+- [x] The same grep for `/srv/ci/debian:12` returns nothing, and
       `actions/build-smoke-cluster/action.yml` carries exactly one
       line naming `/srv/ci/debian:13`. This is one of two checks
       that can tell whether 4h ran: the label and URL greps above
@@ -1862,7 +1883,7 @@ startable now, as it has been since phase 1 completed.
       bookworm cache entry is not a hit: `ci-dependencies.yml`
       spells its cache list as `name: "debian:12"` against an
       `images.shakenfist.com` URL, not as a `/srv/ci/` path.
-- [ ] `kerbside`'s `sf-e2e-functional` workflow and `shakenfist`'s
+- [x] `kerbside`'s `sf-e2e-functional` workflow and `shakenfist`'s
       node-lifecycle job have each completed successfully on their
       default branches after 4f merged, triggered by 4f, which is the
       step that owns this bullet. They are the two consumers that take
@@ -1876,7 +1897,15 @@ startable now, as it has been since phase 1 completed.
       shakenfist#4280 was open this bullet covered `kerbside` alone
       and proved only that the upload had not broken it, because the
       default was not moving. It covers both and proves both again.
-- [ ] `actions` `docs/actions.md` describes the finished state:
+      Verified in the 2026-09-29 amendment in the survey above, which
+      is where the run IDs are: `kerbside`'s nightly
+      `sf-e2e-functional` on `develop` passed three consecutive times
+      (36228146379, 36306108473, 36399738723) after the 09-25 failure,
+      and `shakenfist`'s node-lifecycle job passed twice on `develop`
+      (merge_group runs 36501556771 and 36513297089, each a full
+      six-host build). The amendment also records why the second half
+      took a fix in `actions` first.
+- [x] `actions` `docs/actions.md` describes the finished state:
       the under-cloud paragraph says trixie, and the guest-image
       paragraph describes a single upload under the name `debian`
       with no transitional window. 4f writes the first and leaves
@@ -1886,7 +1915,7 @@ startable now, as it has been since phase 1 completed.
       exclude `*.md` -- so without this bullet the phase closes
       with the documentation describing a completed rename as
       still under way.
-- [ ] `instar`'s `functional-tests.yml` carries the `audit-ok:
+- [x] `instar`'s `functional-tests.yml` carries the `audit-ok:
       eol-distro` marker **within one line of the finding, and with
       a reason after it**, and instar#564 is closed by the audit
       rather than by hand. The two requirements are independent and
@@ -1896,7 +1925,14 @@ startable now, as it has been since phase 1 completed.
       reason is what `docs/audits/eol-distro.md:169-176` has always
       asked for. Dropping either leaves the fleet's canonical
       instance of this marker wrong in one of the two ways.
-- [ ] A completed `shakenfist` functional-tests run after 4g shows
+      Verified 2026-10-02 on `instar` at `develop`: the marker is
+      `.github/workflows/functional-tests.yml:651` and the finding it
+      covers is `image: 'debian:12'` at `:652`, one line apart, with
+      the reason `-- supported target, see the note above` on the
+      marker line. instar#564 is closed, `COMPLETED`, at
+      2026-09-24T11:29:44Z -- by the audit, which is the half of this
+      bullet the phase could not do itself.
+- [x] A completed `shakenfist` functional-tests run after 4g shows
       instances booting `sf://upload/system/debian`, read from the
       run's log, and the under-cloud in that same log reading
       `ci-images/debian-13`. Amended 2026-09-24: shakenfist#4280
@@ -1904,17 +1940,25 @@ startable now, as it has been since phase 1 completed.
       shakenfist#4309 restored it. It is the first green trixie
       under-cloud this suite will have produced, so read it rather
       than assuming it.
-- [ ] `tools/ci_headroom_harvest.py` matches its bundles on a merge
+- [x] `tools/ci_headroom_harvest.py` matches its bundles on a merge
       run completed after 4g.
-- [ ] development#123 is closed; private-ci#38 is still open and
-      carries the guest-image inventory.
+- [x] development#123 is closed; private-ci#38 is still open and
+      carries the guest-image inventory. Verified 2026-10-02: #123
+      closed by 4i, and #38's inventory is the comment of 2026-10-01
+      08:06 UTC, which lists the label and artifact references the
+      survey found and which the issue did not previously have. #38
+      stays open until the end of phase 5 by design, which is why it
+      is a bullet about two different states rather than two closures.
 
 #### What 4j confirmed
 
-4j ran on 2026-10-02, after the morning audit regenerated the
-compliance page. All six checks pass. Recorded here because the phase
-is not confirmed by its merges and nothing else in this document says
-so.
+4j ran on 2026-10-02 (AEST), after the 2026-10-01 12:44 UTC audit run
+regenerated the compliance page -- the same morning in Canberra. Bare
+dates in this subsection are AEST and timestamps are UTC, which is the
+convention the status paragraph states; the two differ by a calendar
+day for anything before 10:00 local. All six checks pass. Recorded
+here because the phase is not confirmed by its merges and nothing
+else in this document says so.
 
 (1) The `eol-distro` table on `main` lists no `non-compliant` row -- 19
 compliant, `cloudgood` and `private-ci` N/A -- and the page was
@@ -1968,7 +2012,13 @@ undeclared fixed-rate polls above its 0.25/s ceiling --
 lane failed the same way in run 36806873191, *before* 4h merged, so it
 predates this phase and is recurring rather than a flake. It is blob and
 transfer traffic wanting a `database_load_budget.yaml` entry, and it
-belongs to the database-load work.
+belongs to the database-load work. It has an owner there:
+shakenfist#4401, filed automatically from run 36938755972 at 2026-10-02
+01:06 UTC, names the same four pairs and the same Debian 13 slim-tier
+lane. So this paragraph is a pointer, not the only record of a
+recurring failure on another repository's default branch -- which it
+was for sixteen minutes, between this section being written and the
+automation filing.
 
 **A note for later steps that quote a commit subject.** 4h part 1's
 brief prescribes the subject `Read the cluster image artifact as debian,
