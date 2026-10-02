@@ -71,18 +71,20 @@ reusable workflow in the fleet read a secret. A survey on 2026-10-02
 found one exception. The shared callees in shakenfist/actions and the
 `test-drift-fix.yml` template read none, but instar's local copy of
 `test-drift-fix.yml` reads `GITLAB_TESTDATA_TOKEN` in its "Prepare
-instar-testdata" step. That copy moves to the named form shown under
-"Required, but confirmed by a reviewer" in
-[shakenfist/instar#617](https://github.com/shakenfist/instar/pull/617):
-the callee declares the secret under `on.workflow_call.secrets` with
-`required: false`, and `pr-fix-tests.yml` passes it by name. Every
-other inherit the criterion found -- `smoke-cluster.yml` callers in
-shakenfist and client-python, and the `test-drift-fix.yml` callers
-that `templates/test-drift-fix/` had put in shakenfist and occystrap
--- is fixed by deleting the line. The local `test-drift-fix.yml`
-copies also move from `secrets.GITHUB_TOKEN` to `github.token`, as
-the template already has, so that they do not depend on the secrets
-context of a called workflow at all.
+instar-testdata" step. The fix proposed for that copy, in
+[shakenfist/instar#617](https://github.com/shakenfist/instar/pull/617),
+uses the named form described under "Required, but confirmed by a
+reviewer" above: the callee declares the secret under
+`on.workflow_call.secrets` with `required: false`, and
+`pr-fix-tests.yml` passes it by name. Every other inherit the
+criterion found -- `smoke-cluster.yml` callers in shakenfist and
+client-python, and the `test-drift-fix.yml` callers that
+`templates/test-drift-fix/` had put in shakenfist and occystrap --
+was fixed by deleting the line. Those fixes also moved the shakenfist
+and occystrap copies of `test-drift-fix.yml` from
+`secrets.GITHUB_TOKEN` to `github.token`, as the template already
+has, so that they do not depend on the secrets context of a called
+workflow at all; instar#617 does the same for instar's copy.
 
 Local callees are measured even though the moving-ref half of the
 argument does not apply to them: the declared list is still what makes
