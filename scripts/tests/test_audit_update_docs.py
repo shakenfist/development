@@ -407,7 +407,7 @@ class GeneratedNoteMatchesTheGeneratorTest(unittest.TestCase):
     hand-maintained, so the copy in each spec page is only ever as
     current as the last run. Nothing asserted the two agreed: the
     next change to the generator's wording would have rewritten
-    thirty files in one daily-workflow commit with no warning, which
+    thirty files in one scheduled-workflow commit with no warning, which
     is the cross-file drift this suite closes everywhere else.
     """
 
@@ -690,8 +690,8 @@ class UpdateCompliancePageTest(unittest.TestCase):
         with --page publish whatever unrelated .md files sat beside the
         scratch page as criteria nobody measures, and an empty output
         directory drop the section entirely -- noise in the diff the
-        plan relies on to check a change before the unattended 06:00
-        run makes it live. Which criteria have no check is a property
+        plan relies on to check a change before the unattended
+        scheduled run makes it live. Which criteria have no check is a property
         of this repository.
         """
         stray = os.path.join(self.tmp, 'not-a-criterion.md')

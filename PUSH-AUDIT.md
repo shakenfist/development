@@ -218,7 +218,7 @@ Then the judgment-level review of
 - **Blast radius of a changed check.** Does a modified check
   change its verdict for repositories the diff is not about? A
   stricter regex or a new required file marks the fleet
-  non-compliant tomorrow. If that is intended, the plan or PR
+  non-compliant on the next run. If that is intended, the plan or PR
   should say how many repositories it will newly fail; if it is
   not, it is a bug.
 - **Repo overrides.** New entries in `REPO_OVERRIDES` need a

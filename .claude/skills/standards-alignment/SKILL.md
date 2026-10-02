@@ -44,6 +44,12 @@ run against a local clone.
   yourself; Michael does that.
 - Fix any real bug that prompted the work first, as its own commit,
   before the standards commits.
+- When the work fixes an open consistency issue, put `Fixes #N` in
+  the commit message and in the PR description you propose, so the
+  merge closes it. The audit runs weekly and would otherwise leave it
+  open for days. Re-run `audit-check.py` against the branch first: a
+  closed issue whose criterion still fails is refiled as a new issue,
+  not reopened.
 - Run `pre-commit run --all-files` before every commit (once the
   target has a config; add it early if practical).
 

@@ -61,7 +61,7 @@ consistent" into a measurement, in four stages:
    tables are a rendering of the latest run, never hand-maintained.
 4. On failure, a reporting job files or updates an `audit-failure`
    issue here -- because while the pipeline is down the tables keep
-   showing yesterday's verdicts, so a broken audit looks like a
+   showing the previous run's verdicts, so a broken audit looks like a
    healthy one.
 
 Data flows one way: a clone produces JSON, JSON produces issues and

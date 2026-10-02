@@ -83,7 +83,7 @@ class PlanPhaseReferencesTest(CheckTestCase):
         example of one is 'Complete (phases 1-5 and 2b, 2026-08-15)'.
         Once the audits tree moved under docs/ those files entered this
         check's scope, so without the exclusion the bot writes that
-        phrase into docs/audits/plan-index.md one morning and this
+        phrase into docs/audits/plan-index.md on one run and this
         repository fails its own audit the next, having committed
         nothing.
         """
@@ -2577,7 +2577,7 @@ class PushAuditTest(CheckTestCase):
 
     def test_reference_is_reported_alongside_block_problems(self):
         # Both failures at once, so a repository fixing one is not
-        # surprised by the other on the next daily run.
+        # surprised by the other on the next scheduled run.
         result = self._check({
             'PUSH-AUDIT.md': '# Audit\n',
             'AGENTS.md': '# Agents\n\nNothing here.\n',
@@ -2685,7 +2685,7 @@ class PlanTemplateTest(CheckTestCase):
     The check had no direct coverage at all, which matters once
     PLAN_TEMPLATE_BLOCKS gains an entry: adding a name to that list
     marks every repository carrying the previous set non-compliant
-    on the next daily run, and nothing asserted either the list's
+    on the next scheduled run, and nothing asserted either the list's
     contents or that the check reads it.
     """
 

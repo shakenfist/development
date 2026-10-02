@@ -38,7 +38,7 @@ RUNNER_EXCEPTION_RE = re.compile(r'audit-ok:\s*github-hosted-runner')
 # The source of truth is CI_SIZES in shakenfist/private-ci's
 # conductor/provisioner.py, which this repository cannot see. A size
 # added there and not added here turns every job which correctly names
-# it into a finding on the next daily run, so the two move together --
+# it into a finding on the next scheduled run, so the two move together --
 # test_the_size_vocabulary_matches_the_specification keeps this list
 # and the spec page in step, but nothing can reach across to the
 # conductor.

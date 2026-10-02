@@ -982,7 +982,7 @@ def plan_audit_phase_state(content):
 # prose -- is adopted only by the repositories that were already
 # going to adopt it, which is not the ones causing the problem.
 # The cost was eight of the ten applicable repositories marked
-# non-compliant on the next daily run. See
+# non-compliant on the next scheduled run. See
 # templates/shared-blocks/README.md.
 PLAN_TEMPLATE_BLOCKS = [
     'plan-file-conventions',

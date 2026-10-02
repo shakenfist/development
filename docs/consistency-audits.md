@@ -59,9 +59,15 @@ work those repositories exist for. Weekly turns that into a small
 backlog to start the working week on.
 
 One consequence is that an issue fixed mid-week stays open until the
-next run unless the fixing PR closes it (`Fixes #N` in the PR body, as
-the `consistency-fix` skill does). If the compliance page needs to be
-current sooner, dispatch the workflow by hand.
+next run unless the fixing PR closes it with `Fixes #N` in the PR body,
+which the `standards-alignment` skill in `.claude/skills/` asks for. A
+closed issue is not a passing criterion, though: the issue manager only
+searches open issues, so if the check still fails after the merge -- a
+partial fix, or a second finding under the same criterion -- the next
+run files a new issue rather than reopening the old one, and the
+discussion on it is left behind. After merging such a fix, dispatch the
+workflow by hand to confirm the criterion passes, which also brings the
+compliance page up to date.
 
 **1. `audit`** -- a matrix job per repository. Each leg shallow-clones
 the target with `gh repo clone`, installs a pinned `skillsaw` into a

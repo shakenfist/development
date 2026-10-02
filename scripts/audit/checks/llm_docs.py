@@ -470,10 +470,10 @@ class LlmContextLintCi(Check):
     def run(self, repo):
         """Check skillsaw runs in pre-commit and in CI.
 
-        The daily audit is a backstop, not the feedback loop. A malformed
+        The weekly audit is a backstop, not the feedback loop. A malformed
         skill or a smuggled instruction should be caught by the commit
         that introduces it, so the audit checks that each repository runs
-        the linter itself rather than waiting to be told once a day.
+        the linter itself rather than waiting to be told once a week.
 
         As with the secret scanner check, how skillsaw is invoked is
         deliberately not pinned. Naming the upstream repository in a

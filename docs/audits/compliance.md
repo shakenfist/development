@@ -16,7 +16,8 @@ indexes them all.
 The generation timestamp below is load-bearing. When a run fails it
 leaves the previous run's verdicts in place, so this page goes on
 looking healthy while being stale -- check the date before trusting a
-verdict, and see
+verdict. The audit runs weekly, so a timestamp more than about seven
+days old means a run was missed. See
 [../consistency-audits.md](../consistency-audits.md) for what a run
 does.
 

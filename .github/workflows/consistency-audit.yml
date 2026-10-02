@@ -229,7 +229,7 @@ jobs:
   # the whole time and the tables still showing the previous run's
   # verdicts -- so the audit looked like it was working. This puts a
   # failure somewhere it will be seen, and updates one issue rather than
-  # filing a fresh one every morning an outage continues.
+  # filing a fresh one on every run an outage continues.
   report-failure:
     name: Report audit failure
     needs: [audit, manage-issues, update-docs]

@@ -5,7 +5,7 @@
 The weekly consistency audit is a backstop, not a feedback loop. A
 malformed skill, a smuggled unicode character or a secret pasted into
 `CLAUDE.md` should be caught by the commit that introduces it, not up
-to twenty-four hours later by a report nobody is watching.
+to a week later by a report nobody is watching.
 
 Every repository with agent context must therefore run
 [skillsaw](https://skillsaw.org/) itself, in both places the other

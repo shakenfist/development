@@ -207,7 +207,7 @@ def blank_generated_blocks(markdown):
     repositories and rendered as bare prose. They are not this
     repository's documentation and must not be judged as it: a
     plan-index detail reading 'Complete (phases 1-5, 2026-08-15)'
-    would fail plan-phase-references here the next morning, and a
+    would fail plan-phase-references here on the next run, and a
     harvested markdown link would fail docs-external-links, in both
     cases through no commit anyone made in this repository. This
     became reachable when the audits tree moved under docs/ and its

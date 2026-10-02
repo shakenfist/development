@@ -46,11 +46,11 @@ include = [
 # docs/audits/compliance.md is the one generated file in this
 # repository, and the only reason it is excluded is its first line:
 # `*Generated <timestamp> from scripts/audit-check.py; do not edit.*`,
-# rewritten on every daily run. That timestamp is deliberate -- it is
+# rewritten on every audit run. That timestamp is deliberate -- it is
 # how a reader tells a current verdict from a stale one when the audit
 # has silently stopped running, which the workflow's own failure issue
 # says in as many words. But a review mark attests to whole-file
-# content, so a file carrying a line that moves daily can never hold
+# content, so a file carrying a line that moves every run can never hold
 # one, and including it would keep a permanently-stale entry in the
 # queue and a review-coverage issue open that no amount of reviewing
 # could close.
