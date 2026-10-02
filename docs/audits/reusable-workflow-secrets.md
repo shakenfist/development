@@ -66,11 +66,18 @@ in two places: its declaration, and every caller that has to start
 passing it. A callee that reads a secret it was not passed gets an
 empty string, so the failure is loud rather than a quiet widening.
 
-When this criterion was added on 2026-09-29, no reusable workflow in
-the fleet read a secret. Every inherit it found -- `smoke-cluster.yml`
-callers in shakenfist and client-python, and the `test-drift-fix.yml`
-callers that `templates/test-drift-fix/` had put in shakenfist, instar
-and occystrap -- is fixed by deleting the line.
+When this criterion was added on 2026-09-29 it was believed that no
+reusable workflow in the fleet read a secret. A survey on 2026-10-02
+found one exception. The shared callees in shakenfist/actions and the
+`test-drift-fix.yml` template read none, but instar's local copy of
+`test-drift-fix.yml` reads `GITLAB_TESTDATA_TOKEN` in its "Prepare
+instar-testdata" step. It was moved to the named form shown under
+"Required, but confirmed by a reviewer": the callee declares the secret
+under `on.workflow_call.secrets` with `required: false`, and
+`pr-fix-tests.yml` passes it by name. Every other inherit it found --
+`smoke-cluster.yml` callers in shakenfist and client-python, and the
+`test-drift-fix.yml` callers that `templates/test-drift-fix/` had put in
+shakenfist and occystrap -- is fixed by deleting the line.
 
 Local callees are measured even though the moving-ref half of the
 argument does not apply to them: the declared list is still what makes
