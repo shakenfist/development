@@ -245,10 +245,6 @@
       "sha": "70f3fd11994c5048c1d092ebd82bccc6a9d04368",
       "date": "2026-10-01"
     },
-    "docs/audits/reusable-workflow-secrets.md": {
-      "sha": "5d41babbee7193d86d21679f6eef3502526d7ce0",
-      "date": "2026-09-30"
-    },
     "docs/audits/review-coverage.md": {
       "sha": "e4b0c375873b08c7f2cba712624536de679445ab",
       "date": "2026-09-26"
@@ -352,10 +348,6 @@
     "scripts/audit/checks/__init__.py": {
       "sha": "d54faddeed246c3b084571825d542bf04c1bb930",
       "date": "2026-09-02"
-    },
-    "scripts/audit/checks/ci_workflows.py": {
-      "sha": "30283e21e59d9e578973bc69493cf8758cb3efb0",
-      "date": "2026-09-30"
     },
     "scripts/audit/checks/distros.py": {
       "sha": "81c0aa6c3a383d6a46ec931e57e71f89b2828158",

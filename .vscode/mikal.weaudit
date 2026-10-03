@@ -713,19 +713,11 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/reusable-workflow-secrets.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/test-drift-fix/pr-fix-tests.yml",
       "author": "mikal"
     },
     {
       "path": "templates/test-drift-fix",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/ci_workflows.py",
       "author": "mikal"
     },
     {
