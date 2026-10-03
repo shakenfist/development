@@ -51,7 +51,7 @@ def _update_docs():
 #: across the fleet. Deriving the table from class attributes put
 #: 45 of those strings within reach of a careless edit, and this
 #: is what makes such an edit fail a test rather than reach a
-#: morning run. A new criterion adds a line here; a changed line
+#: scheduled run. A new criterion adds a line here; a changed line
 #: is supposed to be hard.
 FROZEN_METADATA = {
     'llm-tooling': {'spec': 'docs/audits/llm-tooling.md', 'template': None},

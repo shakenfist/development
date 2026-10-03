@@ -254,7 +254,7 @@ def render_page(results, no_issues):
     # whatever unrelated .md files happened to sit beside the scratch
     # page as criteria nobody measures, which is noise in exactly the
     # diff the plan relies on to check a change before the unattended
-    # 06:00 run makes it live.
+    # scheduled run makes it live.
     unmeasured = unmeasured_specs()
     if unmeasured:
         lines.append('')
@@ -345,7 +345,7 @@ def main():
     section = render_page(results, args.no_issues)
     if not update_compliance_page(args.page, section):
         # The markers are the only thing tying the generated block to
-        # its page. Losing them silently would leave yesterday's
+        # its page. Losing them silently would leave the previous run's
         # verdicts in place looking current, which is the failure the
         # generation timestamp exists to make visible.
         print(

@@ -56,7 +56,7 @@ class CheckAuditSmokeTest(unittest.TestCase):
 
     def test_failing_verdicts_are_not_this_script_s_business(self):
         # This job exists to prove the audit measured, not that it
-        # approved. Asserting on verdicts would duplicate the daily
+        # approved. Asserting on verdicts would duplicate the scheduled
         # run, which is what turns a failing check into an issue, and
         # would block every pull request in a repository that has
         # open findings -- which this one does.

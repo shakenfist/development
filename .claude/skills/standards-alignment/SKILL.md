@@ -1,13 +1,13 @@
 ---
 name: standards-alignment
-description: Bring a Shaken Fist repository up to the project consistency standards, one update per commit. Use when onboarding a repo to the daily consistency audit, fixing consistency audit issues filed against a repo, or when a repo has drifted from how the rest of the fleet is packaged and automated.
+description: Bring a Shaken Fist repository up to the project consistency standards, one update per commit. Use when onboarding a repo to the weekly consistency audit, fixing consistency audit issues filed against a repo, or when a repo has drifted from how the rest of the fleet is packaged and automated.
 ---
 
 # Standards Alignment Skill
 
 Use this skill to bring a Shaken Fist repository into line with the
 project consistency standards defined in this repository, and to keep
-it there by adding it to the daily audit fleet.
+it there by adding it to the weekly audit fleet.
 
 ## Sources of truth
 
@@ -18,7 +18,7 @@ authority is:
   ones no script checks (functional test coverage, credential
   handling). `docs/audits/README.md` indexes them and says which
   repositories are in scope or excluded.
-- `scripts/audit-check.py` -- exactly what the daily audit verifies,
+- `scripts/audit-check.py` -- exactly what the weekly audit verifies,
   and therefore the definition of "would not create issues".
 - `templates/` -- canonical starting points for most of the files the
   audit expects. Copy templates rather than improvising; several
@@ -44,6 +44,12 @@ run against a local clone.
   yourself; Michael does that.
 - Fix any real bug that prompted the work first, as its own commit,
   before the standards commits.
+- When the work fixes an open consistency issue, put `Fixes #N` in
+  the commit message and in the PR description you propose, so the
+  merge closes it. The audit runs weekly and would otherwise leave it
+  open for days. Re-run `audit-check.py` against the branch first: a
+  closed issue whose criterion still fails is refiled as a new issue,
+  not reopened.
 - Run `pre-commit run --all-files` before every commit (once the
   target has a config; add it early if practical).
 
@@ -90,9 +96,9 @@ Packaging first, because several checks key off the presence of
 11. **Add the repo to the audit matrix** in this repository's
     `.github/workflows/consistency-audit.yml`, as its own branch and
     commit here. Land it after the target repo's branch, so the first
-    daily audit does not file issues against work still in flight.
+    audit run does not file issues against work still in flight.
     The per-project compliance tables all live on
-    `docs/audits/compliance.md`, which regenerates daily -- never
+    `docs/audits/compliance.md`, which regenerates weekly -- never
     hand-edit it, and never add a table to a criterion page: those are
     hand-written so they can hold a human review mark.
 

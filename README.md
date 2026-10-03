@@ -9,7 +9,7 @@ the Shaken Fist project.
   of every Shaken Fist project: one page per criterion, saying what
   is checked and why, plus which repositories are in scope, excluded,
   or audited for part of it
-- [Consistency Audits](https://github.com/shakenfist/development/blob/main/docs/consistency-audits.md) -- How the daily
+- [Consistency Audits](https://github.com/shakenfist/development/blob/main/docs/consistency-audits.md) -- How the weekly
   audit runs, files and closes issues, and how to add a criterion or
   bring a repository into scope
 - [Automated PR Review with Claude Code](https://github.com/shakenfist/development/blob/main/docs/automated-pr-review.md) -- How we use
@@ -38,7 +38,7 @@ the system works and how to add an audit item.
 
 Audits run automatically via
 [`.github/workflows/consistency-audit.yml`](https://github.com/shakenfist/development/blob/main/.github/workflows/consistency-audit.yml),
-which clones each target repo daily and checks it using
+which clones each target repo weekly and checks it using
 [`scripts/audit-check.py`](https://github.com/shakenfist/development/blob/main/scripts/audit-check.py). Results are
 used by [`scripts/audit-manage-issues.py`](https://github.com/shakenfist/development/blob/main/scripts/audit-manage-issues.py)
 to create and close GitHub issues on the target repos.
@@ -93,7 +93,7 @@ This repository carries project-level Claude Code skills in
 
 - **standards-alignment** -- the workflow for bringing a repository up
   to the consistency standards, one update per commit, and adding it
-  to the daily audit fleet
+  to the weekly audit fleet
 - **review-tracking-adoption** -- deploying the human code review
   tracking tooling to a repository and verifying the deployment,
   including that expensive CI skips review-only pull requests
@@ -115,7 +115,7 @@ These actions reduce duplication and ensure consistent behavior across projects.
 
 Most Shaken Fist projects have Claude Code-powered automated review
 and bot-triggered retests. Whether each audited project's review
-automation is compliant is measured every morning rather than listed
+automation is compliant is measured weekly rather than listed
 here: see
 [the compliance page](https://github.com/shakenfist/development/blob/main/docs/audits/compliance.md#ci-review-automation).
 

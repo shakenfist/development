@@ -259,7 +259,7 @@ class OrphanSkillMarkdownTest(CheckTestCase):
 
 
 class LlmContextLintCiTest(CheckTestCase):
-    """skillsaw runs per commit, not only in the daily audit."""
+    """skillsaw runs per commit, not only in the weekly audit."""
 
     check_class = llm_docs.LlmContextLintCi
 
@@ -580,7 +580,7 @@ class LlmDocNamingTest(CheckTestCase):
 
     def test_an_untracked_copy_is_not_a_finding(self):
         # Somebody's scratch file in their own clone, not a property
-        # of the repository. The daily audit runs against a fresh
+        # of the repository. The audit runs against a fresh
         # clone and would never see one.
         result = self._check(
             {}, agents='# AGENTS.md\n',

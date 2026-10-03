@@ -219,7 +219,7 @@ def pr_auto_review_callers_inheriting_secrets(repo_path):
     two of them rather than zero, so it is a guard which has seen real
     repositories and not only fixtures. Which repositories are
     outstanding today is the ci-review-automation section of
-    docs/audits/compliance.md, which regenerates daily. That is
+    docs/audits/compliance.md, which regenerates weekly. That is
     deliberately not restated here: one of the two the survey named had
     merged its own removal within the day, and this change is the
     other.
@@ -2019,8 +2019,10 @@ FAILED_CONCLUSIONS = frozenset({'failure', 'startup_failure', 'timed_out'})
 # How many unwatched failures, with no success ever, make a finding.
 # One failure is a workflow installed an hour ago whose first run hit a
 # flake; three is a pattern. An hourly workflow reaches it within the
-# day it was installed and a daily one within three days, which is
-# the week this criterion exists to shorten.
+# day it was installed and a daily one within three days, but the
+# finding only appears at the next scheduled audit, which runs weekly:
+# up to about ten days for a daily workflow, and three weeks or more
+# for a weekly one.
 NEVER_SUCCEEDED_MIN_FAILURES = 3
 
 

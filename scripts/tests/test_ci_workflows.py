@@ -525,7 +525,7 @@ class ForkGateAndConfirmStepTest(CheckTestCase):
     fix reaches the fleet only if the criterion measures it. Each case
     below is a mutation of the real template, so a template edit that
     the criterion no longer accepts fails here rather than in twenty
-    repositories the next morning.
+    repositories on the next scheduled run.
     """
 
     check_class = ci_workflows.CiReviewAutomation

@@ -405,10 +405,10 @@ class GeneratedNoteMatchesTheGeneratorTest(unittest.TestCase):
 
     It sits inside the marker block, which AGENTS.md says is never
     hand-maintained, so the copy in each spec page is only ever as
-    current as the last run. Nothing asserted the two agreed: the
-    next change to the generator's wording would have rewritten
-    thirty files in one daily-workflow commit with no warning, which
-    is the cross-file drift this suite closes everywhere else.
+    current as the last run. Nothing asserted the two agreed: the next
+    change to the generator's wording would have rewritten thirty
+    files in one scheduled-workflow commit with no warning, which is
+    the cross-file drift this suite closes everywhere else.
     """
 
     SENTINEL = 'TIMESTAMP-SENTINEL'
@@ -515,9 +515,9 @@ class SpecsLinkTheirComplianceSectionTest(unittest.TestCase):
         """Each measured spec links the anchor named after itself.
 
         Deliberately not checked against the committed page. The page
-        is generated daily and lags the specs by one run, so a
-        criterion registered today has no section there until tomorrow
-        morning -- which is exactly what the documented "Adding a
+        is generated weekly and lags the specs by one run, so a
+        criterion registered today has no section there until the
+        next run -- which is exactly what the documented "Adding a
         criterion" recipe produces. An earlier version of this test
         required the section to exist already and would have failed
         the first commit of every future criterion.
@@ -690,9 +690,9 @@ class UpdateCompliancePageTest(unittest.TestCase):
         with --page publish whatever unrelated .md files sat beside the
         scratch page as criteria nobody measures, and an empty output
         directory drop the section entirely -- noise in the diff the
-        plan relies on to check a change before the unattended 06:00
-        run makes it live. Which criteria have no check is a property
-        of this repository.
+        plan relies on to check a change before the unattended
+        scheduled run makes it live. Which criteria have no check is a
+        property of this repository.
         """
         stray = os.path.join(self.tmp, 'not-a-criterion.md')
         with open(stray, 'w') as f:

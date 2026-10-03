@@ -11,13 +11,13 @@ Flag any uncertainty explicitly rather than guessing.
 There is no application code here. The artifacts are the audit
 specifications in `docs/audits/`, the tooling in `scripts/` that
 measures them, the templates in `templates/` that the rest of the
-fleet copies, and the workflows that run all of it every morning
+fleet copies, and the workflows that run all of it every week
 against every Shaken Fist repository.
 
 Consult `AGENTS.md` for the conventions and the invariants that
 are not visible in the code, and `ARCHITECTURE.md` for the shape
 of the system. `docs/consistency-audits.md` is the reference for
-what a daily run does, how to add a criterion, how to bring a
+what a run does, how to add a criterion, how to bring a
 repository into scope, and how to test a change before it reaches
 the fleet -- read it before changing anything under `scripts/` or
 `docs/audits/`. `docs/code-review-tracking.md` covers the review
@@ -28,7 +28,7 @@ Two things make planning here different from planning in a
 repository that holds a product, and both should shape any plan
 written from this template:
 
-* **The blast radius is other people's repositories.** The daily
+* **The blast radius is other people's repositories.** The weekly
   workflow files and closes GitHub issues fleet-wide. A change
   that is merely wrong does not produce a red build; it produces
   issues in ten repositories, or silently closes ones that should
@@ -37,7 +37,7 @@ written from this template:
 * **This repository is in its own audit matrix.** A standard we
   exempt ourselves from is a standard we stop noticing the cost
   of. A change to a criterion is a change we are measured against
-  the next morning, so a plan should say how many repositories --
+  on the next run, so a plan should say how many repositories --
   including this one -- it newly fails.
 
 <!-- shared-block: plan-file-conventions v1 -->

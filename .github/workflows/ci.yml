@@ -4,7 +4,7 @@
 # enforces them, and until this workflow it had no CI of its own: the
 # only workflow here was consistency-audit.yml, which runs on a
 # schedule against other people's repositories. So a change to the
-# audit machinery was first exercised at 06:00 UTC the next morning,
+# audit machinery was first exercised by the next scheduled run,
 # against the whole fleet at once, with issue filing and the compliance
 # tables downstream of it.
 #
@@ -87,7 +87,8 @@ jobs:
       # Deliberately the same install as consistency-audit.yml, on the
       # same runner class. The point of this job is that the scheduled
       # workflow's environment assumptions are exercised on a pull
-      # request rather than at 06:00 UTC across the whole audit matrix.
+      # request rather than on the next scheduled run across the whole
+      # audit matrix.
       # No count here on purpose: the matrix grows, and a number in a
       # comment is the thing that goes stale without anything noticing.
       - name: Install skillsaw

@@ -7,7 +7,7 @@ retired runner image keeps passing, and a container built `FROM` a
 retired base keeps shipping. The only signal is somebody remembering.
 
 `EOL_RELEASES` is that memory, written down. A release is added to it
-when it goes end of life, and from the next morning's run every
+when it goes end of life, and from the next audit run every
 repository still naming it fails this criterion until it moves. The
 table is the whole of the policy: adding Ubuntu 22.04 in 2027 is one
 entry, not a new check.

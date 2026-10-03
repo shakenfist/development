@@ -40,7 +40,7 @@ def _issue_titles():
     open issue for that criterion across the fleet. Deriving it means
     the title lives beside the check that files it; a frozen snapshot
     in scripts/tests/test_metadata.py is what stops a careless edit
-    reaching a morning run.
+    reaching a scheduled run.
     """
     return {check.id: check.issue_title for check in CHECKS}
 

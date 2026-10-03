@@ -64,10 +64,10 @@ file is really a slash command, to `.claude/commands/`, where flat
 markdown is the correct shape.
 
 See [llm-context-lint-ci.md](llm-context-lint-ci.md) for running the
-same linter per commit rather than once a day.
+same linter per commit rather than once a week.
 
 ## Projects
 
 Per-project compliance for this criterion is regenerated
-every morning by the consistency audit: see
+on every run of the consistency audit: see
 [the compliance page](compliance.md#llm-context-lint).

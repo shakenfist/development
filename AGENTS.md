@@ -6,7 +6,7 @@ application code here.
 
 ## Working on the consistency audits
 
-`docs/consistency-audits.md` is the reference: what a daily run does,
+`docs/consistency-audits.md` is the reference: what a run does,
 how to add a criterion, how to bring a repository into scope, and how
 to test a change before it reaches the fleet. Read it before changing
 anything under `scripts/` or `docs/audits/`.
@@ -19,7 +19,7 @@ The parts worth knowing before you start:
   registry, so there is nothing to keep in sync by hand.
 - The compliance tables live in `docs/audits/compliance.md` between
   the `consistency-audit` markers, and are regenerated and pushed by
-  the daily workflow. Never edit them by hand, and never add a table
+  the weekly workflow. Never edit them by hand, and never add a table
   or a marker to a criterion spec: the specs are hand-written so they
   can hold a human review mark.
 - Issue titles are the idempotency key for filing and closing, so a

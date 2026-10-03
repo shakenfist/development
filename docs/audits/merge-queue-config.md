@@ -79,5 +79,5 @@ the change is captured in `.github/exported-config/`.
 ## Projects
 
 Per-project compliance for this criterion is regenerated
-every morning by the consistency audit: see
+on every run of the consistency audit: see
 [the compliance page](compliance.md#merge-queue-config).
