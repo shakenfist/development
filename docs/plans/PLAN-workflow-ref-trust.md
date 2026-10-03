@@ -185,6 +185,14 @@ mechanically. In brief, the policy is:
 3. **Pin third-party actions to a sha**, with the version in a
    trailing comment. Renovate (`helpers:pinGitHubActionDigests`)
    keeps the pins current, and a new criterion enforces them.
+4. **Express a repeated workflow once.** A template meant to be the
+   same in every repository becomes a short caller of a reusable
+   workflow or composite action in `actions`, at the moving ref
+   that point 2 makes safe to trust, and the template's own
+   criterion checks the caller. This belongs in this plan because
+   it rests on the same trust decision: every job moved into
+   `actions` widens what an unreviewed push to its main would reach,
+   so it waits for phase 2.
 
 Out of scope:
 
@@ -193,6 +201,14 @@ Out of scope:
 - Pinning the Python, cargo or npm dependencies that workflows
   install. Other criteria cover those.
 - Harden-runner-style egress control.
+- Renovate's own workflow. A shared workflow would still run once
+  per repository, and the better answer is one central run for the
+  whole fleet, which `PLAN-renovate-cadence.md` delivers.
+- A fleet-wide "these workflows look alike" detector. It cannot tell
+  drift from a legitimate per-repository difference, so it would
+  file issues against copies that are right to differ. Phase 5
+  enforces the policy through each template's own criterion
+  instead.
 
 ## Open questions
 
@@ -271,7 +287,8 @@ Out of scope:
 | 2. Make `actions` main require a pull request | Not started | |
 | 3. Pin third-party actions to a sha | Not started | |
 | 4. Record the policy and close #153 | Not started | |
-| 5. Push audit | Not started | |
+| 5. Shared workflows instead of copied templates | Not started | |
+| 6. Push audit | Not started | |
 
 ### Phase 1: finish the inherit rollout
 
@@ -513,6 +530,20 @@ requirement as a worked example.
 | 3b | medium | sonnet | none | Add the same `extends` to `templates/renovate/renovate.json`, and say why in `templates/renovate/README.md`. Pin `renovatebot/github-action` first: it runs with `DEPENDENCIES_TOKEN` and write access to its repository, so it is the third-party action most worth pinning. Pin every other third-party `uses:` under `templates/` to a sha with a `# vX.Y.Z` comment, keeping template copies and their deployed twins here byte-identical. Grep `scripts/audit/` for any check that matches a `uses:` line by tag (for example `@v`), and update it to accept a pinned form. |
 | 3c | medium | sonnet | worktree | Add the criterion `third-party-action-pinning` to `scripts/audit/checks/ci_workflows.py`, beside `ReusableWorkflowSecrets` (line 2162). It is measured: every remote `uses:` whose owner is not `shakenfist` ends in a 40-hex sha. It is confirmed by a reviewer: the trailing version comment, and the Renovate preset being on. It also scans every `action.yml` and `action.yaml` in the repository, wherever it sits, for `uses:` under `runs.steps`: a composite action's third-party step runs inside each caller's job, and the existing helpers only read `.github/workflows/`. Reuse the existing workflow-parsing helpers in that file rather than adding a YAML dependency. Give it the five criterion files as in 2b, plus tests for a tag ref, a sha ref, a branch ref, a commented-out line, a `docker://` ref (out of scope, not a finding), a local `./` ref (not a finding), a composite `action.yml` with an unpinned third-party step (a finding), and a third-party reusable workflow (`owner/repo/.github/workflows/x.yml@v1`, a finding). Run it against fresh clones of the fleet. The commit message states how many repositories it newly fails, including this one, which must already pass after 3b. |
 
+**Coordination with `PLAN-renovate-cadence.md`.** That plan moves
+the fleet's Renovate policy into one shared preset and runs Renovate
+once for the whole fleet from this repository. If its phase 1 has
+landed when this phase starts, step 3b adds
+`helpers:pinGitHubActionDigests` to the preset once rather than to
+`templates/renovate/renovate.json` and every copy of it. Its monthly
+CI-tooling group (all `github-actions` and `pre-commit` updates,
+digests included) is the grouping rule that open question 4's
+default anticipates. Once its phase 3 has landed,
+`renovatebot/github-action` appears only in this repository's
+central workflow, so 3b pins it there. Land that plan's phase 1
+before this phase's 3b; otherwise every pin arrives as a separate
+pull request in every repository.
+
 ### Phase 4: record the policy and close #153
 
 Planning effort: medium. It documents a policy that phases 2 and 3
@@ -522,7 +553,60 @@ have already decided.
 |------|--------|-------|-----------|---------------------|
 | 4a | medium | sonnet | none | In `docs/audits/reusable-workflow-secrets.md`, replace "What this does not cover" with the settled policy: first-party refs move, and the `moving-ref-source-protection` criterion is what makes that acceptable; third-party refs are pinned, under `third-party-action-pinning`. Include the upper bound of 14 pull requests a day this avoids, what a moving ref can reach (Situation: the runner's filesystem, and the caller's job for composite actions), the "pull request and CI, not a second reviewer" limit from open question 2, and the residual from open question 1. Link both new specs. In the Why section, put the instar#617 sentences in the past tense, describing what actually landed if review changed it. Close #153 from the pull request body, and link phase 1's landings. |
 
-### Phase 5: push audit
+### Phase 5: shared workflows instead of copied templates
+
+Planning effort: high. The classification in 5a decides how much of
+the fleet changes, and renaming required checks can wedge merge
+queues if it is done carelessly.
+
+**Why.** `templates/` hands workflows to the fleet by copying, and
+the copies drift. Read through the GitHub API on 2026-10-03:
+
+| Template | Live copies | Distinct versions |
+|---|---|---|
+| `renovate.yml` (its README says "copied verbatim") | 17 | 14 |
+| `codeql-analysis.yml` | 17 | 12 |
+| `pr-retest.yml` | 17 | 10 |
+| `export-repo-config.yml` (already a caller of `actions`) | 17 | 6 |
+| `mermaid-lint.yml` | 6 | 3 |
+| `prune-reviews.yml` | 7 | 1 |
+
+`prune-reviews.yml` is the exception because `PLAN-review-import.md`
+is actively keeping it converged. Even the caller stub
+`export-repo-config.yml` has six versions, so the stubs need a
+criterion too, not just the code they call.
+
+**Why after phase 2.** Today a push to `actions` main reaches 93
+`@main` references in 14 repositories. Each template moved there
+adds to that. Phase 2 is what makes the moving ref acceptable, so
+this phase must not start until phase 2's ruleset is live.
+
+**Two costs to plan around.**
+
+* A job inside a reusable workflow reports its status as `caller /
+  callee`. Any repository whose ruleset or merge queue requires the
+  old check name stops merging until the ruleset is updated. Each
+  rollout pull request therefore changes the ruleset in the same
+  step, and the required checks are listed before the change.
+* A reusable workflow cannot read files from its own repository
+  without a second checkout, whereas a composite action can, through
+  `github.action_path`. Templates that ship a script into `tools/`
+  (`mermaid-lint.sh`, `ci-prune-reviews.sh`,
+  `pin-indirect-dependencies*.sh`, the `issue-fix` scripts) probably
+  want a composite action for their steps, wrapped by a thin caller
+  workflow. Step 5a confirms this rather than assuming it. A
+  composite action runs inside the caller's job, with that job's
+  environment, which is the wider exposure the Situation section
+  describes, so phase 2's protection matters most for these.
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 5a | high | opus | none | Classify every template directory under `templates/` except `shared-blocks/` and `renovate/` (which `PLAN-renovate-cadence.md` centralises). For each workflow file, fetch every live copy from each fleet repository's default branch through the GitHub API (local clones are stale), diff each one against the template, and sort the differences into drift and legitimate per-repository adaptation, citing the lines. Then decide one of three outcomes and say why: a reusable workflow in `actions`, a composite action in `actions` (when the steps need the caller's checkout or ship a script), or the template stays a template (when the differences are legitimate and cannot be expressed as `with:` inputs). For each repository and template, record which required status-check contexts its ruleset and merge queue name, because wrapping renames them. Write the result into this section as a table, and order the rollout by drift multiplied by copy count. Make no changes outside this plan file. |
+| 5b | high | opus | worktree | Pilot on `mermaid-lint` (6 copies, ships `mermaid-lint.sh`, runs on a docker-capable runner). In `shakenfist/actions`, add the composite action or reusable workflow 5a chose, carrying the script. Reduce `templates/mermaid-lint/mermaid-lint.yml` to the caller stub, update `templates/mermaid-lint/README.md`, and change the `mermaid-lint-ci` criterion (`scripts/audit/checks/docs_content.py:444`, which today requires `MERMAID_LINT_SCRIPT = 'tools/mermaid-lint.sh'` at `:143`) so it requires the caller (`uses: shakenfist/actions/...@main` with the documented inputs) and no longer requires `tools/mermaid-lint.sh`, with pass, fail and stale-copy tests. Convert this repository's own copy first, then roll out one pull request per repository, updating each repository's required-check names in the same step. Record each landing in this section. |
+| 5c | medium | sonnet | none | Add a test under `scripts/tests/` asserting that every template 5a classified as shared is a caller stub: it calls `shakenfist/actions` at `@main`, and it has no `run:` steps of its own. Then document the convention, that a template meant to be identical everywhere is a caller and anything else says in its README why it is not, in `docs/consistency-audits.md` beside its description of templates (there is no `templates/README.md`). Mention it in `AGENTS.md` only as a one-line pointer, because it is a convention change. |
+| 5d | medium | sonnet | worktree | For each remaining template in 5a's rollout order, repeat 5b's shape: callee in `actions`, stub template, criterion change with tests, then one pull request per repository using the `consistency-fix` skill, with required checks updated in the same step. Each template is its own pull request in this repository, and its landing is recorded here. |
+
+### Phase 6: push audit
 
 Planning effort: medium. The runbook and the ranges are fixed; the
 work is running it.
@@ -648,7 +732,7 @@ root and is referenced from `AGENTS.md`, so the final phase runs
 it rather than explaining its absence. Its diff commands use
 `${AUDIT_RANGE:-origin/main...HEAD}`, so run `git fetch origin`
 first: a stale `origin/main` widens the audit to unrelated history.
-Phase 5 sets `AUDIT_RANGE` per landing, because once a phase has
+Phase 6 sets `AUDIT_RANGE` per landing, because once a phase has
 merged the default range is empty and reads as a clean audit.
 
 <!-- shared-block: plan-phase-landing v1 -->
