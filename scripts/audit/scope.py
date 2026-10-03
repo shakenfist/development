@@ -126,8 +126,8 @@ def read(root, relative):
     it escapes the handler the `scope-coverage` check wraps this parse
     in, and `registry.run_all()` has no handler at all. One undecodable
     byte in either document would abort the whole `development` leg of
-    the scheduled run, taking issue filing and the compliance page with it.
-    Replacing the byte lets the parse proceed and either succeed or
+    the scheduled run, taking issue filing and the compliance page with
+    it. Replacing the byte lets the parse proceed and either succeed or
     raise `ScopeParseError`, which is a `fail()` a reader can act on.
     """
     with open(os.path.join(root, relative), 'r', errors='replace') as f:

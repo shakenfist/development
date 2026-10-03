@@ -50,7 +50,7 @@ separate columns.
 `.github/workflows/consistency-audit.yml` runs weekly at 18:00 UTC on
 Sunday -- early on Monday morning in Canberra -- and can be started by
 hand with `workflow_dispatch`. `export-repo-config`, whose output some
-checks read, still runs daily at 00:30 UTC. It has four jobs.
+checks read, still runs daily at 00:30 UTC.
 
 The audit used to run daily. It filed and closed issues faster than the
 fleet could absorb them: in September 2026 consistency fixes were the
@@ -68,6 +68,14 @@ run files a new issue rather than reopening the old one, and the
 discussion on it is left behind. After merging such a fix, dispatch the
 workflow by hand to confirm the criterion passes, which also brings the
 compliance page up to date.
+
+`Fixes #N` only closes an issue when the PR merges into the repository
+the issue was filed in. A fix that lands in this repository instead --
+an override, a corrected check, a new matrix entry -- closes nothing
+elsewhere, so dispatch the workflow after merging it and let the run
+close the issues the fix resolved.
+
+The audit workflow has four jobs.
 
 **1. `audit`** -- a matrix job per repository. Each leg shallow-clones
 the target with `gh repo clone`, installs a pinned `skillsaw` into a
@@ -115,7 +123,8 @@ which is nobody's inbox in particular before anyone is up -- and while
 the audit is down the tables keep displaying the previous run's
 verdicts, so the audit looks healthy from the outside. In August 2026
 that ran for a full day; on a weekly cadence the same failure would
-last a week.
+last a week. Nothing retries a failed run, so the issue says how to
+start one by hand once the cause is fixed.
 
 ## Issues are the work tracking
 

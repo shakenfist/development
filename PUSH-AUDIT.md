@@ -8,8 +8,8 @@ audits twenty other repositories, the specifications that
 automation implements, and the workflow templates the fleet
 copies. A defect here does not break a running system; it
 breaks other repositories quietly, or files a hundred wrong
-issues on the next scheduled run. The briefs below are written for that
-blast radius rather than for a product.
+issues on the next scheduled run. The briefs below are
+written for that blast radius rather than for a product.
 
 The audit splits into two waves:
 
@@ -160,8 +160,8 @@ looked at and accepted. The greps report; they do not block.
 If the diff touches `templates/shared-blocks/`, confirm the
 version bump is deliberate before going further. Bumping a block
 marks every repository carrying the old version non-compliant on
-the next scheduled run and files issues automatically -- that is the
-mechanism working, but it should be a decision rather than a
+the next scheduled run and files issues automatically -- that is
+the mechanism working, but it should be a decision rather than a
 side effect.
 
 `REVIEWS.md` needs no change in a pull request that changes code
@@ -218,9 +218,9 @@ Then the judgment-level review of
 - **Blast radius of a changed check.** Does a modified check
   change its verdict for repositories the diff is not about? A
   stricter regex or a new required file marks the fleet
-  non-compliant on the next run. If that is intended, the plan or PR
-  should say how many repositories it will newly fail; if it is
-  not, it is a bug.
+  non-compliant on the next run. If that is intended, the plan
+  or PR should say how many repositories it will newly fail; if
+  it is not, it is a bug.
 - **Repo overrides.** New entries in `REPO_OVERRIDES` need a
   stated reason. An override is a decision that a rule does not
   apply, and an unexplained one is indistinguishable from

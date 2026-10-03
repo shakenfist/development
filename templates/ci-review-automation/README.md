@@ -387,8 +387,9 @@ Three details specific to reusable workflows:
   discovered. Which repositories those are is the
   `ci-review-automation` section of the
   [compliance page](https://github.com/shakenfist/development/blob/main/docs/audits/compliance.md#ci-review-automation),
-  which regenerates on every audit run; it is not restated here, because a count
-  written into a file nobody edits goes stale silently.
+  which regenerates on every audit run; it is not restated here,
+  because a count written into a file nobody edits goes stale
+  silently.
 
 This is the same calling pattern as
 `shakenfist/actions/.github/workflows/smoke-cluster.yml`, which
@@ -507,10 +508,10 @@ Which repositories have `pr-re-review.yml` and `pr-retest.yml`, and
 what is wrong with the ones that do, is the `ci-review-automation`
 section of the
 [compliance page](https://github.com/shakenfist/development/blob/main/docs/audits/compliance.md#ci-review-automation),
-which regenerates on every audit run. It is not restated here, for the same reason
-the `secrets: inherit` paragraph above gives: a roster written into a
-file nobody edits goes stale silently. It did, twice, before this
-sentence replaced it.
+which regenerates on every audit run. It is not restated here, for
+the same reason the `secrets: inherit` paragraph above gives: a
+roster written into a file nobody edits goes stale silently. It did,
+twice, before this sentence replaced it.
 
 What follows is only what that section cannot tell you.
 

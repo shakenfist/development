@@ -276,7 +276,13 @@ jobs:
               "closed, across every audited repository. The tables still" \
               "show the previous run's verdicts, so the audit looks" \
               "healthy from the outside -- check the run before trusting" \
-              "anything in docs/audits/.")
+              "anything in docs/audits/." \
+              "" \
+              "The audit runs weekly and nothing retries it, so a failure" \
+              "lasts until the next Sunday unless someone acts. Once the" \
+              "cause is fixed, start a run by hand with" \
+              "\`gh workflow run consistency-audit.yml --repo ${GITHUB_REPOSITORY}\`" \
+              "and close this issue once that run passes.")
 
           if [ -n "${existing}" ]; then
               echo "Commenting on existing audit failure issue #${existing}."
