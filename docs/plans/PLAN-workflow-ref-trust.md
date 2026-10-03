@@ -209,17 +209,24 @@ Out of scope:
    *Default:* a team of one, `shakenfist-bot`, as the only bypass
    actor, with the bypass narrowed to the review-tracking paths if
    GitHub can express that for this repository (step 2a finds out).
-   The spec states the residual risk accurately: the bypass moves
+   It probably cannot: a ruleset's bypass list covers the whole
+   ruleset, branch rulesets have no per-path condition, and a
+   file-path restriction is a push rule that binds every push,
+   pull request merges included. Expect an unnarrowed bypass, and
+   write phase 2's success criterion for that outcome. The spec
+   states the residual risk accurately: the bypass moves
    the boundary from "can push to main" to "can run a workflow that
    has `DEPENDENCIES_TOKEN` in scope", which is wider than one
    setting in one repository. The `|| github.token` fallback stays
    harmless, because `github.token` is not a bypass actor and its
    push is simply refused; nobody should add the Actions app as a
    bypass actor to "fix" that refusal. Replacing the PAT with a
-   GitHub App token or a fine-grained token limited to `actions` is
-   future work. `PLAN-review-import.md` does not move prune to pull
-   requests, so that alternative remains a template change this plan
-   does not make.
+   GitHub App token or a fine-grained token limited to `actions`
+   (#211) is what actually closes that residual. It is outside this
+   plan because it changes every adopted repository's prune
+   workflow, not because it matters less. `PLAN-review-import.md`
+   does not move prune to pull requests, so that alternative remains
+   a template change this plan does not make.
 2. **What does "a pull request is required" mean with one
    maintainer?** A required approval count of one cannot be met by
    the author. *Default:* require a pull request with zero required
@@ -379,12 +386,16 @@ corrected to match, and later steps should not redo that):
 
 - This prints one `checked` line per repository, with a non-zero
   count, and nothing else. A failed API call prints `API ERROR`
-  rather than nothing, so an outage cannot read as a clean fleet:
+  rather than nothing, so an outage cannot read as a clean fleet.
+  GitHub only runs workflows from `.ya?ml` files directly in
+  `.github/workflows`, so the listing skips anything else rather
+  than fetching a subdirectory as if it were a file:
 
   ```
   for r in agent-python client-python client-python-k3s clingwrap \
       divergulent instar library-utilities occystrap sfui shakenfist; do
-    files=$(gh api repos/shakenfist/$r/contents/.github/workflows --jq '.[].name') ||
+    files=$(gh api repos/shakenfist/$r/contents/.github/workflows \
+        --jq '.[] | select(.type == "file" and (.name | test("\\.ya?ml$"))) | .name') ||
       { echo "$r: API ERROR listing workflows"; continue; }
     n=0
     for f in $files; do
@@ -418,20 +429,23 @@ rather than deletes, and its shape (declared, optional, described)
 is the pattern phase 4 documents.
 
 **Pull requests.** Opened 2026-10-02. The `Merged` cell is filled
-from this list at close-out.
+from this list at close-out. States are as of 2026-10-03. The
+`reusable-workflow-secrets` spec describes the merged pull requests
+in the past tense and instar#617 as proposed, so the spec and this
+table move together.
 
 | Step | Pull request | Closes | State |
 |------|--------------|--------|-------|
 | 1a | instar#617 | #600, #610 | Open |
-| 1b | shakenfist#4404 | #4380 | Open |
-| 1c | occystrap#152 | #148, #150 | Open |
-| 1d | client-python#415 | #409, #410 | Open |
-| 1e | agent-python#148 | #146 | Open |
-| 1e | client-python-k3s#83 | #79 | Open |
+| 1b | shakenfist#4404 | #4380 | Merged as e4c7726 |
+| 1c | occystrap#152 | #148, #150 | Merged as c583d68 |
+| 1d | client-python#415 | #409, #410 | Merged as 68f295f |
+| 1e | agent-python#148 | #146 | Merged as 4bf7763 |
+| 1e | client-python-k3s#83 | #79 | Merged as 03998e0 |
 | 1e | clingwrap#141 | #138 | Merged as 125eb20 |
-| 1e | divergulent#125 | #121 | Open |
-| 1e | library-utilities#67 | #63 | Open |
-| 1e | sfui#44 | #38 | Open |
+| 1e | divergulent#125 | #121 | Merged as 8a2852e |
+| 1e | library-utilities#67 | #63 | Merged as 832d82d |
+| 1e | sfui#44 | #38 | Merged as ad0d6a2 |
 | 1f | this branch | -- | -- |
 
 Step 1f landed differently from its brief, deliberately. Rather than
@@ -473,16 +487,19 @@ reads each contributing ruleset (`repos/{org}/{repo}/rulesets/{id}`)
 and fails unless `enforcement` is `active` and `bypass_actors` is
 exactly the documented set. GitHub only returns `bypass_actors` to a
 caller that can edit the ruleset, and omits the key otherwise, so a
-missing key is an error, never an empty set. A ruleset inherited
-from the organisation is read from the organisation's endpoint.
+missing key is an error, never an empty set. If step 2a finds that
+the audit's token cannot see the key, the check takes the fallback
+shape 2a describes instead, and the token is not widened to make it
+fit. A ruleset inherited from the organisation is read from the
+organisation's endpoint.
 
 Planning effort: high. This is what decides what the fleet trusts,
 and it touches GitHub settings that this repository cannot test.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 2a | high | opus | none | Operator step, done by the management session with the operator, not by a sub-agent. Settle how open question 1's bypass can be expressed (team of one or app; path-narrowed if possible) and which check contexts open question 2 requires, then apply the ruleset change. Then prove it on a throwaway branch: a direct push to main is rejected, and a `prune-reviews` run still lands (or opens its pull request, per open question 1). Open a review-only throwaway pull request too, and confirm that every required check resolves: `ci.yml` filters at job level through `Check paths`, and a skipped job reports success, but a trigger-level `paths:` or `paths-ignore:` would never report and would wedge every such pull request. Record which token the audit runs with, and confirm that it sees `bypass_actors` in `repos/shakenfist/actions/rulesets/{id}`; if it does not, 2b cannot be written as briefed, so stop and say so. For the residual in open question 1, record which repositories put `DEPENDENCIES_TOKEN` in a workflow's scope, and whether any of those workflows runs on a trigger that someone other than a maintainer can fire (`pull_request_target`, `issue_comment`, `workflow_run`). |
-| 2b | high | opus | worktree | Add a `MovingRefSourceProtection` class to `scripts/audit/checks/github_config.py`, with the id `moving-ref-source-protection`, its `spec` and its `issue_title` (`Moving ref source protection`), following `DeleteBranchOnMerge` at line 213 for the API-call shape. Register it in `CHECKS` in `scripts/audit/registry.py`. Write `docs/audits/moving-ref-source-protection.md`, following the structure in `docs/audits/README.md`; its Why section cites the landing counts from this plan's Situation. Add the file to `docs/audits/README.md`, and add its lines to `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`. Add pass, fail and not-applicable tests to `scripts/tests/test_github_config.py`, using `CheckTestCase` and a stubbed GitHub client, including fail cases for a missing status-check rule, `enforcement: evaluate`, and an extra bypass actor, and a case where the ruleset response has no `bypass_actors` key, which must be an error rather than a pass. |
+| 2a | high | opus | none | Operator step, done by the management session with the operator, not by a sub-agent. Settle how open question 1's bypass can be expressed (team of one or app; path-narrowed if possible) and which check contexts open question 2 requires, then apply the ruleset change. Then prove it on a throwaway branch: a direct push to main is rejected, and a `prune-reviews` run still lands (or opens its pull request, per open question 1). Open a review-only throwaway pull request too, and confirm that every required check resolves: `ci.yml` filters at job level through `Check paths`, and a skipped job reports success, but a trigger-level `paths:` or `paths-ignore:` would never report and would wedge every such pull request. Record which token the audit runs with, and confirm that it sees `bypass_actors` in `repos/shakenfist/actions/rulesets/{id}`; if it does not, do not widen the audit token to make it. Instead, 2b drops the `bypass_actors` comparison and measures only the two rules and `enforcement`, and the spec moves the bypass list to its "Required, but confirmed by a reviewer" half. Record which shape 2b is to take in this phase. For the residual in open question 1, record which repositories put `DEPENDENCIES_TOKEN` in a workflow's scope, and whether any of those workflows runs on a trigger that someone other than a maintainer can fire (`pull_request_target`, `issue_comment`, `workflow_run`). |
+| 2b | high | opus | worktree | Add a `MovingRefSourceProtection` class to `scripts/audit/checks/github_config.py`, with the id `moving-ref-source-protection`, its `spec` and its `issue_title` (`Moving ref source protection`), following `DeleteBranchOnMerge` at line 213 for the API-call shape. Register it in `CHECKS` in `scripts/audit/registry.py`. Write `docs/audits/moving-ref-source-protection.md`, following the structure in `docs/audits/README.md`; its Why section cites the landing counts from this plan's Situation. Add the file to `docs/audits/README.md`, and add its lines to `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`. Add pass, fail and not-applicable tests to `scripts/tests/test_github_config.py`, using `CheckTestCase` and a stubbed GitHub client, including fail cases for a missing status-check rule, `enforcement: evaluate`, and an extra bypass actor, and a case where the ruleset response has no `bypass_actors` key, which must be an error rather than a pass. If 2a recorded the fallback shape, drop the bypass comparison and its two cases, and say so in the spec. |
 
 ### Phase 3: pin third-party actions to a sha
 
@@ -498,11 +515,17 @@ requirement as a worked example.
 
 ### Phase 4: record the policy and close #153
 
+Planning effort: medium. It documents a policy that phases 2 and 3
+have already decided.
+
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 4a | medium | sonnet | none | In `docs/audits/reusable-workflow-secrets.md`, replace "What this does not cover" with the settled policy: first-party refs move, and the `moving-ref-source-protection` criterion is what makes that acceptable; third-party refs are pinned, under `third-party-action-pinning`. Include the upper bound of 14 pull requests a day this avoids, what a moving ref can reach (Situation: the runner's filesystem, and the caller's job for composite actions), the "pull request and CI, not a second reviewer" limit from open question 2, and the residual from open question 1. Link both new specs. Close #153 from the pull request body, and link phase 1's landings. |
+| 4a | medium | sonnet | none | In `docs/audits/reusable-workflow-secrets.md`, replace "What this does not cover" with the settled policy: first-party refs move, and the `moving-ref-source-protection` criterion is what makes that acceptable; third-party refs are pinned, under `third-party-action-pinning`. Include the upper bound of 14 pull requests a day this avoids, what a moving ref can reach (Situation: the runner's filesystem, and the caller's job for composite actions), the "pull request and CI, not a second reviewer" limit from open question 2, and the residual from open question 1. Link both new specs. In the Why section, put the instar#617 sentences in the past tense, describing what actually landed if review changed it. Close #153 from the pull request body, and link phase 1's landings. |
 
 ### Phase 5: push audit
+
+Planning effort: medium. The runbook and the ranges are fixed; the
+work is running it.
 
 Run `PUSH-AUDIT.md` once per landing recorded in the `Merged` cells
 above, with `AUDIT_RANGE` set as its "How to use this runbook"

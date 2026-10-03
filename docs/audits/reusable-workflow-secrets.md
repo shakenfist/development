@@ -76,8 +76,10 @@ instar-testdata" step. The fix proposed for that copy, in
 uses the named form described under "Required, but confirmed by a
 reviewer" above: the callee declares the secret under
 `on.workflow_call.secrets` with `required: false`, and
-`pr-fix-tests.yml` passes it by name. Every other inherit the
-criterion found -- `smoke-cluster.yml` callers in shakenfist and
+`pr-fix-tests.yml` passes it by name. The same pull request deletes
+instar's `export-repo-config.yml` inherit. Every other inherit the
+criterion found -- `export-repo-config.yml` callers in eight more
+repositories, `smoke-cluster.yml` callers in shakenfist and
 client-python, and the `test-drift-fix.yml` callers that
 `templates/test-drift-fix/` had put in shakenfist and occystrap --
 was fixed by deleting the line. Those fixes also moved the shakenfist
