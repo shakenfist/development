@@ -19,7 +19,33 @@ The release process uses:
 ### 1. Configure PyPI Trusted Publisher
 
 This allows the GitHub Actions workflow to publish to PyPI without storing any
-API tokens.
+API tokens. Which of the two flows below applies depends on whether the
+package has ever been published before.
+
+**First release (no project on PyPI yet)**: there is no project page to
+navigate to, so a project-scoped publisher cannot be created -- there is
+nothing to scope it to. Use PyPI's **pending publisher** flow instead:
+
+1. Log in to [pypi.org](https://pypi.org) with your account
+2. Go to <https://pypi.org/manage/account/publishing/>, the account-level
+   publishing settings. The form sits under account settings rather than
+   under your projects, which is where people look for it
+3. Click **Add a new pending publisher**
+4. Fill in the form:
+   - **PyPI Project Name**: `{{PYPI_PACKAGE_NAME}}`
+   - **Owner**: `shakenfist`
+   - **Repository name**: `{{GITHUB_REPO_NAME}}`
+   - **Workflow name**: `release.yml`
+   - **Environment name**: `release` (must match the workflow)
+5. Click **Add**
+
+The pending publisher converts automatically into an ordinary
+project-scoped trusted publisher the first time a release successfully
+uploads under that project name. Nothing further needs to be done after
+that first upload.
+
+**Subsequent releases (the project already exists on PyPI)**: add a
+project-scoped publisher from the project itself:
 
 1. Log in to [pypi.org](https://pypi.org) with your account
 2. Navigate to your project: `{{PYPI_PACKAGE_NAME}}`
@@ -38,6 +64,13 @@ The workflow will now be able to publish without any stored credentials.
 **Note**: If the `{{PYPI_PACKAGE_NAME}}` package already exists on PyPI under
 a different publishing method, you can add the trusted publisher alongside the
 existing setup and then remove the old API token once verified.
+
+**Getting any of these values wrong**, under either flow, does not fail
+immediately: `build` and `sign-tag` both succeed first, so by the time
+`publish-pypi` rejects the OIDC claim, `sign-tag` has already signed and
+force-pushed the release tag. Re-pushing that tag would rewrite a signed
+object someone may already have verified, so the recovery is to fix the
+publisher configuration and release the next version instead.
 
 ### 2. Create GitHub Environment with Required Reviewers
 
