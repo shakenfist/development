@@ -61,11 +61,17 @@ builds it. A `debian-gnome-13` entry now exists in its
 [images](https://github.com/shakenfist/images) has published since
 August 2026, and the `debian-gnome-12` entry it replaced is gone. A
 finding naming `debian-gnome-12` is therefore now a request to
-retire the old runner label wherever a workflow still names it, not
-a request to add a successor entry that is missing -- the successor
-already exists. It is listed anyway, because leaving the fleet's
-remaining bookworm desktop label off would make this page claim
-Debian 12 was gone when it was not.
+retire the old label wherever a workflow still names it, not a
+request to add a successor entry that is missing -- the successor
+already exists. It is a desktop image rather than a runner boot
+image, which is why retiring it did not move any runner.
+
+It stays listed for a different reason than it used to. This table
+is the registry of what a workflow may not ask for, not an inventory
+of what the conductor builds, so the entry is what lets the
+criterion report a workflow still naming `debian-gnome-12` now that
+nothing can serve it. Emptying the table as each producer goes would
+retire the check along with the image.
 
 ### Where we look
 

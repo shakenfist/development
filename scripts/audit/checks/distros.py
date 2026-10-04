@@ -62,15 +62,19 @@ EolRelease = collections.namedtuple(
 #: pattern would either miss `debian-gnome-12` or invent labels that do
 #: not exist.
 #:
-#: `debian-gnome-12` has no `debian-gnome-13` counterpart in the
-#: conductor yet, although shakenfist/images has built the
-#: `debian-gnome:13` guest image it would be based on since August
-#: 2026 -- so a finding naming it is a request to private-ci's IMAGES
-#: table rather than a one-line edit in the repository the issue lands
-#: on. It is listed anyway: the point of the criterion is that the
-#: dependency is visible, and leaving the fleet's one remaining
-#: bookworm runner off the list would make the page say Debian 12 was
-#: gone when it was not.
+#: `debian-gnome-12` now has a `debian-gnome-13` counterpart in the
+#: conductor, built from the `debian-gnome:13` guest image
+#: shakenfist/images has published since August 2026, and the
+#: `debian-gnome-12` entry it replaced has been retired -- so a
+#: finding naming it is a request to stop naming the old label, not a
+#: request to add a successor that does not exist.
+#:
+#: It stays listed because this tuple is the registry of what a
+#: workflow may not ask for rather than an inventory of what the
+#: conductor builds. The entry is what lets the criterion report a
+#: workflow still naming a label nothing can serve, so dropping each
+#: release as its producer goes would retire the check along with the
+#: image.
 EOL_RELEASES = (
     EolRelease(
         name='Ubuntu 20.04 LTS (focal)',
