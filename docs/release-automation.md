@@ -140,9 +140,15 @@ rather than a re-pushed tag.
 ### Step 4: Configure Protected Tags
 
 1. Go to **Settings** > **Rules** > **Rulesets**
-2. Create a tag ruleset for `v*` with restricted creation and
-   deletion
-3. Add maintainers to the bypass list
+2. Create a tag ruleset for `v*` restricting creation, deletion and
+   force pushes
+3. Add maintainers to the bypass list, and not GitHub Actions:
+   `sign-tag` collides with none of those rules, so the bypass would
+   only let every workflow create and delete release tags
+
+Tag *updates* stay unrestricted, so anyone with write access can
+rewrite a released tag. `RELEASE-SETUP.md` step 3 explains why the
+fleet accepts that gap rather than close it with **Restrict updates**.
 
 ### Step 5: Remove Old Release Scripts
 

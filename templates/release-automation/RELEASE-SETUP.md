@@ -92,7 +92,9 @@ This ensures releases only happen after explicit approval.
 
 ### 3. Configure Protected Tags (Recommended)
 
-This prevents unauthorized users from creating release tags.
+This stops unauthorised users creating and deleting release tags. It
+does not stop them *rewriting* one -- see the note at the end of this
+step, which is a known gap rather than an oversight.
 
 1. Go to **Settings** > **Rules** > **Rulesets**
 2. Click **New ruleset** > **New tag ruleset**
@@ -100,14 +102,44 @@ This prevents unauthorized users from creating release tags.
    - **Ruleset name**: `Release tags`
    - **Enforcement status**: `Active`
    - **Target tags**: Add pattern `v*`
-   - **Rules**: Check **Restrict creations** and **Restrict deletions**
-   - **Bypass list**: Add repository admins or specific maintainers,
-     **and GitHub Actions** (add the "GitHub Actions" app to the bypass
-     list). The release workflow's sign-tag job re-creates and
-     force-pushes the release tag as `github-actions[bot]` using
-     `GITHUB_TOKEN`; without the Actions bypass that push is rejected
-     by this ruleset and every release fails at the signing step.
+   - **Rules**: Check **Restrict creations**, **Restrict deletions** and
+     **Block force pushes**
+   - **Bypass list**: Add repository admins or specific maintainers. Do
+     **not** add GitHub Actions; see below for why it is not needed.
+     Whoever pushes the release tag does need to be on this list,
+     because **Restrict creations** applies to them, so check it:
+     `gh api repos/OWNER/REPO/rulesets/ID --jq .current_user_can_bypass`
+     must print `always`.
 4. Click **Create**
+
+The `sign-tag` job needs no bypass of its own. It re-creates and
+force-pushes the release tag as `github-actions[bot]`, which sounds
+like it should collide with all three rules, and collides with none of
+them: the job runs only from a tag *push*, so the ref already exists by
+the time it pushes and **Restrict creations** does not apply; it
+deletes the tag only inside its own checkout (`git tag -d`), so nothing
+reaches **Restrict deletions**; and **Block force pushes**
+(`non_fast_forward`) is not enforced against tag updates. That last
+point is observed rather than deduced: `shakenfist/client-python` has
+had this exact ruleset, with no Actions entry on its bypass list, since
+2026-03-22, and its `v0.8.3` release in July 2026 force-pushed a
+Sigstore-signed tag through it as `github-actions[bot]`.
+
+Adding GitHub Actions to the bypass list anyway is not inert: it lets
+any workflow in the repository create and delete `v*` tags, and buys
+nothing for it.
+
+The gap that leaves: since nothing restricts tag *updates*, any actor
+with write access can rewrite an already-released signed tag to point
+at a different commit. Checking **Restrict updates** would make an
+Actions bypass necessary for `sign-tag`, and that bypass is what keeps
+it from closing the gap. Anyone with write access can push a branch
+whose workflow runs with `contents: write`, and that workflow's
+`GITHUB_TOKEN` would carry the same bypass `sign-tag` relies on. The
+rewrite would cost one extra step, and creation and deletion would be
+opened to every workflow along the way. Until the bypass can be
+narrowed to the release workflow alone, the fleet accepts the gap
+rather than trade it for that.
 
 ### 4. Verify Sigstore/Rekor Access
 
