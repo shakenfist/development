@@ -529,10 +529,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/plan-source-references.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/README.md",
       "author": "mikal"
     },
@@ -773,10 +769,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_plans.py",
-      "author": "mikal"
-    },
-    {
       "path": "docs/ci-review-automation.md",
       "author": "mikal"
     },
@@ -814,10 +806,6 @@
     },
     {
       "path": ".claude/skills",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/plans.py",
       "author": "mikal"
     },
     {

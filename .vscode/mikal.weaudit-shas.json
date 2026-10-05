@@ -217,10 +217,6 @@
       "sha": "08e51b13f6f3ff523d292a1b5daad5a8c9568301",
       "date": "2026-10-05"
     },
-    "docs/audits/plan-source-references.md": {
-      "sha": "22a9b74faee295287be53bf14627f3345844da4d",
-      "date": "2026-10-05"
-    },
     "docs/audits/plan-template.md": {
       "sha": "4cf93d4dadebc842fc643300d689bb06aa6b539b",
       "date": "2026-10-05"
@@ -393,10 +389,6 @@
       "sha": "cdeac188b7556911fc1eacb0b617f0e389fb17be",
       "date": "2026-10-01"
     },
-    "scripts/audit/checks/plans.py": {
-      "sha": "d74efeea55be844d381df9bd929137c377086c2e",
-      "date": "2026-10-05"
-    },
     "scripts/audit/checks/review.py": {
       "sha": "e32ae9a6de09ad0f0c2ec2bb44c5b87280078a6a",
       "date": "2026-09-26"
@@ -548,10 +540,6 @@
     "scripts/tests/test_packaging.py": {
       "sha": "4218713eba0dc6e6653ca3f59548da34a1b8dddb",
       "date": "2026-10-01"
-    },
-    "scripts/tests/test_plans.py": {
-      "sha": "061fe7830bb9c31c35c4be71e54385fb890a15b7",
-      "date": "2026-10-05"
     },
     "scripts/tests/test_python_source.py": {
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",
