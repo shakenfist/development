@@ -17,10 +17,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/release-automation.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/issue-fix/claude-model-fallback.sh",
       "author": "mikal"
     },
@@ -34,10 +30,6 @@
     },
     {
       "path": "templates/pin-indirect-dependencies/pin-indirect-dependencies.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/release-automation/RELEASE-SETUP.md",
       "author": "mikal"
     },
     {
@@ -489,10 +481,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/release-automation",
-      "author": "mikal"
-    },
-    {
       "path": "templates/issue-link-check/README.md",
       "author": "mikal"
     },
@@ -798,10 +786,6 @@
     },
     {
       "path": "templates/ci-review-automation",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     },
     {
