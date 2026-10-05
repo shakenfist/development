@@ -19,7 +19,33 @@ The release process uses:
 ### 1. Configure PyPI Trusted Publisher
 
 This allows the GitHub Actions workflow to publish to PyPI without storing any
-API tokens.
+API tokens. Which of the two flows below applies depends on whether the
+package has ever been published before.
+
+**First release (no project on PyPI yet)**: there is no project page to
+navigate to, so a project-scoped publisher cannot be created -- there is
+nothing to scope it to. Use PyPI's **pending publisher** flow instead:
+
+1. Log in to [pypi.org](https://pypi.org) with your account
+2. Go to <https://pypi.org/manage/account/publishing/>, the account-level
+   publishing settings. The form sits under account settings rather than
+   under your projects, which is where people look for it
+3. Click **Add a new pending publisher**
+4. Fill in the form:
+   - **PyPI Project Name**: `{{PYPI_PACKAGE_NAME}}`
+   - **Owner**: `shakenfist`
+   - **Repository name**: `{{GITHUB_REPO_NAME}}`
+   - **Workflow name**: `release.yml`
+   - **Environment name**: `release` (must match the workflow)
+5. Click **Add**
+
+The pending publisher converts automatically into an ordinary
+project-scoped trusted publisher the first time a release successfully
+uploads under that project name. Nothing further needs to be done after
+that first upload.
+
+**Subsequent releases (the project already exists on PyPI)**: add a
+project-scoped publisher from the project itself:
 
 1. Log in to [pypi.org](https://pypi.org) with your account
 2. Navigate to your project: `{{PYPI_PACKAGE_NAME}}`
@@ -38,6 +64,13 @@ The workflow will now be able to publish without any stored credentials.
 **Note**: If the `{{PYPI_PACKAGE_NAME}}` package already exists on PyPI under
 a different publishing method, you can add the trusted publisher alongside the
 existing setup and then remove the old API token once verified.
+
+**Getting any of these values wrong**, under either flow, does not fail
+immediately: `build` and `sign-tag` both succeed first, so by the time
+`publish-pypi` rejects the OIDC claim, `sign-tag` has already signed and
+force-pushed the release tag. Re-pushing that tag would rewrite a signed
+object someone may already have verified, so the recovery is to fix the
+publisher configuration and release the next version instead.
 
 ### 2. Create GitHub Environment with Required Reviewers
 
@@ -59,7 +92,9 @@ This ensures releases only happen after explicit approval.
 
 ### 3. Configure Protected Tags (Recommended)
 
-This prevents unauthorized users from creating release tags.
+This stops unauthorised users creating and deleting release tags. It
+does not stop them *rewriting* one -- see the note at the end of this
+step, which is a known gap rather than an oversight.
 
 1. Go to **Settings** > **Rules** > **Rulesets**
 2. Click **New ruleset** > **New tag ruleset**
@@ -67,14 +102,44 @@ This prevents unauthorized users from creating release tags.
    - **Ruleset name**: `Release tags`
    - **Enforcement status**: `Active`
    - **Target tags**: Add pattern `v*`
-   - **Rules**: Check **Restrict creations** and **Restrict deletions**
-   - **Bypass list**: Add repository admins or specific maintainers,
-     **and GitHub Actions** (add the "GitHub Actions" app to the bypass
-     list). The release workflow's sign-tag job re-creates and
-     force-pushes the release tag as `github-actions[bot]` using
-     `GITHUB_TOKEN`; without the Actions bypass that push is rejected
-     by this ruleset and every release fails at the signing step.
+   - **Rules**: Check **Restrict creations**, **Restrict deletions** and
+     **Block force pushes**
+   - **Bypass list**: Add repository admins or specific maintainers. Do
+     **not** add GitHub Actions; see below for why it is not needed.
+     Whoever pushes the release tag does need to be on this list,
+     because **Restrict creations** applies to them, so check it:
+     `gh api repos/OWNER/REPO/rulesets/ID --jq .current_user_can_bypass`
+     must print `always`.
 4. Click **Create**
+
+The `sign-tag` job needs no bypass of its own. It re-creates and
+force-pushes the release tag as `github-actions[bot]`, which sounds
+like it should collide with all three rules, and collides with none of
+them: the job runs only from a tag *push*, so the ref already exists by
+the time it pushes and **Restrict creations** does not apply; it
+deletes the tag only inside its own checkout (`git tag -d`), so nothing
+reaches **Restrict deletions**; and **Block force pushes**
+(`non_fast_forward`) is not enforced against tag updates. That last
+point is observed rather than deduced: `shakenfist/client-python` has
+had this exact ruleset, with no Actions entry on its bypass list, since
+2026-03-22, and its `v0.8.3` release in July 2026 force-pushed a
+Sigstore-signed tag through it as `github-actions[bot]`.
+
+Adding GitHub Actions to the bypass list anyway is not inert: it lets
+any workflow in the repository create and delete `v*` tags, and buys
+nothing for it.
+
+The gap that leaves: since nothing restricts tag *updates*, any actor
+with write access can rewrite an already-released signed tag to point
+at a different commit. Checking **Restrict updates** would make an
+Actions bypass necessary for `sign-tag`, and that bypass is what keeps
+it from closing the gap. Anyone with write access can push a branch
+whose workflow runs with `contents: write`, and that workflow's
+`GITHUB_TOKEN` would carry the same bypass `sign-tag` relies on. The
+rewrite would cost one extra step, and creation and deletion would be
+opened to every workflow along the way. Until the bypass can be
+narrowed to the release workflow alone, the fleet accepts the gap
+rather than trade it for that.
 
 ### 4. Verify Sigstore/Rekor Access
 
