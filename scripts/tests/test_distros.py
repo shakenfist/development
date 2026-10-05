@@ -549,5 +549,202 @@ class RegressionGuardTest(unittest.TestCase):
         self.assertEqual(sorted(labels, key=lambda x: (-len(x), x)), labels)
 
 
+#: A producer definition in the shape private-ci writes one, with a
+#: comment naming a label that was removed. Both producer modules
+#: carry exactly this: `imagebuilder.py` explains above its entries
+#: that "ubuntu-2004 was dropped 2026-07-11", so a grep of the live
+#: table reports a label nothing has offered for months.
+PRODUCER = """\
+# This matrix decides what the fleet can boot.
+# ubuntu-2004 was dropped 2026-07-11: nothing boots it any more.
+IMAGE_BUILDS = [
+    {
+        'name': 'debian-13',
+        'base_image': 'debian:13',
+        'label': 'debian-13',
+    },
+    {
+        'name': 'rocky-9',
+        'base_image': 'rocky:9',
+        'label': 'rocky-9',
+    },
+]
+"""
+
+
+class ProducerDefinitionTest(unittest.TestCase):
+    """Reading a producer definition out of Python with ast."""
+
+    def labels(self, source, name='IMAGE_BUILDS'):
+        return distros.definition_labels(source, name)
+
+    def test_the_labels_an_entry_offers_come_back_with_their_lines(self):
+        self.assertEqual([('debian-13', 7), ('rocky-9', 12)],
+                         self.labels(PRODUCER))
+
+    def test_a_label_named_only_in_a_comment_is_not_offered(self):
+        """The false positive a grep-shaped criterion inherits.
+
+        'ubuntu-2004' is in PRODUCER, on the comment line that records
+        its removal, and a retired label's obituary must not read as
+        an offer. The abstract syntax tree has no comments in it, so
+        this holds by construction rather than by a pattern.
+        """
+        self.assertNotIn('ubuntu-2004',
+                         [label for label, _ in self.labels(PRODUCER)])
+
+    def test_a_missing_assignment_is_not_an_empty_producer(self):
+        """"Not read" and "offers nothing" must not render the same."""
+        with self.assertRaises(distros.ProducerParseError):
+            self.labels(PRODUCER, name='CI_IMAGES')
+
+    def test_a_definition_that_is_not_a_list_is_a_parse_error(self):
+        with self.assertRaises(distros.ProducerParseError):
+            self.labels("IMAGE_BUILDS = build_the_table()\n")
+
+    def test_entries_with_no_label_key_are_a_parse_error(self):
+        """The reshape this check would otherwise pass vacuously on."""
+        with self.assertRaises(distros.ProducerParseError):
+            self.labels(
+                "IMAGE_BUILDS = [{'runner_label': 'debian-12'}]\n")
+
+    def test_unparseable_python_is_a_parse_error(self):
+        with self.assertRaises(distros.ProducerParseError):
+            self.labels("IMAGE_BUILDS = [{'label': \n")
+
+    def test_an_empty_table_offers_nothing_without_raising(self):
+        """A producer can legitimately be emptied out."""
+        self.assertEqual([], self.labels("IMAGE_BUILDS = []\n"))
+
+    def test_a_computed_field_beside_the_label_does_not_hide_it(self):
+        """Only the label has to be a literal, not the whole entry."""
+        self.assertEqual(
+            [('debian-12', 1)],
+            self.labels(
+                "IMAGE_BUILDS = [{'label': 'debian-12', "
+                "'size': 4 * GB}]\n"))
+
+    def test_an_annotated_assignment_is_read(self):
+        self.assertEqual(
+            [('debian-12', 1)],
+            self.labels(
+                "IMAGE_BUILDS: list = [{'label': 'debian-12'}]\n"))
+
+
+class RetiredLabelTest(unittest.TestCase):
+    """The banned set is the table's, filtered by today."""
+
+    def test_every_retired_releases_labels_are_banned(self):
+        banned = distros.retired_labels()
+        for release in distros.retired_releases():
+            for label in release.runner_labels:
+                with self.subTest(label=label):
+                    self.assertEqual(release, banned[label])
+
+    def test_a_release_is_not_banned_before_its_date(self):
+        """Nothing in the table had retired by the start of 2025."""
+        self.assertEqual({}, distros.retired_labels(
+            datetime.date(2025, 1, 1)))
+
+
+class EolProducersTest(CheckTestCase):
+    """The producer criterion end to end, against a fixture checkout."""
+
+    check_class = distros.EolProducers
+
+    BUILDER = 'conductor/imagebuilder.py'
+    PROVISIONER = 'conductor/provisioner.py'
+
+    def builder(self, *labels):
+        entries = ''.join(
+            "    {'label': '%s'},\n" % label for label in labels)
+        return 'IMAGE_BUILDS = [\n%s]\n' % entries
+
+    def provisioner(self, *labels):
+        entries = ''.join(
+            "    {'label': '%s'},\n" % label for label in labels)
+        return 'CI_IMAGES = [\n%s]\n' % entries
+
+    def test_a_repository_with_no_producer_does_not_apply(self):
+        """not_applicable, not pass: nothing here was measured.
+
+        Every repository in the fleet but one has no producer, so a
+        pass here would report the whole organisation green on a
+        question none of them was asked.
+        """
+        self.assert_skip(self.check(),
+                         containing='No runner-label producer')
+
+    def test_a_producer_offering_supported_labels_passes(self):
+        self.fixture.write(self.BUILDER,
+                           self.builder('debian-13', 'rocky-10'))
+        self.assert_pass(self.check())
+
+    def test_a_producer_offering_a_retired_label_fails(self):
+        self.fixture.write(
+            self.BUILDER, self.builder('debian-12', 'debian-13'))
+        result = self.assert_fail(self.check(),
+                                  containing='Debian 12 (bookworm)')
+        self.assertEqual(['conductor/imagebuilder.py:2 (debian-12)'],
+                         result['findings'])
+
+    def test_the_findings_read_down_the_file(self):
+        """Definition order, not sorted: ':123' sorts above ':62'."""
+        self.fixture.write(
+            self.BUILDER,
+            self.builder(*(['debian-13'] * 8 + ['debian-11',
+                                                'debian-12'])))
+        self.assertEqual(
+            ['conductor/imagebuilder.py:10 (debian-11)',
+             'conductor/imagebuilder.py:11 (debian-12)'],
+            self.check()['findings'])
+
+    def test_both_definitions_are_read(self):
+        self.fixture.write(self.BUILDER, self.builder('debian-11'))
+        self.fixture.write(self.PROVISIONER,
+                           self.provisioner('debian-12-docker'))
+        result = self.assert_fail(self.check())
+        self.assertEqual(
+            ['conductor/imagebuilder.py:2 (debian-11)',
+             'conductor/provisioner.py:2 (debian-12-docker)'],
+            result['findings'])
+
+    def test_one_definition_present_is_enough_to_measure(self):
+        """The provisioner alone, with no image builder beside it."""
+        self.fixture.write(self.PROVISIONER,
+                           self.provisioner('debian-13'))
+        result = self.assert_pass(self.check())
+        self.assertIn('CI_IMAGES', result['details'])
+        self.assertNotIn('IMAGE_BUILDS', result['details'])
+
+    def test_a_retired_label_in_a_comment_is_not_a_finding(self):
+        """The whole reason this parses Python instead of grepping."""
+        self.fixture.write(self.BUILDER, PRODUCER)
+        self.assert_pass(self.check())
+
+    def test_the_finding_says_which_release_and_what_to_offer(self):
+        self.fixture.write(self.BUILDER, self.builder('debian-11'))
+        result = self.check()
+        self.assertIn('2026-08-31', result['details'])
+        self.assertIn('debian-13', result['details'])
+
+    def test_the_finding_says_the_consumers_move_first(self):
+        """A label deleted under a live consumer queues forever."""
+        self.fixture.write(self.BUILDER, self.builder('debian-12'))
+        self.assertIn('eol-distro', self.check()['details'])
+
+    def test_a_producer_that_cannot_be_read_is_not_a_pass(self):
+        """An error, which files nothing and fails the audit leg."""
+        self.fixture.write(self.BUILDER, 'IMAGE_BUILDS = compute()\n')
+        with self.assertRaises(distros.ProducerParseError):
+            distros.scan_producers(self.repo())
+
+    def test_a_label_retired_in_the_future_is_not_yet_offered_wrongly(self):
+        """scan_producers() asks the table what is retired today."""
+        self.fixture.write(self.BUILDER, self.builder('debian-12'))
+        self.assertEqual([], distros.scan_producers(
+            self.repo(), today=datetime.date(2025, 1, 1)))
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -22,8 +22,18 @@ depends on a release mechanically rather than by mentioning it:
 Guest images a test boots, cached disk images a job copies, and the
 upstream job names a matrix names are all out of scope -- see
 docs/audits/eol-distro.md for why, and what covers them instead.
+
+`eol-producers` is the other half of the same table, asked of the
+other end of the dependency. `eol-distro` asks whether a repository
+*names* a banned label; `eol-producers` asks whether it *offers* one.
+A consumer naming `debian-12` mostly inherits what the producer
+decided, so the two are different defects with different owners: the
+consumer moves its workflow, and the producer stops baking the image.
+Both read the same `EOL_RELEASES` table, because a second copy of the
+banned list is the defect `eol-distro` was written to avoid.
 """
 
+import ast
 import collections
 import datetime
 import os
@@ -420,6 +430,173 @@ def release_guidance(found):
     )
 
 
+#: The runner-label producer definitions the fleet owns, as
+#: (repository-relative path, module-level name) pairs.
+#:
+#: Both are in shakenfist/private-ci, which decision 6.4 of
+#: docs/plans/PLAN-image-supply-chain.md records as the only producer
+#: of runner labels in the organisation: `images` publishes guest
+#: images, which is a different question, and the static fleet in
+#: another organisation advertises no release label at all.
+#:
+#: They are named rather than discovered. A producer is a deliberate
+#: thing -- two tables, in one repository, that decide what the whole
+#: fleet can boot -- and a walk looking for lists of dicts with a
+#: 'label' key would read any such list, including the ones that have
+#: nothing to do with runners. Adding the third producer is a line
+#: here.
+PRODUCER_DEFINITIONS = (
+    ('conductor/imagebuilder.py', 'IMAGE_BUILDS'),
+    ('conductor/provisioner.py', 'CI_IMAGES'),
+)
+
+
+#: The key in a producer entry that carries the runner label.
+#:
+#: The entries also carry a 'name' and an upstream image reference,
+#: and those are not this criterion: the upstream image is what the
+#: label is built *from*, so reading it would report `debian:12` as a
+#: finding against the one repository whose job is to turn it into
+#: something bootable. What this criterion measures is the label the
+#: fleet is offered.
+PRODUCER_LABEL_KEY = 'label'
+
+
+class ProducerParseError(Exception):
+    """A producer definition is present and could not be read.
+
+    Raised rather than returned, so `registry.run_check()` reports it
+    as `error`. That is the distinction the verdicts cannot carry: a
+    `pass` would report a producer nobody actually read as clean,
+    which is the vacuous pass this criterion exists to avoid, and a
+    `fail` would file an issue under the bot's identity against
+    private-ci for what is a bug in this check -- the shape of the
+    table changed and the parse here did not keep up. `error` files
+    nothing, closes nothing, and fails the audit leg.
+    """
+
+
+def producer_definitions(repo):
+    """The producer definitions this checkout actually carries."""
+    return [(path, name) for path, name in PRODUCER_DEFINITIONS
+            if repo.exists(path)]
+
+
+def _assigned_value(tree, name):
+    """The value assigned to a module-level name, or None.
+
+    Only module level, and only a plain assignment: a label list built
+    at import time by a function call or a comprehension is not a
+    literal this can read, and pretending otherwise would return an
+    empty list that looks like a clean producer.
+    """
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name) and target.id == name:
+                return node.value
+    return None
+
+
+def definition_labels(source, name, path='<producer>'):
+    """The labels one producer definition offers, with line numbers.
+
+    Parsed rather than grepped, and that is the whole point of this
+    function. Both producer modules discuss retired labels in their
+    comments: at the time of writing, `imagebuilder.py` carries
+    "ubuntu-2004 was dropped 2026-07-11" above the entries that
+    replaced it, and the plan for the step that reworded the
+    STALE_LABEL_SECONDS comment forbade it from quoting a retired
+    label precisely so that a grep-shaped gate would not fire forever
+    after. A grep cannot tell a live entry from its own obituary; the
+    abstract syntax tree has no comments in it at all.
+
+    Raises ProducerParseError for a definition that is there but not
+    in the shape this understands, rather than returning nothing: the
+    two answers are "this producer offers no banned label" and "this
+    producer was not read", and they must not render the same.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as e:
+        raise ProducerParseError(
+            f'{path} is not parseable Python ({e})')
+
+    value = _assigned_value(tree, name)
+    if value is None:
+        raise ProducerParseError(
+            f'{path} has no module-level {name} assignment')
+    if not isinstance(value, (ast.List, ast.Tuple)):
+        raise ProducerParseError(
+            f'{path}:{name} is not a list of entries')
+
+    found = []
+    for element in value.elts:
+        if not isinstance(element, ast.Dict):
+            continue
+        for key, entry in zip(element.keys, element.values):
+            if (isinstance(key, ast.Constant)
+                    and key.value == PRODUCER_LABEL_KEY
+                    and isinstance(entry, ast.Constant)
+                    and isinstance(entry.value, str)):
+                found.append((entry.value, entry.lineno))
+
+    if value.elts and not found:
+        raise ProducerParseError(
+            f'{path}:{name} has {len(value.elts)} entries and no '
+            f'{PRODUCER_LABEL_KEY!r} string among them')
+    return found
+
+
+def retired_labels(today=None):
+    """Which retired release each banned runner label belongs to.
+
+    RELEASE_BY_LABEL covers every entry in the table, including one
+    written ahead of its date, and scan() filters those out after
+    matching. This is the same filter applied before matching, which
+    is all a producer needs: there is no false positive to recognise
+    and then withhold.
+    """
+    return {
+        label: release
+        for release in retired_releases(today)
+        for label in release.runner_labels
+    }
+
+
+def scan_producers(repo, definitions=None, today=None):
+    """Every banned runner label this checkout's producers offer.
+
+    Returns (location, label, release) triples, the same shape scan()
+    returns, so release_guidance() reads either.
+
+    In definition order -- each producer in the order
+    PRODUCER_DEFINITIONS lists it, each label in the order its table
+    offers it -- rather than sorted. The fix is read down the file,
+    and sorting the locations as strings puts line 123 above line 62,
+    which is how eol-distro's list reads today.
+    """
+    if definitions is None:
+        definitions = producer_definitions(repo)
+    banned = retired_labels(today)
+
+    found = []
+    for path, name in definitions:
+        source = repo.read(path)
+        if source is None:
+            raise ProducerParseError(
+                f'{path} exists and could not be read')
+        for label, line in definition_labels(source, name, path=path):
+            if label in banned:
+                found.append((f'{path}:{line}', label, banned[label]))
+    return found
+
+
 class EolDistro(Check):
     id = 'eol-distro'
     spec = 'docs/audits/eol-distro.md'
@@ -476,4 +653,74 @@ class EolDistro(Check):
             f'-- test input built on the old release, say -- is '
             f'marked "audit-ok: eol-distro" with the reason, on the '
             f'line or the line above',
+            findings=locations)
+
+
+class EolProducers(Check):
+    id = 'eol-producers'
+    spec = 'docs/audits/eol-producers.md'
+    template = None
+    issue_title = 'End-of-life runner labels offered'
+
+    def applies(self, repo):
+        """Only a repository that defines runner labels is measured.
+
+        A repository with no producer definition reports
+        not_applicable rather than pass, and the difference matters
+        more here than for most criteria: all but one repository in
+        the fleet has no producer, so a criterion that passed them
+        would report the whole organisation green on a question it
+        never asked any of them.
+        """
+        if not producer_definitions(repo):
+            return (
+                'No runner-label producer definition ('
+                + ', '.join(f'{name} in {path}'
+                            for path, name in PRODUCER_DEFINITIONS)
+                + ')'
+            )
+        return None
+
+    def run(self, repo):
+        """Check no runner label is offered for a retired release.
+
+        The producer end of the end-of-life table. `eol-distro` asks
+        whether a repository names a banned label; this asks whether
+        it offers one, which is the exposure that produced eighty
+        consumer findings in shakenfist/development#123 -- a consumer
+        mostly boots whatever the producer decided it could.
+
+        The definitions are parsed as Python rather than grepped,
+        because both of them discuss retired labels in their comments
+        and a grep reports an obituary as a live entry.
+
+        There is no exception marker. A line marked `audit-ok` is how
+        a repository says "this reference has to stay", and the three
+        reasons the fleet has for that -- test input built on an old
+        release, an upstream job name, a guest image somebody boots on
+        purpose -- are all consumer shapes. A producer is where the
+        label can actually be removed, so a decision to keep serving a
+        retired release is a decision about what the fleet may ask
+        for, and it belongs in the EOL_RELEASES table rather than in a
+        comment on one of two files.
+        """
+        definitions = producer_definitions(repo)
+        found = scan_producers(repo, definitions=definitions)
+        read = ', '.join(f'{name} in {path}'
+                         for path, name in definitions)
+        if not found:
+            return self.ok(
+                f'No runner label offered by {read} names any of the '
+                f'{len(retired_releases())} retired distribution '
+                f'releases')
+
+        locations = [f'{where} ({what})' for where, what, _ in found]
+        return self.fail(
+            f'{len(locations)} runner label(s) offered for end-of-life '
+            f'distribution releases. {release_guidance(found)}. '
+            f'The fix is to delete the entry, so the label stops being '
+            f'served at all -- but a consumer still naming it then '
+            f'queues against a label no runner advertises, which fails '
+            f'nothing and waits forever, so the consumers move first '
+            f'and the eol-distro findings are how they are told',
             findings=locations)
