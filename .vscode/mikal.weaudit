@@ -875,6 +875,30 @@
     {
       "path": "docs/audits/readme-absolute-links.md",
       "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation/RELEASE-SETUP.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/release-automation.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/eol-distro.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/distros.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
