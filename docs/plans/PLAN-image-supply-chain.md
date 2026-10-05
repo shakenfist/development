@@ -229,8 +229,8 @@ needs the same treatment, and phase 6 says so.
 | 2. Verify the artifact, not the name | Complete | images 6028647 (#7), images 4800c72 (#8), images b872641 (#9), actions 2ac4a94 (#74), 33fl bbbd842 (#836) |
 | 3. Unblock the migration | Complete | private-ci 9eace9d (#60), private-ci 2e18c13 (#61), private-ci dbb78ca (#63), actions 8684eec (#78), actions 781d267 (#80), kerbside 79c2506 (#435), kerbside cfef26a (#450) |
 | 4. The consumer sweep | Complete | Label half: actions 5a677a9 (#90), agent-python 8303e99 (#140), client-python 93a0999 (#405), client-python-k3s 1576e72 (#67), clingwrap d5eb4ea (#136), divergulent 53136f2 (#117), library-utilities 6f63b95 (#60), ryll 060e649 (#397), sfui 30f5501 (#35), instar a1c09aa (#589), occystrap 4b9d5ff (#143), shakenfist 54b18a0 (#4306), with visual-digest-rust #23 closed as superseded. Guest-image half: actions 8c02ab0 (#97, 4f), shakenfist 2a94e58 (#4379, 4g), shakenfist 984fdd1 (#4385, 4h part 1), actions 227593c (#124, 4h part 2). 4i and 4j carry no commit. |
-| 5. Retire the end-of-life producers | In progress | |
-| 6. Close the audit's blind spot | Not started | |
+| 5. Retire the end-of-life producers | Complete | private-ci e77fca7 (#100, 5a), actions 2351ece (#136, 5b), 33fl e92a1b4 (#925, 5c), development b464fcc (#218, 5d), and the `ubuntu:18.04` removal the phase grew: actions 587683a (#140) with development 13fec36 (#221) carrying its plan bullet and its 5f check. 5e and 5f carry no commit. |
+| 6. Close the audit's blind spot | In progress | |
 | 7. Push audit | Not started | |
 
 ### 1. Alarm on absence
@@ -2134,7 +2134,26 @@ because the three bullets this section carried named two of the four
 assigned here by name, and described 33fl's half as hand work that a
 tool in that repository has been doing weekly since July.
 
-**Status: planned, 2026-10-02.** The survey below was run on
+**Status: complete, 2026-10-05.** All six steps ran and the four
+pull requests merged; 5f's twelve checks all agreed and closed
+private-ci#38. **One of the twelve could not be run as written.**
+Check (6) specifies `ansible static_runners -m setup -a
+'filter=ansible_distribution_release'`, which this environment's
+command classifier refuses against live remote hosts, so the step
+established the same fact a different way: for each of the eight
+hosts, today's `manage.yml` deploy logged an `apt_repository`
+invocation with `codename=None` resolving to `trixie`, which means
+the codename came from each host's own `ansible_distribution_release`
+fact rather than from a variable in `33fl` -- the distinction that
+makes the log equivalent to the query rather than merely consistent
+with it. That provenance is recorded in private-ci#38's thread, and
+phase 6 should not write another check that names a command the
+fleet cannot run. **An anchor proves a grep still fires; nothing in
+this phase's design catches a check whose command is unavailable**,
+which is the one gap in the vacuous-pass armour the phase was built
+around.
+
+The survey below was run on
 2026-10-02, the day phase 4 closed, and it moved the phase in both
 directions: the retirement is larger than the section said in
 `private-ci` and in `actions`, and smaller in `33fl`, where the
@@ -2548,18 +2567,18 @@ check when the phase was first written, which is the same gap phase 4
 closed with, and it was found here only by counting them against 5f
 (development#207).
 
-- [ ] In a fresh `private-ci` clone, `conductor/imagebuilder.py`'s
+- [x] In a fresh `private-ci` clone, `conductor/imagebuilder.py`'s
       `IMAGE_BUILDS` contains no `debian-11`, `debian-12`,
       `debian-12-docker` or `debian-gnome-12` entry, and
       `conductor/provisioner.py`'s `CI_IMAGES` contains none of the
       first three. Four entries and three entries, not seven and
       seven: the desktop images are not runner boot images
       (finding 2).
-- [ ] `grep -rn 'debian-12' .github/` in `private-ci` returns
+- [x] `grep -rn 'debian-12' .github/` in `private-ci` returns
       nothing. This is the one repository phase 4's equivalent
       bullet exempted, because it has no workflows for the
       declaration to govern; the declaration goes with the entries.
-- [ ] `pytest conductor/tests` on 5a's merge commit gives **no
+- [x] `pytest conductor/tests` on 5a's merge commit gives **no
       fewer passed and the same skipped** as on its parent. A green
       run with fewer passed fails this bullet; more passed is fine if
       5a's commit message names what was added. Measured
@@ -2569,41 +2588,41 @@ closed with, and it was found here only by counting them against 5f
       count is the criterion precisely because 22
       tests fail on the deletion alone and the cheapest ways to make
       them pass are all wrong (decision 5.3).
-- [ ] `conductor/tests/test_web.py`'s `test_build_known_image` names
+- [x] `conductor/tests/test_web.py`'s `test_build_known_image` names
       a label that `IMAGE_BUILDS` still contains. It does not fail
       when it stops doing so -- `request_build` is mocked -- which
       is why it is a bullet of its own rather than part of the one
       above.
-- [ ] In `shakenfist/actions`, `grep -n 'debian.11'
+- [x] In `shakenfist/actions`, `grep -n 'debian.11'
       ansible/ci-image.yml` returns nothing and `grep -c 'name: Add
       to ansible' ansible/ci-image.yml` returns **2**. The second
       half catches the inverse mistake of keeping the
       force-python3 arm instead of the detect arm, which a grep for
       the condition alone cannot see.
       `tools/ansible-syntax-check.sh` passes.
-- [ ] `ansible/ci-dependencies.yml`'s cached image list still
+- [x] `ansible/ci-dependencies.yml`'s cached image list still
       contains `debian:11`, `debian:12`, `ubuntu:20.04` and
       `fedora:40`, and each carries a comment saying it is
       deliberately frozen and what would justify removing it. A
       grep whose passing output is non-empty, for the same reason
       phase 3's `debian:11` bullet was: a bullet asking for nothing
       would be satisfied by deleting the thing decision 5.4 keeps.
-- [ ] A conductor nightly cycle summary generated after 5a merged
+- [x] A conductor nightly cycle summary generated after 5a merged
       lists builds for the surviving labels only, with no
       `debian-11`, `debian-12`, `debian-12-docker` or
       `debian-gnome-12` line, and no permanent `False`. Read from
       the summary, not inferred from the absence of a failure
       issue.
-- [ ] All eight entries of `33fl`'s `static_runner_fleet` report
+- [x] All eight entries of `33fl`'s `static_runner_fleet` report
       Debian 13, read from the fleet rather than from
       `static_runner_debian_release`. The variable has said 13 since
       2026-09-12 and said nothing about what is running.
-- [ ] `group_vars/all/static_runners.yml` no longer says the GitLab
+- [x] `group_vars/all/static_runners.yml` no longer says the GitLab
       runners have no retire tool, and names
       `tools/retire-gitlab-runners.py` and the weekly cycle
       instead. The paragraph about `eol-distro` being unable to see
       this fleet stays: it is still true and it is phase 6's.
-- [ ] `docs/audits/eol-distro.md` no longer says the conductor
+- [x] `docs/audits/eol-distro.md` no longer says the conductor
       advertises no `debian-gnome-13` label, and its end-of-life
       table still lists all five labels it bans -- `debian-11`,
       `debian-11-docker`, `debian-12`, `debian-12-docker` and
@@ -2614,22 +2633,22 @@ closed with, and it was found here only by counting them against 5f
       halves: the table is the registry of what a workflow may not
       name, and emptying it as the labels go would make the
       criterion unable to report a regression.
-- [ ] private-ci#40, private-ci#45 and 33fl#826 are closed with
+- [x] private-ci#40, private-ci#45 and 33fl#826 are closed with
       their merge commits, in 5e. private-ci#38 is closed **by 5f**,
       after every one of its checks agrees, with a comment whose
       "after" half quotes their output -- not in 5e, because that
       comment asserts a state only 5f has established
       (decision 5.6).
-- [ ] An issue exists in `shakenfist/shakenfist` for the cache that
+- [x] An issue exists in `shakenfist/shakenfist` for the cache that
       is not serving reads (finding 6), naming
       `build-smoke-cluster/action.yml:257`,
       `ansible_module_ci/004.yml:120` and shakenfist#4000.
-- [ ] `compliance.md`'s `eol-distro` table is unchanged by this
+- [x] `compliance.md`'s `eol-distro` table is unchanged by this
       phase. Stated as a done criterion rather than omitted,
       because "the audit went green" is the evidence a reader will
       reach for and it is not available here: neither list this
       phase empties is read by any criterion until phase 6.
-- [ ] In `private-ci`,
+- [x] In `private-ci`,
       `grep -n 'debian-11\|debian-12\|debian-gnome-12' README.md
       AGENTS.md ARCHITECTURE.md` returns nothing -- all three
       alternatives, because `debian-12` does not match
@@ -2646,7 +2665,7 @@ closed with, and it was found here only by counting them against 5f
       is why 5f's check is a grep rather than a seek. A done list
       that did not mention these files is how the excerpts drifted
       in the first place.
-- [ ] In `shakenfist/actions`, `grep -n 'ubuntu:18.04'
+- [x] In `shakenfist/actions`, `grep -n 'ubuntu:18.04'
       ansible/ci-dependencies.yml` returns nothing, and the cached
       list still carries the four entries decision 5.4 keeps. Not
       5b's and not any planned step's: decision 5.4 enumerated four
