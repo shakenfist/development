@@ -413,6 +413,43 @@ class PlanSourceReferenceTest(CheckTestCase):
         })
         self.assert_skip(result)
 
+    def test_a_captured_diff_in_a_plans_directory_is_history(self):
+        # A push-audit phase can keep the diffs it reviewed beside its
+        # findings. Those quote every plan path the diff touched,
+        # including plans renamed since and plans in other
+        # repositories, and rewriting them would falsify the record.
+        result = self._check({
+            'docs/plans/PLAN-frob.md': '# Frob\n',
+            'docs/plans/audit/diffs/abc123.diff': '+# See PLAN-gone.md.\n',
+        })
+        self.assert_skip(result)
+
+    def test_a_plans_directory_outside_docs_is_still_source(self):
+        # Only docs/ holds the plan record. A plans/ package in the
+        # code is code, and its pointers rot like any other.
+        result = self._check({
+            'docs/plans/PLAN-frob.md': '# Frob\n',
+            'src/plans/billing.py': '# See PLAN-gone.md.\n',
+        })
+        self.assert_fail(result, containing='PLAN-gone.md')
+
+    def test_a_file_named_plans_in_docs_is_still_source(self):
+        # The exemption is for a plans directory, not for a file that
+        # happens to carry the name.
+        result = self._check({
+            'docs/tools/plans': '# See PLAN-gone.md.\n',
+        })
+        self.assert_fail(result, containing='PLAN-gone.md')
+
+    def test_a_nested_plans_directory_in_docs_is_history(self):
+        # The same depth plan-phase-references exempts, so the two
+        # agree on what a plans directory is.
+        result = self._check({
+            'docs/plans/PLAN-frob.md': '# Frob\n',
+            'docs/archive/plans/abc123.diff': '+# See PLAN-gone.md.\n',
+        })
+        self.assert_skip(result)
+
     def test_an_absolute_url_is_not_flagged(self):
         result = self._check({
             'src/frob.py': (
