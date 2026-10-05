@@ -137,10 +137,6 @@
       "sha": "3d2bf614e0bacf2487d4e5ef95519a8ea2ba1678",
       "date": "2026-10-05"
     },
-    "docs/audits/eol-distro.md": {
-      "sha": "2ca2564f5f095a322974dd53ccc3dcd7201a5f9a",
-      "date": "2026-10-05"
-    },
     "docs/audits/expensive-lane-path-filter.md": {
       "sha": "7c01864fc0ca8b95475afaded6ca4bef89aea31f",
       "date": "2026-10-05"
@@ -367,10 +363,6 @@
     },
     "scripts/audit/checks/ci_workflows.py": {
       "sha": "7d4ee84ae14076c62f559def01a7ff8ddb6314cb",
-      "date": "2026-10-05"
-    },
-    "scripts/audit/checks/distros.py": {
-      "sha": "f6b58a00022ab875f1789e0ccbcd8fbf9883d6ec",
       "date": "2026-10-05"
     },
     "scripts/audit/checks/docs_content.py": {
