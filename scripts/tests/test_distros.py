@@ -20,7 +20,9 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import distros  # noqa: E402
-from tests.base import CheckTestCase, REPO_ROOT  # noqa: E402
+from tests.base import (  # noqa: E402
+    CheckTestCase, REPO_ROOT, repo_text,
+)
 
 
 class ImageReferenceTest(unittest.TestCase):
@@ -744,6 +746,63 @@ class EolProducersTest(CheckTestCase):
         self.fixture.write(self.BUILDER, self.builder('debian-12'))
         self.assertEqual([], distros.scan_producers(
             self.repo(), today=datetime.date(2025, 1, 1)))
+
+
+class ProducerSpecificationTest(unittest.TestCase):
+    """The producer definitions named in the code and in the page.
+
+    Nothing here can reach into private-ci to check that the files
+    still exist, so the specification page is where a reader learns
+    which two definitions are read -- and a producer added to
+    PRODUCER_DEFINITIONS without a row there is a finding nobody can
+    look up.
+    """
+
+    def setUp(self):
+        self.spec = repo_text('docs', 'audits', 'eol-producers.md')
+
+    def test_every_producer_definition_is_documented(self):
+        for path, name in distros.PRODUCER_DEFINITIONS:
+            with self.subTest(definition=name):
+                self.assertIn(f'`{path}`', self.spec)
+                self.assertIn(f'`{name}`', self.spec)
+
+    def test_the_label_key_is_documented(self):
+        self.assertIn(f'`{distros.PRODUCER_LABEL_KEY}`', self.spec)
+
+    def test_the_page_says_the_definitions_are_parsed_not_grepped(self):
+        """The one decision a later reader must not quietly undo."""
+        self.assertIn('ast', self.spec)
+        self.assertIn('grep', self.spec)
+
+    def test_the_page_carries_the_label_less_fleet_generalisation(self):
+        """Decision 6.4 of PLAN-image-supply-chain lives here.
+
+        A static fleet advertising only `self-hosted` and `static` is
+        invisible to a label-based audit, and that sentence was in a
+        closed issue rather than anywhere a reader of the criterion
+        would find it.
+        """
+        self.assertIn('structurally invisible', self.spec)
+
+    def test_the_page_does_not_restate_the_retired_list(self):
+        """A second copy of the banned set is the defect to avoid.
+
+        The dates belong to eol-distro's table. A release name may be
+        discussed in prose here, but a date means the list has been
+        copied.
+        """
+        for release in distros.EOL_RELEASES:
+            with self.subTest(release=release.name):
+                self.assertNotIn(release.eol, self.spec)
+
+    def test_no_generated_marker_block(self):
+        """A spec page must stay reviewable; see docs/audits/README.md."""
+        self.assertNotIn('consistency-audit:begin', self.spec)
+
+    def test_the_criterion_is_listed_in_the_index(self):
+        index = repo_text('docs', 'audits', 'README.md')
+        self.assertIn('[eol-producers.md](eol-producers.md)', index)
 
 
 if __name__ == '__main__':

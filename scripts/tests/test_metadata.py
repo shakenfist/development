@@ -280,6 +280,10 @@ FROZEN_METADATA = {
         'spec': 'docs/audits/eol-distro.md',
         'template': None,
     },
+    'eol-producers': {
+        'spec': 'docs/audits/eol-producers.md',
+        'template': None,
+    },
 }
 
 FROZEN_ISSUE_TITLES = {
@@ -341,6 +345,7 @@ FROZEN_ISSUE_TITLES = {
     'sfui-vendor': 'sfui vendored copy',
     'scope-coverage': 'Audit scope against the organisation',
     'eol-distro': 'End-of-life distributions',
+    'eol-producers': 'End-of-life runner labels offered',
 }
 
 FROZEN_COLUMN_NAMES = {
