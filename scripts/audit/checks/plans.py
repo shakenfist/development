@@ -70,6 +70,23 @@ def plan_source_is_oversize(path):
     return os.path.getsize(path) > PLAN_SOURCE_MAX_BYTES
 
 
+def plan_source_is_plan_record(rel):
+    """Is this tracked path part of a plans directory under docs/?
+
+    A plans directory is the record of how the software was built,
+    and citing plans is its job: a push-audit phase that keeps the
+    diffs it reviewed beside its findings keeps every plan path those
+    diffs touched, including plans since renamed and plans in other
+    repositories. Rewriting a captured diff so its pointers resolve
+    would falsify the record, so nothing there is a pointer this
+    check can ask to be fixed. The scope matches the one
+    iter_doc_content_files() gives plan-phase-references: a plans/
+    directory under docs/ at any depth.
+    """
+    parts = rel.split('/')
+    return parts[0] == 'docs' and 'plans' in parts[1:-1]
+
+
 def plan_quote(text, limit=60):
     """Bound a string read from a repository before it is quoted.
 
@@ -1074,7 +1091,9 @@ class PlanSourceReferences(Check):
         when a plan is renamed or archived into docs/plans/completed/
         they rot silently. Every reference must resolve in this
         repository or be an absolute URL; markdown files are out of
-        scope, being covered by docs-external-links.
+        scope, being covered by docs-external-links, and so is
+        anything under a plans directory in docs/, which is plan
+        history rather than source.
 
         A test suite is deliberately not out of scope. Test files carry
         rotted pointers like anything else -- instar's
@@ -1092,6 +1111,8 @@ class PlanSourceReferences(Check):
         total = 0
         for rel in tracked:
             if rel.endswith('.md'):
+                continue
+            if plan_source_is_plan_record(rel):
                 continue
             path = os.path.join(repo.path, rel)
             if not os.path.isfile(path):
