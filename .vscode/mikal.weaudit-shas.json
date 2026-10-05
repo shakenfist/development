@@ -137,6 +137,10 @@
       "sha": "3d2bf614e0bacf2487d4e5ef95519a8ea2ba1678",
       "date": "2026-10-05"
     },
+    "docs/audits/eol-distro.md": {
+      "sha": "bad6c1e41d79f294bdf991bf89a26133f4dd4142",
+      "date": "2026-10-06"
+    },
     "docs/audits/expensive-lane-path-filter.md": {
       "sha": "7c01864fc0ca8b95475afaded6ca4bef89aea31f",
       "date": "2026-10-05"
@@ -325,6 +329,10 @@
       "sha": "e6bf33a5adab7a02260adf7b71a3305e7a7d5b33",
       "date": "2026-10-05"
     },
+    "docs/release-automation.md": {
+      "sha": "9807720ead26729e88b627892fbb73cb81edef91",
+      "date": "2026-10-06"
+    },
     "renovate.json": {
       "sha": "1255d62568362a8c44341f008d8c3c4c143eba7c",
       "date": "2026-09-27"
@@ -360,6 +368,10 @@
     "scripts/audit/checks/ci_workflows.py": {
       "sha": "7d4ee84ae14076c62f559def01a7ff8ddb6314cb",
       "date": "2026-10-05"
+    },
+    "scripts/audit/checks/distros.py": {
+      "sha": "c4fcb5cc1fb5fc2ab1336c08cff15c9b4b11de1c",
+      "date": "2026-10-06"
     },
     "scripts/audit/checks/docs_content.py": {
       "sha": "53aa7bbc2467995b847d5de5aedc6297dc1eeb92",
@@ -652,6 +664,10 @@
     "templates/release-automation/README.md": {
       "sha": "334338b6c7badb6a12fdf9a805b1c8177d123f70",
       "date": "2026-10-01"
+    },
+    "templates/release-automation/RELEASE-SETUP.md": {
+      "sha": "a8cc432d8a30daa167f00323f939ea77a06f1dfa",
+      "date": "2026-10-06"
     },
     "templates/release-automation/release.yml": {
       "sha": "932143a87e482d3e08101a485e249f347dfee26d",
