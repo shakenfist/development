@@ -577,6 +577,12 @@ IMAGE_BUILDS = [
 """
 
 
+def before_any_retirement():
+    """The day before the earliest end-of-life date in the table."""
+    return min(datetime.date.fromisoformat(release.eol)
+               for release in distros.EOL_RELEASES) - datetime.timedelta(days=1)
+
+
 class ProducerDefinitionTest(unittest.TestCase):
     """Reading a producer definition out of Python with ast."""
 
@@ -712,9 +718,14 @@ class RetiredLabelTest(unittest.TestCase):
                     self.assertEqual(release, banned[label])
 
     def test_a_release_is_not_banned_before_its_date(self):
-        """Nothing in the table had retired by the start of 2025."""
+        """Nothing in the table had retired the day before the first did.
+
+        Derived from the table rather than a fixed date, so adding a
+        release that retired earlier than any listed today is still
+        the one-entry change the module docstring promises.
+        """
         self.assertEqual({}, distros.retired_labels(
-            datetime.date(2025, 1, 1)))
+            before_any_retirement()))
 
 
 class EolProducersTest(CheckTestCase):
@@ -814,11 +825,11 @@ class EolProducersTest(CheckTestCase):
         self.assertEqual('error', result['status'])
         self.assertIn('ProducerParseError', stderr.getvalue())
 
-    def test_a_label_retired_in_the_future_is_not_yet_offered_wrongly(self):
+    def test_a_label_is_not_a_finding_before_its_release_retires(self):
         """scan_producers() asks the table what is retired today."""
         self.fixture.write(self.BUILDER, self.builder('debian-12'))
         self.assertEqual([], distros.scan_producers(
-            self.repo(), today=datetime.date(2025, 1, 1)))
+            self.repo(), today=before_any_retirement()))
 
 
 class ProducerSpecificationTest(unittest.TestCase):

@@ -64,9 +64,11 @@ EolRelease = collections.namedtuple(
 #: Every release the fleet has retired, oldest first.
 #:
 #: `runner_labels` are the labels the CI conductor advertises for that
-#: release -- the source of truth is IMAGES in shakenfist/private-ci's
-#: conductor/imagebuilder.py, which this repository cannot see -- plus
-#: the GitHub-hosted spelling where one exists. Every variant needs
+#: release -- the source of truth is IMAGE_BUILDS in
+#: shakenfist/private-ci's conductor/imagebuilder.py, and CI_IMAGES in
+#: its conductor/provisioner.py; see PRODUCER_DEFINITIONS below, which
+#: eol-producers reads -- plus the GitHub-hosted spelling where one
+#: exists. Every variant needs
 #: listing rather than being derived from `distro` and `version`,
 #: because the variants are named by hand there too and a derived
 #: pattern would either miss `debian-gnome-12` or invent labels that do
@@ -543,13 +545,21 @@ def _assigned_value(tree, name, path):
     literal this can read, and pretending otherwise would return an
     empty list that looks like a clean producer.
 
-    The first assignment is the one read, so anything at module level
-    after it that changes the table -- `+=`, `.append()`, a second
-    assignment, a store into an entry -- raises ProducerParseError.
-    Those all offer labels the literal does not show, and a parse
-    that read the literal and passed would be reporting a table it
-    had only half read. Changes made inside a function are out of
-    reach: they happen when something calls it, not at import.
+    The first assignment is the one read, so a module-level change
+    made directly through the table's name after it -- `+=`,
+    `.append()`, a second assignment, `NAME[0]['label'] = ...` --
+    raises ProducerParseError. Those all offer labels the literal does
+    not show, and a parse that read the literal and passed would be
+    reporting a table it had only half read.
+
+    Out of reach, and passed on the literal alone: a change made
+    through another name -- an alias (`B = NAME; B.append(...)`), a
+    loop variable (`for b in NAME: b['label'] = ...`), or
+    `list.append(NAME, ...)` -- and anything in a function, including
+    its decorators and default arguments, which this does not walk.
+    Following names through assignments is data-flow analysis, and
+    the tables this reads are plain literals with nothing done to
+    them afterwards.
     """
     value = None
     for statement in tree.body:
