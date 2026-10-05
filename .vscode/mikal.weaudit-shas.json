@@ -93,10 +93,6 @@
       "sha": "be0c7ecd7cd147d707f69447e45b7d575f97f6de",
       "date": "2026-10-05"
     },
-    "PLAN-TEMPLATE.md": {
-      "sha": "6e993188d304ac940183e385db3cb34048ee57d5",
-      "date": "2026-10-05"
-    },
     "PUSH-AUDIT.md": {
       "sha": "fb521abe2296ba7b812471e41c7095ce04c13f08",
       "date": "2026-10-05"
@@ -715,10 +711,6 @@
     },
     "templates/shared-blocks/plan-closeout-sections.md": {
       "sha": "6cb9ee7e7d5d4756bbe598ad9e9f5374518f8ce2",
-      "date": "2026-09-04"
-    },
-    "templates/shared-blocks/plan-file-conventions.md": {
-      "sha": "a83f6ef04c625324c520112c17124090c6a926e5",
       "date": "2026-09-04"
     },
     "templates/shared-blocks/plan-phase-landing.md": {

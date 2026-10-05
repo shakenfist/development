@@ -125,10 +125,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/shared-blocks/plan-file-conventions.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/shared-blocks/plan-phase-references.md",
       "author": "mikal"
     },
@@ -513,10 +509,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/shared-blocks",
-      "author": "mikal"
-    },
-    {
       "path": "README.md",
       "author": "mikal"
     },
@@ -713,10 +705,6 @@
       "author": "mikal"
     },
     {
-      "path": "PLAN-TEMPLATE.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/expensive-lane-path-filter.md",
       "author": "mikal"
     },
@@ -870,10 +858,6 @@
     },
     {
       "path": "templates/release-automation",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     },
     {
