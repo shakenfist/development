@@ -66,7 +66,15 @@ syntax tree has no comments in it.
 A definition that is present but not in the shape the parse
 understands -- the assignment renamed, the list replaced by a
 function call, the `label` key spelled something else -- is reported
-as an `error` rather than as a verdict. The audit's `error` status
+as an `error` rather than as a verdict. So is a table only part of
+which can be read: the parse is all or nothing, and one entry built
+by a call, spread from another dict or labelled with a constant
+rather than a string fails the whole definition rather than being
+skipped. So, too, is a module that changes the table at import time
+after the assignment that is read -- a `+=`, an `.append()`, a
+second assignment, a store into an entry -- because the literal is
+then not the whole table. A change made inside a function is out of
+reach, since it happens when something calls it. The audit's `error` status
 files no issue and closes none, and the workflow fails the leg that
 produced it. The alternatives are both worse: a `pass` reports a
 producer nobody actually read as clean, which is the vacuous pass

@@ -11,7 +11,9 @@ those forms has a test naming the real file it came from.
 Run with: python3 scripts/tests/test_distros.py
 """
 
+import contextlib
 import datetime
+import io
 import os
 import re
 import sys
@@ -19,6 +21,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from audit import registry  # noqa: E402
 from audit.checks import distros  # noqa: E402
 from tests.base import (  # noqa: E402
     CheckTestCase, REPO_ROOT, repo_text,
@@ -632,6 +635,71 @@ class ProducerDefinitionTest(unittest.TestCase):
             self.labels(
                 "IMAGE_BUILDS: list = [{'label': 'debian-12'}]\n"))
 
+    def test_one_unreadable_entry_is_a_parse_error(self):
+        """All or nothing: the literal entries beside it do not pass it.
+
+        Skipping the entry this cannot read would pass the table on
+        the ones it can, which is an unread producer reported clean
+        one entry at a time.
+        """
+        unreadable = {
+            'dict call': "dict(label='debian-12')",
+            'helper call': "make_entry('debian-12')",
+            'starred': "*OTHER_BUILDS",
+            'spread': "{**BASE, 'label': 'debian-13'}",
+            'computed key': "{LABEL_KEY: 'debian-12'}",
+            'constant label': "{'label': DEBIAN_12}",
+            'f-string label': "{'label': f'debian-{VERSION}'}",
+            'two labels': "{'label': 'debian-13', 'label': 'debian-12'}",
+        }
+        for shape, entry in unreadable.items():
+            with self.subTest(shape=shape):
+                with self.assertRaises(distros.ProducerParseError):
+                    self.labels(
+                        "IMAGE_BUILDS = [\n"
+                        "    {'label': 'debian-13'},\n"
+                        f"    {entry},\n"
+                        "]\n")
+
+    def test_a_change_after_the_assignment_is_a_parse_error(self):
+        """The literal read is not the whole table once it is changed."""
+        changes = {
+            'augmented': "IMAGE_BUILDS += [{'label': 'debian-12'}]",
+            'append': "IMAGE_BUILDS.append({'label': 'debian-12'})",
+            'extend': "IMAGE_BUILDS.extend(MORE)",
+            'rebound': "IMAGE_BUILDS = [{'label': 'debian-12'}]",
+            'entry store': "IMAGE_BUILDS[0]['label'] = 'debian-12'",
+            'entry update': "IMAGE_BUILDS[0].update(label='debian-12')",
+            'deleted': "del IMAGE_BUILDS[0]",
+            'conditional': "if OLD:\n    IMAGE_BUILDS = OLD_BUILDS",
+            'class body': "class Old:\n    IMAGE_BUILDS.append(OLD)",
+        }
+        for shape, change in changes.items():
+            with self.subTest(shape=shape):
+                with self.assertRaises(distros.ProducerParseError):
+                    self.labels(
+                        "IMAGE_BUILDS = [{'label': 'debian-13'}]\n"
+                        f"{change}\n")
+
+    def test_reading_the_table_after_the_assignment_is_not_a_change(self):
+        """The provisioner builds ALL_CI_IMAGE_LABELS this way."""
+        self.assertEqual(
+            [('debian-13', 1)],
+            self.labels(
+                "IMAGE_BUILDS = [{'label': 'debian-13'}]\n"
+                "LABELS = [i['label'] for i in IMAGE_BUILDS]\n"
+                "FIRST = IMAGE_BUILDS[0]\n"))
+
+    def test_a_change_inside_a_function_is_out_of_reach(self):
+        """It runs when called, not at import, so it is not read."""
+        self.assertEqual(
+            [('debian-13', 1)],
+            self.labels(
+                "IMAGE_BUILDS = [{'label': 'debian-13'}]\n"
+                "def later():\n"
+                "    IMAGE_BUILDS.append({'label': 'debian-12'})\n"
+                "handler = lambda: IMAGE_BUILDS.clear()\n"))
+
 
 class RetiredLabelTest(unittest.TestCase):
     """The banned set is the table's, filtered by today."""
@@ -740,6 +808,11 @@ class EolProducersTest(CheckTestCase):
         self.fixture.write(self.BUILDER, 'IMAGE_BUILDS = compute()\n')
         with self.assertRaises(distros.ProducerParseError):
             distros.scan_producers(self.repo())
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            result = registry.run_check(self.check_class(), self.repo())
+        self.assertEqual('error', result['status'])
+        self.assertIn('ProducerParseError', stderr.getvalue())
 
     def test_a_label_retired_in_the_future_is_not_yet_offered_wrongly(self):
         """scan_producers() asks the table what is retired today."""
@@ -772,7 +845,7 @@ class ProducerSpecificationTest(unittest.TestCase):
 
     def test_the_page_says_the_definitions_are_parsed_not_grepped(self):
         """The one decision a later reader must not quietly undo."""
-        self.assertIn('ast', self.spec)
+        self.assertIn('`ast`', self.spec)
         self.assertIn('grep', self.spec)
 
     def test_the_page_carries_the_label_less_fleet_generalisation(self):

@@ -482,25 +482,135 @@ def producer_definitions(repo):
             if repo.exists(path)]
 
 
-def _assigned_value(tree, name):
+#: Methods whose call on a producer table, or on an entry in it,
+#: changes what the table offers after the literal this reads.
+PRODUCER_MUTATORS = frozenset((
+    'append', 'extend', 'insert', 'update', 'setdefault',
+    'pop', 'popitem', 'remove', 'clear',
+    '__setitem__', '__delitem__', '__iadd__',
+))
+
+
+def _root_name(node):
+    """The name an attribute or subscript chain starts from, or None."""
+    while isinstance(node, (ast.Attribute, ast.Subscript)):
+        node = node.value
+    return node.id if isinstance(node, ast.Name) else None
+
+
+def _import_time_nodes(node):
+    """A node and every node beneath it that runs at import time.
+
+    A function or lambda is skipped whole: its body runs only when it
+    is called, which a parse cannot follow. A class body runs at
+    import and is walked.
+    """
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                         ast.Lambda)):
+        return
+    yield node
+    for child in ast.iter_child_nodes(node):
+        yield from _import_time_nodes(child)
+
+
+def _changes(statement, name):
+    """The first import-time node in a statement that changes `name`.
+
+    A rebinding, an augmented assignment, a `del`, a store into the
+    table or into one of its entries, or a call to one of
+    PRODUCER_MUTATORS on either. Reading the table -- the provisioner
+    builds ALL_CI_IMAGE_LABELS from CI_IMAGES at module level -- is
+    not a change.
+    """
+    for node in _import_time_nodes(statement):
+        if (isinstance(node, (ast.Name, ast.Attribute, ast.Subscript))
+                and isinstance(node.ctx, (ast.Store, ast.Del))
+                and _root_name(node) == name):
+            return node
+        if (isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr in PRODUCER_MUTATORS
+                and _root_name(node.func.value) == name):
+            return node
+    return None
+
+
+def _assigned_value(tree, name, path):
     """The value assigned to a module-level name, or None.
 
     Only module level, and only a plain assignment: a label list built
     at import time by a function call or a comprehension is not a
     literal this can read, and pretending otherwise would return an
     empty list that looks like a clean producer.
+
+    The first assignment is the one read, so anything at module level
+    after it that changes the table -- `+=`, `.append()`, a second
+    assignment, a store into an entry -- raises ProducerParseError.
+    Those all offer labels the literal does not show, and a parse
+    that read the literal and passed would be reporting a table it
+    had only half read. Changes made inside a function are out of
+    reach: they happen when something calls it, not at import.
     """
-    for node in tree.body:
-        if isinstance(node, ast.Assign):
-            targets = node.targets
-        elif isinstance(node, ast.AnnAssign):
-            targets = [node.target]
-        else:
+    value = None
+    for statement in tree.body:
+        if value is None:
+            if isinstance(statement, ast.Assign):
+                targets = statement.targets
+            elif (isinstance(statement, ast.AnnAssign)
+                    and statement.value is not None):
+                targets = [statement.target]
+            else:
+                continue
+            if any(isinstance(target, ast.Name) and target.id == name
+                   for target in targets):
+                value = statement.value
             continue
-        for target in targets:
-            if isinstance(target, ast.Name) and target.id == name:
-                return node.value
-    return None
+
+        changed = _changes(statement, name)
+        if changed is not None:
+            raise ProducerParseError(
+                f'{path}:{changed.lineno} changes {name} after the '
+                f'assignment this reads, so the literal is not the '
+                f'whole table')
+    return value
+
+
+def _entry_label(element, name, path):
+    """The literal label one table entry offers, and its line.
+
+    All or nothing. An entry this cannot read raises rather than
+    being skipped: skipping it would pass a table on the entries that
+    happened to be literal, which is the vacuous pass of an unread
+    producer applied to one entry instead of all of them. Unreadable
+    covers an entry that is not a dict literal (`dict(label=...)`, a
+    helper call, a `*spread`), a key that is not a literal (including
+    a `**spread`, which could carry or override the label), and a
+    label that is not a string literal (a constant, an f-string).
+    """
+    where = f'{path}:{element.lineno}'
+    if not isinstance(element, ast.Dict):
+        raise ProducerParseError(
+            f'{where}: an entry in {name} is not a dict literal')
+    for key in element.keys:
+        if not isinstance(key, ast.Constant):
+            shown = '**' if key is None else ast.unparse(key)
+            raise ProducerParseError(
+                f'{where}: an entry in {name} has a key that is not a '
+                f'literal ({shown}), so its label cannot be read')
+
+    labels = [entry for key, entry in zip(element.keys, element.values)
+              if key.value == PRODUCER_LABEL_KEY]
+    if len(labels) != 1:
+        raise ProducerParseError(
+            f'{where}: an entry in {name} has {len(labels)} '
+            f'{PRODUCER_LABEL_KEY!r} keys, not one')
+    label = labels[0]
+    if not (isinstance(label, ast.Constant)
+            and isinstance(label.value, str)):
+        raise ProducerParseError(
+            f'{where}: an entry in {name} has a {PRODUCER_LABEL_KEY!r} '
+            f'that is not a string literal')
+    return label.value, label.lineno
 
 
 def definition_labels(source, name, path='<producer>'):
@@ -527,7 +637,7 @@ def definition_labels(source, name, path='<producer>'):
         raise ProducerParseError(
             f'{path} is not parseable Python ({e})')
 
-    value = _assigned_value(tree, name)
+    value = _assigned_value(tree, name, path)
     if value is None:
         raise ProducerParseError(
             f'{path} has no module-level {name} assignment')
@@ -535,22 +645,7 @@ def definition_labels(source, name, path='<producer>'):
         raise ProducerParseError(
             f'{path}:{name} is not a list of entries')
 
-    found = []
-    for element in value.elts:
-        if not isinstance(element, ast.Dict):
-            continue
-        for key, entry in zip(element.keys, element.values):
-            if (isinstance(key, ast.Constant)
-                    and key.value == PRODUCER_LABEL_KEY
-                    and isinstance(entry, ast.Constant)
-                    and isinstance(entry.value, str)):
-                found.append((entry.value, entry.lineno))
-
-    if value.elts and not found:
-        raise ProducerParseError(
-            f'{path}:{name} has {len(value.elts)} entries and no '
-            f'{PRODUCER_LABEL_KEY!r} string among them')
-    return found
+    return [_entry_label(element, name, path) for element in value.elts]
 
 
 def retired_labels(today=None):
