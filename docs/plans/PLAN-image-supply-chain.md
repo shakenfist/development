@@ -2724,8 +2724,24 @@ settle now and expensive to redo.
 
 ### 6. Close the audit's blind spot
 
-Closes: nothing filed. Depends on: phases 3-5, so the producers
-are compliant before they are measured.
+Closes: nothing filed. Depends on: phases 3-5, complete 2026-10-05,
+so the producers are compliant before they are measured. Planning
+effort: high, 2026-10-05.
+
+**Status: planned, 2026-10-05.** The survey below was run on
+2026-10-05, the day phase 5 closed, and it moved the phase in one
+direction: the cost of measuring `images` is higher than this
+section said, and the reason the section gave for that cost being
+acceptable does not hold. The dependency, though, paid off exactly
+as written -- `eol-distro` now reports **pass** on `images`, a real
+scan rather than a skip, because phases 3 to 5 made the producer
+compliant before anything measured it. Had this phase run first it
+would have filed the finding it exists to prevent.
+
+#### What this section asked for, 2026-09-13
+
+Left as written, because the survey below contradicts parts of it
+and the contradiction is the useful record:
 
 The phase that stops the 80 findings coming back. Per the
 structural finding above, all three producers sit outside the
@@ -2819,6 +2835,355 @@ time.
 
 Which instrument does the measuring is Q1 above, and the default
 there is a separate criterion.
+
+#### What the survey found
+
+Run 2026-10-05 against `main` at `13fec36`, with a fresh `images`
+clone at `3423343` and the audit driven by
+`scripts/audit-check.py`, which builds a real `GhCli` when no
+client is passed (`scripts/audit/repo.py:163`) -- so the
+GitHub-dependent verdicts below are genuine readings rather than
+artifacts of running without a token. That distinction matters
+here: a criterion failing because nobody asked GitHub looks
+identical, in a summary, to one failing because the setting is
+wrong.
+
+**Confirmed, unchanged.** Scope is still stated in three places
+and `AuditScopeIsStatedOnceTest` still holds them together
+(`scripts/tests/test_registry.py:42`). `private-ci`'s `only_checks`
+is still exactly five entries -- `plan-phase-references`,
+`plan-source-references`, `plan-index`, `plan-template`,
+`sfui-vendor` -- and `scope.documented_partial_scope()` parses the
+sentence at `docs/audits/README.md:87-89` to that same five, so
+the fourth statement and the code still agree. The matrix comment
+above `- private-ci` is still stale in exactly the way the section
+says, still reading "Scoped to the sfui-vendor check"
+(`.github/workflows/consistency-audit.yml:53-54`). Eight
+non-archived repositories are still outside the matrix, and they
+are the same eight. All seven of the non-`images` ones still
+satisfy all three of `eol-distro`'s skip conditions -- no
+workflows, no container build file, no top-level `templates/` --
+checked by clone rather than by assertion, so the criterion would
+report `not applicable` for every one of them. The three producers
+still sit outside the criterion that bans what they produce.
+`33fl`'s audit-blindness paragraph is intact above
+`static_runner_debian_release: 13`.
+
+**The dependency worked.** `eol-distro` reports **pass** on
+`images`, with the detail "No workflow runner label or container
+image names any of the 3 retired distribution releases". That is a
+scan, not a skip: `images` has workflows and build files, so the
+three-way skip at `scripts/audit/checks/distros.py:453` did not
+fire. The producer is compliant before it is measured, which is
+what "Depends on: phases 3-5" was for.
+
+**Stale, and corrected at source in this commit.**
+
+* **52 criteria is now 58.** `registry.CHECKS` holds 58. Six
+  criteria arrived between 2026-09-13 and today, so every
+  arithmetic statement built on 52 was going to drift whether or
+  not anybody noticed.
+* **`images` measures 12 fail, 17 pass, 29 not applicable**, not
+  8 / 6 / 38. The section told the reader to re-measure before
+  acting, which is the instruction that saved this: the numbers
+  were not merely stale, they were stale in the direction that
+  makes the decision harder rather than easier.
+* **`delete-branch-on-merge` now passes**, so the section's list
+  of eight failures is wrong in membership as well as in count.
+  The other seven it names all still fail.
+* **Five failures the section does not name**: `llm-doc-structure`,
+  `readme-structure`, `docs-external-links`, `plan-template` and
+  `secret-scanning-ci`.
+* **"every one of them is already an item in phase 5 of that
+  repository's own plan" is false.** `images`' own Phase 5,
+  "Repository standards"
+  (`docs/plans/PLAN-image-build-modernisation.md:503-530`), names a
+  `.pre-commit-config.yaml`, renovate configuration, and the
+  `master` versus `develop` question -- which covers
+  `pre-commit-config`, `renovate` and `default-branch-naming`, and
+  touches `llm-doc-structure` by way of an `AGENTS.md` rewrite.
+  **Eight of the twelve have no owner in that plan or in this
+  one.** This was the load-bearing claim: it is what made
+  "whether to file them or do them first" the whole decision, and
+  it does not hold.
+* **"Joining is otherwise all-or-nothing" is false**, and the same
+  bullet names the mechanism that refutes it two sentences later.
+  `only_checks` scopes a repository in the matrix to a subset, and
+  `private-ci` is the live proof. The section even allows for
+  editing `REPO_OVERRIDES` "if images is to be scoped to a
+  subset", so the all-or-nothing framing contradicts its own next
+  clause rather than the tree.
+* **33fl#826 is closed**, by step 5e on 2026-10-05. The section
+  says the issue "records the exposure ... where the next reader
+  will find it", which conflated the issue with the file. The
+  durable record is the comment block in
+  `group_vars/all/static_runners.yml`, verified present; a closed
+  issue is not where a next reader looks.
+* `EolDistro`'s skip is at `distros.py:453` rather than `:450`.
+
+#### Scope
+
+In: a new consistency criterion that reads the runner-label
+producer definitions `eol-distro` cannot see; the scope changes
+that let it run against `private-ci` and that bring `images` under
+`eol-distro`; one prose sentence correcting why seven repositories
+are excluded; one correction to a comment in `images` whose stated
+reason phase 5 removed; and one issue recording what measuring
+`images` found.
+
+Out: **fixing any of `images`' twelve findings.** Three of them
+belong to `images`' own Phase 5 and the other eight belong to
+nobody yet; this phase's job is to make the repository measurable
+and to record the bill, not to pay it. Also out: widening
+`eol-distro` itself (decision 6.1), banning the publication of
+guest images on an end-of-life release (decision 6.3), bringing
+the other seven excluded repositories into the matrix (they would
+all report `not applicable`, so it would buy nothing), auditing
+`33fl` (another organisation, decision 6.4), and the `master`
+versus `develop` question for `images`, which is one of the twelve
+and therefore out with the rest.
+
+#### Decisions
+
+**6.1 A separate criterion, not a wider `eol-distro`.** This
+adopts Q1's stated default rather than re-opening it, and the
+survey strengthens the reason: `eol-distro` now *passes* on
+`images`, so widening it would convert a green verdict into a
+mixed one whose title no longer describes what it measures. The
+decisive argument is unchanged -- an issue title is the
+fleet-wide idempotency key for filing and closing, frozen in
+`scripts/tests/test_metadata.py` precisely because changing one
+orphans every issue already open under the old title. The new
+criterion is `eol-producers`: "this repository offers a banned
+label", against `eol-distro`'s "this repository names one".
+
+**6.2 The criterion measures runner-label producers, and nothing
+else.** Decided 2026-10-05, and it is the decision the rest of the
+phase hangs off. `eol-producers` reads `IMAGE_BUILDS` and
+`CI_IMAGES` in `private-ci` -- the two definitions that turn a
+published image into a bootable runner label, which is precisely
+the exposure that produced the 80 findings in #123. It does not
+read a build list, and it does not care what images exist.
+
+The alternative was to measure production as well, and the survey
+is what ruled it out. `images/build.sh:80` still builds
+`debian:12`, `debian-docker:12`, `debian-gnome:12` and
+`debian-xfce:12` by default, so a criterion reading the build list
+would fail `images` on day one, four times, against a documented
+deliberate choice: Debian LTS covers bookworm until 2028, and a
+guest image somebody boots on purpose under LTS is not the same
+defect as a runner label a workflow gets handed by default. **The
+distinction the criterion encodes is who chooses.** A consumer
+naming a runner label mostly inherits whatever the producer
+decided; somebody booting a `debian:12` guest image chose that
+release. The first is the fleet-wide exposure this plan exists to
+close, and the second is a supported option with an expiry date
+nobody is currently misreading.
+
+**6.3 The stale justification in `images` is corrected, not
+inherited.** `build.sh:41-45` keeps `debian:12` in the default
+list because "private-ci bakes the debian-12 runner labels that
+sixteen repositories boot on from it", and tells the reader to
+"retire it as the eol-distro audit issues are closed, not
+before". Step 5a removed those labels and #123 is closed, so both
+halves of that sentence are now false while the conclusion it
+supports -- keep building bookworm under LTS -- remains correct
+for a different reason. Phase 6 rewrites the comment to give the
+reason that still holds and to stop pointing at a condition that
+has already arrived. **It does not change the build list.** That
+is decision 6.2 applied to the same file: the list is right, the
+explanation is wrong, and leaving a true conclusion resting on a
+false premise is how the `ubuntu:20.04` freeze comment in phase 5
+came to read as an invitation to delete something load-bearing.
+
+**6.4 The criterion reads one producer, not three.** `private-ci`
+is the only one of the three that defines runner labels.
+`images` publishes guest images, which decision 6.2 puts out of
+scope, and `33fl` is in another organisation and outside this
+tooling -- no criterion can reach it, and this plan does not
+prescribe how another organisation audits itself. What phase 6
+adds there is the generalisation rather than a fix: a static
+runner fleet that advertises only `self-hosted` and `static` is
+structurally invisible to a label-based audit, so any future
+fleet of that shape needs the same treatment. That sentence goes
+in `docs/audits/eol-producers.md`, where a reader of the criterion
+will find it, rather than in a closed issue.
+
+**6.5 `images` joins the matrix scoped to `eol-distro` alone.**
+This is the decision most likely to be argued with, so the
+reasoning is stated at length. The case for joining fully is
+real: `images` is built from every night, the fleet's CI depends
+on its output, and it has been on the excluded list as a
+"historical archive" which it demonstrably is not. The case
+against is the survey's: joining fully files twelve findings, of
+which eight have no owner in any plan. Phase 4 closed with four
+done bullets no step had checked and this plan records that a
+thousand lines above; filing eight findings with no owner is the
+same mistake pointed outward, at a repository whose maintainers
+did not ask for them.
+
+So `images` enters the matrix with `only_checks: ['eol-distro']`.
+What that buys is narrow and worth having: the pass this survey
+measured by hand becomes a verdict the audit reports on a
+schedule, so the next time a producer starts naming a retired
+release the instrument says so instead of a person noticing. It
+also leaves the full-audit decision where `images`' own plan
+already put it -- "a deliberate decision rather than a side
+effect of this plan". Narrowing honours that sentence; joining
+fully overrides it as a side effect of this plan, which is the
+thing it asked not to happen.
+
+The counter-argument worth stating: a narrow scope is a decision
+that can quietly become permanent, and `private-ci`'s stale
+matrix comment is evidence of how that decays. The mitigation is
+that step 6d files the bill as an issue, so widening later is a
+decision against a written list rather than a rediscovery.
+
+**6.6 The seven excluded repositories get one prose sentence, and
+it must not be a bullet or a heading.** This is mechanically
+forced rather than stylistic. The excluded list sits in the span
+`scripts/audit/scope.py` parses between `are **excluded**` and
+``The `actions` repository`` (`scope.py:46-48`), and
+`bulleted_block()` collects only `* `-prefixed lines: a prose line
+is ignored and is safe, the same sentence as a bullet raises
+`ScopeParseError` for not being a repository name, and a
+sub-heading introducing it raises it for running the list past a
+heading. Either failure takes `scope-coverage` down fleet-wide
+rather than locally. `AuditScopeIsStatedOnceTest` is what says so
+at commit time, which is why every scope edit in this phase runs
+`pre-commit` before it is committed rather than after.
+
+**6.7 The twelve findings are filed as one issue, not twelve, and
+not as audit findings.** The audit will file its own issues once
+`images` is in the matrix, and only for the one criterion
+`only_checks` admits. The other eleven are not audit findings at
+all under decision 6.5 -- they are what joining fully *would*
+cost, which is a planning fact rather than a compliance one. One
+issue against `images`, naming all twelve, saying which three its
+own Phase 5 owns and which eight nobody does.
+
+**6.8 Each scope statement changes in one commit with the thing it
+describes.** `private-ci`'s widening touches four places and
+`images`' joining touches three plus `REPO_OVERRIDES`; a commit
+that moves some and not others leaves `scope-coverage` reporting a
+repository as decided nowhere. The docstring for the partial-scope
+sentence records that this is the statement with the worst track
+record -- widened once with two other documents left behind and no
+test noticing -- which is why the test exists and why this
+decision is written down rather than assumed.
+
+#### Step plan
+
+Five steps. 6a is the substance and everything else depends on
+it: `only_checks` names a criterion id, so the id has to exist in
+`registry.CHECKS` before any scope statement can mention it. 6b
+is one pull request against this repository with three commits,
+because decision 6.8 wants each scope statement atomic and
+decision 5.2's one-pull-request-per-repository habit is worth
+keeping. 6c is the only step that touches another repository.
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 6a | high | opus | worktree | **The criterion, in this repository, one pull request.** Add `eol-producers`: a repository is non-compliant if a runner-label producer definition it owns offers a label the end-of-life table in `docs/audits/eol-distro.md` bans. Read that table for the banned set rather than hardcoding it -- `retired_releases()` in `scripts/audit/checks/distros.py` already parses it and reports "3 retired distribution releases", and a second hardcoded copy is the defect `eol-distro` was written to avoid. The producer definitions are `IMAGE_BUILDS` in `conductor/imagebuilder.py` and `CI_IMAGES` in `conductor/provisioner.py`, both in `private-ci`; parse them as Python rather than by grep, because a grep cannot tell a live entry from a label named in a comment and 5a's reworded `STALE_LABEL_SECONDS` comment is exactly that case -- the plan made 5a avoid single-quoting retired labels there precisely so a grep-shaped gate would not fire forever, and a criterion that repeats the mistake inherits the same false positive. Use `ast` and read the dict literals. **Decision 6.2 is the scope: runner labels only.** Do not read `images/build.sh`, do not read a build list, and do not report on published guest images. The deliverables are `docs/audits/eol-producers.md` (the specification, carrying decision 6.4's generalisation about label-less static fleets), the check class beside `EolDistro` in `scripts/audit/checks/distros.py`, its registration in `scripts/audit/registry.py`'s `CHECKS`, and the matching entries in `scripts/tests/test_metadata.py`'s `FROZEN_METADATA`, `FROZEN_ISSUE_TITLES` and `FROZEN_COLUMN_NAMES` -- `AUDIT_METADATA` and `ISSUE_TITLES` are derived in `scripts/audit_common.py:48-50`, so the frozen copies are what you edit and the test is what holds them together. Tests go in `scripts/tests/test_distros.py` using `CheckTestCase` from `scripts/tests/base.py:166`. **Prove the criterion fails, do not assert that it would.** It must report `fail` against a `private-ci` clone at `8816709`, naming `debian-11`, `debian-12`, `debian-12-docker` and `debian-gnome-12`, and `pass` against current `master`; run both and put the outputs in the commit message. A criterion that has only ever been seen to pass is indistinguishable from one whose pattern is wrong, which is the failure mode this plan has spent six phases on. Also assert the `not_applicable` path: a repository with no `conductor/` reports not applicable rather than passing, because "no producer here" and "a compliant producer here" are different answers and a criterion that conflates them will report the whole fleet green. Verify with `pre-commit run --all-files`, which runs all five test suites. Commit subjects: `Add the eol-producers criterion.` and `Register eol-producers in the audit.` |
+| 6b | medium | sonnet | worktree | **After 6a has merged**, gated on a check rather than on this sentence: `python3 -c "import sys; sys.path.insert(0,'scripts'); from audit import registry; print([c.id for c in registry.CHECKS])"` in a fresh clone must list `eol-producers`. **Three commits, one pull request, and each one must leave the tree passing `pre-commit`** -- `AuditScopeIsStatedOnceTest` holds the scope statements against each other at every commit, so a commit that moves three of four places fails at commit time rather than in review (decision 6.8). Commit one widens `private-ci`: add `eol-producers` to `only_checks` in `scripts/audit/repo.py:88-93`, making six entries, and update in the same commit the sentence at `docs/audits/README.md:87-89` that `scope.documented_partial_scope()` parses, the `REPO_OVERRIDES` comment block above the entry, and the comment above `- private-ci` in `.github/workflows/consistency-audit.yml:53-54` -- **which is already stale and must be fixed rather than appended to**: it reads "Scoped to the sfui-vendor check" while the scope has been five checks for some time. Commit two brings `images` into the matrix with `only_checks: ['eol-distro']` (decision 6.5): the `repo:` list in the audit matrix, the in-scope list and the excluded list in `docs/audits/README.md` -- it moves from one to the other, so both change -- and a `REPO_OVERRIDES` entry with a stated reason, because that module's docstring requires one and "an unexplained override is indistinguishable from silencing a real finding". Commit three adds decision 6.6's prose sentence about the seven remaining excluded repositories. **It must be a prose line, not a bullet and not under a sub-heading**: `bulleted_block()` in `scripts/audit/scope.py:137` collects `* `-prefixed lines between `are **excluded**` and ``The `actions` repository``, so a bullet raises `ScopeParseError` for not being a repository name and a heading raises it for running the list past its end, and either takes `scope-coverage` down fleet-wide. The seven are `client-python-ova`, `divergulent-reviews`, `homebrew-tap`, `performance`, `reproducables`, `sonobouy` and `uefi-latency-guest`; all seven were confirmed on 2026-10-05 to have no `.github/workflows/`, no container build file and no top-level `templates/`, so `eol-distro` would report `not applicable` for every one -- say that is why they stay excluded, which is a narrower and truer claim than the reasons the list currently gives. Verify after each commit with `pre-commit run --all-files`, and afterwards confirm `scope.documented_partial_scope()` returns six entries for `private-ci` and one for `images`. Commit subjects: `Audit private-ci for eol-producers.`, `Bring images into the audit matrix.` and `Say why seven repositories are excluded.` |
+| 6c | low | sonnet | worktree | **`shakenfist/images`, one commit, comment only.** Rewrite the paragraph at `build.sh:41-45` per decision 6.3. It currently keeps `debian:12` in the default build list because "private-ci bakes the debian-12 runner labels that sixteen repositories boot on from it, and Debian LTS covers bookworm until 2028", and instructs the reader to "retire it as the eol-distro audit issues are closed, not before". **Step 5a removed those runner labels and development#123 is closed, so the premise and the trigger are both spent while the conclusion is still right.** The new comment keeps bookworm in the list for the reason that survives -- Debian LTS covers it until 2028 and a guest image somebody boots on purpose is a supported option -- and states that the runner labels it used to feed were retired on 2026-10-03 by private-ci#100, so a future reader does not go looking for sixteen repositories that no longer boot it. Name the condition for removing the entry in terms that can actually arrive: the LTS end date, not an audit issue that is already closed. **Change no build list and no code.** `images` is not in the audit matrix when this step runs and the audit does not read `build.sh` under decision 6.2, so nothing here is gated on 6a or 6b; it is in this phase because the survey found it and the sentence it corrects is about this plan's own work. Do not touch the `fedora:43`/`fedora:44` paragraph or the `ubuntu:20.04` retirement block. Commit subject: `Say why bookworm is still built.` |
+| 6d | medium | sonnet | none | **Housekeeping, no commit, outward-facing.** File one issue in `shakenfist/images` recording what measuring the repository found, so decision 6.5's narrow scope is a decision against a written list rather than something a later reader has to rediscover. Re-run the measurement rather than copying these numbers -- `python3 scripts/audit-check.py --repo-path <clone> --repo-name images` from a `development` checkout, which builds a real `GhCli` when none is passed, so the GitHub-dependent verdicts are genuine. On 2026-10-05 against `images` at `3423343` it gave 58 criteria, 17 pass, 12 fail, 29 not applicable. List the twelve, and **say for each whether anything owns it**: `pre-commit-config`, `renovate` and `default-branch-naming` are items in `images`' own Phase 5, "Repository standards" (`docs/plans/PLAN-image-build-modernisation.md:503-530`), which also plans an `AGENTS.md` rewrite that bears on `llm-doc-structure`; the other eight -- `llm-context-lint-ci`, `readme-structure`, `docs-external-links`, `plan-template`, `ci-review-automation`, `secret-scanning-ci`, `export-repo-config` and `github-security` -- have no owner in that plan or in this one. Say that `eol-distro` passes, and that `only_checks` admits it alone, so the audit will not file the other eleven. **Do not claim this plan will fix them** and do not open a pull request. **Never write a bot trigger phrase in any comment**: the match is a substring anywhere in the body, including inside backticks, and two of those phrases start workflows that push commits -- grep the body for `retest`, `re-review` and `recheck` before posting. |
+| 6e | medium | sonnet | none | **Confirms the phase.** Run after 6a, 6b and 6c have merged and at least one scheduled audit has run. **Every check below, not a counted subset**, each reported with its output, and each anchored one is run on its anchor too -- an anchor is what distinguishes "the work landed" from "the pattern was wrong". **A check that names a command this environment refuses is a defect in the check**: phase 5's check (6) specified an `ansible` fact gather against live hosts, the classifier blocked it, and the step substituted evidence and reported twelve of twelve. Nothing below reaches outside git, GitHub and this repository's own scripts. (1) In a fresh `development` clone, `registry.CHECKS` includes `eol-producers`, and `docs/audits/eol-producers.md` exists. (2) `eol-producers` reports `fail` against a `private-ci` clone at `8816709` naming all four retired labels, and `pass` against current `master` -- both run, because the pass alone proves nothing. (3) `eol-producers` reports `not_applicable` against a clone with no `conductor/`; use this repository. (4) `scope.documented_partial_scope()` returns six entries for `private-ci` and `['eol-distro']` for `images`, and `scope.matrix_repos()` contains `images` -- 22 entries against 21 on `13fec36`, which is the anchor that catches an edit to the README that never reached the matrix. (5) `grep -n 'Scoped to the sfui-vendor check' .github/workflows/consistency-audit.yml` returns nothing; on `13fec36` it returns one line at `:53`. (6) `python3 -m pytest scripts/tests/test_registry.py` passes, which is `AuditScopeIsStatedOnceTest` agreeing that all four statements match. (7) `scope.documented_excluded()` still parses, returns the seven plus the archived repositories and no longer contains `images`, and the new sentence about the seven is present as prose -- `grep -c '^\* ' ` over the excluded span is unchanged from `13fec36`, which is the check that catches the sentence having been written as a bullet. (8) A scheduled audit run after 6b merged reports `eol-producers` for `private-ci` and `eol-distro` for `images` on the compliance page, read from the generated page rather than inferred; name the run and its generation timestamp, and compare it in UTC against 6b's merge time rather than against the most recent page you can find. (9) In `images`, `grep -n 'sixteen repositories' build.sh` returns nothing and `grep -n 'debian:12' build.sh` still returns the default build list line -- the comment changed and the list did not, which is decision 6.3 in one check. (10) An issue exists in `shakenfist/images` listing the twelve findings and naming which three its own plan owns. Report each with its output. **Then, and only if every check agrees**, tick this phase's done list and report; this phase closes no issue, so there is no gated outward-facing action. If any check disagrees, report and stop. |
+
+#### Risks and mitigations
+
+* **The criterion passes vacuously.** A check that reads two dict
+  literals and finds nothing can mean the producer is clean or
+  that the parse found no dicts at all. 6a's brief requires a
+  demonstrated `fail` on `8816709` and a separate
+  `not_applicable` assertion, so all three answers are
+  distinguished; 6e re-runs both rather than trusting the commit
+  message. Checked by 6e (2) and (3).
+* **A scope edit lands in three places out of four.** This is the
+  statement with the worst recorded track record in the
+  repository. `AuditScopeIsStatedOnceTest` fails at commit time
+  rather than in review, and decision 6.8 keeps each statement in
+  one commit. Checked by 6e (4) and (6).
+* **The new sentence about the seven is written as a bullet** and
+  takes `scope-coverage` down fleet-wide rather than locally.
+  Mechanically caught: `bulleted_block()` raises
+  `ScopeParseError`, and the same test suite runs it. Checked by
+  6e (7), which counts bullets in the span rather than reading
+  the sentence.
+* **`images` joining files findings nobody expects.** Mitigated by
+  decision 6.5 narrowing `only_checks` to one criterion that
+  already passes, and by 6d filing the rest as one planning issue
+  with ownership stated per item. The residual risk is that the
+  narrow scope becomes permanent by inertia; the written list is
+  the mitigation, and it is a weaker one than a date.
+* **6c's comment rewrite drifts into a build-list change.** The
+  conclusion in that comment is correct and only its reasons are
+  stale, which is the shape most likely to invite "while I am
+  here". The brief forbids touching the list and 6e (9) checks
+  both halves: the old premise gone, the list still there.
+* **A check cannot be run as written.** Phase 5 produced exactly
+  this and it reported twelve of twelve. Every check in 6e is
+  confined to git, GitHub and this repository's own scripts, with
+  no command that reaches a live host.
+
+#### Definition of done
+
+Ten bullets, and each one names its owner, because phase 4 closed
+with four bullets no step had checked and phase 5 grew two more
+after its own list was written. 6e's ten checks cover nine of
+them; the tenth is 6d's own action, verified by its being done.
+**If a bullet is added to this list, 6e gets a check for it in the
+same commit** -- the mapping is the mechanism rather than the
+decoration.
+
+- [ ] `registry.CHECKS` includes `eol-producers` and
+      `docs/audits/eol-producers.md` exists, carrying decision
+      6.4's sentence about label-less static fleets. 6e (1).
+- [ ] `eol-producers` reports `fail` on a `private-ci` clone at
+      `8816709`, naming `debian-11`, `debian-12`,
+      `debian-12-docker` and `debian-gnome-12`, and `pass` on
+      current `master`. Both run; the pass alone is not
+      evidence. 6e (2).
+- [ ] `eol-producers` reports `not_applicable`, not `pass`,
+      against a repository with no producer definition. 6e (3).
+- [ ] `private-ci`'s partial scope is six criteria, stated
+      identically in `only_checks`, the sentence in
+      `docs/audits/README.md`, the `REPO_OVERRIDES` comment and
+      the audit matrix comment. 6e (4) and (6).
+- [ ] The audit matrix no longer says `private-ci` is "scoped to
+      the sfui-vendor check". 6e (5).
+- [ ] `images` is in the matrix, scoped to `eol-distro`, and has
+      moved from the excluded list to the in-scope list in
+      `docs/audits/README.md`. 6e (4).
+- [ ] The seven remaining excluded repositories are explained by
+      one prose line inside the excluded span, and the number of
+      bullets in that span is unchanged. 6e (7).
+- [ ] A scheduled audit run after 6b merged reports
+      `eol-producers` for `private-ci` and `eol-distro` for
+      `images`, read from the generated compliance page. 6e (8).
+- [ ] `images`' `build.sh` no longer justifies bookworm by the
+      runner labels phase 5 retired, and its default build list
+      is unchanged. 6e (9).
+- [ ] An issue in `shakenfist/images` lists the twelve findings
+      and says which three that repository's own plan owns and
+      which eight nobody does. 6d's action. 6e (10).
+
+#### Back brief
+
+Gate before 6a writes any code: **the shape of the criterion's
+parse.** Reading two dict literals out of Python with `ast` is
+cheap to propose and expensive to redo, and there is a real
+choice inside it -- whether the criterion keys off the label
+strings the dicts contain or off the release names the end-of-life
+table lists, with the mapping between them living in one place or
+two. Agree that before editing, because getting it wrong produces
+a criterion that works on today's dict layout and silently stops
+working when somebody reshapes it, which is the failure
+`eol-distro`'s quoted-label pattern was already chosen to avoid.
+
+No gate on 6b, 6c, 6d or 6e: each is mechanical against a brief
+that names its files, and each has a check in 6e that fails
+loudly rather than quietly.
 
 ### 7. Push audit
 
