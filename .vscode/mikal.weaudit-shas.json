@@ -41,6 +41,10 @@
       "sha": "975f656d8135aefe12ba2f2094d8671460ef1a8a",
       "date": "2026-10-01"
     },
+    ".github/workflows/consistency-audit.yml": {
+      "sha": "c815295c6f1fb9926d452eae11fff051701d75b5",
+      "date": "2026-10-07"
+    },
     ".github/workflows/export-repo-config.yml": {
       "sha": "b9b3936053b8685ef0ae47f656b2f35aa62ba637",
       "date": "2026-09-27"
@@ -89,6 +93,10 @@
       "sha": "be0c7ecd7cd147d707f69447e45b7d575f97f6de",
       "date": "2026-10-05"
     },
+    "PLAN-TEMPLATE.md": {
+      "sha": "86398ca32ca7f9fd4ed46d4f6c8be1572290613d",
+      "date": "2026-10-07"
+    },
     "PUSH-AUDIT.md": {
       "sha": "fb521abe2296ba7b812471e41c7095ce04c13f08",
       "date": "2026-10-05"
@@ -96,6 +104,10 @@
     "README.md": {
       "sha": "2269add37483bd29c54af121efee0aeeb1939a53",
       "date": "2026-10-05"
+    },
+    "docs/audits/README.md": {
+      "sha": "34bb6fef3f040e8d79fba6afb6506592c2ffe9ed",
+      "date": "2026-10-07"
     },
     "docs/audits/ci-review-automation.md": {
       "sha": "1e71c7a37946b3534dad400d55374e00bad389b0",
@@ -125,9 +137,17 @@
       "sha": "3d2bf614e0bacf2487d4e5ef95519a8ea2ba1678",
       "date": "2026-10-05"
     },
+    "docs/audits/docs-line-references.md": {
+      "sha": "1ddbe383160b5f1e3f87e98c5a88e6b132130123",
+      "date": "2026-10-07"
+    },
     "docs/audits/eol-distro.md": {
       "sha": "bad6c1e41d79f294bdf991bf89a26133f4dd4142",
       "date": "2026-10-06"
+    },
+    "docs/audits/eol-producers.md": {
+      "sha": "9812d895b4cb6fcf71431d1b27e51746960f5ea4",
+      "date": "2026-10-07"
     },
     "docs/audits/expensive-lane-path-filter.md": {
       "sha": "7c01864fc0ca8b95475afaded6ca4bef89aea31f",
@@ -204,6 +224,10 @@
     "docs/audits/plan-phase-references.md": {
       "sha": "08e51b13f6f3ff523d292a1b5daad5a8c9568301",
       "date": "2026-10-05"
+    },
+    "docs/audits/plan-source-references.md": {
+      "sha": "b6e37735099b636067c33dc1e42f554f29378aa9",
+      "date": "2026-10-07"
     },
     "docs/audits/plan-template.md": {
       "sha": "4cf93d4dadebc842fc643300d689bb06aa6b539b",
@@ -304,6 +328,10 @@
     "docs/ci-review-automation.md": {
       "sha": "e805edcee2371ded32aff741f973fe1191b13131",
       "date": "2026-10-05"
+    },
+    "docs/code-review-tracking.md": {
+      "sha": "cdb69ac447403abd8572a74196cff48df5c16bd5",
+      "date": "2026-10-07"
     },
     "docs/consistency-audits.md": {
       "sha": "e6bf33a5adab7a02260adf7b71a3305e7a7d5b33",
@@ -708,6 +736,10 @@
     "templates/shared-blocks/plan-closeout-sections.md": {
       "sha": "6cb9ee7e7d5d4756bbe598ad9e9f5374518f8ce2",
       "date": "2026-09-04"
+    },
+    "templates/shared-blocks/plan-file-conventions.md": {
+      "sha": "71902a4dbcba6511395fb58fbd8a2cfb76f0f628",
+      "date": "2026-10-07"
     },
     "templates/shared-blocks/plan-phase-landing.md": {
       "sha": "f0ff55057e0d7e3bf756810233d6acb0d621a3bd",
