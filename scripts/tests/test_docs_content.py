@@ -551,6 +551,96 @@ class DiagramFormatTest(CheckTestCase):
         self.assert_pass(result)
 
 
+class DocsLineReferencesTest(CheckTestCase):
+    check_class = docs_content.DocsLineReferences
+
+    def _check(self, files, props=None):
+        self.fresh_fixture()
+        self.fixture.write_all(files)
+        return self.check(**(props or {}))
+
+    def test_not_applicable_without_docs(self):
+        self.assert_skip(self._check({}))
+
+    def test_symbol_reference_passes(self):
+        self.assert_pass(self._check({
+            'docs/page.md': (
+                '# Page\n\nThe pass lives in `_parse_sources()` in\n'
+                '`kerbside/main.py`.\n'),
+        }))
+
+    def test_inline_code_line_reference_fails(self):
+        result = self.assert_fail(self._check({
+            'docs/page.md': '# Page\n\nSee (`kerbside/main.py:92-227`).\n',
+        }), containing='docs/page.md:3')
+        self.assertIn('1 line(s)', result['details'])
+
+    def test_bare_and_list_forms_fail(self):
+        for text in ('see main.py:64 for it',
+                     '`spice-channel.c:1987,2743-2746`',
+                     'the `tests/run.yml:451` task'):
+            self.assert_fail(self._check({
+                'README.md': f'# Project\n\n{text}\n',
+            }), containing='README.md:3')
+
+    def test_branch_line_anchor_fails(self):
+        self.assert_fail(self._check({
+            'AGENTS.md': (
+                '# Agents\n\n[here](https://github.com/a/b/blob/develop/'
+                'x.py#L10)\n'),
+        }))
+
+    def test_sha_pinned_permalink_passes(self):
+        sha = '0123456789abcdef0123456789abcdef01234567'
+        self.assert_pass(self._check({
+            'AGENTS.md': (
+                f'# Agents\n\n[here](https://github.com/a/b/blob/{sha}/'
+                f'x.py#L10)\n'),
+        }))
+
+    def test_tool_output_with_column_passes(self):
+        self.assert_pass(self._check({
+            'docs/testing.md': (
+                '# Testing\n\n`panicked at fuzz_planners.rs:278:17` on '
+                'its own does not identify a crash.\n'),
+        }))
+
+    def test_fenced_block_passes(self):
+        self.assert_pass(self._check({
+            'docs/ci.md': (
+                '# CI\n\n```\naction.yml:22:1: unexpected key\n'
+                '"location": "path/to/file.rs:42"\n```\n'),
+        }))
+
+    def test_plans_are_out_of_scope(self):
+        self.assert_pass(self._check({
+            'docs/index.md': '# Docs\n',
+            'docs/plans/PLAN-x.md': '# Plan\n\nAt `main.py:64` today.\n',
+        }))
+
+    def test_generated_block_passes(self):
+        self.assert_pass(self._check({
+            'docs/audits/compliance.md': (
+                '# Compliance\n\n<!-- consistency-audit:begin -->\n'
+                'Unresolved at `shakenfist/mariadb.py:3656`.\n'
+                '<!-- consistency-audit:end -->\n'),
+        }))
+
+    def test_audit_ok_marker_exempts_a_line(self):
+        self.assert_pass(self._check({
+            'docs/page.md': (
+                '# Page\n\nQuoted from `main.py:64`. '
+                '<!-- audit-ok: docs-line-references -->\n'),
+        }))
+
+    def test_hostname_and_port_passes(self):
+        self.assert_pass(self._check({
+            'docs/page.md': (
+                '# Page\n\nProbes `10.0.2.2:5900` and '
+                '`kerbside.example.com:13002`.\n'),
+        }))
+
+
 class MermaidLintCiTest(CheckTestCase):
     check_class = docs_content.MermaidLintCi
 

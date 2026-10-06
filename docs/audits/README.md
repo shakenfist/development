@@ -187,6 +187,7 @@ attached rather than quietly disappearing from the table.
 | [readme-structure.md](readme-structure.md) | Top-level README.md is a pitch, detail lives in docs/ |
 | [plan-phase-references.md](plan-phase-references.md) | Docs describe current behaviour, not plan phase history |
 | [diagram-format.md](diagram-format.md) | Diagrams of structure and flow are mermaid, not drawn in ASCII |
+| [docs-line-references.md](docs-line-references.md) | Documentation names code by symbol, not by line number |
 | [mermaid-lint-ci.md](mermaid-lint-ci.md) | Repositories with mermaid diagrams render them in CI, so a broken one fails the build |
 | [plan-source-references.md](plan-source-references.md) | Plan references in source and configuration still resolve |
 | [plan-index.md](plan-index.md) | docs/plans/index.md layout, date ordering, plan coverage and the status vocabulary |

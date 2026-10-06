@@ -40,6 +40,7 @@ CHECKS = [
     docs_content.ReadmeAbsoluteLinks(),
     docs_content.DocsExternalLinks(),
     docs_content.DiagramFormat(),
+    docs_content.DocsLineReferences(),
     docs_content.MermaidLintCi(),
     plans.PlanPhaseReferences(),
     plans.PlanSourceReferences(),
