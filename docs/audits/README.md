@@ -137,6 +137,14 @@ not projects in the sense these criteria mean:
 * uefi-latency-guest
 * website
 
+`client-python-ova`, `divergulent-reviews`, `homebrew-tap`,
+`performance`, `reproducables`, `sonobouy` and `uefi-latency-guest`
+were confirmed on 2026-10-05 to have no `.github/workflows/`
+directory, no container build file and no top-level `templates/`, so
+`eol-distro` would report `not applicable` for every one of them; that
+is why they stay excluded, which is narrower and truer than the
+reasons the list gives above.
+
 The `actions` repository is audited despite being tooling: the whole
 fleet depends on it for its composite actions and reusable workflows,
 so it is held to the same standards as anything else. `development`,
