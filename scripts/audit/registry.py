@@ -68,6 +68,7 @@ CHECKS = [
     runners.StaticRunnerTags(),
     runners.VmRunnerSize(),
     distros.EolDistro(),
+    distros.EolProducers(),
     ci_workflows.CiReviewAutomation(),
     ci_workflows.WorkflowPermissions(),
     ci_workflows.PreCommitConfig(),

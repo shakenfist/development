@@ -22,8 +22,18 @@ depends on a release mechanically rather than by mentioning it:
 Guest images a test boots, cached disk images a job copies, and the
 upstream job names a matrix names are all out of scope -- see
 docs/audits/eol-distro.md for why, and what covers them instead.
+
+`eol-producers` is the other half of the same table, asked of the
+other end of the dependency. `eol-distro` asks whether a repository
+*names* a banned label; `eol-producers` asks whether it *offers* one.
+A consumer naming `debian-12` mostly inherits what the producer
+decided, so the two are different defects with different owners: the
+consumer moves its workflow, and the producer stops baking the image.
+Both read the same `EOL_RELEASES` table, because a second copy of the
+banned list is the defect `eol-distro` was written to avoid.
 """
 
+import ast
 import collections
 import datetime
 import os
@@ -54,9 +64,11 @@ EolRelease = collections.namedtuple(
 #: Every release the fleet has retired, oldest first.
 #:
 #: `runner_labels` are the labels the CI conductor advertises for that
-#: release -- the source of truth is IMAGES in shakenfist/private-ci's
-#: conductor/imagebuilder.py, which this repository cannot see -- plus
-#: the GitHub-hosted spelling where one exists. Every variant needs
+#: release -- the source of truth is IMAGE_BUILDS in
+#: shakenfist/private-ci's conductor/imagebuilder.py, and CI_IMAGES in
+#: its conductor/provisioner.py; see PRODUCER_DEFINITIONS below, which
+#: eol-producers reads -- plus the GitHub-hosted spelling where one
+#: exists. Every variant needs
 #: listing rather than being derived from `distro` and `version`,
 #: because the variants are named by hand there too and a derived
 #: pattern would either miss `debian-gnome-12` or invent labels that do
@@ -420,6 +432,276 @@ def release_guidance(found):
     )
 
 
+#: The runner-label producer definitions the fleet owns, as
+#: (repository-relative path, module-level name) pairs.
+#:
+#: Both are in shakenfist/private-ci, which decision 6.4 of
+#: docs/plans/PLAN-image-supply-chain.md records as the only producer
+#: of runner labels in the organisation: `images` publishes guest
+#: images, which is a different question, and the static fleet in
+#: another organisation advertises no release label at all.
+#:
+#: They are named rather than discovered. A producer is a deliberate
+#: thing -- two tables, in one repository, that decide what the whole
+#: fleet can boot -- and a walk looking for lists of dicts with a
+#: 'label' key would read any such list, including the ones that have
+#: nothing to do with runners. Adding the third producer is a line
+#: here.
+PRODUCER_DEFINITIONS = (
+    ('conductor/imagebuilder.py', 'IMAGE_BUILDS'),
+    ('conductor/provisioner.py', 'CI_IMAGES'),
+)
+
+
+#: The key in a producer entry that carries the runner label.
+#:
+#: The entries also carry a 'name' and an upstream image reference,
+#: and those are not this criterion: the upstream image is what the
+#: label is built *from*, so reading it would report `debian:12` as a
+#: finding against the one repository whose job is to turn it into
+#: something bootable. What this criterion measures is the label the
+#: fleet is offered.
+PRODUCER_LABEL_KEY = 'label'
+
+
+class ProducerParseError(Exception):
+    """A producer definition is present and could not be read.
+
+    Raised rather than returned, so `registry.run_check()` reports it
+    as `error`. That is the distinction the verdicts cannot carry: a
+    `pass` would report a producer nobody actually read as clean,
+    which is the vacuous pass this criterion exists to avoid, and a
+    `fail` would file an issue under the bot's identity against
+    private-ci for what is a bug in this check -- the shape of the
+    table changed and the parse here did not keep up. `error` files
+    nothing, closes nothing, and fails the audit leg.
+    """
+
+
+def producer_definitions(repo):
+    """The producer definitions this checkout actually carries."""
+    return [(path, name) for path, name in PRODUCER_DEFINITIONS
+            if repo.exists(path)]
+
+
+#: Methods whose call on a producer table, or on an entry in it,
+#: changes what the table offers after the literal this reads.
+PRODUCER_MUTATORS = frozenset((
+    'append', 'extend', 'insert', 'update', 'setdefault',
+    'pop', 'popitem', 'remove', 'clear',
+    '__setitem__', '__delitem__', '__iadd__',
+))
+
+
+def _root_name(node):
+    """The name an attribute or subscript chain starts from, or None."""
+    while isinstance(node, (ast.Attribute, ast.Subscript)):
+        node = node.value
+    return node.id if isinstance(node, ast.Name) else None
+
+
+def _import_time_nodes(node):
+    """A node and every node beneath it that runs at import time.
+
+    A function or lambda is skipped whole: its body runs only when it
+    is called, which a parse cannot follow. A class body runs at
+    import and is walked.
+    """
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                         ast.Lambda)):
+        return
+    yield node
+    for child in ast.iter_child_nodes(node):
+        yield from _import_time_nodes(child)
+
+
+def _changes(statement, name):
+    """The first import-time node in a statement that changes `name`.
+
+    A rebinding, an augmented assignment, a `del`, a store into the
+    table or into one of its entries, or a call to one of
+    PRODUCER_MUTATORS on either. Reading the table -- the provisioner
+    builds ALL_CI_IMAGE_LABELS from CI_IMAGES at module level -- is
+    not a change.
+    """
+    for node in _import_time_nodes(statement):
+        if (isinstance(node, (ast.Name, ast.Attribute, ast.Subscript))
+                and isinstance(node.ctx, (ast.Store, ast.Del))
+                and _root_name(node) == name):
+            return node
+        if (isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr in PRODUCER_MUTATORS
+                and _root_name(node.func.value) == name):
+            return node
+    return None
+
+
+def _assigned_value(tree, name, path):
+    """The value assigned to a module-level name, or None.
+
+    Only module level, and only a plain assignment: a label list built
+    at import time by a function call or a comprehension is not a
+    literal this can read, and pretending otherwise would return an
+    empty list that looks like a clean producer.
+
+    The first assignment is the one read, so a module-level change
+    made directly through the table's name after it -- `+=`,
+    `.append()`, a second assignment, `NAME[0]['label'] = ...` --
+    raises ProducerParseError. Those all offer labels the literal does
+    not show, and a parse that read the literal and passed would be
+    reporting a table it had only half read.
+
+    Out of reach, and passed on the literal alone: a change made
+    through another name -- an alias (`B = NAME; B.append(...)`), a
+    loop variable (`for b in NAME: b['label'] = ...`), or
+    `list.append(NAME, ...)` -- and anything in a function, including
+    its decorators and default arguments, which this does not walk.
+    Following names through assignments is data-flow analysis, and
+    the tables this reads are plain literals with nothing done to
+    them afterwards.
+    """
+    value = None
+    for statement in tree.body:
+        if value is None:
+            if isinstance(statement, ast.Assign):
+                targets = statement.targets
+            elif (isinstance(statement, ast.AnnAssign)
+                    and statement.value is not None):
+                targets = [statement.target]
+            else:
+                continue
+            if any(isinstance(target, ast.Name) and target.id == name
+                   for target in targets):
+                value = statement.value
+            continue
+
+        changed = _changes(statement, name)
+        if changed is not None:
+            raise ProducerParseError(
+                f'{path}:{changed.lineno} changes {name} after the '
+                f'assignment this reads, so the literal is not the '
+                f'whole table')
+    return value
+
+
+def _entry_label(element, name, path):
+    """The literal label one table entry offers, and its line.
+
+    All or nothing. An entry this cannot read raises rather than
+    being skipped: skipping it would pass a table on the entries that
+    happened to be literal, which is the vacuous pass of an unread
+    producer applied to one entry instead of all of them. Unreadable
+    covers an entry that is not a dict literal (`dict(label=...)`, a
+    helper call, a `*spread`), a key that is not a literal (including
+    a `**spread`, which could carry or override the label), and a
+    label that is not a string literal (a constant, an f-string).
+    """
+    where = f'{path}:{element.lineno}'
+    if not isinstance(element, ast.Dict):
+        raise ProducerParseError(
+            f'{where}: an entry in {name} is not a dict literal')
+    for key in element.keys:
+        if not isinstance(key, ast.Constant):
+            shown = '**' if key is None else ast.unparse(key)
+            raise ProducerParseError(
+                f'{where}: an entry in {name} has a key that is not a '
+                f'literal ({shown}), so its label cannot be read')
+
+    labels = [entry for key, entry in zip(element.keys, element.values)
+              if key.value == PRODUCER_LABEL_KEY]
+    if len(labels) != 1:
+        raise ProducerParseError(
+            f'{where}: an entry in {name} has {len(labels)} '
+            f'{PRODUCER_LABEL_KEY!r} keys, not one')
+    label = labels[0]
+    if not (isinstance(label, ast.Constant)
+            and isinstance(label.value, str)):
+        raise ProducerParseError(
+            f'{where}: an entry in {name} has a {PRODUCER_LABEL_KEY!r} '
+            f'that is not a string literal')
+    return label.value, label.lineno
+
+
+def definition_labels(source, name, path='<producer>'):
+    """The labels one producer definition offers, with line numbers.
+
+    Parsed rather than grepped, and that is the whole point of this
+    function. Both producer modules discuss retired labels in their
+    comments: at the time of writing, `imagebuilder.py` carries
+    "ubuntu-2004 was dropped 2026-07-11" above the entries that
+    replaced it, and the plan for the step that reworded the
+    STALE_LABEL_SECONDS comment forbade it from quoting a retired
+    label precisely so that a grep-shaped gate would not fire forever
+    after. A grep cannot tell a live entry from its own obituary; the
+    abstract syntax tree has no comments in it at all.
+
+    Raises ProducerParseError for a definition that is there but not
+    in the shape this understands, rather than returning nothing: the
+    two answers are "this producer offers no banned label" and "this
+    producer was not read", and they must not render the same.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as e:
+        raise ProducerParseError(
+            f'{path} is not parseable Python ({e})')
+
+    value = _assigned_value(tree, name, path)
+    if value is None:
+        raise ProducerParseError(
+            f'{path} has no module-level {name} assignment')
+    if not isinstance(value, (ast.List, ast.Tuple)):
+        raise ProducerParseError(
+            f'{path}:{name} is not a list of entries')
+
+    return [_entry_label(element, name, path) for element in value.elts]
+
+
+def retired_labels(today=None):
+    """Which retired release each banned runner label belongs to.
+
+    RELEASE_BY_LABEL covers every entry in the table, including one
+    written ahead of its date, and scan() filters those out after
+    matching. This is the same filter applied before matching, which
+    is all a producer needs: there is no false positive to recognise
+    and then withhold.
+    """
+    return {
+        label: release
+        for release in retired_releases(today)
+        for label in release.runner_labels
+    }
+
+
+def scan_producers(repo, definitions=None, today=None):
+    """Every banned runner label this checkout's producers offer.
+
+    Returns (location, label, release) triples, the same shape scan()
+    returns, so release_guidance() reads either.
+
+    In definition order -- each producer in the order
+    PRODUCER_DEFINITIONS lists it, each label in the order its table
+    offers it -- rather than sorted. The fix is read down the file,
+    and sorting the locations as strings puts line 123 above line 62,
+    which is how eol-distro's list reads today.
+    """
+    if definitions is None:
+        definitions = producer_definitions(repo)
+    banned = retired_labels(today)
+
+    found = []
+    for path, name in definitions:
+        source = repo.read(path)
+        if source is None:
+            raise ProducerParseError(
+                f'{path} exists and could not be read')
+        for label, line in definition_labels(source, name, path=path):
+            if label in banned:
+                found.append((f'{path}:{line}', label, banned[label]))
+    return found
+
+
 class EolDistro(Check):
     id = 'eol-distro'
     spec = 'docs/audits/eol-distro.md'
@@ -476,4 +758,74 @@ class EolDistro(Check):
             f'-- test input built on the old release, say -- is '
             f'marked "audit-ok: eol-distro" with the reason, on the '
             f'line or the line above',
+            findings=locations)
+
+
+class EolProducers(Check):
+    id = 'eol-producers'
+    spec = 'docs/audits/eol-producers.md'
+    template = None
+    issue_title = 'End-of-life runner labels offered'
+
+    def applies(self, repo):
+        """Only a repository that defines runner labels is measured.
+
+        A repository with no producer definition reports
+        not_applicable rather than pass, and the difference matters
+        more here than for most criteria: all but one repository in
+        the fleet has no producer, so a criterion that passed them
+        would report the whole organisation green on a question it
+        never asked any of them.
+        """
+        if not producer_definitions(repo):
+            return (
+                'No runner-label producer definition ('
+                + ', '.join(f'{name} in {path}'
+                            for path, name in PRODUCER_DEFINITIONS)
+                + ')'
+            )
+        return None
+
+    def run(self, repo):
+        """Check no runner label is offered for a retired release.
+
+        The producer end of the end-of-life table. `eol-distro` asks
+        whether a repository names a banned label; this asks whether
+        it offers one, which is the exposure that produced eighty
+        consumer findings in shakenfist/development#123 -- a consumer
+        mostly boots whatever the producer decided it could.
+
+        The definitions are parsed as Python rather than grepped,
+        because both of them discuss retired labels in their comments
+        and a grep reports an obituary as a live entry.
+
+        There is no exception marker. A line marked `audit-ok` is how
+        a repository says "this reference has to stay", and the three
+        reasons the fleet has for that -- test input built on an old
+        release, an upstream job name, a guest image somebody boots on
+        purpose -- are all consumer shapes. A producer is where the
+        label can actually be removed, so a decision to keep serving a
+        retired release is a decision about what the fleet may ask
+        for, and it belongs in the EOL_RELEASES table rather than in a
+        comment on one of two files.
+        """
+        definitions = producer_definitions(repo)
+        found = scan_producers(repo, definitions=definitions)
+        read = ', '.join(f'{name} in {path}'
+                         for path, name in definitions)
+        if not found:
+            return self.ok(
+                f'No runner label offered by {read} names any of the '
+                f'{len(retired_releases())} retired distribution '
+                f'releases')
+
+        locations = [f'{where} ({what})' for where, what, _ in found]
+        return self.fail(
+            f'{len(locations)} runner label(s) offered for end-of-life '
+            f'distribution releases. {release_guidance(found)}. '
+            f'The fix is to delete the entry, so the label stops being '
+            f'served at all -- but a consumer still naming it then '
+            f'queues against a label no runner advertises, which fails '
+            f'nothing and waits forever, so the consumers move first '
+            f'and the eol-distro findings are how they are told',
             findings=locations)
