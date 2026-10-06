@@ -51,11 +51,14 @@ REPO_OVERRIDES = {
     # private-ci is internal tooling and stays outside the conventions
     # audits: it is a legacy setup.py project with no workflows of its
     # own, and holding it to the fleet's release, renovate and README
-    # rules would only manufacture issues nobody intends to fix. It
-    # does vendor sfui, though, and drift in a vendored copy is
-    # invisible until somebody thinks to look, so that one check
-    # applies. only_checks scopes a repository to a subset of the
-    # audit rather than excluding it wholesale.
+    # rules would only manufacture issues nobody intends to fix. Two
+    # checks still apply, though: it vendors sfui, and drift in a
+    # vendored copy is invisible until somebody thinks to look; and it
+    # owns IMAGE_BUILDS (conductor/imagebuilder.py) and CI_IMAGES
+    # (conductor/provisioner.py), the runner-label producer
+    # definitions eol-producers checks against the end-of-life table
+    # in docs/audits/eol-distro.md. only_checks scopes a repository to
+    # a subset of the audit rather than excluding it wholesale.
     #
     # It plans like the rest of the fleet, though, which the original
     # scoping did not anticipate: it adopted PLAN-TEMPLATE.md and a
@@ -88,7 +91,8 @@ REPO_OVERRIDES = {
     'private-ci': {
         'only_checks': [
             'plan-phase-references', 'plan-source-references',
-            'plan-index', 'plan-template', 'sfui-vendor',
+            'plan-index', 'plan-template', 'eol-producers',
+            'sfui-vendor',
         ],
     },
     # sfui is a CSS/JavaScript design system with no build step. Its

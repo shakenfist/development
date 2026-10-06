@@ -50,8 +50,9 @@ jobs:
           - kerbside-patches
           - library-utilities
           - occystrap
-          # Scoped to the sfui-vendor check by REPO_OVERRIDES; see
-          # docs/audits/sfui-vendor.md for why it is in the matrix at all.
+          # Scoped to a subset of checks by REPO_OVERRIDES; see the
+          # partial-scope paragraph in docs/audits/README.md for which
+          # checks currently apply and why.
           - private-ci
           - ryll
           - shakenfist

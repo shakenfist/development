@@ -393,7 +393,8 @@ class RepoOverridesTest(unittest.TestCase):
         self.assertEqual(
             props['only_checks'],
             ['plan-phase-references', 'plan-source-references',
-             'plan-index', 'plan-template', 'sfui-vendor'])
+             'plan-index', 'plan-template', 'eol-producers',
+             'sfui-vendor'])
         # plan-audit-phase and push-audit are deliberately absent: the
         # plans written there before it adopted the template do not
         # carry a push audit phase, so enabling plan-audit-phase would
@@ -443,11 +444,11 @@ class CheckScopeTest(unittest.TestCase):
         )
 
     def test_scoped_repo_runs_only_its_check(self):
-        # private-ci is scoped to sfui-vendor and the four plan
-        # checks. Every other check must be reported not_applicable
-        # with the scoping reason, and must not have run: a check that
-        # ran would have written its own details, and several of them
-        # would reach for the network.
+        # private-ci is scoped to sfui-vendor, eol-producers and the
+        # four plan checks. Every other check must be reported
+        # not_applicable with the scoping reason, and must not have
+        # run: a check that ran would have written its own details,
+        # and several of them would reach for the network.
         # A real (empty) checkout, as the workflow's clone is: the
         # checks that list the index fail on a directory git does not
         # recognise, rather than reading it as holding nothing.
@@ -457,12 +458,14 @@ class CheckScopeTest(unittest.TestCase):
                 tmp, 'private-ci', 'shakenfist'
             )
 
-        reason = ('private-ci is audited for plan-index, '
-                  'plan-phase-references, plan-source-references, '
-                  'plan-template, sfui-vendor only')
+        reason = ('private-ci is audited for eol-producers, '
+                  'plan-index, plan-phase-references, '
+                  'plan-source-references, plan-template, '
+                  'sfui-vendor only')
         scoped = {
             'plan-phase-references', 'plan-source-references',
-            'plan-index', 'plan-template', 'sfui-vendor',
+            'plan-index', 'plan-template', 'eol-producers',
+            'sfui-vendor',
         }
         by_id = {c['id']: c for c in results['checks']}
         self.assertEqual(len(by_id), len(ISSUE_TITLES))
