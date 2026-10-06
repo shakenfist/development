@@ -49,7 +49,13 @@ EXCLUDED_BULLET = '* '
 
 IN_SCOPE_DOC = 'docs/audits/README.md'
 IN_SCOPE_START = '## In-scope projects'
-IN_SCOPE_END = 'One project is in scope'
+# Count-free on purpose: "One project is in scope for part of the audit
+# only:" becomes "Two projects are..." the moment a second repository is
+# partially scoped, and an anchor naming the count stops matching on
+# exactly the edit that adds one. This phrase is a substring of both the
+# singular and the plural lead-in, appears nowhere else in the document,
+# and needs no edit when a third repository joins.
+IN_SCOPE_END = 'in scope for part of the audit only'
 IN_SCOPE_BULLET = '- '
 
 MATRIX_WORKFLOW = '.github/workflows/consistency-audit.yml'
@@ -58,7 +64,14 @@ MATRIX_BULLET = '          - '
 
 PARTIAL_SCOPE_DOC = 'docs/audits/README.md'
 PARTIAL_SCOPE_START = ' is audited for the '
+#: The human-readable end phrase, for error messages. A repository
+#: scoped to exactly one check reads "...is audited for the
+#: `eol-distro` check, and nothing else." -- singular, correct English
+#: -- so the parse itself matches PARTIAL_SCOPE_END_PATTERN below
+#: rather than this string verbatim; this one is never made
+#: ungrammatical to satisfy a parser.
 PARTIAL_SCOPE_END = ' checks, and nothing else.'
+PARTIAL_SCOPE_END_PATTERN = r' checks?, and nothing else\.'
 
 #: The partially scoped repositories and what the page says each is
 #: measured against, read out of the one sentence per repository that
@@ -71,7 +84,7 @@ PARTIAL_SCOPE_END = ' checks, and nothing else.'
 #: reason cannot change what the sentence is read as claiming.
 PARTIAL_SCOPE = re.compile(
     r'([a-z0-9][a-z0-9.-]*)' + re.escape(PARTIAL_SCOPE_START) +
-    r'(.*?)' + re.escape(PARTIAL_SCOPE_END), re.DOTALL)
+    r'(.*?)' + PARTIAL_SCOPE_END_PATTERN, re.DOTALL)
 
 #: What a check id looks like, used the way REPO_NAME is used above: to
 #: notice a parse that has started collecting prose rather than to

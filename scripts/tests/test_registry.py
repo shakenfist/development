@@ -302,6 +302,57 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
                     'depending on where the lines were wrapped',
                 )
 
+    def test_a_one_check_partial_scope_sentence_parses(self):
+        # There has never been a one-check repository until images
+        # joined scoped to eol-distro alone, and correct English for
+        # that is singular: "...is audited for the `eol-distro`
+        # check, and nothing else." PARTIAL_SCOPE_END names the plural
+        # only, so a sentence this shape has to be accepted without
+        # the document being written in ungrammatical prose to
+        # satisfy the parser.
+        text = (
+            '- images is audited for the `eol-distro` check, and '
+            'nothing else. It is internal tooling.\n'
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, 'docs', 'audits'))
+            with open(os.path.join(tmp, scope.PARTIAL_SCOPE_DOC), 'w') as f:
+                f.write(text)
+            self.assertEqual(
+                scope.documented_partial_scope(tmp),
+                {'images': ['eol-distro']},
+                'the partial-scope parse does not accept a singular '
+                '"check, and nothing else."',
+            )
+
+    def test_the_in_scope_end_anchor_survives_a_second_partial_repo(self):
+        # IN_SCOPE_END used to be 'One project is in scope', which is
+        # exactly the phrase that stops matching the moment a second
+        # repository is partially scoped and the lead-in becomes "Two
+        # projects are...". The anchor is count-free now, so both
+        # wordings still delimit the in-scope list.
+        for lead_in in (
+            'One project is in scope for part of the audit only:\n',
+            'Two projects are in scope for part of the audit only:\n',
+        ):
+            text = (
+                '## In-scope projects\n'
+                '\n'
+                '- occystrap\n'
+                '\n'
+                + lead_in
+            )
+            with tempfile.TemporaryDirectory() as tmp:
+                with open(os.path.join(tmp, 'doc.md'), 'w') as f:
+                    f.write(text)
+                self.assertEqual(
+                    scope.bulleted_block(
+                        tmp, 'doc.md', scope.IN_SCOPE_START,
+                        scope.IN_SCOPE_END, scope.IN_SCOPE_BULLET,
+                    ),
+                    ['occystrap'],
+                )
+
     def test_a_partial_scope_paragraph_that_vanished_is_rejected(self):
         # The loud failure, kept as a test because the alternative to
         # raising is returning {}, which compares equal to an empty
