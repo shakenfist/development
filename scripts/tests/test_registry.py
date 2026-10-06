@@ -190,6 +190,40 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
             'docs/audits/README.md disagree',
         )
 
+    def test_every_scoped_repo_is_in_the_audit_matrix(self):
+        """only_checks on a repository the matrix never runs is decorative.
+
+        The comparisons above are both written to tolerate a partially
+        scoped repository, and they tolerate it so thoroughly that
+        deleting one from the matrix changes nothing either of them
+        measures. test_matrix_matches_the_documented_scope subtracts
+        the scoped set before comparing, so the repository was never
+        on either side of that equality; the excluded-list test
+        subtracts it as well, and a smaller overlap is still empty.
+        Both pass, and the repository has stopped being audited.
+
+        The scope-coverage check does not catch it either, for a
+        reason that reads like coverage: a partially scoped repository
+        is on the excluded list too -- deliberately, the list says
+        which conventions it is outside -- and that check asks
+        `organisation - matrix - excluded`, so being excluded makes it
+        a decided repository whether or not anything runs it.
+
+        So only_checks is the one scope statement with nothing holding
+        it to what executes, which is the shape this audit exists to
+        report in other people's repositories. Found by deleting the
+        matrix line and watching the suite pass.
+        """
+        self.assertEqual(
+            self.partially_scoped() - set(self.matrix_repos()),
+            set(),
+            'these repositories are scoped to a subset of the checks '
+            'by only_checks in scripts/audit/repo.py but are not in '
+            'the matrix in .github/workflows/consistency-audit.yml, '
+            'so nothing runs the checks they are scoped to and every '
+            'other scope statement still agrees',
+        )
+
     def test_the_partial_scope_paragraph_matches_the_overrides(self):
         """What a scoped repository is audited for, said once.
 
