@@ -190,6 +190,40 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
             'docs/audits/README.md disagree',
         )
 
+    def test_every_scoped_repo_is_in_the_audit_matrix(self):
+        """only_checks on a repository the matrix never runs is decorative.
+
+        The comparisons above are both written to tolerate a partially
+        scoped repository, and they tolerate it so thoroughly that
+        deleting one from the matrix changes nothing either of them
+        measures. test_matrix_matches_the_documented_scope subtracts
+        the scoped set before comparing, so the repository was never
+        on either side of that equality; the excluded-list test
+        subtracts it as well, and a smaller overlap is still empty.
+        Both pass, and the repository has stopped being audited.
+
+        The scope-coverage check does not catch it either, for a
+        reason that reads like coverage: a partially scoped repository
+        is on the excluded list too -- deliberately, the list says
+        which conventions it is outside -- and that check asks
+        `organisation - matrix - excluded`, so being excluded makes it
+        a decided repository whether or not anything runs it.
+
+        So only_checks is the one scope statement with nothing holding
+        it to what executes, which is the shape this audit exists to
+        report in other people's repositories. Found by deleting the
+        matrix line and watching the suite pass.
+        """
+        self.assertEqual(
+            self.partially_scoped() - set(self.matrix_repos()),
+            set(),
+            'these repositories are scoped to a subset of the checks '
+            'by only_checks in scripts/audit/repo.py but are not in '
+            'the matrix in .github/workflows/consistency-audit.yml, '
+            'so nothing runs the checks they are scoped to and every '
+            'other scope statement still agrees',
+        )
+
     def test_the_partial_scope_paragraph_matches_the_overrides(self):
         """What a scoped repository is audited for, said once.
 
@@ -302,6 +336,57 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
                     'depending on where the lines were wrapped',
                 )
 
+    def test_a_one_check_partial_scope_sentence_parses(self):
+        # There has never been a one-check repository until images
+        # joined scoped to eol-distro alone, and correct English for
+        # that is singular: "...is audited for the `eol-distro`
+        # check, and nothing else." PARTIAL_SCOPE_END names the plural
+        # only, so a sentence this shape has to be accepted without
+        # the document being written in ungrammatical prose to
+        # satisfy the parser.
+        text = (
+            '- images is audited for the `eol-distro` check, and '
+            'nothing else. It is internal tooling.\n'
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, 'docs', 'audits'))
+            with open(os.path.join(tmp, scope.PARTIAL_SCOPE_DOC), 'w') as f:
+                f.write(text)
+            self.assertEqual(
+                scope.documented_partial_scope(tmp),
+                {'images': ['eol-distro']},
+                'the partial-scope parse does not accept a singular '
+                '"check, and nothing else."',
+            )
+
+    def test_the_in_scope_end_anchor_survives_a_second_partial_repo(self):
+        # IN_SCOPE_END used to be 'One project is in scope', which is
+        # exactly the phrase that stops matching the moment a second
+        # repository is partially scoped and the lead-in becomes "Two
+        # projects are...". The anchor is count-free now, so both
+        # wordings still delimit the in-scope list.
+        for lead_in in (
+            'One project is in scope for part of the audit only:\n',
+            'Two projects are in scope for part of the audit only:\n',
+        ):
+            text = (
+                '## In-scope projects\n'
+                '\n'
+                '- occystrap\n'
+                '\n'
+                + lead_in
+            )
+            with tempfile.TemporaryDirectory() as tmp:
+                with open(os.path.join(tmp, 'doc.md'), 'w') as f:
+                    f.write(text)
+                self.assertEqual(
+                    scope.bulleted_block(
+                        tmp, 'doc.md', scope.IN_SCOPE_START,
+                        scope.IN_SCOPE_END, scope.IN_SCOPE_BULLET,
+                    ),
+                    ['occystrap'],
+                )
+
     def test_a_partial_scope_paragraph_that_vanished_is_rejected(self):
         # The loud failure, kept as a test because the alternative to
         # raising is returning {}, which compares equal to an empty
@@ -393,7 +478,8 @@ class RepoOverridesTest(unittest.TestCase):
         self.assertEqual(
             props['only_checks'],
             ['plan-phase-references', 'plan-source-references',
-             'plan-index', 'plan-template', 'sfui-vendor'])
+             'plan-index', 'plan-template', 'eol-producers',
+             'sfui-vendor'])
         # plan-audit-phase and push-audit are deliberately absent: the
         # plans written there before it adopted the template do not
         # carry a push audit phase, so enabling plan-audit-phase would
@@ -443,11 +529,11 @@ class CheckScopeTest(unittest.TestCase):
         )
 
     def test_scoped_repo_runs_only_its_check(self):
-        # private-ci is scoped to sfui-vendor and the four plan
-        # checks. Every other check must be reported not_applicable
-        # with the scoping reason, and must not have run: a check that
-        # ran would have written its own details, and several of them
-        # would reach for the network.
+        # private-ci is scoped to sfui-vendor, eol-producers and the
+        # four plan checks. Every other check must be reported
+        # not_applicable with the scoping reason, and must not have
+        # run: a check that ran would have written its own details,
+        # and several of them would reach for the network.
         # A real (empty) checkout, as the workflow's clone is: the
         # checks that list the index fail on a directory git does not
         # recognise, rather than reading it as holding nothing.
@@ -457,12 +543,14 @@ class CheckScopeTest(unittest.TestCase):
                 tmp, 'private-ci', 'shakenfist'
             )
 
-        reason = ('private-ci is audited for plan-index, '
-                  'plan-phase-references, plan-source-references, '
-                  'plan-template, sfui-vendor only')
+        reason = ('private-ci is audited for eol-producers, '
+                  'plan-index, plan-phase-references, '
+                  'plan-source-references, plan-template, '
+                  'sfui-vendor only')
         scoped = {
             'plan-phase-references', 'plan-source-references',
-            'plan-index', 'plan-template', 'sfui-vendor',
+            'plan-index', 'plan-template', 'eol-producers',
+            'sfui-vendor',
         }
         by_id = {c['id']: c for c in results['checks']}
         self.assertEqual(len(by_id), len(ISSUE_TITLES))

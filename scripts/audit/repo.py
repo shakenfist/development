@@ -51,11 +51,14 @@ REPO_OVERRIDES = {
     # private-ci is internal tooling and stays outside the conventions
     # audits: it is a legacy setup.py project with no workflows of its
     # own, and holding it to the fleet's release, renovate and README
-    # rules would only manufacture issues nobody intends to fix. It
-    # does vendor sfui, though, and drift in a vendored copy is
-    # invisible until somebody thinks to look, so that one check
-    # applies. only_checks scopes a repository to a subset of the
-    # audit rather than excluding it wholesale.
+    # rules would only manufacture issues nobody intends to fix. Two
+    # checks still apply, though: it vendors sfui, and drift in a
+    # vendored copy is invisible until somebody thinks to look; and it
+    # owns IMAGE_BUILDS (conductor/imagebuilder.py) and CI_IMAGES
+    # (conductor/provisioner.py), the runner-label producer
+    # definitions eol-producers checks against the end-of-life table
+    # in docs/audits/eol-distro.md. only_checks scopes a repository to
+    # a subset of the audit rather than excluding it wholesale.
     #
     # It plans like the rest of the fleet, though, which the original
     # scoping did not anticipate: it adopted PLAN-TEMPLATE.md and a
@@ -88,8 +91,22 @@ REPO_OVERRIDES = {
     'private-ci': {
         'only_checks': [
             'plan-phase-references', 'plan-source-references',
-            'plan-index', 'plan-template', 'sfui-vendor',
+            'plan-index', 'plan-template', 'eol-producers',
+            'sfui-vendor',
         ],
+    },
+    # images publishes guest images and has been excluded from the
+    # conventions as a "historical archive", which it demonstrably is
+    # not: it is built from every night and the fleet's CI boots from
+    # its output. Joining the audit fully would file twelve findings,
+    # eight of which have no owner in any plan -- the same mistake
+    # phase 6 found and corrected elsewhere, pointed outward at a
+    # repository whose maintainers did not ask for it. So it joins
+    # scoped to eol-distro alone: the pass this was confirmed to have
+    # by hand becomes a verdict the audit reports on a schedule,
+    # without manufacturing the other eleven findings.
+    'images': {
+        'only_checks': ['eol-distro'],
     },
     # sfui is a CSS/JavaScript design system with no build step. Its
     # only Python is incidental test tooling (pytest and the
