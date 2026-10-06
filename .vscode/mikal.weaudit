@@ -229,10 +229,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/repo.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_audit_snapshot.py",
       "author": "mikal"
     },
@@ -541,10 +537,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_registry.py",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/docs-external-links.md",
       "author": "mikal"
     },
@@ -649,10 +641,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/consistency-audit.yml",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/diagram-format.md",
       "author": "mikal"
     },
@@ -714,14 +702,6 @@
     },
     {
       "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
       "author": "mikal"
     },
     {
@@ -826,10 +806,6 @@
     },
     {
       "path": "docs/audits/reusable-workflow-secrets.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/scope.py",
       "author": "mikal"
     },
     {

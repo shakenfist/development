@@ -41,10 +41,6 @@
       "sha": "975f656d8135aefe12ba2f2094d8671460ef1a8a",
       "date": "2026-10-01"
     },
-    ".github/workflows/consistency-audit.yml": {
-      "sha": "c4ffecc025bde3af24d12780ce1ce319a2457f53",
-      "date": "2026-10-05"
-    },
     ".github/workflows/export-repo-config.yml": {
       "sha": "b9b3936053b8685ef0ae47f656b2f35aa62ba637",
       "date": "2026-09-27"
@@ -397,14 +393,6 @@
       "sha": "ef1d4a20156613830ec787fde806cbf955e9501e",
       "date": "2026-09-02"
     },
-    "scripts/audit/repo.py": {
-      "sha": "56afa0fbc2ae2d0418f6b6b9aef9455f12dbd443",
-      "date": "2026-09-22"
-    },
-    "scripts/audit/scope.py": {
-      "sha": "3428a481fd06f60be757546fa3d7aa163171f5e9",
-      "date": "2026-10-05"
-    },
     "scripts/audit/text/__init__.py": {
       "sha": "dc2515cc9e2cdd5083c39a803bfdbcafb37dbe0d",
       "date": "2026-09-02"
@@ -520,10 +508,6 @@
     "scripts/tests/test_python_source.py": {
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",
       "date": "2026-09-04"
-    },
-    "scripts/tests/test_registry.py": {
-      "sha": "9efc326e617048fe17bdb38f614ad5d760db5fc4",
-      "date": "2026-10-05"
     },
     "scripts/tests/test_repo.py": {
       "sha": "89987f23cb42ec217670bda7881661ecdd8b0614",
