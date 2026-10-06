@@ -1,0 +1,912 @@
+# Bot bypass identity
+
+## Prompt
+
+Before responding to questions or discussion points in this
+document, explore this repository thoroughly. Read the relevant
+files and ground your answers in what they actually say. Do not
+speculate about the repository when you could read it instead.
+Flag any uncertainty explicitly rather than guessing.
+
+There is no application code here. The artifacts are the audit
+specifications in `docs/audits/`, the tooling in `scripts/` that
+measures them, the templates in `templates/` that the rest of the
+fleet copies, and the workflows that run all of it every week
+against every Shaken Fist repository.
+
+Consult `AGENTS.md` for the conventions and the invariants that
+are not visible in the code, and `ARCHITECTURE.md` for the shape
+of the system. `docs/consistency-audits.md` is the reference for
+what a run does, how to add a criterion, how to bring a
+repository into scope, and how to test a change before it reaches
+the fleet -- read it before changing anything under `scripts/` or
+`docs/audits/`. `docs/code-review-tracking.md` covers the review
+tooling, and `PUSH-AUDIT.md` is the pre-push review runbook that
+every plan's final phase runs.
+
+Two things make planning here different from planning in a
+repository that holds a product, and both should shape any plan
+written from this template:
+
+* **The blast radius is other people's repositories.** The weekly
+  workflow files and closes GitHub issues fleet-wide. A change
+  that is merely wrong does not produce a red build; it produces
+  issues in ten repositories, or silently closes ones that should
+  have stayed open. Always pass `--dry-run` when running
+  `audit-manage-issues.py` by hand.
+* **This repository is in its own audit matrix.** A standard we
+  exempt ourselves from is a standard we stop noticing the cost
+  of. A change to a criterion is a change we are measured against
+  on the next run, so a plan should say how many repositories --
+  including this one -- it newly fails.
+
+<!-- shared-block: plan-file-conventions v2 -->
+Plan file conventions (shared block; do not edit -- the canonical
+copy lives in shakenfist/development at
+`templates/shared-blocks/plan-file-conventions.md`):
+
+- All planning documents live in `docs/plans/`.
+- Detailed planning gets one plan file per phase. Phase files are
+  named for their master plan, sit in the same directory as it,
+  and append `-phase-NN-descriptive` before the `.md` extension.
+- The master plan tracks its phases in a table under its Execution
+  section. `Merged` is last, and the push audit is the last row,
+  for the reasons given in `plan-push-audit-phase`:
+
+  | Phase | Plan | Status | Merged |
+  |-------|------|--------|--------|
+  | 1. Schema migration | PLAN-thing-phase-01-schema.md | Not started | |
+  | 2. Public API | PLAN-thing-phase-02-api.md | Not started | |
+  | 3. Push audit | - | Not started | |
+
+- One commit per logical change, and at minimum one commit per
+  phase. Unrelated changes are not batched into a single commit.
+  Each commit is self-contained: it builds, passes tests, and has
+  a message explaining what changed and why.
+<!-- shared-block-end -->
+
+**In this repository.** Plans here keep their phases as sections
+inside the master plan rather than as separate phase files, and
+the Execution table's `Plan` column is dropped accordingly;
+`docs/plans/index.md` says so. The shared convention above is the
+fleet default, and a plan large enough to want phase files should
+use them rather than argue with the block.
+
+## Situation
+
+[#211](https://github.com/shakenfist/development/issues/211) asks
+for `DEPENDENCIES_TOKEN` to be replaced, because
+`PLAN-workflow-ref-trust.md`'s step 2a would make `shakenfist-bot`
+a bypass actor on `shakenfist/actions` main. It frames the problem
+as one that step would create. Read through the GitHub API on
+2026-10-07, it already exists in six repositories, and is wider
+than the issue says in three ways. Everything below was re-read
+on 2026-10-14, before the plan went to review, and the figures
+are from that day.
+
+**The bypass is already in place.** Six default-branch rulesets
+require a pull request and status checks, and every one of them
+names the same bypass actor, the team `sf-can-skip-merge-queue`
+(id 11722172), with `bypass_mode: always`. Five of them also
+require the merge queue (instar and client-python-k3s added it
+between the two readings).
+
+| Repository | Rules on the default branch | Bypass |
+|------------|-----------------------------|--------|
+| shakenfist | pull request, status checks, merge queue | `sf-can-skip-merge-queue` |
+| kerbside | pull request, status checks, merge queue | `sf-can-skip-merge-queue` |
+| ryll | pull request, status checks, merge queue | `sf-can-skip-merge-queue` |
+| instar | pull request, status checks, merge queue | `sf-can-skip-merge-queue` |
+| hunkydory | pull request, status checks | `sf-can-skip-merge-queue` |
+| client-python-k3s | pull request, status checks, merge queue | `sf-can-skip-merge-queue` |
+
+The team has three members: `mikalstill`, `shakenfist-bot` and
+`sfconductor`. A ruleset bypass belongs to an identity, not to a
+token, so **every credential that authenticates as
+`shakenfist-bot` can push straight to those six default branches**,
+skipping review, required checks and the merge queue.
+
+**More than one credential is the bot.** `DEPENDENCIES_TOKEN` is
+not the only one. `RENOVATE_TOKEN` is a separate secret, but every
+Renovate pull request in shakenfist, kerbside and ryll (the last
+14 in each) is authored by `shakenfist-bot`, so it is the
+bot's credential too. Live workflows on default branches that put
+one of the two in scope:
+
+| Secret | Workflows | Triggers |
+|--------|-----------|----------|
+| `RENOVATE_TOKEN` | `renovate.yml` in 17 repositories, including all six above | `schedule`, `workflow_dispatch` |
+| `DEPENDENCIES_TOKEN` | `prune-reviews.yml` in actions, development, hunkydory, kerbside, kerbside-client, ryll, sfui | `push`, `schedule`, `workflow_dispatch` |
+| `DEPENDENCIES_TOKEN` | `pin-indirect-dependencies.yml` in shakenfist, kerbside | `pull_request`, `schedule`, `workflow_dispatch` |
+| `DEPENDENCIES_TOKEN` | `code-formatting.yml` in shakenfist, client-python | `pull_request`, `schedule`, `workflow_dispatch` |
+| `DEPENDENCIES_TOKEN` | `functional-tests.yml` (claude-code delinter job) in shakenfist | `pull_request`, `merge_group` |
+| `DEPENDENCIES_TOKEN` | `sync-external-docs.yml` in shakenfist | `schedule`, `workflow_dispatch` |
+
+None runs on `pull_request_target`, `issue_comment` or
+`workflow_run`, so nobody outside the organisation can fire one.
+The exposure is to whoever and whatever can run code beside the
+secret. That includes every Renovate run, which executes
+`renovatebot/github-action` (referenced by tag, not sha, until
+`PLAN-workflow-ref-trust.md` phase 3) and whatever package-manager
+code a lockfile update runs. It also includes the pull-request jobs
+above, which the templates already say are guarded against forks
+and against accident, but not against a writer
+(`templates/pin-indirect-dependencies/pin-indirect-dependencies.yml:58-65`).
+
+**Where the secrets live is not visible to this repository.**
+`actions` has no repository secrets at all, yet its
+`prune-reviews` pushed as `shakenfist-bot` 44 times in a quarter,
+so at least `DEPENDENCIES_TOKEN` is an organisation secret. Its
+visibility (all repositories, or selected ones) needs `admin:org`
+to read. If it is visible to every repository, a push of a new
+workflow to any branch of any of them reaches it.
+
+**Only one job needs the bypass.** The ruleset rule-suite history
+for the last month shows what the bypass is actually used for:
+
+| Repository | `shakenfist-bot` | `sfconductor` | `mikalstill` |
+|------------|------------------|---------------|--------------|
+| shakenfist | 0 | 83 | 4 |
+| kerbside | 34 | 14 | 8 |
+| ryll | 49 | 2 | 4 |
+| hunkydory | 16 | 0 | 0 |
+| instar | 0 | 6 | 1 |
+| client-python-k3s | 0 | 1 | 1 (a tag) |
+
+Every `shakenfist-bot` bypass is a `prune-reviews` push of review
+marks to `develop`: each one's commit subject is "Prune stale
+review marks." or, since `PLAN-review-import.md` added the import
+step, "Prune and import review marks.". The bot's other writers do
+not need one:
+Renovate, `pin-indirect-dependencies`, `code-formatting`, the
+delinter and `sync-external-docs` (through
+`actions/tools/ci_sync_docs.sh:59-65`) all push a branch and open a
+pull request. No workflow in the fleet merges a pull request as the
+bot. `sfconductor`'s bypasses are pull request merges that skip the
+queue (for example shakenfist#4467, a Renovate bump); it is a
+separate identity, outside this plan except as open question 3.
+
+**Nothing in the fleet mints a GitHub App token today.** There is
+no `actions/create-github-app-token` reference in any workflow or
+template.
+
+**How `prune-reviews` uses the token today.** The template and this
+repository's deployed copy are byte-identical, and all seven live
+copies still name `DEPENDENCIES_TOKEN`. Its one job,
+`prune-and-import`, checks out with `persist-credentials: false`
+and no token, and hands the push credential to
+`tools/ci-prune-reviews.sh` as the `PUSH_TOKEN` environment variable
+(`secrets.DEPENDENCIES_TOKEN || github.token`), which the script
+gives to its one `git push`. The commit's author and committer are
+set by the script (`git config user.name 'shakenfist-bot'`), not by
+the credential, so the commit metadata does not say which identity
+pushed it; the rule-suite history's `actor_name` does.
+
+## Mission and problem statement
+
+Make the identity that can bypass a default-branch ruleset one that
+only reviewed default-branch code can use, and take that power away
+from every credential the bot carries elsewhere. Concretely:
+
+1. A GitHub App, with `contents: write` and nothing else, becomes
+   the only automation bypass actor on the rulesets whose
+   repositories run `prune-reviews`, and on
+   `actions` when `PLAN-workflow-ref-trust.md` step 2a adds one.
+2. Its private key is an **environment** secret, in an environment
+   whose deployment branch policy admits only the default branch.
+   A job on any other ref, including a pull request that edits the
+   workflow, cannot read it. That is the property a repository or
+   organisation secret cannot have.
+3. `prune-reviews` mints a short-lived installation token from it,
+   and the template, its README and every adopted copy change to
+   match.
+4. `shakenfist-bot` leaves `sf-can-skip-merge-queue`. Its PATs keep
+   working for what they actually do, pushing branches and opening
+   pull requests that retrigger CI, and can no longer reach a
+   protected branch directly.
+
+This closes #211 and lets `PLAN-workflow-ref-trust.md` step 2a name
+the App as its bypass actor rather than a team of one.
+
+Out of scope:
+
+- Replacing `DEPENDENCIES_TOKEN` and `RENOVATE_TOKEN` with
+  fine-grained or App tokens. Once neither can bypass, what they can
+  do is push branches and open pull requests, which still need
+  review and CI to land. Narrowing them is worth doing and is listed
+  in Future work.
+- `sfconductor` and `mikalstill` as bypass actors (open question
+  3).
+- Moving `prune-reviews` to open pull requests instead of pushing.
+  `PLAN-review-import.md` keeps the push, and this plan does too.
+- Pinning `renovatebot/github-action` and the new
+  `actions/create-github-app-token` reference to a sha.
+  `PLAN-workflow-ref-trust.md` phase 3 owns pinning; this plan uses
+  whatever form that criterion will accept on the day, and phase 3
+  picks it up.
+
+## Open questions
+
+1. **One App for the fleet, or one per repository?** One App
+   installed on selected repositories, with the key duplicated into
+   each repository's environment, is one thing to rotate and one
+   bypass actor id for every ruleset and for the
+   `moving-ref-source-protection` criterion to compare against. Per
+   repository Apps contain a leaked key to one repository but
+   multiply everything else by seven. *Default:* one App, installed
+   only on the repositories whose `prune-reviews` must bypass a
+   ruleset: today hunkydory, kerbside and ryll, since shakenfist,
+   instar and client-python-k3s carry no `prune-reviews`, plus
+   `actions` once step 2a lands and any of the six that adopts
+   review tracking later. It is
+   named for what it does rather than for the bot, for example
+   `shakenfist-review-marks`.
+2. **What do repositories without a pull-request ruleset use?**
+   development, sfui and kerbside-client push review marks today with
+   `DEPENDENCIES_TOKEN || github.token`, and `actions` does until
+   step 2a. A repository with no ruleset to bypass gains nothing from
+   the App, and `github.token` with `contents: write` already pushes
+   there. *Default:* they move to `github.token`, which needs no
+   secret and no environment. The template mints the App token only
+   when the environment's secret is present, and `PUSH_TOKEN` falls
+   back to `github.token` otherwise, so one file still serves both
+   kinds (as the `DEPENDENCIES_TOKEN` bullet in
+   `templates/review-tracking/README.md` promises today). Note that
+   `github.token` pushes do not start workflows, where PAT pushes
+   did (an App installation token's pushes do): confirm nothing in
+   those four repositories depended on the retrigger. The token
+   comment above the job's `permissions:` block says the retrigger
+   finds nothing to do, so this should be a no-op.
+3. **What about `sfconductor`?** It is a user account in the same
+   team, with more bypasses than the bot, and this repository does
+   not know where its credential lives. *Default:* out of scope.
+   Phase 1 records what it is and where its token is held, and files
+   an issue if the same reasoning applies, rather than changing its
+   access here.
+4. **Does a missing environment fail closed?** GitHub creates an
+   environment on first reference if it does not exist, with no
+   branch policy. A repository adopted later, whose operator forgot
+   to create the environment first, would run the job in a new,
+   unprotected environment holding no secret, mint nothing, and fall
+   back to `github.token`, whose push the ruleset then refuses.
+   *Default:* that is failing closed, and acceptable, but the
+   adoption skill and the template README must say to create the
+   environment, with its branch policy, before adding the secret.
+   Phase 3 also adds an audit check (step 3c) so that an
+   environment without the branch policy is reported.
+
+## Execution
+
+| Phase | Status | Merged |
+|-------|--------|--------|
+| 1. Operator inventory and App creation | Not started | |
+| 2. `prune-reviews` mints an App token | Not started | |
+| 3. Move the bypass and enforce it | Not started | |
+| 4. Push audit | Not started | |
+
+<!-- shared-block: plan-status-vocabulary v1 -->
+Plan status vocabulary (shared block; do not edit -- the canonical
+copy lives in shakenfist/development at
+`templates/shared-blocks/plan-status-vocabulary.md`):
+
+A status cell -- in the master plan's own Execution phase table, and
+in the row `docs/plans/index.md` carries for the plan -- holds
+exactly one of these terms and nothing else:
+
+- `Proposed` -- written down as a concept, not yet scheduled.
+- `Not started` -- scheduled, but no work has begun.
+- `In progress` -- work has begun and has not finished.
+- `Blocked` -- cannot proceed until something outside the plan
+  changes. Say what, in the plan.
+- `Complete` -- the work is done.
+- `Abandoned` -- deliberately dropped without being done.
+- `Superseded` -- replaced by another plan, which the plan names.
+
+The term is the whole cell. No dates, no phase arithmetic, no
+parenthetical qualifiers, no summary of what happened: a status is
+read to decide whether a plan still wants attention, and prose in
+that column has repeatedly grown until it could no longer be read
+either by a person scanning the table or by tooling. Detail belongs
+in the plan file, and a one-line summary belongs in the index's own
+Intent column.
+
+Matching is case-insensitive, so `In Progress` is accepted, but the
+spelling above is the one to write.
+<!-- shared-block-end -->
+
+**In this repository.** The same term is written twice: once in
+this plan's own phase table, and once in the row the plan carries
+in `docs/plans/index.md`. The index row is the whole-plan status,
+so it only reaches `Complete` once every phase has been
+completed, abandoned or superseded. The `plan-index` criterion
+reads that table, and this repository is inside its own audit
+matrix, so a status that drifts out of the vocabulary fails our
+own tooling before it fails anybody else's.
+
+<!-- shared-block: plan-push-audit-phase v3 -->
+Push audit phase (shared block; do not edit -- the canonical
+copy lives in shakenfist/development at
+`templates/shared-blocks/plan-push-audit-phase.md`):
+
+- Every master plan ends with a phase that runs the repository's
+  `PUSH-AUDIT.md` over the whole plan's work. It is the last row of
+  the Execution table and it is not optional. The rule binds every
+  plan that carries the phase, which is decidable from the plan file
+  alone: a plan that is already `Complete`, `Abandoned` or
+  `Superseded` and does not carry the phase is not reopened to
+  acquire one, and a plan that has the phase runs it even if it
+  reaches `Complete` before the phase does.
+- That phase audits the accumulated diff of every phase in the plan
+  against the default branch, not the diff of the last phase alone.
+  Auditing one phase at a time would miss what the phases did to
+  each other -- the duplicated helper that only exists once phases
+  three and six have both landed, the doc page that phase two made
+  wrong and phase five never revisited.
+- Once the plan's phases have merged, a diff against the default
+  branch is empty and would read as a clean audit. The range is not
+  reliably derivable after the fact either: unrelated work lands on
+  the default branch between phases, so anything anchored on "since
+  the plan file appeared" is far too wide. It has to be recorded. As
+  each phase lands, what put it on the default branch goes into the
+  plan: the merge commit of its pull request, whose diff against its
+  first parent is the whole of what landed, or -- where the phase
+  landed directly -- every commit of the phase, or its `first..last`
+  range. A single commit is only ever enough when it is a merge
+  commit.
+- Where the Execution phases are a table, that record is a `Merged`
+  column, added last so that a row which omits it still reaches
+  `Status`; where they are prose sections it is a `Merged:` line in
+  the phase's own section. The `Status` column keeps its single
+  vocabulary term and nothing else (see `plan-status-vocabulary`).
+  A phase that landed in another repository records `<repo> <sha>
+  (#pr)` and is audited against that repository's default branch, as
+  part of the pull request that lands it; the plan's own push-audit
+  phase cites that audit rather than re-running it.
+- Phases that landed before the plan started recording them are
+  reconstructed rather than left blank. Recover what you can from
+  `gh pr list --state merged` and `git rev-list --first-parent`, and
+  say in the plan that the range was reconstructed. Do not trust a
+  path-filtered `git log` on its own: it lists the commits that
+  touched a path without saying which arrived directly and which
+  arrived inside a pull request, and recording a commit that came in
+  under a merge audits one commit of that pull request rather than
+  the pull request. A reconstructed record may be a summary table in
+  the audit phase's own section rather than a column or a line in
+  the Execution table, which keeps retrospective archaeology out of
+  a table that tracks live status. Where a phase accreted over
+  months of unrelated commits and no range is recoverable, say that
+  instead and name the paths the audit read -- an audit that says
+  what it could not scope is a result; one that silently audits
+  nothing is not.
+- Findings land as their own pull request against the default
+  branch, and the plan is not complete until they are resolved or
+  explicitly declined in writing. A finding that is declined says
+  why, in the plan, where the next reader will find it.
+- Where the audit finds nothing, record that in the plan in one
+  sentence. It is a real result, and a run of them is the evidence
+  for making the phase conditional rather than mandatory.
+- A repository with no `PUSH-AUDIT.md` still carries the phase, and
+  the phase says that the runbook does not exist yet and what was
+  done instead. Silently omitting it is what let the audit go
+  untriggered for as long as it did.
+<!-- shared-block-end -->
+
+**In this repository.** `PUSH-AUDIT.md` exists at the repository
+root and is referenced from `AGENTS.md`, so the final phase runs
+it rather than explaining its absence. Note that every diff
+command in it is written against `main...HEAD`: a stale local
+`main` silently widens the audit to unrelated history, so fetch
+before starting, or read it as `origin/main...HEAD`.
+
+<!-- shared-block: plan-phase-landing v1 -->
+Phase landing (shared block; do not edit -- the canonical copy
+lives in shakenfist/development at
+`templates/shared-blocks/plan-phase-landing.md`):
+
+A plan's status and a repository's review state both live in files
+that every branch would otherwise rewrite. Left alone, that turns
+each of them into a merge-conflict hot spot, and it spends a pull
+request and a full CI run on a change that is entirely prose.
+Three rules keep them out of the way.
+
+- **A phase is closed out in the first commit of the next phase,
+  not in a pull request of its own.** By the time the next phase
+  branches, the previous one has merged, so its merge commit is
+  known and its `Merged` cell can record the thing the push-audit
+  phase actually needs. This is the only ordering that works: a
+  phase cannot record its own merge commit, and a separate
+  close-out pull request buys that record at the price of a round
+  trip. The close-out sets the finished phase's `Status` and
+  `Merged` cells and the plan's row in `docs/plans/index.md`, and
+  it is committed before the next phase's own work, so that the
+  branch never claims the plan is further along than the default
+  branch is.
+
+- **The last phase closes itself out.** The push-audit phase is
+  the last row of every plan, so no next phase will carry its
+  close-out. Where the audit raises findings, the plan is not
+  complete until they are resolved or declined, and those land as
+  their own pull request after the audit phase has merged -- so
+  that pull request is the carrier, and it can record the audit
+  phase's merge commit, which by then is known. Where the audit
+  finds nothing there is no carrier, and no follow-up pull
+  request is opened for the sake of one cell: the phase sets its
+  own `Status`, and the plan's index row, to `Complete` in its
+  own pull request, and records no `Merged` cell. It is the only
+  row permitted to omit one. The column exists so that the
+  push-audit phase can reconstruct what to audit; the audit phase
+  is last, so nothing ever reads its own row.
+
+- **`REVIEWS.md` is not pruned or regenerated in a pull request
+  that changes code or documentation.** Editing a reviewed file
+  stales its mark, and adding or removing an in-scope file moves
+  the header count, but neither is the landing pull request's
+  business. `prune` regenerates the file whether or not it dropped
+  anything, so the `prune-reviews` workflow heals both on the next
+  push to the default branch. Pruning from a branch is also wrong
+  more often than it is right, though not for the reason it first
+  appears: `prune` compares each stamp against `HEAD`, which on a
+  branch is the branch tip, so it drops the marks for the files the
+  pull request itself touched while keeping marks the default
+  branch has already pruned. Committing that state merges a review
+  file computed from a stale tree, and can resurrect marks
+  `prune-reviews` has already removed. Accumulated staleness is
+  reported by the `review-coverage` audit, which recomputes
+  coverage against `HEAD` and raises an issue once the backlog is
+  worth a review session.
+
+  **A review session is the exception**, and it is not optional
+  tidiness: `stamp` regenerates `REVIEWS.md` as well as writing the
+  marks, and the rows, the sidecars and the marks are committed
+  together (see `docs/code-review-tracking.md`). Where a repository
+  requires a pull request to reach its default branch, that is how
+  a review session lands, so "not in a pull request" is about the
+  kind of change, not the mechanism.
+
+These rules assume phases land one after another. Where two phase
+branches are open at once, each closes out only the phase it
+directly follows.
+<!-- shared-block-end -->
+
+**In this repository.** The plan index is `docs/plans/index.md`.
+`review-tracking-tests` deliberately does not assert the `REVIEWS.md`
+header count, so a phase that adds or removes an in-scope file needs
+no regeneration commit; `prune-reviews` corrects the count on the
+next push to main.
+
+### Phase 1: operator inventory and App creation
+
+Planning effort: medium. Review effort: high, because it changes
+organisation settings that no test in this repository covers.
+
+This phase is done by the management session with the operator.
+It needs `admin:org`, which neither the audit token nor a sub-agent
+has, and nothing in it lands as code here except what it records
+in this section.
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 1a | high | opus | none | Operator step. With `gh auth refresh -s admin:org`, record here: each organisation secret's name and visibility (`gh secret list --org shakenfist` and, for a `selected` secret, `gh api orgs/shakenfist/actions/secrets/<name>/repositories`); which repositories hold `DEPENDENCIES_TOKEN` or `RENOVATE_TOKEN` as a repository secret; and what `sfconductor` is, who operates it and where its credential is held (open question 3). Re-run the rule-suite query from Situation (`repos/shakenfist/<r>/rulesets/rule-suites?time_period=month&rule_suite_result=bypass`) for the six repositories and confirm that `shakenfist-bot`'s bypasses are still only `prune-reviews` pushes. If anything else appears, stop: phase 3 would break it. |
+| 1b | high | opus | none | Operator step. Create the App under the organisation as open question 1 settles it: repository permission `contents: write` only, no webhook, no user authorisation. Install it on selected repositories: hunkydory, kerbside and ryll (open question 1). Generate a private key. In each of those three, create an environment named `review-marks` with a deployment branch policy of the default branch only (`develop` in all three), and add the key as an environment secret `REVIEW_MARKS_APP_KEY`. Put the App's client id in an organisation variable `REVIEW_MARKS_APP_CLIENT_ID`; a client id is not a secret. Record the App's id and the environment settings here, and keep the key file out of every repository and scratchpad that outlives the step. |
+
+**Definition of done.** The inventory and the App's id are written
+into this section; hunkydory, kerbside and ryll each have a `review-marks`
+environment whose
+`gh api repos/shakenfist/<r>/environments/review-marks --jq .deployment_branch_policy`
+shows custom branch policies, and whose only policy
+(`.../deployment-branch-policies`) is the default branch.
+
+### Phase 2: `prune-reviews` mints an App token
+
+Planning effort: medium. The template change has a worked example
+in its own token comment, and the rollout follows the
+`review-tracking-adoption` skill.
+
+**Order matters.** Until phase 3, the bot is still in the bypass
+team, so a copy that still uses `DEPENDENCIES_TOKEN` keeps working
+and nothing breaks partway through. Phase 3 must not start until
+the copies in hunkydory, kerbside and ryll have merged.
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 2a | high | opus | worktree | In this repository, change `templates/review-tracking/prune-reviews.yml` and its deployed twin `.github/workflows/prune-reviews.yml` (keep them byte-identical). Add `environment: review-marks` to the `prune-and-import` job. Add a step `id: app-token` before the step that runs `tools/ci-prune-reviews.sh`, using `actions/create-github-app-token` with `client-id: ${{ vars.REVIEW_MARKS_APP_CLIENT_ID }}`, `private-key: ${{ secrets.REVIEW_MARKS_APP_KEY }}`, and `permission-contents: write`. Guard it on the key being present, but note that the `secrets` context is not available in a step's `if:`: expose presence through a job-level `env:` entry (for example `HAS_REVIEW_MARKS_KEY: ${{ secrets.REVIEW_MARKS_APP_KEY != '' }}`) and test that, and confirm with `actionlint` that the form you choose is accepted. The script step's `PUSH_TOKEN` becomes `${{ steps.app-token.outputs.token \|\| github.token }}`; the checkout keeps `persist-credentials: false` and no token, and the token still goes only to the script. Rewrite the token comment above the job's `permissions:` block (it begins "Repositories whose default branch ruleset requires a pull request") to say why: the App is the ruleset's bypass actor, its key lives in an environment only the default branch can use, a repository with no pull-request ruleset has neither and pushes with `github.token`, and an App push, like the PAT push before it, retriggers the workflow once into a run that finds nothing to do. Remember the `&&`/`\|\|` value semantics explained at `templates/pin-indirect-dependencies/pin-indirect-dependencies.yml:154-159`. Leave the script's `git config user.name 'shakenfist-bot'` alone: the commit identity is not the push identity, and changing it is outside this plan. Update `templates/review-tracking/README.md`: replace the "Optionally, a `DEPENDENCIES_TOKEN` secret" bullet and its "That fallback is silent" paragraph with the environment, its branch policy, the secret and the variable, in the order an operator must create them (open question 4), keeping the warning about a silent fallback in its new form; change the Token column of its projects table; and fix the top of the file and the workflow's header comment where they say the commit lands "as shakenfist-bot", so that they say who pushes. Add the environment setup, as an operator step before the first `prune-reviews` run, to `.claude/skills/review-tracking-adoption/SKILL.md`, which today says nothing about tokens. Run `actionlint` and `pre-commit run --all-files`. |
+| 2b | medium | sonnet | worktree | Roll the 2a template out with the `review-tracking-adoption` skill, one pull request per repository, in this order: hunkydory, ryll, kerbside (the three whose pushes need the bypass), then the four without a pull-request ruleset (actions, sfui, kerbside-client, and development, whose own copy 2a already changed). If shakenfist, instar or client-python-k3s has adopted review tracking by then, it joins the first group and phase 1 step 1b is repeated for it. Each pull request copies the template byte for byte and changes nothing else. After each merge, confirm the next `prune-reviews` run either pushed as the App or found nothing to do, and record the run URL here. The commit's author and committer do not show this, because the script sets them; in the three repositories with a ruleset, the rule-suite history (`repos/shakenfist/<r>/rulesets/rule-suites?rule_suite_result=bypass`) shows the push's `actor_name`, and in the four without one the run's own log does. A run that fails to mint a token in a repository that has the environment means 1b's setup is wrong there: stop and report rather than adding a fallback. |
+
+**Definition of done.** Every live `prune-reviews.yml` matches the
+template (`gh api` content, as in the sweep in Situation, prints no
+`DEPENDENCIES_TOKEN`); hunkydory, kerbside and ryll each have a
+`prune-reviews` push to its default branch whose rule-suite
+`actor_name` is the App.
+
+### Phase 3: move the bypass and enforce it
+
+Planning effort: high. Steps 3a and 3b change who can push to six
+default branches, and a mistake either locks out review marks or
+leaves the old path open without anything saying so.
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 3a | high | opus | none | Operator step. On the rulesets of hunkydory, kerbside and ryll, add the App as a bypass actor (`actor_type: Integration`, the App's id, `bypass_mode: always`), preserving every other field, using the GET-then-PUT shape under "Template" in `docs/audits/merge-queue-config.md`. Then trigger `prune-reviews` by `workflow_dispatch` in hunkydory and confirm it lands. Add the App only to the rulesets of the repositories it is installed on; GitHub is expected to refuse an App that is not installed there as a bypass actor, so confirm that on the first one rather than assuming it. A repository that adopts review tracking later gets the bypass when it gets its environment. Only then remove `shakenfist-bot` from `sf-can-skip-merge-queue`, which takes its bypass away on all six. Prove both halves: a push to `develop` in hunkydory authenticated with `DEPENDENCIES_TOKEN` (from a throwaway workflow on a branch, deleted afterwards) is rejected by the ruleset, and the next `prune-reviews` run in hunkydory, kerbside and ryll lands or finds nothing to do. Record the ruleset JSON's `bypass_actors` for each repository here. |
+| 3b | medium | sonnet | none | In this repository, amend `docs/plans/PLAN-workflow-ref-trust.md`: open question 1's default becomes the App from this plan rather than a team of one, with a sentence saying the residual it described is closed; step 2a's brief installs the App on `actions`, creates `actions`' `review-marks` environment and secret as phase 1 step 1b did, and names the App as the only bypass actor; the "documented set" that step 2b's criterion compares `bypass_actors` against is that App. Remove the #211 entry from that plan's Future work and its related-issues list, citing this plan. Touch nothing else in that plan. |
+| 3c | high | opus | worktree | Add a criterion `bypass-actor-identity` in `scripts/audit/checks/github_config.py`, following `DeleteBranchOnMerge` for the API-call shape, with id `bypass-actor-identity`, its `spec` and its `issue_title` (`Bypass actor identity`). For each ruleset that applies to the default branch and carries a `pull_request` rule, it fails if any bypass actor is a `Team` or a `RepositoryRole` other than the admin role, and reports which; an `Integration` actor passes only if it is the review-marks App (a module constant holding its id). For a repository whose ruleset bypasses the App, it also reads `repos/{org}/{repo}/environments/review-marks` and fails unless the deployment branch policy admits only the default branch. A ruleset response without `bypass_actors` is an error, never a pass, as in `PLAN-workflow-ref-trust.md`'s phase 2. Repositories with no pull-request ruleset report `not_applicable` with that reason. Register it in `CHECKS` in `scripts/audit/registry.py`, write `docs/audits/bypass-actor-identity.md` following `docs/audits/README.md`, add its row there, add its lines to `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`, and add pass, fail and not-applicable tests to `scripts/tests/test_github_config.py` using `CheckTestCase` and a stubbed GitHub client, including a team bypass, a missing `bypass_actors` key, an unknown App, and an environment with no branch policy. Before writing the team rule, decide with the operator what `sfconductor`'s bypass becomes (open question 3); if it stays a team, the spec says the check is expected to fail there and why, rather than exempting it in code. State in the commit message how many repositories it newly fails, including this one. |
+
+**Definition of done.** `shakenfist-bot` is not a member of
+`sf-can-skip-merge-queue`; a push to a protected default branch with
+either bot PAT is rejected; `bypass-actor-identity` runs in the
+weekly audit and its results match what step 3a recorded; #211 is
+closed from the pull request that lands 3c, with a link to this
+plan.
+
+### Phase 4: push audit
+
+Planning effort: medium. The runbook and the ranges are fixed; the
+work is running it.
+
+Run `PUSH-AUDIT.md` once per landing recorded in this repository's
+`Merged` cells, with `AUDIT_RANGE` set as its "How to use this
+runbook" section says. The rollout pull requests in step 2b land in
+other repositories, and each is audited there as part of landing
+it; this phase cites those audits rather than re-running them.
+Phases 1 and 3a land no code anywhere, so the audit of them is a
+review of what this plan recorded against what the GitHub API
+reports on the day the audit runs.
+
+## Agent guidance
+
+### Execution model
+
+<!-- shared-block: subagent-execution-model v1 -->
+Sub-agent execution model (shared block; do not edit -- the
+canonical copy lives in shakenfist/development at
+`templates/shared-blocks/subagent-execution-model.md`):
+
+All implementation work is done by sub-agents, never in the
+management session. The management session is reserved for
+planning, review, and decision-making. This keeps the management
+context lean and avoids drowning it in implementation diffs.
+
+The workflow is:
+
+1. **Plan** at high effort in the management session.
+2. **Spawn a sub-agent** for each implementation step with the
+   brief from the plan, at the recommended effort level and model.
+3. **Review** the sub-agent's output in the management session.
+   Check the actual files -- the sub-agent's summary describes
+   what it intended, not necessarily what it did.
+4. **Fix or retry** if the output is wrong. Diagnose whether the
+   brief was insufficient (improve it) or the model was too light
+   (upgrade it), then re-run.
+5. **Commit** once the management session is satisfied.
+
+This applies to all steps, including high-effort ones. If a
+sub-agent cannot succeed even with a detailed brief and the right
+model, that is a signal the brief needs improving, not that the
+management session should do the implementation itself.
+
+Use `isolation: "worktree"` for sub-agents when the change is
+risky or experimental; the worktree is discarded if the output is
+unsatisfactory. For safe, well-understood changes, sub-agents can
+work directly in the main tree.
+<!-- shared-block-end -->
+
+**In this plan.** Steps 1a, 1b and 3a are the exception: they
+change organisation and repository settings with `admin:org`, so
+the management session does them with the operator rather than
+delegating them. They are also the only steps whose effect no
+test here covers, which is why each has its own proof in its
+brief.
+
+### Planning effort
+
+<!-- shared-block: plan-planning-effort v1 -->
+Planning effort (shared block; do not edit -- the canonical copy
+lives in shakenfist/development at
+`templates/shared-blocks/plan-planning-effort.md`):
+
+The master plan itself is always created at **high effort** -- it
+requires broad codebase understanding, cross-referencing several
+source files, and judgment calls about scope and sequencing.
+
+Each phase plan states the recommended effort level for planning
+that phase. Phases that turn on design decisions, cross-component
+coordination, protocol changes, or subtle correctness questions
+should be planned at high effort. Phases that are mechanical, or
+that follow a pattern already established elsewhere in the
+codebase, can be planned at medium effort.
+<!-- shared-block-end -->
+
+**In this repository.** High effort is anything that changes what
+a criterion means, anything that touches the scheduler in
+`audit-check.py`, and anything that reaches
+`audit-manage-issues.py` -- those decide what the fleet is held
+to and what lands in other people's issue trackers. Medium effort
+covers adding a criterion that follows the shape of an existing
+one, a documentation sweep, or a template change with a worked
+example already in the tree.
+
+### Step-level guidance
+
+<!-- shared-block: subagent-step-guidance v1 -->
+Sub-agent step guidance (shared block; do not edit -- the
+canonical copy lives in shakenfist/development at
+`templates/shared-blocks/subagent-step-guidance.md`):
+
+Each phase plan includes a table like this:
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 1a | medium | sonnet | none | One-sentence summary of what to do and which files to touch |
+| 1b | high | opus | worktree | Why this needs high effort: requires understanding X to do Y |
+
+**Effort levels**, from cheapest to most thorough:
+
+- **low** -- Purely mechanical changes: rename, reformat, add a
+  log line, regenerate generated code. The brief is a complete
+  instruction.
+- **medium** -- The plan provides enough context to follow a clear
+  brief. The sub-agent may read a few files, but the approach is
+  already decided.
+- **high** -- Requires reading several files, making judgment
+  calls, or understanding non-obvious invariants. The sub-agent
+  needs to think about edge cases.
+- **xhigh** -- The setting for hard coding and agentic steps:
+  long-horizon changes, or steps where the sub-agent must both
+  research and implement.
+- **max** -- Correctness matters more than cost. Expect
+  diminishing returns and occasional overthinking; reserve it for
+  steps where a wrong answer would be expensive to detect.
+
+**Brief for sub-agent:** this is the key field. Write it as if
+briefing a colleague who has never seen the codebase. Include what
+to change, which files to touch, what patterns to follow, and any
+non-obvious constraints.
+
+A good brief front-loads the research the planner already did, so
+the implementing agent does not repeat it. Instead of "add storage
+functions for the new object", name the functions to add, the file
+they belong in, the existing equivalent to mirror (with line
+numbers), and any registration the change also needs.
+
+The better the brief, the lower the effort level needed and the
+lighter the model that can succeed.
+<!-- shared-block-end -->
+
+**In this repository.** A worked brief: instead of "add a check
+that plans are indexed", write "add a `PlanIndex` class to
+`scripts/audit/checks/plans.py` declaring the id `plan-index`, its
+`spec` and its `issue_title` as class attributes and implementing
+`run(repo)`, register the instance in `CHECKS` in
+`scripts/audit/registry.py` beside the other plan checks, write
+`docs/audits/plan-index.md` following the structure in
+`docs/audits/README.md` and linking to `compliance.md#plan-index`,
+add the file to `docs/audits/README.md`, add its lines to
+`FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in
+`scripts/tests/test_metadata.py`, and add tests to
+`scripts/tests/test_plans.py` covering pass, fail and
+not-applicable." A brief that names four of the criterion's five
+files is the characteristic defect here, and the frozen tables are
+the one most often left out.
+
+A check that does not apply reports
+`not_applicable` with a reason rather than being omitted, because
+an omitted check renders as `unknown`.
+
+### Model choice
+
+<!-- shared-block: subagent-model-roster v1 -->
+Sub-agent model roster (shared block; do not edit -- the canonical
+copy lives in shakenfist/development at
+`templates/shared-blocks/subagent-model-roster.md`):
+
+The planner recommends which model is best suited to each step.
+This is a judgment call, not a rigid rule -- the right model
+depends on what the step requires, not on whether it is "planning"
+or "implementation". The models available to sub-agents are:
+
+- **fable** -- The most capable model available, for the hardest
+  reasoning and the longest-horizon work: multi-step changes a
+  single sub-agent must carry end to end, or steps whose
+  correctness depends on holding a whole subsystem in mind at
+  once. It costs materially more than opus, so reserve it for
+  steps that have already defeated opus or are expected to.
+- **opus** -- The default for steps needing deep reasoning,
+  architectural understanding, subtle correctness judgment
+  (locking, state machines, migrations), or intricate
+  implementation that would be costly to debug if it were wrong.
+- **sonnet** -- A good default for well-briefed implementation
+  work. Faster and cheaper than opus, and effective when the plan
+  front-loads the research and the brief leaves no broad judgment
+  calls to make.
+- **haiku** -- Suitable for purely mechanical tasks:
+  search-and-replace, regenerating generated code, adding log
+  lines, running commands. The brief must be a near-complete
+  instruction.
+
+Model choice interacts with effort level and brief quality. A
+detailed brief compensates for a lighter model -- sonnet at medium
+effort with a thorough brief often matches opus at medium effort
+with a vague brief. The planner's job is to write briefs good
+enough that the recommended model can succeed.
+
+The model also determines the context window: fable, opus and
+sonnet have 1M tokens, haiku has 200K. A step that must hold many
+files in context at once may need one of the larger-context models
+for that reason alone, even when the reasoning itself is
+straightforward.
+
+**When in doubt, skew to the more capable model.** Saving money
+only matters if the outcome is still acceptable. A failed or
+low-quality implementation wastes more time -- and therefore more
+money -- than the heavier model would have cost. Recommend a
+lighter model only when you are confident the brief is detailed
+enough for it to succeed.
+<!-- shared-block-end -->
+
+**In this repository.** The project-specific checks referred to
+above are:
+
+- [ ] `pre-commit run --all-files` passes. It runs actionlint,
+      shellcheck, flake8, skillsaw and all five test suites, and
+      `ci.yml` runs the same command on every pull request.
+- [ ] `python3 scripts/audit-check.py --repo-path . --repo-name
+      development` still reports what it reported before the
+      change, or the plan says why the verdict moved.
+- [ ] If the change touches issue filing, it was exercised with
+      `--dry-run` only.
+
+### Management session review checklist
+
+<!-- shared-block: plan-review-checklist v1 -->
+Management session review checklist (shared block; do not edit --
+the canonical copy lives in shakenfist/development at
+`templates/shared-blocks/plan-review-checklist.md`):
+
+After a sub-agent completes, the management session verifies:
+
+- [ ] The files that were supposed to change actually changed --
+      read them, do not trust the summary.
+- [ ] No unrelated files were modified.
+- [ ] The changes match the intent of the brief: not merely
+      syntactically correct, but semantically right.
+- [ ] The project's own pre-merge checks pass, including any
+      generated code that has to be regenerated and committed
+      (see the project-specific checks below).
+- [ ] The commit message follows project conventions, including
+      the `Co-Authored-By` line recording model, context window,
+      and effort level.
+<!-- shared-block-end -->
+
+## Administration and logistics
+
+### Success criteria
+
+We will know when this plan has been successfully implemented
+because the following statements will be true:
+
+* `pre-commit run --all-files` passes.
+* `scripts/audit-check.py` run against this repository reports no
+  new failures, or the plan states which verdicts moved and why.
+* Any new or changed criterion has all five of its files in step:
+  the `Check` subclass in `scripts/audit/checks/<family>.py`, its
+  registration in `CHECKS` in `scripts/audit/registry.py`, the
+  specification under `docs/audits/`, its row in
+  `docs/audits/README.md`, and its frozen lines in
+  `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in
+  `scripts/tests/test_metadata.py` -- plus a
+  `FROZEN_COLUMN_NAMES` line where a spec page carries more than
+  one check. `AUDIT_METADATA`, `ISSUE_TITLES` and `COLUMN_NAMES`
+  are derived from the registry rather than tables anybody edits;
+  the issue title is the fleet-wide idempotency key, so renaming
+  one orphans every open issue for that check across the fleet.
+* No `consistency-audit` marker block has been added to a
+  criterion specification by hand, and the compliance tables in
+  `docs/audits/compliance.md` have not been hand-edited.
+* Any entry added to `REPO_OVERRIDES` carries a stated reason.
+* Anything under `templates/` is judged as the code it will
+  become in ten other repositories: placeholders consistent, no
+  reference to paths that only exist here, and the README beside
+  it saying what to substitute.
+* Python is wrapped at 120 characters, single quotes for strings
+  and double quotes for docstrings, and no script has grown a
+  dependency outside the standard library.
+* Documentation in `docs/` describes any user-visible change.
+  `AGENTS.md` changes only if a convention changed;
+  `ARCHITECTURE.md` only if the shape of the system changed;
+  `README.md` only if the pitch, the install story or the
+  documentation links changed.
+
+Specific to this plan:
+
+* No user or team bypass actor on any default-branch ruleset
+  belongs to an automation identity; the only automation bypass
+  is the review-marks App, and `bypass-actor-identity` reports
+  compliant everywhere except where the plan says why not.
+* A push to a protected default branch authenticated with
+  `DEPENDENCIES_TOKEN` or `RENOVATE_TOKEN` is rejected.
+* The App's key exists only as an environment secret, in
+  environments that admit only the default branch.
+* `prune-reviews` keeps landing review marks in every adopted
+  repository.
+* #211 is closed, and `PLAN-workflow-ref-trust.md` step 2a names
+  the App rather than a team of one.
+
+### Documentation index maintenance
+
+When creating a new master plan from this template, add one row to
+the table in `docs/plans/index.md`: the date the plan was written,
+a link to it, a one-line intent, and its status from the
+vocabulary above. Rows run oldest first. One row per master plan,
+never one per phase -- the phases are tracked in the plan's own
+Execution table, and duplicating them in the index is how the two
+drift apart.
+
+There is no phase-arithmetic column and no `order.yml` here; both
+belong to repositories whose documentation is published through a
+generated navigation. The `plan-index` criterion checks the
+columns this index actually has.
+
+The index row carries the whole-plan status, so it only reaches
+`Complete` once every phase has been completed, abandoned or
+superseded. Update it as the plan progresses, not only at the end.
+
+<!-- shared-block: plan-closeout-sections v1 -->
+Plan close-out sections (shared block; do not edit -- the
+canonical copy lives in shakenfist/development at
+`templates/shared-blocks/plan-closeout-sections.md`):
+
+### Future work
+
+We should list obvious extensions, known issues, unrelated bugs we
+encountered, and anything else we should one day do but have
+chosen to defer to here, so that we do not forget them.
+
+...
+
+### Bugs fixed during this work
+
+This section should list any bugs we encounter during development
+that we fixed. You should also scan the project's issue tracker,
+where one exists, for directly related issues that we should
+either resolve as part of this master plan or at least be aware of
+while planning it.
+
+...
+
+### Back brief
+
+Before executing any step of this plan, please back brief the
+operator as to your understanding of the plan and how the work you
+intend to do aligns with that plan.
+<!-- shared-block-end -->
+
+**In this repository.** Future work, as of writing:
+
+- Narrow `DEPENDENCIES_TOKEN` and `RENOVATE_TOKEN`. After this plan
+  neither can bypass a ruleset, but both still push branches and
+  open pull requests in every repository the bot can write to, and
+  `DEPENDENCIES_TOKEN` is in scope of pull-request jobs. A
+  fine-grained token per use, or a second App for branch pushes, is
+  the next step. Fine-grained tokens owned by a user expire within a
+  year, so that is a rotation commitment, not a one-off change.
+- `sfconductor` merges pull requests past the merge queue and
+  required checks in four repositories (open question 3). Phase 1
+  records where its credential lives; whatever follows from that is
+  its own issue.
+- `PLAN-renovate-cadence.md` (registered 2026-10-03, not started)
+  replaces the seventeen copies of `renovate.yml` with one central
+  runner in this repository, and its open question 1 asks where
+  `RENOVATE_TOKEN` lives and what it can reach. Once that lands,
+  `RENOVATE_TOKEN` is in scope of one workflow rather than
+  seventeen, which makes narrowing it (the first item above) a
+  one-repository change. Neither plan waits on the other: this one
+  removes the bot's bypass whichever repositories Renovate runs
+  from.
+
+Related issues, as of writing:
+
+- #211 is the issue this plan closes.
+- #153, through `PLAN-workflow-ref-trust.md`, whose step 2a this
+  plan unblocks.
+- #88 (standardise renovate groupings) and #58 (Dependency
+  Dashboard) are about the same Renovate runs, but neither changes
+  which identity they run as.
