@@ -815,6 +815,98 @@
     {
       "path": "docs/audits/eol-distro.md",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/distros.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/docs_content.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/plans.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/registry.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/repo.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/scope.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_distros.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_docs_content.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_metadata.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_plans.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_registry.py",
+      "author": "mikal"
+    },
+    {
+      "path": "PLAN-TEMPLATE.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/plan-source-references.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/eol-producers.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/docs-line-references.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/consistency-audit.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/code-review-tracking.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks/plan-file-conventions.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/shared-blocks",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
