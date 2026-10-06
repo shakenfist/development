@@ -18,7 +18,8 @@ from audit.files import (
 )
 from audit.text.markdown import (
     MD_LINK_RE, MD_REFDEF_RE, blank_generated_blocks, iter_fenced_blocks,
-    link_target, link_target_is_relative, strip_markdown_code,
+    iter_lines_outside_fences, link_target, link_target_is_relative,
+    strip_markdown_code,
 )
 
 
@@ -68,6 +69,25 @@ DIAGRAM_FORMAT_OK = 'audit-ok: diagram-format'
 
 
 DIAGRAM_MAX_SHOWN = 10
+
+
+# A source location cited by line: a path ending in a source or
+# configuration extension, a colon and a line number, optionally a
+# range or a comma list. A location carrying a column as well
+# (app.rs:278:17) is quoted tool output -- a panic, a compiler or
+# linter message -- rather than a pointer somebody will follow, so the
+# lookahead leaves it alone.
+LINE_REFERENCE_RE = re.compile(
+    r'\b[\w./-]+\.(?:py|pyi|rs|go|sh|proto|js|ts|c|h|cc|cpp|toml|ya?ml|'
+    r'j2|html):\d+(?:[-,]\d+)*(?![\d:])'
+)
+
+# A GitHub line anchor on a link that names a branch. A permalink
+# pinned to a full commit sha addresses an immutable file and cannot
+# drift, so it is allowed.
+LINE_ANCHOR_RE = re.compile(r'/blob/(?![0-9a-f]{40}/)[^\s)#]+#L\d+')
+
+DOCS_LINE_REFERENCES_OK = 'audit-ok: docs-line-references'
 
 
 def is_ascii_diagram(lang, lines):
@@ -438,6 +458,71 @@ class DiagramFormat(Check):
         return self.ok(
             'No ASCII diagrams in README.md, AGENTS.md, '
             'ARCHITECTURE.md or docs/')
+
+
+class DocsLineReferences(Check):
+    id = 'docs-line-references'
+    spec = 'docs/audits/docs-line-references.md'
+    template = None
+    issue_title = 'Documentation names code by symbol, not line number'
+
+    def applies(self, repo):
+        if not any(iter_doc_content_files(repo.path, repo.props)):
+            return 'No documentation content to audit'
+        return None
+
+    def run(self, repo):
+        """Check documentation does not cite code by line number.
+
+        A file.py:123 reference goes stale on the next edit to that
+        file, and the edit is nearly always in a pull request that never
+        touches the document, so no review of a diff sees it happen and
+        nothing renders the reference broken. The reader who follows it
+        lands on unrelated code, which is worse than no pointer. When
+        kerbside's use-case pages were cleaned up, several of their
+        forty-odd references had already drifted. A function or class
+        name survives nearly every edit and can be searched for.
+
+        Scope is the documentation content files, so plans are out: a
+        plan is a dated record of the code as it was when it was written,
+        and a line number there is accurate for that date.
+
+        Fenced blocks and generated consistency-audit blocks are
+        blanked, because quoted tool output and generated reports carry
+        locations nobody is asked to follow. Inline code is scanned:
+        that is where nearly every reference is written. A line which
+        genuinely needs a line number carries an
+        "audit-ok: docs-line-references" comment.
+        """
+        hits = []
+        for rel in iter_doc_content_files(repo.path, repo.props):
+            with open(
+                os.path.join(repo.path, rel), 'r', errors='replace'
+            ) as f:
+                content = blank_generated_blocks(f.read())
+            for offset, line in iter_lines_outside_fences(
+                content.splitlines()
+            ):
+                if DOCS_LINE_REFERENCES_OK in line:
+                    continue
+                if (LINE_REFERENCE_RE.search(line)
+                        or LINE_ANCHOR_RE.search(line)):
+                    hits.append(f'{rel}:{offset + 1}')
+
+        if hits:
+            shown = ', '.join(hits[:DIAGRAM_MAX_SHOWN])
+            more = (
+                '' if len(hits) <= DIAGRAM_MAX_SHOWN
+                else f' (+{len(hits) - DIAGRAM_MAX_SHOWN} more)'
+            )
+            return self.fail(
+                f'{len(hits)} line(s) in the documentation cite code by '
+                f'line number, which goes stale on the next edit to '
+                f'that code (name the function or class instead, or '
+                f'use a GitHub permalink pinned to a commit sha): '
+                f'{shown}{more}')
+        return self.ok('No line-number references to code in the '
+                       'documentation')
 
 
 class MermaidLintCi(Check):

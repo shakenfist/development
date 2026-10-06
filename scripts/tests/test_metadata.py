@@ -87,6 +87,10 @@ FROZEN_METADATA = {
         'spec': 'docs/audits/diagram-format.md',
         'template': None,
     },
+    'docs-line-references': {
+        'spec': 'docs/audits/docs-line-references.md',
+        'template': None,
+    },
     'mermaid-lint-ci': {
         'spec': 'docs/audits/mermaid-lint-ci.md',
         'template': 'templates/mermaid-lint/',
@@ -293,6 +297,8 @@ FROZEN_ISSUE_TITLES = {
     'llm-context-lint-ci': 'LLM context linting in pre-commit and CI',
     'llm-doc-naming': 'Agent instruction file naming',
     'diagram-format': 'Diagram format',
+    'docs-line-references': (
+        'Documentation names code by symbol, not line number'),
     'mermaid-lint-ci': 'Mermaid diagrams linted in CI',
     'release-process': 'Release process',
     'ci-review-automation': 'CI review automation',
