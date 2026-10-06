@@ -815,6 +815,50 @@
     {
       "path": "docs/audits/eol-distro.md",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/distros.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/docs_content.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/plans.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/registry.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/repo.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/scope.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_distros.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_docs_content.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_metadata.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_plans.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_registry.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
