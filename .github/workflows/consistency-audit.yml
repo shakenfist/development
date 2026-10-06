@@ -44,6 +44,9 @@ jobs:
           - development
           - divergulent
           - hunkydory
+          # Scoped to eol-distro alone by REPO_OVERRIDES; see the
+          # partial-scope paragraph in docs/audits/README.md for why.
+          - images
           - instar
           - kerbside
           - kerbside-client

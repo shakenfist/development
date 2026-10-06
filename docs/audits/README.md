@@ -82,7 +82,7 @@ The following projects are subject to consistency audits:
 - uncalibrated-sextant
 - visual-digest-rust
 
-One project is in scope for part of the audit only:
+Two projects are in scope for part of the audit only:
 
 - private-ci is audited for the `plan-phase-references`,
   `plan-source-references`, `plan-index`, `plan-template`,
@@ -101,6 +101,15 @@ One project is in scope for part of the audit only:
   `push-audit`, which has no `PUSH-AUDIT.md` to read until that
   changes. It is not expected to grow a `pyproject.toml`, a renovate
   config, release workflows, or a `develop` branch.
+
+- images is audited for the `eol-distro` check, and nothing else. It
+  is built fresh every night and the fleet's CI boots on its output,
+  but it is excluded from the conventions because auditing it fully
+  would file findings for conventions its own plan has not adopted, as
+  a deliberate decision rather than a side effect of this one.
+  `eol-distro` alone turns the compliance already confirmed by hand
+  into a verdict the audit reports on a schedule, without
+  manufacturing the rest.
 
 ### Excluded projects
 
