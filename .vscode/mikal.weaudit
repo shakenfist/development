@@ -197,10 +197,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_distros.py",
-      "author": "mikal"
-    },
-    {
       "path": "templates/mermaid-lint/mermaid-lint.yml",
       "author": "mikal"
     },
@@ -417,10 +413,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/registry.py",
-      "author": "mikal"
-    },
-    {
       "path": "templates/test-drift-fix/pr-fix-tests.yml",
       "author": "mikal"
     },
@@ -518,10 +510,6 @@
     },
     {
       "path": "PUSH-AUDIT.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/README.md",
       "author": "mikal"
     },
     {
@@ -678,10 +666,6 @@
     },
     {
       "path": "docs/code-review-tracking.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_metadata.py",
       "author": "mikal"
     },
     {
@@ -866,10 +850,6 @@
     },
     {
       "path": "docs/audits/eol-distro.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/distros.py",
       "author": "mikal"
     }
   ],
