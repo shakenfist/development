@@ -305,10 +305,6 @@
       "sha": "e805edcee2371ded32aff741f973fe1191b13131",
       "date": "2026-10-05"
     },
-    "docs/code-review-tracking.md": {
-      "sha": "f3d17dde49d90356a0ce84cfaff7019607a0e23d",
-      "date": "2026-10-05"
-    },
     "docs/consistency-audits.md": {
       "sha": "e6bf33a5adab7a02260adf7b71a3305e7a7d5b33",
       "date": "2026-10-05"
@@ -352,10 +348,6 @@
     "scripts/audit/checks/ci_workflows.py": {
       "sha": "7d4ee84ae14076c62f559def01a7ff8ddb6314cb",
       "date": "2026-10-05"
-    },
-    "scripts/audit/checks/docs_content.py": {
-      "sha": "53aa7bbc2467995b847d5de5aedc6297dc1eeb92",
-      "date": "2026-09-24"
     },
     "scripts/audit/checks/github_config.py": {
       "sha": "83169e9378c0609d61b0a62ceed3212cc91c9e11",
@@ -468,10 +460,6 @@
     "scripts/tests/test_ci_workflows.py": {
       "sha": "d96a41a0ea0e04421b922992dfdfdc9375a6b7c1",
       "date": "2026-10-05"
-    },
-    "scripts/tests/test_docs_content.py": {
-      "sha": "bfd0300e83a0276475bae9df8e8476cb7c8b447b",
-      "date": "2026-09-27"
     },
     "scripts/tests/test_github_config.py": {
       "sha": "6a124af88e7e93d7e9c4ecca6f4ed0d8f4952d33",

@@ -277,10 +277,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/docs_content.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/text/python_source.py",
       "author": "mikal"
     },
@@ -318,10 +314,6 @@
     },
     {
       "path": "scripts/tests/test_ci_prune_reviews.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_docs_content.py",
       "author": "mikal"
     },
     {
@@ -650,10 +642,6 @@
     },
     {
       "path": "docs/audits/llm-doc-structure.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/code-review-tracking.md",
       "author": "mikal"
     },
     {
