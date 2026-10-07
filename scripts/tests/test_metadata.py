@@ -167,6 +167,10 @@ FROZEN_METADATA = {
         'spec': 'docs/audits/version-file-gitignore.md',
         'template': None,
     },
+    'release-artifacts-exclude-plans': {
+        'spec': 'docs/audits/release-artifacts-exclude-plans.md',
+        'template': None,
+    },
     'console-logging': {
         'spec': 'docs/audits/console-logging.md',
         'template': None,
@@ -329,6 +333,7 @@ FROZEN_ISSUE_TITLES = {
     'merge-group-cancellation': 'Merge group run cancellation',
     'pyproject-usage': 'pyproject.toml usage',
     'version-file-gitignore': 'Generated version file',
+    'release-artifacts-exclude-plans': 'Release artifacts exclude docs/plans',
     'console-logging': 'Console script logging setup',
     'header-sanitization': 'HTTP header sanitization',
     'python-version-targeting': 'Python version targeting',

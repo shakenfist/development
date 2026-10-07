@@ -2075,6 +2075,278 @@ class VersionFileGitignoreTest(CheckTestCase):
                       result['details'])
 
 
+class ReleaseArtifactsExcludePlansTest(CheckTestCase):
+    check_class = packaging.ReleaseArtifactsExcludePlans
+
+    SCM_PYPROJECT = (
+        '[build-system]\n'
+        'requires = ["setuptools>=64", "setuptools_scm[toml]>=8"]\n'
+        'build-backend = "setuptools.build_meta"\n\n'
+        '[project]\nname = "thing"\n'
+    )
+
+    def _check(self, files, **props):
+        """Commit a fixture holding a plan plus files, and check it."""
+        self.fixture.init_git()
+        self.fixture.write('docs/plans/PLAN-thing.md', '# Plan\n')
+        self.fixture.write_all(files)
+        self.fixture.commit()
+        return self.check(**props)
+
+    def test_without_a_plans_directory_it_does_not_apply(self):
+        self.fixture.write('pyproject.toml', self.SCM_PYPROJECT)
+        self.assert_skip(self.check(), containing='No docs/plans/')
+
+    def test_a_repository_that_builds_nothing_does_not_apply(self):
+        self.assert_skip(self._check({'README.md': '# Thing\n'}),
+                         containing='No release artifact')
+
+    def test_an_scm_sdist_without_a_prune_fails(self):
+        """client-python-k3s, before it pruned docs/plans."""
+        result = self.assert_fail(
+            self._check({'pyproject.toml': self.SCM_PYPROJECT}),
+            containing='1 release artifact')
+        self.assertEqual(len(result['findings']), 1)
+        self.assertIn('prune docs/plans', result['findings'][0])
+
+    def test_an_scm_sdist_pruning_the_plans_passes(self):
+        result = self.assert_pass(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'MANIFEST.in': '# Working history.\nprune docs/plans\n',
+        }))
+        self.assertIn('sdist (pyproject.toml)', result['details'])
+
+    def test_pruning_all_of_docs_passes(self):
+        self.assert_pass(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'MANIFEST.in': 'prune docs/\n',
+        }))
+
+    def test_pruning_only_a_subdirectory_of_the_plans_fails(self):
+        """The arrangement client-python-k3s had before this check."""
+        self.assert_fail(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'MANIFEST.in': 'prune docs/plans/audit/diffs\n',
+        }))
+
+    def test_a_graft_after_the_prune_puts_the_plans_back(self):
+        self.assert_fail(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'MANIFEST.in': 'prune docs/plans\ngraft docs\n',
+        }))
+
+    def test_plain_setuptools_ships_nothing_it_was_not_asked_to(self):
+        self.assert_pass(self._check({
+            'pyproject.toml': (
+                '[build-system]\nrequires = ["setuptools"]\n'
+                'build-backend = "setuptools.build_meta"\n'),
+        }))
+
+    def test_plain_setuptools_grafting_docs_fails(self):
+        self.assert_fail(self._check({
+            'pyproject.toml': (
+                '[build-system]\nrequires = ["setuptools"]\n'
+                'build-backend = "setuptools.build_meta"\n'),
+            'MANIFEST.in': 'graft docs\n',
+        }), containing='1 release artifact')
+
+    def test_a_legacy_setup_py_using_scm_fails(self):
+        self.assert_fail(self._check({
+            'setup.py': (
+                'from setuptools import setup\n'
+                "setup(use_scm_version=True,\n"
+                "      setup_requires=['setuptools_scm'])\n"),
+        }))
+
+    def test_a_tooling_only_pyproject_is_not_a_package(self):
+        self.assert_skip(self._check({
+            'pyproject.toml': '[tool.ruff]\nline-length = 120\n',
+        }))
+
+    def test_a_not_python_repository_is_not_measured_for_an_sdist(self):
+        self.assert_skip(self._check(
+            {'pyproject.toml': self.SCM_PYPROJECT}, not_python=True))
+
+    def test_hatch_without_an_exclude_fails(self):
+        self.assert_fail(self._check({
+            'pyproject.toml': (
+                '[build-system]\nrequires = ["hatchling"]\n'
+                'build-backend = "hatchling.build"\n'),
+        }), containing='1 release artifact')
+
+    def test_hatch_excluding_the_plans_passes(self):
+        self.assert_pass(self._check({
+            'pyproject.toml': (
+                '[build-system]\nrequires = ["hatchling"]\n'
+                'build-backend = "hatchling.build"\n\n'
+                '[tool.hatch.build.targets.sdist]\n'
+                'exclude = ["/docs/plans"]\n'),
+        }))
+
+    def test_hatch_with_an_include_list_passes(self):
+        self.assert_pass(self._check({
+            'pyproject.toml': (
+                '[build-system]\nrequires = ["hatchling"]\n'
+                'build-backend = "hatchling.build"\n\n'
+                '[tool.hatch.build.targets.sdist]\n'
+                'include = ["/thing", "/README.md"]\n'),
+        }))
+
+    def test_an_unmodelled_backend_is_reported_rather_than_passed(self):
+        """A guard that passes when it cannot measure is worse than none."""
+        result = self.assert_fail(self._check({
+            'pyproject.toml': (
+                '[build-system]\nrequires = ["flit_core"]\n'
+                'build-backend = "flit_core.buildapi"\n'),
+        }))
+        self.assertIn('flit_core.buildapi', result['findings'][0])
+
+    def test_a_published_crate_without_an_exclude_fails(self):
+        result = self.assert_fail(self._check({
+            'Cargo.toml': '[package]\nname = "thing"\nversion = "0.1.0"\n',
+        }))
+        self.assertIn('crate (Cargo.toml)', result['findings'][0])
+
+    def test_a_crate_excluding_the_plans_passes(self):
+        self.assert_pass(self._check({
+            'Cargo.toml': (
+                '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                'exclude = ["/docs/plans"]\n'),
+        }))
+
+    def test_a_crate_with_an_include_list_passes(self):
+        self.assert_pass(self._check({
+            'Cargo.toml': (
+                '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                'include = ["/src", "/Cargo.toml"]\n'),
+        }))
+
+    def test_a_crate_including_docs_fails(self):
+        self.assert_fail(self._check({
+            'Cargo.toml': (
+                '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                'include = ["/src", "/docs"]\n'),
+        }))
+
+    def test_an_unpublished_crate_does_not_apply(self):
+        """uncalibrated-sextant: publish = false ships no .crate."""
+        self.assert_skip(self._check({
+            'Cargo.toml': (
+                '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                'publish = false\n'),
+        }))
+
+    def test_a_crate_inheriting_its_exclude_from_the_workspace_passes(self):
+        self.assert_pass(self._check({
+            'Cargo.toml': (
+                '[workspace]\nmembers = ["."]\n\n'
+                '[workspace.package]\nexclude = ["docs/plans/"]\n\n'
+                '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                'exclude.workspace = true\n'),
+        }))
+
+    def test_a_virtual_workspace_does_not_apply(self):
+        """ryll: the crates are in subdirectories, away from docs/."""
+        self.assert_skip(self._check({
+            'Cargo.toml': '[workspace]\nmembers = ["ryll"]\n',
+        }))
+
+    def test_a_published_npm_package_without_a_files_list_fails(self):
+        self.assert_fail(self._check({
+            'package.json': '{"name": "thing", "version": "1.0.0"}\n',
+        }))
+
+    def test_an_npm_files_list_passes(self):
+        self.assert_pass(self._check({
+            'package.json': (
+                '{"name": "thing", "version": "1.0.0", '
+                '"files": ["dist/"]}\n'),
+        }))
+
+    def test_an_npmignore_excluding_the_plans_passes(self):
+        self.assert_pass(self._check({
+            'package.json': '{"name": "thing", "version": "1.0.0"}\n',
+            '.npmignore': '# Working history.\n/docs/plans/\n',
+        }))
+
+    def test_a_private_npm_package_does_not_apply(self):
+        self.assert_skip(self._check({
+            'package.json': '{"name": "thing", "private": true}\n',
+        }))
+
+    def test_a_root_collection_without_build_ignore_fails(self):
+        self.assert_fail(self._check({
+            'galaxy.yml': 'namespace: sf\nname: thing\nversion: 1.0.0\n',
+        }), containing='1 release artifact')
+
+    def test_a_root_collection_ignoring_the_plans_passes(self):
+        self.assert_pass(self._check({
+            'galaxy.yml': (
+                'namespace: sf\nname: thing\n'
+                'build_ignore:\n  - .ansible\n  - docs/plans\n'
+                'version: 1.0.0\n'),
+        }))
+
+    def test_a_root_collection_with_a_flow_build_ignore_passes(self):
+        self.assert_pass(self._check({
+            'galaxy.yml': (
+                'namespace: sf\nname: thing\n'
+                "build_ignore: ['.ansible', 'docs']\n"),
+        }))
+
+    def test_a_root_collection_manifest_pruning_the_plans_passes(self):
+        self.assert_pass(self._check({
+            'galaxy.yml': (
+                'namespace: sf\nname: thing\nmanifest:\n'
+                '  directives:\n    - prune docs/plans\n'),
+        }))
+
+    def test_a_collection_in_a_subdirectory_does_not_apply(self):
+        """client-python-k3s's collection/ cannot reach docs/plans."""
+        self.assert_skip(self._check({
+            'collection/galaxy.yml': 'namespace: sf\nname: thing\n',
+        }))
+
+    def test_every_failing_artifact_is_listed(self):
+        result = self.assert_fail(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'Cargo.toml': '[package]\nname = "thing"\nversion = "0.1.0"\n',
+        }), containing='2 release artifact')
+        self.assertEqual(len(result['findings']), 2)
+
+    def test_an_untracked_plans_directory_does_not_apply(self):
+        """setuptools_scm only offers what git tracks."""
+        self.fixture.init_git()
+        self.fixture.write('pyproject.toml', self.SCM_PYPROJECT)
+        self.fixture.commit()
+        self.fixture.write('docs/plans/PLAN-thing.md', '# Plan\n')
+        self.assert_skip(self.check(), containing='tracks no files')
+
+    def test_an_unparseable_cargo_toml_is_reported(self):
+        self.assert_fail(self._check({'Cargo.toml': '[package\n'}),
+                         containing='1 release artifact')
+
+
+class PathPatternSelectsTest(unittest.TestCase):
+    """The gitignore-shaped matching every exclusion list goes through."""
+
+    def test_patterns_that_select_the_plans(self):
+        for pattern in ('docs/plans', '/docs/plans', 'docs/plans/',
+                        './docs/plans', 'docs', '/docs/', 'docs/**',
+                        'docs/*', '*.md', 'docs/plans/*.md', 'plans',
+                        'plans/'):
+            with self.subTest(pattern=pattern):
+                self.assertTrue(packaging.path_pattern_selects(
+                    pattern, 'docs/plans'))
+
+    def test_patterns_that_do_not(self):
+        for pattern in ('', '/', 'doc', 'docs/plan', 'docs/plansx',
+                        '/src', 'docs/images', '*.py', '/plans'):
+            with self.subTest(pattern=pattern):
+                self.assertFalse(packaging.path_pattern_selects(
+                    pattern, 'docs/plans'))
+
+
 class UnusedDeclaredDependencyTest(CheckTestCase):
     check_class = packaging.UnusedDeclaredDependency
 
