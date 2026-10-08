@@ -230,7 +230,7 @@ needs the same treatment, and phase 6 says so.
 | 3. Unblock the migration | Complete | private-ci 9eace9d (#60), private-ci 2e18c13 (#61), private-ci dbb78ca (#63), actions 8684eec (#78), actions 781d267 (#80), kerbside 79c2506 (#435), kerbside cfef26a (#450) |
 | 4. The consumer sweep | Complete | Label half: actions 5a677a9 (#90), agent-python 8303e99 (#140), client-python 93a0999 (#405), client-python-k3s 1576e72 (#67), clingwrap d5eb4ea (#136), divergulent 53136f2 (#117), library-utilities 6f63b95 (#60), ryll 060e649 (#397), sfui 30f5501 (#35), instar a1c09aa (#589), occystrap 4b9d5ff (#143), shakenfist 54b18a0 (#4306), with visual-digest-rust #23 closed as superseded. Guest-image half: actions 8c02ab0 (#97, 4f), shakenfist 2a94e58 (#4379, 4g), shakenfist 984fdd1 (#4385, 4h part 1), actions 227593c (#124, 4h part 2). 4i and 4j carry no commit. |
 | 5. Retire the end-of-life producers | Complete | private-ci e77fca7 (#100, 5a), actions 2351ece (#136, 5b), 33fl e92a1b4 (#925, 5c), development b464fcc (#218, 5d), and the `ubuntu:18.04` removal the phase grew: actions 587683a (#140) with development 13fec36 (#221) carrying its plan bullet and its 5f check. 5e and 5f carry no commit. |
-| 6. Close the audit's blind spot | In progress | development 358bef0 (#222, 6a), development 6163de8 (#226, 6b), images 707768f (#14, 6c). 6d filed images#13 and carries no commit. 6e ran 2026-10-07, all eleven checks agreed, and the commit that ticks the done list is this row's own -- so its merge is not knowable here and phase 7's first commit sets this `Status` and completes this cell, per the phase landing shared block. |
+| 6. Close the audit's blind spot | Complete | development 358bef0 (#222, 6a), development 6163de8 (#226, 6b), images 707768f (#14, 6c), development 8684ec8 (#230, 6e's record). 6d filed images#13 and carries no commit. 6e ran 2026-10-07 and all eleven checks agreed; this row was closed out in phase 7's first commit, because the commit that ticked the done list is this row's own and could not record its own merge. |
 | 7. Push audit | Not started | |
 
 ### 1. Alarm on absence
@@ -2729,15 +2729,15 @@ Closes: nothing filed. Depends on: phases 3-5, complete 2026-10-05,
 so the producers are compliant before they are measured. Planning
 effort: high, 2026-10-05.
 
-**Status: in progress, 2026-10-07.** 6a merged as #222, 6b as
+**Status: complete, 2026-10-08.** 6a merged as #222, 6b as
 #226 and 6c as images#14, 6d filed images#13, and 6e ran on
 2026-10-07 -- all eleven checks agreed, and what each one returned
-is recorded under *What 6e confirmed* below. The phase still reads
-`In progress` here and in the Execution table because a phase is
-closed out in the first commit of the next phase and cannot record
-its own merge commit; phase 7 carries that. A fully ticked done
-list beside an in-progress status is the expected intermediate
-state, not a contradiction. Each of 6a, 6b, 6d and 6e is amended in
+is recorded under *What 6e confirmed* below. 6e's own record
+merged as #230 (`8684ec8`) on 2026-10-08, which is the merge
+commit this row could not know while it was being written, and
+phase 7's first commit is where it is recorded -- a phase is
+closed out in the first commit of the next phase, per the phase
+landing shared block. Each of 6a, 6b, 6d and 6e is amended in
 its row below with what it turned out to need. The survey below was run on
 2026-10-05, the day phase 5 closed, and it moved the phase in one
 direction: the cost of measuring `images` is higher than this
