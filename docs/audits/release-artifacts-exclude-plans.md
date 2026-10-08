@@ -23,12 +23,12 @@ that directory with its own mechanism:
 
 | Artifact | Built from | Passes when |
 |----------|------------|-------------|
-| sdist, setuptools with setuptools_scm | `pyproject.toml` or `setup.py` | `MANIFEST.in` has `prune docs/plans` (or `prune docs`), not undone by a later `graft` or `recursive-include` |
+| sdist, setuptools with setuptools_scm | `pyproject.toml` or `setup.py` | `MANIFEST.in` has `prune docs/plans` (or `prune docs`), not undone by a later `graft`, or a `recursive-include` whose patterns select a plan |
 | sdist, plain setuptools | `pyproject.toml` or `setup.py` | `MANIFEST.in` does not add `docs/plans` back in |
-| sdist, hatchling | `pyproject.toml` | `[tool.hatch.build.targets.sdist]` `exclude` covers `docs/plans`, or an `include`/`only-include` list does not select it |
+| sdist, hatchling | `pyproject.toml` | `[tool.hatch.build.targets.sdist]` `exclude` covers `docs/plans` (it wins over an include list), or an `include`/`only-include` list does not select it |
 | crate | `Cargo.toml` with a `[package]` that is published | `exclude` covers `docs/plans`, or an `include` list does not select it, either set directly or inherited from `[workspace.package]` |
 | npm package | `package.json` that is not `private` | a `files` list does not select `docs/plans`, or `.npmignore` covers it |
-| Ansible collection | `galaxy.yml` | `build_ignore` covers `docs/plans`, or the `manifest` directives prune it |
+| Ansible collection | `galaxy.yml` | a `build_ignore` entry matches `docs/plans` or `docs` as a path from the collection root, or the `manifest` directives prune it |
 
 Wheels are not checked: they carry the import package, not the
 repository. A crate published with `publish = false`, a virtual Cargo
@@ -46,9 +46,22 @@ and to teach the check about the backend.
 Pattern matching follows gitignore semantics closely enough for the
 exclusions people write -- `docs/plans`, `/docs/plans/`, `docs`,
 `docs/**` -- but is not a full implementation of any one tool's rules.
-`MANIFEST.in` is evaluated for the directives that act on whole
-directories; an `exclude` that names individual plans is not treated as
-excluding the directory, because the next plan would not be named.
+The exception is galaxy's `build_ignore`, which ansible-galaxy
+fnmatches against each path relative to the collection root, and which
+the check matches the same way: `plans`, `/docs/plans` and
+`docs/plans/` exclude nothing there, and do not pass. An npm `files`
+entry is matched at any depth, which can only report more, not less.
+
+`MANIFEST.in` (and a galaxy `manifest`) is evaluated for the directives
+that act on whole directories, plus the file patterns of
+`recursive-include` and `global-include`; an `exclude` that names
+individual plans is not treated as excluding the directory, because the
+next plan would not be named, and an `include` of individual plan paths
+is not modelled. File patterns are judged against a Markdown plan, so
+`recursive-include docs *.png` does not count as shipping the plans
+even if a plans directory holds an image. A galaxy `manifest` that keeps
+the default directives is treated as shipping the plans, since those
+defaults take `.txt`, `.json` and `.yml` files from `docs/`.
 
 Docker images are not checked. The build context is chosen by the
 command that builds the image rather than by a file in the repository,

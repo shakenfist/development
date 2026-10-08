@@ -1601,22 +1601,34 @@ PLANS_ARTIFACT_ROOTS = ('', 'docs')
 PLANS_SAMPLE_FILE = 'PLAN-example.md'
 
 
+def normalise_path(value):
+    """A manifest's path argument, as a path relative to its root.
+
+    Strips whitespace, quotes, a leading './' and surrounding slashes,
+    in that order. Every comparison of a manifest path against
+    PLANS_DIR goes through here, so that no two of them disagree about
+    what './docs/plans/' names.
+    """
+    cleaned = value.strip().strip('"\'')
+    while cleaned.startswith('./'):
+        cleaned = cleaned[2:]
+    return cleaned.strip('/')
+
+
 def path_pattern_selects(pattern, target):
     """Does a packaging include/exclude pattern select target?
 
     target is a directory relative to the artifact root. The pattern
     is gitignore-shaped, which is the common denominator of Cargo's
-    include and exclude, hatch's, npm's files and .npmignore, and
-    galaxy's build_ignore: a leading '/' anchors it, a trailing '/'
-    limits it to directories, and a pattern naming an ancestor of
-    target selects target too. Approximate by design -- it answers
-    whether the directory or a plan inside it is selected, which is
-    the only question release-artifacts-exclude-plans asks.
+    include and exclude, hatch's, npm's files and .npmignore: a
+    leading '/' anchors it, a trailing '/' limits it to directories,
+    and a pattern naming an ancestor of target selects target too.
+    Approximate by design -- it answers whether the directory or a
+    plan inside it is selected, which is the only question
+    release-artifacts-exclude-plans asks. galaxy's build_ignore is not
+    gitignore-shaped; see build_ignore_selects.
     """
-    cleaned = pattern.strip().strip('"\'')
-    if cleaned.startswith('./'):
-        cleaned = cleaned[2:]
-    cleaned = cleaned.strip('/')
+    cleaned = normalise_path(pattern)
     if cleaned.endswith('/**') or cleaned.endswith('/*'):
         cleaned = cleaned.rsplit('/', 1)[0]
     if not cleaned:
@@ -1633,6 +1645,23 @@ def path_pattern_selects(pattern, target):
             or fnmatch.fnmatchcase(sample, cleaned))
 
 
+def build_ignore_selects(pattern, target):
+    """Does a galaxy.yml build_ignore pattern keep target out?
+
+    ansible-galaxy fnmatches each pattern against the path of every
+    directory and file relative to the collection root, and does not
+    descend into a directory that matches. So the pattern must match
+    target, one of its ancestors, or a plan inside it, verbatim: there
+    is no gitignore anchoring, and 'plans', '/docs/plans' and
+    'docs/plans/' match nothing.
+    """
+    cleaned = pattern.strip().strip('"\'')
+    parts = target.split('/')
+    candidates = ['/'.join(parts[:i]) for i in range(1, len(parts) + 1)]
+    candidates.append(f'{target}/{PLANS_SAMPLE_FILE}')
+    return any(fnmatch.fnmatchcase(c, cleaned) for c in candidates)
+
+
 def manifest_directives_ship(lines, target, included):
     """Does a run of MANIFEST.in directives leave target in the sdist?
 
@@ -1640,40 +1669,51 @@ def manifest_directives_ship(lines, target, included):
     file finder such as setuptools_scm's has already offered every
     tracked file, False for plain setuptools. Directives apply in
     order, so a graft after a prune puts the directory back. Only the
-    directives that act on a whole directory are modelled; an
-    `exclude` naming individual plans is not a way to keep the
-    directory out, and is not treated as one.
+    directives that act on a whole directory, or on a file name at any
+    depth, are modelled; an `exclude` naming individual plans is not a
+    way to keep the directory out, and is not treated as one. File
+    patterns are judged against a Markdown plan, PLANS_SAMPLE_FILE.
     """
-    def covers(directory):
-        directory = directory.strip().strip('/')
-        if directory.startswith('./'):
-            directory = directory[2:]
-        if directory in ('', '.'):
-            return False
-        return (target == directory
-                or target.startswith(directory + '/')
-                or directory.startswith(target + '/'))
+    def selects_a_plan(directory, patterns):
+        # recursive-include matches its patterns against the path of
+        # each file below directory, so try every tail of a plan's.
+        if target.startswith(directory + '/'):
+            below = target[len(directory) + 1:].split('/')
+        else:
+            below = []
+        below.append(PLANS_SAMPLE_FILE)
+        tails = ['/'.join(below[i:]) for i in range(len(below))]
+        return any(fnmatch.fnmatchcase(tail, pattern)
+                   for pattern in patterns for tail in tails)
 
     for line in lines:
         words = line.split()
         if not words or words[0].startswith('#'):
             continue
         directive, arguments = words[0], words[1:]
-        if directive == 'prune' and arguments and covers(arguments[0]):
-            if not arguments[0].strip('/').startswith(target + '/'):
-                included = False
-        elif directive == 'graft' and arguments and covers(arguments[0]):
+        directory = normalise_path(arguments[0]) if arguments else ''
+        if directory in ('', '.'):
+            covers = whole = False
+        else:
+            # whole: the directive reaches every plan, rather than
+            # only a subdirectory of the plans.
+            whole = (target == directory
+                     or target.startswith(directory + '/'))
+            covers = whole or directory.startswith(target + '/')
+
+        if directive == 'prune' and whole:
+            included = False
+        elif directive == 'graft' and covers:
             included = True
-        elif (directive == 'recursive-include' and arguments
-                and covers(arguments[0])):
+        elif (directive == 'recursive-include' and covers
+                and selects_a_plan(directory, arguments[1:])):
             included = True
-        elif (directive == 'recursive-exclude' and len(arguments) > 1
-                and covers(arguments[0])
-                and not arguments[0].strip('/').startswith(target + '/')
+        elif (directive == 'recursive-exclude' and whole
                 and '*' in arguments[1:]):
             included = False
         elif directive == 'global-include' and any(
-                pattern in ('*', '*.md') for pattern in arguments):
+                fnmatch.fnmatchcase(PLANS_SAMPLE_FILE, pattern)
+                for pattern in arguments):
             included = True
     return included
 
@@ -1822,15 +1862,17 @@ class ReleaseArtifactsExcludePlans(Check):
             values = sdist.get(key, build.get(key))
             return [v for v in values or [] if isinstance(v, str)]
 
+        # Unlike Cargo, hatch applies exclude after an include list,
+        # and exclude wins.
+        if any(path_pattern_selects(p, target)
+               for p in patterns('exclude')):
+            return artifact, None
         whitelist = patterns('only-include') + patterns('include')
         if whitelist:
             if any(path_pattern_selects(p, target) for p in whitelist):
                 return artifact, (
                     f'the hatch sdist include list selects {target}/; '
-                    f'narrow it')
-            return artifact, None
-        if any(path_pattern_selects(p, target)
-               for p in patterns('exclude')):
+                    f'narrow it, or add "{target}" to exclude')
             return artifact, None
         return artifact, (
             f'hatch offers every file git does not ignore to the sdist; '
@@ -1912,18 +1954,20 @@ class ReleaseArtifactsExcludePlans(Check):
             return None
         artifact = f'collection ({path})'
 
-        # No YAML parser in the audit's environment, and galaxy.yml's
-        # two exclusion keys are flat lists, so read them by indentation.
+        # No YAML parser in the audit's environment, and the keys this
+        # reads are flat lists and scalars, so read them by indentation.
         build_ignore = []
         directives = []
         manifest = False
+        omit_defaults = False
         section = None
+        subsection = None
         for line in content.splitlines():
             if not line.strip() or line.lstrip().startswith('#'):
                 continue
             if not line[0].isspace():
                 key, _, rest = line.partition(':')
-                section = key.strip()
+                section, subsection = key.strip(), None
                 if section == 'manifest':
                     manifest = rest.strip() not in ('null', '~', 'false')
                 elif section == 'build_ignore' and rest.strip():
@@ -1935,17 +1979,25 @@ class ReleaseArtifactsExcludePlans(Check):
             if item.startswith('- '):
                 if section == 'build_ignore':
                     build_ignore.append(item[2:])
-                elif section == 'manifest':
+                elif section == 'manifest' and subsection == 'directives':
                     directives.append(item[2:].strip().strip('"\''))
+            elif section == 'manifest':
+                key, _, rest = item.partition(':')
+                subsection = key.strip()
+                if subsection == 'omit_default_directives':
+                    omit_defaults = rest.strip().lower() in ('true', 'yes')
 
         if manifest:
-            # The manifest's default directives include docs/ wholesale.
-            if manifest_directives_ship(directives, target, True):
+            # The default directives take docs/ files of the types plans
+            # directories carry too (.txt, .json, .yml), so a plan is
+            # treated as shipping unless they are omitted.
+            if manifest_directives_ship(directives, target,
+                                        not omit_defaults):
                 return artifact, (
                     f'the manifest directives keep {target}/; add '
                     f'"prune {target}" to them')
             return artifact, None
-        if any(path_pattern_selects(p, target) for p in build_ignore):
+        if any(build_ignore_selects(p, target) for p in build_ignore):
             return artifact, None
         return artifact, (
             f'ansible-galaxy builds every file under {root or "the root"} '
