@@ -251,7 +251,7 @@ needs the same treatment, and phase 6 says so.
 | 4. The consumer sweep | Complete | Label half: actions 5a677a9 (#90), agent-python 8303e99 (#140), client-python 93a0999 (#405), client-python-k3s 1576e72 (#67), clingwrap d5eb4ea (#136), divergulent 53136f2 (#117), library-utilities 6f63b95 (#60), ryll 060e649 (#397), sfui 30f5501 (#35), instar a1c09aa (#589), occystrap 4b9d5ff (#143), shakenfist 54b18a0 (#4306), with visual-digest-rust #23 closed as superseded. Guest-image half: actions 8c02ab0 (#97, 4f), shakenfist 2a94e58 (#4379, 4g), shakenfist 984fdd1 (#4385, 4h part 1), actions 227593c (#124, 4h part 2). 4i and 4j carry no commit. |
 | 5. Retire the end-of-life producers | Complete | private-ci e77fca7 (#100, 5a), actions 2351ece (#136, 5b), 33fl e92a1b4 (#925, 5c), development b464fcc (#218, 5d), and the `ubuntu:18.04` removal the phase grew: actions 587683a (#140) with development 13fec36 (#221) carrying its plan bullet and its 5f check. 5e and 5f carry no commit. |
 | 6. Close the audit's blind spot | Complete | development 358bef0 (#222, 6a), development 6163de8 (#226, 6b), images 707768f (#14, 6c), development 8684ec8 (#230, 6e's record). 6d filed images#13 and carries no commit. 6e ran 2026-10-07 and all eleven checks agreed; this row was closed out in phase 7's first commit, because the commit that ticked the done list is this row's own and could not record its own merge. |
-| 7. Push audit | Not started | |
+| 7. Push audit | In progress | |
 
 ### 1. Alarm on absence
 
@@ -3377,10 +3377,14 @@ loudly rather than quietly.
 Closes: nothing filed. Depends on: phases 1-6, complete
 2026-10-08. Planning effort: high, 2026-10-08.
 
-**Status: not started, planned 2026-10-08.** This phase closes
-itself out and records no `Merged` cell, per the push audit shared
-block; its first commit closes phase 6 with `8684ec8`, the merge
-of #230. The survey below is the largest correction any phase of
+**Status: in progress, 2026-10-08.** 7a to 7f read all
+forty-three landings, 7g filed one pull request and six issues, and
+7h ran all eleven confirming checks. The phase stays `In progress`
+rather than `Complete` because the push audit shared block says a
+plan is not complete until every finding is resolved or declined in
+writing, and images#15 is open. This phase closes itself out and
+records no `Merged` cell, per that same block; its first commit
+closed phase 6 with `8684ec8`, the merge of #230. The survey below is the largest correction any phase of
 this plan has made to its own section, and all of it is
 arithmetic rather than judgement: the section was written when
 eleven landings in four repositories had been recorded, and there
@@ -3501,6 +3505,18 @@ alone added sixteen landings in twelve repositories.
 | `shakenfist/development`, code | 3 | 1051 | 59 |
 | `shakenfist/development`, plan prose | 14 | 3997 | 440 |
 
+**The last row is the plan file only.** Those fourteen merges total
+`+4013 -454` across every file they touch; the extra `+16 -14` is the
+one-line `docs/plans/index.md` edit each of them carries. 7h found
+this, by doing what the 7f brief told it to do -- compare a range's
+measured total against the stated one -- and getting a number the
+brief called a mismatch. **The brief was wrong and the measurement
+was right:** a range's total is the whole range, so a brief that
+states a single file's total as the range's total asks an agent to
+halt on a correct reading. Both numbers are now stated, each with
+what it measures. It is the same defect class as everything else
+this phase found, in this phase's own instructions.
+
 The ten with one landing each are `agent-python`,
 `client-python`, `client-python-k3s`, `clingwrap`, `divergulent`,
 `instar`, `library-utilities`, `occystrap`, `ryll` and `sfui`,
@@ -3583,9 +3599,13 @@ changed `scripts/audit/checks/distros.py` and
 merges on `main` belong to this plan: three carrying code (`#218`,
 `#222`, `#226`, `+1051 -59`) and fourteen carrying the plan
 document and its `index.md` row (`+3997 -440`). The Execution
-table records four of the seventeen, because it records phase
-landings and not the plan's own authoring, which is correct and is
-why step 7g enumerates the rest rather than reading a column.
+table records five of the seventeen -- `#218`, `#221`, `#222`,
+`#226` and `#230` -- because it records phase landings and not the
+plan's own authoring, which is correct and is why step 7f enumerates
+the rest rather than reading a column. **This said four until 7h
+checked it:** the fifth, `#230`, was added to phase 6's `Merged`
+cell by this phase's own close-out commit, after the survey had
+counted.
 
 **The `push-audit` criterion deliberately does not require a
 runbook**, so the issue this section says to file is not a
@@ -3763,7 +3783,13 @@ below are what they must match.
 | 7c | high | opus | worktree | **`shakenfist/actions`, eight landings, under that repository's own runbook.** Clone it and read its `PUSH-AUDIT.md` first -- 34KB, added 2026-10-05, after seven of these eight landed, which does not make it the wrong instrument: the question is whether what is on `main` now is sound. Ranges: `2ac4a94` (`#74`, `+436 -0`), `893d579` (`#78`, `+146 -18`), `04bd659` (`#80`, `+146 -15`), `5a677a9` (`#90`, `+66 -19`), `8c02ab0` (`#97`, `+32 -31`), `227593c` (`#124`, `+13 -31`), `2351ece` (`#136`, `+43 -28`), `587683a` (`#140`, `+13 -11`). **`893d579` and `04bd659` are the two ranges this plan previously recorded wrongly**, as `8684eec` and `781d267`, each one commit of a multi-commit pull request: the old range for `#78` missed `b8f85d3`, *Cache Debian 13 and Rocky 10, drop bullseye.*, which is the cache-disk migration itself, and the old range for `#80` missed `b4b0e3d`, *Snapshot the Debian 13 desktop image.* Read both in full and say explicitly what the previously-missing commits contain, because that is the only part of this phase that could not have been found by auditing what the table said. `#74` is the largest single addition in `actions` and is phase 2's verification work; `#97` and `#124` are the two halves of the guest-image rename, and item 4 -- nothing removed has a consumer left -- is the one that matters across them, checked by grep across the seventeen repositories rather than by reading the pull requests. No commit. |
 | 7d | medium | sonnet | worktree | **`Mach33Labs/33fl`, three landings. Private repository -- decision 7.6 governs what may be written down.** Ranges: `6de1764` (`#827`, `+91 -0`), `bbbd842` (`#836`, `+106 -4`), `e92a1b4` (`#925`, `+5 -2`). No `PUSH-AUDIT.md`, so the five-item checklist. The first two are the alarm-on-absence and artifact-verification work; checklist item 2 is the whole question for them, because an alarm that does not report its own failure is the defect this plan exists to fix and `33fl` is where the Grafana side of it lives. `#925` is five lines of the producer retirement. Same redaction rule as 7b: verdict, path, class, nothing quoted. Medium effort and sonnet because the diff is 202 insertions and the checklist is explicit, not because the repository matters less. No commit. |
 | 7e | medium | sonnet | worktree | **Tier B: twelve repositories, fifteen landings, read once as one set against checklist item 4.** `shakenfist/shakenfist` `54b18a0` (`#4306`, `+91 -41`), `2a94e58` (`#4379`, `+68 -68`), `984fdd1` (`#4385`, `+7 -7`); `shakenfist/kerbside` `951b3e8` (`#435`, `+20 -4`), `baefc65` (`#450`, `+18 -11`) -- **not** the `79c2506` and `cfef26a` the table used to record; and one landing each in `agent-python` `8303e99`, `client-python` `93a0999`, `client-python-k3s` `1576e72`, `clingwrap` `d5eb4ea`, `divergulent` `53136f2`, `instar` `a1c09aa`, `library-utilities` `6f63b95`, `occystrap` `4b9d5ff`, `ryll` `060e649`, `sfui` `30f5501`, totalling `+68 -71`. Eight of these twelve have their own `PUSH-AUDIT.md` -- this brief said nine until 7e checked it -- and this step deliberately does not run twelve runbooks over `+345 -268` of label edits; decision 7.2 says why and what makes it a tiering rather than a dropping. **The one question:** did any of these delete a runner-label declaration or a `runs-on:` line while something still requested that label, or leave one behind that nothing requests? Answer it by grep across all seventeen repositories, not per repository, and state the greps. Then two subsidiary ones: does any of them still reference a retired label in an `.github/actionlint.yaml` declaration, and did `shakenfist/shakenfist`'s three -- the only tier B landings that are not label edits, being the guest-image consumer move -- leave a read of an artifact name that no longer exists? `eol-distro` reporting compliant for every repository in the matrix is an independent witness on the first question and is not a substitute for asking it. No commit. |
-| 7f | high | opus | worktree | **This repository, under its own `PUSH-AUDIT.md`.** Three code-bearing merges: `b464fcc` (`#218`, `+31 -20`, `scripts/audit/checks/distros.py` and `docs/audits/eol-distro.md` -- phase 5's, and the reason the old claim that only phase 6 lands here was wrong), `358bef0` (`#222`, `+844 -4`, the `eol-producers` criterion), `6163de8` (`#226`, `+176 -35`, the scope and matrix work). Run wave 1 once per range and wave 2 once over all three, per decision 7.3. Wave 2's briefs are this repository's own and they are the right ones: the five-file rule applies directly to `#222`, which added a criterion, and `#226` touched `scripts/audit/scope.py`, whose parse anchors phase 6 found could pass vacuously. **Then the fourteen plan-document merges, read for one thing only:** `54c166a` (`#124`), `d102e9f` (`#128`), `bcf99ae` (`#135`), `228eb34` (`#143`), `7b983c9` (`#148`), `db72571` (`#164`), `df33682` (`#178`), `2369a2a` (`#199`), `c314e64` (`#200`), `b375c60` (`#207`), `608ecf7` (`#217`), `13fec36` (`#221`), `d67c39c` (`#227`), `8684ec8` (`#230`), totalling `+3997 -440`. The one thing is a false factual claim about another repository or about this one, because every phase of this plan from 4 onwards found its own section stale and this phase found three more. You are not re-reviewing the prose; you are checking assertions against the tree, and `scripts/audit/checks/plans.py`'s `plan-source-references` criterion already checks that cited paths exist, so look at the claims it cannot: counts, dates, "nothing else references", "this does not exist". Report each with the line and what the tree says instead. No commit in this step; 7g carries the fixes. |
+| 7f | high | opus | worktree | **This repository, under its own `PUSH-AUDIT.md`.** Three code-bearing merges: `b464fcc` (`#218`, `+31 -20`, `scripts/audit/checks/distros.py` and `docs/audits/eol-distro.md` -- phase 5's, and the reason the old claim that only phase 6 lands here was wrong), `358bef0` (`#222`, `+844 -4`, the `eol-producers` criterion), `6163de8` (`#226`, `+176 -35`, the scope and matrix work). Run wave 1 once per range and wave 2 once over all three, per decision 7.3. Wave 2's briefs are this repository's own and they are the right ones: the five-file rule applies directly to `#222`, which added a criterion, and `#226` touched `scripts/audit/scope.py`, whose parse anchors phase 6 found could pass vacuously. **Then the fourteen plan-document merges, read for one thing only:** `54c166a` (`#124`), `d102e9f` (`#128`), `bcf99ae` (`#135`), `228eb34` (`#143`), `7b983c9` (`#148`), `db72571` (`#164`), `df33682` (`#178`), `2369a2a` (`#199`), `c314e64` (`#200`), `b375c60` (`#207`), `608ecf7` (`#217`), `13fec36` (`#221`), `d67c39c` (`#227`), `8684ec8` (`#230`), totalling `+4013 -454`
+across every file, of which `+3997 -440` is
+`docs/plans/PLAN-image-supply-chain.md` and the rest is the
+`docs/plans/index.md` row each merge carries. **Corrected 2026-10-08
+after 7h read it:** this brief stated the plan-file figure as the
+range total, which is the measurement `PUSH-AUDIT.md` asks for and
+would have had an agent halt on a correct reading. The one thing is a false factual claim about another repository or about this one, because every phase of this plan from 4 onwards found its own section stale and this phase found three more. You are not re-reviewing the prose; you are checking assertions against the tree, and `scripts/audit/checks/plans.py`'s `plan-source-references` criterion already checks that cited paths exist, so look at the claims it cannot: counts, dates, "nothing else references", "this does not exist". Report each with the line and what the tree says instead. No commit in this step; 7g carries the fixes. |
 | 7g | high | opus | none | **Collate, act, and close the plan.** (1) Assemble every finding from 7a to 7f into one list, each with its repository, range, checklist item or wave, and severity. (2) Findings that are defects this plan introduced, in this repository, become one pull request against `main` -- the shared block requires findings to land as their own pull request. (3) Findings in another repository become an issue in that repository, one per repository rather than one per finding, and this plan records the numbers. **Never write a bot trigger phrase in any issue or comment body**: the match is a substring anywhere in the body, including inside backticks, and two of those phrases start workflows that push commits -- grep every body for `retest`, `re-review` and `recheck` before posting, and grep the posted body again afterwards. The audit's own `ci-review-automation` finding text contains two of them, so quoting a finding verbatim is the specific trap. (4) Findings declined are declined in writing in this plan, with the reason, under a `#### What the audit found` subsection -- not in a pull request comment. (5) Where a repository's audit found nothing, one sentence saying so, per repository, per the shared block. (6) File one issue in `shakenfist/development` proposing a `PUSH-AUDIT.md` for `shakenfist/images`, `shakenfist/private-ci` and `Mach33Labs/33fl`, naming the three blast radii as different from each other and from this repository's, and citing `PushAudit.run`'s docstring that a missing runbook is deliberately N/A rather than a finding (`scripts/audit/checks/plans.py:1500-1540`); note in it that `agent-python`, `client-python`, `clingwrap` and `library-utilities` are the same question for consumer repositories and are not part of the proposal. (7) Check each of the six success criteria under *Administration and logistics* and record met, declined or named residual for each -- `eol-distro` reporting zero findings was confirmed on 2026-10-08 and the other five are this step's. (8) Set phase 7's `Status` and leave its `Merged` cell empty, set the plan's own `Status` and the `index.md` row to `Complete`, and do both in the same commit as the last finding is resolved or declined. |
 | 7h | medium | sonnet | none | **Confirms the phase, after 7g's pull request has merged.** Eleven checks, every one of them run and each reported with its output, because phase 6 found four checks in this plan that could not fail and this phase is the one that closes the plan on the strength of them. (1) Parse the Execution table and confirm every one of the forty-three landings appears in the audit record with a range; report any in one and not the other. (2) For every sha the table records, `gh api repos/<repo>/commits/<sha> --jq '.parents|length'` returns 2, and the seven phase 3 cells name `392700d`, `923a28a`, `df913b8`, `893d579`, `04bd659`, `951b3e8` and `baefc65`. (3) Every report from 7a to 7f states per-range insertion and deletion totals, and each matches `gh api repos/<repo>/pulls/<n> --jq '.additions, .deletions'`; name any that did not and say whether it was re-run. (4) `images#8` has its own verdict against checklist item 2, separate from the other five `images` ranges. (5) `grep -nE` over this plan's new sections for a hostname shape, an IP address, a credential-looking token or a quoted configuration value attributable to `private-ci` or `33fl` returns nothing -- demonstrate the grep, do not assert the absence. (6) Every finding has exactly one of three dispositions and the plan says which: fixed in 7g's pull request, filed as an issue whose number is recorded, or declined in writing with a reason. (7) Each of the seventeen repositories has either at least one finding or a one-sentence statement that its audit found nothing. (8) The `PUSH-AUDIT.md` proposal issue exists, is named in this plan, and `gh issue view` on it contains none of `retest`, `re-review` or `recheck`. (9) Each of the six success criteria has a recorded disposition of met, declined or named residual. (10) Phase 7's Execution row has a `Status` and an empty `Merged` cell, and the plan's `Status` and its `docs/plans/index.md` row both read `Complete` and agree with each other. (11) **The vacuous-pass check, by mutation rather than by reading.** In a clean clone, run one of `PUSH-AUDIT.md`'s wave 1 greps with `AUDIT_RANGE` unset and confirm it returns nothing at all, then run it with a range from 7f and confirm it returns something: that is the false pass this phase was most likely to produce, and the evidence that it did not is that every report's totals are non-zero and match check (3). Report the output of both runs. **Then, and only if every check agrees**, tick the done list. If any check disagrees, report and stop. |
 
@@ -3831,39 +3857,39 @@ rule that made the mapping the mechanism rather than the
 decoration. **If a bullet is added to this list, 7h gets a check
 for it in the same commit.**
 
-- [ ] Every one of the forty-three landings is named in the audit
+- [x] Every one of the forty-three landings is named in the audit
       record with the range it was read under, or recorded as
       scoped out with its measured size and a reason. 7h (1).
-- [ ] Every sha the Execution table records is the merge commit of
+- [x] Every sha the Execution table records is the merge commit of
       its pull request and has two parents, the seven phase 3
       cells included. 7h (2).
-- [ ] Every report states the insertion and deletion totals it
+- [x] Every report states the insertion and deletion totals it
       measured for each range, and they match what GitHub reports
       for that pull request. 7h (3).
-- [ ] `images#8` has a verdict of its own against checklist item
+- [x] `images#8` has a verdict of its own against checklist item
       2, saying whether the self-update shape is still present in
       `build.sh` rather than only whether that line was fixed.
       7h (4).
-- [ ] No text this phase adds to this plan quotes a hostname, an
+- [x] No text this phase adds to this plan quotes a hostname, an
       address, a credential or a configuration value from
       `private-ci` or `33fl`, demonstrated by a grep. 7h (5).
-- [ ] Every finding has exactly one of three dispositions --
+- [x] Every finding has exactly one of three dispositions --
       fixed in 7g's pull request, filed as an issue whose number
       is recorded here, or declined in writing with a reason.
       7h (6).
-- [ ] Every one of the seventeen repositories has either a
+- [x] Every one of the seventeen repositories has either a
       finding or a one-sentence statement that its audit found
       nothing. 7h (7).
-- [ ] An issue in this repository proposes a `PUSH-AUDIT.md` for
+- [x] An issue in this repository proposes a `PUSH-AUDIT.md` for
       `images`, `private-ci` and `33fl`, is named here, and
       carries none of the three bot trigger phrases. 7h (8).
-- [ ] Each of the six success criteria has a recorded disposition
+- [x] Each of the six success criteria has a recorded disposition
       of met, declined or named residual. 7h (9).
 - [ ] Phase 7's Execution row carries a `Status` and an empty
       `Merged` cell -- the only row permitted to -- and the
       plan's `Status` and its `index.md` row both read `Complete`
       and agree. 7h (10).
-- [ ] No step's report could have been produced by the empty
+- [x] No step's report could have been produced by the empty
       diff, demonstrated by running the empty case and showing
       what it returns. 7h (11).
 
@@ -4045,6 +4071,42 @@ configuration value or log line. A criterion cannot be specified or
 debugged without naming what it reads, so this is accepted rather
 than fixed, recorded here so the next reader does not raise it
 again.
+
+**What 7h confirmed, and the two checks it failed.** All eleven
+checks ran. Nine passed first time, including the redaction grep
+demonstrated rather than asserted, the six success criteria re-run
+independently, and the mutation: `PUSH-AUDIT.md`'s "documentation
+touched" grep returns nothing with `AUDIT_RANGE` unset on a clean
+checkout and returns `docs/audits/eol-distro.md` with the range set
+to `b464fcc^1..b464fcc`. 7h also reports that its first choice of
+grep for that mutation returned nothing on *both* runs and that it
+changed grep rather than reporting a pass -- the right call, and the
+reason the check is specified as a demonstration rather than as an
+outcome.
+
+Two checks disagreed, both with this phase's own record rather than
+with the work it audited. Check (3) measured the fourteen
+plan-document merges at `+4013 -454` against the `+3997 -440` the
+record stated; the record was measuring one file where the brief had
+asked for a range, so **the brief was wrong and the measurement was
+right**, and both numbers are now stated with what each one measures.
+Check (10) found phase 7's own `Status` still reading `Not started`
+after 7a to 7g had run; it reads `In progress` now, and the prose
+status line says why it is not `Complete`. 7h also found the survey
+claiming the Execution table records four of this repository's
+seventeen merges where it records five -- the fifth, `#230`, added by
+this phase's own close-out commit after the survey had counted.
+
+Three findings against the audit's own record, from the step whose
+job is to find them. That is the check working, and it is the answer
+to the question phase 6 raised about this plan: a confirming step
+that only ever agrees is not confirming anything.
+
+**Ten of the eleven done-list bullets are ticked.** The eleventh is
+bullet 10, which asks that the plan's `Status` and its `index.md` row
+both read `Complete`. Neither can until images#15 is resolved or
+declined, which is the shared block working as intended rather than
+an outstanding task.
 
 **Where every finding went.** Each has exactly one disposition.
 
