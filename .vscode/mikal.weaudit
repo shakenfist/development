@@ -873,23 +873,7 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/docs-line-references.md",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/consistency-audit.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
       "author": "mikal"
     },
     {
