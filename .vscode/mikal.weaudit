@@ -577,14 +577,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/renovate/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/npm-pin-indirect-dependencies.md",
       "author": "mikal"
     },
@@ -686,10 +678,6 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/renovate.yml",
       "author": "mikal"
     },
     {
@@ -886,10 +874,6 @@
     },
     {
       "path": "templates/shared-blocks",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     }
   ],
