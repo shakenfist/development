@@ -251,7 +251,7 @@ needs the same treatment, and phase 6 says so.
 | 4. The consumer sweep | Complete | Label half: actions 5a677a9 (#90), agent-python 8303e99 (#140), client-python 93a0999 (#405), client-python-k3s 1576e72 (#67), clingwrap d5eb4ea (#136), divergulent 53136f2 (#117), library-utilities 6f63b95 (#60), ryll 060e649 (#397), sfui 30f5501 (#35), instar a1c09aa (#589), occystrap 4b9d5ff (#143), shakenfist 54b18a0 (#4306), with visual-digest-rust #23 closed as superseded. Guest-image half: actions 8c02ab0 (#97, 4f), shakenfist 2a94e58 (#4379, 4g), shakenfist 984fdd1 (#4385, 4h part 1), actions 227593c (#124, 4h part 2). 4i and 4j carry no commit. |
 | 5. Retire the end-of-life producers | Complete | private-ci e77fca7 (#100, 5a), actions 2351ece (#136, 5b), 33fl e92a1b4 (#925, 5c), development b464fcc (#218, 5d), and the `ubuntu:18.04` removal the phase grew: actions 587683a (#140) with development 13fec36 (#221) carrying its plan bullet and its 5f check. 5e and 5f carry no commit. |
 | 6. Close the audit's blind spot | Complete | development 358bef0 (#222, 6a), development 6163de8 (#226, 6b), images 707768f (#14, 6c), development 8684ec8 (#230, 6e's record). 6d filed images#13 and carries no commit. 6e ran 2026-10-07 and all eleven checks agreed; this row was closed out in phase 7's first commit, because the commit that ticked the done list is this row's own and could not record its own merge. |
-| 7. Push audit | In progress | |
+| 7. Push audit | Complete | |
 
 ### 1. Alarm on absence
 
@@ -3377,13 +3377,16 @@ loudly rather than quietly.
 Closes: nothing filed. Depends on: phases 1-6, complete
 2026-10-08. Planning effort: high, 2026-10-08.
 
-**Status: in progress, 2026-10-08.** 7a to 7f read all
-forty-three landings, 7g filed one pull request and six issues, and
-7h ran all eleven confirming checks. The phase stays `In progress`
-rather than `Complete` because the push audit shared block says a
-plan is not complete until every finding is resolved or declined in
-writing, and images#15 is open. This phase closes itself out and
-records no `Merged` cell, per that same block; its first commit
+**Status: complete, 2026-10-08.** 7a to 7f read all forty-three
+landings, 7g filed one pull request and six issues, and 7h ran all
+eleven confirming checks. The push audit shared block says a plan
+is not complete until every finding is resolved or declined in
+writing; the last one open was images#15, which merged as
+`13d3b34`, after which `images`' public README names only
+`SF_IMAGES_LOKI_URL` and `SF_IMAGES_LOKI_TENANT` and carries no
+host, no tenant and no dotted quad -- grepped over the merged file
+rather than inferred from the diff. This phase closes itself out
+and records no `Merged` cell, per that same block; its first commit
 closed phase 6 with `8684ec8`, the merge of #230. The survey below is the largest correction any phase of
 this plan has made to its own section, and all of it is
 arithmetic rather than judgement: the section was written when
@@ -3885,7 +3888,7 @@ for it in the same commit.**
       carries none of the three bot trigger phrases. 7h (8).
 - [x] Each of the six success criteria has a recorded disposition
       of met, declined or named residual. 7h (9).
-- [ ] Phase 7's Execution row carries a `Status` and an empty
+- [x] Phase 7's Execution row carries a `Status` and an empty
       `Merged` cell -- the only row permitted to -- and the
       plan's `Status` and its `index.md` row both read `Complete`
       and agree. 7h (10).
@@ -4102,25 +4105,28 @@ job is to find them. That is the check working, and it is the answer
 to the question phase 6 raised about this plan: a confirming step
 that only ever agrees is not confirming anything.
 
-**Ten of the eleven done-list bullets are ticked.** The eleventh is
-bullet 10, which asks that the plan's `Status` and its `index.md` row
-both read `Complete`. Neither can until images#15 is resolved or
-declined, which is the shared block working as intended rather than
-an outstanding task.
+**All eleven done-list bullets are ticked.** Bullet 10 -- that the
+plan's `Status` and its `index.md` row both read `Complete` -- was
+the last, and it was held open by design rather than by oversight.
+The shared block does not let a plan complete while a finding is
+unresolved, and images#15 was that finding; it merged as `13d3b34`
+on 2026-10-08, so the bullet ticks and the plan closes. **That is
+the one kind of done-criterion a phase cannot satisfy by itself**,
+which is most of the reason it is in the list.
 
 **Where every finding went.** Each has exactly one disposition.
 
 | Finding | Disposition |
 |---------|-------------|
-| Three plan references in this repository's code | Fixed here, `62889c7` |
-| The homelab host in `images`' public README | images#15, a pull request rather than an issue |
+| Three plan references in this repository's code | Fixed here, `6156184` |
+| The homelab host in `images`' public README | images#15, a pull request rather than an issue, merged `13d3b34` |
 | `images`: seven reporting-path findings, including the unasserted `temp.qcow2` | images#16 |
 | `private-ci`: the public-issue body, the unpaginated listing, the log-only builder path, and four smaller items | private-ci#114, which is private |
 | `actions`: five plan references, `docs/ansible.md` left behind, the syntax-check script's unreachable exit | actions#148 |
 | `shakenfist`: two scheduled-test lanes named for the wrong release | shakenfist#4492 |
 | `client-python`: the same shape, where `job_name` is also the concurrency key | client-python#423 |
 | No `PUSH-AUDIT.md` in the three producer repositories | #232, the proposal this phase was asked to file |
-| Sixteen stale claims in this plan | Corrected at source, `e4c57d5` |
+| Sixteen stale claims in this plan | Corrected at source, `dacff43` |
 | Six advisory findings against this repository's three code merges | Declined in writing above; the `scope.py` count is in *Future work* |
 | `shakenfist`'s `BUNDLE_TOPOLOGIES` regression | Already fixed outside this plan, recorded in shakenfist#4492 for the lesson |
 
@@ -4164,7 +4170,16 @@ was created on 2026-10-08 at 06:05 UTC and is in neither the audit
 matrix nor the excluded list. That is the criterion working on a
 repository three hours old and nothing to do with this plan;
 placing it is ordinary audit housekeeping and is recorded here so
-that the failure is not read as this plan's.
+that the failure is not read as this plan's. **Resolved
+2026-10-08, after the step ran.** `066d639` on `main` placed
+`andris` in the audit matrix and in `docs/audits/README.md`, and
+this phase's branch is rebased onto it, so `scope-coverage` passes
+and the residual is closed. `audit-check.py` reports one failure
+instead, `review-coverage`, at exactly its threshold of five: the
+three code files this phase edits carry stale review marks, and
+`066d639`'s two files have never been reviewed. That is the
+review-tracking tooling describing in-flight work, which the mark
+import on merge clears.
 
 **What this phase corrected in the plan, at source.** Sixteen stale
 or false claims, five of them live in sections no disclaimer
