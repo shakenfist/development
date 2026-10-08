@@ -52,15 +52,24 @@ the check matches the same way: `plans`, `/docs/plans` and
 `docs/plans/` exclude nothing there, and do not pass. An npm `files`
 entry is matched at any depth, which can only report more, not less.
 
+Lists are applied in order, with `!` negation, and the two directions
+are judged differently. An include list (npm `files`, Cargo and hatch
+`include`) that names anything below `docs/plans` -- `docs/plans/audit`,
+`docs/plans/**/*.md` -- ships plans, and fails. An exclusion only counts
+when it covers the whole of `docs/plans`, and a later `!` line naming
+any part of it undoes that.
+
 `MANIFEST.in` (and a galaxy `manifest`) is evaluated for the directives
-that act on whole directories, plus the file patterns of
-`recursive-include` and `global-include`; an `exclude` that names
-individual plans is not treated as excluding the directory, because the
-next plan would not be named, and an `include` of individual plan paths
-is not modelled. File patterns are judged against a Markdown plan, so
-`recursive-include docs *.png` does not count as shipping the plans
-even if a plans directory holds an image. A galaxy `manifest` that keeps
-the default directives is treated as shipping the plans, since those
+that act on whole directories (including the root, `.`), the file
+patterns of `recursive-include` and `global-include`, and the paths of
+`include`. The only exclusions credited are `prune` and
+`recursive-exclude <dir> *` of `docs/plans` or a directory above it: an
+`exclude` or `global-exclude` that would remove the plans one file type
+or name at a time is not, because the next plan need not match it. Use
+`prune docs/plans`. File patterns are judged against a Markdown plan, so
+`recursive-include docs *.png` does not count as shipping the plans even
+if a plans directory holds an image. A galaxy `manifest` that keeps the
+default directives is treated as shipping the plans, since those
 defaults take `.txt`, `.json` and `.yml` files from `docs/`.
 
 Docker images are not checked. The build context is chosen by the

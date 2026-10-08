@@ -2470,6 +2470,143 @@ class ReleaseArtifactsExcludePlansTest(CheckTestCase):
         self.assert_fail(self._check({'Cargo.toml': '[package\n'}),
                          containing='1 release artifact')
 
+    def test_a_graft_of_the_root_after_the_prune_fails(self):
+        """The root holds docs/plans, so '.' reaches every plan."""
+        self.assert_fail(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'MANIFEST.in': 'prune docs/plans\ngraft .\n',
+        }))
+
+    def test_pruning_the_root_passes(self):
+        self.assert_pass(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'MANIFEST.in': 'prune .\n',
+        }))
+
+    def test_plain_setuptools_recursively_including_from_the_root_fails(self):
+        for patterns in ('*.md', 'docs/plans/*.md', 'plans/*'):
+            with self.subTest(patterns=patterns):
+                self.fresh_fixture()
+                self.assert_fail(self._check({
+                    'pyproject.toml': self.PLAIN_PYPROJECT,
+                    'MANIFEST.in': f'recursive-include . {patterns}\n',
+                }))
+
+    def test_plain_setuptools_including_plan_paths_fails(self):
+        for pattern in ('docs/plans/*.md', 'docs/*/*', 'docs/**'):
+            with self.subTest(pattern=pattern):
+                self.fresh_fixture()
+                self.assert_fail(self._check({
+                    'pyproject.toml': self.PLAIN_PYPROJECT,
+                    'MANIFEST.in': f'include {pattern}\n',
+                }))
+
+    def test_plain_setuptools_including_top_level_files_passes(self):
+        """include's '*' stays within one path segment."""
+        self.assert_pass(self._check({
+            'pyproject.toml': self.PLAIN_PYPROJECT,
+            'MANIFEST.in': 'include *.md docs/*.md\n',
+        }))
+
+    def test_a_comment_after_a_directive_is_not_read(self):
+        """setuptools strips a comment from anywhere on the line."""
+        self.assert_pass(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'MANIFEST.in': 'prune docs/plans  # working history\n',
+        }))
+        self.fresh_fixture()
+        self.assert_pass(self._check({
+            'pyproject.toml': self.PLAIN_PYPROJECT,
+            'MANIFEST.in': 'global-include *.png  # not *.md\n',
+        }))
+
+    def test_an_include_list_naming_part_of_the_plans_fails(self):
+        """Shipping one plans subdirectory is still shipping plans."""
+        cases = {
+            'npm files': {
+                'package.json': (
+                    '{"name": "thing", "version": "1.0.0", '
+                    '"files": ["dist/", "docs/plans/audit"]}\n'),
+            },
+            'cargo include': {
+                'Cargo.toml': (
+                    '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                    'include = ["/src", "/docs/plans/**/*.md"]\n'),
+            },
+            'hatch include': {
+                'pyproject.toml': (
+                    '[build-system]\nrequires = ["hatchling"]\n'
+                    'build-backend = "hatchling.build"\n\n'
+                    '[tool.hatch.build.targets.sdist]\n'
+                    'include = ["src", "docs/*/audit"]\n'),
+            },
+        }
+        for name, files in cases.items():
+            with self.subTest(name):
+                self.fresh_fixture()
+                self.assert_fail(self._check(files),
+                                 containing='1 release artifact')
+
+    def test_an_npm_files_negation_of_the_plans_passes(self):
+        self.assert_pass(self._check({
+            'package.json': (
+                '{"name": "thing", "version": "1.0.0", '
+                '"files": ["docs/", "!docs/plans"]}\n'),
+        }))
+
+    def test_an_npmignore_negation_after_the_exclusion_fails(self):
+        """A later '!' line puts part of the plans back."""
+        self.assert_fail(self._check({
+            'package.json': '{"name": "thing", "version": "1.0.0"}\n',
+            '.npmignore': '/docs/plans/\n!/docs/plans/audit\n',
+        }))
+
+    def test_an_npmignore_exclusion_after_a_negation_passes(self):
+        self.assert_pass(self._check({
+            'package.json': '{"name": "thing", "version": "1.0.0"}\n',
+            '.npmignore': '!/docs/plans/audit\n/docs/plans/\n',
+        }))
+
+    def test_a_crate_exclude_negation_after_the_exclusion_fails(self):
+        self.assert_fail(self._check({
+            'Cargo.toml': (
+                '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                'exclude = ["/docs", "!/docs/plans"]\n'),
+        }))
+
+    def test_a_zero_indented_build_ignore_passes(self):
+        """yamllint's default indent-sequences accepts this form."""
+        self.assert_pass(self._check({
+            'galaxy.yml': (
+                'namespace: sf\nname: thing\n'
+                'build_ignore:\n- .ansible\n- docs/plans\n'),
+        }))
+
+    def test_a_zero_indented_list_under_another_key_is_not_read(self):
+        self.assert_fail(self._check({
+            'galaxy.yml': (
+                'namespace: sf\nname: thing\n'
+                'build_ignore:\n- .ansible\ntags:\n- docs/plans\n'),
+        }))
+
+    def test_trailing_comments_in_galaxy_yml_are_dropped(self):
+        cases = {
+            'commented key': (
+                'build_ignore:  # working history\n  - docs/plans\n'),
+            'block item': 'build_ignore:\n  - docs/plans  # history\n',
+            'quoted item': "build_ignore:\n  - 'docs/plans' # history\n",
+            'flow list': "build_ignore: ['docs/plans']  # history\n",
+            'directive': (
+                'manifest:\n  omit_default_directives: false  # keep\n'
+                '  directives:\n    - prune docs/plans  # history\n'),
+        }
+        for name, galaxy in cases.items():
+            with self.subTest(name):
+                self.fresh_fixture()
+                self.assert_pass(self._check({
+                    'galaxy.yml': f'namespace: sf\nname: thing\n{galaxy}',
+                }))
+
 
 class PathPatternSelectsTest(unittest.TestCase):
     """The gitignore-shaped matching every exclusion list goes through."""
@@ -2489,6 +2626,49 @@ class PathPatternSelectsTest(unittest.TestCase):
             with self.subTest(pattern=pattern):
                 self.assertFalse(packaging.path_pattern_selects(
                     pattern, 'docs/plans'))
+
+
+class PathPatternReachesTest(unittest.TestCase):
+    """The wider match an include list, or a '!' line, goes through."""
+
+    def test_patterns_that_reach_into_the_plans(self):
+        for pattern in ('docs/plans', 'docs', 'docs/plans/audit',
+                        '/docs/plans/audit/', 'docs/plans/**/*.md',
+                        'docs/*/audit', '**/audit', 'docs/**/x.md'):
+            with self.subTest(pattern=pattern):
+                self.assertTrue(packaging.path_pattern_reaches(
+                    pattern, 'docs/plans'))
+
+    def test_patterns_that_do_not(self):
+        for pattern in ('', 'audit', 'docs/images/audit', 'src/**',
+                        'docs/plansx/audit', 'doc/plans/audit'):
+            with self.subTest(pattern=pattern):
+                self.assertFalse(packaging.path_pattern_reaches(
+                    pattern, 'docs/plans'))
+
+
+class SegmentGlobMatchesTest(unittest.TestCase):
+
+    def test_a_star_stays_within_a_segment(self):
+        sample = 'docs/plans/PLAN-example.md'
+        self.assertTrue(packaging.segment_glob_matches(sample, 'docs/*/*.md'))
+        self.assertTrue(packaging.segment_glob_matches(sample, 'docs/**'))
+        self.assertFalse(packaging.segment_glob_matches(sample, '*.md'))
+        self.assertFalse(packaging.segment_glob_matches(sample, 'docs/*.md'))
+
+
+class YamlScalarTest(unittest.TestCase):
+
+    def test_comments_and_quotes_are_dropped(self):
+        for text, expected in (
+                (' docs/plans ', 'docs/plans'),
+                ('docs/plans  # history', 'docs/plans'),
+                ("'docs/plans' # history", 'docs/plans'),
+                ('"docs # plans"', 'docs # plans'),
+                ('docs#plans', 'docs#plans'),
+                ('# only a comment', '')):
+            with self.subTest(text=text):
+                self.assertEqual(expected, packaging.yaml_scalar(text))
 
 
 class BuildIgnoreSelectsTest(unittest.TestCase):
