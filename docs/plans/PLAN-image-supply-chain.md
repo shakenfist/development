@@ -3,9 +3,14 @@
 ## Prompt
 
 Written 2026-09-13, consolidating work that had spread across three
-concurrent sessions and nine open issues in four repositories. Two
+concurrent sessions and seven open issues in four repositories. Two
 of those sessions have been closed; this plan is the single
-statement of what is outstanding and in what order.
+statement of what is outstanding and in what order. **The count was
+nine until 2026-10-08**, when phase 7's audit found that the
+Situation table below enumerates seven and has always done so, and
+that the two unnamed issues could not be identified. Corrected to
+match the enumeration, which is the only part of the claim with
+evidence behind it.
 
 Two threads run through every issue here and they are not the same
 problem. The first is a migration: Debian 12 reached end of
@@ -98,22 +103,37 @@ invisible to it:
   the three fits a repository built from nightly that the fleet's
   CI depends on.
 * **private-ci** decides which images become runner labels, in
-  `IMAGE_BUILDS` and `CI_IMAGES`. It is in scope for four plan
-  criteria and `sfui-vendor`, and nothing else.
+  `IMAGE_BUILDS` and `CI_IMAGES`. It was in scope for four plan
+  criteria and `sfui-vendor`, and nothing else. **Corrected
+  2026-10-08 by phase 7's audit:** it is six criteria now, because
+  phase 6 added `eol-producers` and scoped it here, which is what
+  this bullet exists to ask for.
 * **33fl's static runners** advertise only `self-hosted` and
   `static`, so no workflow anywhere names an operating system. A
-  grep of every consuming repository finds nothing while every one
-  of those jobs runs on a retired release.
+  grep of every consuming repository finds nothing, whatever those
+  jobs are running on. **Corrected 2026-10-08 by phase 7's audit:**
+  this bullet said "while every one of those jobs runs on a retired
+  release", which was an overstatement on the day it was written --
+  33fl#820 had already moved `static_runner_debian_release` to 13 on
+  2026-09-12, as the 5c row records -- and is false now that 5e has
+  closed 33fl#826. The label-blindness this bullet is really about
+  is unaffected by what the runners boot.
 
-So the three definitions that create the exposure sit outside the
+So the three definitions that create the exposure sat outside the
 criterion that bans it, and the 80 findings in #123 are the
-downstream shadow of decisions the audit cannot read. Fixing the
+downstream shadow of decisions the audit cannot read. **Corrected
+2026-10-08 by phase 7's audit:** two of the three are inside a
+criterion now. `images` is in the audit matrix scoped to
+`eol-distro` and reports compliant, and `private-ci`'s two tables
+are read by `eol-producers` and report compliant -- which is phase
+6 having done what this paragraph asks for, so the past tense is
+the correction rather than a retreat. Fixing the
 80 without fixing the three means the count returns at the next
 end-of-life date.
 
 ## Mission and problem statement
 
-Close the nine open issues in a sequence that does not break CI on
+Close the seven open issues in a sequence that does not break CI on
 the way through, and change the image pipeline so that the next
 failure announces itself instead of waiting to be noticed.
 
@@ -2168,7 +2188,12 @@ One thing this phase cannot do is prove itself with the audit.
 `eol-distro` does not read either list it empties: `private-ci` is
 scoped by `only_checks` to four plan criteria and `sfui-vendor`
 (`scripts/audit/repo.py:88-93`), and `33fl` is in another
-organisation. So `compliance.md` reads exactly the same before and
+organisation. **Still true of phase 5 and no longer true of the
+repository, noted 2026-10-08 by phase 7's audit:** the scope is six
+criteria now and `only_checks` is at `repo.py:91-97`, because phase
+6 added `eol-producers`. This paragraph is the record of why phase 5
+could not prove itself, so it keeps its tense; what it describes is
+exactly what phase 6 went on to change. So `compliance.md` reads exactly the same before and
 after, and a done criterion asking for a green audit would pass
 vacuously. Phase 6 is the phase that makes the producers
 measurable; until it runs, the evidence here is greps, a test count
@@ -2858,7 +2883,14 @@ here: a criterion failing because nobody asked GitHub looks
 identical, in a summary, to one failing because the setting is
 wrong.
 
-**Confirmed, unchanged.** Scope is still stated in three places
+**Confirmed, unchanged.** **Read as of 2026-10-05, and four of the
+findings in this block were changed by 6b four days later --
+`only_checks` is six entries rather than five, the stale matrix
+comment is gone, seven repositories rather than eight sit outside
+the matrix, and two of the three producers are now inside a
+criterion. Noted 2026-10-08 by phase 7's audit, which found that
+"still" reads as a live claim rather than as a dated one.** Scope is
+still stated in three places
 and `AuditScopeIsStatedOnceTest` still holds them together
 (`scripts/tests/test_registry.py:42`). `private-ci`'s `only_checks`
 is still exactly five entries -- `plan-phase-references`,
@@ -2889,7 +2921,11 @@ what "Depends on: phases 3-5" was for.
 
 **Stale, and corrected at source in this commit.**
 
-* **52 criteria is now 58.** `registry.CHECKS` holds 58. Six
+* **52 criteria is now 58.** `registry.CHECKS` held 58 when this
+  survey ran; it holds 60 on 2026-10-08, one of the two increments
+  being this plan's own `eol-producers`. The bullet's own argument
+  is that this number drifts, and it drifted again inside the phase
+  that wrote it. Six
   criteria arrived between 2026-09-13 and today, so every
   arithmetic statement built on 52 was going to drift whether or
   not anybody noticed.
@@ -3515,9 +3551,10 @@ step 7a records them.
 **`shakenfist/actions` has a `PUSH-AUDIT.md` now.** The section
 says none of the four repositories has one "at all -- so no such
 audit could have been run". True on 2026-09-17; `actions` gained
-a 34KB runbook on 2026-10-05. Nine of the seventeen landing
-repositories have one, and eight of those nine have had one since
-July or August, which is *before* phase 4's sweep landed in them.
+a 34KB runbook on 2026-10-05. Ten of the seventeen landing
+repositories have one -- this one included, which the first count
+written here forgot -- and eight of them have had one since July or
+August, which is *before* phase 4's sweep landed in them.
 So the conclusion survives and its reason does not: there is still
 no out-of-repository audit for this phase to cite. All nineteen
 landings in the nine repositories that carry a runbook today were
@@ -3725,7 +3762,7 @@ below are what they must match.
 | 7b | high | opus | worktree | **`shakenfist/private-ci`, six landings. Private repository -- decision 7.6 governs what may be written down.** Ranges: `ae7b1f8` (`#49`, `+460 -11`), `e1f8fb1` (`#54`, `+339 -6`), `392700d` (`#60`, `+9 -1`), `923a28a` (`#61`, `+1 -1`), `df913b8` (`#63`, `+26 -16`), `e77fca7` (`#100`, `+145 -180`). **The last three of those shas are not what the Execution table recorded** before this phase's planning commit; it had `9eace9d`, `2e18c13` and `dbb78ca`, which are the branch commits. Use the shas in this brief. No `PUSH-AUDIT.md` in that repository, so the five-item checklist. Two things to weight. Checklist item 2: `#49` is the conductor scheduler fix, and unattended rebuild scheduling is exactly the "runs unattended, reports its own failure somewhere a human sees" question -- the phase 1 bug was that nothing recorded a missed night. Checklist item 4: `#100` is the end-of-life producer retirement, `+145 -180`, the largest deletion in the plan; grep across all seventeen repositories for each removed label and image name rather than assuming the consumer sweep caught them, and say which greps you ran. **Report findings as a verdict, a path and a class of problem. No hostnames, no addresses, no credentials, no quoted configuration, no quoted log lines**, because the report lands in a public plan file. If a finding cannot be stated that way, say so and say which private repository should carry it. No commit. |
 | 7c | high | opus | worktree | **`shakenfist/actions`, eight landings, under that repository's own runbook.** Clone it and read its `PUSH-AUDIT.md` first -- 34KB, added 2026-10-05, after seven of these eight landed, which does not make it the wrong instrument: the question is whether what is on `main` now is sound. Ranges: `2ac4a94` (`#74`, `+436 -0`), `893d579` (`#78`, `+146 -18`), `04bd659` (`#80`, `+146 -15`), `5a677a9` (`#90`, `+66 -19`), `8c02ab0` (`#97`, `+32 -31`), `227593c` (`#124`, `+13 -31`), `2351ece` (`#136`, `+43 -28`), `587683a` (`#140`, `+13 -11`). **`893d579` and `04bd659` are the two ranges this plan previously recorded wrongly**, as `8684eec` and `781d267`, each one commit of a multi-commit pull request: the old range for `#78` missed `b8f85d3`, *Cache Debian 13 and Rocky 10, drop bullseye.*, which is the cache-disk migration itself, and the old range for `#80` missed `b4b0e3d`, *Snapshot the Debian 13 desktop image.* Read both in full and say explicitly what the previously-missing commits contain, because that is the only part of this phase that could not have been found by auditing what the table said. `#74` is the largest single addition in `actions` and is phase 2's verification work; `#97` and `#124` are the two halves of the guest-image rename, and item 4 -- nothing removed has a consumer left -- is the one that matters across them, checked by grep across the seventeen repositories rather than by reading the pull requests. No commit. |
 | 7d | medium | sonnet | worktree | **`Mach33Labs/33fl`, three landings. Private repository -- decision 7.6 governs what may be written down.** Ranges: `6de1764` (`#827`, `+91 -0`), `bbbd842` (`#836`, `+106 -4`), `e92a1b4` (`#925`, `+5 -2`). No `PUSH-AUDIT.md`, so the five-item checklist. The first two are the alarm-on-absence and artifact-verification work; checklist item 2 is the whole question for them, because an alarm that does not report its own failure is the defect this plan exists to fix and `33fl` is where the Grafana side of it lives. `#925` is five lines of the producer retirement. Same redaction rule as 7b: verdict, path, class, nothing quoted. Medium effort and sonnet because the diff is 202 insertions and the checklist is explicit, not because the repository matters less. No commit. |
-| 7e | medium | sonnet | worktree | **Tier B: twelve repositories, fifteen landings, read once as one set against checklist item 4.** `shakenfist/shakenfist` `54b18a0` (`#4306`, `+91 -41`), `2a94e58` (`#4379`, `+68 -68`), `984fdd1` (`#4385`, `+7 -7`); `shakenfist/kerbside` `951b3e8` (`#435`, `+20 -4`), `baefc65` (`#450`, `+18 -11`) -- **not** the `79c2506` and `cfef26a` the table used to record; and one landing each in `agent-python` `8303e99`, `client-python` `93a0999`, `client-python-k3s` `1576e72`, `clingwrap` `d5eb4ea`, `divergulent` `53136f2`, `instar` `a1c09aa`, `library-utilities` `6f63b95`, `occystrap` `4b9d5ff`, `ryll` `060e649`, `sfui` `30f5501`, totalling `+68 -71`. Nine of these twelve have their own `PUSH-AUDIT.md` and this step deliberately does not run twelve runbooks over `+345 -268` of label edits; decision 7.2 says why and what makes it a tiering rather than a dropping. **The one question:** did any of these delete a runner-label declaration or a `runs-on:` line while something still requested that label, or leave one behind that nothing requests? Answer it by grep across all seventeen repositories, not per repository, and state the greps. Then two subsidiary ones: does any of them still reference a retired label in an `.github/actionlint.yaml` declaration, and did `shakenfist/shakenfist`'s three -- the only tier B landings that are not label edits, being the guest-image consumer move -- leave a read of an artifact name that no longer exists? `eol-distro` reporting compliant for every repository in the matrix is an independent witness on the first question and is not a substitute for asking it. No commit. |
+| 7e | medium | sonnet | worktree | **Tier B: twelve repositories, fifteen landings, read once as one set against checklist item 4.** `shakenfist/shakenfist` `54b18a0` (`#4306`, `+91 -41`), `2a94e58` (`#4379`, `+68 -68`), `984fdd1` (`#4385`, `+7 -7`); `shakenfist/kerbside` `951b3e8` (`#435`, `+20 -4`), `baefc65` (`#450`, `+18 -11`) -- **not** the `79c2506` and `cfef26a` the table used to record; and one landing each in `agent-python` `8303e99`, `client-python` `93a0999`, `client-python-k3s` `1576e72`, `clingwrap` `d5eb4ea`, `divergulent` `53136f2`, `instar` `a1c09aa`, `library-utilities` `6f63b95`, `occystrap` `4b9d5ff`, `ryll` `060e649`, `sfui` `30f5501`, totalling `+68 -71`. Eight of these twelve have their own `PUSH-AUDIT.md` -- this brief said nine until 7e checked it -- and this step deliberately does not run twelve runbooks over `+345 -268` of label edits; decision 7.2 says why and what makes it a tiering rather than a dropping. **The one question:** did any of these delete a runner-label declaration or a `runs-on:` line while something still requested that label, or leave one behind that nothing requests? Answer it by grep across all seventeen repositories, not per repository, and state the greps. Then two subsidiary ones: does any of them still reference a retired label in an `.github/actionlint.yaml` declaration, and did `shakenfist/shakenfist`'s three -- the only tier B landings that are not label edits, being the guest-image consumer move -- leave a read of an artifact name that no longer exists? `eol-distro` reporting compliant for every repository in the matrix is an independent witness on the first question and is not a substitute for asking it. No commit. |
 | 7f | high | opus | worktree | **This repository, under its own `PUSH-AUDIT.md`.** Three code-bearing merges: `b464fcc` (`#218`, `+31 -20`, `scripts/audit/checks/distros.py` and `docs/audits/eol-distro.md` -- phase 5's, and the reason the old claim that only phase 6 lands here was wrong), `358bef0` (`#222`, `+844 -4`, the `eol-producers` criterion), `6163de8` (`#226`, `+176 -35`, the scope and matrix work). Run wave 1 once per range and wave 2 once over all three, per decision 7.3. Wave 2's briefs are this repository's own and they are the right ones: the five-file rule applies directly to `#222`, which added a criterion, and `#226` touched `scripts/audit/scope.py`, whose parse anchors phase 6 found could pass vacuously. **Then the fourteen plan-document merges, read for one thing only:** `54c166a` (`#124`), `d102e9f` (`#128`), `bcf99ae` (`#135`), `228eb34` (`#143`), `7b983c9` (`#148`), `db72571` (`#164`), `df33682` (`#178`), `2369a2a` (`#199`), `c314e64` (`#200`), `b375c60` (`#207`), `608ecf7` (`#217`), `13fec36` (`#221`), `d67c39c` (`#227`), `8684ec8` (`#230`), totalling `+3997 -440`. The one thing is a false factual claim about another repository or about this one, because every phase of this plan from 4 onwards found its own section stale and this phase found three more. You are not re-reviewing the prose; you are checking assertions against the tree, and `scripts/audit/checks/plans.py`'s `plan-source-references` criterion already checks that cited paths exist, so look at the claims it cannot: counts, dates, "nothing else references", "this does not exist". Report each with the line and what the tree says instead. No commit in this step; 7g carries the fixes. |
 | 7g | high | opus | none | **Collate, act, and close the plan.** (1) Assemble every finding from 7a to 7f into one list, each with its repository, range, checklist item or wave, and severity. (2) Findings that are defects this plan introduced, in this repository, become one pull request against `main` -- the shared block requires findings to land as their own pull request. (3) Findings in another repository become an issue in that repository, one per repository rather than one per finding, and this plan records the numbers. **Never write a bot trigger phrase in any issue or comment body**: the match is a substring anywhere in the body, including inside backticks, and two of those phrases start workflows that push commits -- grep every body for `retest`, `re-review` and `recheck` before posting, and grep the posted body again afterwards. The audit's own `ci-review-automation` finding text contains two of them, so quoting a finding verbatim is the specific trap. (4) Findings declined are declined in writing in this plan, with the reason, under a `#### What the audit found` subsection -- not in a pull request comment. (5) Where a repository's audit found nothing, one sentence saying so, per repository, per the shared block. (6) File one issue in `shakenfist/development` proposing a `PUSH-AUDIT.md` for `shakenfist/images`, `shakenfist/private-ci` and `Mach33Labs/33fl`, naming the three blast radii as different from each other and from this repository's, and citing `PushAudit.run`'s docstring that a missing runbook is deliberately N/A rather than a finding (`scripts/audit/checks/plans.py:1500-1540`); note in it that `agent-python`, `client-python`, `clingwrap` and `library-utilities` are the same question for consumer repositories and are not part of the proposal. (7) Check each of the six success criteria under *Administration and logistics* and record met, declined or named residual for each -- `eol-distro` reporting zero findings was confirmed on 2026-10-08 and the other five are this step's. (8) Set phase 7's `Status` and leave its `Merged` cell empty, set the plan's own `Status` and the `index.md` row to `Complete`, and do both in the same commit as the last finding is resolved or declined. |
 | 7h | medium | sonnet | none | **Confirms the phase, after 7g's pull request has merged.** Eleven checks, every one of them run and each reported with its output, because phase 6 found four checks in this plan that could not fail and this phase is the one that closes the plan on the strength of them. (1) Parse the Execution table and confirm every one of the forty-three landings appears in the audit record with a range; report any in one and not the other. (2) For every sha the table records, `gh api repos/<repo>/commits/<sha> --jq '.parents|length'` returns 2, and the seven phase 3 cells name `392700d`, `923a28a`, `df913b8`, `893d579`, `04bd659`, `951b3e8` and `baefc65`. (3) Every report from 7a to 7f states per-range insertion and deletion totals, and each matches `gh api repos/<repo>/pulls/<n> --jq '.additions, .deletions'`; name any that did not and say whether it was re-run. (4) `images#8` has its own verdict against checklist item 2, separate from the other five `images` ranges. (5) `grep -nE` over this plan's new sections for a hostname shape, an IP address, a credential-looking token or a quoted configuration value attributable to `private-ci` or `33fl` returns nothing -- demonstrate the grep, do not assert the absence. (6) Every finding has exactly one of three dispositions and the plan says which: fixed in 7g's pull request, filed as an issue whose number is recorded, or declined in writing with a reason. (7) Each of the seventeen repositories has either at least one finding or a one-sentence statement that its audit found nothing. (8) The `PUSH-AUDIT.md` proposal issue exists, is named in this plan, and `gh issue view` on it contains none of `retest`, `re-review` or `recheck`. (9) Each of the six success criteria has a recorded disposition of met, declined or named residual. (10) Phase 7's Execution row has a `Status` and an empty `Merged` cell, and the plan's `Status` and its `docs/plans/index.md` row both read `Complete` and agree with each other. (11) **The vacuous-pass check, by mutation rather than by reading.** In a clean clone, run one of `PUSH-AUDIT.md`'s wave 1 greps with `AUDIT_RANGE` unset and confirm it returns nothing at all, then run it with a range from 7f and confirm it returns something: that is the false pass this phase was most likely to produce, and the evidence that it did not is that every report's totals are non-zero and match check (3). Report the output of both runs. **Then, and only if every check agrees**, tick the done list. If any check disagrees, report and stop. |
@@ -3830,6 +3867,230 @@ for it in the same commit.**
       diff, demonstrated by running the empty case and showing
       what it returns. 7h (11).
 
+#### What the audit found
+
+Run 2026-10-08. Forty-three landings, seventeen repositories, read
+as `AUDIT_RANGE=<sha>^1..<sha>` with every sha substituted
+literally and every range's measured insertion and deletion totals
+compared against what GitHub reports for that pull request before
+anything else was read. **All forty-three matched.** The totals are
+the only check here that does not depend on a reader noticing their
+own mistake, which is why they come first.
+
+Seven findings warrant action, two of them blocking against this
+fleet's own published rules. The shape of the rest is worth stating
+once, because it is uniform: **almost every defect this audit found
+is in a path that reports a failure rather than a path that causes
+one, and every one of them fails quiet.**
+
+**Blocking: this plan put eight plan references into code, in two
+repositories.** `templates/shared-blocks/plan-references-in-code.md`
+-- whose canonical copy is in this repository -- says "Do not write
+'added in phase 5', 'per decision 3'" and "A plan reference a diff
+adds to code is a finding to fix before pushing", with a carve-out
+only for deferred work and only as an absolute URL. Three landed
+here: `scripts/audit/checks/distros.py:437-439` and
+`scripts/tests/test_distros.py:863` from 6a, and
+`scripts/audit/repo.py:102-103` from 6b. Five landed in
+`shakenfist/actions`' `ansible/ci-dependencies.yml` from 5b and the
+`ubuntu:18.04` removal, four of them "Deliberately frozen per
+decision 5.4 of PLAN-image-supply-chain". None is deferred work,
+each already states its reason in the same comment so the citation
+adds nothing, and the `actions` five cite a plan in another
+repository without the absolute URL the carve-out requires. Two
+steps found this independently. **Why it was not caught:** the
+`plan-phase-references` criterion greps `README.md` and `docs/`
+with plans excluded, so it cannot see `scripts/`, and nothing
+mechanical guards this block in code at all. The three here are
+removed in this phase; the five in `actions` are in that
+repository's issue.
+
+**Blocking: a homelab host name is published in a public
+repository.** `shakenfist/images` is public. 6c's predecessor #6
+moved the Loki push URL and tenant out of `build.sh` into
+`SF_IMAGES_LOKI_URL` and `SF_IMAGES_LOKI_TENANT` *because* the
+repository is public, and left the same host and tenant in
+`README.md`'s log-forwarding section, including in three example
+query lines. The only match remaining in `build.sh` is the literal
+header name `X-Scope-OrgID`, which is not a leak. The same
+paragraph is also false now: it states logs are forwarded to that
+host, which is true only where the deployment sets the two
+variables. Carried by a pull request against `images` rather than
+by an issue, because an issue would restate in public exactly what
+the fix removes. The hostname predates this plan; the false claim
+is #6's.
+
+**The finding that justified the phase.** Phase 3 recorded seven
+branch commits where it should have recorded merge commits, and
+`actions#80`'s recorded sha covered one commit of four. The commit
+it left out, `b4b0e3d`, hard-renamed a cache-disk path and a label
+with no transition window -- the cache disk is reformatted on every
+build -- while `shakenfist/kerbside` copies that path off the disk
+by hardcoded name. That is checklist item 4 exactly, and **no audit
+of the range the plan recorded could have seen it.** Two commits
+later in the same pull request fixed it additively with a hardlink
+shim, so what is on `main` is correct and `kerbside` works either
+way; the sha the plan recorded showed the correction without the
+thing it corrected. `actions#78`'s recorded sha likewise covered
+one commit of two, leaving out the cache-disk migration itself,
+although there the recorded commit superseded the missed one.
+
+**A check in this plan that could not fail.** 4g's lane rename
+replaced the keys of `BUNDLE_TOPOLOGIES` in
+`shakenfist/tools/ci_headroom_harvest.py` rather than adding to
+them, so every merge run from before 2026-09-29 stopped
+classifying. Artifacts live ninety days. The plan named this risk
+in writing -- *"A silent stop, not a failure. `ci_headroom_harvest.py`
+keys off job names, and 4g renames them. Nothing fails if the tool
+is missed"* -- and mitigated it with 4j check (3), *"matches all
+five `BUNDLE_TOPOLOGIES` entries against a merge run completed
+after 4g"*. A run completed after the rename carries the new names
+by construction, so the check could only ever observe the half that
+still worked. It was found six days later by an unrelated plan that
+needed a window of runs from 21 to 24 September, and fixed in
+`shakenfist` `3656435` with a regression test. **The
+generalisation, which is the part worth keeping:** checklist item 4
+says anything removed has no consumer left, "checked by grep across
+the repositories". No grep over source could have found this
+consumer, because the consumer was ninety days of stored artifacts.
+An item-4 check needs to ask what reads the old name, not what
+mentions it.
+
+**`shakenfist/private-ci`: the forge is the weak reporting
+channel.** `conductor/github.py`'s `upsert_issue()` and
+`close_issue_if_open()` each make a single unpaginated request with
+a page size smaller than the 134 open items in the repository they
+file into, while the same file paginates correctly in eight other
+places. Once the tracked issue falls off the first page,
+`upsert_issue()` files a duplicate on every change and
+`close_issue_if_open()` never closes it -- the outcome its own
+docstring exists to prevent, arriving gradually, in a public
+tracker. Alongside it, the build-failure path writes host-specific
+detail and an unredacted log tail into that same public tracker.
+Both are in that repository's own issue, which is private;
+decision 7.6 is why neither is described further here. Also found
+and not acted on: a gauge 1a added that nothing consumes, and three
+comments stating things that are not true, one of which was never
+true.
+
+**`shakenfist/images`: seven findings, one of them in the
+unrecoverable class.** `build.sh:466` writes `temp.qcow2`, `:492`
+transcodes it into the published artifact and `:497` deletes it --
+after the transcode, so all three `return 1` paths #6 introduced
+leave it behind. Nothing removes it before `:466` and nothing
+asserts it belongs to this build; the two guards that exist read
+the build log rather than the artifact. A later build that exits
+zero without writing its output would publish the previous image's
+contents under this label, which `verify-release` cannot see
+because it runs inside the chroot. One line closes it. The other
+six are reporting paths: `build.sh:171-206` is twenty-six bare
+commands under `errexit` with no `trap`, every one of them before
+`LOKI_URL` is assigned at `:214` -- the `images#8` shape still
+live, twenty lines further down the same file -- and the watchdog
+that is the compensating control for all of it declares `0 9 * * *`
+while its last six scheduled runs fired between 14:15Z and 18:16Z,
+would stop filing issues if anyone set `shell: bash` on its one
+step, misnames the fault for one of its two exit codes, and is a
+`schedule:` workflow that sixty quiet days will disable with no
+symptom anywhere a person looks. All six are in that repository's
+issue.
+
+**What `images#8` first, and alone, was for.** It found the defect
+it was written from and confirmed the fix by running the test
+`images#9` added rather than reading the diff; then it found the
+same class still live in the same file in a span nobody had named;
+then it found three further defects in the instrument that reports
+failure. The calibration worked, and the thing it calibrated was
+item 2.
+
+**Nothing found, stated per repository as the shared block
+requires.** `Mach33Labs/33fl`: nothing, across all three landings
+and all applicable checklist items -- its nightly deploy reports
+failure by the absence of a completion marker that a rule watches,
+which is a stronger design than a task reporting its own error, and
+no error-suppressing directive was added. Tier B's fifteen
+landings: nothing against item 4 or either subsidiary question. No
+retired runner label survives anywhere in the seventeen
+repositories as a request or as an orphaned declaration, every
+label edit landed its `actionlint.yaml` and `runs-on:` halves in
+one commit, and `eol-distro` reporting compliant for all twelve is
+an independent machine witness that agrees. `private-ci#60` and
+`#63`: nothing against any of the five items. `images#7`, `#9` and
+`#14`: nothing. `shakenfist/actions`' security wave: nothing at any
+severity, with gitleaks clean over 495 commits and its positive
+control firing. This repository's security wave: nothing at any
+severity.
+
+**Declined, with reasons.** Six advisory findings against this
+repository's three code merges are recorded and not fixed: they are
+style and seam judgements -- where an `ast` parse should live, a
+module approaching the size at which the shared block wants a
+stated reason, a one-clause comment -- and none changes behaviour.
+One is worth more than that and is declined only as to timing:
+#226 made the `IN_SCOPE_END` anchor count-free, which was right,
+but "Two projects are in scope..." is now a number nothing holds,
+where before getting it wrong broke the parse loudly. That is the
+same class of defect #226 fixed, relocated from loud to silent
+rather than removed. It is a real finding and it is not phase 7's
+to fix: it belongs with whoever next touches `scope.py`, and it is
+in the residual list below. Pre-existing defects in other
+repositories are declined here as a class and carried by that
+repository's issue, per this phase's scope.
+
+**Reviewed and accepted.** 6a published two file paths and two
+module-level constant names belonging to the private `private-ci`
+repository into this public one, in `docs/audits/eol-producers.md`
+and in the check's comments. No hostname, address, credential,
+configuration value or log line. A criterion cannot be specified or
+debugged without naming what it reads, so this is accepted rather
+than fixed, recorded here so the next reader does not raise it
+again.
+
+**What the success criteria came to.** All six were checked rather
+than assumed. Met: every one of the seven issues is closed except
+private-ci#44, which the plan already records as a named residual
+because its fourth checkbox is a separate defect; a published image
+that does not match its own name fails its build, demonstrated by
+`verify-release`'s own test suite and by a `Verified:` line per
+image per night in the build logs; `eol-distro` reports compliant
+for every repository in the audit matrix and the producer
+definitions are now inside `eol-producers` and `eol-distro`; and no
+runner label is retired while any workflow still requests one,
+which 7e checked by grep across all seventeen repositories and
+`eol-distro` agrees with independently. Met with two caveats this
+audit found: an image that stops being built does produce an issue
+without a human looking for it, for all three producers, but the
+`private-ci` path degrades as the target repository fills and the
+builder thread's own failures reach no alert, both of which are in
+that repository's issue. **One named residual:** the criterion asks
+that `pre-commit run --all-files` pass and that
+`scripts/audit-check.py` report no new failures for this
+repository. `pre-commit` passes all seven hooks. `audit-check.py`
+reports one failure, `scope-coverage`, because `shakenfist/andris`
+was created on 2026-10-08 at 06:05 UTC and is in neither the audit
+matrix nor the excluded list. That is the criterion working on a
+repository three hours old and nothing to do with this plan;
+placing it is ordinary audit housekeeping and is recorded here so
+that the failure is not read as this plan's.
+
+**What this phase corrected in the plan, at source.** Sixteen stale
+or false claims, five of them live in sections no disclaimer
+covers, and four of those five were falsified by this plan's own
+merges. The substantive ones are in the Situation section's premise
+paragraph -- `private-ci`'s scope, what the three producer
+definitions sit outside of, and what the static runners boot --
+each now carrying a dated correction rather than a silent rewrite.
+The opening count of open issues was nine in three places against a
+table that enumerates seven; corrected to seven, because the
+enumeration is the half with evidence behind it and the two unnamed
+issues could not be identified. Two counts written by phase 7's own
+survey were wrong and are corrected: ten of the seventeen landing
+repositories carry a runbook rather than nine, and eight of tier
+B's twelve rather than nine. **The pattern is the one every phase
+from 4 onwards reported about its own section, one level up:** the
+premise is the part of a long plan nobody re-reads, and it is the
+part that states why the plan exists.
+
 #### Back brief
 
 Three gates, and the first two are cheap to get wrong and
@@ -3932,7 +4193,7 @@ mislabelled images were deleted on 2026-09-12.
 
 ### Success criteria
 
-* Every one of the nine issues is closed, explicitly declined in
+* Every one of the seven issues is closed, explicitly declined in
   writing here, or reduced to a named residual recorded in this
   plan. The residual case is not a loophole: phase 1 closes only
   part of private-ci#44 and says so, because that issue's fourth
@@ -3958,6 +4219,17 @@ phase has completed, been abandoned or been superseded.
 
 ### Future work
 
+* **A count held by nothing in `scripts/audit/scope.py`.** Phase 6
+  made the `IN_SCOPE_END` anchor count-free, which removed a parse
+  that broke on the edit adding a second partially scoped
+  repository. The lead-in sentence in `docs/audits/README.md` still
+  says how many there are, `documented_partial_scope()` returns the
+  set, and nothing compares the two -- so a third scoped repository
+  with the word left at "Two" now fails nothing. Phase 7's audit
+  found it and declined to fix it as out of scope; it belongs with
+  whoever next touches that file. The same paragraph also states
+  `PARTIAL_SCOPE_END` twice, once for parsing and once for error
+  messages, with nothing holding the two spellings equal.
 * **Boot-testing published images.** Phase 2 asserts that an image
   matches the name it is published under; nothing asserts that it
   boots. That is the largest
