@@ -321,14 +321,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_review_tracking.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/review-tracking.py",
-      "author": "mikal"
-    },
-    {
       "path": "templates/export-repo-config/export-repo-config.yml",
       "author": "mikal"
     },
@@ -862,10 +854,6 @@
     },
     {
       "path": "docs/audits/docs-line-references.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/code-review-tracking.md",
       "author": "mikal"
     },
     {

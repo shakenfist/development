@@ -317,10 +317,6 @@
       "sha": "e805edcee2371ded32aff741f973fe1191b13131",
       "date": "2026-10-05"
     },
-    "docs/code-review-tracking.md": {
-      "sha": "cdb69ac447403abd8572a74196cff48df5c16bd5",
-      "date": "2026-10-07"
-    },
     "docs/consistency-audits.md": {
       "sha": "e6bf33a5adab7a02260adf7b71a3305e7a7d5b33",
       "date": "2026-10-05"
@@ -461,10 +457,6 @@
       "sha": "cc6bcdab6674b2c7c135fa9e59bebdb88b8576f6",
       "date": "2026-09-04"
     },
-    "scripts/review-tracking.py": {
-      "sha": "577956cf7075544ba725bdc50e25c747f53cc031",
-      "date": "2026-09-27"
-    },
     "scripts/tests/__init__.py": {
       "sha": "531d26fbe639291831bc7dff3a4959a702b09fe8",
       "date": "2026-09-04"
@@ -564,10 +556,6 @@
     "scripts/tests/test_review.py": {
       "sha": "93079587c44eb79cca3c705e283ee755bffcf360",
       "date": "2026-09-26"
-    },
-    "scripts/tests/test_review_tracking.py": {
-      "sha": "176d769e6794d75c8e46f0fd6f68c29f9889e222",
-      "date": "2026-09-27"
     },
     "scripts/tests/test_runners.py": {
       "sha": "7aed137d41b191ce4cc7e547cba6ed168a961662",
