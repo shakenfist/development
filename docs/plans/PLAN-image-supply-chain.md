@@ -227,7 +227,7 @@ needs the same treatment, and phase 6 says so.
 |-------|--------|--------|
 | 1. Alarm on absence | Complete | images acccd2b (#5), images 47ed141 (#6), private-ci ae7b1f8 (#49), private-ci e1f8fb1 (#54), 33fl 6de1764 (#827) |
 | 2. Verify the artifact, not the name | Complete | images 6028647 (#7), images 4800c72 (#8), images b872641 (#9), actions 2ac4a94 (#74), 33fl bbbd842 (#836) |
-| 3. Unblock the migration | Complete | private-ci 9eace9d (#60), private-ci 2e18c13 (#61), private-ci dbb78ca (#63), actions 8684eec (#78), actions 781d267 (#80), kerbside 79c2506 (#435), kerbside cfef26a (#450) |
+| 3. Unblock the migration | Complete | private-ci 392700d (#60), private-ci 923a28a (#61), private-ci df913b8 (#63), actions 893d579 (#78), actions 04bd659 (#80), kerbside 951b3e8 (#435), kerbside baefc65 (#450). **Corrected 2026-10-08 by phase 7's survey.** This cell recorded the branch commits `9eace9d`, `2e18c13`, `dbb78ca`, `8684eec`, `781d267`, `79c2506` and `cfef26a`, each with one parent, so the audit range `<sha>^1..<sha>` the push audit builds from them covers one commit of each pull request rather than the pull request. Harmless for the five that carried a single commit; for actions#78 it left out `b8f85d3`, the cache-disk migration, and for actions#80 it left out `b4b0e3d`, the desktop snapshot, and two review commits. |
 | 4. The consumer sweep | Complete | Label half: actions 5a677a9 (#90), agent-python 8303e99 (#140), client-python 93a0999 (#405), client-python-k3s 1576e72 (#67), clingwrap d5eb4ea (#136), divergulent 53136f2 (#117), library-utilities 6f63b95 (#60), ryll 060e649 (#397), sfui 30f5501 (#35), instar a1c09aa (#589), occystrap 4b9d5ff (#143), shakenfist 54b18a0 (#4306), with visual-digest-rust #23 closed as superseded. Guest-image half: actions 8c02ab0 (#97, 4f), shakenfist 2a94e58 (#4379, 4g), shakenfist 984fdd1 (#4385, 4h part 1), actions 227593c (#124, 4h part 2). 4i and 4j carry no commit. |
 | 5. Retire the end-of-life producers | Complete | private-ci e77fca7 (#100, 5a), actions 2351ece (#136, 5b), 33fl e92a1b4 (#925, 5c), development b464fcc (#218, 5d), and the `ubuntu:18.04` removal the phase grew: actions 587683a (#140) with development 13fec36 (#221) carrying its plan bullet and its 5f check. 5e and 5f carry no commit. |
 | 6. Close the audit's blind spot | Complete | development 358bef0 (#222, 6a), development 6163de8 (#226, 6b), images 707768f (#14, 6c), development 8684ec8 (#230, 6e's record). 6d filed images#13 and carries no commit. 6e ran 2026-10-07 and all eleven checks agreed; this row was closed out in phase 7's first commit, because the commit that ticked the done list is this row's own and could not record its own merge. |
@@ -3338,6 +3338,28 @@ loudly rather than quietly.
 
 ### 7. Push audit
 
+Closes: nothing filed. Depends on: phases 1-6, complete
+2026-10-08. Planning effort: high, 2026-10-08.
+
+**Status: not started, planned 2026-10-08.** This phase closes
+itself out and records no `Merged` cell, per the push audit shared
+block; its first commit closes phase 6 with `8684ec8`, the merge
+of #230. The survey below is the largest correction any phase of
+this plan has made to its own section, and all of it is
+arithmetic rather than judgement: the section was written when
+eleven landings in four repositories had been recorded, and there
+are now forty-three in seventeen. The audit it describes is about
+three and a half times the size it was scoped for, which is why
+this phase carries a tiering decision the section does not
+anticipate, and why the survey found a defect in the record the
+audit reads from.
+
+#### What this section asked for, 2026-09-13
+
+Left as written, with its 2026-09-17 amendments, because the
+survey below contradicts three of its factual claims and the
+contradiction is the useful record:
+
 Per the push audit shared block in `PLAN-TEMPLATE.md`. Runs
 `PUSH-AUDIT.md` over the accumulated diff of every phase against
 `main`, not the diff of the last phase alone.
@@ -3413,9 +3435,436 @@ worth doing.
 Only phase 6 and this phase land in this repository, so the
 accumulated diff against `main` here is the small part of the work.
 
+#### What the survey found
+
+Run 2026-10-08 against `main` at `8684ec8`. The counts below come
+from parsing the Execution table itself and asking GitHub about
+each sha and each pull request -- `gh api repos/<repo>/commits/<sha>`
+for the parent count and `gh api repos/<repo>/pulls/<n>` for the
+merge commit and the insertion totals -- rather than from reading
+this document. That distinction is the whole of the survey: every
+number this section stated was true when it was written and three
+of them are now wrong, and the only way to tell which is to ask
+something other than the plan.
+
+**The audit surface is 43 landings in 17 repositories, not eleven
+in four.** The section's eleven-in-four is the phase 2 finding of
+2026-09-17, which covered phases 1 and 2 plus `private-ci#60`.
+Phases 3, 4, 5 and 6 have landed since. Phase 4's consumer sweep
+alone added sixteen landings in twelve repositories.
+
+| Where | Landings | Insertions | Deletions |
+|-------|----------|------------|-----------|
+| `shakenfist/images` | 6 | 1365 | 91 |
+| `shakenfist/private-ci` | 6 | 980 | 215 |
+| `shakenfist/actions` | 8 | 895 | 153 |
+| `Mach33Labs/33fl` | 3 | 202 | 6 |
+| `shakenfist/shakenfist` | 3 | 166 | 116 |
+| `shakenfist/kerbside` | 2 | 38 | 15 |
+| Ten more, one landing each | 10 | 68 | 71 |
+| `shakenfist/development`, code | 3 | 1051 | 59 |
+| `shakenfist/development`, plan prose | 14 | 3997 | 440 |
+
+The ten with one landing each are `agent-python`,
+`client-python`, `client-python-k3s`, `clingwrap`, `divergulent`,
+`instar`, `library-utilities`, `occystrap`, `ryll` and `sfui`,
+every one of them phase 4's sweep. An eleventh repository,
+`visual-digest-rust`, is in the sweep's row as `#23` closed as
+superseded, and never landed anything. Each of the ten is a
+runner-label edit of between one and thirty lines. The distribution is the reason this
+phase tiers rather than iterating: `images`, `private-ci` and
+`actions` carry 3240 of the 3714 out-of-repository insertions,
+87%, and ten repositories carry 67 lines between them.
+
+**The record the audit reads from is wrong for all seven of phase
+3's landings.** Thirty-five of the forty-two shas in the Execution
+table are the merge commit of their pull request and have two
+parents. Phase 3's seven -- `private-ci` `9eace9d`, `2e18c13`,
+`dbb78ca`; `actions` `8684eec`, `781d267`; `kerbside` `79c2506`,
+`cfef26a` -- are branch commits with one parent each. The shared
+block is explicit that "a single commit is only ever enough when
+it is a merge commit", and `PUSH-AUDIT.md` turns a recorded sha
+into `AUDIT_RANGE=<sha>^1..<sha>`, so five of the seven would
+audit the right diff by accident, because those pull requests
+carried one commit, and two would not:
+
+* `actions#78` landed `+146 -18` across two commits. `8684eec`
+  covers `+126 -13`. The commit left out is `b8f85d3`, *Cache
+  Debian 13 and Rocky 10, drop bullseye.* -- step 3d's items (1)
+  to (3), which is to say the migration itself. The recorded sha
+  is 3d's second commit, the one its brief insisted on splitting
+  out.
+* `actions#80` landed `+146 -15` across four commits. `781d267`
+  covers `+64 -15`. The three left out include `b4b0e3d`,
+  *Snapshot the Debian 13 desktop image.*, which is step 3f's
+  work, and two review-response commits.
+
+This is the failure the shared block warns about in as many words
+-- "recording a commit that came in under a merge audits one
+commit of that pull request rather than the pull request" -- and
+it arrived *after* the verification that would have caught it.
+`4d32939` wrote the phase 2 finding, and at that moment the
+eleventh sha was `private-ci` `392700d`, which is #60's merge
+commit and does have two parents; the finding was correct when
+made. `83c4b34`, *Record phase 3's execution and its misses.*, in
+#143, replaced it with `9eace9d` and recorded six more branch
+commits beside it. The correct shas are `392700d`, `923a28a`,
+`df913b8`, `893d579`, `04bd659`, `951b3e8` and `baefc65`, and
+step 7a records them.
+
+**`shakenfist/actions` has a `PUSH-AUDIT.md` now.** The section
+says none of the four repositories has one "at all -- so no such
+audit could have been run". True on 2026-09-17; `actions` gained
+a 34KB runbook on 2026-10-05. Nine of the seventeen landing
+repositories have one, and eight of those nine have had one since
+July or August, which is *before* phase 4's sweep landed in them.
+So the conclusion survives and its reason does not: there is still
+no out-of-repository audit for this phase to cite. All nineteen
+landings in the nine repositories that carry a runbook today were
+read, body and comments, and not one mentions a push audit. The
+gap is no longer "no runbook existed". It is a
+runbook that existed and was not run, which is a weaker excuse and
+a better argument for this phase doing the work itself.
+
+**Deferring the `images` landings to that repository's own push
+audit would not cover them.** The section names it as one of three
+options. `shakenfist/images` does have a push-audit phase, its
+Phase 6, `Not started`, and its Execution table records a `Merged`
+cell for two phases out of seven. That phase audits *its* plan's
+phases; of this plan's six `images` landings, only `#5` is one of
+them, recorded there as phase 4. The other five -- `#6`, `#7`,
+`#8`, `#9` and `#14` -- are this plan's work and appear nowhere in
+that table. The option is not merely slow, it audits the wrong
+set, and the first option the section took is right for a better
+reason than the one it gave.
+
+**"Only phase 6 and this phase land in this repository" is
+wrong**, and so is the *Agent guidance* claim that six of the
+seven phases land elsewhere. Phase 5 landed `#218` here, which
+changed `scripts/audit/checks/distros.py` and
+`docs/audits/eol-distro.md` -- the criterion's own code. Seventeen
+merges on `main` belong to this plan: three carrying code (`#218`,
+`#222`, `#226`, `+1051 -59`) and fourteen carrying the plan
+document and its `index.md` row (`+3997 -440`). The Execution
+table records four of the seventeen, because it records phase
+landings and not the plan's own authoring, which is correct and is
+why step 7g enumerates the rest rather than reading a column.
+
+**The `push-audit` criterion deliberately does not require a
+runbook**, so the issue this section says to file is not a
+duplicate of an audit finding. `PushAudit.run` skips a repository
+with no pre-push audit file, and its docstring says why:
+"Repositories with no pre-push audit file at all are N/A --
+whether every project should have one is a separate decision"
+(`scripts/audit/checks/plans.py:1500-1540`). The compliance page
+agrees -- `images` and `private-ci` are N/A, as are `agent-python`,
+`client-python`, `clingwrap` and `library-utilities`. The issue
+7h files is that separate decision, taken for the repositories
+this plan touched.
+
+**Confirmed, unchanged.** `PUSH-AUDIT.md` is still at the root of
+this repository, 675 lines, two waves, with the `AUDIT_RANGE`
+rule and the warning that a sub-agent inherits nothing and so must
+be handed a concrete range. The shared block in `PLAN-TEMPLATE.md`
+is still `plan-push-audit-phase` at v3. `images#8` is still
+*Run the build.sh that was merged.*, merged 2026-09-14, `+317`
+across four files, and the account of what it broke is still the
+one this plan gives. Step 3f and its cache-disk destination still
+exist as the section cites them. One of the six success criteria
+under *Administration and logistics* is already met and was
+checked here rather than assumed: `eol-distro` reports compliant
+for every repository in the audit matrix except `cloudgood` and
+`private-ci`, which it skips. 7h checks the rest.
+
+**Two of the seventeen repositories are private**, `private-ci`
+and `Mach33Labs/33fl`, carrying nine landings and `+1182 -221`
+between them. This plan is in a public repository. Decision 7.6
+says what a finding against a private repository may say here.
+
+#### Scope
+
+**In.** The accumulated diff of all forty-three landings, read
+under a runbook: this repository's `PUSH-AUDIT.md` for its own
+three code merges, `shakenfist/actions`' own runbook for its
+eight, and the five-item checklist this section already carries
+for the repositories that have none. Correcting phase 3's seven
+recorded shas, because every later step reads them. Findings as
+their own pull request. The issue proposing a `PUSH-AUDIT.md` for
+the three producers. Closing out phase 6 and, at the end, the
+plan.
+
+**Out.** Writing a `PUSH-AUDIT.md` for any other repository --
+the section already says four runbooks for four blast radii is
+its own plan, and the survey adds that the criterion treats their
+absence as a separate decision rather than a finding. Fixing
+anything the audit finds that is not a defect this plan
+introduced: a pre-existing problem in `images` or `private-ci`
+gets an issue in that repository, not a commit in this phase.
+Re-auditing the fourteen merges that carry this plan document as
+code; 7g reads them for one thing, named there. Auditing
+`shakenfist/images`' own plan's phases, which are its Phase 6's
+work and not this plan's.
+
+#### Decisions
+
+**7.1 The ranges are corrected in this phase's planning commit,
+before any step runs.** Phase 3's seven shas are branch commits,
+and two of them under-scope their pull request by a commit the
+step briefs called load-bearing. Every later step turns a cell of
+the Execution table into an `AUDIT_RANGE`, so a correction made
+halfway through would mean some steps audited one commit of a
+pull request and some audited all of it, with nothing in the
+record saying which. It is a survey correction and it lands where
+the other survey corrections land. The cell keeps the branch
+commits visible in a parenthesis rather than deleting them --
+the wrong sha is the evidence that this class of defect is
+silent, and deleting it would leave the next reader with a
+corrected table and no reason to distrust the next one. Gate 1
+in the back brief is the check that it landed.
+
+**7.2 Tier by measured diff, not by repository.** Auditing
+thirty-eight out-of-repository landings at the depth
+`PUSH-AUDIT.md` describes is four judgement agents times
+thirty-eight ranges, and ten of the repositories would get that
+treatment for a one-line `actionlint.yaml` edit. The measurement
+says where the risk is: `images`, `private-ci` and `actions` carry
+87% of the insertions. So tier A -- `images`, `private-ci`,
+`actions`, `33fl` -- is read landing by landing against the full
+checklist. Tier B -- `shakenfist`, `kerbside` and the ten
+single-landing repositories -- is read once, as one set, against
+checklist item 4 alone, because that is phase 4's whole content:
+a runner label deleted while something still requests it. Tier C
+is this repository. **What makes this a tiering and not a
+dropping** is that tier B is still read, its combined diff is
+`+345 -268` and small enough to read in full, and `eol-distro`
+reporting compliant fleet-wide is an independent witness that no
+label was retired early. Naming the scoped-down set with its
+measured size is what the shared block requires of an audit that
+says what it could not scope.
+
+**7.3 Wave 1 per range; wave 2 per repository.** The mechanical
+greps are cheap and anchored on a range, so they run once per
+landing. The judgement reviews are looking for what the phases
+did to each other -- the duplicated helper that exists only once
+two phases have landed -- which is exactly what a per-range read
+cannot see. So one set of judgement agents per repository, handed
+every range that repository carries, with the per-range insertion
+and deletion totals stated in the brief and required back in the
+report. `PUSH-AUDIT.md`'s rule that a report whose totals do not
+match is re-run rather than triaged applies per range, and it is
+the only check here that does not depend on an agent noticing its
+own mistake.
+
+**7.4 Each repository is audited under its own runbook where it
+has one.** `actions` gained a 34KB `PUSH-AUDIT.md` on 2026-10-05,
+after seven of its eight landings, and it is still the right
+instrument: the question is whether what is on `main` now is
+sound, not what was knowable at merge time. Where there is no
+runbook -- `images`, `private-ci`, `33fl` -- the five-item
+checklist this section carries is used, and the section's reason
+for not borrowing this repository's stands: ours is written for a
+repository whose defects break sixteen others quietly, which is
+the wrong question to ask of an image build host.
+
+**7.5 `images#8` is audited first, and on its own.** It is the
+one landing with a known production failure: a self-update under
+`errexit` whose explanation went to a cron mailer that does not
+exist, which stopped the nightly build on its first night.
+Checklist item 2 exists because of it. Auditing it first, before
+any other `images` range, is what makes the catch-up demonstrable
+rather than asserted -- if the checklist cannot find a defect it
+was written from, it will not find the ones nobody has named.
+
+**7.6 A finding against a private repository is recorded here
+without its contents.** `private-ci` and `Mach33Labs/33fl` are
+private and this plan is public. A finding against either gets a
+verdict, a file path and a sentence saying what class of problem
+it is. It does not get a hostname, an address, a credential, a
+quoted configuration value or a quoted log line. Where that
+redaction makes a finding unreadable, the finding goes in an issue
+in the private repository and this plan records its number and its
+class only. This is narrower than the usual rule about not
+leaking a secret: a private CI fleet's host names are not secrets
+and are still not this repository's to publish.
+
+**7.7 Findings are a separate pull request, and the plan does not
+reach `Complete` until each is resolved or declined in writing.**
+The shared block requires both. The declining is the part worth
+pre-committing to: a finding this plan declines says why, in this
+plan, where the next reader meets it -- not in a pull request
+comment that scrolls away. Where nothing was found, that is one
+sentence per repository, which the shared block also asks for and
+which is the evidence for ever making this phase conditional.
+
+**7.8 This phase closes itself out and records no `Merged`
+cell.** Per the shared block and the `plan-phase-landing` block:
+a phase cannot record its own merge commit, and there is no phase
+8 to do it. So phase 7's row carries a `Status` and an empty
+`Merged`, it is the only row permitted to, and the plan's own
+`Status` and its `index.md` row reach `Complete` in the same
+commit as the last finding is resolved or declined.
+
+#### Step plan
+
+Seven steps. The shas below are the merge commits, verified on
+2026-10-08 to have two parents, and every one of them is the
+value `AUDIT_RANGE` takes as `<sha>^1..<sha>`. **Never hand a
+sub-agent the `${AUDIT_RANGE:-origin/main...HEAD}` expansion.** A
+sub-agent inherits nothing, the default expands to a diff of the
+working tree, that diff is empty on a clean checkout, and every
+check then passes over nothing and reports clean. `PUSH-AUDIT.md`
+says this of itself and it is the single most likely way this
+phase produces a false pass. Substitute the concrete range into
+each brief, say which range it is, and require the measured
+insertion and deletion totals back in the report; the totals
+below are what they must match.
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 7a | high | opus | worktree | **`shakenfist/images`, six landings, `#8` first and alone.** Clone `shakenfist/images` (default branch `master`). Ranges, in this order: `4800c72` (`#8`, `+317 -0`, four files), then `acccd2b` (`#5`, `+406 -13`), `47ed141` (`#6`, `+223 -49`), `6028647` (`#7`, `+298 -7`), `b872641` (`#9`, `+111 -17`), `707768f` (`#14`, `+10 -5`). There is no `PUSH-AUDIT.md` in that repository, so apply the five-item checklist in this section, plus the three defect shapes its own plan names for its own audit (`docs/plans/PLAN-image-build-modernisation.md`, Phase 6): a release codename that does not match the element it is paired with, a variable exported before the value it interpolates is assigned, and a `sudo` invocation that assumes an environment variable survives into it. **`#8` first, as its own report, against checklist item 2.** It shipped a self-update that broke the nightly build on its first night: `build.sh` runs under `errexit`, `before=$(git rev-parse HEAD)` on a line of its own is a simple command, git refused the checkout on ownership, and the run ended at 05:00:01 having published nothing -- the host has no MTA, so cron discarded the one line that said so. Report whether that shape is still present anywhere in the current `build.sh`, not only whether the specific line was fixed. Checklist item 5 bites hardest here: this repository publishes images, and a build that publishes something wrong is not recoverable. Do not fix anything; a defect that predates this plan gets recorded for an issue in `images`, and one this plan introduced gets recorded for 7g's pull request. No commit in this repository. |
+| 7b | high | opus | worktree | **`shakenfist/private-ci`, six landings. Private repository -- decision 7.6 governs what may be written down.** Ranges: `ae7b1f8` (`#49`, `+460 -11`), `e1f8fb1` (`#54`, `+339 -6`), `392700d` (`#60`, `+9 -1`), `923a28a` (`#61`, `+1 -1`), `df913b8` (`#63`, `+26 -16`), `e77fca7` (`#100`, `+145 -180`). **The last three of those shas are not what the Execution table recorded** before this phase's planning commit; it had `9eace9d`, `2e18c13` and `dbb78ca`, which are the branch commits. Use the shas in this brief. No `PUSH-AUDIT.md` in that repository, so the five-item checklist. Two things to weight. Checklist item 2: `#49` is the conductor scheduler fix, and unattended rebuild scheduling is exactly the "runs unattended, reports its own failure somewhere a human sees" question -- the phase 1 bug was that nothing recorded a missed night. Checklist item 4: `#100` is the end-of-life producer retirement, `+145 -180`, the largest deletion in the plan; grep across all seventeen repositories for each removed label and image name rather than assuming the consumer sweep caught them, and say which greps you ran. **Report findings as a verdict, a path and a class of problem. No hostnames, no addresses, no credentials, no quoted configuration, no quoted log lines**, because the report lands in a public plan file. If a finding cannot be stated that way, say so and say which private repository should carry it. No commit. |
+| 7c | high | opus | worktree | **`shakenfist/actions`, eight landings, under that repository's own runbook.** Clone it and read its `PUSH-AUDIT.md` first -- 34KB, added 2026-10-05, after seven of these eight landed, which does not make it the wrong instrument: the question is whether what is on `main` now is sound. Ranges: `2ac4a94` (`#74`, `+436 -0`), `893d579` (`#78`, `+146 -18`), `04bd659` (`#80`, `+146 -15`), `5a677a9` (`#90`, `+66 -19`), `8c02ab0` (`#97`, `+32 -31`), `227593c` (`#124`, `+13 -31`), `2351ece` (`#136`, `+43 -28`), `587683a` (`#140`, `+13 -11`). **`893d579` and `04bd659` are the two ranges this plan previously recorded wrongly**, as `8684eec` and `781d267`, each one commit of a multi-commit pull request: the old range for `#78` missed `b8f85d3`, *Cache Debian 13 and Rocky 10, drop bullseye.*, which is the cache-disk migration itself, and the old range for `#80` missed `b4b0e3d`, *Snapshot the Debian 13 desktop image.* Read both in full and say explicitly what the previously-missing commits contain, because that is the only part of this phase that could not have been found by auditing what the table said. `#74` is the largest single addition in `actions` and is phase 2's verification work; `#97` and `#124` are the two halves of the guest-image rename, and item 4 -- nothing removed has a consumer left -- is the one that matters across them, checked by grep across the seventeen repositories rather than by reading the pull requests. No commit. |
+| 7d | medium | sonnet | worktree | **`Mach33Labs/33fl`, three landings. Private repository -- decision 7.6 governs what may be written down.** Ranges: `6de1764` (`#827`, `+91 -0`), `bbbd842` (`#836`, `+106 -4`), `e92a1b4` (`#925`, `+5 -2`). No `PUSH-AUDIT.md`, so the five-item checklist. The first two are the alarm-on-absence and artifact-verification work; checklist item 2 is the whole question for them, because an alarm that does not report its own failure is the defect this plan exists to fix and `33fl` is where the Grafana side of it lives. `#925` is five lines of the producer retirement. Same redaction rule as 7b: verdict, path, class, nothing quoted. Medium effort and sonnet because the diff is 202 insertions and the checklist is explicit, not because the repository matters less. No commit. |
+| 7e | medium | sonnet | worktree | **Tier B: twelve repositories, fifteen landings, read once as one set against checklist item 4.** `shakenfist/shakenfist` `54b18a0` (`#4306`, `+91 -41`), `2a94e58` (`#4379`, `+68 -68`), `984fdd1` (`#4385`, `+7 -7`); `shakenfist/kerbside` `951b3e8` (`#435`, `+20 -4`), `baefc65` (`#450`, `+18 -11`) -- **not** the `79c2506` and `cfef26a` the table used to record; and one landing each in `agent-python` `8303e99`, `client-python` `93a0999`, `client-python-k3s` `1576e72`, `clingwrap` `d5eb4ea`, `divergulent` `53136f2`, `instar` `a1c09aa`, `library-utilities` `6f63b95`, `occystrap` `4b9d5ff`, `ryll` `060e649`, `sfui` `30f5501`, totalling `+68 -71`. Nine of these twelve have their own `PUSH-AUDIT.md` and this step deliberately does not run twelve runbooks over `+345 -268` of label edits; decision 7.2 says why and what makes it a tiering rather than a dropping. **The one question:** did any of these delete a runner-label declaration or a `runs-on:` line while something still requested that label, or leave one behind that nothing requests? Answer it by grep across all seventeen repositories, not per repository, and state the greps. Then two subsidiary ones: does any of them still reference a retired label in an `.github/actionlint.yaml` declaration, and did `shakenfist/shakenfist`'s three -- the only tier B landings that are not label edits, being the guest-image consumer move -- leave a read of an artifact name that no longer exists? `eol-distro` reporting compliant for every repository in the matrix is an independent witness on the first question and is not a substitute for asking it. No commit. |
+| 7f | high | opus | worktree | **This repository, under its own `PUSH-AUDIT.md`.** Three code-bearing merges: `b464fcc` (`#218`, `+31 -20`, `scripts/audit/checks/distros.py` and `docs/audits/eol-distro.md` -- phase 5's, and the reason the old claim that only phase 6 lands here was wrong), `358bef0` (`#222`, `+844 -4`, the `eol-producers` criterion), `6163de8` (`#226`, `+176 -35`, the scope and matrix work). Run wave 1 once per range and wave 2 once over all three, per decision 7.3. Wave 2's briefs are this repository's own and they are the right ones: the five-file rule applies directly to `#222`, which added a criterion, and `#226` touched `scripts/audit/scope.py`, whose parse anchors phase 6 found could pass vacuously. **Then the fourteen plan-document merges, read for one thing only:** `54c166a` (`#124`), `d102e9f` (`#128`), `bcf99ae` (`#135`), `228eb34` (`#143`), `7b983c9` (`#148`), `db72571` (`#164`), `df33682` (`#178`), `2369a2a` (`#199`), `c314e64` (`#200`), `b375c60` (`#207`), `608ecf7` (`#217`), `13fec36` (`#221`), `d67c39c` (`#227`), `8684ec8` (`#230`), totalling `+3997 -440`. The one thing is a false factual claim about another repository or about this one, because every phase of this plan from 4 onwards found its own section stale and this phase found three more. You are not re-reviewing the prose; you are checking assertions against the tree, and `scripts/audit/checks/plans.py`'s `plan-source-references` criterion already checks that cited paths exist, so look at the claims it cannot: counts, dates, "nothing else references", "this does not exist". Report each with the line and what the tree says instead. No commit in this step; 7g carries the fixes. |
+| 7g | high | opus | none | **Collate, act, and close the plan.** (1) Assemble every finding from 7a to 7f into one list, each with its repository, range, checklist item or wave, and severity. (2) Findings that are defects this plan introduced, in this repository, become one pull request against `main` -- the shared block requires findings to land as their own pull request. (3) Findings in another repository become an issue in that repository, one per repository rather than one per finding, and this plan records the numbers. **Never write a bot trigger phrase in any issue or comment body**: the match is a substring anywhere in the body, including inside backticks, and two of those phrases start workflows that push commits -- grep every body for `retest`, `re-review` and `recheck` before posting, and grep the posted body again afterwards. The audit's own `ci-review-automation` finding text contains two of them, so quoting a finding verbatim is the specific trap. (4) Findings declined are declined in writing in this plan, with the reason, under a `#### What the audit found` subsection -- not in a pull request comment. (5) Where a repository's audit found nothing, one sentence saying so, per repository, per the shared block. (6) File one issue in `shakenfist/development` proposing a `PUSH-AUDIT.md` for `shakenfist/images`, `shakenfist/private-ci` and `Mach33Labs/33fl`, naming the three blast radii as different from each other and from this repository's, and citing `PushAudit.run`'s docstring that a missing runbook is deliberately N/A rather than a finding (`scripts/audit/checks/plans.py:1500-1540`); note in it that `agent-python`, `client-python`, `clingwrap` and `library-utilities` are the same question for consumer repositories and are not part of the proposal. (7) Check each of the six success criteria under *Administration and logistics* and record met, declined or named residual for each -- `eol-distro` reporting zero findings was confirmed on 2026-10-08 and the other five are this step's. (8) Set phase 7's `Status` and leave its `Merged` cell empty, set the plan's own `Status` and the `index.md` row to `Complete`, and do both in the same commit as the last finding is resolved or declined. |
+| 7h | medium | sonnet | none | **Confirms the phase, after 7g's pull request has merged.** Eleven checks, every one of them run and each reported with its output, because phase 6 found four checks in this plan that could not fail and this phase is the one that closes the plan on the strength of them. (1) Parse the Execution table and confirm every one of the forty-three landings appears in the audit record with a range; report any in one and not the other. (2) For every sha the table records, `gh api repos/<repo>/commits/<sha> --jq '.parents|length'` returns 2, and the seven phase 3 cells name `392700d`, `923a28a`, `df913b8`, `893d579`, `04bd659`, `951b3e8` and `baefc65`. (3) Every report from 7a to 7f states per-range insertion and deletion totals, and each matches `gh api repos/<repo>/pulls/<n> --jq '.additions, .deletions'`; name any that did not and say whether it was re-run. (4) `images#8` has its own verdict against checklist item 2, separate from the other five `images` ranges. (5) `grep -nE` over this plan's new sections for a hostname shape, an IP address, a credential-looking token or a quoted configuration value attributable to `private-ci` or `33fl` returns nothing -- demonstrate the grep, do not assert the absence. (6) Every finding has exactly one of three dispositions and the plan says which: fixed in 7g's pull request, filed as an issue whose number is recorded, or declined in writing with a reason. (7) Each of the seventeen repositories has either at least one finding or a one-sentence statement that its audit found nothing. (8) The `PUSH-AUDIT.md` proposal issue exists, is named in this plan, and `gh issue view` on it contains none of `retest`, `re-review` or `recheck`. (9) Each of the six success criteria has a recorded disposition of met, declined or named residual. (10) Phase 7's Execution row has a `Status` and an empty `Merged` cell, and the plan's `Status` and its `docs/plans/index.md` row both read `Complete` and agree with each other. (11) **The vacuous-pass check, by mutation rather than by reading.** In a clean clone, run one of `PUSH-AUDIT.md`'s wave 1 greps with `AUDIT_RANGE` unset and confirm it returns nothing at all, then run it with a range from 7f and confirm it returns something: that is the false pass this phase was most likely to produce, and the evidence that it did not is that every report's totals are non-zero and match check (3). Report the output of both runs. **Then, and only if every check agrees**, tick the done list. If any check disagrees, report and stop. |
+
+#### Risks and mitigations
+
+**The empty diff that reads as a clean audit.** Every range in
+this phase is already merged, so `git diff` against the default
+branch is empty and `${AUDIT_RANGE:-origin/main...HEAD}` with
+nothing exported diffs the working tree, which is empty too. A
+sub-agent inherits no environment, so a brief handed the
+expansion gets the default. This is the one failure mode that
+produces a complete, confident, entirely vacuous report for every
+step at once. Mitigated three ways, because reading a brief
+cannot distinguish a clean audit from an empty one: concrete shas
+in every brief rather than a variable, measured totals stated in
+the brief and required back in the report, and 7h (11), which
+runs the empty case on purpose and shows what it returns.
+
+**Thirty-eight landings is enough work to be quietly skipped.**
+The tiering in decision 7.2 is the honest version of that
+pressure; the dishonest version is a step that reports six ranges
+having read two. The mitigation is 7h (3): the per-range totals
+in each report are checked against GitHub, by a step that did not
+write them. A report whose totals do not match is re-run rather
+than triaged, which is `PUSH-AUDIT.md`'s own rule and the only
+check here that does not rely on an agent noticing its own
+mistake.
+
+**The tiering becomes a precedent for not auditing.** Tier B is
+fifteen landings read once against one checklist item. That is
+defensible because their combined diff is `+345 -268` and their
+content is one shape, and it stops being defensible the moment
+someone cites it for a repository carrying real change. The
+mitigation is that decision 7.2 states the measurement rather
+than the conclusion -- 87% of the insertions in three
+repositories -- so a later reader can check whether their own
+case looks like this one.
+
+**A private repository's finding leaks into a public plan.**
+`private-ci` and `33fl` carry nine landings, and 7b and 7d read
+their configuration in detail. Decision 7.6 says what may be
+written; 7h (5) checks it with a grep over the new text rather
+than by asking whoever wrote it. The grep is the mitigation,
+because the author of a finding is the person least able to see
+that it is specific.
+
+**The plan declares itself complete with findings outstanding.**
+This is the last phase, and the pressure at the end of a plan is
+to close it. The shared block already forbids it -- the plan is
+not complete until each finding is resolved or declined in
+writing -- and 7h (6) requires exactly one of three dispositions
+per finding, so "mentioned in passing" is not one of them.
+
+**Auditing a pre-existing defect turns into fixing it.** Six
+repositories here have open plans of their own. The scope section
+puts a pre-existing defect into an issue in its own repository,
+and 7g's item (3) files one issue per repository rather than one
+per finding, which keeps the output proportionate to what this
+phase is: a read, not a remediation.
+
+#### Definition of done
+
+Eleven bullets, each mapping to a 7h check, following phase 6's
+rule that made the mapping the mechanism rather than the
+decoration. **If a bullet is added to this list, 7h gets a check
+for it in the same commit.**
+
+- [ ] Every one of the forty-three landings is named in the audit
+      record with the range it was read under, or recorded as
+      scoped out with its measured size and a reason. 7h (1).
+- [ ] Every sha the Execution table records is the merge commit of
+      its pull request and has two parents, the seven phase 3
+      cells included. 7h (2).
+- [ ] Every report states the insertion and deletion totals it
+      measured for each range, and they match what GitHub reports
+      for that pull request. 7h (3).
+- [ ] `images#8` has a verdict of its own against checklist item
+      2, saying whether the self-update shape is still present in
+      `build.sh` rather than only whether that line was fixed.
+      7h (4).
+- [ ] No text this phase adds to this plan quotes a hostname, an
+      address, a credential or a configuration value from
+      `private-ci` or `33fl`, demonstrated by a grep. 7h (5).
+- [ ] Every finding has exactly one of three dispositions --
+      fixed in 7g's pull request, filed as an issue whose number
+      is recorded here, or declined in writing with a reason.
+      7h (6).
+- [ ] Every one of the seventeen repositories has either a
+      finding or a one-sentence statement that its audit found
+      nothing. 7h (7).
+- [ ] An issue in this repository proposes a `PUSH-AUDIT.md` for
+      `images`, `private-ci` and `33fl`, is named here, and
+      carries none of the three bot trigger phrases. 7h (8).
+- [ ] Each of the six success criteria has a recorded disposition
+      of met, declined or named residual. 7h (9).
+- [ ] Phase 7's Execution row carries a `Status` and an empty
+      `Merged` cell -- the only row permitted to -- and the
+      plan's `Status` and its `index.md` row both read `Complete`
+      and agree. 7h (10).
+- [ ] No step's report could have been produced by the empty
+      diff, demonstrated by running the empty case and showing
+      what it returns. 7h (11).
+
+#### Back brief
+
+Three gates, and the first two are cheap to get wrong and
+expensive to redo.
+
+**Gate 1, before 7a opens.** The corrected phase 3 shas must be
+on `main`. They land in this phase's planning commit, not in a
+step, so the gate is a one-line check rather than a step
+dependency: `git log -1 --format=%H main` and confirm the
+Execution table on that commit names `392700d` and the other six.
+If a step reads the old cells, it audits one commit of two pull
+requests and the report will not say so.
+
+**Gate 2, before 7b and 7d write anything down.** Agree the
+redaction shape for a private-repository finding on one real
+example before either step writes six of them. Decision 7.6 says
+verdict, path, class; what it cannot say in advance is how much
+of a path is identifying in a repository whose paths name hosts.
+Bring one finding and ask.
+
+**Gate 3, before 7g files the producers issue.** The issue
+proposes work in three repositories, two of them private, and it
+is outward-facing. Show the body first. The same gate covered
+6d's issue in `images` and it caught a wording defect that
+`eol-distro` would otherwise have been counted among findings it
+was never part of.
+
+**What this phase does not need a gate for.** The findings pull
+request. It lands in this repository, against `main`, under the
+ordinary review loop, and the shared block already fixes its
+shape.
+
 ## Agent guidance
 
-Deliberately short. Six of the seven phases land in other
+Deliberately short. Most of this plan lands in other
 repositories, under their own conventions and, for
 shakenfist/images, its own `PLAN-TEMPLATE.md` and the
 project-specific checks in it. Per-step effort levels, model
@@ -3423,10 +3872,15 @@ recommendations and review checklists belong in the plan of the
 repository the work lands in, not here, so this plan does not
 carry the shared blocks `PLAN-TEMPLATE.md` offers for them.
 
-The exception is phase 6, which lands here. It changes what the
-fleet is measured against and reaches `scripts/audit/`, so it is
-high effort per this repository's own guidance, and it is
-exercised with `--dry-run` before anything files an issue.
+Three phases are the exception, and until phase 7's survey this
+paragraph said one. Phase 5 landed #218 here, which changed
+`scripts/audit/checks/distros.py` and `docs/audits/eol-distro.md`.
+Phase 6 landed #222 and #226, which change what the fleet is
+measured against and reach `scripts/audit/`, so it is high effort
+per this repository's own guidance, and it is exercised with
+`--dry-run` before anything files an issue. Phase 7 lands here
+entirely, and reads every other repository without writing to
+any of them.
 
 ## Risks and mitigations
 
