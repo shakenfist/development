@@ -513,6 +513,42 @@ class ReviewTrackingTest(unittest.TestCase):
         self.assertEqual(p.returncode, 2)
         self.assertIn('outside this repository', p.stderr)
 
+    def test_next_listed_order_follows_include(self):
+        self.add_lib_file()
+        # lib/ first, then src/b.py named ahead of the glob that also
+        # covers it, so it comes before src/a.py despite sorting after.
+        self.write('.vscode/review-scope.toml',
+                   "order = 'listed'\n"
+                   "include = ['lib/*', 'src/b.py', 'src/*']\n"
+                   "exclude = ['*_pb2.py']\n")
+        expected = ['lib/c.py', 'src/b.py', 'src/a.py']
+        for i, path in enumerate(expected):
+            p = self.run_tool('next', '--no-open')
+            self.assertEqual(p.returncode, 0, p.stderr)
+            self.assertIn('review-next: %s (%d in-scope' % (path, len(expected) - i), p.stdout)
+            self.mark_reviewed(expected[:i + 1])
+        p = self.run_tool('next', '--no-open')
+        self.assertIn('every in-scope file is reviewed', p.stdout)
+
+    def test_next_listed_order_within_a_subtree(self):
+        self.add_lib_file()
+        self.write('.vscode/review-scope.toml',
+                   "order = 'listed'\ninclude = ['lib/*', 'src/b.py', 'src/*']\n")
+        p = self.run_tool('next', '--no-open', 'src')
+        self.assertIn('review-next: src/b.py', p.stdout)
+
+    def test_next_listed_order_needs_an_include_list(self):
+        self.write('.vscode/review-scope.toml', "order = 'listed'\n")
+        p = self.run_tool('next', '--no-open')
+        self.assertEqual(p.returncode, 2)
+        self.assertIn('needs an include list', p.stderr)
+
+    def test_next_rejects_an_unknown_order(self):
+        self.write('.vscode/review-scope.toml', "order = 'alphabetical'\n")
+        p = self.run_tool('next', '--no-open')
+        self.assertEqual(p.returncode, 2)
+        self.assertIn("'alphabetical'", p.stderr)
+
     def test_stamp_ignores_directory_entries(self):
         # weAudit adds a derived directory entry to auditedFiles once every
         # file in the directory is reviewed, alongside the per-file entries.

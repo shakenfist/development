@@ -32,9 +32,11 @@ development repository and passes through to this script:
   .vscode/imports.weaudit.
 - regen: regenerate REVIEWS.md from the current state.
 - next: pick a random in-scope file with no current review mark and
-  open it in VSCode. Optional path arguments narrow the pick to files
-  under those directories (or to those files); relative paths are
-  repo-relative, since the wrapper runs from the repo root.
+  open it in VSCode; with order = 'listed' in the scope config, the
+  first such file in include-list order instead. Optional path
+  arguments narrow the pick to files under those directories (or to
+  those files); relative paths are repo-relative, since the wrapper
+  runs from the repo root.
 - status: report effective review coverage against HEAD -- which
   in-scope files carry a currently-valid review mark and which need
   review -- without modifying any state. --json emits a machine
@@ -174,6 +176,44 @@ def load_import_exclude():
     hand would only see it re-imported on the next run.
     """
     return list(load_scope_config().get('import-exclude', []))
+
+
+NEXT_ORDERS = ('random', 'listed')
+
+
+def load_next_order(include):
+    """Return how next picks among unread files, from the scope config.
+
+    'random' (the default) suits an audit: it spreads attention across a
+    backlog rather than always starting at its front. 'listed' suits
+    reading to learn a codebase, where the order is the point: the
+    include list is written as a reading path, and next offers the first
+    unread file in it. Returns None, having said why, for an order that
+    cannot work.
+    """
+    order = load_scope_config().get('order', 'random')
+    if order not in NEXT_ORDERS:
+        print('review-next: order = %r in %s is not one of %s'
+              % (order, SCOPE_PATH, ', '.join(NEXT_ORDERS)), file=sys.stderr)
+        return None
+    if order == 'listed' and not include:
+        print("review-next: order = 'listed' needs an include list to take the order from",
+              file=sys.stderr)
+        return None
+    return order
+
+
+def listed_position(path, include):
+    """Sort key placing path at the first include pattern that names it.
+
+    Files sharing a pattern fall back to path order, so a glob gives its
+    files one position between them: name a file ahead of the glob to
+    read it earlier than its neighbours.
+    """
+    for i, pat in enumerate(include):
+        if fnmatch.fnmatch(path, pat):
+            return (i, path)
+    return (len(include), path)
 
 
 def load_scope_config():
@@ -1207,6 +1247,9 @@ def under_any(path, prefixes):
 
 def cmd_next(args):
     include, exclude = load_scope()
+    order = load_next_order(include)
+    if order is None:
+        return 2
     prefixes = subtree_prefixes(args.paths)
     if prefixes is None:
         print('review-next: %s is outside this repository' % ' '.join(args.paths), file=sys.stderr)
@@ -1234,7 +1277,10 @@ def cmd_next(args):
     if not pool:
         print('review-next: every in-scope file%s is reviewed. Well done!' % where)
         return 0
-    choice = random.choice(sorted(pool))
+    if order == 'listed':
+        choice = min(pool, key=lambda p: listed_position(p, include))
+    else:
+        choice = random.choice(sorted(pool))
     print('review-next: %s (%d in-scope files%s awaiting review)' % (choice, len(pool), where))
     if not args.no_open:
         code = shutil.which('code')
@@ -1258,7 +1304,7 @@ def main():
     p_import.add_argument('--no-verify', action='store_true',
                           help='do not verify source commit signatures with gitsign')
     sub.add_parser('regen', help='regenerate REVIEWS.md')
-    p_next = sub.add_parser('next', help='pick a random unreviewed in-scope file')
+    p_next = sub.add_parser('next', help='pick an unreviewed in-scope file (random, or in scope order)')
     p_next.add_argument('--no-open', action='store_true', help='print the path only, do not open VSCode')
     p_next.add_argument('paths', nargs='*', metavar='PATH',
                         help='only pick files under these paths (repo-relative, or absolute)')

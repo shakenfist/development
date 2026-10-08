@@ -542,6 +542,16 @@ A session therefore looks like:
    you are standing in. A subtree with nothing in scope (a typo,
    or a directory the scope config leaves out) exits non-zero
    rather than reporting it all reviewed.
+
+   `next` picks at random by default, which suits an audit: it
+   spreads attention over the backlog instead of always starting
+   at its front. A scope config with `order = 'listed'` makes it
+   offer the first unread file in `include` order instead, for
+   reading a codebase to learn it, where the order is the point.
+   Each file takes the position of the first pattern that names
+   it, and files sharing a pattern go in path order -- so name a
+   file ahead of the glob that would otherwise cover it to read it
+   sooner than its neighbours. No adopted repository sets it.
 3. Read it. weAudit's explorer ticks show what is already done;
    Claude Code in the integrated terminal for questions.
 4. Mark it reviewed (`weAudit: Mark File as Reviewed`), attach
