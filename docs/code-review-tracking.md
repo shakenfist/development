@@ -533,6 +533,15 @@ A session therefore looks like:
    this repository" under "Steady state") shows no tick in weAudit
    and is not offered here; reviewing it by hand supersedes the
    import.
+
+   Name one or more paths to pick only from those subtrees --
+   `next src/agent` for the next unread file there. Relative paths
+   are repo-relative, not relative to the shell's directory,
+   because the wrapper runs the script from the repo root; an
+   absolute path is converted, so `next $PWD` means the subtree
+   you are standing in. A subtree with nothing in scope (a typo,
+   or a directory the scope config leaves out) exits non-zero
+   rather than reporting it all reviewed.
 3. Read it. weAudit's explorer ticks show what is already done;
    Claude Code in the integrated terminal for questions.
 4. Mark it reviewed (`weAudit: Mark File as Reviewed`), attach

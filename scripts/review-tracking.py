@@ -32,7 +32,9 @@ development repository and passes through to this script:
   .vscode/imports.weaudit.
 - regen: regenerate REVIEWS.md from the current state.
 - next: pick a random in-scope file with no current review mark and
-  open it in VSCode.
+  open it in VSCode. Optional path arguments narrow the pick to files
+  under those directories (or to those files); relative paths are
+  repo-relative, since the wrapper runs from the repo root.
 - status: report effective review coverage against HEAD -- which
   in-scope files carry a currently-valid review mark and which need
   review -- without modifying any state. --json emits a machine
@@ -1173,8 +1175,53 @@ def cmd_scope_orphans(args):
     return 1
 
 
+def subtree_prefixes(paths):
+    """Normalise next's path arguments to repo-relative prefixes.
+
+    Relative paths are taken as repo-relative rather than relative to
+    the caller's directory: the wrapper cds to the repo root before
+    running this script, so the caller's directory is already gone by
+    the time it would matter. An absolute path is converted, which is
+    what lets "next $PWD" mean the subtree the caller is standing in.
+    Returns None for a path outside the repository.
+    """
+    top = os.path.realpath(os.getcwd())
+    prefixes = []
+    for path in paths:
+        if os.path.isabs(path):
+            path = os.path.relpath(os.path.realpath(path), top)
+        path = os.path.normpath(path)
+        if path == '..' or path.startswith('../'):
+            return None
+        prefixes.append(path)
+    return prefixes
+
+
+def under_any(path, prefixes):
+    """True if path is one of prefixes or inside a directory named by one."""
+    for prefix in prefixes:
+        if prefix == '.' or path == prefix or path.startswith(prefix + '/'):
+            return True
+    return False
+
+
 def cmd_next(args):
     include, exclude = load_scope()
+    prefixes = subtree_prefixes(args.paths)
+    if prefixes is None:
+        print('review-next: %s is outside this repository' % ' '.join(args.paths), file=sys.stderr)
+        return 2
+    candidates = [p for p in tracked_files() if in_scope(p, include, exclude)]
+    where = ''
+    if prefixes:
+        candidates = [p for p in candidates if under_any(p, prefixes)]
+        where = ' under %s' % ' '.join(prefixes)
+        # Nothing in scope at all is a different answer from everything
+        # reviewed: usually a typo, or a subtree the scope config leaves
+        # out, and either way "well done" would be a lie.
+        if not candidates:
+            print('review-next: no in-scope files%s' % where, file=sys.stderr)
+            return 1
     reviewed = set()
     for state_path in state_files():
         state, _ = load_json(state_path, {})
@@ -1183,13 +1230,12 @@ def cmd_next(args):
     # An imported review is a review: the file is not offered.
     imports, _ = load_imports()
     reviewed.update(imports.get('files', {}))
-    pool = [p for p in tracked_files()
-            if in_scope(p, include, exclude) and p not in reviewed]
+    pool = [p for p in candidates if p not in reviewed]
     if not pool:
-        print('review-next: every in-scope file is reviewed. Well done!')
+        print('review-next: every in-scope file%s is reviewed. Well done!' % where)
         return 0
     choice = random.choice(sorted(pool))
-    print('review-next: %s (%d in-scope files awaiting review)' % (choice, len(pool)))
+    print('review-next: %s (%d in-scope files%s awaiting review)' % (choice, len(pool), where))
     if not args.no_open:
         code = shutil.which('code')
         if code:
@@ -1214,6 +1260,8 @@ def main():
     sub.add_parser('regen', help='regenerate REVIEWS.md')
     p_next = sub.add_parser('next', help='pick a random unreviewed in-scope file')
     p_next.add_argument('--no-open', action='store_true', help='print the path only, do not open VSCode')
+    p_next.add_argument('paths', nargs='*', metavar='PATH',
+                        help='only pick files under these paths (repo-relative, or absolute)')
     p_status = sub.add_parser('status', help='report effective review coverage against HEAD')
     p_status.add_argument('--json', action='store_true', help='emit machine-readable JSON')
     p_orphans = sub.add_parser(

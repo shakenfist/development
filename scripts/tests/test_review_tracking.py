@@ -465,6 +465,54 @@ class ReviewTrackingTest(unittest.TestCase):
         p = self.run_tool('next', '--no-open')
         self.assertIn('every in-scope file is reviewed', p.stdout)
 
+    def add_lib_file(self):
+        os.mkdir(os.path.join(self.repo, 'lib'))
+        self.write('lib/c.py', 'c = 3\n')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'add lib')
+
+    def test_next_constrained_to_subtree(self):
+        self.add_lib_file()
+        self.mark_reviewed(['src/a.py'])
+        for _ in range(5):
+            p = self.run_tool('next', '--no-open', 'src')
+            self.assertEqual(p.returncode, 0)
+            self.assertIn('src/b.py', p.stdout)
+            self.assertIn('1 in-scope files under src awaiting review', p.stdout)
+            # A trailing slash, as tab completion leaves, means the same.
+            p = self.run_tool('next', '--no-open', 'lib/')
+            self.assertIn('review-next: lib/c.py', p.stdout)
+
+    def test_next_subtree_is_a_directory_not_a_string_prefix(self):
+        self.add_lib_file()
+        p = self.run_tool('next', '--no-open', 'sr')
+        self.assertEqual(p.returncode, 1)
+        self.assertIn('no in-scope files under sr', p.stderr)
+
+    def test_next_subtree_all_reviewed(self):
+        self.add_lib_file()
+        self.mark_reviewed(['src/a.py', 'src/b.py'])
+        p = self.run_tool('next', '--no-open', 'src')
+        self.assertEqual(p.returncode, 0)
+        self.assertIn('every in-scope file under src is reviewed', p.stdout)
+
+    def test_next_subtree_with_nothing_in_scope(self):
+        # Excluded by the scope config, so it is no candidate at all,
+        # which is not the same answer as "everything here is reviewed".
+        p = self.run_tool('next', '--no-open', 'src/gen_pb2.py')
+        self.assertEqual(p.returncode, 1)
+        self.assertIn('no in-scope files under src/gen_pb2.py', p.stderr)
+        self.assertNotIn('Well done', p.stdout)
+
+    def test_next_accepts_absolute_paths(self):
+        self.add_lib_file()
+        p = self.run_tool('next', '--no-open', os.path.join(self.repo, 'lib'))
+        self.assertEqual(p.returncode, 0)
+        self.assertIn('review-next: lib/c.py', p.stdout)
+        p = self.run_tool('next', '--no-open', os.path.dirname(self.repo))
+        self.assertEqual(p.returncode, 2)
+        self.assertIn('outside this repository', p.stderr)
+
     def test_stamp_ignores_directory_entries(self):
         # weAudit adds a derived directory entry to auditedFiles once every
         # file in the directory is reviewed, alongside the per-file entries.
