@@ -4046,6 +4046,37 @@ debugged without naming what it reads, so this is accepted rather
 than fixed, recorded here so the next reader does not raise it
 again.
 
+**Where every finding went.** Each has exactly one disposition.
+
+| Finding | Disposition |
+|---------|-------------|
+| Three plan references in this repository's code | Fixed here, `62889c7` |
+| The homelab host in `images`' public README | images#15, a pull request rather than an issue |
+| `images`: seven reporting-path findings, including the unasserted `temp.qcow2` | images#16 |
+| `private-ci`: the public-issue body, the unpaginated listing, the log-only builder path, and four smaller items | private-ci#114, which is private |
+| `actions`: five plan references, `docs/ansible.md` left behind, the syntax-check script's unreachable exit | actions#148 |
+| `shakenfist`: two scheduled-test lanes named for the wrong release | shakenfist#4492 |
+| `client-python`: the same shape, where `job_name` is also the concurrency key | client-python#423 |
+| No `PUSH-AUDIT.md` in the three producer repositories | #232, the proposal this phase was asked to file |
+| Sixteen stale claims in this plan | Corrected at source, `e4c57d5` |
+| Six advisory findings against this repository's three code merges | Declined in writing above; the `scope.py` count is in *Future work* |
+| `shakenfist`'s `BUNDLE_TOPOLOGIES` regression | Already fixed outside this plan, recorded in shakenfist#4492 for the lesson |
+
+**One finding did not survive verification, which is worth recording
+as much as the ones that did.** A step reported that the `get_url`
+cache loop in `actions` carries no per-image `checksum:` and treated
+it as an oversight. Reading the playbook rather than the report found
+a comment above the loop explaining the reasoning at length --
+`get_url` fails on a short read against the content length of the
+response that produced the file, which is stronger than a separate
+HEAD afterwards, and per-image checksums would be unworkable for
+images rebuilt upstream nightly -- with a test holding the task to
+`get_url` for that reason. What the comment does not claim to cover
+is substitution rather than truncation, so actions#148 records it as
+a known trade-off and not as a defect. **Every claim in every step's
+report was checked here before it was filed**, and this is the one
+that changed on checking.
+
 **What the success criteria came to.** All six were checked rather
 than assumed. Met: every one of the seven issues is closed except
 private-ci#44, which the plan already records as a named residual
