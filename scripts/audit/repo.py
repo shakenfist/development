@@ -99,9 +99,9 @@ REPO_OVERRIDES = {
     # conventions as a "historical archive", which it demonstrably is
     # not: it is built from every night and the fleet's CI boots from
     # its output. Joining the audit fully would file twelve findings,
-    # eight of which have no owner in any plan -- the same mistake
-    # phase 6 found and corrected elsewhere, pointed outward at a
-    # repository whose maintainers did not ask for it. So it joins
+    # eight of which no plan anywhere owns -- an audit filing work
+    # outward at a repository whose maintainers did not ask for it.
+    # So it joins
     # scoped to eol-distro alone: the pass this was confirmed to have
     # by hand becomes a verdict the audit reports on a schedule,
     # without manufacturing the other eleven findings.

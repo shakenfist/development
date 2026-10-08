@@ -435,9 +435,8 @@ def release_guidance(found):
 #: The runner-label producer definitions the fleet owns, as
 #: (repository-relative path, module-level name) pairs.
 #:
-#: Both are in shakenfist/private-ci, which decision 6.4 of
-#: docs/plans/PLAN-image-supply-chain.md records as the only producer
-#: of runner labels in the organisation: `images` publishes guest
+#: Both are in shakenfist/private-ci, which is the only producer of
+#: runner labels in the organisation: `images` publishes guest
 #: images, which is a different question, and the static fleet in
 #: another organisation advertises no release label at all.
 #:
