@@ -321,6 +321,10 @@
       "author": "mikal"
     },
     {
+      "path": "scripts/tests/test_review_tracking.py",
+      "author": "mikal"
+    },
+    {
       "path": "templates/export-repo-config/export-repo-config.yml",
       "author": "mikal"
     },
@@ -857,11 +861,51 @@
       "author": "mikal"
     },
     {
+      "path": "docs/code-review-tracking.md",
+      "author": "mikal"
+    },
+    {
       "path": "templates/shared-blocks/plan-file-conventions.md",
       "author": "mikal"
     },
     {
       "path": "templates/shared-blocks",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/consistency-audit.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/review-tracking.py",
       "author": "mikal"
     }
   ],
