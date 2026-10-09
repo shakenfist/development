@@ -46,18 +46,26 @@ and to teach the check about the backend.
 Pattern matching follows gitignore semantics closely enough for the
 exclusions people write -- `docs/plans`, `/docs/plans/`, `docs`,
 `docs/**` -- but is not a full implementation of any one tool's rules.
-The exception is galaxy's `build_ignore`, which ansible-galaxy
-fnmatches against each path relative to the collection root, and which
-the check matches the same way: `plans`, `/docs/plans` and
-`docs/plans/` exclude nothing there, and do not pass. An npm `files`
-entry is matched at any depth, which can only report more, not less.
+As in gitignore, `*` stays within one path segment, so `docs/*.md`
+names only the Markdown files directly in `docs/`. The exception is
+galaxy's `build_ignore`, which ansible-galaxy fnmatches against each
+path relative to the collection root, and which the check matches the
+same way: `*` crosses `/` there, and `plans`, `/docs/plans` and
+`docs/plans/` exclude nothing, and do not pass. An npm `files` entry is
+matched at any depth, which can only report more, not less.
 
 Lists are applied in order, with `!` negation, and the two directions
 are judged differently. An include list (npm `files`, Cargo and hatch
 `include`) that names anything below `docs/plans` -- `docs/plans/audit`,
 `docs/plans/**/*.md` -- ships plans, and fails. An exclusion only counts
-when it covers the whole of `docs/plans`, and a later `!` line naming
-any part of it undoes that.
+when it covers the whole of `docs/plans`: a pattern naming `docs/plans`,
+a directory above it, or everything inside one (`docs/plans/*`,
+`docs/**`). This holds for `.npmignore`, Cargo and hatch `exclude`, and
+galaxy `build_ignore` alike, and is the same rule as for `MANIFEST.in`
+below: an exclusion of one file type or name, such as `*.md` or
+`docs/plans/PLAN-*`, is not credited, because the next plan, or its
+audit notes, need not match it. A later `!` line naming any part of
+`docs/plans` undoes an exclusion.
 
 `MANIFEST.in` (and a galaxy `manifest`) is evaluated for the directives
 that act on whole directories (including the root, `.`), the file
@@ -70,7 +78,10 @@ or name at a time is not, because the next plan need not match it. Use
 `recursive-include docs *.png` does not count as shipping the plans even
 if a plans directory holds an image. A galaxy `manifest` that keeps the
 default directives is treated as shipping the plans, since those
-defaults take `.txt`, `.json` and `.yml` files from `docs/`.
+defaults take `.txt`, `.json` and `.yml` files from `docs/`. The
+`galaxy.yml` reader handles block and one-line flow lists, but not a
+flow-style `manifest: {...}` mapping, which is reported as unreadable
+rather than guessed at.
 
 Docker images are not checked. The build context is chosen by the
 command that builds the image rather than by a file in the repository,

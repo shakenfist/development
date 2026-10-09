@@ -2607,6 +2607,113 @@ class ReleaseArtifactsExcludePlansTest(CheckTestCase):
                     'galaxy.yml': f'namespace: sf\nname: thing\n{galaxy}',
                 }))
 
+    def test_an_exclusion_of_one_file_type_fails(self):
+        """The next plan, or its audit notes, need not be Markdown."""
+        cases = {
+            'npmignore': {
+                'package.json': '{"name": "thing", "version": "1.0.0"}\n',
+                '.npmignore': '*.md\n',
+            },
+            'cargo exclude': {
+                'Cargo.toml': (
+                    '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                    'exclude = ["/docs/plans/*.md"]\n'),
+            },
+            'hatch exclude': {
+                'pyproject.toml': (
+                    '[build-system]\nrequires = ["hatchling"]\n'
+                    'build-backend = "hatchling.build"\n\n'
+                    '[tool.hatch.build.targets.sdist]\n'
+                    'exclude = ["docs/*.md", "*.md"]\n'),
+            },
+            'galaxy build_ignore': {
+                'galaxy.yml': (
+                    'namespace: sf\nname: thing\n'
+                    "build_ignore: ['*.md', 'docs/plans/PLAN-*']\n"),
+            },
+        }
+        for name, files in cases.items():
+            with self.subTest(name):
+                self.fresh_fixture()
+                self.assert_fail(self._check(files),
+                                 containing='1 release artifact')
+
+    def test_an_exclusion_of_everything_inside_the_plans_passes(self):
+        cases = {
+            'npmignore': {
+                'package.json': '{"name": "thing", "version": "1.0.0"}\n',
+                '.npmignore': '/docs/plans/**\n',
+            },
+            'cargo exclude': {
+                'Cargo.toml': (
+                    '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                    'exclude = ["docs/*"]\n'),
+            },
+            'galaxy build_ignore': {
+                'galaxy.yml': (
+                    'namespace: sf\nname: thing\n'
+                    "build_ignore: ['docs/plans/*']\n"),
+            },
+        }
+        for name, files in cases.items():
+            with self.subTest(name):
+                self.fresh_fixture()
+                self.assert_pass(self._check(files))
+
+    def test_an_npm_files_glob_of_top_level_docs_passes(self):
+        """'*' stays within one segment, so this is docs/*.md only."""
+        self.assert_pass(self._check({
+            'package.json': (
+                '{"name": "thing", "version": "1.0.0", '
+                '"files": ["dist/", "docs/*.md"]}\n'),
+        }))
+
+    def test_plain_setuptools_globally_including_a_plans_path_fails(self):
+        """setuptools reads global-include as '**/' plus the pattern."""
+        self.assert_fail(self._check({
+            'pyproject.toml': self.PLAIN_PYPROJECT,
+            'MANIFEST.in': 'global-include plans/*.md\n',
+        }))
+
+    def test_plain_setuptools_recursively_including_top_level_docs_passes(self):
+        self.assert_pass(self._check({
+            'pyproject.toml': self.PLAIN_PYPROJECT,
+            'MANIFEST.in': 'recursive-include . docs/*.md\n',
+        }))
+
+    def test_flow_sequence_manifest_directives_are_read(self):
+        self.assert_pass(self._check({
+            'galaxy.yml': (
+                'namespace: sf\nname: thing\nmanifest:\n'
+                "  directives: ['prune docs/plans']  # history\n"),
+        }))
+
+    def test_a_flow_mapping_manifest_is_reported_rather_than_guessed(self):
+        result = self.assert_fail(self._check({
+            'galaxy.yml': (
+                'namespace: sf\nname: thing\n'
+                'manifest: {directives: [prune docs/plans]}\n'),
+        }))
+        self.assertIn('flow-style manifest', result['findings'][0])
+
+    def test_a_global_hatch_exclude_of_the_plans_passes(self):
+        self.assert_pass(self._check({
+            'pyproject.toml': (
+                '[build-system]\nrequires = ["hatchling"]\n'
+                'build-backend = "hatchling.build"\n\n'
+                '[tool.hatch.build]\nexclude = ["/docs/plans"]\n'),
+        }))
+
+    def test_an_sdist_hatch_exclude_replaces_the_global_one(self):
+        """hatchling reads the target's exclude in place of the global."""
+        self.assert_fail(self._check({
+            'pyproject.toml': (
+                '[build-system]\nrequires = ["hatchling"]\n'
+                'build-backend = "hatchling.build"\n\n'
+                '[tool.hatch.build]\nexclude = ["/docs/plans"]\n\n'
+                '[tool.hatch.build.targets.sdist]\nexclude = ["/tests"]\n'),
+        }))
+
 
 class PathPatternSelectsTest(unittest.TestCase):
     """The gitignore-shaped matching every exclusion list goes through."""
@@ -2614,15 +2721,18 @@ class PathPatternSelectsTest(unittest.TestCase):
     def test_patterns_that_select_the_plans(self):
         for pattern in ('docs/plans', '/docs/plans', 'docs/plans/',
                         './docs/plans', 'docs', '/docs/', 'docs/**',
-                        'docs/*', '*.md', 'docs/plans/*.md', 'plans',
-                        'plans/'):
+                        'docs/*', 'docs/plans/*', 'docs/plans/**', 'plans',
+                        'plans/', '*', '/*', '**', '*/*', 'd*/pl*',
+                        '**/plans'):
             with self.subTest(pattern=pattern):
                 self.assertTrue(packaging.path_pattern_selects(
                     pattern, 'docs/plans'))
 
     def test_patterns_that_do_not(self):
         for pattern in ('', '/', 'doc', 'docs/plan', 'docs/plansx',
-                        '/src', 'docs/images', '*.py', '/plans'):
+                        '/src', 'docs/images', '*.py', '/plans', '*.md',
+                        'docs/plans/*.md', 'docs/*.md', 'docs/plans/PLAN-*',
+                        '*/plans/*.md', 'docs/plans/audit', 'plans/*'):
             with self.subTest(pattern=pattern):
                 self.assertFalse(packaging.path_pattern_selects(
                     pattern, 'docs/plans'))
@@ -2634,14 +2744,16 @@ class PathPatternReachesTest(unittest.TestCase):
     def test_patterns_that_reach_into_the_plans(self):
         for pattern in ('docs/plans', 'docs', 'docs/plans/audit',
                         '/docs/plans/audit/', 'docs/plans/**/*.md',
-                        'docs/*/audit', '**/audit', 'docs/**/x.md'):
+                        'docs/*/audit', '**/audit', 'docs/**/x.md',
+                        '*.md', 'docs/plans/*.md', 'PLAN-*'):
             with self.subTest(pattern=pattern):
                 self.assertTrue(packaging.path_pattern_reaches(
                     pattern, 'docs/plans'))
 
     def test_patterns_that_do_not(self):
         for pattern in ('', 'audit', 'docs/images/audit', 'src/**',
-                        'docs/plansx/audit', 'doc/plans/audit'):
+                        'docs/plansx/audit', 'doc/plans/audit',
+                        'docs/*.md', '/*.md', '*.py', 'PLAN-*/'):
             with self.subTest(pattern=pattern):
                 self.assertFalse(packaging.path_pattern_reaches(
                     pattern, 'docs/plans'))
@@ -2676,14 +2788,16 @@ class BuildIgnoreSelectsTest(unittest.TestCase):
 
     def test_patterns_that_select_the_plans(self):
         for pattern in ('docs/plans', 'docs', 'docs/*', '*plans',
-                        'docs/plans/*', '*.md', "'docs/plans'"):
+                        'docs/plans/*', 'docs/plans/**', '*',
+                        "'docs/plans'"):
             with self.subTest(pattern=pattern):
                 self.assertTrue(packaging.build_ignore_selects(
                     pattern, 'docs/plans'))
 
     def test_patterns_that_do_not(self):
         for pattern in ('plans', '/docs/plans', 'docs/plans/', 'docs/',
-                        './docs/plans', 'doc', '*.py'):
+                        './docs/plans', 'doc', '*.py', '*.md',
+                        'docs/*.md', 'docs/plans/PLAN-*', 'docs/plans/*.md'):
             with self.subTest(pattern=pattern):
                 self.assertFalse(packaging.build_ignore_selects(
                     pattern, 'docs/plans'))

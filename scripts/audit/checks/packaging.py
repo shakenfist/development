@@ -1615,48 +1615,81 @@ def normalise_path(value):
     return cleaned.strip('/')
 
 
+def _gitignore_segments(pattern):
+    """A gitignore-shaped pattern as path segments to match from the root.
+
+    A pattern with no '/' other than a trailing one is unanchored, and
+    gitignore matches it against a name at any depth, so it gains a
+    leading '**'.
+    """
+    raw = pattern.strip().strip('"\'')
+    cleaned = normalise_path(raw)
+    if not cleaned:
+        return []
+    segments = cleaned.split('/')
+    if '/' not in raw.rstrip('/'):
+        segments.insert(0, '**')
+    return segments
+
+
+def _segments_match(parts, segments):
+    """gitignore globbing: '*' stays within a segment, '**' spans any."""
+    if not segments:
+        return not parts
+    if segments[0] == '**':
+        return any(_segments_match(parts[i:], segments[1:])
+                   for i in range(len(parts) + 1))
+    return (bool(parts) and fnmatch.fnmatchcase(parts[0], segments[0])
+            and _segments_match(parts[1:], segments[1:]))
+
+
 def path_pattern_selects(pattern, target):
-    """Does a packaging include/exclude pattern select target?
+    """Does a packaging include/exclude pattern select all of target?
 
     target is a directory relative to the artifact root. The pattern
     is gitignore-shaped, which is the common denominator of Cargo's
     include and exclude, hatch's, npm's files and .npmignore: a
     leading '/' anchors it, a trailing '/' limits it to directories,
-    and a pattern naming an ancestor of target selects target too.
-    Approximate by design -- it answers whether the directory or a
-    plan inside it is selected, which is the only question
-    release-artifacts-exclude-plans asks. galaxy's build_ignore is not
-    gitignore-shaped; see build_ignore_selects.
+    '*' stays within one path segment, and a pattern naming an
+    ancestor of target selects target too, as does a 'dir/*' or
+    'dir/**' naming everything inside one. A pattern selecting only
+    some of the files inside, such as '*.md' or 'docs/plans/*.md',
+    does not select the directory: the next plan need not match it.
+    galaxy's build_ignore is not gitignore-shaped; see
+    build_ignore_selects.
     """
-    cleaned = normalise_path(pattern)
-    if cleaned.endswith('/**') or cleaned.endswith('/*'):
-        cleaned = cleaned.rsplit('/', 1)[0]
-    if not cleaned:
+    segments = _gitignore_segments(pattern)
+    if not segments:
         return False
-    if target == cleaned or target.startswith(cleaned + '/'):
-        return True
-    if '/' not in pattern.strip().strip('"\'').rstrip('/'):
-        # Unanchored: gitignore matches it against a name at any depth.
-        if any(fnmatch.fnmatchcase(part, cleaned)
-               for part in target.split('/')):
-            return True
-    sample = f'{target}/{PLANS_SAMPLE_FILE}'
-    return (fnmatch.fnmatchcase(target, cleaned)
-            or fnmatch.fnmatchcase(sample, cleaned))
+    candidates = [segments]
+    if segments[-1] in ('*', '**') and len(segments) > 1:
+        candidates.append(segments[:-1])
+    parts = target.split('/')
+    return any(_segments_match(parts[:i], candidate)
+               for candidate in candidates
+               for i in range(1, len(parts) + 1))
 
 
 def path_pattern_reaches(pattern, target):
     """Does a gitignore-shaped pattern select target or anything in it?
 
-    Wider than path_pattern_selects: an anchored pattern naming
-    something below target, such as 'docs/plans/audit' or
-    'docs/plans/**/*.md', reaches some of the plans without selecting
-    the directory. That ships them from an include list, and puts them
+    Wider than path_pattern_selects: a pattern naming something below
+    target, such as 'docs/plans/audit', 'docs/plans/**/*.md' or an
+    unanchored '*.md', reaches some of the plans without selecting the
+    directory. That ships them from an include list, and puts them
     back from a '!' line of an ignore list. An unanchored name is
-    judged by path_pattern_selects alone, since whether a plans
-    subdirectory carries that name is not knowable from the pattern.
+    judged against target and a Markdown plan, PLANS_SAMPLE_FILE,
+    since whether a plans subdirectory carries that name is not
+    knowable from the pattern.
     """
     if path_pattern_selects(pattern, target):
+        return True
+    segments = _gitignore_segments(pattern)
+    if not segments:
+        return False
+    sample = f'{target}/{PLANS_SAMPLE_FILE}'
+    if (not pattern.strip().strip('"\'').endswith('/')
+            and _segments_match(sample.split('/'), segments)):
         return True
     cleaned = normalise_path(pattern)
     if '/' not in cleaned:
@@ -1735,15 +1768,21 @@ def build_ignore_selects(pattern, target):
     ansible-galaxy fnmatches each pattern against the path of every
     directory and file relative to the collection root, and does not
     descend into a directory that matches. So the pattern must match
-    target, one of its ancestors, or a plan inside it, verbatim: there
-    is no gitignore anchoring, and 'plans', '/docs/plans' and
-    'docs/plans/' match nothing.
+    target or one of its ancestors verbatim, or end in a '/*' or '/**'
+    matching everything inside one ('*' crosses '/' in fnmatch). There
+    is no gitignore anchoring, so 'plans', '/docs/plans' and
+    'docs/plans/' match nothing, and a pattern matching only some
+    plans, such as '*.md', is not an exclusion of the directory.
     """
     cleaned = pattern.strip().strip('"\'')
+    stems = [cleaned]
+    stem = cleaned.rstrip('*')
+    if stem != cleaned and stem.endswith('/'):
+        stems.append(stem[:-1])
     parts = target.split('/')
     candidates = ['/'.join(parts[:i]) for i in range(1, len(parts) + 1)]
-    candidates.append(f'{target}/{PLANS_SAMPLE_FILE}')
-    return any(fnmatch.fnmatchcase(c, cleaned) for c in candidates)
+    return any(fnmatch.fnmatchcase(c, stem)
+               for c in candidates for stem in stems)
 
 
 def manifest_directives_ship(lines, target, included):
@@ -1764,7 +1803,9 @@ def manifest_directives_ship(lines, target, included):
 
     def selects_a_plan(directory, patterns):
         # recursive-include matches its patterns against the path of
-        # each file below directory, so try every tail of a plan's.
+        # each file below directory, '*' within one segment, so try
+        # every tail of a plan's. global-include is the same from the
+        # root.
         if not directory:
             below = target.split('/')
         elif target.startswith(directory + '/'):
@@ -1773,7 +1814,7 @@ def manifest_directives_ship(lines, target, included):
             below = []
         below.append(PLANS_SAMPLE_FILE)
         tails = ['/'.join(below[i:]) for i in range(len(below))]
-        return any(fnmatch.fnmatchcase(tail, pattern)
+        return any(segment_glob_matches(tail, pattern)
                    for pattern in patterns for tail in tails)
 
     for line in lines:
@@ -1805,9 +1846,8 @@ def manifest_directives_ship(lines, target, included):
                 segment_glob_matches(sample, normalise_path(pattern))
                 for pattern in arguments):
             included = True
-        elif directive == 'global-include' and any(
-                fnmatch.fnmatchcase(PLANS_SAMPLE_FILE, pattern)
-                for pattern in arguments):
+        elif (directive == 'global-include'
+                and selects_a_plan('', arguments)):
             included = True
     return included
 
@@ -1827,6 +1867,16 @@ def yaml_scalar(text):
     if text.startswith('#'):
         return ''
     return re.split(r'\s#', text, maxsplit=1)[0].strip()
+
+
+def yaml_flow_sequence(text):
+    """The items of a one-line YAML flow sequence, such as [a, "b"].
+
+    For the galaxy.yml reader, whose lists hold paths and MANIFEST.in
+    directives, neither of which carries a comma.
+    """
+    entries = yaml_scalar(text).strip('[]').split(',')
+    return [yaml_scalar(entry) for entry in entries if entry.strip()]
 
 
 def requirement_name(requirement):
@@ -2079,11 +2129,14 @@ class ReleaseArtifactsExcludePlans(Check):
                 section, subsection = key.strip(), None
                 rest = yaml_scalar(rest)
                 if section == 'manifest':
+                    if rest.startswith('{'):
+                        return artifact, (
+                            f'could not read the flow-style manifest '
+                            f'mapping in {path}; write it as a block '
+                            f'mapping')
                     manifest = rest not in ('null', '~', 'false')
                 elif section == 'build_ignore' and rest:
-                    build_ignore.extend(
-                        yaml_scalar(entry) for entry in
-                        rest.strip('[]').split(',') if entry.strip())
+                    build_ignore.extend(yaml_flow_sequence(rest))
                 continue
             if item.startswith('- '):
                 if section == 'build_ignore':
@@ -2093,7 +2146,9 @@ class ReleaseArtifactsExcludePlans(Check):
             elif section == 'manifest':
                 key, _, rest = item.partition(':')
                 subsection = key.strip()
-                if subsection == 'omit_default_directives':
+                if subsection == 'directives' and yaml_scalar(rest):
+                    directives.extend(yaml_flow_sequence(rest))
+                elif subsection == 'omit_default_directives':
                     omit_defaults = yaml_scalar(rest).lower() in ('true',
                                                                   'yes')
 
