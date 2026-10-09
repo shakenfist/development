@@ -41,6 +41,10 @@
       "sha": "975f656d8135aefe12ba2f2094d8671460ef1a8a",
       "date": "2026-10-01"
     },
+    ".github/workflows/consistency-audit.yml": {
+      "sha": "06af2da901d65c9d861ecc1fe7d586e75b2530d5",
+      "date": "2026-10-09"
+    },
     ".github/workflows/export-repo-config.yml": {
       "sha": "b9b3936053b8685ef0ae47f656b2f35aa62ba637",
       "date": "2026-09-27"
@@ -64,6 +68,10 @@
     ".github/workflows/prune-reviews.yml": {
       "sha": "7fc119ce46252ba56037d99ddf90ea9dc180e3b8",
       "date": "2026-09-27"
+    },
+    ".github/workflows/renovate.yml": {
+      "sha": "d63b3b2872578eb241b9749d162312260dc8e8bd",
+      "date": "2026-10-09"
     },
     ".github/workflows/secret-scan.yml": {
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
@@ -96,6 +104,10 @@
     "README.md": {
       "sha": "2269add37483bd29c54af121efee0aeeb1939a53",
       "date": "2026-10-05"
+    },
+    "docs/audits/README.md": {
+      "sha": "e73fae1cac57fa7da3ad561802d4623b9cf22b28",
+      "date": "2026-10-09"
     },
     "docs/audits/ci-review-automation.md": {
       "sha": "1e71c7a37946b3534dad400d55374e00bad389b0",
@@ -664,6 +676,10 @@
     "templates/renovate/renovate.json": {
       "sha": "bc3d203dd9e9ab9c2f83e551382dbfb7e60e08fd",
       "date": "2026-09-27"
+    },
+    "templates/renovate/renovate.yml": {
+      "sha": "d63b3b2872578eb241b9749d162312260dc8e8bd",
+      "date": "2026-10-09"
     },
     "templates/review-tracking/README.md": {
       "sha": "6b24f5a5c6c00c82778c3370201f8818e5d59fab",
