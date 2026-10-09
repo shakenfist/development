@@ -23,7 +23,7 @@ that directory with its own mechanism:
 
 | Artifact | Built from | Passes when |
 |----------|------------|-------------|
-| sdist, setuptools with setuptools_scm | `pyproject.toml` or `setup.py` | `MANIFEST.in` has `prune docs/plans` (or `prune docs`), not undone by a later `graft`, or a `recursive-include` whose patterns select a plan |
+| sdist, setuptools with setuptools_scm | `pyproject.toml` or `setup.py` | `MANIFEST.in` has `prune docs/plans` (or `prune docs`), not undone by a later `graft`, `include` or `recursive-include` that adds a plan back |
 | sdist, plain setuptools | `pyproject.toml` or `setup.py` | `MANIFEST.in` does not add `docs/plans` back in |
 | sdist, hatchling | `pyproject.toml` | `[tool.hatch.build.targets.sdist]` `exclude` covers `docs/plans` (it wins over an include list), or an `include`/`only-include` list does not select it |
 | crate | `Cargo.toml` with a `[package]` that is published | `exclude` covers `docs/plans`, or an `include` list does not select it, either set directly or inherited from `[workspace.package]` |
@@ -43,45 +43,63 @@ and to teach the check about the backend.
 
 ## What this does not cover
 
-Pattern matching follows gitignore semantics closely enough for the
-exclusions people write -- `docs/plans`, `/docs/plans/`, `docs`,
-`docs/**` -- but is not a full implementation of any one tool's rules.
-As in gitignore, `*` stays within one path segment, so `docs/*.md`
-names only the Markdown files directly in `docs/`. The exception is
-galaxy's `build_ignore`, which ansible-galaxy fnmatches against each
-path relative to the collection root, and which the check matches the
-same way: `*` crosses `/` there, and `plans`, `/docs/plans` and
-`docs/plans/` exclude nothing, and do not pass. An npm `files` entry is
-matched at any depth, which can only report more, not less.
+Where a pattern names files rather than a whole directory, the check
+judges it against the files git tracks under `docs/plans/`, so an
+include of `*.txt` ships plans only if a `.txt` note is tracked there.
+A pattern rooted inside `docs/plans` -- `docs/plans/README.md`,
+`recursive-include docs/plans *.png` -- ships plans whether or not a
+file matching it is tracked yet, since anything that lands there later
+will be one.
 
-Lists are applied in order, with `!` negation, and the two directions
-are judged differently. An include list (npm `files`, Cargo and hatch
-`include`) that names anything below `docs/plans` -- `docs/plans/audit`,
-`docs/plans/**/*.md` -- ships plans, and fails. An exclusion only counts
-when it covers the whole of `docs/plans`: a pattern naming `docs/plans`,
-a directory above it, or everything inside one (`docs/plans/*`,
-`docs/**`). This holds for `.npmignore`, Cargo and hatch `exclude`, and
-galaxy `build_ignore` alike, and is the same rule as for `MANIFEST.in`
-below: an exclusion of one file type or name, such as `*.md` or
-`docs/plans/PLAN-*`, is not credited, because the next plan, or its
-audit notes, need not match it. A later `!` line naming any part of
-`docs/plans` undoes an exclusion.
+Exclusions are judged the other way: one only counts when it covers the
+whole of `docs/plans`, so that the next plan, or its audit notes, is
+excluded too. That means a pattern naming `docs/plans`, a directory
+above it, or everything inside one (`docs/plans/*`, `docs/**`), in
+`.npmignore`, Cargo and hatch `exclude`, and galaxy `build_ignore`
+alike. An exclusion of one file type or name, such as `*.md` or
+`docs/plans/PLAN-*`, is not credited, even when every plan tracked
+today matches it.
 
-`MANIFEST.in` (and a galaxy `manifest`) is evaluated for the directives
-that act on whole directories (including the root, `.`), the file
-patterns of `recursive-include` and `global-include`, and the paths of
-`include`. The only exclusions credited are `prune` and
-`recursive-exclude <dir> *` of `docs/plans` or a directory above it: an
-`exclude` or `global-exclude` that would remove the plans one file type
-or name at a time is not, because the next plan need not match it. Use
-`prune docs/plans`. File patterns are judged against a Markdown plan, so
-`recursive-include docs *.png` does not count as shipping the plans even
-if a plans directory holds an image. A galaxy `manifest` that keeps the
-default directives is treated as shipping the plans, since those
-defaults take `.txt`, `.json` and `.yml` files from `docs/`. The
-`galaxy.yml` reader handles block and one-line flow lists, but not a
-flow-style `manifest: {...}` mapping, which is reported as unreadable
-rather than guessed at.
+Gitignore-shaped lists (npm `files` and `.npmignore`, Cargo and hatch
+`include` and `exclude`) are matched the gitignore way: a leading `/`
+anchors a pattern, a trailing `/` limits it to directories, and `*`
+stays within one path segment, so `docs/*.md` names only the Markdown
+files directly in `docs/`. An npm `files` entry is matched at any
+depth, which can only report more than npm ships, not less. The tools
+disagree about `!` lines: npm, like git, cannot re-include a file below
+an excluded directory, while Cargo and hatch let a pattern matching a
+file beat one matching its directory, whatever their order. So an
+ignore list with a `!` line naming `docs/plans`, a directory above it,
+or anything inside it is not credited, wherever that line sits; drop
+the negation, or move what it protects out of `docs/plans`. In an
+include list, a `!` line takes the plans back out only when it selects
+all of `docs/plans`, comes after every entry reaching it, and names it
+at least as closely: `"docs/", "!docs/plans"` passes, and
+`"docs/plans/*.md", "!docs/plans"` does not, since Cargo ships the
+plans from it.
+
+galaxy's `build_ignore` is not gitignore-shaped: ansible-galaxy
+fnmatches it against each path relative to the collection root, and
+the check matches it the same way, so `*` crosses `/` there, and
+`plans`, `/docs/plans` and `docs/plans/` exclude nothing, and do not
+pass.
+
+`MANIFEST.in` (and a galaxy `manifest`) is evaluated with setuptools'
+own globbing. Directory arguments are globs; `include` and `graft` glob
+without recursion, so `include docs/**` takes only the files directly
+in `docs/`, while `recursive-include` and `global-include` read a `**`
+path segment as any number of directories. A path starting with `/` is
+absolute and names nothing, and a `prune .` or `recursive-exclude . *`
+does nothing, because setuptools matches the `.` literally. The only
+exclusions credited are `prune` and `recursive-exclude <dir> *` of
+`docs/plans` or a directory above it: an `exclude` or `global-exclude`
+that would remove the plans one file type or name at a time is not.
+Use `prune docs/plans`. A galaxy `manifest` that keeps the default
+directives is treated as shipping the plans, since those defaults take
+`.txt`, `.json` and `.yml` files from `docs/`; add `prune docs/plans`
+to its directives. The `galaxy.yml` reader handles block and one-line
+flow lists, but not a flow-style `manifest: {...}` mapping, which is
+reported as unreadable rather than guessed at.
 
 Docker images are not checked. The build context is chosen by the
 command that builds the image rather than by a file in the repository,
