@@ -3387,7 +3387,11 @@ which `images`' public README names only `SF_IMAGES_LOKI_URL` and
 quad -- grepped over the merged file rather than inferred from the
 diff. This phase closes itself out and records no `Merged` cell, per
 that same block; its first commit closed phase 6 with `8684ec8`, the
-merge of #230. The survey below is the largest correction any phase of
+merge of #230. `Complete` here means every finding has a disposition
+rather than that nothing is left open: one named residual stands, the
+`review-coverage` staleness awaiting a reading session, and two
+follow-up issues, #239 and #240, carry gaps this phase declined to
+close itself. The survey below is the largest correction any phase of
 this plan has made to its own section, and all of it is arithmetic
 rather than judgement: the section was written when eleven landings in
 four repositories had been recorded, and there are now forty-three in
@@ -3542,7 +3546,12 @@ lines between them.
 **The record the audit reads from is wrong for all seven of phase
 3's landings.** Thirty-five of the forty-two shas in the Execution
 table are the merge commit of their pull request and have two
-parents. Phase 3's seven -- `private-ci` `9eace9d`, `2e18c13`,
+parents. **Forty-two was the count when the survey ran**; it is
+forty-three once this phase's close-out commit added `#230` to
+phase 6's row, which is a merge commit, so thirty-six of
+forty-three by the time the audit read them -- the same
+off-by-one-landing as the four-to-five correction below, and from
+the same cause. Phase 3's seven -- `private-ci` `9eace9d`, `2e18c13`,
 `dbb78ca`; `actions` `8684eec`, `781d267`; `kerbside` `79c2506`,
 `cfef26a` -- are branch commits with one parent each. The shared
 block is explicit that "a single commit is only ever enough when
@@ -3708,7 +3717,11 @@ dropping** is that tier B is still read, its combined diff is
 `+272 -202` and small enough to read in full, and `eol-distro`
 reporting compliant fleet-wide is an independent witness that no
 label was retired early. **Corrected 2026-10-10, after #234's
-fourth review round.** All three places that stated this aggregate
+fourth review round -- and a note on the dates, since this phase
+argues for checking claims against GitHub: the dates on these
+correction notes are the author's local date, UTC+11, while every
+timestamp compared against something GitHub records is written as
+UTC and says so.** All three places that stated this aggregate
 said `+345 -268`, which matches nothing: the fifteen per-landing
 figures in the 7e brief sum to `+272 -202`, so does the survey
 table's `shakenfist`, `kerbside` and ten-more rows, and so does
@@ -3960,8 +3973,11 @@ cannot see `scripts/`. `plan-source-references` has the right file
 set, every tracked non-markdown file, and asks the wrong question:
 whether each `PLAN-*.md` token *resolves*. A forbidden reference
 that resolves is a pass. Both report `pass` against this
-repository while five such references sit in `scripts/`,
-demonstrated in #239, which carries the gap. **This phase's first
+repository while five such references sit in `scripts/`
+-- measured on this phase's branch *after* its three removals, and
+listed in #239, which carries the gap. Three further matches in
+`scripts/` are the plan checks quoting the shape they forbid, and
+two are fixtures for those checks. **This phase's first
 account of it said nothing mechanical guards the block in code at
 all**, which was nearly right and wrong in the interesting
 direction: something walks the files, and it validates the link
@@ -4403,12 +4419,13 @@ phase has completed, been abandoned or been superseded.
 ### Future work
 
 * **A count held by nothing in `scripts/audit/scope.py`** --
-  now #240, filed 2026-10-10 because a `Complete` plan's *Future
-  work* list is the least-read place in the repository and this
-  review round said so. Phase 6 made the `IN_SCOPE_END` anchor
-  count-free, which removed a parse that broke on the edit adding a
-  second partially scoped repository. The lead-in sentence in
-  `docs/audits/README.md` still says how many there are,
+  now #240, filed 2026-10-09 at 21:24 UTC because a `Complete`
+  plan's *Future work* list is the least-read place in the
+  repository and this review round said so. Phase 6 made the
+  `IN_SCOPE_END` anchor count-free, which removed a parse that
+  broke on the edit adding a second partially scoped repository.
+  The lead-in sentence in `docs/audits/README.md` still says how
+  many there are,
   `documented_partial_scope()` returns the set, and nothing compares
   the two -- so a third scoped repository with the word left at
   "Two" now fails nothing. Phase 7's audit found it and declined to
