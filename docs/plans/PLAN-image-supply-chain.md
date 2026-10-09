@@ -247,7 +247,7 @@ needs the same treatment, and phase 6 says so.
 |-------|--------|--------|
 | 1. Alarm on absence | Complete | images acccd2b (#5), images 47ed141 (#6), private-ci ae7b1f8 (#49), private-ci e1f8fb1 (#54), 33fl 6de1764 (#827) |
 | 2. Verify the artifact, not the name | Complete | images 6028647 (#7), images 4800c72 (#8), images b872641 (#9), actions 2ac4a94 (#74), 33fl bbbd842 (#836) |
-| 3. Unblock the migration | Complete | private-ci 392700d (#60), private-ci 923a28a (#61), private-ci df913b8 (#63), actions 893d579 (#78), actions 04bd659 (#80), kerbside 951b3e8 (#435), kerbside baefc65 (#450). **Corrected 2026-10-08 by phase 7's survey.** This cell recorded the branch commits `9eace9d`, `2e18c13`, `dbb78ca`, `8684eec`, `781d267`, `79c2506` and `cfef26a`, each with one parent, so the audit range `<sha>^1..<sha>` the push audit builds from them covers one commit of each pull request rather than the pull request. Harmless for the five that carried a single commit; for actions#78 it left out `b8f85d3`, the cache-disk migration, and for actions#80 it left out `b4b0e3d`, the desktop snapshot, and two review commits. |
+| 3. Unblock the migration | Complete | private-ci 392700d (#60), private-ci 923a28a (#61), private-ci df913b8 (#63), actions 893d579 (#78), actions 04bd659 (#80), kerbside 951b3e8 (#435), kerbside baefc65 (#450). Corrected 2026-10-08 by phase 7's survey, which records the seven branch commits this cell held before and what two of them left out; see *What the survey found*. |
 | 4. The consumer sweep | Complete | Label half: actions 5a677a9 (#90), agent-python 8303e99 (#140), client-python 93a0999 (#405), client-python-k3s 1576e72 (#67), clingwrap d5eb4ea (#136), divergulent 53136f2 (#117), library-utilities 6f63b95 (#60), ryll 060e649 (#397), sfui 30f5501 (#35), instar a1c09aa (#589), occystrap 4b9d5ff (#143), shakenfist 54b18a0 (#4306), with visual-digest-rust #23 closed as superseded. Guest-image half: actions 8c02ab0 (#97, 4f), shakenfist 2a94e58 (#4379, 4g), shakenfist 984fdd1 (#4385, 4h part 1), actions 227593c (#124, 4h part 2). 4i and 4j carry no commit. |
 | 5. Retire the end-of-life producers | Complete | private-ci e77fca7 (#100, 5a), actions 2351ece (#136, 5b), 33fl e92a1b4 (#925, 5c), development b464fcc (#218, 5d), and the `ubuntu:18.04` removal the phase grew: actions 587683a (#140) with development 13fec36 (#221) carrying its plan bullet and its 5f check. 5e and 5f carry no commit. |
 | 6. Close the audit's blind spot | Complete | development 358bef0 (#222, 6a), development 6163de8 (#226, 6b), images 707768f (#14, 6c), development 8684ec8 (#230, 6e's record). 6d filed images#13 and carries no commit. 6e ran 2026-10-07 and all eleven checks agreed; this row was closed out in phase 7's first commit, because the commit that ticked the done list is this row's own and could not record its own merge. |
@@ -3995,18 +3995,33 @@ An item-4 check needs to ask what reads the old name, not what
 mentions it.
 
 **`shakenfist/private-ci`: the forge is the weak reporting
-channel.** `conductor/github.py`'s `upsert_issue()` and
-`close_issue_if_open()` each make a single unpaginated request with
-a page size smaller than the 134 open items in the repository they
-file into, while the same file paginates correctly in eight other
-places. Once the tracked issue falls off the first page,
-`upsert_issue()` files a duplicate on every change and
-`close_issue_if_open()` never closes it -- the outcome its own
-docstring exists to prevent, arriving gradually, in a public
-tracker. Alongside it, the build-failure path writes host-specific
-detail and an unredacted log tail into that same public tracker.
-Both are in that repository's own issue, which is private;
-decision 7.6 is why neither is described further here. Also found
+channel.** `conductor/github.py`: the issue upsert and close paths
+do not paginate, so once a tracked issue falls past the first page
+the upsert files a duplicate on every change and the close stops
+closing -- the outcome its own docstring exists to prevent,
+arriving gradually, in a public tracker. `conductor/github.py`
+again: the build-failure path writes host-specific detail and an
+unredacted log tail into that same public tracker. Both are in
+that repository's own issue, which is private; decision 7.6 is why
+neither is described further here. **Narrowed 2026-10-10, after
+#234's third review round**, which found this paragraph naming two
+functions, the open-item count of a private tracker and how many
+other call sites in the same file get it right. None of that is a
+hostname, an address or a credential, so 7h check (5)'s grep
+passed it -- and that is the finding. **Decision 7.6 has two halves
+and only one of them is mechanically checked:** the exclusion list
+has a grep, and "a verdict, a file path and a sentence saying what
+class of problem it is" had nothing watching it. The detail is in
+private-ci#114. **One boundary worth stating, because the sweep for
+this found it:** 7.6 governs findings, and phase 3's step briefs
+above carry a great deal more `private-ci` structure than any
+finding here does -- paths, line numbers, constant names and base
+image strings -- written three weeks before 7.6 existed. They are
+instructions rather than findings, so 7.6 never reached them. None
+of it is a host, an address or a credential. Whether a public plan
+should carry that much of a private repository's shape is a
+decision somebody should take deliberately, and it is not this
+round's to take by rewriting the record. Also found
 and not acted on: a gauge 1a added that nothing consumes, and three
 comments stating things that are not true, one of which was never
 true.
@@ -4201,9 +4216,20 @@ this phase's branch is rebased onto it, so `scope-coverage` passes
 and the residual is closed. `audit-check.py` reports one failure
 instead, `review-coverage`, at exactly its threshold of five: the
 three code files this phase edits carry stale review marks, and
-`066d639`'s two files have never been reviewed. That is the
-review-tracking tooling describing in-flight work, which the mark
-import on merge clears.
+`066d639`'s two files have never been reviewed. **Corrected
+2026-10-10, after #234's third review round.** This said the mark
+import on merge clears it, and it does not. `import` marks a file
+whose *blob at HEAD* was already reviewed in a clone of this
+repository, so it cannot clear a file whose content just changed --
+and `AGENTS.md` is explicit that a pruned file "needs a human to
+read it again and re-mark it in weAudit", with "accumulated
+staleness ... the `review-coverage` audit's job". `import` also
+refuses to run inside this repository at all. So this residual is
+review staleness awaiting a reading session, which is what the
+criterion is for and not something a merge resolves. **That makes
+four claims in this plan that did not survive being checked, three
+of them written by this phase**, which is the argument for the
+phase rather than against it.
 
 **What this phase corrected in the plan, at source.** Sixteen stale
 or false claims, five of them live in sections no disclaimer
