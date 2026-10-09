@@ -3925,12 +3925,23 @@ decision 5.4 of PLAN-image-supply-chain". None is deferred work,
 each already states its reason in the same comment so the citation
 adds nothing, and the `actions` five cite a plan in another
 repository without the absolute URL the carve-out requires. Two
-steps found this independently. **Why it was not caught:** the
-`plan-phase-references` criterion greps `README.md` and `docs/`
-with plans excluded, so it cannot see `scripts/`, and nothing
-mechanical guards this block in code at all. The three here are
-removed in this phase; the five in `actions` are in that
-repository's issue.
+steps found this independently. **Why it was not caught, corrected
+2026-10-10 after #234's review round made it worth running rather
+than reasoning about:** two criteria come close and neither asks
+the question. `plan-phase-references` has the right pattern --
+`\bphases?\s+\d+\b` is the shape the block forbids -- and the
+wrong file set, `README.md` and `docs/` with plans excluded, so it
+cannot see `scripts/`. `plan-source-references` has the right file
+set, every tracked non-markdown file, and asks the wrong question:
+whether each `PLAN-*.md` token *resolves*. A forbidden reference
+that resolves is a pass. Both report `pass` against this
+repository while five such references sit in `scripts/`,
+demonstrated in #239, which carries the gap. **This phase's first
+account of it said nothing mechanical guards the block in code at
+all**, which was nearly right and wrong in the interesting
+direction: something walks the files, and it validates the link
+instead of refusing it. The three here are removed in this phase;
+the five in `actions` are in that repository's issue.
 
 **Blocking: a homelab host name is published in a public
 repository.** `shakenfist/images` is public. 6c's predecessor #6
@@ -4117,7 +4128,7 @@ which is most of the reason it is in the list.
 
 | Finding | Disposition |
 |---------|-------------|
-| Three plan references in this repository's code | Fixed here, `6156184` |
+| Three plan references in this repository's code | Fixed in #234 |
 | The homelab host in `images`' public README | images#15, a pull request rather than an issue, merged `13d3b34` |
 | `images`: seven reporting-path findings, including the unasserted `temp.qcow2` | images#16 |
 | `private-ci`: the public-issue body, the unpaginated listing, the log-only builder path, and four smaller items | private-ci#114, which is private |
@@ -4125,9 +4136,23 @@ which is most of the reason it is in the list.
 | `shakenfist`: two scheduled-test lanes named for the wrong release | shakenfist#4492 |
 | `client-python`: the same shape, where `job_name` is also the concurrency key | client-python#423 |
 | No `PUSH-AUDIT.md` in the three producer repositories | #232, the proposal this phase was asked to file |
-| Sixteen stale claims in this plan | Corrected at source, `dacff43` |
-| Six advisory findings against this repository's three code merges | Declined in writing above; the `scope.py` count is in *Future work* |
+| Sixteen stale claims in this plan | Corrected at source in #234 |
+| Six advisory findings against this repository's three code merges | Declined in writing above; the `scope.py` count is #240 |
+| Nothing forbids a plan reference in source, only an unresolved one | #239 |
 | `shakenfist`'s `BUNDLE_TOPOLOGIES` regression | Already fixed outside this plan, recorded in shakenfist#4492 for the lesson |
+
+**This table cites the pull request, not a commit, and the first
+version of it did not.** It named `6156184` and `dacff43`, two
+single-parent commits on this phase's own branch, which #234's
+second review round raised as **the defect this phase was written to
+catch, inside the close-out that reports catching it.** A branch
+commit is not reachable from `main` under every merge strategy, and a
+phase cannot know its own merge commit -- which is the whole reason
+`plan-phase-landing` has the next phase fill the `Merged` cell. A
+pull request number survives any of it. A sweep of every repository-
+local sha this plan cites found exactly those two off `main`; the
+other six are commits that landed on `main` directly, where the
+single parent is the landing.
 
 **One finding did not survive verification, which is worth recording
 as much as the ones that did.** A step reported that the `get_url`
@@ -4326,17 +4351,26 @@ phase has completed, been abandoned or been superseded.
 
 ### Future work
 
-* **A count held by nothing in `scripts/audit/scope.py`.** Phase 6
-  made the `IN_SCOPE_END` anchor count-free, which removed a parse
-  that broke on the edit adding a second partially scoped
-  repository. The lead-in sentence in `docs/audits/README.md` still
-  says how many there are, `documented_partial_scope()` returns the
-  set, and nothing compares the two -- so a third scoped repository
-  with the word left at "Two" now fails nothing. Phase 7's audit
-  found it and declined to fix it as out of scope; it belongs with
-  whoever next touches that file. The same paragraph also states
-  `PARTIAL_SCOPE_END` twice, once for parsing and once for error
-  messages, with nothing holding the two spellings equal.
+* **A count held by nothing in `scripts/audit/scope.py`** --
+  now #240, filed 2026-10-10 because a `Complete` plan's *Future
+  work* list is the least-read place in the repository and this
+  review round said so. Phase 6 made the `IN_SCOPE_END` anchor
+  count-free, which removed a parse that broke on the edit adding a
+  second partially scoped repository. The lead-in sentence in
+  `docs/audits/README.md` still says how many there are,
+  `documented_partial_scope()` returns the set, and nothing compares
+  the two -- so a third scoped repository with the word left at
+  "Two" now fails nothing. Phase 7's audit found it and declined to
+  fix it as out of scope; it belongs with whoever next touches that
+  file. The same paragraph also states `PARTIAL_SCOPE_END` twice,
+  once for parsing and once for error messages, with nothing holding
+  the two spellings equal. Both are two-and-two today, so neither
+  fails anything yet.
+* **Nothing forbids a plan reference in source, only an unresolved
+  one** -- #239, the gap behind this phase's first blocking finding.
+  Removing the eight instances does not stop the ninth, and the
+  criterion that walks the right files asks only whether the link
+  resolves.
 * **Boot-testing published images.** Phase 2 asserts that an image
   matches the name it is published under; nothing asserts that it
   boots. That is the largest

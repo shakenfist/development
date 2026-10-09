@@ -68,11 +68,10 @@ EolRelease = collections.namedtuple(
 #: shakenfist/private-ci's conductor/imagebuilder.py, and CI_IMAGES in
 #: its conductor/provisioner.py; see PRODUCER_DEFINITIONS below, which
 #: eol-producers reads -- plus the GitHub-hosted spelling where one
-#: exists. Every variant needs
-#: listing rather than being derived from `distro` and `version`,
-#: because the variants are named by hand there too and a derived
-#: pattern would either miss `debian-gnome-12` or invent labels that do
-#: not exist.
+#: exists. Every variant needs listing rather than being derived
+#: from `distro` and `version`, because the variants are named by
+#: hand there too and a derived pattern would either miss
+#: `debian-gnome-12` or invent labels that do not exist.
 #:
 #: `debian-gnome-12` now has a `debian-gnome-13` counterpart in the
 #: conductor, built from the `debian-gnome:13` guest image

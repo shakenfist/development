@@ -101,10 +101,9 @@ REPO_OVERRIDES = {
     # its output. Joining the audit fully would file twelve findings,
     # eight of which no plan anywhere owns -- an audit filing work
     # outward at a repository whose maintainers did not ask for it.
-    # So it joins
-    # scoped to eol-distro alone: the pass this was confirmed to have
-    # by hand becomes a verdict the audit reports on a schedule,
-    # without manufacturing the other eleven findings.
+    # So it joins scoped to eol-distro alone: the pass this was
+    # confirmed to have by hand becomes a verdict the audit reports
+    # on a schedule, without manufacturing the other eleven findings.
     'images': {
         'only_checks': ['eol-distro'],
     },
