@@ -28,6 +28,11 @@ from audit.text.shared_blocks import validate_shared_blocks
 PHASE_REFERENCE_RE = re.compile(r'\bphases?\s+\d+\b', re.IGNORECASE)
 
 
+# An inline code span, removed from a line before it is matched so
+# that a comment or a page can quote the shape it is talking about.
+CODE_SPAN_RE = re.compile(r'`+[^`\n]*`+')
+
+
 # The phase-reference marker, bare. Documentation carries it as an
 # HTML comment so that it does not render (PHASE_REFERENCE_OK), and
 # source carries it in whatever comment syntax the language has --
@@ -1176,7 +1181,7 @@ class PlanPhaseReferences(Check):
                     continue
                 if PHASE_REFERENCE_OK in line:
                     continue
-                scannable = re.sub(r'`+[^`\n]*`+', '', line)
+                scannable = CODE_SPAN_RE.sub('', line)
                 if PHASE_REFERENCE_RE.search(scannable):
                     hits.append(f'{rel}:{lineno}')
 
@@ -1311,7 +1316,7 @@ class PlanHistoryInSource(Check):
                 # Code spans before URLs: a URL match runs to the next
                 # whitespace, so stripping it first could take a
                 # closing backtick with it and unpair the spans after.
-                scannable = re.sub(r'`+[^`\n]*`+', '', line)
+                scannable = CODE_SPAN_RE.sub('', line)
                 scannable = plan_source_strip_urls(scannable)
                 scannable = PLAN_SOURCE_REF_RE.sub('', scannable)
                 if PLAN_HISTORY_RE.search(scannable):
