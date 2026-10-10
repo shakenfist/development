@@ -87,6 +87,47 @@ def plan_source_is_plan_record(rel):
     return parts[0] == 'docs' and 'plans' in parts[1:-1]
 
 
+def iter_plan_source_files(repo, tracked):
+    """Yield (rel, content) for each source or configuration file to audit.
+
+    The files are the tracked paths from tracked_paths(), which the
+    caller lists and passes in so that a failed git ls-files stays its
+    verdict to report rather than an empty walk. Left out are:
+
+    - markdown, which is documentation and audited as documentation:
+      its links by docs-external-links, its phase talk by
+      plan-phase-references.
+    - anything under a plans directory in docs/, which is plan
+      history rather than source; see plan_source_is_plan_record().
+    - anything that is not a regular file once symlinks are followed,
+      or that resolves outside the repository.
+    - anything over PLAN_SOURCE_MAX_BYTES; see plan_source_is_oversize().
+
+    Content is decoded with errors='replace', so a binary file that
+    slips through is read as noise rather than raising.
+    """
+    for rel in tracked:
+        if rel.endswith('.md'):
+            continue
+        if plan_source_is_plan_record(rel):
+            continue
+        path = os.path.join(repo.path, rel)
+        if not os.path.isfile(path):
+            continue
+        # isfile() follows a symlink, and git tracks symlinks, so a
+        # repository can point one at anything on the runner and have
+        # a check quote what it reads into an issue body. The
+        # containment the index link targets get, on the path beside
+        # them.
+        if not repo.contains(path):
+            continue
+        if plan_source_is_oversize(path):
+            continue
+        with open(path, 'r', errors='replace') as f:
+            content = f.read()
+        yield rel, content
+
+
 def plan_quote(text, limit=60):
     """Bound a string read from a repository before it is quoted.
 
@@ -1090,10 +1131,9 @@ class PlanSourceReferences(Check):
         where a decision is recorded. Nothing renders those pointers, so
         when a plan is renamed or archived into docs/plans/completed/
         they rot silently. Every reference must resolve in this
-        repository or be an absolute URL; markdown files are out of
-        scope, being covered by docs-external-links, and so is
-        anything under a plans directory in docs/, which is plan
-        history rather than source.
+        repository or be an absolute URL. The files read are the ones
+        iter_plan_source_files() yields, and it says what it leaves
+        out and why.
 
         A test suite is deliberately not out of scope. Test files carry
         rotted pointers like anything else -- instar's
@@ -1109,25 +1149,7 @@ class PlanSourceReferences(Check):
         names = plan_file_names(repo.path)
         hits = []
         total = 0
-        for rel in tracked:
-            if rel.endswith('.md'):
-                continue
-            if plan_source_is_plan_record(rel):
-                continue
-            path = os.path.join(repo.path, rel)
-            if not os.path.isfile(path):
-                continue
-            # isfile() follows a symlink, and git tracks symlinks, so
-            # a repository can point one at anything on the runner
-            # and have this check quote what it reads into an issue
-            # body. The containment the index link targets get, on
-            # the path beside them.
-            if not repo.contains(path):
-                continue
-            if plan_source_is_oversize(path):
-                continue
-            with open(path, 'r', errors='replace') as f:
-                content = f.read()
+        for rel, content in iter_plan_source_files(repo, tracked):
             if 'PLAN-' not in content:
                 continue
             if PLAN_SOURCE_FILE_OK in content:
