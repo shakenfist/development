@@ -657,6 +657,26 @@ and what happens to each:
 The fixes land as their own pull request, which also closes this
 phase out.
 
+**Resolution.** Every fix above landed, one commit each, with two
+corrections and one addition found while making them:
+
+* The quadratic patterns needed more than a lookbehind. A scheme
+  must start with a letter, so the URL pattern captures and
+  restores a leading run that cannot start one; the plan-filename
+  pattern is also bounded at the 255-byte filename limit, since a
+  run of `PLAN-` with no `.md` stayed quadratic. Old and new agree
+  on 300,000 random strings, and a 60 KB line went from 20.96s to
+  0.008s.
+* The 2c claim that the wave 1 grep is narrower than the
+  criterion was wrong: the grep matches `decision 6.4` by its first
+  number and strips nothing, so it is the broader of the two. The
+  spec says that instead.
+* Main failed both plan-reference checks on its own tree. Fixtures
+  in `scripts/tests/test_packaging.py` that #231 landed after phase
+  2's measurement name plan files and a plan audit diff
+  (`docs/plans/PLAN-thing.md`, `docs/plans/audit/phase-1.diff`).
+  They carry line markers now, and both checks pass here.
+
 ## Agent guidance
 
 ### Execution model
@@ -938,6 +958,10 @@ intend to do aligns with that plan.
   (`plan-index`, `plan-audit-phase`, `push-audit`) with the
   phase-table parsing. `test_plans.py` would split the same way.
   Raised by this plan's push audit.
+* `plan-phase-references` still joins up to ten documentation
+  paths into `details`, so a repository-chosen path with an `@` in
+  it renders as a live mention, as the two plan-reference checks
+  did before they moved to `findings=`. Move it the same way.
 
 * Offer the wave 1 grep as a ready-made line in the fleet's
   `PUSH-AUDIT.md` files directly, rather than through guidance in
