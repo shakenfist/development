@@ -107,6 +107,15 @@ issues. The fix for a non-compliant repository is a verbatim copy of
 `templates/shared-blocks/plan-references-in-code.md`; the backlog
 the block describes is swept separately.
 
+Judgement alone reliably misses some, so this repository's wave-1
+sweep also carries a report-only grep for added lines that look like
+plan references (`phase 5`, `decision 3`, `step 2a`, `PLAN-foo.md`),
+excluding markdown and `docs/**/plans/**`, and hands its hits to the
+reviewer.
+An adopting repository's runbook should carry the equivalent grep,
+adapted to its languages: the comment syntax and file extensions
+differ, and so do the paths where a plan may legitimately be cited.
+
 **`source-file-size` became a required block on 2026-09-20**, and the
 repositories that do not yet embed it are non-compliant on the
 generated compliance page from that date rather than from any change
