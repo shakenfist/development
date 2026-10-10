@@ -860,7 +860,7 @@ class ProducerSpecificationTest(unittest.TestCase):
         self.assertIn('grep', self.spec)
 
     def test_the_page_carries_the_label_less_fleet_generalisation(self):
-        """Decision 6.4 of PLAN-image-supply-chain lives here.
+        """The spec is where this generalisation has to live.
 
         A static fleet advertising only `self-hosted` and `static` is
         invisible to a label-based audit, and that sentence was in a
