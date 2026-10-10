@@ -100,8 +100,8 @@ Two projects are in scope for part of the audit only:
   as checkpoint sections rather than as a phase table and enabling it
   would file an issue for a retrofit nobody has decided to do;
   `push-audit`, which has no `PUSH-AUDIT.md` to read until that
-  changes; and `plan-history-in-source`, which enforces a rule a
-  repository adopts by embedding it in its `PUSH-AUDIT.md`. It is
+  changes; and `plan-history-in-source`, which comes in with
+  `push-audit`, since that runbook carries the rule it measures. It is
   not expected to grow a `pyproject.toml`, a renovate config,
   release workflows, or a `develop` branch.
 
