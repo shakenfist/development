@@ -472,6 +472,15 @@ first is what lets phase 2's criterion land compliant here.
 | 1a | medium | sonnet | none | In `PUSH-AUDIT.md`, add a grep to the wave 1 block (lines 80-155), after the TODO/suppressions greps and before "Documentation touched at all", with a comment in the style of its neighbours explaining why: the `plan-references-in-code` block, embedded further down the same file, says an added plan reference is a finding before pushing, and until now only wave 2 judgment looked for one. The grep is `git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- ':!*.md' ':(exclude,glob)docs/**/plans/**' \| grep -niE '^\+[^+].*(\bphases?\s+[0-9]+\b\|\bphase-[0-9]+\b\|\bdecisions?\s+[0-9]+\b\|\bsteps?\s+[0-9]+[a-z]\b\|PLAN-[A-Za-z0-9._-]+\.md)'`. Verify the pathspec excludes plans directories with `git ls-files -- <pathspec>`, which must list every tracked file under `docs/plans/`, rather than with a diff range, which only tests what that range happened to touch. (As first written this brief named `':!docs/**/plans/**'` and suggested `f624d26^1..f624d26`, which touches nothing under `docs/plans/`; without `glob` magic that pathspec matches no file there, and the markdown exclusion hid it. Review of the pull request found it; the runbook uses `':(exclude,glob)docs/**/plans/**'` and `PushAuditPlanReferenceGrepTest` runs the command against a fixture.) Then, in `docs/audits/push-audit.md`, add a sentence where it describes the wave 1 greps (read it first; if it does not describe them, add a short paragraph near the `plan-references-in-code` mention) saying an adopting repository's runbook should carry the equivalent grep, adapted to its languages. Do not touch the shared block itself. |
 | 1b | high | opus | none | Remove the genuine plan-history references from this repository's source, listed in the plan's Situation table (three of which development#234 removed first, as the note under the table says): `.pre-commit-config.yaml:39`, `scripts/audit-update-docs.py:16`, `scripts/audit/checks/distros.py:438`, `scripts/audit/repo.py:103`, `scripts/tests/test_audit_common.py:7-8`, `scripts/tests/test_audit_snapshot.py:183`, `scripts/tests/test_distros.py:863`, `scripts/tests/test_manage_issues.py:53`, `scripts/tests/test_markdown.py:218`, `scripts/tests/test_plans.py:2355`, `scripts/tests/test_registry.py:1059`. The block's rule is not "delete the citation" but "write the reason": for each, read the surrounding code and the cited plan, and replace the pointer with the constraint, measurement or failure it stands for, in one or two sentences, or drop it where the surrounding comment already says why. Re-run the grep from the Situation section (`git ls-files \| grep -v '\.md$' \| grep -vE '(^\|/)docs/(.*/)?plans/' \| xargs -d '\n' grep -IniE '\bphases?\s+[0-9]+\b\|\bphase-[0-9]+\b\|\bdecisions?\s+[0-9]+\b\|\bsteps?\s+[0-9]+[a-z]\b'`) and confirm that what remains is only fixtures and docstrings describing the pattern -- in `scripts/audit/checks/plans.py`, `scripts/tests/test_plans.py`, `scripts/audit/files.py:187`, `scripts/audit/text/markdown.py:209` and `scripts/tests/test_markdown.py:82`. Do not add markers yet; phase 2 introduces them. `pre-commit run --all-files` must pass. One commit for 1a, one for 1b. |
 
+Phase 1 moved one verdict here, and the review checklist below
+asks for it to be said. `plan-source-references` reported pass on
+`origin/main` at `b141f9c` and after 1a ("All 5 plan reference(s)
+outside markdown resolve"), and not applicable after 1b ("No plan
+references outside markdown files"): every plan reference it
+still counted in this repository was one of the citations 1b
+replaced with its reason. Measured by running the check at each
+commit of the branch.
+
 ### Phase 2: the `plan-history-in-source` criterion
 
 Planning effort: high. It changes what the fleet is held to and
@@ -485,6 +494,123 @@ a review point before merge.
 | 2c | high | opus | worktree | Add `PlanHistoryInSource(Check)` beside `PlanSourceReferences`: id `plan-history-in-source`, spec `docs/audits/plan-history-in-source.md`, `issue_title = 'Plan history in source'`, `template = None`. It walks `iter_plan_source_files`, skips `mkdocs.yml` at any depth (nav titles name plan pages; say so in a comment), skips a file containing `audit-ok: phase-reference-file` (new constant beside `PLAN_SOURCE_FILE_OK`, with a comment on the model of lines 45-53), skips lines containing `audit-ok: phase-reference` (reuse the bare token -- define `PHASE_REFERENCE_TOKEN = 'audit-ok: phase-reference'` and derive `PHASE_REFERENCE_OK` from it so the HTML-comment form used by `plan-phase-references` is unchanged), strips inline backtick spans as `PlanPhaseReferences` does (`plans.py:1065`), and matches a new `PLAN_HISTORY_RE` that extends `PHASE_REFERENCE_RE` with `\bphase-\d+\b`, `\bdecisions?\s+\d+(\.\d+)?\b` and `\bsteps?\s+\d+[a-z]\b`, case-insensitive. Note the file-marker token contains the line-marker token as a prefix; check the file marker first and make sure a line carrying only the file marker is not mistaken for anything else. Report N/A when no source file exists; ok as "No plan history references in source"; fail as "N plan history reference(s) in source (write the reason the code is this way instead of citing the plan step that produced it): file:line, ..." capped at ten shown, like its neighbours. Register it in `CHECKS` in `scripts/audit/registry.py` beside `plan-source-references`; write `docs/audits/plan-history-in-source.md` following `docs/audits/README.md`'s structure and linking `compliance.md#plan-history-in-source`, covering what it matches, the four exemptions and why generated files are not one, and how it composes with `plan-source-references` and `plan-phase-references`; add its row to `docs/audits/README.md`; add it to `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`; add `CheckTestCase` tests to `scripts/tests/test_plans.py` for pass, fail (each of the four shapes), N/A, a `two-phase commit` non-match, a bare `step 3` non-match, a backticked match ignored, both markers, `mkdocs.yml` skipped, and a plans directory skipped. Then add `audit-ok: phase-reference-file` with a one-sentence reason to `scripts/tests/test_plans.py` and `scripts/tests/test_markdown.py`, and line markers to the remaining pattern-describing lines in `plans.py`, `files.py` and `markdown.py`, so `python3 scripts/audit-check.py --repo-path . --repo-name development` reports the new check compliant. `pre-commit run --all-files` must pass. |
 | 2d | high | opus | none | Measure the blast radius. Fresh-clone (or `git fetch` and check out the default branch of) every repository in the audit matrix into the scratchpad, run `scripts/audit-check.py` for the new check against each, and record a table in this section: repository, verdict, hit count, and a sampled false-positive rate (read ten hits per failing repository and count those that are "phase" in its ordinary sense or otherwise not plan history). Run `audit-manage-issues.py --dry-run` over the result and record how many issues it would file. Commit the table to this plan. |
 | 2e | - | - | - | **Review point.** The operator reads 2d's table before merge. If the false-positive rate anywhere is high enough that the issue would be argued with rather than worked, the pattern or the exemptions change and 2d re-runs; if the issue count is unacceptable, open question 2 is reopened. Do not merge without the operator's go-ahead. |
+
+#### Blast radius
+
+Measured on 2026-10-10 with the criterion as committed in
+`c853cbe`. Every repository in the matrix of
+`.github/workflows/consistency-audit.yml` -- 23 of them, including
+`andris`, which the Situation section's survey did not mention --
+was shallow-cloned fresh from its default branch with `gh repo
+clone ... -- --depth 1`, the way the audit leg clones it, and
+every clone succeeded. Each was run
+through the full `scripts/audit-check.py` with the pinned skillsaw
+on `PATH`, so `REPO_OVERRIDES` applied exactly as in the weekly
+run. The `development` row measures this branch at `c853cbe`,
+which is what the first run after merge sees; `origin/main` at
+`b141f9c`, before phase 1, fails with 71 hits.
+
+The false-positive column samples ten hits per failing repository,
+or all of them where there are fewer: chosen at random, one file
+at a time round-robin so that a repository's largest file cannot
+fill the sample, and each read in context.
+
+| Repository | Verdict | Hits | Sampled false positives | Notes |
+|---|---|---|---|---|
+| actions | fail | 9 | 0/9 | Decision 5.4 of PLAN-image-supply-chain four times in `ansible/ci-dependencies.yml` |
+| agent-python | pass | 0 | - | |
+| andris | pass | 0 | - | Not in the Situation survey |
+| client-python | fail | 20 | 0/10 | `apiclient.py` and its tests cite the network-facade and deadline plans |
+| client-python-k3s | fail | 63 | 0/10 | Tests citing "the phase plan's decision 7", docstrings citing phase 3 survey findings |
+| clingwrap | pass | 0 | - | |
+| cloudgood | pass | 0 | - | |
+| development | pass | 0 | - | This branch; 71 hits on `origin/main` before phase 1 |
+| divergulent | fail | 251 | 0/10 | 4 of the 10 are plan phases turned vocabulary: "the phase-1 index", "phase-4 residue", including in report strings |
+| hunkydory | fail | 4 | 0/4 | All four point at phases of the onboarding plan |
+| images | N/A | - | - | Scoped to `eol-distro` |
+| instar | fail | 1083 | 0/10 | 124 files; `qcow2-write/src/lib.rs` alone has 134 |
+| kerbside | fail | 19 | 0/10 | |
+| kerbside-client | pass | 0 | - | |
+| kerbside-patches | fail | 6 | 3/6 | The three are "# Phase 1: Setup", "Phase 2: Gather logs", "Phase 3: Fetch bundles" in `functional-tests.yml` |
+| library-utilities | pass | 0 | - | |
+| occystrap | pass | 0 | - | |
+| private-ci | N/A | - | - | Out of `only_checks` until it adopts `push-audit` |
+| ryll | fail | 9 | 2/9 | The two are the `Makefile`'s release procedure, "Phase 1: make propose-release", "Phase 2: ... tag-release" |
+| sfui | pass | 0 | - | |
+| shakenfist | fail | 626 | 1/10 | The one is `baseobject.py:744`, "Phase 1: Fields handled by Pydantic model"; 21 hits are the generated `database_pb2_grpc.pyi` repeating `protos/database.proto`'s 15 |
+| uncalibrated-sextant | fail | 21 | 0/10 | Mostly lettered steps of the visual-digest plan |
+| visual-digest-rust | fail | 9 | 2/9 | The same release-procedure `Makefile` comment as ryll |
+
+**Totals.** 12 of 23 repositories fail, 9 pass and 2 are N/A by
+scope, for 2,120 hits. Of 107 hits read, 8 were false positives
+(7%), and 8 of the 12 failing repositories had none in their
+sample. By the first shape matched on each line, the hits are
+1,258 `phase N`, 384 `phase-N`, 286 `decision N` and 192 lettered
+steps; `phase-N` and lettered steps, two of the three shapes
+`plan-phase-references` lacks, are 27% of the total. shakenfist's
+887 phase lines in the Situation grep are 626 hits here, because
+the check skips `mkdocs.yml` and strips code spans, URLs and plan
+filenames before matching.
+
+**Dry run.** `audit-manage-issues.py --dry-run` over the 23 result
+files would file 12 `Consistency: Plan history in source` issues,
+one per failing repository; there are none open to update, and
+nothing to close. The same run reports nine actions for other
+criteria. Eight are the fleet's own drift since the last weekly
+run and nothing to do with this plan: six open issues whose bodies
+would be refreshed, a new `sfui-vendor` issue on kerbside (its
+vendored copy is two commits behind), and shakenfist's `Scheduled
+workflow health` issue closing. The ninth is this plan's: it
+would file a `review-coverage` issue on this repository, because
+the branch edits 21 files that were reviewed on `origin/main`,
+which is past the threshold of five. That is the review backlog
+working as `AGENTS.md` describes, healed by a review session
+rather than by anything in this pull request, but it is a verdict
+the first run after merge moves, so it is recorded here. With
+`plan-source-references` moving to N/A (phase 1, above) and
+`plan-history-in-source` passing, those are the only three of this
+repository's verdicts that differ from `origin/main`.
+
+**Recurring false-positive kinds.** Only one: a comment labelling
+the stages of a procedure `Phase 1:`, `Phase 2:`, where "phase" is
+used in its ordinary sense -- ryll's and visual-digest-rust's
+`Makefile`s (`# Phase 1: make propose-release X.Y.Z creates a
+release-X.Y.Z branch`), kerbside-patches' log collection, and
+shakenfist's `baseobject.py:744` and `:754`, two halves of one
+function. No pattern tweak removes it cleanly. Across the fleet
+17 hits are a comment opening `Phase N:`, and 9 of them are this
+kind; the other 8 are plan history written the same way --
+shakenfist's `mariadb.py:17950` "Phase 7: drop the cached child-NI
+list", `operations/net_op.py:213` "Phase 6: superseded by ...",
+instar's "Phase 4: MapRenderer byte-exact tests". Exempting the
+shape would throw away almost as many true positives as false
+ones. A scan of the hits for RFC, specification section, boot,
+protocol, handshake and two-phase contexts found no other ordinary-sense use, and no
+`decision N` that was not a plan's decision.
+
+Two more kinds are not false positives but will be argued with.
+divergulent names its classification pipeline's stages after the
+plan phases that built them -- "the phase-1 fingerprint index",
+"Queue size (phase-4 residue)" in a rendered report -- so the fix
+there is a rename, some of it user-visible, rather than a comment
+rewrite. And shakenfist's generated `database_pb2_grpc.pyi` counts
+its 21 lines a second time; they go when `protos/database.proto`
+is fixed and the stubs regenerated, as the specification says.
+
+**Recommendation for 2e.** Land the pattern and the exemptions as
+they are. A 7% sampled false-positive rate, concentrated in a
+single kind that a regex cannot separate from the real thing, is
+low enough that each issue will be worked rather than argued with;
+the outlier is kerbside-patches, where three of six hits are
+ordinary, and its issue still has three real ones behind it. What
+the kind does deserve is one sentence in the Template section of
+`docs/audits/plan-history-in-source.md`: a comment that labels the
+stages of a procedure `Phase 1:` / `Phase 2:` is the ordinary
+sense, and is better renamed `Step 1:` / `Step 2:`, which the
+pattern deliberately does not match, than marked line by line. The
+issue count, twelve, is what open question 2 anticipated ("roughly
+ten repositories, two of them with about a thousand lines each"),
+so it does not reopen that question.
 
 ### Phase 3: push audit
 
@@ -774,6 +900,15 @@ intend to do aligns with that plan.
   push-audit grep turns out not to be enough on its own.
 * shakenfist/actions#148 removes five references in `actions`; the
   criterion will measure whatever remains there.
+* `scripts/audit/checks/plans.py` defines `PLAN_SOURCE_FILE_OK` as
+  a literal, so the module carries the file marker and exempts
+  itself from `plan-source-references`. Build it from a token, as
+  `PHASE_REFERENCE_FILE_OK` is built from `PHASE_REFERENCE_TOKEN`,
+  and deal with what that then flags: tried in a scratch copy, the
+  check fails on exactly one reference, `plans.py:426`, which cites
+  divergulent's `PLAN-release-1.0.md` as a bare filename that does
+  not resolve here -- an absolute URL, or the constraint written
+  out without the citation.
 
 Bugs fixed during this work: #239, nothing enforced
 `plan-references-in-code`.
