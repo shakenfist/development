@@ -1003,9 +1003,8 @@ class PlanAuditPhaseTest(CheckTestCase):
 
         normpath is textual: it stops a `../../` link target and it
         does not stop a symlink committed inside docs/plans/, because
-        os.path.isfile() follows one. The push audit of
-        PLAN-push-audit-phase.md reproduced the escape end to end --
-        the file was read and its content quoted into the details
+        os.path.isfile() follows one. The escape works end to end --
+        the file is read and its content quoted into the details
         string, which audit-manage-issues.py posts to GitHub.
         """
         result = self._check(
@@ -1872,8 +1871,7 @@ class PlanAuditPhaseTest(CheckTestCase):
     def test_table_without_a_status_column_is_not_judged_but_is_named(self):
         """A plan nobody has said is open is not told to acquire a phase.
 
-        Decision 2 of docs/plans/PLAN-push-audit-phase.md. The
-        carve-out turns on the status, so a plan the index never
+        The carve-out turns on the status, so a plan the index never
         placed on either side of it cannot be judged: demanding a push
         audit phase would demand the one thing the shared block's
         carve-out may forbid, and the check cannot tell which. Named
@@ -2352,8 +2350,7 @@ class PushAuditRunbookRangeTest(unittest.TestCase):
     return was a person noticing. Against a stale local `main` the
     range silently widens; against work that has already landed it is
     empty, and an empty diff reads as a clean audit rather than as no
-    audit. Phase 5 of PLAN-push-audit-phase.md fixed it in step 5a,
-    and this is what keeps it fixed.
+    audit. This test is that noticing, done on every run.
 
     `origin/main...HEAD` is the documented default and contains the
     forbidden string as a substring, so the pattern requires the
@@ -2927,10 +2924,9 @@ class PushAuditPhaseBlockTest(unittest.TestCase):
         # PUSH_AUDIT_BLOCK_RULES freezes the carve-out by the phrase
         # 'not reopened to acquire', which survives an edit that drops
         # Abandoned and Superseded back out of the sentence -- the
-        # exact drift v3 was cut to close, since the check has carved
-        # out all three since phase 3 while the block said Complete
-        # alone. Held the way plan-status-vocabulary is held to
-        # PLAN_STATUSES: the block is the wording repositories are
+        # exact drift v3 was cut to close, when the check carved out
+        # all three while the block said Complete alone. Held the way
+        # plan-status-vocabulary is held to PLAN_STATUSES: the block is the wording repositories are
         # handed, PLAN_TERMINAL_STATUSES is what the audit exempts,
         # and if they drift a project is told one thing and measured
         # against another.

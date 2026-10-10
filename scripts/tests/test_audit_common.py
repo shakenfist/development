@@ -3,10 +3,9 @@
 defuse() lives here rather than beside either caller because both
 publish the same harvested string: audit-update-docs.py into the
 generated compliance page, and audit-manage-issues.py into the body
-of an issue filed on the audited repository. It was applied to the
-first only until the push audit recorded in phase 5 of
-PLAN-push-audit-phase.md, so these tests sit with the function rather
-than with either publisher.
+of an issue filed on the audited repository. Kept beside one of them,
+it was applied to the compliance page and not to issue bodies, so these
+tests sit with the function rather than with either publisher.
 """
 import os
 import sys
