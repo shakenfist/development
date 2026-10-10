@@ -101,8 +101,9 @@ Two projects are in scope for part of the audit only:
   would file an issue for a retrofit nobody has decided to do;
   `push-audit`, which has no `PUSH-AUDIT.md` to read until that
   changes; and `plan-history-in-source`, which enforces a rule a
-  repository adopts by embedding it in that file. It is not expected to grow a `pyproject.toml`, a renovate
-  config, release workflows, or a `develop` branch.
+  repository adopts by embedding it in its `PUSH-AUDIT.md`. It is
+  not expected to grow a `pyproject.toml`, a renovate config,
+  release workflows, or a `develop` branch.
 
 - images is audited for the `eol-distro` check, and nothing else. It
   is built fresh every night and the fleet's CI boots on its output,

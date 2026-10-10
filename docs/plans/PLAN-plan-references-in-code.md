@@ -497,8 +497,8 @@ a review point before merge.
 
 #### Blast radius
 
-Measured on 2026-10-10 with the criterion as committed in
-`c853cbe`. Every repository in the matrix of
+Measured on 2026-10-10 with the criterion as committed in step
+2c, before 2d. Every repository in the matrix of
 `.github/workflows/consistency-audit.yml` -- 23 of them, including
 `andris`, which the Situation section's survey did not mention --
 was shallow-cloned fresh from its default branch with `gh repo
@@ -506,8 +506,8 @@ clone ... -- --depth 1`, the way the audit leg clones it, and
 every clone succeeded. Each was run
 through the full `scripts/audit-check.py` with the pinned skillsaw
 on `PATH`, so `REPO_OVERRIDES` applied exactly as in the weekly
-run. The `development` row measures this branch at `c853cbe`,
-which is what the first run after merge sees; `origin/main` at
+run. The `development` row measures this branch at the same
+point, which is what the first run after merge sees; `origin/main` at
 `b141f9c`, before phase 1, fails with 71 hits.
 
 The false-positive column samples ten hits per failing repository,
@@ -585,8 +585,9 @@ list", `operations/net_op.py:213` "Phase 6: superseded by ...",
 instar's "Phase 4: MapRenderer byte-exact tests". Exempting the
 shape would throw away almost as many true positives as false
 ones. A scan of the hits for RFC, specification section, boot,
-protocol, handshake and two-phase contexts found no other ordinary-sense use, and no
-`decision N` that was not a plan's decision.
+protocol, handshake and two-phase contexts found no other
+ordinary-sense use, and no `decision N` that was not a plan's
+decision.
 
 Two more kinds are not false positives but will be argued with.
 divergulent names its classification pipeline's stages after the
@@ -871,7 +872,13 @@ We should list obvious extensions, known issues, unrelated bugs we
 encountered, and anything else we should one day do but have
 chosen to defer to here, so that we do not forget them.
 
-...
+* **Lettered sub-phases.** `PLAN_HISTORY_RE` does not match
+  `phase 3a`, and its step shape does not match `step 12ab`: both
+  end in a word boundary the letter defeats. They are plan history
+  as plainly as anything the criterion matches, but adding them
+  moves the blast radius the 2e review point accepted, so it waits
+  for a change that re-runs 2d. The wave 1 grep 1a added to
+  `PUSH-AUDIT.md` would change in step with it.
 
 ### Bugs fixed during this work
 

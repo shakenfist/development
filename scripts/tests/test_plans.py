@@ -562,6 +562,24 @@ class PlanHistoryInSourceTest(CheckTestCase):
         })
         self.assert_pass(result)
 
+    def test_a_backtick_string_literal_is_ignored_too(self):
+        # Code span removal cannot tell a template literal from a
+        # quoted shape in a comment, so this under-reports. Pinned so
+        # that changing it is a decision rather than an accident.
+        result = self._check({
+            'src/frob.js': 'log(`entering phase 3`);\nlog("entering phase 4");\n',
+        })
+        self.assert_fail(result, containing='src/frob.js:2')
+        self.assertIn('1 plan history reference(s)', result['details'])
+
+    def test_a_lettered_sub_phase_is_not_matched_yet(self):
+        # A known gap, recorded in the specification: the letter
+        # defeats the word boundary the phase and step shapes end in.
+        result = self._check({
+            'src/frob.py': '# Added in phase 3a, revised in step 12ab.\n',
+        })
+        self.assert_pass(result)
+
     def test_the_line_marker_exempts_one_line(self):
         result = self._check({
             'src/power.py': (
