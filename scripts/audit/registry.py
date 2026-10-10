@@ -54,6 +54,7 @@ CHECKS = [
     packaging.DependencyNameNormalization(),
     packaging.PyprojectUsage(),
     packaging.VersionFileGitignore(),
+    packaging.ReleaseArtifactsExcludePlans(),
     packaging.ConsoleLogging(),
     packaging.HeaderSanitization(),
     packaging.PythonVersionTargeting(),

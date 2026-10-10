@@ -1586,6 +1586,666 @@ class VersionFileGitignore(Check):
             f'version file is tracked')
 
 
+#: Where the fleet keeps its plans, per PLAN-TEMPLATE.md. Working
+#: history rather than source: release-artifacts-exclude-plans keeps it
+#: out of everything a release ships.
+PLANS_DIR = 'docs/plans'
+
+#: The directories a release artifact rooted above PLANS_DIR could be
+#: built from. A manifest anywhere else cannot reach docs/plans without
+#: a `..`, which none of the packaging tools follow.
+PLANS_ARTIFACT_ROOTS = ('', 'docs')
+
+#: setuptools plugins that offer the sdist every file git tracks, where
+#: plain setuptools takes only what MANIFEST.in adds: setuptools_scm and
+#: setuptools-git register a file finder, and pbr adds the tracked files
+#: from its own manifest maker. Canonical distribution names.
+GIT_FILE_FINDERS = ('setuptools-scm', 'setuptools-git',
+                    'setuptools-git-ls-files', 'pbr')
+
+#: A GIT_FILE_FINDERS name in setup.py or setup.cfg (setup_requires,
+#: pbr=True, a [pbr] section), spelled with '-' or '_', and not as the
+#: prefix of a longer name such as setuptools-git-versioning.
+GIT_FILE_FINDER_RE = re.compile(
+    r'(?<![\w-])(' + '|'.join(
+        name.replace('-', '[_-]') for name in GIT_FILE_FINDERS)
+    + r')(?![\w-])')
+
+
+def normalise_path(value):
+    """A manifest's path argument, as a path relative to its root.
+
+    Strips whitespace, quotes, a leading './' and surrounding slashes,
+    in that order. Every comparison of a manifest path against
+    PLANS_DIR goes through here, so that no two of them disagree about
+    what './docs/plans/' names.
+    """
+    cleaned = value.strip().strip('"\'')
+    while cleaned.startswith('./'):
+        cleaned = cleaned[2:]
+    return cleaned.strip('/')
+
+
+def _gitignore_segments(pattern):
+    """A gitignore-shaped pattern as path segments to match from the root.
+
+    A pattern with no '/' other than a trailing one is unanchored, and
+    gitignore matches it against a name at any depth, so it gains a
+    leading '**'.
+    """
+    raw = pattern.strip().strip('"\'')
+    cleaned = normalise_path(raw)
+    if not cleaned:
+        return []
+    segments = cleaned.split('/')
+    if '/' not in raw.rstrip('/'):
+        segments.insert(0, '**')
+    return segments
+
+
+def _segments_match(parts, segments):
+    """gitignore globbing: '*' stays within a segment, '**' spans any."""
+    if not segments:
+        return not parts
+    if segments[0] == '**':
+        return any(_segments_match(parts[i:], segments[1:])
+                   for i in range(len(parts) + 1))
+    return (bool(parts) and fnmatch.fnmatchcase(parts[0], segments[0])
+            and _segments_match(parts[1:], segments[1:]))
+
+
+def path_pattern_selects(pattern, target):
+    """Does a packaging include/exclude pattern select all of target?
+
+    target is a directory relative to the artifact root. The pattern
+    is gitignore-shaped, which is the common denominator of Cargo's
+    include and exclude, hatch's, npm's files and .npmignore: a
+    leading '/' anchors it, a trailing '/' limits it to directories,
+    '*' stays within one path segment, and a pattern naming an
+    ancestor of target selects target too, as does a 'dir/*' or
+    'dir/**' naming everything inside one. A pattern selecting only
+    some of the files inside, such as '*.md' or 'docs/plans/*.md',
+    does not select the directory: the next plan need not match it.
+    galaxy's build_ignore is not gitignore-shaped; see
+    build_ignore_selects.
+    """
+    segments = _gitignore_segments(pattern)
+    if not segments:
+        return False
+    candidates = [segments]
+    if segments[-1] in ('*', '**') and len(segments) > 1:
+        candidates.append(segments[:-1])
+    parts = target.split('/')
+    return any(_segments_match(parts[:i], candidate)
+               for candidate in candidates
+               for i in range(1, len(parts) + 1))
+
+
+def rooted_below(segments, target):
+    """Do a pattern's path segments name something inside target?
+
+    True when the pattern runs deeper than target and each of target's
+    segments is matched by the pattern's segment at the same depth,
+    with no '**' standing in for one: 'docs/plans/audit',
+    'docs/*/x.txt' and 'docs/plans/**/*.png' are rooted below
+    docs/plans, while 'docs/**/x.txt' and '**/audit' are not. Whatever
+    a pattern rooted below target selects is a plan or its notes,
+    whether or not a file matching it is tracked yet.
+    """
+    parts = target.split('/')
+    return (len(segments) > len(parts)
+            and all(segment != '**' and fnmatch.fnmatchcase(part, segment)
+                    for part, segment in zip(parts, segments)))
+
+
+def path_pattern_reaches_inside(pattern, target, plans):
+    """Does a gitignore-shaped pattern select something inside target?
+
+    True for a pattern rooted below target (see rooted_below), and for
+    one selecting any of plans, the files tracked below target, or a
+    directory below target holding one: '*.md' reaches inside a
+    directory of Markdown plans, '*.txt' only one tracking a .txt
+    note. plans, like target, are relative to the artifact root.
+    """
+    segments = _gitignore_segments(pattern)
+    if not segments:
+        return False
+    if rooted_below(segments, target):
+        return True
+    # A trailing '/' limits a gitignore pattern to directories.
+    directories_only = pattern.strip().strip('"\'').endswith('/')
+    shallowest = len(target.split('/')) + 1
+    for plan in plans:
+        parts = plan.split('/')
+        deepest = len(parts) - 1 if directories_only else len(parts)
+        if any(_segments_match(parts[:depth], segments)
+               for depth in range(shallowest, deepest + 1)):
+            return True
+    return False
+
+
+def path_pattern_reaches(pattern, target, plans):
+    """Does a gitignore-shaped pattern select target or anything in it?
+
+    Wider than path_pattern_selects: a pattern reaching inside target
+    (see path_pattern_reaches_inside) ships some of the plans from an
+    include list, and puts them back from a '!' line of an ignore list,
+    without selecting the directory.
+    """
+    return (path_pattern_selects(pattern, target)
+            or path_pattern_reaches_inside(pattern, target, plans))
+
+
+def _pattern_lines(patterns):
+    """The patterns of a gitignore-shaped list, less comments and blanks."""
+    for pattern in patterns:
+        if isinstance(pattern, str):
+            cleaned = pattern.strip()
+            if cleaned and not cleaned.startswith('#'):
+                yield cleaned
+
+
+def ignore_list_excludes(patterns, target, plans):
+    """Does a gitignore-shaped ignore list keep target out?
+
+    For .npmignore and the exclude lists of Cargo and hatch. A pattern
+    must select the whole of target, and no '!' line may name target,
+    a directory above it, or anything inside it, wherever the line
+    sits. The tools disagree about what such a line does: npm, like
+    gitignore, cannot re-include below an excluded directory, while
+    Cargo and hatch let a pattern matching a file beat one matching
+    its directory, whatever their order. A list that leaves the
+    answer to that is not credited.
+    """
+    lines = list(_pattern_lines(patterns))
+    return (any(not pattern.startswith('!')
+                and path_pattern_selects(pattern, target)
+                for pattern in lines)
+            and not any(pattern.startswith('!')
+                        and path_pattern_reaches(pattern[1:], target, plans)
+                        for pattern in lines))
+
+
+def include_list_selects(patterns, target, plans):
+    """Does an ordered gitignore-shaped include list ship any of target?
+
+    The mirror of ignore_list_excludes, for npm's files and the include
+    lists of Cargo and hatch: a pattern reaching any of target ships
+    it. A '!' line takes it out again only if it selects the whole of
+    target, comes after every pattern reaching target, and names
+    target at least as closely as they do, so that npm's order and
+    Cargo's and hatch's closest match agree: 'docs/' then
+    '!docs/plans' keeps the plans out, and nothing takes back
+    'docs/plans/audit' or '*.md' once it has reached inside.
+    """
+    def closeness(pattern):
+        if path_pattern_reaches_inside(pattern, target, plans):
+            return 2
+        return 1 if _segments_match(target.split('/'),
+                                    _gitignore_segments(pattern)) else 0
+
+    selected = False
+    closest = -1
+    for pattern in _pattern_lines(patterns):
+        if pattern.startswith('!'):
+            negated = pattern[1:]
+            if (path_pattern_selects(negated, target) and closest < 2
+                    and closeness(negated) >= closest):
+                selected = False
+        elif path_pattern_reaches(pattern, target, plans):
+            selected = True
+            closest = max(closest, closeness(pattern))
+    return selected
+
+
+def segment_glob_matches(path, pattern, recursive=True):
+    """setuptools' MANIFEST.in glob: '*' stays within one path segment.
+
+    With recursive, the way recursive-include, global-include, prune
+    and the excludes match, a segment that is exactly '**' matches any
+    number of segments, none included. Without it, the way include and
+    graft glob, '**' is one more '*'. Either way '**.md' is '*.md'.
+    """
+    parts = path.split('/')
+    segments = pattern.split('/')
+    if recursive:
+        return _segments_match(parts, segments)
+    return (len(parts) == len(segments)
+            and all(fnmatch.fnmatchcase(part, segment)
+                    for part, segment in zip(parts, segments)))
+
+
+def build_ignore_selects(pattern, target):
+    """Does a galaxy.yml build_ignore pattern keep target out?
+
+    ansible-galaxy fnmatches each pattern against the path of every
+    directory and file relative to the collection root, and does not
+    descend into a directory that matches. So the pattern must match
+    target or one of its ancestors verbatim, or end in a '/*' or '/**'
+    matching everything inside one ('*' crosses '/' in fnmatch). There
+    is no gitignore anchoring, so 'plans', '/docs/plans' and
+    'docs/plans/' match nothing, and a pattern matching only some
+    plans, such as '*.md', is not an exclusion of the directory.
+    """
+    cleaned = pattern.strip().strip('"\'')
+    stems = [cleaned]
+    stem = cleaned.rstrip('*')
+    if stem != cleaned and stem.endswith('/'):
+        stems.append(stem[:-1])
+    parts = target.split('/')
+    candidates = ['/'.join(parts[:i]) for i in range(1, len(parts) + 1)]
+    return any(fnmatch.fnmatchcase(c, stem)
+               for c in candidates for stem in stems)
+
+
+def manifest_directives_ship(lines, target, plans, included):
+    """Does a run of MANIFEST.in directives leave target in the sdist?
+
+    `included` is the state before the first directive: True when a
+    file finder such as setuptools_scm's has already offered every
+    tracked file, False for plain setuptools. Directives apply in
+    order, so a graft after a prune puts the directory back, and a
+    graft or include naming the root ('.') reaches the plans like any
+    other ancestor. A prune or recursive-exclude of the root, and any
+    path starting with '/', do nothing in setuptools, and nothing here.
+    The directives that act on a whole directory, on a file name at
+    any depth, or (`include`) on a path from the root are modelled; an
+    `exclude` naming individual plans is not a way to keep the
+    directory out, and is not treated as one.
+
+    Directory arguments are globs, as setuptools reads them. An
+    `include` or `recursive-include` rooted at or below target adds
+    plans whatever its file patterns, since every file it can match is
+    one. Any other file pattern is judged against plans, the files
+    tracked below target, relative to the artifact root as target is:
+    `recursive-include docs *.png` adds plans only if one of them is a
+    .png.
+    """
+    target_parts = target.split('/')
+
+    def selects_a_plan(directory, patterns):
+        # setuptools matches recursive-include against dir/**/pattern,
+        # and global-include against **/pattern.
+        return any(
+            segment_glob_matches(plan, '/'.join(
+                [part for part in (directory, '**', pattern) if part]))
+            for plan in plans for pattern in patterns)
+
+    def includes_a_plan(pattern):
+        path = normalise_path(pattern)
+        return (rooted_below(path.split('/'), target)
+                or any(segment_glob_matches(plan, path, recursive=False)
+                       for plan in plans))
+
+    for line in lines:
+        # setuptools strips a comment from anywhere on the line.
+        words = line.split('#', 1)[0].split()
+        if len(words) < 2:
+            continue
+        directive, arguments = words[0], words[1:]
+        # setuptools takes a leading '/' as an absolute path, which
+        # names nothing in the tree.
+        if directive in ('include', 'global-include'):
+            arguments = [a for a in arguments if not a.startswith('/')]
+        elif arguments[0].startswith('/'):
+            continue
+        if not arguments:
+            continue
+        directory = normalise_path(arguments[0])
+        if directory == '.':
+            directory = ''
+        segments = directory.split('/') if directory else []
+        # whole: the directory names target or one above it, so the
+        # directive reaches every plan. inside: the directory names
+        # target or one below it, so everything it reaches is a plan.
+        whole = any(_segments_match(target_parts[:depth], segments)
+                    for depth in range(len(target_parts) + 1))
+        inside = (_segments_match(target_parts, segments)
+                  or rooted_below(segments, target))
+
+        # prune and recursive-exclude match '.' literally, against
+        # paths that never start with it, so on the root they do
+        # nothing.
+        if directive == 'prune' and whole and directory:
+            included = False
+        elif directive == 'graft' and (whole or inside):
+            included = True
+        elif directive == 'recursive-include' and (
+                inside or selects_a_plan(directory, arguments[1:])):
+            included = True
+        elif (directive == 'recursive-exclude' and whole and directory
+                and {'*', '**'} & set(arguments[1:])):
+            included = False
+        elif directive == 'include' and any(
+                includes_a_plan(pattern) for pattern in arguments):
+            included = True
+        elif (directive == 'global-include'
+                and selects_a_plan('', arguments)):
+            included = True
+    return included
+
+
+def yaml_scalar(text):
+    """A plain or quoted YAML scalar, less any trailing comment.
+
+    For the indentation-based galaxy.yml reader: a quoted scalar ends
+    at its closing quote, a plain one at whitespace followed by '#',
+    and a value that is only a comment is empty.
+    """
+    text = text.strip()
+    if text[:1] in ('"', "'"):
+        end = text.find(text[0], 1)
+        if end > 0:
+            return text[1:end]
+    if text.startswith('#'):
+        return ''
+    return re.split(r'\s#', text, maxsplit=1)[0].strip()
+
+
+def yaml_flow_sequence(text):
+    """The items of a one-line YAML flow sequence, such as [a, "b"].
+
+    For the galaxy.yml reader, whose lists hold paths and MANIFEST.in
+    directives, neither of which carries a comma.
+    """
+    entries = yaml_scalar(text).strip('[]').split(',')
+    return [yaml_scalar(entry) for entry in entries if entry.strip()]
+
+
+def requirement_name(requirement):
+    """The canonical distribution name of a PEP 508 requirement."""
+    match = DEP_SPEC_RE.match(requirement)
+    if not match:
+        return ''
+    return canonical_dependency_name(match.group('name'))
+
+
+class ReleaseArtifactsExcludePlans(Check):
+    id = 'release-artifacts-exclude-plans'
+    spec = 'docs/audits/release-artifacts-exclude-plans.md'
+    template = None
+    issue_title = 'Release artifacts exclude docs/plans'
+
+    def applies(self, repo):
+        if not os.path.isdir(repo.join(PLANS_DIR)):
+            return f'No {PLANS_DIR}/ directory'
+        return None
+
+    def run(self, repo):
+        """Check no release artifact ships the plans directory.
+
+        Every packaging tool the fleet releases with defaults to taking
+        what git tracks, or everything not gitignored, from the
+        directory its manifest sits in. When that directory is the
+        repository root, docs/plans rides along: client-python-k3s's
+        sdist was 0.9MB of plans and audit notes before anybody looked.
+        For each artifact built from the root (or from docs/), this
+        reads the artifact's own exclusion mechanism and reports the
+        ones that would ship docs/plans.
+        """
+        tracked = tracked_paths(repo.path, PLANS_DIR)
+        if tracked is None:
+            return self.fail(LS_FILES_FAILED)
+        if not tracked:
+            return self.skip(f'{PLANS_DIR}/ tracks no files')
+
+        findings = []
+        clean = []
+        for root in PLANS_ARTIFACT_ROOTS:
+            target = os.path.relpath(PLANS_DIR, root or '.')
+            plans = [os.path.relpath(path, root or '.') for path in tracked]
+            for describe in (self._python, self._cargo, self._npm,
+                             self._galaxy):
+                verdict = describe(repo, root, target, plans)
+                if verdict is None:
+                    continue
+                artifact, finding = verdict
+                if finding:
+                    findings.append(f'{artifact}: {finding}')
+                else:
+                    clean.append(artifact)
+
+        if findings:
+            return self.fail(
+                f'{len(findings)} release artifact(s) would ship '
+                f'{PLANS_DIR}/, which is working history rather than '
+                f'source; exclude it with the mechanism each finding '
+                f'names', findings=findings)
+        if not clean:
+            return self.skip(
+                f'No release artifact is built from a directory '
+                f'containing {PLANS_DIR}/')
+        return self.ok(
+            f'{PLANS_DIR}/ is excluded from: {", ".join(clean)}')
+
+    @staticmethod
+    def _load_toml(repo, path):
+        content = repo.read(path)
+        if content is None:
+            return None, None
+        try:
+            return tomllib.loads(content), None
+        except tomllib.TOMLDecodeError as e:
+            return None, f'could not parse {path}: {e}'
+
+    def _python(self, repo, root, target, plans):
+        """The sdist, built by setuptools or hatchling."""
+        if repo.props['not_python']:
+            return None
+        pyproject_path = os.path.join(root, 'pyproject.toml')
+        setup_path = os.path.join(root, 'setup.py')
+        pyproject, error = self._load_toml(repo, pyproject_path)
+        if error:
+            return f'sdist ({pyproject_path})', error
+
+        build_system = (pyproject or {}).get('build-system')
+        if pyproject is not None and (build_system
+                                      or 'project' in pyproject):
+            build_system = build_system or {}
+            # PEP 517: no build-backend means the legacy setuptools one.
+            backend = build_system.get(
+                'build-backend', 'setuptools.build_meta:__legacy__')
+            requires = [requirement_name(r)
+                        for r in build_system.get('requires', [])
+                        if isinstance(r, str)]
+            manifest = pyproject_path
+        elif repo.read(setup_path) is not None:
+            backend = 'setuptools.build_meta:__legacy__'
+            requires = []
+            manifest = setup_path
+        else:
+            return None
+
+        # pbr's backend is setuptools' with pbr's manifest maker.
+        if backend.startswith(('setuptools', 'pbr')):
+            return self._setuptools(repo, root, target, plans, manifest,
+                                    requires)
+        if backend.startswith('hatchling'):
+            return self._hatch(pyproject, target, plans, manifest)
+        return (f'sdist ({manifest})',
+                f'build backend {backend} is not one this check models; '
+                f'build the sdist, confirm {PLANS_DIR}/ is absent, and '
+                f'teach scripts/audit/checks/packaging.py how it excludes '
+                f'files')
+
+    def _setuptools(self, repo, root, target, plans, manifest, requires):
+        legacy = '\n'.join(
+            repo.read(os.path.join(root, name)) or ''
+            for name in ('setup.py', 'setup.cfg'))
+        finders = [name for name in GIT_FILE_FINDERS if name in requires]
+        finders += [canonical_dependency_name(match)
+                    for match in GIT_FILE_FINDER_RE.findall(legacy)]
+        finder = finders[0] if finders else None
+        manifest_in = os.path.join(root, 'MANIFEST.in')
+        lines = (repo.read(manifest_in) or '').splitlines()
+        artifact = f'sdist ({manifest})'
+        if not manifest_directives_ship(lines, target, plans,
+                                        finder is not None):
+            return artifact, None
+        if finder:
+            return artifact, (
+                f'{finder} offers every tracked file to the sdist; '
+                f'add "prune {target}" to {manifest_in}')
+        return artifact, (
+            f'{manifest_in} adds {target}/ to the sdist; follow it with '
+            f'"prune {target}"')
+
+    @staticmethod
+    def _hatch(pyproject, target, plans, manifest):
+        build = pyproject.get('tool', {}).get('hatch', {}).get('build', {})
+        sdist = build.get('targets', {}).get('sdist', {})
+        artifact = f'sdist ({manifest})'
+
+        def patterns(key):
+            values = sdist.get(key, build.get(key))
+            return [v for v in values or [] if isinstance(v, str)]
+
+        # Unlike Cargo, hatch applies exclude after an include list,
+        # and exclude wins.
+        if ignore_list_excludes(patterns('exclude'), target, plans):
+            return artifact, None
+        whitelist = patterns('only-include') + patterns('include')
+        if whitelist:
+            if include_list_selects(whitelist, target, plans):
+                return artifact, (
+                    f'the hatch sdist include list selects {target}/; '
+                    f'narrow it, or add "{target}" to exclude')
+            return artifact, None
+        return artifact, (
+            f'hatch offers every file git does not ignore to the sdist; '
+            f'add "{target}" to exclude under '
+            f'[tool.hatch.build.targets.sdist]')
+
+    def _cargo(self, repo, root, target, plans):
+        """The .crate `cargo publish` uploads."""
+        path = os.path.join(root, 'Cargo.toml')
+        cargo, error = self._load_toml(repo, path)
+        artifact = f'crate ({path})'
+        if error:
+            return artifact, error
+        if cargo is None or not isinstance(cargo.get('package'), dict):
+            # Absent, or a virtual workspace: its members live in
+            # subdirectories, which cannot contain docs/plans.
+            return None
+
+        inherited = cargo.get('workspace', {}).get('package', {})
+
+        def field(key):
+            value = cargo['package'].get(key)
+            if isinstance(value, dict) and value.get('workspace'):
+                return inherited.get(key)
+            return value
+
+        publish = field('publish')
+        if publish is False or publish == []:
+            return None
+
+        include = [p for p in field('include') or [] if isinstance(p, str)]
+        if include:
+            if include_list_selects(include, target, plans):
+                return artifact, (
+                    f'the include list selects {target}/; narrow it')
+            return artifact, None
+        if ignore_list_excludes(field('exclude') or [], target, plans):
+            return artifact, None
+        return artifact, (
+            f'cargo packages every file git tracks; add "/{target}" to '
+            f'exclude under [package]')
+
+    def _npm(self, repo, root, target, plans):
+        """The tarball `npm publish` uploads."""
+        path = os.path.join(root, 'package.json')
+        content = repo.read(path)
+        if content is None:
+            return None
+        artifact = f'npm package ({path})'
+        try:
+            package = json.loads(content)
+        except ValueError as e:
+            return artifact, f'could not parse {path}: {e}'
+        if not isinstance(package, dict) or package.get('private') is True:
+            return None
+
+        files = package.get('files')
+        if isinstance(files, list):
+            if include_list_selects(files, target, plans):
+                return artifact, (
+                    f'the files list selects {target}/; narrow it')
+            return artifact, None
+        npmignore_path = os.path.join(root, '.npmignore')
+        npmignore = (repo.read(npmignore_path) or '').splitlines()
+        if ignore_list_excludes(npmignore, target, plans):
+            return artifact, None
+        return artifact, (
+            f'npm packs every file not ignored; add a "files" list to '
+            f'{path}, or "/{target}/" to {npmignore_path}')
+
+    def _galaxy(self, repo, root, target, plans):
+        """The collection tarball `ansible-galaxy collection build` makes."""
+        path = os.path.join(root, 'galaxy.yml')
+        content = repo.read(path)
+        if content is None:
+            return None
+        artifact = f'collection ({path})'
+
+        # No YAML parser in the audit's environment, and the keys this
+        # reads are flat lists and scalars, so read them by indentation.
+        build_ignore = []
+        directives = []
+        manifest = False
+        omit_defaults = False
+        section = None
+        subsection = None
+        for line in content.splitlines():
+            if not line.strip() or line.lstrip().startswith('#'):
+                continue
+            item = line.strip()
+            # A block sequence may sit at the indentation of its key.
+            if not line[0].isspace() and not item.startswith('- '):
+                key, _, rest = line.partition(':')
+                section, subsection = key.strip(), None
+                rest = yaml_scalar(rest)
+                if section == 'manifest':
+                    if rest.startswith('{'):
+                        return artifact, (
+                            f'could not read the flow-style manifest '
+                            f'mapping in {path}; write it as a block '
+                            f'mapping')
+                    manifest = rest not in ('null', '~', 'false')
+                elif section == 'build_ignore' and rest:
+                    build_ignore.extend(yaml_flow_sequence(rest))
+                continue
+            if item.startswith('- '):
+                if section == 'build_ignore':
+                    build_ignore.append(yaml_scalar(item[2:]))
+                elif section == 'manifest' and subsection == 'directives':
+                    directives.append(yaml_scalar(item[2:]))
+            elif section == 'manifest':
+                key, _, rest = item.partition(':')
+                subsection = key.strip()
+                if subsection == 'directives' and yaml_scalar(rest):
+                    directives.extend(yaml_flow_sequence(rest))
+                elif subsection == 'omit_default_directives':
+                    omit_defaults = yaml_scalar(rest).lower() in ('true',
+                                                                  'yes')
+
+        if manifest:
+            # The default directives take docs/ files of the types plans
+            # directories carry too (.txt, .json, .yml), so a plan is
+            # treated as shipping unless they are omitted.
+            if manifest_directives_ship(directives, target, plans,
+                                        not omit_defaults):
+                return artifact, (
+                    f'the manifest directives keep {target}/; add '
+                    f'"prune {target}" to them')
+            return artifact, None
+        if any(build_ignore_selects(p, target) for p in build_ignore):
+            return artifact, None
+        return artifact, (
+            f'ansible-galaxy builds every file under {root or "the root"} '
+            f'not ignored; add "{target}" to build_ignore')
+
+
 class ConsoleLogging(Check):
     id = 'console-logging'
     spec = 'docs/audits/console-logging.md'

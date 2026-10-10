@@ -2075,6 +2075,1048 @@ class VersionFileGitignoreTest(CheckTestCase):
                       result['details'])
 
 
+class ReleaseArtifactsExcludePlansTest(CheckTestCase):
+    check_class = packaging.ReleaseArtifactsExcludePlans
+
+    SCM_PYPROJECT = (
+        '[build-system]\n'
+        'requires = ["setuptools>=64", "setuptools_scm[toml]>=8"]\n'
+        'build-backend = "setuptools.build_meta"\n\n'
+        '[project]\nname = "thing"\n'
+    )
+    PLAIN_PYPROJECT = (
+        '[build-system]\nrequires = ["setuptools"]\n'
+        'build-backend = "setuptools.build_meta"\n'
+    )
+
+    def _check(self, files, **props):
+        """Commit a fixture holding a plan plus files, and check it."""
+        self.fixture.init_git()
+        self.fixture.write('docs/plans/PLAN-thing.md', '# Plan\n')
+        self.fixture.write_all(files)
+        self.fixture.commit()
+        return self.check(**props)
+
+    def test_without_a_plans_directory_it_does_not_apply(self):
+        self.fixture.write('pyproject.toml', self.SCM_PYPROJECT)
+        self.assert_skip(self.check(), containing='No docs/plans/')
+
+    def test_a_repository_that_builds_nothing_does_not_apply(self):
+        self.assert_skip(self._check({'README.md': '# Thing\n'}),
+                         containing='No release artifact')
+
+    def test_an_scm_sdist_without_a_prune_fails(self):
+        """client-python-k3s, before it pruned docs/plans."""
+        result = self.assert_fail(
+            self._check({'pyproject.toml': self.SCM_PYPROJECT}),
+            containing='1 release artifact')
+        self.assertEqual(len(result['findings']), 1)
+        self.assertIn('prune docs/plans', result['findings'][0])
+
+    def test_an_scm_sdist_pruning_the_plans_passes(self):
+        result = self.assert_pass(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'MANIFEST.in': '# Working history.\nprune docs/plans\n',
+        }))
+        self.assertIn('sdist (pyproject.toml)', result['details'])
+
+    def test_pruning_all_of_docs_passes(self):
+        self.assert_pass(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'MANIFEST.in': 'prune docs/\n',
+        }))
+
+    def test_pruning_only_a_subdirectory_of_the_plans_fails(self):
+        """The arrangement client-python-k3s had before this check."""
+        self.assert_fail(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'MANIFEST.in': 'prune docs/plans/audit/diffs\n',
+        }))
+
+    def test_a_dot_slash_prune_of_a_subdirectory_still_fails(self):
+        """'./' is stripped before deciding what the prune reaches."""
+        self.assert_fail(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'MANIFEST.in': 'prune ./docs/plans/audit/diffs/\n',
+        }))
+
+    def test_a_dot_slash_prune_of_the_plans_passes(self):
+        self.assert_pass(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'MANIFEST.in': 'prune ./docs/plans/\n',
+        }))
+
+    def test_recursive_exclude_of_everything_in_the_plans_passes(self):
+        self.assert_pass(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'MANIFEST.in': 'recursive-exclude docs/plans *\n',
+        }))
+
+    def test_recursive_exclude_of_a_plans_subdirectory_fails(self):
+        self.assert_fail(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'MANIFEST.in': 'recursive-exclude ./docs/plans/audit *\n',
+        }))
+
+    def test_recursive_include_of_other_files_after_the_prune_passes(self):
+        """Only patterns that would select a plan put it back."""
+        self.assert_pass(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'MANIFEST.in': (
+                'prune docs/plans\nrecursive-include docs *.png *.svg\n'),
+        }))
+
+    def test_recursive_include_of_markdown_after_the_prune_fails(self):
+        for patterns in ('*.md', '*', '**.md', 'plans/*.md', 'PLAN-*'):
+            with self.subTest(patterns=patterns):
+                self.fresh_fixture()
+                self.assert_fail(self._check({
+                    'pyproject.toml': self.SCM_PYPROJECT,
+                    'MANIFEST.in': (
+                        f'prune docs/plans\n'
+                        f'recursive-include docs {patterns}\n'),
+                }))
+
+    def test_a_graft_after_the_prune_puts_the_plans_back(self):
+        self.assert_fail(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'MANIFEST.in': 'prune docs/plans\ngraft docs\n',
+        }))
+
+    def test_plain_setuptools_ships_nothing_it_was_not_asked_to(self):
+        self.assert_pass(self._check({
+            'pyproject.toml': (
+                '[build-system]\nrequires = ["setuptools"]\n'
+                'build-backend = "setuptools.build_meta"\n'),
+        }))
+
+    def test_plain_setuptools_grafting_docs_fails(self):
+        self.assert_fail(self._check({
+            'pyproject.toml': (
+                '[build-system]\nrequires = ["setuptools"]\n'
+                'build-backend = "setuptools.build_meta"\n'),
+            'MANIFEST.in': 'graft docs\n',
+        }), containing='1 release artifact')
+
+    def test_plain_setuptools_including_other_docs_files_passes(self):
+        self.assert_pass(self._check({
+            'pyproject.toml': self.PLAIN_PYPROJECT,
+            'MANIFEST.in': 'recursive-include docs *.png\n',
+        }))
+
+    def test_plain_setuptools_globally_including_markdown_fails(self):
+        self.assert_fail(self._check({
+            'pyproject.toml': self.PLAIN_PYPROJECT,
+            'MANIFEST.in': 'global-include *.md\n',
+        }))
+
+    def test_plain_setuptools_globally_including_other_files_passes(self):
+        self.assert_pass(self._check({
+            'pyproject.toml': self.PLAIN_PYPROJECT,
+            'MANIFEST.in': 'global-include *.typed *.png\n',
+        }))
+
+    def test_a_legacy_setup_py_using_scm_fails(self):
+        self.assert_fail(self._check({
+            'setup.py': (
+                'from setuptools import setup\n'
+                "setup(use_scm_version=True,\n"
+                "      setup_requires=['setuptools_scm'])\n"),
+        }))
+
+    def test_every_git_file_finder_offers_the_plans(self):
+        """pbr and setuptools-git take what git tracks, as scm does."""
+        cases = {
+            'pbr setup.py': {
+                'setup.py': (
+                    'from setuptools import setup\n'
+                    "setup(setup_requires=['pbr'], pbr=True)\n"),
+            },
+            'pbr setup.cfg': {
+                'setup.py': 'import setuptools\nsetuptools.setup()\n',
+                'setup.cfg': '[metadata]\nname = thing\n\n[pbr]\n',
+            },
+            'pbr backend': {
+                'pyproject.toml': (
+                    '[build-system]\nrequires = ["pbr>=6", "setuptools"]\n'
+                    'build-backend = "pbr.build"\n'),
+            },
+            'setuptools-git requires': {
+                'pyproject.toml': (
+                    '[build-system]\n'
+                    'requires = ["setuptools", "setuptools_git"]\n'
+                    'build-backend = "setuptools.build_meta"\n'),
+            },
+            'setuptools-git-ls-files setup.py': {
+                'setup.py': (
+                    'from setuptools import setup\n'
+                    "setup(setup_requires=['setuptools-git-ls-files'])\n"),
+            },
+        }
+        for name, files in cases.items():
+            with self.subTest(name):
+                self.fresh_fixture()
+                result = self.assert_fail(self._check(files))
+                self.assertIn('offers every tracked file',
+                              result['findings'][0])
+
+    def test_a_longer_name_is_not_a_git_file_finder(self):
+        """setuptools-git-versioning versions from git; it lists nothing."""
+        self.assert_pass(self._check({
+            'setup.py': (
+                'from setuptools import setup\n'
+                "setup(setup_requires=['setuptools-git-versioning'])\n"),
+        }))
+
+    def test_a_project_without_a_build_system_is_legacy_setuptools(self):
+        """PEP 517: no [build-system] means setuptools' legacy backend."""
+        result = self.assert_pass(self._check({
+            'pyproject.toml': '[project]\nname = "thing"\n',
+        }))
+        self.assertIn('sdist (pyproject.toml)', result['details'])
+        self.fresh_fixture()
+        self.assert_fail(self._check({
+            'pyproject.toml': '[project]\nname = "thing"\n',
+            'MANIFEST.in': 'graft docs\n',
+        }))
+
+    def test_a_tooling_only_pyproject_is_not_a_package(self):
+        self.assert_skip(self._check({
+            'pyproject.toml': '[tool.ruff]\nline-length = 120\n',
+        }))
+
+    def test_a_not_python_repository_is_not_measured_for_an_sdist(self):
+        self.assert_skip(self._check(
+            {'pyproject.toml': self.SCM_PYPROJECT}, not_python=True))
+
+    def test_hatch_without_an_exclude_fails(self):
+        self.assert_fail(self._check({
+            'pyproject.toml': (
+                '[build-system]\nrequires = ["hatchling"]\n'
+                'build-backend = "hatchling.build"\n'),
+        }), containing='1 release artifact')
+
+    def test_hatch_excluding_the_plans_passes(self):
+        self.assert_pass(self._check({
+            'pyproject.toml': (
+                '[build-system]\nrequires = ["hatchling"]\n'
+                'build-backend = "hatchling.build"\n\n'
+                '[tool.hatch.build.targets.sdist]\n'
+                'exclude = ["/docs/plans"]\n'),
+        }))
+
+    def test_hatch_with_an_include_list_passes(self):
+        self.assert_pass(self._check({
+            'pyproject.toml': (
+                '[build-system]\nrequires = ["hatchling"]\n'
+                'build-backend = "hatchling.build"\n\n'
+                '[tool.hatch.build.targets.sdist]\n'
+                'include = ["/thing", "/README.md"]\n'),
+        }))
+
+    def test_hatch_excluding_the_plans_from_an_included_docs_passes(self):
+        """hatch applies exclude after include, and exclude wins."""
+        self.assert_pass(self._check({
+            'pyproject.toml': (
+                '[build-system]\nrequires = ["hatchling"]\n'
+                'build-backend = "hatchling.build"\n\n'
+                '[tool.hatch.build.targets.sdist]\n'
+                'include = ["/thing", "/docs"]\n'
+                'exclude = ["/docs/plans"]\n'),
+        }))
+
+    def test_hatch_including_docs_fails(self):
+        self.assert_fail(self._check({
+            'pyproject.toml': (
+                '[build-system]\nrequires = ["hatchling"]\n'
+                'build-backend = "hatchling.build"\n\n'
+                '[tool.hatch.build.targets.sdist]\n'
+                'include = ["/thing", "/docs"]\n'),
+        }))
+
+    def test_an_unmodelled_backend_is_reported_rather_than_passed(self):
+        """A guard that passes when it cannot measure is worse than none."""
+        result = self.assert_fail(self._check({
+            'pyproject.toml': (
+                '[build-system]\nrequires = ["flit_core"]\n'
+                'build-backend = "flit_core.buildapi"\n'),
+        }))
+        self.assertIn('flit_core.buildapi', result['findings'][0])
+
+    def test_a_published_crate_without_an_exclude_fails(self):
+        result = self.assert_fail(self._check({
+            'Cargo.toml': '[package]\nname = "thing"\nversion = "0.1.0"\n',
+        }))
+        self.assertIn('crate (Cargo.toml)', result['findings'][0])
+
+    def test_a_crate_excluding_the_plans_passes(self):
+        self.assert_pass(self._check({
+            'Cargo.toml': (
+                '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                'exclude = ["/docs/plans"]\n'),
+        }))
+
+    def test_a_crate_with_an_include_list_passes(self):
+        self.assert_pass(self._check({
+            'Cargo.toml': (
+                '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                'include = ["/src", "/Cargo.toml"]\n'),
+        }))
+
+    def test_a_crate_including_docs_fails(self):
+        self.assert_fail(self._check({
+            'Cargo.toml': (
+                '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                'include = ["/src", "/docs"]\n'),
+        }))
+
+    def test_a_crate_include_list_overrides_its_exclude(self):
+        """cargo reads exclude only when there is no include."""
+        self.assert_fail(self._check({
+            'Cargo.toml': (
+                '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                'include = ["/src", "/docs"]\n'
+                'exclude = ["/docs/plans"]\n'),
+        }))
+
+    def test_an_unpublished_crate_does_not_apply(self):
+        """uncalibrated-sextant: publish = false ships no .crate."""
+        self.assert_skip(self._check({
+            'Cargo.toml': (
+                '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                'publish = false\n'),
+        }))
+
+    def test_a_crate_inheriting_its_exclude_from_the_workspace_passes(self):
+        self.assert_pass(self._check({
+            'Cargo.toml': (
+                '[workspace]\nmembers = ["."]\n\n'
+                '[workspace.package]\nexclude = ["docs/plans/"]\n\n'
+                '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                'exclude.workspace = true\n'),
+        }))
+
+    def test_a_virtual_workspace_does_not_apply(self):
+        """ryll: the crates are in subdirectories, away from docs/."""
+        self.assert_skip(self._check({
+            'Cargo.toml': '[workspace]\nmembers = ["ryll"]\n',
+        }))
+
+    def test_a_published_npm_package_without_a_files_list_fails(self):
+        self.assert_fail(self._check({
+            'package.json': '{"name": "thing", "version": "1.0.0"}\n',
+        }))
+
+    def test_an_npm_files_list_passes(self):
+        self.assert_pass(self._check({
+            'package.json': (
+                '{"name": "thing", "version": "1.0.0", '
+                '"files": ["dist/"]}\n'),
+        }))
+
+    def test_an_npmignore_excluding_the_plans_passes(self):
+        self.assert_pass(self._check({
+            'package.json': '{"name": "thing", "version": "1.0.0"}\n',
+            '.npmignore': '# Working history.\n/docs/plans/\n',
+        }))
+
+    def test_a_root_npmignore_does_not_narrow_a_files_list(self):
+        """npm: a root .npmignore cannot override the files field."""
+        self.assert_fail(self._check({
+            'package.json': (
+                '{"name": "thing", "version": "1.0.0", '
+                '"files": ["dist/", "docs/"]}\n'),
+            '.npmignore': '/docs/plans/\n',
+        }))
+
+    def test_a_private_npm_package_does_not_apply(self):
+        self.assert_skip(self._check({
+            'package.json': '{"name": "thing", "private": true}\n',
+        }))
+
+    def test_a_root_collection_without_build_ignore_fails(self):
+        self.assert_fail(self._check({
+            'galaxy.yml': 'namespace: sf\nname: thing\nversion: 1.0.0\n',
+        }), containing='1 release artifact')
+
+    def test_a_root_collection_ignoring_the_plans_passes(self):
+        self.assert_pass(self._check({
+            'galaxy.yml': (
+                'namespace: sf\nname: thing\n'
+                'build_ignore:\n  - .ansible\n  - docs/plans\n'
+                'version: 1.0.0\n'),
+        }))
+
+    def test_build_ignore_patterns_galaxy_does_not_anchor_fail(self):
+        """ansible-galaxy fnmatches the whole relative path."""
+        for pattern in ('plans', '/docs/plans', 'docs/plans/'):
+            with self.subTest(pattern=pattern):
+                self.fresh_fixture()
+                self.assert_fail(self._check({
+                    'galaxy.yml': (
+                        f'namespace: sf\nname: thing\n'
+                        f'build_ignore:\n  - {pattern}\n'),
+                }))
+
+    def test_a_root_collection_with_a_flow_build_ignore_passes(self):
+        self.assert_pass(self._check({
+            'galaxy.yml': (
+                'namespace: sf\nname: thing\n'
+                "build_ignore: ['.ansible', 'docs']\n"),
+        }))
+
+    def test_a_root_collection_manifest_pruning_the_plans_passes(self):
+        self.assert_pass(self._check({
+            'galaxy.yml': (
+                'namespace: sf\nname: thing\nmanifest:\n'
+                '  directives:\n    - prune docs/plans\n'),
+        }))
+
+    def test_a_root_collection_manifest_without_a_prune_fails(self):
+        self.assert_fail(self._check({
+            'galaxy.yml': (
+                'namespace: sf\nname: thing\nmanifest:\n'
+                '  directives:\n    - recursive-include docs *.png\n'),
+        }))
+
+    def test_a_manifest_omitting_the_defaults_ships_only_what_it_names(self):
+        self.assert_pass(self._check({
+            'galaxy.yml': (
+                'namespace: sf\nname: thing\nmanifest:\n'
+                '  omit_default_directives: true\n'
+                '  directives:\n    - recursive-include plugins *.py\n'),
+        }))
+
+    def test_a_manifest_omitting_the_defaults_and_grafting_docs_fails(self):
+        self.assert_fail(self._check({
+            'galaxy.yml': (
+                'namespace: sf\nname: thing\nmanifest:\n'
+                '  directives:\n    - graft docs\n'
+                '  omit_default_directives: true\n'),
+        }))
+
+    def test_only_manifest_directives_are_read_as_directives(self):
+        """A list under another manifest key is not a prune."""
+        self.assert_fail(self._check({
+            'galaxy.yml': (
+                'namespace: sf\nname: thing\nmanifest:\n'
+                '  other:\n    - prune docs/plans\n'
+                '  directives:\n    - include README.md\n'),
+        }))
+
+    def test_a_collection_in_a_subdirectory_does_not_apply(self):
+        """client-python-k3s's collection/ cannot reach docs/plans."""
+        self.assert_skip(self._check({
+            'collection/galaxy.yml': 'namespace: sf\nname: thing\n',
+        }))
+
+    def test_an_artifact_built_from_docs_is_measured(self):
+        """A manifest in docs/ reaches docs/plans as plans/."""
+        result = self.assert_fail(self._check({
+            'docs/package.json': '{"name": "docs", "version": "1.0.0"}\n',
+        }))
+        self.assertIn('npm package (docs/package.json)',
+                      result['findings'][0])
+        self.assertIn('/plans/', result['findings'][0])
+
+    def test_an_artifact_built_from_docs_excluding_plans_passes(self):
+        self.assert_pass(self._check({
+            'docs/package.json': '{"name": "docs", "version": "1.0.0"}\n',
+            'docs/.npmignore': 'plans/\n',
+        }))
+
+    def test_plans_are_matched_relative_to_the_artifact_root(self):
+        """From docs/, 'docs/plans/*.md' names docs/docs/plans."""
+        self.assert_pass(self._check({
+            'docs/package.json': (
+                '{"name": "docs", "version": "1.0.0", '
+                '"files": ["dist/", "docs/plans/*.md"]}\n'),
+        }))
+
+    def test_every_failing_artifact_is_listed(self):
+        result = self.assert_fail(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'Cargo.toml': '[package]\nname = "thing"\nversion = "0.1.0"\n',
+        }), containing='2 release artifact')
+        self.assertEqual(len(result['findings']), 2)
+
+    def test_an_untracked_plans_directory_does_not_apply(self):
+        """setuptools_scm only offers what git tracks."""
+        self.fixture.init_git()
+        self.fixture.write('pyproject.toml', self.SCM_PYPROJECT)
+        self.fixture.commit()
+        self.fixture.write('docs/plans/PLAN-thing.md', '# Plan\n')
+        self.assert_skip(self.check(), containing='tracks no files')
+
+    def test_an_unparseable_cargo_toml_is_reported(self):
+        self.assert_fail(self._check({'Cargo.toml': '[package\n'}),
+                         containing='1 release artifact')
+
+    def test_a_graft_of_the_root_after_the_prune_fails(self):
+        """The root holds docs/plans, so '.' reaches every plan."""
+        self.assert_fail(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'MANIFEST.in': 'prune docs/plans\ngraft .\n',
+        }))
+
+    def test_pruning_the_root_does_nothing(self):
+        """setuptools matches './**', which no file list path starts with."""
+        for manifest in ('prune .\n', 'prune ./\n',
+                         'recursive-exclude . *\n'):
+            with self.subTest(manifest=manifest):
+                self.fresh_fixture()
+                self.assert_fail(self._check({
+                    'pyproject.toml': self.SCM_PYPROJECT,
+                    'MANIFEST.in': manifest,
+                }))
+
+    def test_an_absolute_manifest_path_names_nothing(self):
+        self.assert_fail(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'MANIFEST.in': 'prune /docs/plans\n',
+        }))
+        self.fresh_fixture()
+        self.assert_pass(self._check({
+            'pyproject.toml': self.PLAIN_PYPROJECT,
+            'MANIFEST.in': 'graft /docs\ninclude /docs/plans/*.md\n',
+        }))
+
+    def test_manifest_directories_are_globs(self):
+        self.assert_pass(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'MANIFEST.in': 'prune docs/pl*\n',
+        }))
+        for manifest in ('graft d*\n', 'recursive-include d* *.md\n'):
+            with self.subTest(manifest=manifest):
+                self.fresh_fixture()
+                self.assert_fail(self._check({
+                    'pyproject.toml': self.PLAIN_PYPROJECT,
+                    'MANIFEST.in': manifest,
+                }))
+
+    def test_plain_setuptools_recursively_including_from_the_root_fails(self):
+        for patterns in ('*.md', 'docs/plans/*.md', 'plans/*'):
+            with self.subTest(patterns=patterns):
+                self.fresh_fixture()
+                self.assert_fail(self._check({
+                    'pyproject.toml': self.PLAIN_PYPROJECT,
+                    'MANIFEST.in': f'recursive-include . {patterns}\n',
+                }))
+
+    def test_plain_setuptools_including_plan_paths_fails(self):
+        for pattern in ('docs/plans/*.md', 'docs/*/*', 'docs/**/*.md',
+                        'docs/plans/README.md', 'docs/plans/audit/*.txt'):
+            with self.subTest(pattern=pattern):
+                self.fresh_fixture()
+                self.assert_fail(self._check({
+                    'pyproject.toml': self.PLAIN_PYPROJECT,
+                    'MANIFEST.in': f'include {pattern}\n',
+                }))
+
+    def test_plain_setuptools_including_top_level_files_passes(self):
+        """include's '*' stays within one path segment.
+
+        include globs without recursion, so its '**' is one more '*',
+        and 'docs/**' takes only the files directly in docs/.
+        """
+        self.assert_pass(self._check({
+            'pyproject.toml': self.PLAIN_PYPROJECT,
+            'MANIFEST.in': 'include *.md docs/*.md docs/** **.md\n',
+        }))
+
+    def test_a_comment_after_a_directive_is_not_read(self):
+        """setuptools strips a comment from anywhere on the line."""
+        self.assert_pass(self._check({
+            'pyproject.toml': self.SCM_PYPROJECT,
+            'MANIFEST.in': 'prune docs/plans  # working history\n',
+        }))
+        self.fresh_fixture()
+        self.assert_pass(self._check({
+            'pyproject.toml': self.PLAIN_PYPROJECT,
+            'MANIFEST.in': 'global-include *.png  # not *.md\n',
+        }))
+
+    def test_an_include_list_naming_part_of_the_plans_fails(self):
+        """Shipping one plans subdirectory is still shipping plans."""
+        cases = {
+            'npm files': {
+                'package.json': (
+                    '{"name": "thing", "version": "1.0.0", '
+                    '"files": ["dist/", "docs/plans/audit"]}\n'),
+            },
+            'cargo include': {
+                'Cargo.toml': (
+                    '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                    'include = ["/src", "/docs/plans/**/*.md"]\n'),
+            },
+            'hatch include': {
+                'pyproject.toml': (
+                    '[build-system]\nrequires = ["hatchling"]\n'
+                    'build-backend = "hatchling.build"\n\n'
+                    '[tool.hatch.build.targets.sdist]\n'
+                    'include = ["src", "docs/*/audit"]\n'),
+            },
+        }
+        for name, files in cases.items():
+            with self.subTest(name):
+                self.fresh_fixture()
+                self.assert_fail(self._check(files),
+                                 containing='1 release artifact')
+
+    def test_an_npm_files_negation_of_the_plans_passes(self):
+        self.assert_pass(self._check({
+            'package.json': (
+                '{"name": "thing", "version": "1.0.0", '
+                '"files": ["docs/", "!docs/plans"]}\n'),
+        }))
+
+    def test_an_include_negation_does_not_take_back_a_closer_match(self):
+        """Cargo ships the plans from each of these lists."""
+        for include in ('"docs/plans/*.md", "!docs/plans"',
+                        '"!docs/plans", "docs/"',
+                        '"docs/plans/", "!docs"',
+                        '"docs/plans/audit/*.txt", "!docs/plans/*"'):
+            with self.subTest(include=include):
+                self.fresh_fixture()
+                self.assert_fail(self._check({
+                    'Cargo.toml': (
+                        '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                        f'include = ["/src", {include}]\n'),
+                }))
+
+    def test_an_npmignore_negation_after_the_exclusion_fails(self):
+        """A later '!' line puts part of the plans back."""
+        self.assert_fail(self._check({
+            'package.json': '{"name": "thing", "version": "1.0.0"}\n',
+            '.npmignore': '/docs/plans/\n!/docs/plans/audit\n',
+        }))
+
+    def test_a_negation_touching_the_plans_is_not_credited(self):
+        """Wherever it sits: Cargo and hatch let the closest match win.
+
+        Cargo ships docs/plans/audit from the first list, and hatch the
+        Markdown plans from the second; npm would ship neither, but a
+        list whose answer depends on the tool is not credited.
+        """
+        cases = {
+            'npmignore': {
+                'package.json': '{"name": "thing", "version": "1.0.0"}\n',
+                '.npmignore': '!/docs/plans/audit\n/docs/plans/\n',
+            },
+            'cargo exclude': {
+                'Cargo.toml': (
+                    '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                    'exclude = ["!/docs/plans/audit", "/docs/plans/"]\n'),
+            },
+            'hatch exclude': {
+                'pyproject.toml': (
+                    '[build-system]\nrequires = ["hatchling"]\n'
+                    'build-backend = "hatchling.build"\n\n'
+                    '[tool.hatch.build.targets.sdist]\n'
+                    'exclude = ["!*.md", "/docs/plans/"]\n'),
+            },
+        }
+        for name, files in cases.items():
+            with self.subTest(name):
+                self.fresh_fixture()
+                self.assert_fail(self._check(files),
+                                 containing='1 release artifact')
+
+    def test_a_negation_elsewhere_leaves_the_exclusion_alone(self):
+        self.assert_pass(self._check({
+            'package.json': '{"name": "thing", "version": "1.0.0"}\n',
+            '.npmignore': '/docs\n!/docs/images\n',
+        }))
+
+    def test_a_crate_exclude_negation_after_the_exclusion_fails(self):
+        self.assert_fail(self._check({
+            'Cargo.toml': (
+                '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                'exclude = ["/docs", "!/docs/plans"]\n'),
+        }))
+
+    def test_a_zero_indented_build_ignore_passes(self):
+        """yamllint's default indent-sequences accepts this form."""
+        self.assert_pass(self._check({
+            'galaxy.yml': (
+                'namespace: sf\nname: thing\n'
+                'build_ignore:\n- .ansible\n- docs/plans\n'),
+        }))
+
+    def test_a_zero_indented_list_under_another_key_is_not_read(self):
+        self.assert_fail(self._check({
+            'galaxy.yml': (
+                'namespace: sf\nname: thing\n'
+                'build_ignore:\n- .ansible\ntags:\n- docs/plans\n'),
+        }))
+
+    def test_trailing_comments_in_galaxy_yml_are_dropped(self):
+        cases = {
+            'commented key': (
+                'build_ignore:  # working history\n  - docs/plans\n'),
+            'block item': 'build_ignore:\n  - docs/plans  # history\n',
+            'quoted item': "build_ignore:\n  - 'docs/plans' # history\n",
+            'flow list': "build_ignore: ['docs/plans']  # history\n",
+            'directive': (
+                'manifest:\n  omit_default_directives: false  # keep\n'
+                '  directives:\n    - prune docs/plans  # history\n'),
+        }
+        for name, galaxy in cases.items():
+            with self.subTest(name):
+                self.fresh_fixture()
+                self.assert_pass(self._check({
+                    'galaxy.yml': f'namespace: sf\nname: thing\n{galaxy}',
+                }))
+
+    def test_an_exclusion_of_one_file_type_fails(self):
+        """The next plan, or its audit notes, need not be Markdown."""
+        cases = {
+            'npmignore': {
+                'package.json': '{"name": "thing", "version": "1.0.0"}\n',
+                '.npmignore': '*.md\n',
+            },
+            'cargo exclude': {
+                'Cargo.toml': (
+                    '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                    'exclude = ["/docs/plans/*.md"]\n'),
+            },
+            'hatch exclude': {
+                'pyproject.toml': (
+                    '[build-system]\nrequires = ["hatchling"]\n'
+                    'build-backend = "hatchling.build"\n\n'
+                    '[tool.hatch.build.targets.sdist]\n'
+                    'exclude = ["docs/*.md", "*.md"]\n'),
+            },
+            'galaxy build_ignore': {
+                'galaxy.yml': (
+                    'namespace: sf\nname: thing\n'
+                    "build_ignore: ['*.md', 'docs/plans/PLAN-*']\n"),
+            },
+        }
+        for name, files in cases.items():
+            with self.subTest(name):
+                self.fresh_fixture()
+                self.assert_fail(self._check(files),
+                                 containing='1 release artifact')
+
+    def test_an_exclusion_of_everything_inside_the_plans_passes(self):
+        cases = {
+            'npmignore': {
+                'package.json': '{"name": "thing", "version": "1.0.0"}\n',
+                '.npmignore': '/docs/plans/**\n',
+            },
+            'cargo exclude': {
+                'Cargo.toml': (
+                    '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                    'exclude = ["docs/*"]\n'),
+            },
+            'galaxy build_ignore': {
+                'galaxy.yml': (
+                    'namespace: sf\nname: thing\n'
+                    "build_ignore: ['docs/plans/*']\n"),
+            },
+        }
+        for name, files in cases.items():
+            with self.subTest(name):
+                self.fresh_fixture()
+                self.assert_pass(self._check(files))
+
+    def test_an_npm_files_glob_of_top_level_docs_passes(self):
+        """'*' stays within one segment, so this is docs/*.md only."""
+        self.assert_pass(self._check({
+            'package.json': (
+                '{"name": "thing", "version": "1.0.0", '
+                '"files": ["dist/", "docs/*.md"]}\n'),
+        }))
+
+    def test_plain_setuptools_globally_including_a_plans_path_fails(self):
+        """setuptools reads global-include as '**/' plus the pattern."""
+        self.assert_fail(self._check({
+            'pyproject.toml': self.PLAIN_PYPROJECT,
+            'MANIFEST.in': 'global-include plans/*.md\n',
+        }))
+
+    def test_plain_setuptools_recursively_including_top_level_docs_passes(self):
+        self.assert_pass(self._check({
+            'pyproject.toml': self.PLAIN_PYPROJECT,
+            'MANIFEST.in': 'recursive-include . docs/*.md\n',
+        }))
+
+    def test_flow_sequence_manifest_directives_are_read(self):
+        self.assert_pass(self._check({
+            'galaxy.yml': (
+                'namespace: sf\nname: thing\nmanifest:\n'
+                "  directives: ['prune docs/plans']  # history\n"),
+        }))
+
+    def test_a_flow_mapping_manifest_is_reported_rather_than_guessed(self):
+        result = self.assert_fail(self._check({
+            'galaxy.yml': (
+                'namespace: sf\nname: thing\n'
+                'manifest: {directives: [prune docs/plans]}\n'),
+        }))
+        self.assertIn('flow-style manifest', result['findings'][0])
+
+    def test_a_global_hatch_exclude_of_the_plans_passes(self):
+        self.assert_pass(self._check({
+            'pyproject.toml': (
+                '[build-system]\nrequires = ["hatchling"]\n'
+                'build-backend = "hatchling.build"\n\n'
+                '[tool.hatch.build]\nexclude = ["/docs/plans"]\n'),
+        }))
+
+    def test_an_sdist_hatch_exclude_replaces_the_global_one(self):
+        """hatchling reads the target's exclude in place of the global."""
+        self.assert_fail(self._check({
+            'pyproject.toml': (
+                '[build-system]\nrequires = ["hatchling"]\n'
+                'build-backend = "hatchling.build"\n\n'
+                '[tool.hatch.build]\nexclude = ["/docs/plans"]\n\n'
+                '[tool.hatch.build.targets.sdist]\nexclude = ["/tests"]\n'),
+        }))
+
+    def test_a_recursive_include_inside_the_plans_fails(self):
+        """Every file it can match is a plan, whatever the patterns."""
+        for manifest, pyproject in (
+                ('recursive-include docs/plans *.txt\n', self.PLAIN_PYPROJECT),
+                ('recursive-include docs/plans/audit *.diff\n',
+                 self.PLAIN_PYPROJECT),
+                ('prune docs\nrecursive-include docs/plans *.json\n',
+                 self.SCM_PYPROJECT)):
+            with self.subTest(manifest=manifest):
+                self.fresh_fixture()
+                self.assert_fail(self._check({
+                    'pyproject.toml': pyproject,
+                    'MANIFEST.in': manifest,
+                }))
+
+    def test_file_patterns_are_judged_against_the_tracked_plans(self):
+        """A pattern selecting a tracked audit note ships it."""
+        cases = {
+            'recursive-include': {
+                'pyproject.toml': self.PLAIN_PYPROJECT,
+                'MANIFEST.in': 'recursive-include docs *.png *.diff\n',
+            },
+            'global-include': {
+                'pyproject.toml': self.PLAIN_PYPROJECT,
+                'MANIFEST.in': 'global-include *.diff\n',
+            },
+            'npm files': {
+                'package.json': (
+                    '{"name": "thing", "version": "1.0.0", '
+                    '"files": ["dist/", "*.diff"]}\n'),
+            },
+            'npmignore negation': {
+                'package.json': '{"name": "thing", "version": "1.0.0"}\n',
+                '.npmignore': '/docs/plans/\n!audit/\n',
+            },
+        }
+        for name, files in cases.items():
+            with self.subTest(name):
+                self.fresh_fixture()
+                files['docs/plans/audit/phase-1.diff'] = '--- a\n+++ b\n'
+                self.assert_fail(self._check(files),
+                                 containing='1 release artifact')
+
+    def test_file_patterns_matching_no_tracked_plan_pass(self):
+        """The same patterns, with no .diff tracked under docs/plans."""
+        for manifest in ('recursive-include docs *.png *.diff\n',
+                         'global-include *.diff\n'):
+            with self.subTest(manifest=manifest):
+                self.fresh_fixture()
+                self.assert_pass(self._check({
+                    'pyproject.toml': self.PLAIN_PYPROJECT,
+                    'MANIFEST.in': manifest,
+                }))
+
+    def test_a_crate_inheriting_publish_false_does_not_apply(self):
+        self.assert_skip(self._check({
+            'Cargo.toml': (
+                '[workspace]\nmembers = ["."]\n\n'
+                '[workspace.package]\npublish = false\n\n'
+                '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                'publish.workspace = true\n'),
+        }))
+
+    def test_hatch_only_include_without_include(self):
+        hatch = (
+            '[build-system]\nrequires = ["hatchling"]\n'
+            'build-backend = "hatchling.build"\n\n'
+            '[tool.hatch.build.targets.sdist]\n')
+        self.assert_pass(self._check({
+            'pyproject.toml': hatch + 'only-include = ["thing"]\n',
+        }))
+        self.fresh_fixture()
+        self.assert_fail(self._check({
+            'pyproject.toml': hatch + 'only-include = ["thing", "docs"]\n',
+        }))
+
+    def test_every_tool_is_measured_from_docs(self):
+        """A manifest in docs/ reaches docs/plans as plans/."""
+        cases = {
+            'sdist (docs/pyproject.toml)': (
+                {'docs/pyproject.toml': self.SCM_PYPROJECT},
+                {'docs/MANIFEST.in': 'prune plans\n'}),
+            'crate (docs/Cargo.toml)': (
+                {'docs/Cargo.toml': (
+                    '[package]\nname = "thing"\nversion = "0.1.0"\n')},
+                {'docs/Cargo.toml': (
+                    '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                    'exclude = ["/plans"]\n')}),
+            'collection (docs/galaxy.yml)': (
+                {'docs/galaxy.yml': 'namespace: sf\nname: thing\n'},
+                {'docs/galaxy.yml': (
+                    'namespace: sf\nname: thing\n'
+                    'build_ignore:\n  - plans\n')}),
+        }
+        for artifact, (failing, fixed) in cases.items():
+            with self.subTest(artifact):
+                self.fresh_fixture()
+                result = self.assert_fail(self._check(failing))
+                self.assertIn(artifact, result['findings'][0])
+                self.assertIn('plans', result['findings'][0])
+                self.fresh_fixture()
+                self.assert_pass(self._check({**failing, **fixed}))
+
+
+class PathPatternSelectsTest(unittest.TestCase):
+    """The gitignore-shaped matching every exclusion list goes through."""
+
+    def test_patterns_that_select_the_plans(self):
+        for pattern in ('docs/plans', '/docs/plans', 'docs/plans/',
+                        './docs/plans', 'docs', '/docs/', 'docs/**',
+                        'docs/*', 'docs/plans/*', 'docs/plans/**', 'plans',
+                        'plans/', '*', '/*', '**', '*/*', 'd*/pl*',
+                        '**/plans'):
+            with self.subTest(pattern=pattern):
+                self.assertTrue(packaging.path_pattern_selects(
+                    pattern, 'docs/plans'))
+
+    def test_patterns_that_do_not(self):
+        for pattern in ('', '/', 'doc', 'docs/plan', 'docs/plansx',
+                        '/src', 'docs/images', '*.py', '/plans', '*.md',
+                        'docs/plans/*.md', 'docs/*.md', 'docs/plans/PLAN-*',
+                        '*/plans/*.md', 'docs/plans/audit', 'plans/*'):
+            with self.subTest(pattern=pattern):
+                self.assertFalse(packaging.path_pattern_selects(
+                    pattern, 'docs/plans'))
+
+
+class PathPatternReachesTest(unittest.TestCase):
+    """The wider match an include list, or a '!' line, goes through."""
+
+    PLANS = ['docs/plans/PLAN-thing.md', 'docs/plans/audit/notes.txt']
+
+    def test_patterns_that_reach_into_the_plans(self):
+        for pattern in ('docs/plans', 'docs', 'docs/plans/audit',
+                        '/docs/plans/audit/', 'docs/plans/**/*.png',
+                        'docs/plans/README.md', 'docs/*/audit', '**/audit',
+                        'audit', 'audit/', 'docs/**/notes.txt', '*.md',
+                        '*.txt', 'docs/plans/*.md', 'PLAN-*'):
+            with self.subTest(pattern=pattern):
+                self.assertTrue(packaging.path_pattern_reaches(
+                    pattern, 'docs/plans', self.PLANS))
+
+    def test_patterns_that_do_not(self):
+        for pattern in ('', 'docs/images/audit', 'src/**',
+                        'docs/plansx/audit', 'doc/plans/audit',
+                        'docs/*.md', '/*.md', '*.py', '*.png', 'PLAN-*/',
+                        'notes.txt/', 'docs/**/x.md', '**/diffs'):
+            with self.subTest(pattern=pattern):
+                self.assertFalse(packaging.path_pattern_reaches(
+                    pattern, 'docs/plans', self.PLANS))
+
+    def test_names_outside_target_are_judged_against_the_tracked_plans(self):
+        """Without a tracked .txt note, '*.txt' reaches nothing."""
+        plans = ['docs/plans/PLAN-thing.md']
+        for pattern in ('*.txt', 'audit', '**/audit'):
+            with self.subTest(pattern=pattern):
+                self.assertFalse(packaging.path_pattern_reaches(
+                    pattern, 'docs/plans', plans))
+
+
+class RootedBelowTest(unittest.TestCase):
+
+    def test_patterns_rooted_below_the_plans(self):
+        for pattern in ('docs/plans/audit', 'docs/*/x.txt', 'd*/p*/a/b',
+                        'docs/plans/**/*.png'):
+            with self.subTest(pattern=pattern):
+                self.assertTrue(packaging.rooted_below(
+                    pattern.split('/'), 'docs/plans'))
+
+    def test_patterns_that_are_not(self):
+        for pattern in ('docs/plans', 'docs', 'docs/**/x.txt', '**/audit',
+                        'docs/images/x.txt', 'plans/audit'):
+            with self.subTest(pattern=pattern):
+                self.assertFalse(packaging.rooted_below(
+                    pattern.split('/'), 'docs/plans'))
+
+
+class SegmentGlobMatchesTest(unittest.TestCase):
+
+    def test_a_star_stays_within_a_segment(self):
+        sample = 'docs/plans/PLAN-example.md'
+        self.assertTrue(packaging.segment_glob_matches(sample, 'docs/*/*.md'))
+        self.assertTrue(packaging.segment_glob_matches(sample, 'docs/**'))
+        self.assertFalse(packaging.segment_glob_matches(sample, '*.md'))
+        self.assertFalse(packaging.segment_glob_matches(sample, 'docs/*.md'))
+
+    def test_a_double_star_spans_segments_only_when_recursive(self):
+        sample = 'docs/plans/audit/notes.txt'
+        for pattern, recursive, expected in (
+                ('docs/**', True, True), ('docs/**', False, False),
+                ('**/notes.txt', True, True), ('**/*/notes.txt', True, True),
+                ('docs/**/plans/audit/*', True, True),
+                ('**.txt', True, False), ('docs/*/*/**', False, True)):
+            with self.subTest(pattern=pattern, recursive=recursive):
+                self.assertEqual(expected, packaging.segment_glob_matches(
+                    sample, pattern, recursive=recursive))
+
+
+class YamlScalarTest(unittest.TestCase):
+
+    def test_comments_and_quotes_are_dropped(self):
+        for text, expected in (
+                (' docs/plans ', 'docs/plans'),
+                ('docs/plans  # history', 'docs/plans'),
+                ("'docs/plans' # history", 'docs/plans'),
+                ('"docs # plans"', 'docs # plans'),
+                ('docs#plans', 'docs#plans'),
+                ('# only a comment', '')):
+            with self.subTest(text=text):
+                self.assertEqual(expected, packaging.yaml_scalar(text))
+
+
+class BuildIgnoreSelectsTest(unittest.TestCase):
+    """galaxy.yml build_ignore: fnmatch against the relative path."""
+
+    def test_patterns_that_select_the_plans(self):
+        for pattern in ('docs/plans', 'docs', 'docs/*', '*plans',
+                        'docs/plans/*', 'docs/plans/**', '*',
+                        "'docs/plans'"):
+            with self.subTest(pattern=pattern):
+                self.assertTrue(packaging.build_ignore_selects(
+                    pattern, 'docs/plans'))
+
+    def test_patterns_that_do_not(self):
+        for pattern in ('plans', '/docs/plans', 'docs/plans/', 'docs/',
+                        './docs/plans', 'doc', '*.py', '*.md',
+                        'docs/*.md', 'docs/plans/PLAN-*', 'docs/plans/*.md'):
+            with self.subTest(pattern=pattern):
+                self.assertFalse(packaging.build_ignore_selects(
+                    pattern, 'docs/plans'))
+
+
+class NormalisePathTest(unittest.TestCase):
+
+    def test_spellings_of_the_plans_directory(self):
+        for value in ('docs/plans', '/docs/plans/', './docs/plans',
+                      ' ./docs/plans/ ', '"docs/plans"', '././docs/plans'):
+            with self.subTest(value=value):
+                self.assertEqual('docs/plans',
+                                 packaging.normalise_path(value))
+
+
 class UnusedDeclaredDependencyTest(CheckTestCase):
     check_class = packaging.UnusedDeclaredDependency
 
