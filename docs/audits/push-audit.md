@@ -104,8 +104,11 @@ references across thirteen repositories, and "phase" has enough
 ordinary meanings that a mechanical check wants the first repository
 sweep to show what its false positives look like before it files
 issues. The fix for a non-compliant repository is a verbatim copy of
-`templates/shared-blocks/plan-references-in-code.md`; the backlog
-the block describes is swept separately.
+`templates/shared-blocks/plan-references-in-code.md`. The backlog
+the block describes -- references already in the code -- is
+measured by the [plan-history-in-source](plan-history-in-source.md)
+audit, which reports the numbered shapes the block forbids wherever
+they sit in a repository's source.
 
 Judgement alone reliably misses some, so this repository's wave-1
 sweep also carries a report-only grep for added lines that look like

@@ -11,6 +11,12 @@ Run with: python3 scripts/tests/test_plans.py
 # criteria are tested by naming plans that do not resolve,
 # so the marker belongs to the file rather than to any one
 # line of it.
+#
+# audit-ok: phase-reference-file
+#
+# Likewise the phase, decision and step numbers: these suites
+# are made of plan-shaped fixtures, and their docstrings cite
+# real plans as the shapes those fixtures copy.
 
 import os
 import re
@@ -458,6 +464,213 @@ class PlanSourceReferenceTest(CheckTestCase):
             ),
         })
         self.assert_skip(result)
+
+
+class PlanHistoryInSourceTest(CheckTestCase):
+    """Plan phase, decision and step numbers cited in source."""
+
+    check_class = plans.PlanHistoryInSource
+
+    def _check(self, files):
+        """The check over a checkout holding these files, staged.
+
+        The same repository shape as PlanSourceReferenceTest: both
+        checks read the files git knows about, through the same walk.
+        """
+        self.fixture.write_all(files)
+        self.fixture.init_git()
+        self.fixture.git('add', '-A')
+        return self.check()
+
+    def test_clean_source_passes(self):
+        result = self._check({
+            'src/frob.py': '# Frob twice: the first pass warms the cache.\n',
+        })
+        self.assert_pass(result)
+        self.assertEqual(result['details'], 'No plan history references in source')
+
+    def test_not_applicable_without_source(self):
+        result = self._check({
+            'README.md': '# Frob\n\nAdded in phase 3.\n',
+        })
+        self.assert_skip(result, containing='No source or configuration files')
+
+    def test_a_directory_that_is_not_a_checkout_fails(self):
+        """A failed listing is not a repository with nothing in it."""
+        self.fixture.write('src/frob.py', '# Added in phase 3.\n')
+        self.assert_fail(self.check(), containing='not the root of a checkout')
+
+    def test_each_shape_fails(self):
+        shapes = {
+            'phase': '# Added in phase 3.\n',
+            'plural phase': '# Phases 2 and 3 built this.\n',
+            'hyphenated phase': '# Found by the phase-4 leaks pass.\n',
+            'decision': '# Per decision 3, frob twice.\n',
+            'decision with a sub-number': '# See decision 6.4.\n',
+            'lettered step': '# Pending step 5f.\n',
+        }
+        for name, line in shapes.items():
+            with self.subTest(shape=name):
+                self.fresh_fixture()
+                result = self._check({'src/frob.py': 'x = 1\n' + line})
+                self.assert_fail(result, containing='src/frob.py:2')
+
+    def test_the_message_says_what_to_do_and_where(self):
+        result = self._check({
+            'src/a.py': '# Added in phase 3.\n',
+            'src/b.rs': '// Per decision 2.\n',
+        })
+        self.assert_fail(result, containing='write the reason the code is this way')
+        self.assertIn('2 plan history reference(s) in source', result['details'])
+        self.assertIn('src/a.py:1', result['details'])
+        self.assertIn('src/b.rs:1', result['details'])
+
+    def test_more_than_ten_hits_are_counted_not_listed(self):
+        result = self._check({
+            'src/frob.py': ''.join(f'# Added in phase {n}.\n' for n in range(12)),
+        })
+        self.assert_fail(result, containing='(+2 more)')
+        self.assertNotIn('src/frob.py:11', result['details'])
+
+    def test_string_literals_are_read(self):
+        # A log line announcing a plan phase is as much history as a
+        # comment saying it.
+        result = self._check({
+            'src/frob.py': "LOG.info('entering phase 3')\n",
+        })
+        self.assert_fail(result, containing='src/frob.py:1')
+
+    def test_two_phase_commit_passes(self):
+        result = self._check({
+            'src/frob.py': '# Two-phase commit, so a crash leaves nothing half done.\n',
+        })
+        self.assert_pass(result)
+
+    def test_a_bare_numbered_step_passes(self):
+        # Procedural comments say "step 1: open the file" in the
+        # ordinary sense; only the lettered form is a plan's.
+        result = self._check({
+            'src/frob.py': '# Step 3: close the file.\n# Steps 4 and 5 retry.\n',
+        })
+        self.assert_pass(result)
+
+    def test_a_backticked_match_is_ignored(self):
+        result = self._check({
+            'src/frob.py': '# The pattern matches `phase 3` and `step 5f`.\n',
+        })
+        self.assert_pass(result)
+
+    def test_the_line_marker_exempts_one_line(self):
+        result = self._check({
+            'src/power.py': (
+                'SUPPLY = 3  # phase 3 supply  # audit-ok: phase-reference\n'
+                '// audit-ok: phase-reference -- phase 2 in C syntax\n'
+                '# Added in phase 4.\n'
+            ),
+        })
+        self.assert_fail(result, containing='src/power.py:3')
+        self.assertIn('1 plan history reference(s)', result['details'])
+
+    def test_the_documentation_marker_form_exempts_a_line_too(self):
+        # The bare token is what is matched, so the HTML comment form
+        # plan-phase-references accepts works in source as well.
+        result = self._check({
+            'src/frob.html': 'Phase 3 wiring <!-- audit-ok: phase-reference -->\n',
+        })
+        self.assert_pass(result)
+
+    def test_the_file_marker_exempts_a_whole_file(self):
+        result = self._check({
+            'tests/test_frob.py': (
+                '# audit-ok: phase-reference-file\n'
+                '#\n'
+                '# Fixtures for the phase pattern.\n'
+                "FIXTURES = ['phase 3', 'decision 4', 'step 5f']\n"
+            ),
+        })
+        self.assert_pass(result)
+
+    def test_the_line_marker_alone_does_not_exempt_the_file(self):
+        # The line token is a prefix of the file token, so a file that
+        # carries only the line marker must not read as file-exempt.
+        result = self._check({
+            'src/frob.py': (
+                '# phase 3 wiring  # audit-ok: phase-reference\n'
+                '# Added in phase 4.\n'
+            ),
+        })
+        self.assert_fail(result, containing='src/frob.py:2')
+
+    def test_a_file_marker_elsewhere_does_not_exempt_this_file(self):
+        result = self._check({
+            'tests/test_frob.py': '# audit-ok: phase-reference-file\n',
+            'src/frob.py': '# Added in phase 4.\n',
+        })
+        self.assert_fail(result, containing='src/frob.py:1')
+        self.assertNotIn('tests/test_frob.py', result['details'])
+
+    def test_mkdocs_configuration_is_skipped(self):
+        # mkdocs nav entries title plan pages by phase. That is
+        # documentation structure, not a claim about code.
+        nav = (
+            'nav:\n'
+            '  - "Phase 5: Direct-qemu CI": plans/PLAN-harness-phase-05.md\n'
+        )
+        for path in ('mkdocs.yml', 'docs/components/kerbside/mkdocs.yml', 'mkdocs.yaml'):
+            with self.subTest(path=path):
+                self.fresh_fixture()
+                result = self._check({path: nav, 'src/frob.py': 'x = 1\n'})
+                self.assert_pass(result)
+
+    def test_only_mkdocs_configuration_is_not_applicable(self):
+        result = self._check({
+            'mkdocs.yml': 'nav:\n  - "Phase 5": plans/PLAN-x.md\n',
+        })
+        self.assert_skip(result)
+
+    def test_a_plans_directory_is_skipped(self):
+        result = self._check({
+            'docs/plans/audit/diffs/abc123.diff': '+# Added in phase 3.\n',
+            'src/frob.py': 'x = 1\n',
+        })
+        self.assert_pass(result)
+
+    def test_a_plans_directory_outside_docs_is_still_source(self):
+        result = self._check({
+            'src/plans/billing.py': '# Added in phase 3.\n',
+        })
+        self.assert_fail(result, containing='src/plans/billing.py:1')
+
+    def test_markdown_is_skipped(self):
+        # Markdown is documentation, plan-phase-references' scope.
+        result = self._check({
+            'notes.md': 'Added in phase 3.\n',
+            'src/frob.py': 'x = 1\n',
+        })
+        self.assert_pass(result)
+
+    def test_a_plan_filename_with_a_phase_in_it_is_not_history(self):
+        # A plan with a file per phase names the phase in the file.
+        # The pointer is plan-source-references' business, not prose.
+        result = self._check({
+            'src/frob.py': (
+                '# Deferred; see docs/plans/PLAN-harness-phase-05-qemu.md.\n'
+                '# Deferred; see PLAN-x-phase-05-y.md.\n'
+            ),
+        })
+        self.assert_pass(result)
+
+    def test_a_url_is_not_history(self):
+        result = self._check({
+            'src/frob.py': '# See https://example.com/rollout/phase-3/notes for the schedule.\n',
+        })
+        self.assert_pass(result)
+
+    def test_prose_beside_a_plan_filename_is_still_read(self):
+        result = self._check({
+            'src/frob.py': '# Added in phase 3 of PLAN-x.md.\n',
+        })
+        self.assert_fail(result, containing='src/frob.py:1')
 
 
 class PlanIndexTest(CheckTestCase):

@@ -103,6 +103,10 @@ FROZEN_METADATA = {
         'spec': 'docs/audits/plan-source-references.md',
         'template': None,
     },
+    'plan-history-in-source': {
+        'spec': 'docs/audits/plan-history-in-source.md',
+        'template': None,
+    },
     'plan-index': {
         'spec': 'docs/audits/plan-index.md',
         'template': 'templates/shared-blocks/',
@@ -338,6 +342,7 @@ FROZEN_ISSUE_TITLES = {
     'readme-structure': 'README structure',
     'plan-phase-references': 'Plan phase references',
     'plan-source-references': 'Plan references in source',
+    'plan-history-in-source': 'Plan history in source',
     'plan-index': 'Plan index',
     'plan-audit-phase': 'Push audit phase in master plans',
     'push-audit': 'Pre-push audit file',

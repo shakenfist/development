@@ -79,7 +79,7 @@ class IterLinesOutsideFencesTest(unittest.TestCase):
 
 class MarkdownHeadingTest(unittest.TestCase):
     def test_reads_level_and_text(self):
-        self.assertEqual(markdown_heading('### Phase 5'), (3, 'Phase 5'))
+        self.assertEqual(markdown_heading('### Phase 5'), (3, 'Phase 5'))  # audit-ok: phase-reference
 
     def test_requires_whitespace_after_the_hashes(self):
         self.assertIsNone(markdown_heading('###nope'))
