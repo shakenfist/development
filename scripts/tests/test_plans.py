@@ -343,6 +343,27 @@ def assert_found(case, result, location):
     case.assertTrue(any(location in finding for finding in result['findings']), result['findings'])
 
 
+def link_outside(case, rel, content):
+    """Commit-ready symlink at rel to a file outside case's checkout.
+
+    git tracks symlinks, so this is how a repository points the walk
+    at a file on the runner it does not contain. The target is in a
+    tempdir() rather than written through FixtureRepo, which joins
+    every path under the checkout.
+    """
+    target = os.path.join(case.tempdir(), 'outside.py')
+    with open(target, 'w') as f:
+        f.write(content)
+    link = os.path.join(case.fixture.path, rel)
+    os.makedirs(os.path.dirname(link), exist_ok=True)
+    os.symlink(target, link)
+
+
+def oversize(content):
+    """content padded past PLAN_SOURCE_MAX_BYTES, the walk's size cap."""
+    return content + 'x' * (plans.PLAN_SOURCE_MAX_BYTES + 1 - len(content))
+
+
 # Long single-line bodies that a pattern opening with an unanchored
 # greedy run scans quadratically: each of their characters is a start
 # position that rescans the rest of the run. 100,000 characters took
@@ -522,6 +543,14 @@ class PlanSourceReferenceTest(CheckTestCase):
         self.assertIn('in 1 file(s)', result['details'])
         self.assertNotIn('@', result['details'])
         self.assertEqual(['src/@org/team/x.py:1 -> PLAN-gone.md'], result['findings'])
+
+    def test_a_symlink_out_of_the_checkout_is_not_read(self):
+        link_outside(self, 'src/leak.py', '# See PLAN-missing.md.\n')
+        self.assert_skip(self._check({'src/frob.py': 'x = 1\n'}))
+
+    def test_an_oversize_file_is_not_read(self):
+        result = self._check({'src/huge.py': oversize('# See PLAN-missing.md.\n')})
+        self.assert_skip(result)
 
     def test_a_long_line_is_scanned_in_linear_time(self):
         assert_long_lines_are_linear(self, '# See PLAN-gone.md. ', self.assert_fail)
@@ -760,6 +789,17 @@ class PlanHistoryInSourceTest(CheckTestCase):
         self.assert_fail(result, containing='1 plan history reference(s) in source, in 1 file(s)')
         self.assertNotIn('@', result['details'])
         self.assertEqual(['src/@org/team/x.py:1'], result['findings'])
+
+    def test_a_symlink_out_of_the_checkout_is_not_read(self):
+        link_outside(self, 'src/leak.py', '# Added in phase 3.\n')
+        self.assert_pass(self._check({'src/frob.py': 'x = 1\n'}))
+
+    def test_an_oversize_file_is_not_read(self):
+        result = self._check({
+            'src/huge.py': oversize('# Added in phase 3.\n'),
+            'src/frob.py': 'x = 1\n',
+        })
+        self.assert_pass(result)
 
     def test_a_long_line_is_scanned_in_linear_time(self):
         assert_long_lines_are_linear(self, '# Added in phase 1. ', self.assert_fail)
