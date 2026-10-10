@@ -624,6 +624,39 @@ this plan's own diff outside plan documents. Close the plan per
 `plan-phase-landing`, and close #239 from the pull request that
 lands phase 2.
 
+#### Push audit result
+
+Run on 2026-10-11 over `0afc389^1..0afc389`, the one merge commit
+that carried both phases (21 files, +1650/-105; every wave 2
+report measured the same totals).
+
+**Wave 1.** `pre-commit run --all-files` clean. Of the greps:
+the new imports are stdlib (`subprocess`, `tempfile`); the one
+`issue_title` change is the new criterion's, frozen; every hit of
+the plan-reference grep is a fixture or a backticked description
+of the pattern; three touched files are over 800 lines
+(`test_plans.py` 3247, `plans.py` 1778, `test_registry.py`
+1344), judged in 2a. Nothing else.
+
+**Wave 2.** No critical, high or blocking finding. The findings,
+and what happens to each:
+
+| Finding | From | Outcome |
+|---|---|---|
+| `PLAN_SOURCE_URL_RE` and `PLAN_SOURCE_REF_RE` are quadratic in line length (40k characters: 3.7s and 5.4s; a 60 KB line: 20.5s for the check). `plan-history-in-source` runs both on every line of any file with one match, so one long line in an audited repository can time out its leg, and `update-docs` then stops the compliance page for the whole fleet | 2d, medium | Fix: anchor both with a lookbehind, prefilter each line, timing regression test |
+| Locations are joined into `details`, which `defuse()` does not code-span, so a path such as `@org/team/x.py` renders as a live mention under the bot's identity; already true of `plan-source-references` | 2d, low | Fix: pass locations as `findings=` in both checks |
+| `iter_plan_source_files()`'s symlink containment and size cap have no test through either caller | 2b, 2d, low | Fix: symlink-escape and oversize tests |
+| The code-span strip is written twice in `plans.py` | 2a | Fix: one named constant |
+| Comments on `PHASE_REFERENCE_FILE_OK`, `PLAN_HISTORY_RE` and in `run()` heavier than comment-proportion wants; the wave 1 grep comment lacks a final period | 2a | Fix: trim |
+| The spec says each repository's runbook carries the grep; only this one does. The grep is narrower than the criterion (no `decision N.N`) and the spec does not say so | 2c | Fix: reword, one sentence |
+| No explicit assertion that private-ci excludes the new check | 2b | Fix |
+| The private-ci reason ("has not adopted the convention") would apply to every repository without the block | 2a, 2d | Fix: state the real reason -- private-ci's scope is opted into check by check, and this one comes in with `push-audit` |
+| `plans.py` at 1778 lines, with a seam between the plan-reference checks and the plan-structure checks | 2a | Deferred to Future work: a refactor of its own, not created by this plan |
+| Exact-string assertions on `details` | 2b | Declined: the neighbouring checks' tests assert the same way, and a message is part of what an issue says |
+
+The fixes land as their own pull request, which also closes this
+phase out.
+
 ## Agent guidance
 
 ### Execution model
@@ -898,6 +931,13 @@ intend to do aligns with that plan.
 <!-- shared-block-end -->
 
 **In this repository.** Future work, as of writing:
+
+* Split `scripts/audit/checks/plans.py` (1778 lines after this
+  plan) along its seam: the plan-reference checks and their
+  `plan_source_*` helpers, and the plan-structure checks
+  (`plan-index`, `plan-audit-phase`, `push-audit`) with the
+  phase-table parsing. `test_plans.py` would split the same way.
+  Raised by this plan's push audit.
 
 * Offer the wave 1 grep as a ready-made line in the fleet's
   `PUSH-AUDIT.md` files directly, rather than through guidance in
