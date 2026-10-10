@@ -23,6 +23,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -332,6 +333,35 @@ class PlanPhaseReferencesTest(CheckTestCase):
         self.assert_pass(result)
 
 
+# Long single-line bodies that a pattern opening with an unanchored
+# greedy run scans quadratically: each of their characters is a start
+# position that rescans the rest of the run. 100,000 characters took
+# the unanchored patterns about thirty seconds each, against
+# milliseconds once anchored, so the bound below is generous either
+# way round. One body per shape the plan-reference patterns have to
+# survive: a run with no `://` or `PLAN-`, the same run broken by a
+# digit after every letter (a scheme must start with a letter), and
+# many `PLAN-` with no `.md` after any of them.
+LONG_LINE_BODIES = {
+    'one run': 'a' * 100_000,
+    'letters and digits': 'a1' * 50_000,
+    'repeated plan prefix': 'PLAN-' * 20_000,
+}
+LONG_LINE_SECONDS = 5
+
+
+def assert_long_lines_are_linear(case, prefix, assert_verdict):
+    """Run case's check over each long body after prefix, timing it."""
+    for name, body in LONG_LINE_BODIES.items():
+        with case.subTest(body=name):
+            case.fresh_fixture()
+            start = time.monotonic()
+            result = case._check({'src/frob.py': prefix + body + '\n'})
+            elapsed = time.monotonic() - start
+            assert_verdict(result)
+            case.assertLess(elapsed, LONG_LINE_SECONDS)
+
+
 class PlanSourceReferenceTest(CheckTestCase):
     """Plan pointers written into source and configuration."""
 
@@ -466,6 +496,9 @@ class PlanSourceReferenceTest(CheckTestCase):
             ),
         })
         self.assert_skip(result)
+
+    def test_a_long_line_is_scanned_in_linear_time(self):
+        assert_long_lines_are_linear(self, '# See PLAN-gone.md. ', self.assert_fail)
 
 
 class PlanHistoryInSourceTest(CheckTestCase):
@@ -691,6 +724,9 @@ class PlanHistoryInSourceTest(CheckTestCase):
             'src/frob.py': '# Added in phase 3 of PLAN-x.md.\n',
         })
         self.assert_fail(result, containing='src/frob.py:1')
+
+    def test_a_long_line_is_scanned_in_linear_time(self):
+        assert_long_lines_are_linear(self, '# Added in phase 1. ', self.assert_fail)
 
 
 class PlanIndexTest(CheckTestCase):

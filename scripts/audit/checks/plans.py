@@ -42,10 +42,29 @@ PHASE_REFERENCE_OK = f'<!-- {PHASE_REFERENCE_TOKEN} -->'
 # Plan source references: a plan pointer written into source or
 # configuration must resolve in this repository, or else be an
 # absolute URL. See docs/audits/plan-source-references.md.
-PLAN_SOURCE_REF_RE = re.compile(r'[\w./-]*PLAN-[\w.-]*\.md')
+#
+# Both patterns run on every line of another repository's files, so
+# both must be linear in line length. Opening with an unanchored
+# greedy run is not: each character of a long run lacking `PLAN-` (or
+# `://`) is a fresh start that rescans the run, and one 60 KB line
+# took twenty seconds. The lookbehind admits a start only where a run
+# begins, which is where the leftmost match began anyway, so the
+# matches are unchanged. The name is bounded as well, since each of
+# many `PLAN-` in one run would otherwise rescan the rest for `.md`;
+# 247 keeps the `PLAN-...md` component within the 255 bytes a
+# filename can have, so nothing that could resolve is excluded.
+PLAN_SOURCE_REF_RE = re.compile(r'(?<![\w./-])[\w./-]*PLAN-[\w.-]{0,247}\.md')
 
 
-PLAN_SOURCE_URL_RE = re.compile(r'[a-z][a-z0-9+.-]*://\S*', re.IGNORECASE)
+# A scheme starts with a letter, so the run in front of the letter is
+# captured and put back: `1http://x` loses `http://x`, as it did
+# before the lookbehind. Strip with plan_source_strip_urls().
+PLAN_SOURCE_URL_RE = re.compile(r'(?<![a-z0-9+.-])([0-9+.-]*)[a-z][a-z0-9+.-]*://\S*', re.IGNORECASE)
+
+
+def plan_source_strip_urls(text):
+    """Remove each absolute URL from text, keeping what precedes it."""
+    return PLAN_SOURCE_URL_RE.sub(r'\1', text)
 
 
 PLAN_SOURCE_REF_OK = 'audit-ok: plan-reference'
@@ -1209,9 +1228,9 @@ class PlanSourceReferences(Check):
             if PLAN_SOURCE_FILE_OK in content:
                 continue
             for lineno, line in enumerate(content.splitlines(), 1):
-                if PLAN_SOURCE_REF_OK in line:
+                if 'PLAN-' not in line or PLAN_SOURCE_REF_OK in line:
                     continue
-                scannable = PLAN_SOURCE_URL_RE.sub('', line)
+                scannable = plan_source_strip_urls(line)
                 for match in PLAN_SOURCE_REF_RE.finditer(scannable):
                     token = match.group(0)
                     if os.path.basename(token) == PLAN_SOURCE_TEMPLATE_NAME:
@@ -1285,13 +1304,13 @@ class PlanHistoryInSource(Check):
             if not PLAN_HISTORY_RE.search(content):
                 continue
             for lineno, line in enumerate(content.splitlines(), 1):
-                if PHASE_REFERENCE_TOKEN in line:
+                if not PLAN_HISTORY_RE.search(line) or PHASE_REFERENCE_TOKEN in line:
                     continue
                 # Code spans before URLs: a URL match runs to the next
                 # whitespace, so stripping it first could take a
                 # closing backtick with it and unpair the spans after.
                 scannable = re.sub(r'`+[^`\n]*`+', '', line)
-                scannable = PLAN_SOURCE_URL_RE.sub('', scannable)
+                scannable = plan_source_strip_urls(scannable)
                 scannable = PLAN_SOURCE_REF_RE.sub('', scannable)
                 if PLAN_HISTORY_RE.search(scannable):
                     hits.append(f'{rel}:{lineno}')
