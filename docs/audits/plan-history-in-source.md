@@ -114,10 +114,14 @@ Three criteria and a grep divide the rule between them:
   audit's, not this one's.
 * This audit flags the numbered shapes, which are history by
   construction.
-* The wave 1 grep in each repository's `PUSH-AUDIT.md` catches the
-  same shapes, plus plan filenames, on the lines a change adds, so
-  that the backlog this audit reports stops growing while it is
-  worked off.
+* This repository's wave 1 grep in `PUSH-AUDIT.md`, and the
+  equivalent an adopting repository carries, catches the same shapes,
+  plus plan filenames, on the lines a change adds, so that the backlog
+  this audit reports stops growing while it is worked off. It matches
+  `decision 6.4` by its first number and misses `phase 3a` just as
+  this audit does, but it strips nothing and honours neither the
+  markers nor the mkdocs exemption, so a hit is a candidate for the
+  reviewer rather than a finding.
 
 ## Template
 
