@@ -91,7 +91,9 @@ PHASE_REFERENCE_FILE_OK = f'{PHASE_REFERENCE_TOKEN}-file'
 # comments write `step 1: open the file` in the ordinary sense, and
 # only the lettered form is a plan's. String literals are not stripped
 # either: a log line announcing a plan phase is as much history as a
-# comment saying it, and is read by more people.
+# comment saying it, and is read by more people. A literal written in
+# backticks is the exception, since the code span removal cannot tell
+# a template literal from a quoted shape, so it under-reports there.
 PLAN_HISTORY_RE = re.compile(
     PHASE_REFERENCE_RE.pattern
     + r'|\bphase-\d+\b'

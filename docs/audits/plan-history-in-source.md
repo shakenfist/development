@@ -36,7 +36,10 @@ The phase shape is `plan-phase-references`' pattern, shared rather
 than copied. A step with a bare number, such as `step 3`, is not
 matched: procedural comments write `step 1: open the file` in the
 ordinary sense, and only the lettered form is a plan's. A phase with
-no number (`two-phase commit`) is not matched either.
+no number (`two-phase commit`) is not matched either. Nor, for now, is
+a phase or step whose number carries letters after the first, such as
+`phase 3a` or `step 12ab`; that is a known gap rather than a judgment
+that they are not plan history.
 
 Before a line is matched, three things are removed from it:
 
@@ -52,7 +55,13 @@ Before a line is matched, three things are removed from it:
 
 String literals are not removed. A log line announcing
 `entering phase 3` is as much history as a comment saying it, and
-more people read it.
+more people read it. The exception is a literal the language writes
+in backticks -- a JavaScript or TypeScript template literal, a shell
+command substitution, a Go raw string. The code span removal cannot
+tell those from a quoted shape in a comment, so they are removed
+too, and a plan citation inside one passes. That errs towards
+reporting too little, which is the safe direction for a check that
+files issues.
 
 ### Exemptions
 
