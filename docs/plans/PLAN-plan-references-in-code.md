@@ -267,7 +267,7 @@ Out of scope:
 |-------|--------|--------|
 | 1. Diff-level guard and this repository's cleanup | Complete | 0afc389 (#241, which carried #242) |
 | 2. The `plan-history-in-source` criterion | Complete | 0afc389 (#241, which carried #242) |
-| 3. Push audit | In progress | |
+| 3. Push audit | Complete | |
 
 <!-- shared-block: plan-status-vocabulary v1 -->
 Plan status vocabulary (shared block; do not edit -- the canonical
@@ -676,6 +676,15 @@ corrections and one addition found while making them:
   2's measurement name plan files and a plan audit diff
   (`docs/plans/PLAN-thing.md`, `docs/plans/audit/phase-1.diff`).
   They carry line markers now, and both checks pass here.
+
+The audit record and its fixes landed in one pull request rather
+than two, against `plan-push-audit-phase`'s rule that findings
+land separately: the criterion was already live on main, and the
+weekly audit was due at 18:00 UTC the same day, with the quadratic
+patterns and main's own failures in it. The operator chose one
+pull request so the fixes could merge first. With no later pull
+request to carry it, this phase records no `Merged` cell, as the
+`plan-phase-landing` rule for a last phase allows.
 
 ## Agent guidance
 
