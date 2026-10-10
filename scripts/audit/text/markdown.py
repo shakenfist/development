@@ -206,7 +206,7 @@ def blank_generated_blocks(markdown):
     notes inside them are detail strings harvested from other
     repositories and rendered as bare prose. They are not this
     repository's documentation and must not be judged as it: a
-    plan-index detail reading 'Complete (phases 1-5, 2026-08-15)'
+    plan-index detail reading `Complete (phases 1-5, 2026-08-15)`
     would fail plan-phase-references here on the next run, and a
     harvested markdown link would fail docs-external-links, in both
     cases through no commit anyone made in this repository. This

@@ -12,8 +12,7 @@ with a timestamp that changes on every run, and a whole-file human
 review mark attests to content by blob SHA -- so a spec carrying a
 generated block could never hold one, and the prose defining what we
 audit for was excluded from review coverage as a result. Everything
-under docs/audits/ is now hand-written except this one page. See
-docs/plans/PLAN-audit-compliance-split.md.
+under docs/audits/ is now hand-written except this one page.
 
 Usage:
     python audit-update-docs.py --results-dir ./audit-results/

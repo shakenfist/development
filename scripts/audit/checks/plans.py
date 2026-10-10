@@ -28,7 +28,15 @@ from audit.text.shared_blocks import validate_shared_blocks
 PHASE_REFERENCE_RE = re.compile(r'\bphases?\s+\d+\b', re.IGNORECASE)
 
 
-PHASE_REFERENCE_OK = '<!-- audit-ok: phase-reference -->'
+# The phase-reference marker, bare. Documentation carries it as an
+# HTML comment so that it does not render (PHASE_REFERENCE_OK), and
+# source carries it in whatever comment syntax the language has --
+# `# ...` or `// ...` -- so plan-history-in-source matches the token
+# rather than the comment around it.
+PHASE_REFERENCE_TOKEN = 'audit-ok: phase-reference'
+
+
+PHASE_REFERENCE_OK = f'<!-- {PHASE_REFERENCE_TOKEN} -->'
 
 
 # Plan source references: a plan pointer written into source or
@@ -53,6 +61,52 @@ PLAN_SOURCE_REF_OK = 'audit-ok: plan-reference'
 # Prefer the line marker, and say in the file why the exemption is
 # right.
 PLAN_SOURCE_FILE_OK = 'audit-ok: plan-reference-file'
+
+
+# The file-scope form of PHASE_REFERENCE_TOKEN, for a source file
+# that is made of plan-shaped history rather than merely containing
+# some -- a suite exercising these criteria has to write the shapes
+# they flag, and a fixture is not a claim about the code. Like
+# PLAN_SOURCE_FILE_OK it exempts the whole file, prose included, so
+# prefer the line marker and say in the file why the exemption is
+# right.
+#
+# It is built from the line token rather than written out, so that
+# this module, which defines it, does not carry the file marker and
+# exempt itself. The line token is a prefix of it, which is harmless
+# in that direction: a line carrying the file marker is in an exempt
+# file anyway, and a file carrying only the line marker is not
+# exempted, because the file test asks for the whole string.
+PHASE_REFERENCE_FILE_OK = f'{PHASE_REFERENCE_TOKEN}-file'
+
+
+# Plan history in source: the numbered shapes a plan gives its parts,
+# which code cites only to record how it came to be. The phase shape
+# is plan-phase-references' pattern, shared rather than copied, and
+# three more join it: a hyphenated phase (`the phase-4 leaks pass`),
+# a decision with an optional sub-number (`decision 6.4`), and a
+# lettered step (`step 5f`). See docs/audits/plan-history-in-source.md.
+#
+# A bare numbered step is deliberately not matched. Procedural
+# comments write `step 1: open the file` in the ordinary sense, and
+# only the lettered form is a plan's. String literals are not stripped
+# either: a log line announcing a plan phase is as much history as a
+# comment saying it, and is read by more people. A literal written in
+# backticks is the exception, since the code span removal cannot tell
+# a template literal from a quoted shape, so it under-reports there.
+PLAN_HISTORY_RE = re.compile(
+    PHASE_REFERENCE_RE.pattern
+    + r'|\bphase-\d+\b'
+    + r'|\bdecisions?\s+\d+(?:\.\d+)?\b'
+    + r'|\bsteps?\s+\d+[a-z]\b',
+    re.IGNORECASE)
+
+
+# mkdocs configuration names plan pages by their titles in its nav, so
+# a plan with phase pages puts a nav entry per phase into it. That is
+# documentation structure, not a claim about code, and the pages it
+# names are audited as documentation where they live.
+PLAN_HISTORY_MKDOCS_NAMES = ('mkdocs.yml', 'mkdocs.yaml')
 
 
 PLAN_SOURCE_MAX_BYTES = 2 * 1024 * 1024
@@ -85,6 +139,47 @@ def plan_source_is_plan_record(rel):
     """
     parts = rel.split('/')
     return parts[0] == 'docs' and 'plans' in parts[1:-1]
+
+
+def iter_plan_source_files(repo, tracked):
+    """Yield (rel, content) for each source or configuration file to audit.
+
+    The files are the tracked paths from tracked_paths(), which the
+    caller lists and passes in so that a failed git ls-files stays its
+    verdict to report rather than an empty walk. Left out are:
+
+    - markdown, which is documentation and audited as documentation:
+      its links by docs-external-links, its phase talk by
+      plan-phase-references.
+    - anything under a plans directory in docs/, which is plan
+      history rather than source; see plan_source_is_plan_record().
+    - anything that is not a regular file once symlinks are followed,
+      or that resolves outside the repository.
+    - anything over PLAN_SOURCE_MAX_BYTES; see plan_source_is_oversize().
+
+    Content is decoded with errors='replace', so a binary file that
+    slips through is read as noise rather than raising.
+    """
+    for rel in tracked:
+        if rel.endswith('.md'):
+            continue
+        if plan_source_is_plan_record(rel):
+            continue
+        path = os.path.join(repo.path, rel)
+        if not os.path.isfile(path):
+            continue
+        # isfile() follows a symlink, and git tracks symlinks, so a
+        # repository can point one at anything on the runner and have
+        # a check quote what it reads into an issue body. The
+        # containment the index link targets get, on the path beside
+        # them.
+        if not repo.contains(path):
+            continue
+        if plan_source_is_oversize(path):
+            continue
+        with open(path, 'r', errors='replace') as f:
+            content = f.read()
+        yield rel, content
 
 
 def plan_quote(text, limit=60):
@@ -297,8 +392,8 @@ PLAN_AUDIT_RUNBOOK = 'PUSH-AUDIT.md'
 
 
 # What a push audit phase calls itself. The rule is about a phase, and
-# a phase names itself in its title -- "8. Push audit" in an Execution
-# table, "### Phase 5: Push audit" as a section -- while the sentence
+# a phase names itself in its title -- `8. Push audit` in an Execution
+# table, `### Phase 5: Push audit` as a section -- while the sentence
 # that names PUSH-AUDIT.md sits in the prose under it. Requiring the
 # literal filename inside the phase entry would therefore fail almost
 # every compliant plan in the fleet, so the title is what is matched
@@ -338,14 +433,14 @@ PLAN_PHASE_SECTION_RE = re.compile(
     r'execution|implementation|phase|workstream', re.IGNORECASE)
 
 
-# A heading that is a phase: "### Phase 5: Push audit", or a bare
-# "### 5. Push audit" inside one of the sections above. The bare form
+# A heading that is a phase: `### Phase 5: Push audit`, or a bare
+# `### 5. Push audit` inside one of the sections above. The bare form
 # is only read inside a phase section because plans also number
 # ordinary subsections -- ryll's follow-up plans are lists of numbered
 # findings -- and reading those as phases would report a plan for not
 # ending its findings list with an audit.
 #
-# The title is optional, because "### Phase 1", "### Phase 2" is a
+# The title is optional, because `### Phase 1`, `### Phase 2` is a
 # shape the fleet writes and a plan using it had no phases this check
 # could read at all. Only the explicit form is allowed to omit it --
 # see where this is matched -- since a heading that is a bare number
@@ -368,8 +463,8 @@ PLAN_PHASE_EXPLICIT_HEADING_RE = re.compile(r'^phase\s*\d', re.IGNORECASE)
 
 
 # A phase table's first cell. Looser than the heading form because the
-# cell is a column rather than a sentence: it is written "8", "8.",
-# "8. Push audit" and "Phase 8" across the fleet, and the row's other
+# cell is a column rather than a sentence: it is written `8`, `8.`,
+# `8. Push audit` and `Phase 8` across the fleet, and the row's other
 # cells carry the description either way.
 PLAN_PHASE_CELL_RE = re.compile(r'^(?:phase\s*)?(\d+)\b', re.IGNORECASE)
 
@@ -385,8 +480,8 @@ PLAN_PHASE_TABLE_COLUMN = 'phase'
 
 
 # The number a phase entry opens with, in either shape: a table cell
-# ("8", "8.", "8. Push audit", "Phase 8") or a section heading
-# ("Phase 8: Push audit"). Stripped off so that what remains is the
+# (`8`, `8.`, `8. Push audit`, `Phase 8`) or a section heading
+# (`Phase 8: Push audit`). Stripped off so that what remains is the
 # phase's name and nothing else.
 PLAN_PHASE_NUMBER_RE = re.compile(
     r'^(?:phase\s*)?(\d+)\s*[.:)–—-]*\s*', re.IGNORECASE)
@@ -398,7 +493,7 @@ PLAN_PHASE_WORD_RE = re.compile(r'[^0-9a-z]+')
 def plan_phase_name(text):
     """The words a phase entry carries after its number.
 
-    Empty for a bare-number entry -- "8", "8.", "Phase 8" -- which
+    Empty for a bare-number entry -- `8`, `8.`, `Phase 8` -- which
     names nothing, and a list of lower-case words otherwise. Reduced
     to words so that a table row and the section heading describing
     the same phase can be compared without the punctuation between
@@ -414,7 +509,7 @@ def plan_phase_name(text):
 def plan_section_summary(lines, offset):
     """The first paragraph under a heading, joined into one line.
 
-    What a phase written as a bare "### Phase 5" heading says it is.
+    What a phase written as a bare `### Phase 5` heading says it is.
     The heading names nothing, so its prose has to answer for it, and
     the prose is read the way a bare table cell's row is read: whole,
     because the plan put the phase's name wherever the document read
@@ -644,12 +739,12 @@ def plan_phases(content):
     below the table is anchored below the table.
 
     The text is what the phase is matched against. A named phase cell
-    ("8. Push audit") answers for itself, because the row's other
+    (`8. Push audit`) answers for itself, because the row's other
     columns -- a Notes cell mentioning an audit the phase is not --
-    must not answer for it. A bare-number cell ("8", "Phase 8") names
+    must not answer for it. A bare-number cell (`8`, `Phase 8`) names
     nothing, so there the whole row is read, which is where a plan
     with a numbers-only Phase column describes its phases. A heading
-    that names nothing either -- "### Phase 8" -- is answered for by
+    that names nothing either -- `### Phase 8` -- is answered for by
     the first paragraph of its own section, for the same reason.
 
     The label is the short name a message quotes back, and the status
@@ -701,11 +796,11 @@ def plan_phases(content):
             )
             explicit = PLAN_PHASE_EXPLICIT_HEADING_RE.match(title)
             if numbered and numbered.group(2) is None and not explicit:
-                # A heading that is a number and nothing else -- "### 5"
+                # A heading that is a number and nothing else -- `### 5`
                 # -- is not read as a phase. Plans number ordinary
                 # subsections too, and a findings list under a
                 # completed audit is numbered from one exactly as the
-                # phases are. Only the explicit "### Phase 5" form is
+                # phases are. Only the explicit `### Phase 5` form is
                 # unambiguous enough to be read without a title.
                 numbered = None
             if numbered:
@@ -732,9 +827,9 @@ def plan_phases(content):
                 name = numbered.group(2)
                 text = title
                 if name is None:
-                    # "### Phase 5" names nothing beyond its number,
+                    # `### Phase 5` names nothing beyond its number,
                     # so the phase's own prose answers for it -- the
-                    # same reading a bare "| 5 |" cell gets, where the
+                    # same reading a bare `| 5 |` cell gets, where the
                     # rest of the row answers instead of the cell.
                     # Without it a plan whose headings are bare is
                     # judged on titles that say only what the phase
@@ -814,8 +909,8 @@ def plan_phases(content):
             # The row named nothing, so this heading is where the
             # phase says what it is, and dropping the title would
             # leave the plan looking as though the phase were
-            # nameless: a Phase column of "Phase 1", "Phase 2" whose
-            # names live in "### Phase 2: Push audit" sections was
+            # nameless: a Phase column of `Phase 1`, `Phase 2` whose
+            # names live in `### Phase 2: Push audit` sections was
             # reported as having no audit phase at all. The row is
             # kept alongside the title rather than replaced, because
             # a bare row is read whole precisely so that a later
@@ -1024,14 +1119,14 @@ class PlanPhaseReferences(Check):
     def run(self, repo):
         """Check documentation does not cite implementation plan phases.
 
-        Docs describe the current state of the software; "implemented in
-        phase 5" describes the history of how it was built, usually
-        without even naming the plan. The word "phase" is reserved for
-        plan documents (procedural docs use "step" or "stage"), so any
-        "phase <number>" outside a plans/ directory is flagged. Fenced
-        code, inline code spans, generated consistency-audit blocks,
-        and lines carrying the audit-ok: phase-reference marker are
-        skipped.
+        Docs describe the current state of the software, and
+        `implemented in phase 5` describes the history of how it was
+        built, usually without even naming the plan. The word "phase"
+        is reserved for plan documents (procedural docs use "step" or
+        "stage"), so any "phase <number>" outside a plans/ directory is
+        flagged. Fenced code, inline code spans, generated
+        consistency-audit blocks, and lines carrying the audit-ok:
+        phase-reference marker are skipped.
         """
         files = list(iter_doc_content_files(repo.path, repo.props))
         if not files:
@@ -1090,10 +1185,9 @@ class PlanSourceReferences(Check):
         where a decision is recorded. Nothing renders those pointers, so
         when a plan is renamed or archived into docs/plans/completed/
         they rot silently. Every reference must resolve in this
-        repository or be an absolute URL; markdown files are out of
-        scope, being covered by docs-external-links, and so is
-        anything under a plans directory in docs/, which is plan
-        history rather than source.
+        repository or be an absolute URL. The files read are the ones
+        iter_plan_source_files() yields, and it says what it leaves
+        out and why.
 
         A test suite is deliberately not out of scope. Test files carry
         rotted pointers like anything else -- instar's
@@ -1109,25 +1203,7 @@ class PlanSourceReferences(Check):
         names = plan_file_names(repo.path)
         hits = []
         total = 0
-        for rel in tracked:
-            if rel.endswith('.md'):
-                continue
-            if plan_source_is_plan_record(rel):
-                continue
-            path = os.path.join(repo.path, rel)
-            if not os.path.isfile(path):
-                continue
-            # isfile() follows a symlink, and git tracks symlinks, so
-            # a repository can point one at anything on the runner
-            # and have this check quote what it reads into an issue
-            # body. The containment the index link targets get, on
-            # the path beside them.
-            if not repo.contains(path):
-                continue
-            if plan_source_is_oversize(path):
-                continue
-            with open(path, 'r', errors='replace') as f:
-                content = f.read()
+        for rel, content in iter_plan_source_files(repo, tracked):
             if 'PLAN-' not in content:
                 continue
             if PLAN_SOURCE_FILE_OK in content:
@@ -1156,6 +1232,81 @@ class PlanSourceReferences(Check):
                 f'or use an absolute https://github.com/... URL for a '
                 f'plan in another repository): {shown}{more}')
         return self.ok(f'All {total} plan reference(s) outside markdown resolve')
+
+
+class PlanHistoryInSource(Check):
+    id = 'plan-history-in-source'
+    spec = 'docs/audits/plan-history-in-source.md'
+    template = None
+    issue_title = 'Plan history in source'
+
+    def run(self, repo):
+        """Check source and configuration do not cite plan phases, decisions or steps.
+
+        A comment saying code arrived in `phase 5`, or is the way it is
+        `per decision 3`, tells the next reader where the reasoning was
+        once written down rather than what it is, and the plan it
+        points at is usually finished, archived or not named at all.
+        The plan-references-in-code shared block asks for the reason
+        instead. This is the backlog half of enforcing it; the diff
+        half is a wave 1 grep in each repository's push audit.
+
+        The files read are the ones iter_plan_source_files() yields,
+        less mkdocs configuration (PLAN_HISTORY_MKDOCS_NAMES). Before a
+        line is matched against PLAN_HISTORY_RE, inline code spans are
+        removed as plan-phase-references removes them, and so are URLs
+        and plan filenames: a plan whose phases are separate files
+        carries the phase number in its name, and a pointer to it is
+        plan-source-references' business (does it resolve) and the
+        push audit's (should it be there), not history written as
+        prose. A line carrying PHASE_REFERENCE_TOKEN is skipped, and a
+        file carrying PHASE_REFERENCE_FILE_OK is skipped whole.
+
+        Generated files are deliberately not exempt. A generated stub
+        that repeats a plan citation copied it from the comment it was
+        generated from, so the fix is in that source, and the stub
+        follows on the next regeneration.
+        """
+        tracked = tracked_paths(repo.path)
+        if tracked is None:
+            return self.fail(LS_FILES_FAILED)
+
+        hits = []
+        walked = 0
+        for rel, content in iter_plan_source_files(repo, tracked):
+            if os.path.basename(rel) in PLAN_HISTORY_MKDOCS_NAMES:
+                continue
+            walked += 1
+            # The file marker first: the line token is a prefix of it,
+            # so the order matters for reading, though not for the
+            # verdict.
+            if PHASE_REFERENCE_FILE_OK in content:
+                continue
+            if not PLAN_HISTORY_RE.search(content):
+                continue
+            for lineno, line in enumerate(content.splitlines(), 1):
+                if PHASE_REFERENCE_TOKEN in line:
+                    continue
+                # Code spans before URLs: a URL match runs to the next
+                # whitespace, so stripping it first could take a
+                # closing backtick with it and unpair the spans after.
+                scannable = re.sub(r'`+[^`\n]*`+', '', line)
+                scannable = PLAN_SOURCE_URL_RE.sub('', scannable)
+                scannable = PLAN_SOURCE_REF_RE.sub('', scannable)
+                if PLAN_HISTORY_RE.search(scannable):
+                    hits.append(f'{rel}:{lineno}')
+
+        if not walked:
+            return self.skip('No source or configuration files outside markdown to audit')
+
+        if hits:
+            shown = ', '.join(hits[:10])
+            more = '' if len(hits) <= 10 else f' (+{len(hits) - 10} more)'
+            return self.fail(
+                f'{len(hits)} plan history reference(s) in source '
+                f'(write the reason the code is this way instead of '
+                f'citing the plan step that produced it): {shown}{more}')
+        return self.ok('No plan history references in source')
 
 
 class PlanIndex(Check):

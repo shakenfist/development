@@ -36,11 +36,12 @@ repos:
       # {{PROJECT_NAME}} parses as a mapping, not a string -- so they
       # cannot be linted where they are stored. They are excluded by
       # name rather than by a pattern, so adding a fourth is a decision
-      # somebody makes rather than one that happens quietly. Phase 3 of
-      # the review import plan parameterised renovate.yml and
-      # pin-indirect-dependencies.yml (${{ github.repository }}, and a
-      # checkout into the workspace root) instead, which is why they
-      # are no longer in this list. The ten copy-directly templates,
+      # somebody makes rather than one that happens quietly.
+      # renovate.yml and pin-indirect-dependencies.yml read what would
+      # have been placeholders from the runtime instead
+      # (${{ github.repository }}, and a checkout into the workspace
+      # root), so every copy is byte-identical to its template and both
+      # are linted here. The ten copy-directly templates,
       # which are the ones the fleet actually runs unmodified, are all
       # checked.
       - id: actionlint

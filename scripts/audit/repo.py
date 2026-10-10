@@ -63,7 +63,7 @@ REPO_OVERRIDES = {
     # It plans like the rest of the fleet, though, which the original
     # scoping did not anticipate: it adopted PLAN-TEMPLATE.md and a
     # plan index in September 2026, so the criteria that keep plans
-    # honest apply too. The plan family has six members and each is a
+    # honest apply too. The plan family has seven members and each is a
     # separate decision, so each is stated here rather than left to be
     # inferred from the list:
     #
@@ -84,6 +84,11 @@ REPO_OVERRIDES = {
     #    reports not_applicable when a repository has no
     #    PUSH-AUDIT.md, and private-ci has none. It goes in with
     #    plan-audit-phase, which is what would create one.
+    #  * plan-history-in-source is out, and goes in with push-audit.
+    #    The rule it enforces is the plan-references-in-code shared
+    #    block, which a repository adopts by embedding it in its
+    #    PUSH-AUDIT.md, so enabling it here would hold code to a
+    #    convention the repository has not adopted.
     #
     # Ordered the way registry.CHECKS orders them, so the two read
     # side by side. Membership and the rendered reason are both

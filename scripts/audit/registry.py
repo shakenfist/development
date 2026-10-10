@@ -44,6 +44,7 @@ CHECKS = [
     docs_content.MermaidLintCi(),
     plans.PlanPhaseReferences(),
     plans.PlanSourceReferences(),
+    plans.PlanHistoryInSource(),
     plans.PlanIndex(),
     plans.PlanAuditPhase(),
     plans.PushAudit(),

@@ -95,13 +95,15 @@ Two projects are in scope for part of the audit only:
   producer definitions `eol-producers` checks against the end-of-life
   table, so that applies too. It plans like the rest of the fleet too,
   so the four criteria that report a defect in a plan as written
-  apply. The two that do not are `plan-audit-phase`, because the plans
-  written there before it adopted the template track progress as
-  checkpoint sections rather than as a phase table and enabling it
-  would file an issue for a retrofit nobody has decided to do, and
+  apply. The three that do not are `plan-audit-phase`, because the
+  plans written there before it adopted the template track progress
+  as checkpoint sections rather than as a phase table and enabling it
+  would file an issue for a retrofit nobody has decided to do;
   `push-audit`, which has no `PUSH-AUDIT.md` to read until that
-  changes. It is not expected to grow a `pyproject.toml`, a renovate
-  config, release workflows, or a `develop` branch.
+  changes; and `plan-history-in-source`, which enforces a rule a
+  repository adopts by embedding it in its `PUSH-AUDIT.md`. It is
+  not expected to grow a `pyproject.toml`, a renovate config,
+  release workflows, or a `develop` branch.
 
 - images is audited for the `eol-distro` check, and nothing else. It
   is built fresh every night and the fleet's CI boots on its output,
@@ -211,6 +213,7 @@ attached rather than quietly disappearing from the table.
 | [docs-line-references.md](docs-line-references.md) | Documentation names code by symbol, not by line number |
 | [mermaid-lint-ci.md](mermaid-lint-ci.md) | Repositories with mermaid diagrams render them in CI, so a broken one fails the build |
 | [plan-source-references.md](plan-source-references.md) | Plan references in source and configuration still resolve |
+| [plan-history-in-source.md](plan-history-in-source.md) | Source and configuration give the reason for the code, not the plan phase, decision or step that produced it |
 | [plan-index.md](plan-index.md) | docs/plans/index.md layout, date ordering, plan coverage and the status vocabulary |
 | [plan-audit-phase.md](plan-audit-phase.md) | Master plans end with a phase that runs PUSH-AUDIT.md over the whole plan's work |
 | [push-audit.md](push-audit.md) | PUSH-AUDIT.md naming, versioned shared blocks, and an AGENTS.md reference to it |

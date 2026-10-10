@@ -1056,11 +1056,11 @@ class CodeqlTemplateTest(unittest.TestCase):
 class ConvergedTemplatesTest(unittest.TestCase):
     """Templates copied verbatim must stay copyable verbatim.
 
-    Phase 3 of the review import plan took the {{PLACEHOLDER}}
-    substitutions out of renovate.yml and pin-indirect-dependencies.yml
-    so that every copy could be byte-identical to its template, and
-    dropped both from actionlint's exclude list in .pre-commit-config.yaml
-    on the strength of it. A placeholder reintroduced into either would
+    renovate.yml and pin-indirect-dependencies.yml carry no
+    {{PLACEHOLDER}} substitutions, so that every copy can be
+    byte-identical to its template, and are absent from actionlint's
+    exclude list in .pre-commit-config.yaml on the strength of it. A
+    placeholder reintroduced into either would
     break that quietly: actionlint would reject it, but only as a YAML
     error in a file nobody reads as a template any more. So the exclude
     list and the templates are held to each other here.
