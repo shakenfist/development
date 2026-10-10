@@ -377,10 +377,6 @@
       "sha": "7d4ee84ae14076c62f559def01a7ff8ddb6314cb",
       "date": "2026-10-05"
     },
-    "scripts/audit/checks/distros.py": {
-      "sha": "ddd81ff9080153a5b9c546b7f3593044663ad5f4",
-      "date": "2026-10-07"
-    },
     "scripts/audit/checks/docs_content.py": {
       "sha": "3fb9bf166a0132485300a5cd94c41f391b117202",
       "date": "2026-10-07"
@@ -427,10 +423,6 @@
     },
     "scripts/audit/registry.py": {
       "sha": "ffef4f7586f916f2086b5b2592522651d91558c7",
-      "date": "2026-10-07"
-    },
-    "scripts/audit/repo.py": {
-      "sha": "4827caa244334d5d77bcda6aa8fca676595e70b2",
       "date": "2026-10-07"
     },
     "scripts/audit/scope.py": {
@@ -512,10 +504,6 @@
     "scripts/tests/test_ci_workflows.py": {
       "sha": "d96a41a0ea0e04421b922992dfdfdc9375a6b7c1",
       "date": "2026-10-05"
-    },
-    "scripts/tests/test_distros.py": {
-      "sha": "64a0d8dbe84dc0ba3df47abf93d2deccaf4486f2",
-      "date": "2026-10-07"
     },
     "scripts/tests/test_docs_content.py": {
       "sha": "f2f1490100c7f144e6a41feaae9c65c5e30f9c54",
