@@ -2092,7 +2092,7 @@ class ReleaseArtifactsExcludePlansTest(CheckTestCase):
     def _check(self, files, **props):
         """Commit a fixture holding a plan plus files, and check it."""
         self.fixture.init_git()
-        self.fixture.write('docs/plans/PLAN-thing.md', '# Plan\n')
+        self.fixture.write('docs/plans/PLAN-thing.md', '# Plan\n')  # audit-ok: plan-reference
         self.fixture.write_all(files)
         self.fixture.commit()
         return self.check(**props)
@@ -2545,7 +2545,7 @@ class ReleaseArtifactsExcludePlansTest(CheckTestCase):
         self.fixture.init_git()
         self.fixture.write('pyproject.toml', self.SCM_PYPROJECT)
         self.fixture.commit()
-        self.fixture.write('docs/plans/PLAN-thing.md', '# Plan\n')
+        self.fixture.write('docs/plans/PLAN-thing.md', '# Plan\n')  # audit-ok: plan-reference
         self.assert_skip(self.check(), containing='tracks no files')
 
     def test_an_unparseable_cargo_toml_is_reported(self):
@@ -2914,7 +2914,7 @@ class ReleaseArtifactsExcludePlansTest(CheckTestCase):
         for name, files in cases.items():
             with self.subTest(name):
                 self.fresh_fixture()
-                files['docs/plans/audit/phase-1.diff'] = '--- a\n+++ b\n'
+                files['docs/plans/audit/phase-1.diff'] = '--- a\n+++ b\n'  # audit-ok: phase-reference
                 self.assert_fail(self._check(files),
                                  containing='1 release artifact')
 
@@ -3005,7 +3005,7 @@ class PathPatternSelectsTest(unittest.TestCase):
 class PathPatternReachesTest(unittest.TestCase):
     """The wider match an include list, or a '!' line, goes through."""
 
-    PLANS = ['docs/plans/PLAN-thing.md', 'docs/plans/audit/notes.txt']
+    PLANS = ['docs/plans/PLAN-thing.md', 'docs/plans/audit/notes.txt']  # audit-ok: plan-reference
 
     def test_patterns_that_reach_into_the_plans(self):
         for pattern in ('docs/plans', 'docs', 'docs/plans/audit',
@@ -3028,7 +3028,7 @@ class PathPatternReachesTest(unittest.TestCase):
 
     def test_names_outside_target_are_judged_against_the_tracked_plans(self):
         """Without a tracked .txt note, '*.txt' reaches nothing."""
-        plans = ['docs/plans/PLAN-thing.md']
+        plans = ['docs/plans/PLAN-thing.md']  # audit-ok: plan-reference
         for pattern in ('*.txt', 'audit', '**/audit'):
             with self.subTest(pattern=pattern):
                 self.assertFalse(packaging.path_pattern_reaches(
@@ -3055,7 +3055,7 @@ class RootedBelowTest(unittest.TestCase):
 class SegmentGlobMatchesTest(unittest.TestCase):
 
     def test_a_star_stays_within_a_segment(self):
-        sample = 'docs/plans/PLAN-example.md'
+        sample = 'docs/plans/PLAN-example.md'  # audit-ok: plan-reference
         self.assertTrue(packaging.segment_glob_matches(sample, 'docs/*/*.md'))
         self.assertTrue(packaging.segment_glob_matches(sample, 'docs/**'))
         self.assertFalse(packaging.segment_glob_matches(sample, '*.md'))
