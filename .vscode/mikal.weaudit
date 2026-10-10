@@ -405,10 +405,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/packaging.py",
-      "author": "mikal"
-    },
-    {
       "path": "templates/pin-indirect-dependencies/README.md",
       "author": "mikal"
     },
@@ -458,10 +454,6 @@
     },
     {
       "path": "templates/issue-link-check",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_packaging.py",
       "author": "mikal"
     },
     {
@@ -809,19 +801,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/registry.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/scope.py",
       "author": "mikal"
     },
     {
       "path": "scripts/tests/test_docs_content.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_metadata.py",
       "author": "mikal"
     },
     {
@@ -874,10 +858,6 @@
     },
     {
       "path": ".github",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/README.md",
       "author": "mikal"
     },
     {

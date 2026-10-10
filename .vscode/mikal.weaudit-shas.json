@@ -105,10 +105,6 @@
       "sha": "2269add37483bd29c54af121efee0aeeb1939a53",
       "date": "2026-10-05"
     },
-    "docs/audits/README.md": {
-      "sha": "e73fae1cac57fa7da3ad561802d4623b9cf22b28",
-      "date": "2026-10-09"
-    },
     "docs/audits/ci-review-automation.md": {
       "sha": "1e71c7a37946b3534dad400d55374e00bad389b0",
       "date": "2026-10-05"
@@ -393,10 +389,6 @@
       "sha": "01853364578a6139d3787ebfa9d09a65211bb37c",
       "date": "2026-09-15"
     },
-    "scripts/audit/checks/packaging.py": {
-      "sha": "cdeac188b7556911fc1eacb0b617f0e389fb17be",
-      "date": "2026-10-01"
-    },
     "scripts/audit/checks/plans.py": {
       "sha": "af82aa4795aa08cb9f3a72aadfcccb95a7ef881d",
       "date": "2026-10-07"
@@ -420,10 +412,6 @@
     "scripts/audit/markers.py": {
       "sha": "ef1d4a20156613830ec787fde806cbf955e9501e",
       "date": "2026-09-02"
-    },
-    "scripts/audit/registry.py": {
-      "sha": "ffef4f7586f916f2086b5b2592522651d91558c7",
-      "date": "2026-10-07"
     },
     "scripts/audit/scope.py": {
       "sha": "ab4cbcdd7c7eb198e834c654e4641ac44ce5e141",
@@ -533,17 +521,9 @@
       "sha": "f79a747418900e25ba050e14d951c526821fbf9d",
       "date": "2026-09-22"
     },
-    "scripts/tests/test_metadata.py": {
-      "sha": "0e275623f012765fab234f649d19369c1492696b",
-      "date": "2026-10-07"
-    },
     "scripts/tests/test_npm_dependencies.py": {
       "sha": "e7360d31a425b52e8e309921993e392235309faa",
       "date": "2026-09-22"
-    },
-    "scripts/tests/test_packaging.py": {
-      "sha": "4218713eba0dc6e6653ca3f59548da34a1b8dddb",
-      "date": "2026-10-01"
     },
     "scripts/tests/test_plans.py": {
       "sha": "69415c79ef1381e901b8f80666ecbe14dec429d2",
