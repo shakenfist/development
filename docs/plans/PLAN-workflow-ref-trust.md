@@ -544,7 +544,13 @@ central workflow, so 3b pins it there. Land that plan's phase 3
 before this phase's 3b: its phase 1 only publishes the preset, and
 no repository but this one extends it until its phase 3 sweep, so
 otherwise every pin arrives as a separate pull request in every
-repository.
+repository. Step 3a is not held, but it is affected: if that plan's
+phase 1 has landed when 3a runs, this repository already extends the
+preset, so its digest updates fall into the monthly CI-tooling group
+and a two-week window can see none at all. In that case run 3a's
+count across the first of a month and report it as grouped pull
+requests, which is the number that matters once the preset governs
+the fleet.
 
 ### Phase 4: record the policy and close #153
 
