@@ -180,8 +180,8 @@ class NetworkCheckListTest(unittest.TestCase):
     inherits, and compare.
 
     Matching on `_github(` rather than on a literal `gh` is what makes
-    this survive the client seam: after phase 2 no check spawns `gh`
-    itself, they all go through audit/github.py.
+    this survive the client seam: no check spawns `gh` itself, they
+    all go through audit/github.py.
     """
 
     def _sources(self):

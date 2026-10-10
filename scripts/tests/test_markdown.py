@@ -214,9 +214,8 @@ class IterMarkdownTableRowsTest(unittest.TestCase):
 
         A `|` line directly under a table, with no blank line between,
         is another data row of it -- there is no second table until
-        something that is not a row intervenes. The push audit of
-        PLAN-push-audit-phase.md raised the carried-over header as a
-        possible misattribution; it is not one, because GitHub renders
+        something that is not a row intervenes. The carried-over header
+        looks like a misattribution and is not one, because GitHub renders
         the same two lines as one table. Pinned here so the next
         reader does not "fix" the parser away from the renderer.
         """
