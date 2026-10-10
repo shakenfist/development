@@ -87,37 +87,19 @@ PLAN_SOURCE_REF_OK = 'audit-ok: plan-reference'
 PLAN_SOURCE_FILE_OK = 'audit-ok: plan-reference-file'
 
 
-# The file-scope form of PHASE_REFERENCE_TOKEN, for a source file
-# that is made of plan-shaped history rather than merely containing
-# some -- a suite exercising these criteria has to write the shapes
-# they flag, and a fixture is not a claim about the code. Like
-# PLAN_SOURCE_FILE_OK it exempts the whole file, prose included, so
-# prefer the line marker and say in the file why the exemption is
-# right.
-#
-# It is built from the line token rather than written out, so that
-# this module, which defines it, does not carry the file marker and
-# exempt itself. The line token is a prefix of it, which is harmless
-# in that direction: a line carrying the file marker is in an exempt
-# file anyway, and a file carrying only the line marker is not
-# exempted, because the file test asks for the whole string.
+# The file-scope form of PHASE_REFERENCE_TOKEN, for a file made of
+# plan-shaped fixtures. Built from the token rather than written out,
+# so that this module, which defines it, does not exempt itself. The
+# token being a prefix of it is harmless: the file test asks for the
+# whole string.
 PHASE_REFERENCE_FILE_OK = f'{PHASE_REFERENCE_TOKEN}-file'
 
 
-# Plan history in source: the numbered shapes a plan gives its parts,
-# which code cites only to record how it came to be. The phase shape
-# is plan-phase-references' pattern, shared rather than copied, and
-# three more join it: a hyphenated phase (`the phase-4 leaks pass`),
-# a decision with an optional sub-number (`decision 6.4`), and a
-# lettered step (`step 5f`). See docs/audits/plan-history-in-source.md.
-#
-# A bare numbered step is deliberately not matched. Procedural
-# comments write `step 1: open the file` in the ordinary sense, and
-# only the lettered form is a plan's. String literals are not stripped
-# either: a log line announcing a plan phase is as much history as a
-# comment saying it, and is read by more people. A literal written in
-# backticks is the exception, since the code span removal cannot tell
-# a template literal from a quoted shape, so it under-reports there.
+# Plan history in source: the numbered shapes a plan gives its parts.
+# See docs/audits/plan-history-in-source.md. A bare `step 3` is not
+# matched, because procedural comments number steps in the ordinary
+# sense and only the lettered form is a plan's. String literals are
+# not stripped: a log line announcing a phase is history too.
 PLAN_HISTORY_RE = re.compile(
     PHASE_REFERENCE_RE.pattern
     + r'|\bphase-\d+\b'
@@ -1268,29 +1250,14 @@ class PlanHistoryInSource(Check):
     def run(self, repo):
         """Check source and configuration do not cite plan phases, decisions or steps.
 
-        A comment saying code arrived in `phase 5`, or is the way it is
-        `per decision 3`, tells the next reader where the reasoning was
-        once written down rather than what it is, and the plan it
-        points at is usually finished, archived or not named at all.
-        The plan-references-in-code shared block asks for the reason
-        instead. This is the backlog half of enforcing it; the diff
-        half is a wave 1 grep in each repository's push audit.
-
-        The files read are the ones iter_plan_source_files() yields,
-        less mkdocs configuration (PLAN_HISTORY_MKDOCS_NAMES). Before a
-        line is matched against PLAN_HISTORY_RE, inline code spans are
-        removed as plan-phase-references removes them, and so are URLs
-        and plan filenames: a plan whose phases are separate files
-        carries the phase number in its name, and a pointer to it is
-        plan-source-references' business (does it resolve) and the
-        push audit's (should it be there), not history written as
-        prose. A line carrying PHASE_REFERENCE_TOKEN is skipped, and a
-        file carrying PHASE_REFERENCE_FILE_OK is skipped whole.
-
-        Generated files are deliberately not exempt. A generated stub
-        that repeats a plan citation copied it from the comment it was
-        generated from, so the fix is in that source, and the stub
-        follows on the next regeneration.
+        docs/audits/plan-history-in-source.md says what is matched,
+        what is stripped and what is exempt. The files are
+        iter_plan_source_files()'s, less mkdocs configuration. A line
+        loses its code spans, then its URLs, then its plan filenames,
+        before it is matched; the order matters, and is explained where
+        it happens. Generated files are deliberately not exempt: a stub
+        repeating a citation copied it from its source, which is where
+        the fix belongs.
         """
         tracked = tracked_paths(repo.path)
         if tracked is None:
@@ -1303,9 +1270,6 @@ class PlanHistoryInSource(Check):
             if os.path.basename(rel) in PLAN_HISTORY_MKDOCS_NAMES:
                 continue
             walked += 1
-            # The file marker first: the line token is a prefix of it,
-            # so the order matters for reading, though not for the
-            # verdict.
             if PHASE_REFERENCE_FILE_OK in content:
                 continue
             if not PLAN_HISTORY_RE.search(content):
