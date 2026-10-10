@@ -265,9 +265,9 @@ Out of scope:
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. Diff-level guard and this repository's cleanup | In progress | |
-| 2. The `plan-history-in-source` criterion | Not started | |
-| 3. Push audit | Not started | |
+| 1. Diff-level guard and this repository's cleanup | Complete | 0afc389 (#241, which carried #242) |
+| 2. The `plan-history-in-source` criterion | Complete | 0afc389 (#241, which carried #242) |
+| 3. Push audit | In progress | |
 
 <!-- shared-block: plan-status-vocabulary v1 -->
 Plan status vocabulary (shared block; do not edit -- the canonical
