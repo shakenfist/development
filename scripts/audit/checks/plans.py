@@ -1221,6 +1221,7 @@ class PlanSourceReferences(Check):
 
         names = plan_file_names(repo.path)
         hits = []
+        files = set()
         total = 0
         for rel, content in iter_plan_source_files(repo, tracked):
             if 'PLAN-' not in content:
@@ -1238,18 +1239,18 @@ class PlanSourceReferences(Check):
                     total += 1
                     if not plan_reference_resolves(repo.path, token, names):
                         hits.append(f'{rel}:{lineno} -> {token}')
+                        files.add(rel)
 
         if not total:
             return self.skip('No plan references outside markdown files')
 
         if hits:
-            shown = ', '.join(hits[:10])
-            more = '' if len(hits) <= 10 else f' (+{len(hits) - 10} more)'
             return self.fail(
                 f'{len(hits)} of {total} plan reference(s) in source '
-                f'or configuration do not resolve (update the path, '
-                f'or use an absolute https://github.com/... URL for a '
-                f'plan in another repository): {shown}{more}')
+                f'or configuration do not resolve, in {len(files)} '
+                f'file(s) (update the path, or use an absolute '
+                f'https://github.com/... URL for a plan in another '
+                f'repository)', findings=hits)
         return self.ok(f'All {total} plan reference(s) outside markdown resolve')
 
 
@@ -1291,6 +1292,7 @@ class PlanHistoryInSource(Check):
             return self.fail(LS_FILES_FAILED)
 
         hits = []
+        files = set()
         walked = 0
         for rel, content in iter_plan_source_files(repo, tracked):
             if os.path.basename(rel) in PLAN_HISTORY_MKDOCS_NAMES:
@@ -1314,17 +1316,17 @@ class PlanHistoryInSource(Check):
                 scannable = PLAN_SOURCE_REF_RE.sub('', scannable)
                 if PLAN_HISTORY_RE.search(scannable):
                     hits.append(f'{rel}:{lineno}')
+                    files.add(rel)
 
         if not walked:
             return self.skip('No source or configuration files outside markdown to audit')
 
         if hits:
-            shown = ', '.join(hits[:10])
-            more = '' if len(hits) <= 10 else f' (+{len(hits) - 10} more)'
             return self.fail(
-                f'{len(hits)} plan history reference(s) in source '
-                f'(write the reason the code is this way instead of '
-                f'citing the plan step that produced it): {shown}{more}')
+                f'{len(hits)} plan history reference(s) in source, in '
+                f'{len(files)} file(s) (write the reason the code is '
+                f'this way instead of citing the plan step that '
+                f'produced it)', findings=hits)
         return self.ok('No plan history references in source')
 
 

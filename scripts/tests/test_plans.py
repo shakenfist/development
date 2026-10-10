@@ -333,6 +333,16 @@ class PlanPhaseReferencesTest(CheckTestCase):
         self.assert_pass(result)
 
 
+def assert_found(case, result, location):
+    """Assert result fails with location among its findings.
+
+    The plan-reference checks put each location in findings, where an
+    issue body renders it as a code span, rather than in details.
+    """
+    case.assert_fail(result)
+    case.assertTrue(any(location in finding for finding in result['findings']), result['findings'])
+
+
 # Long single-line bodies that a pattern opening with an unanchored
 # greedy run scans quadratically: each of their characters is a start
 # position that rescans the rest of the run. 100,000 characters took
@@ -391,14 +401,14 @@ class PlanSourceReferenceTest(CheckTestCase):
             'docs/plans/PLAN-frob.md': '# Frob\n',
             'src/frob.py': '# See docs/plans/PLAN-gone.md.\n',
         })
-        self.assert_fail(result, containing='PLAN-gone.md')
+        assert_found(self, result, 'src/frob.py:1 -> docs/plans/PLAN-gone.md')
 
     def test_a_non_ascii_path_is_read(self):
         """git C-quotes it unless -z is used (development#168)."""
         result = self._check({
             'src/\u00fcber/note.py': '# See PLAN-nonexistent.md.\n',
         })
-        self.assert_fail(result, containing='PLAN-nonexistent.md')
+        assert_found(self, result, 'src/\u00fcber/note.py:1 -> PLAN-nonexistent.md')
 
     def test_a_non_ascii_markdown_path_is_still_out_of_scope(self):
         result = self._check({
@@ -420,7 +430,7 @@ class PlanSourceReferenceTest(CheckTestCase):
         result = self._check({
             'tests/test_frob.py': '"""See PLAN-gone.md."""\n',
         })
-        self.assert_fail(result, containing='PLAN-gone.md')
+        assert_found(self, result, 'tests/test_frob.py:1 -> PLAN-gone.md')
 
     def test_the_file_marker_exempts_a_whole_file(self):
         result = self._check({
@@ -439,8 +449,8 @@ class PlanSourceReferenceTest(CheckTestCase):
                 '# See docs/plans/PLAN-gone.md.\n'
             ),
         })
-        self.assert_fail(result, containing='PLAN-gone.md')
-        self.assertNotIn('PATTERN', result['details'])
+        self.assert_fail(result)
+        self.assertEqual(['src/frob.py:2 -> docs/plans/PLAN-gone.md'], result['findings'])
 
     def test_plan_template_is_not_a_plan_reference(self):
         # PLAN-TEMPLATE.md lives at the repository root, not in
@@ -469,7 +479,7 @@ class PlanSourceReferenceTest(CheckTestCase):
             'docs/plans/PLAN-frob.md': '# Frob\n',
             'src/plans/billing.py': '# See PLAN-gone.md.\n',
         })
-        self.assert_fail(result, containing='PLAN-gone.md')
+        assert_found(self, result, 'src/plans/billing.py:1 -> PLAN-gone.md')
 
     def test_a_file_named_plans_in_docs_is_still_source(self):
         # The exemption is for a plans directory, not for a file that
@@ -477,7 +487,7 @@ class PlanSourceReferenceTest(CheckTestCase):
         result = self._check({
             'docs/tools/plans': '# See PLAN-gone.md.\n',
         })
-        self.assert_fail(result, containing='PLAN-gone.md')
+        assert_found(self, result, 'docs/tools/plans:1 -> PLAN-gone.md')
 
     def test_a_nested_plans_directory_in_docs_is_history(self):
         # The same depth plan-phase-references exempts, so the two
@@ -496,6 +506,22 @@ class PlanSourceReferenceTest(CheckTestCase):
             ),
         })
         self.assert_skip(result)
+
+    def test_locations_are_findings_rather_than_details(self):
+        """A path is the repository's to choose, and details is not code-spanned.
+
+        An `@org/team` in a path renders as a live mention in an issue
+        body, under the bot's identity. Each finding is rendered inside
+        a code span by audit-manage-issues.py, so the locations travel
+        there and details carries only the counts.
+        """
+        result = self._check({
+            'src/@org/team/x.py': '# See PLAN-gone.md.\n',
+        })
+        self.assert_fail(result, containing='1 of 1 plan reference(s)')
+        self.assertIn('in 1 file(s)', result['details'])
+        self.assertNotIn('@', result['details'])
+        self.assertEqual(['src/@org/team/x.py:1 -> PLAN-gone.md'], result['findings'])
 
     def test_a_long_line_is_scanned_in_linear_time(self):
         assert_long_lines_are_linear(self, '# See PLAN-gone.md. ', self.assert_fail)
@@ -548,7 +574,7 @@ class PlanHistoryInSourceTest(CheckTestCase):
             with self.subTest(shape=name):
                 self.fresh_fixture()
                 result = self._check({'src/frob.py': 'x = 1\n' + line})
-                self.assert_fail(result, containing='src/frob.py:2')
+                assert_found(self, result, 'src/frob.py:2')
 
     def test_the_message_says_what_to_do_and_where(self):
         result = self._check({
@@ -556,16 +582,17 @@ class PlanHistoryInSourceTest(CheckTestCase):
             'src/b.rs': '// Per decision 2.\n',
         })
         self.assert_fail(result, containing='write the reason the code is this way')
-        self.assertIn('2 plan history reference(s) in source', result['details'])
-        self.assertIn('src/a.py:1', result['details'])
-        self.assertIn('src/b.rs:1', result['details'])
+        self.assertIn('2 plan history reference(s) in source, in 2 file(s)', result['details'])
+        self.assertEqual(['src/a.py:1', 'src/b.rs:1'], result['findings'])
 
-    def test_more_than_ten_hits_are_counted_not_listed(self):
+    def test_every_hit_is_a_finding(self):
+        # Findings are not capped the way a details string listing
+        # them was, since the fix is per line.
         result = self._check({
             'src/frob.py': ''.join(f'# Added in phase {n}.\n' for n in range(12)),
         })
-        self.assert_fail(result, containing='(+2 more)')
-        self.assertNotIn('src/frob.py:11', result['details'])
+        self.assert_fail(result, containing='12 plan history reference(s) in source, in 1 file(s)')
+        self.assertEqual([f'src/frob.py:{n}' for n in range(1, 13)], result['findings'])
 
     def test_string_literals_are_read(self):
         # A log line announcing a plan phase is as much history as a
@@ -573,7 +600,7 @@ class PlanHistoryInSourceTest(CheckTestCase):
         result = self._check({
             'src/frob.py': "LOG.info('entering phase 3')\n",
         })
-        self.assert_fail(result, containing='src/frob.py:1')
+        assert_found(self, result, 'src/frob.py:1')
 
     def test_two_phase_commit_passes(self):
         result = self._check({
@@ -602,7 +629,7 @@ class PlanHistoryInSourceTest(CheckTestCase):
         result = self._check({
             'src/frob.js': 'log(`entering phase 3`);\nlog("entering phase 4");\n',
         })
-        self.assert_fail(result, containing='src/frob.js:2')
+        assert_found(self, result, 'src/frob.js:2')
         self.assertIn('1 plan history reference(s)', result['details'])
 
     def test_a_lettered_sub_phase_is_not_matched_yet(self):
@@ -621,7 +648,7 @@ class PlanHistoryInSourceTest(CheckTestCase):
                 '# Added in phase 4.\n'
             ),
         })
-        self.assert_fail(result, containing='src/power.py:3')
+        assert_found(self, result, 'src/power.py:3')
         self.assertIn('1 plan history reference(s)', result['details'])
 
     def test_the_documentation_marker_form_exempts_a_line_too(self):
@@ -652,15 +679,15 @@ class PlanHistoryInSourceTest(CheckTestCase):
                 '# Added in phase 4.\n'
             ),
         })
-        self.assert_fail(result, containing='src/frob.py:2')
+        assert_found(self, result, 'src/frob.py:2')
 
     def test_a_file_marker_elsewhere_does_not_exempt_this_file(self):
         result = self._check({
             'tests/test_frob.py': '# audit-ok: phase-reference-file\n',
             'src/frob.py': '# Added in phase 4.\n',
         })
-        self.assert_fail(result, containing='src/frob.py:1')
-        self.assertNotIn('tests/test_frob.py', result['details'])
+        self.assert_fail(result)
+        self.assertEqual(['src/frob.py:1'], result['findings'])
 
     def test_mkdocs_configuration_is_skipped(self):
         # mkdocs nav entries title plan pages by phase. That is
@@ -692,7 +719,7 @@ class PlanHistoryInSourceTest(CheckTestCase):
         result = self._check({
             'src/plans/billing.py': '# Added in phase 3.\n',
         })
-        self.assert_fail(result, containing='src/plans/billing.py:1')
+        assert_found(self, result, 'src/plans/billing.py:1')
 
     def test_markdown_is_skipped(self):
         # Markdown is documentation, plan-phase-references' scope.
@@ -723,7 +750,16 @@ class PlanHistoryInSourceTest(CheckTestCase):
         result = self._check({
             'src/frob.py': '# Added in phase 3 of PLAN-x.md.\n',
         })
-        self.assert_fail(result, containing='src/frob.py:1')
+        assert_found(self, result, 'src/frob.py:1')
+
+    def test_locations_are_findings_rather_than_details(self):
+        """The same reason as PlanSourceReferenceTest's case of this name."""
+        result = self._check({
+            'src/@org/team/x.py': '# Added in phase 3.\n',
+        })
+        self.assert_fail(result, containing='1 plan history reference(s) in source, in 1 file(s)')
+        self.assertNotIn('@', result['details'])
+        self.assertEqual(['src/@org/team/x.py:1'], result['findings'])
 
     def test_a_long_line_is_scanned_in_linear_time(self):
         assert_long_lines_are_linear(self, '# Added in phase 1. ', self.assert_fail)
