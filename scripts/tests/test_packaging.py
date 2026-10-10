@@ -2224,6 +2224,62 @@ class ReleaseArtifactsExcludePlansTest(CheckTestCase):
                 "      setup_requires=['setuptools_scm'])\n"),
         }))
 
+    def test_every_git_file_finder_offers_the_plans(self):
+        """pbr and setuptools-git take what git tracks, as scm does."""
+        cases = {
+            'pbr setup.py': {
+                'setup.py': (
+                    'from setuptools import setup\n'
+                    "setup(setup_requires=['pbr'], pbr=True)\n"),
+            },
+            'pbr setup.cfg': {
+                'setup.py': 'import setuptools\nsetuptools.setup()\n',
+                'setup.cfg': '[metadata]\nname = thing\n\n[pbr]\n',
+            },
+            'pbr backend': {
+                'pyproject.toml': (
+                    '[build-system]\nrequires = ["pbr>=6", "setuptools"]\n'
+                    'build-backend = "pbr.build"\n'),
+            },
+            'setuptools-git requires': {
+                'pyproject.toml': (
+                    '[build-system]\n'
+                    'requires = ["setuptools", "setuptools_git"]\n'
+                    'build-backend = "setuptools.build_meta"\n'),
+            },
+            'setuptools-git-ls-files setup.py': {
+                'setup.py': (
+                    'from setuptools import setup\n'
+                    "setup(setup_requires=['setuptools-git-ls-files'])\n"),
+            },
+        }
+        for name, files in cases.items():
+            with self.subTest(name):
+                self.fresh_fixture()
+                result = self.assert_fail(self._check(files))
+                self.assertIn('offers every tracked file',
+                              result['findings'][0])
+
+    def test_a_longer_name_is_not_a_git_file_finder(self):
+        """setuptools-git-versioning versions from git; it lists nothing."""
+        self.assert_pass(self._check({
+            'setup.py': (
+                'from setuptools import setup\n'
+                "setup(setup_requires=['setuptools-git-versioning'])\n"),
+        }))
+
+    def test_a_project_without_a_build_system_is_legacy_setuptools(self):
+        """PEP 517: no [build-system] means setuptools' legacy backend."""
+        result = self.assert_pass(self._check({
+            'pyproject.toml': '[project]\nname = "thing"\n',
+        }))
+        self.assertIn('sdist (pyproject.toml)', result['details'])
+        self.fresh_fixture()
+        self.assert_fail(self._check({
+            'pyproject.toml': '[project]\nname = "thing"\n',
+            'MANIFEST.in': 'graft docs\n',
+        }))
+
     def test_a_tooling_only_pyproject_is_not_a_package(self):
         self.assert_skip(self._check({
             'pyproject.toml': '[tool.ruff]\nline-length = 120\n',
@@ -2314,6 +2370,15 @@ class ReleaseArtifactsExcludePlansTest(CheckTestCase):
                 'include = ["/src", "/docs"]\n'),
         }))
 
+    def test_a_crate_include_list_overrides_its_exclude(self):
+        """cargo reads exclude only when there is no include."""
+        self.assert_fail(self._check({
+            'Cargo.toml': (
+                '[package]\nname = "thing"\nversion = "0.1.0"\n'
+                'include = ["/src", "/docs"]\n'
+                'exclude = ["/docs/plans"]\n'),
+        }))
+
     def test_an_unpublished_crate_does_not_apply(self):
         """uncalibrated-sextant: publish = false ships no .crate."""
         self.assert_skip(self._check({
@@ -2353,6 +2418,15 @@ class ReleaseArtifactsExcludePlansTest(CheckTestCase):
         self.assert_pass(self._check({
             'package.json': '{"name": "thing", "version": "1.0.0"}\n',
             '.npmignore': '# Working history.\n/docs/plans/\n',
+        }))
+
+    def test_a_root_npmignore_does_not_narrow_a_files_list(self):
+        """npm: a root .npmignore cannot override the files field."""
+        self.assert_fail(self._check({
+            'package.json': (
+                '{"name": "thing", "version": "1.0.0", '
+                '"files": ["dist/", "docs/"]}\n'),
+            '.npmignore': '/docs/plans/\n',
         }))
 
     def test_a_private_npm_package_does_not_apply(self):

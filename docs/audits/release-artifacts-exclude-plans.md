@@ -23,7 +23,7 @@ that directory with its own mechanism:
 
 | Artifact | Built from | Passes when |
 |----------|------------|-------------|
-| sdist, setuptools with setuptools_scm | `pyproject.toml` or `setup.py` | `MANIFEST.in` has `prune docs/plans` (or `prune docs`), not undone by a later `graft`, `include` or `recursive-include` that adds a plan back |
+| sdist, setuptools with a git file finder (setuptools_scm, setuptools-git, pbr) | `pyproject.toml` or `setup.py` | `MANIFEST.in` has `prune docs/plans` (or `prune docs`), not undone by a later `graft`, `include` or `recursive-include` that adds a plan back |
 | sdist, plain setuptools | `pyproject.toml` or `setup.py` | `MANIFEST.in` does not add `docs/plans` back in |
 | sdist, hatchling | `pyproject.toml` | `[tool.hatch.build.targets.sdist]` `exclude` covers `docs/plans` (it wins over an include list), or an `include`/`only-include` list does not select it |
 | crate | `Cargo.toml` with a `[package]` that is published | `exclude` covers `docs/plans`, or an `include` list does not select it, either set directly or inherited from `[workspace.package]` |
@@ -76,7 +76,12 @@ include list, a `!` line takes the plans back out only when it selects
 all of `docs/plans`, comes after every entry reaching it, and names it
 at least as closely: `"docs/", "!docs/plans"` passes, and
 `"docs/plans/*.md", "!docs/plans"` does not, since Cargo ships the
-plans from it.
+plans from it. That rule is Cargo's and hatch's, applied to npm too, so
+a `**` or bare `*` entry reaches inside the plans and no `!` line takes
+them back: `"docs/**", "!docs/plans"` and `"*", "!docs"` are reported
+even though npm, which applies `files` in order, would probably leave
+the plans out. List what ships instead (`"docs/"` rather than
+`"docs/**"`).
 
 galaxy's `build_ignore` is not gitignore-shaped: ansible-galaxy
 fnmatches it against each path relative to the collection root, and
@@ -94,7 +99,19 @@ does nothing, because setuptools matches the `.` literally. The only
 exclusions credited are `prune` and `recursive-exclude <dir> *` of
 `docs/plans` or a directory above it: an `exclude` or `global-exclude`
 that would remove the plans one file type or name at a time is not.
-Use `prune docs/plans`. A galaxy `manifest` that keeps the default
+Use `prune docs/plans`:
+
+```
+graft docs
+exclude docs/plans/*.md    # fails: removes today's plans, not the directory
+```
+
+```
+graft docs
+prune docs/plans           # passes
+```
+
+A galaxy `manifest` that keeps the default
 directives is treated as shipping the plans, since those defaults take
 `.txt`, `.json` and `.yml` files from `docs/`; add `prune docs/plans`
 to its directives. The `galaxy.yml` reader handles block and one-line
@@ -112,8 +129,8 @@ are not checked.
 
 ## Template
 
-No template. For the common case, a setuptools_scm project, add this
-to `MANIFEST.in` at the repository root:
+No template. For the common case, a setuptools_scm (or pbr) project,
+add this to `MANIFEST.in` at the repository root:
 
 ```
 prune docs/plans

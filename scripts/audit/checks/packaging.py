@@ -1596,6 +1596,21 @@ PLANS_DIR = 'docs/plans'
 #: a `..`, which none of the packaging tools follow.
 PLANS_ARTIFACT_ROOTS = ('', 'docs')
 
+#: setuptools plugins that offer the sdist every file git tracks, where
+#: plain setuptools takes only what MANIFEST.in adds: setuptools_scm and
+#: setuptools-git register a file finder, and pbr adds the tracked files
+#: from its own manifest maker. Canonical distribution names.
+GIT_FILE_FINDERS = ('setuptools-scm', 'setuptools-git',
+                    'setuptools-git-ls-files', 'pbr')
+
+#: A GIT_FILE_FINDERS name in setup.py or setup.cfg (setup_requires,
+#: pbr=True, a [pbr] section), spelled with '-' or '_', and not as the
+#: prefix of a longer name such as setuptools-git-versioning.
+GIT_FILE_FINDER_RE = re.compile(
+    r'(?<![\w-])(' + '|'.join(
+        name.replace('-', '[_-]') for name in GIT_FILE_FINDERS)
+    + r')(?![\w-])')
+
 
 def normalise_path(value):
     """A manifest's path argument, as a path relative to its root.
@@ -2041,7 +2056,8 @@ class ReleaseArtifactsExcludePlans(Check):
         else:
             return None
 
-        if backend.startswith('setuptools'):
+        # pbr's backend is setuptools' with pbr's manifest maker.
+        if backend.startswith(('setuptools', 'pbr')):
             return self._setuptools(repo, root, target, plans, manifest,
                                     requires)
         if backend.startswith('hatchling'):
@@ -2056,18 +2072,19 @@ class ReleaseArtifactsExcludePlans(Check):
         legacy = '\n'.join(
             repo.read(os.path.join(root, name)) or ''
             for name in ('setup.py', 'setup.cfg'))
-        # setuptools_scm's file finder offers the sdist every tracked
-        # file. Without it, setuptools only takes what MANIFEST.in adds.
-        scm = ('setuptools-scm' in requires
-               or re.search(r'setuptools[_-]scm', legacy) is not None)
+        finders = [name for name in GIT_FILE_FINDERS if name in requires]
+        finders += [canonical_dependency_name(match)
+                    for match in GIT_FILE_FINDER_RE.findall(legacy)]
+        finder = finders[0] if finders else None
         manifest_in = os.path.join(root, 'MANIFEST.in')
         lines = (repo.read(manifest_in) or '').splitlines()
         artifact = f'sdist ({manifest})'
-        if not manifest_directives_ship(lines, target, plans, scm):
+        if not manifest_directives_ship(lines, target, plans,
+                                        finder is not None):
             return artifact, None
-        if scm:
+        if finder:
             return artifact, (
-                f'setuptools_scm offers every tracked file to the sdist; '
+                f'{finder} offers every tracked file to the sdist; '
                 f'add "prune {target}" to {manifest_in}')
         return artifact, (
             f'{manifest_in} adds {target}/ to the sdist; follow it with '
