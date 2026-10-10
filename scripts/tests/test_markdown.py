@@ -79,7 +79,7 @@ class IterLinesOutsideFencesTest(unittest.TestCase):
 
 class MarkdownHeadingTest(unittest.TestCase):
     def test_reads_level_and_text(self):
-        self.assertEqual(markdown_heading('### Phase 5'), (3, 'Phase 5'))
+        self.assertEqual(markdown_heading('### Phase 5'), (3, 'Phase 5'))  # audit-ok: phase-reference
 
     def test_requires_whitespace_after_the_hashes(self):
         self.assertIsNone(markdown_heading('###nope'))
@@ -214,9 +214,8 @@ class IterMarkdownTableRowsTest(unittest.TestCase):
 
         A `|` line directly under a table, with no blank line between,
         is another data row of it -- there is no second table until
-        something that is not a row intervenes. The push audit of
-        PLAN-push-audit-phase.md raised the carried-over header as a
-        possible misattribution; it is not one, because GitHub renders
+        something that is not a row intervenes. The carried-over header
+        looks like a misattribution and is not one, because GitHub renders
         the same two lines as one table. Pinned here so the next
         reader does not "fix" the parser away from the renderer.
         """

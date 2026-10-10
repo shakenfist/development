@@ -183,8 +183,8 @@ def iter_doc_content_files(repo_path, props):
 
     AGENTS.md and ARCHITECTURE.md are in scope for the same reason
     README.md is: they describe the current state of the software to
-    a reader who was not present for its construction, so "wired up
-    in phase 6" is noise there too.
+    a reader who was not present for its construction, so
+    `wired up in phase 6` is noise there too.
     """
     for name in ('README.md', 'AGENTS.md', 'ARCHITECTURE.md'):
         if os.path.exists(os.path.join(repo_path, name)):
