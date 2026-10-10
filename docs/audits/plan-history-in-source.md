@@ -119,6 +119,14 @@ stands for, in a sentence or two. Where the surrounding comment
 already says why, drop the citation. Where a line uses the shape in
 its ordinary sense, mark it `audit-ok: phase-reference`.
 
+The one ordinary use the first fleet run found was a comment
+labelling the stages of a procedure -- the release steps in a
+`Makefile`, the log-collection stages of a workflow -- as `Phase 1:`,
+`Phase 2:`. The pattern cannot exempt that shape, because real plan
+history is written the same way about as often. Rename the labels
+`Step 1:`, `Step 2:` instead, which the pattern deliberately does not
+match, rather than marking each line.
+
 ## Projects
 
 Per-project compliance for this criterion is regenerated
