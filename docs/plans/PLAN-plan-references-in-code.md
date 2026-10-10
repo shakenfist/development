@@ -260,7 +260,7 @@ Out of scope:
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. Diff-level guard and this repository's cleanup | Not started | |
+| 1. Diff-level guard and this repository's cleanup | In progress | |
 | 2. The `plan-history-in-source` criterion | Not started | |
 | 3. Push audit | Not started | |
 
