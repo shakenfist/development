@@ -3,8 +3,8 @@
 defuse() lives here rather than beside either caller because both
 publish the same harvested string: audit-update-docs.py into the
 generated compliance page, and audit-manage-issues.py into the body
-of an issue filed on the audited repository. Kept beside one of them,
-it was applied to the compliance page and not to issue bodies, so these
+of an issue filed on the audited repository. Kept beside either
+publisher, it is easy to apply to one and forget the other, so these
 tests sit with the function rather than with either publisher.
 """
 import os

@@ -153,11 +153,13 @@ git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- '*.py' | \
 # embedded further down says an added reference to a phase, step,
 # decision or plan file is a finding before pushing, but until this
 # grep only wave 2 judgment looked for one. Markdown and plan
-# directories are excluded because plans may cite themselves freely;
-# the exclusion is a pathspec, so it is checked against a range that
-# touched docs/plans/ rather than assumed. "phase" has ordinary
-# meanings, so a hit is a candidate for the reviewer, not a verdict
-git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- ':!*.md' ':!docs/**/plans/**' | \
+# directories are excluded because plans may cite themselves freely.
+# The plans exclusion needs `glob` magic: without it `**` is not
+# special and `docs/**/plans/**` matches nothing under docs/plans/,
+# which PushAuditPlanReferenceGrepTest holds. "phase" has ordinary
+# meanings, and PLAN-TEMPLATE.md and test fixtures are cited
+# legitimately, so a hit is a candidate for the reviewer, not a verdict
+git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- ':!*.md' ':(exclude,glob)docs/**/plans/**' | \
     grep -niE '^\+[^+].*(\bphases?\s+[0-9]+\b|\bphase-[0-9]+\b|\bdecisions?\s+[0-9]+\b|\bsteps?\s+[0-9]+[a-z]\b|PLAN-[A-Za-z0-9._-]+\.md)'
 
 # Documentation touched at all (warns if none)

@@ -14,7 +14,9 @@ Run with: python3 scripts/tests/test_plans.py
 
 import os
 import re
+import subprocess
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -2372,6 +2374,67 @@ class PushAuditRunbookRangeTest(unittest.TestCase):
             '"${AUDIT_RANGE:-origin/main...HEAD}" instead')
 
 
+class PushAuditPlanReferenceGrepTest(unittest.TestCase):
+    """The runbook's plan-reference grep skips plans, and only plans.
+
+    The command is run as the runbook spells it, against a fixture
+    repository, because its exclusions are pathspecs and a pathspec
+    reads as plausible whether or not it matches. `docs/**/plans/**`
+    without `glob` magic matched nothing under docs/plans/, and the
+    markdown exclusion hid that for every plan in this repository; a
+    non-markdown file in a plans directory is the shape that shows it.
+    """
+
+    # The grep half of the command is the line that searches for plan
+    # file names; the git diff half is the line before it.
+    GREP_MARKER = 'PLAN-[A-Za-z0-9._-]+'
+
+    def _command(self):
+        with open(os.path.join(REPO_ROOT, 'PUSH-AUDIT.md')) as f:
+            lines = f.read().splitlines()
+        found = [n for n, line in enumerate(lines)
+                 if self.GREP_MARKER in line and 'grep' in line]
+        self.assertEqual(
+            1, len(found),
+            'expected exactly one plan-reference grep in PUSH-AUDIT.md')
+        diff_line = lines[found[0] - 1]
+        self.assertTrue(diff_line.startswith('git diff '), diff_line)
+        self.assertTrue(diff_line.endswith('\\'), diff_line)
+        return diff_line[:-1] + lines[found[0]]
+
+    def test_plans_directories_are_excluded_and_nothing_else(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        fixture = FixtureRepo(tmp.name)
+        fixture.init_git()
+        fixture.write('README.md', 'Fixture.\n')
+        fixture.commit('base')
+        # Each added line names its file, so a hit says where it came
+        # from without the diff headers. True means it must be a hit.
+        paths = {
+            'scripts/tool.py': True,
+            'docs/plansfoo/notes.txt': True,
+            'docs/plans/diagram.yaml': False,
+            'docs/sub/plans/notes.txt': False,
+            'docs/guide.md': False,
+        }
+        fixture.write_all({path: f'# phase 5 {path}\n' for path in paths})
+        fixture.commit('add references')
+
+        result = subprocess.run(
+            ['bash', '-c', self._command()], cwd=tmp.name,
+            env=dict(os.environ, AUDIT_RANGE='HEAD^..HEAD'),
+            capture_output=True, text=True)
+        self.assertEqual('', result.stderr)
+        hits = sorted(
+            path for path in paths
+            if re.search(rf'phase 5 {re.escape(path)}$', result.stdout,
+                         re.MULTILINE))
+        self.assertEqual(
+            sorted(path for path, expected in paths.items() if expected),
+            hits, result.stdout)
+
+
 class PushAuditTest(CheckTestCase):
     check_class = plans.PushAudit
 
@@ -2926,10 +2989,11 @@ class PushAuditPhaseBlockTest(unittest.TestCase):
         # Abandoned and Superseded back out of the sentence -- the
         # exact drift v3 was cut to close, when the check carved out
         # all three while the block said Complete alone. Held the way
-        # plan-status-vocabulary is held to PLAN_STATUSES: the block is the wording repositories are
-        # handed, PLAN_TERMINAL_STATUSES is what the audit exempts,
-        # and if they drift a project is told one thing and measured
-        # against another.
+        # plan-status-vocabulary is held to PLAN_STATUSES: the block
+        # is the wording repositories are handed,
+        # PLAN_TERMINAL_STATUSES is what the audit exempts, and if
+        # they drift a project is told one thing and measured against
+        # another.
         canonical = load_canonical_block(
             'plan-push-audit-phase'
         )
