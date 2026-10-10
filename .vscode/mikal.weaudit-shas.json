@@ -81,10 +81,6 @@
       "sha": "26a19958e61609c60e1b721594ab8151ddf1634f",
       "date": "2026-09-04"
     },
-    ".pre-commit-config.yaml": {
-      "sha": "ffa3005a81a2d0ad78a8bedd82a955aaf0b91889",
-      "date": "2026-10-05"
-    },
     "AGENTS.md": {
       "sha": "73c173317112c5bde0dd17901e1cf31eec33bc39",
       "date": "2026-10-05"
@@ -96,10 +92,6 @@
     "PLAN-TEMPLATE.md": {
       "sha": "86398ca32ca7f9fd4ed46d4f6c8be1572290613d",
       "date": "2026-10-07"
-    },
-    "PUSH-AUDIT.md": {
-      "sha": "fb521abe2296ba7b812471e41c7095ce04c13f08",
-      "date": "2026-10-05"
     },
     "README.md": {
       "sha": "2269add37483bd29c54af121efee0aeeb1939a53",
@@ -221,16 +213,8 @@
       "sha": "08e51b13f6f3ff523d292a1b5daad5a8c9568301",
       "date": "2026-10-05"
     },
-    "docs/audits/plan-source-references.md": {
-      "sha": "b6e37735099b636067c33dc1e42f554f29378aa9",
-      "date": "2026-10-07"
-    },
     "docs/audits/plan-template.md": {
       "sha": "4cf93d4dadebc842fc643300d689bb06aa6b539b",
-      "date": "2026-10-05"
-    },
-    "docs/audits/push-audit.md": {
-      "sha": "beaa630c3d8ff29020d9242513b64291a34824ff",
       "date": "2026-10-05"
     },
     "docs/audits/pyproject-usage.md": {
@@ -353,10 +337,6 @@
       "sha": "5349a3921a828cda0feca51d1c1d4a4853ad4286",
       "date": "2026-09-24"
     },
-    "scripts/audit-update-docs.py": {
-      "sha": "cd50bfa0f88c62a80618da10b1dbc2f689d06f2a",
-      "date": "2026-10-05"
-    },
     "scripts/audit/__init__.py": {
       "sha": "86ffeb2a5deffaa05b04df768a1e43d2448435a0",
       "date": "2026-09-02"
@@ -389,10 +369,6 @@
       "sha": "01853364578a6139d3787ebfa9d09a65211bb37c",
       "date": "2026-09-15"
     },
-    "scripts/audit/checks/plans.py": {
-      "sha": "af82aa4795aa08cb9f3a72aadfcccb95a7ef881d",
-      "date": "2026-10-07"
-    },
     "scripts/audit/checks/review.py": {
       "sha": "e32ae9a6de09ad0f0c2ec2bb44c5b87280078a6a",
       "date": "2026-09-26"
@@ -400,10 +376,6 @@
     "scripts/audit/checks/runners.py": {
       "sha": "3496934ba7cfbccc4923b2d8ae1409a66476b28f",
       "date": "2026-10-05"
-    },
-    "scripts/audit/files.py": {
-      "sha": "7c394a5900a3418a584b9edcad279b6cd5aa382b",
-      "date": "2026-09-27"
     },
     "scripts/audit/github.py": {
       "sha": "5fdb28856b27d63920448d38d2d77ae30c7aa061",
@@ -420,10 +392,6 @@
     "scripts/audit/text/__init__.py": {
       "sha": "dc2515cc9e2cdd5083c39a803bfdbcafb37dbe0d",
       "date": "2026-09-02"
-    },
-    "scripts/audit/text/markdown.py": {
-      "sha": "f3bc378e76de4d7795b85dffe158cc125a8692c7",
-      "date": "2026-10-05"
     },
     "scripts/audit/text/python_source.py": {
       "sha": "1e273dd7c16eee89cccc8265fce631b45fbd5617",
@@ -465,17 +433,9 @@
       "sha": "b55c8394f2b9fd2c195c942863e27754494864e8",
       "date": "2026-09-22"
     },
-    "scripts/tests/test_audit_common.py": {
-      "sha": "e31d1ac689aab09cfd90a66c0301db9d800f6d74",
-      "date": "2026-09-22"
-    },
     "scripts/tests/test_audit_seams.py": {
       "sha": "8c2839c763fc7c751693200c0fc62684167bc4ce",
       "date": "2026-09-24"
-    },
-    "scripts/tests/test_audit_snapshot.py": {
-      "sha": "cc486c60a22a9d0be5c3d2f017a7c67664ada293",
-      "date": "2026-09-22"
     },
     "scripts/tests/test_audit_update_docs.py": {
       "sha": "4a6529b8091dac5df17d2cff835c1b42aff5bb39",
@@ -513,29 +473,13 @@
       "sha": "870142095e324116f7cb23293f1b6cc08111bc59",
       "date": "2026-10-05"
     },
-    "scripts/tests/test_manage_issues.py": {
-      "sha": "77774c5cbf18d16d9a1428343c0476e18e8107eb",
-      "date": "2026-09-28"
-    },
-    "scripts/tests/test_markdown.py": {
-      "sha": "f79a747418900e25ba050e14d951c526821fbf9d",
-      "date": "2026-09-22"
-    },
     "scripts/tests/test_npm_dependencies.py": {
       "sha": "e7360d31a425b52e8e309921993e392235309faa",
       "date": "2026-09-22"
     },
-    "scripts/tests/test_plans.py": {
-      "sha": "69415c79ef1381e901b8f80666ecbe14dec429d2",
-      "date": "2026-10-07"
-    },
     "scripts/tests/test_python_source.py": {
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",
       "date": "2026-09-04"
-    },
-    "scripts/tests/test_registry.py": {
-      "sha": "7a799e733a59efb91a310271c42a81d0195a12cb",
-      "date": "2026-10-07"
     },
     "scripts/tests/test_repo.py": {
       "sha": "89987f23cb42ec217670bda7881661ecdd8b0614",
