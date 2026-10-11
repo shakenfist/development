@@ -117,6 +117,16 @@ class VmRunnerSizeTest(CheckTestCase):
             "[self-hosted, vm, 'debian-13', 'xl-bigdisk']")})
         self.assert_pass(result)
 
+    def test_s_cloud_counts_as_a_size(self):
+        result = self._check({'ci.yml': self._job(
+            '[self-hosted, vm, debian-13, s-cloud]')})
+        self.assert_pass(result)
+
+    def test_s_cluster_counts_as_a_size(self):
+        result = self._check({'ci.yml': self._job(
+            '[self-hosted, vm, debian-13, s-cluster]')})
+        self.assert_pass(result)
+
     def test_a_literal_size_beside_a_matrix_expression_passes(self):
         # kerbside-patches' shape: the OS comes from the matrix, the
         # size is written literally beside it.

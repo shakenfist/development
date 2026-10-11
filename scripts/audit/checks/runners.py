@@ -42,8 +42,14 @@ RUNNER_EXCEPTION_RE = re.compile(r'audit-ok:\s*github-hosted-runner')
 # together -- test_the_size_vocabulary_matches_the_specification keeps
 # this list and the spec page in step, but nothing can reach across to
 # the conductor.
+#
+# 's-cloud' and 's-cluster' mirror the two CI_SIZES entries for jobs
+# which build a nested test cloud from a small runner. They have the
+# same footprint as 's' (2 vCPU, 4096 MB): 's-cloud' is for a nested
+# cloud on one node and 's-cluster' for a multi-node cluster.
 VM_SIZE_LABELS = frozenset({
     'xs', 's', 'm', 'l', 'xl', 'm-bigdisk', 'xl-bigdisk',
+    's-cloud', 's-cluster',
 })
 
 
@@ -258,9 +264,11 @@ class VmRunnerSize(Check):
                 f'silent downgrade to the smallest runner rather than '
                 f'a free choice. Add the size the job actually wants '
                 f'(xs/s/m/l/xl, or m-bigdisk/xl-bigdisk when the job '
-                f'needs the disk); "xs" is a valid answer stated '
-                f'explicitly. A job which genuinely cannot name one '
-                f'marks the line "audit-ok: vm-runner-size" with the '
+                f'needs the disk, or s-cloud/s-cluster for a nested '
+                f'cloud on one node or a multi-node cluster built '
+                f'from an "s"-sized runner); "xs" is a valid answer '
+                f'stated explicitly. A job which genuinely cannot name '
+                f'one marks the line "audit-ok: vm-runner-size" with the '
                 f'reason')
         return self.ok(
             f'All "vm" runner jobs name a size in '
