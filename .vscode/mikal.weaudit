@@ -847,6 +847,38 @@
     {
       "path": "scripts/tests/test_runners.py",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/distros.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/packaging.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/plans.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/runners.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/files.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/registry.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/repo.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/markdown.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

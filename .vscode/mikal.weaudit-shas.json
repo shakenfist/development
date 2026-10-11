@@ -349,6 +349,10 @@
       "sha": "7d4ee84ae14076c62f559def01a7ff8ddb6314cb",
       "date": "2026-10-05"
     },
+    "scripts/audit/checks/distros.py": {
+      "sha": "82b041f13425c69c65e929211031f94b4c636406",
+      "date": "2026-10-12"
+    },
     "scripts/audit/checks/docs_content.py": {
       "sha": "3fb9bf166a0132485300a5cd94c41f391b117202",
       "date": "2026-10-07"
@@ -365,9 +369,25 @@
       "sha": "01853364578a6139d3787ebfa9d09a65211bb37c",
       "date": "2026-09-15"
     },
+    "scripts/audit/checks/packaging.py": {
+      "sha": "d8cc290a502ef10725a222c03cf6ba0fb8f4aaca",
+      "date": "2026-10-12"
+    },
+    "scripts/audit/checks/plans.py": {
+      "sha": "8b9e3342a4929abb464b4fe3f9b281ede26d8046",
+      "date": "2026-10-12"
+    },
     "scripts/audit/checks/review.py": {
       "sha": "e32ae9a6de09ad0f0c2ec2bb44c5b87280078a6a",
       "date": "2026-09-26"
+    },
+    "scripts/audit/checks/runners.py": {
+      "sha": "a98f91387ada701eccd3f9f32d96e23534a44f59",
+      "date": "2026-10-12"
+    },
+    "scripts/audit/files.py": {
+      "sha": "a3ab52b827044a5855ce96a15e0867c9905da29a",
+      "date": "2026-10-12"
     },
     "scripts/audit/github.py": {
       "sha": "5fdb28856b27d63920448d38d2d77ae30c7aa061",
@@ -377,6 +397,14 @@
       "sha": "ef1d4a20156613830ec787fde806cbf955e9501e",
       "date": "2026-09-02"
     },
+    "scripts/audit/registry.py": {
+      "sha": "833453494153f2b1ba9e847150a1de594feef5fa",
+      "date": "2026-10-12"
+    },
+    "scripts/audit/repo.py": {
+      "sha": "3888c0a53594f3270a2e8917535e6d3c2c3ab540",
+      "date": "2026-10-12"
+    },
     "scripts/audit/scope.py": {
       "sha": "ab4cbcdd7c7eb198e834c654e4641ac44ce5e141",
       "date": "2026-10-07"
@@ -384,6 +412,10 @@
     "scripts/audit/text/__init__.py": {
       "sha": "dc2515cc9e2cdd5083c39a803bfdbcafb37dbe0d",
       "date": "2026-09-02"
+    },
+    "scripts/audit/text/markdown.py": {
+      "sha": "1f7c1ecedcb47f2f1843dc9593cc2c68af2d9323",
+      "date": "2026-10-12"
     },
     "scripts/audit/text/python_source.py": {
       "sha": "1e273dd7c16eee89cccc8265fce631b45fbd5617",
