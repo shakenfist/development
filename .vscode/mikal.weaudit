@@ -903,6 +903,18 @@
     {
       "path": "docs/audits/workflow-standards.md",
       "author": "mikal"
+    },
+    {
+      "path": "PUSH-AUDIT.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".pre-commit-config.yaml",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit-update-docs.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

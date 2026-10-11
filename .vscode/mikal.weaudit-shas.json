@@ -81,6 +81,10 @@
       "sha": "26a19958e61609c60e1b721594ab8151ddf1634f",
       "date": "2026-09-04"
     },
+    ".pre-commit-config.yaml": {
+      "sha": "805b262c50f6e356892f3bec35d4f42daeb9420f",
+      "date": "2026-10-12"
+    },
     "AGENTS.md": {
       "sha": "73c173317112c5bde0dd17901e1cf31eec33bc39",
       "date": "2026-10-05"
@@ -92,6 +96,10 @@
     "PLAN-TEMPLATE.md": {
       "sha": "86398ca32ca7f9fd4ed46d4f6c8be1572290613d",
       "date": "2026-10-07"
+    },
+    "PUSH-AUDIT.md": {
+      "sha": "8641eb9c64ce9e56ac2b311dc382b8ca3d0a2bb8",
+      "date": "2026-10-12"
     },
     "README.md": {
       "sha": "2269add37483bd29c54af121efee0aeeb1939a53",
@@ -356,6 +364,10 @@
     "scripts/audit-raised.py": {
       "sha": "5349a3921a828cda0feca51d1c1d4a4853ad4286",
       "date": "2026-09-24"
+    },
+    "scripts/audit-update-docs.py": {
+      "sha": "ce04f496bef9dcaa4522dfa61e869df2c65438d5",
+      "date": "2026-10-12"
     },
     "scripts/audit/__init__.py": {
       "sha": "86ffeb2a5deffaa05b04df768a1e43d2448435a0",
