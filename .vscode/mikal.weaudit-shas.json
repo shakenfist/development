@@ -97,6 +97,10 @@
       "sha": "2269add37483bd29c54af121efee0aeeb1939a53",
       "date": "2026-10-05"
     },
+    "docs/audits/README.md": {
+      "sha": "5f953832d47635c4dc41a74b73da54d7e765a61b",
+      "date": "2026-10-12"
+    },
     "docs/audits/ci-review-automation.md": {
       "sha": "1e71c7a37946b3534dad400d55374e00bad389b0",
       "date": "2026-10-05"
@@ -205,6 +209,10 @@
       "sha": "fdb2179a490fe5c810e4f9f3d7d563dbaef44f5e",
       "date": "2026-10-05"
     },
+    "docs/audits/plan-history-in-source.md": {
+      "sha": "7c03ef16a75dd5f9c4df55c047185ecb0330d0dd",
+      "date": "2026-10-12"
+    },
     "docs/audits/plan-index.md": {
       "sha": "436cf37b2f9d0492d38ddf205f49bccbbad677c6",
       "date": "2026-10-05"
@@ -213,9 +221,17 @@
       "sha": "08e51b13f6f3ff523d292a1b5daad5a8c9568301",
       "date": "2026-10-05"
     },
+    "docs/audits/plan-source-references.md": {
+      "sha": "f4a5692ebc7df73e1408d526523d5b407ea851e4",
+      "date": "2026-10-12"
+    },
     "docs/audits/plan-template.md": {
       "sha": "4cf93d4dadebc842fc643300d689bb06aa6b539b",
       "date": "2026-10-05"
+    },
+    "docs/audits/push-audit.md": {
+      "sha": "54baefdd0b45a60aeae483fc5342e1795862f8f8",
+      "date": "2026-10-12"
     },
     "docs/audits/pyproject-usage.md": {
       "sha": "c7c1f0311e26b8fc94ff6f31653f9139ae538e09",
@@ -232,6 +248,10 @@
     "docs/audits/readme-structure.md": {
       "sha": "6013edfe5eb3323b9862d1df67a7e83509cd2654",
       "date": "2026-10-05"
+    },
+    "docs/audits/release-artifacts-exclude-plans.md": {
+      "sha": "6e621917aa19f71bf65987b990becf9fa0f9d53e",
+      "date": "2026-10-12"
     },
     "docs/audits/release-process.md": {
       "sha": "92a84b3ea9f590b75dcb36cf505cb1b94cdc1d07",
@@ -296,6 +316,10 @@
     "docs/audits/version-file-gitignore.md": {
       "sha": "179afb0f85bc331ee7c78e5e8c20c8b497b242c3",
       "date": "2026-10-05"
+    },
+    "docs/audits/workflow-standards.md": {
+      "sha": "5b51d5e2ebe7c5248ee14989bcbd21afcfcfd200",
+      "date": "2026-10-12"
     },
     "docs/automated-pr-review.md": {
       "sha": "d60479307223048db30a9651ee8492b89c8b4049",

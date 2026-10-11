@@ -879,6 +879,30 @@
     {
       "path": "scripts/audit/text/markdown.py",
       "author": "mikal"
+    },
+    {
+      "path": "docs/audits/plan-history-in-source.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/plan-source-references.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/push-audit.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/release-artifacts-exclude-plans.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/workflow-standards.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
