@@ -263,10 +263,9 @@ class VmRunnerSize(Check):
                 f'-- when it finds none, so an omitted size is a '
                 f'silent downgrade to the smallest runner rather than '
                 f'a free choice. Add the size the job actually wants '
-                f'(xs/s/m/l/xl, or m-bigdisk/xl-bigdisk when the job '
-                f'needs the disk, or s-cloud/s-cluster for a nested '
-                f'cloud on one node or a multi-node cluster built '
-                f'from an "s"-sized runner); "xs" is a valid answer '
+                f'(xs/s/m/l/xl; m-bigdisk/xl-bigdisk when the job '
+                f'needs the disk; s-cloud/s-cluster when it builds a '
+                f'nested cloud or cluster); "xs" is a valid answer '
                 f'stated explicitly. A job which genuinely cannot name '
                 f'one marks the line "audit-ok: vm-runner-size" with the '
                 f'reason')
