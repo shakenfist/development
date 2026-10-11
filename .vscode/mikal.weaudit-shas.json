@@ -297,10 +297,6 @@
       "sha": "179afb0f85bc331ee7c78e5e8c20c8b497b242c3",
       "date": "2026-10-05"
     },
-    "docs/audits/workflow-standards.md": {
-      "sha": "3e4f56aa81c104c8befbdf006bd35d2349495410",
-      "date": "2026-10-05"
-    },
     "docs/automated-pr-review.md": {
       "sha": "d60479307223048db30a9651ee8492b89c8b4049",
       "date": "2026-08-30"
@@ -372,10 +368,6 @@
     "scripts/audit/checks/review.py": {
       "sha": "e32ae9a6de09ad0f0c2ec2bb44c5b87280078a6a",
       "date": "2026-09-26"
-    },
-    "scripts/audit/checks/runners.py": {
-      "sha": "3496934ba7cfbccc4923b2d8ae1409a66476b28f",
-      "date": "2026-10-05"
     },
     "scripts/audit/github.py": {
       "sha": "5fdb28856b27d63920448d38d2d77ae30c7aa061",
@@ -492,10 +484,6 @@
     "scripts/tests/test_review_tracking.py": {
       "sha": "a349dadb49e0b841f151b3616354a7158cf0bab5",
       "date": "2026-10-09"
-    },
-    "scripts/tests/test_runners.py": {
-      "sha": "7aed137d41b191ce4cc7e547cba6ed168a961662",
-      "date": "2026-09-22"
     },
     "templates/ci-review-automation/README.md": {
       "sha": "086d654adc49954ae423fae08757c4d49843e01b",

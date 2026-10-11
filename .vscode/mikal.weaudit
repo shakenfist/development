@@ -217,10 +217,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_runners.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_hooks.py",
       "author": "mikal"
     },
@@ -661,10 +657,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/workflow-standards.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/plan-phase-references.md",
       "author": "mikal"
     },
@@ -722,10 +714,6 @@
     },
     {
       "path": "docs/audits/scheduled-workflow-health.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/runners.py",
       "author": "mikal"
     },
     {
