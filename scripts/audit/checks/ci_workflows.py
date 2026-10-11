@@ -18,8 +18,8 @@ import subprocess
 from audit.check import Check
 from audit.github import GhCli
 from audit.files import (
-    WALK_SKIP, any_workflow_contains, check_file_contains,
-    check_file_exists, workflow_has_permissions,
+    WALK_SKIP, check_file_contains, check_file_exists, file_mentions,
+    list_workflow_files, workflow_has_permissions,
     workflows_inheriting_secrets_into,
 )
 from audit.text.workflows import (
@@ -150,7 +150,7 @@ def carries_retired_comment_addresser(repo_path):
     return sorted(found)
 
 
-# The three things check_ci_review_automation() can name in a finding
+# The four things check_ci_review_automation() can name in a finding
 # beyond a missing file. A maintainer following an audit issue has to
 # land on a spec page that states the thing they are being measured
 # against, and a rewrite of that page dropped the shared action while
@@ -160,6 +160,38 @@ CI_REVIEW_DEVELOPER_WORKFLOWS = ('pr-re-review.yml', 'pr-retest.yml')
 
 
 CI_REVIEW_SHARED_ACTION = 'review-pr-with-claude@main'
+
+
+CI_REVIEW_REUSABLE_WORKFLOW = (
+    'shakenfist/actions/.github/workflows/pr-auto-review.yml@main')
+
+
+def automated_reviewer_workflows(repo_path):
+    """The workflows which review pull requests through the shared action.
+
+    Either reference counts: the reusable pr-auto-review.yml reaches
+    review-pr-with-claude itself, so a caller of it never names the
+    action, while a hand-written reviewer job names the action directly.
+
+    The developer workflows are not candidates. pr-re-review.yml names
+    the action because a maintainer can ask it for another review, so
+    while it counted, every repository carrying it passed this
+    requirement whatever its automatic reviewer was -- or with no
+    automatic reviewer at all (shakenfist/development#233).
+
+    A reference in a full-line comment does not count, so a
+    commented-out reviewer job is not a reviewer.
+
+    Returns the matching workflow file names, sorted.
+    """
+    return sorted(
+        wf for wf in list_workflow_files(repo_path)
+        if wf not in CI_REVIEW_DEVELOPER_WORKFLOWS
+        and any(
+            file_mentions(
+                os.path.join(repo_path, '.github', 'workflows', wf), needle)
+            for needle in (CI_REVIEW_SHARED_ACTION,
+                           CI_REVIEW_REUSABLE_WORKFLOW)))
 
 
 CI_REVIEW_TRIGGER_ACTION = 'shakenfist/actions/pr-bot-trigger@main'
@@ -972,12 +1004,14 @@ class CiReviewAutomation(Check):
             ):
                 issues.append(f'Missing {wf}')
 
-        # Check that at least one workflow uses the shared review action
-        if not any_workflow_contains(
-            repo.path, re.escape(CI_REVIEW_SHARED_ACTION)
-        ):
+        # The automatic reviewer reaches the shared review action. See
+        # the helper's docstring.
+        if not automated_reviewer_workflows(repo.path):
             issues.append(
-                f'No workflow uses shared action {CI_REVIEW_SHARED_ACTION}'
+                f'No automated reviewer: no workflow other than '
+                f'{" or ".join(CI_REVIEW_DEVELOPER_WORKFLOWS)} calls '
+                f'{CI_REVIEW_REUSABLE_WORKFLOW} or uses shared action '
+                f'{CI_REVIEW_SHARED_ACTION}'
             )
 
         # A hand-rolled pr-re-review.yml misses the shared action's fork
