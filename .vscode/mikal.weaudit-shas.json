@@ -425,9 +425,17 @@
       "sha": "b55c8394f2b9fd2c195c942863e27754494864e8",
       "date": "2026-09-22"
     },
+    "scripts/tests/test_audit_common.py": {
+      "sha": "9eef1a9d1612f637ec145f2e33c185bb9b182c72",
+      "date": "2026-10-12"
+    },
     "scripts/tests/test_audit_seams.py": {
       "sha": "8c2839c763fc7c751693200c0fc62684167bc4ce",
       "date": "2026-09-24"
+    },
+    "scripts/tests/test_audit_snapshot.py": {
+      "sha": "66c329cc4b8746859483bd2b6a089d380d85c996",
+      "date": "2026-10-12"
     },
     "scripts/tests/test_audit_update_docs.py": {
       "sha": "4a6529b8091dac5df17d2cff835c1b42aff5bb39",
@@ -444,6 +452,10 @@
     "scripts/tests/test_ci_workflows.py": {
       "sha": "d96a41a0ea0e04421b922992dfdfdc9375a6b7c1",
       "date": "2026-10-05"
+    },
+    "scripts/tests/test_distros.py": {
+      "sha": "ef1624905677bed212b38155e1dc8ee66fd345ad",
+      "date": "2026-10-12"
     },
     "scripts/tests/test_docs_content.py": {
       "sha": "f2f1490100c7f144e6a41feaae9c65c5e30f9c54",
@@ -465,13 +477,37 @@
       "sha": "870142095e324116f7cb23293f1b6cc08111bc59",
       "date": "2026-10-05"
     },
+    "scripts/tests/test_manage_issues.py": {
+      "sha": "193008ee72ed77610904bf5fbc5cee665698d4a8",
+      "date": "2026-10-12"
+    },
+    "scripts/tests/test_markdown.py": {
+      "sha": "0711e45d61ef3c789ef196402a7ed2a9117d347a",
+      "date": "2026-10-12"
+    },
+    "scripts/tests/test_metadata.py": {
+      "sha": "c096085bd66ad77590fde88b34caff1622926d3c",
+      "date": "2026-10-12"
+    },
     "scripts/tests/test_npm_dependencies.py": {
       "sha": "e7360d31a425b52e8e309921993e392235309faa",
       "date": "2026-09-22"
     },
+    "scripts/tests/test_packaging.py": {
+      "sha": "842ccc52b2a1b71214c045be296095f3cca3ad46",
+      "date": "2026-10-12"
+    },
+    "scripts/tests/test_plans.py": {
+      "sha": "eeddf27ca97ebe470c2c149170545657640edfd4",
+      "date": "2026-10-12"
+    },
     "scripts/tests/test_python_source.py": {
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",
       "date": "2026-09-04"
+    },
+    "scripts/tests/test_registry.py": {
+      "sha": "4c4149d06943d9521b59cc557753a349d35ab880",
+      "date": "2026-10-12"
     },
     "scripts/tests/test_repo.py": {
       "sha": "89987f23cb42ec217670bda7881661ecdd8b0614",
@@ -484,6 +520,10 @@
     "scripts/tests/test_review_tracking.py": {
       "sha": "a349dadb49e0b841f151b3616354a7158cf0bab5",
       "date": "2026-10-09"
+    },
+    "scripts/tests/test_runners.py": {
+      "sha": "4b11b771f6df36c5008511e3200363f623952493",
+      "date": "2026-10-12"
     },
     "templates/ci-review-automation/README.md": {
       "sha": "086d654adc49954ae423fae08757c4d49843e01b",

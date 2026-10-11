@@ -807,6 +807,46 @@
     {
       "path": "scripts/review-tracking.py",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_manage_issues.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_audit_common.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_audit_snapshot.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_distros.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_markdown.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_metadata.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_packaging.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_plans.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_registry.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_runners.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
