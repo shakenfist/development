@@ -85,10 +85,10 @@ REPO_OVERRIDES = {
     #    PUSH-AUDIT.md, and private-ci has none. It goes in with
     #    plan-audit-phase, which is what would create one.
     #  * plan-history-in-source is out, and goes in with push-audit.
-    #    The rule it enforces is the plan-references-in-code shared
-    #    block, which a repository adopts by embedding it in its
-    #    PUSH-AUDIT.md, so enabling it here would hold code to a
-    #    convention the repository has not adopted.
+    #    Elsewhere in the fleet it applies whether or not a repository
+    #    carries the plan-references-in-code block it measures. Here
+    #    nothing applies until it is opted into, and this one is part
+    #    of the same decision as the runbook that carries that block.
     #
     # Ordered the way registry.CHECKS orders them, so the two read
     # side by side. Membership and the rendered reason are both

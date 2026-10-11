@@ -489,6 +489,11 @@ class RepoOverridesTest(unittest.TestCase):
         # reason survives the next time the list moves.
         self.assertNotIn('plan-audit-phase', props['only_checks'])
         self.assertNotIn('push-audit', props['only_checks'])
+        # plan-history-in-source is absent for a different reason:
+        # private-ci is opted into check by check, and this one comes
+        # in with push-audit, whose runbook carries the block it
+        # measures.
+        self.assertNotIn('plan-history-in-source', props['only_checks'])
 
 
 class CheckScopeTest(unittest.TestCase):

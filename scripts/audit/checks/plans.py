@@ -28,6 +28,11 @@ from audit.text.shared_blocks import validate_shared_blocks
 PHASE_REFERENCE_RE = re.compile(r'\bphases?\s+\d+\b', re.IGNORECASE)
 
 
+# An inline code span, removed from a line before it is matched so
+# that a comment or a page can quote the shape it is talking about.
+CODE_SPAN_RE = re.compile(r'`+[^`\n]*`+')
+
+
 # The phase-reference marker, bare. Documentation carries it as an
 # HTML comment so that it does not render (PHASE_REFERENCE_OK), and
 # source carries it in whatever comment syntax the language has --
@@ -42,10 +47,29 @@ PHASE_REFERENCE_OK = f'<!-- {PHASE_REFERENCE_TOKEN} -->'
 # Plan source references: a plan pointer written into source or
 # configuration must resolve in this repository, or else be an
 # absolute URL. See docs/audits/plan-source-references.md.
-PLAN_SOURCE_REF_RE = re.compile(r'[\w./-]*PLAN-[\w.-]*\.md')
+#
+# Both patterns run on every line of another repository's files, so
+# both must be linear in line length. Opening with an unanchored
+# greedy run is not: each character of a long run lacking `PLAN-` (or
+# `://`) is a fresh start that rescans the run, and one 60 KB line
+# took twenty seconds. The lookbehind admits a start only where a run
+# begins, which is where the leftmost match began anyway, so the
+# matches are unchanged. The name is bounded as well, since each of
+# many `PLAN-` in one run would otherwise rescan the rest for `.md`;
+# 247 keeps the `PLAN-...md` component within the 255 bytes a
+# filename can have, so nothing that could resolve is excluded.
+PLAN_SOURCE_REF_RE = re.compile(r'(?<![\w./-])[\w./-]*PLAN-[\w.-]{0,247}\.md')
 
 
-PLAN_SOURCE_URL_RE = re.compile(r'[a-z][a-z0-9+.-]*://\S*', re.IGNORECASE)
+# A scheme starts with a letter, so the run in front of the letter is
+# captured and put back: `1http://x` loses `http://x`, as it did
+# before the lookbehind. Strip with plan_source_strip_urls().
+PLAN_SOURCE_URL_RE = re.compile(r'(?<![a-z0-9+.-])([0-9+.-]*)[a-z][a-z0-9+.-]*://\S*', re.IGNORECASE)
+
+
+def plan_source_strip_urls(text):
+    """Remove each absolute URL from text, keeping what precedes it."""
+    return PLAN_SOURCE_URL_RE.sub(r'\1', text)
 
 
 PLAN_SOURCE_REF_OK = 'audit-ok: plan-reference'
@@ -63,37 +87,19 @@ PLAN_SOURCE_REF_OK = 'audit-ok: plan-reference'
 PLAN_SOURCE_FILE_OK = 'audit-ok: plan-reference-file'
 
 
-# The file-scope form of PHASE_REFERENCE_TOKEN, for a source file
-# that is made of plan-shaped history rather than merely containing
-# some -- a suite exercising these criteria has to write the shapes
-# they flag, and a fixture is not a claim about the code. Like
-# PLAN_SOURCE_FILE_OK it exempts the whole file, prose included, so
-# prefer the line marker and say in the file why the exemption is
-# right.
-#
-# It is built from the line token rather than written out, so that
-# this module, which defines it, does not carry the file marker and
-# exempt itself. The line token is a prefix of it, which is harmless
-# in that direction: a line carrying the file marker is in an exempt
-# file anyway, and a file carrying only the line marker is not
-# exempted, because the file test asks for the whole string.
+# The file-scope form of PHASE_REFERENCE_TOKEN, for a file made of
+# plan-shaped fixtures. Built from the token rather than written out,
+# so that this module, which defines it, does not exempt itself. The
+# token being a prefix of it is harmless: the file test asks for the
+# whole string.
 PHASE_REFERENCE_FILE_OK = f'{PHASE_REFERENCE_TOKEN}-file'
 
 
-# Plan history in source: the numbered shapes a plan gives its parts,
-# which code cites only to record how it came to be. The phase shape
-# is plan-phase-references' pattern, shared rather than copied, and
-# three more join it: a hyphenated phase (`the phase-4 leaks pass`),
-# a decision with an optional sub-number (`decision 6.4`), and a
-# lettered step (`step 5f`). See docs/audits/plan-history-in-source.md.
-#
-# A bare numbered step is deliberately not matched. Procedural
-# comments write `step 1: open the file` in the ordinary sense, and
-# only the lettered form is a plan's. String literals are not stripped
-# either: a log line announcing a plan phase is as much history as a
-# comment saying it, and is read by more people. A literal written in
-# backticks is the exception, since the code span removal cannot tell
-# a template literal from a quoted shape, so it under-reports there.
+# Plan history in source: the numbered shapes a plan gives its parts.
+# See docs/audits/plan-history-in-source.md. A bare `step 3` is not
+# matched, because procedural comments number steps in the ordinary
+# sense and only the lettered form is a plan's. String literals are
+# not stripped: a log line announcing a phase is history too.
 PLAN_HISTORY_RE = re.compile(
     PHASE_REFERENCE_RE.pattern
     + r'|\bphase-\d+\b'
@@ -1157,7 +1163,7 @@ class PlanPhaseReferences(Check):
                     continue
                 if PHASE_REFERENCE_OK in line:
                     continue
-                scannable = re.sub(r'`+[^`\n]*`+', '', line)
+                scannable = CODE_SPAN_RE.sub('', line)
                 if PHASE_REFERENCE_RE.search(scannable):
                     hits.append(f'{rel}:{lineno}')
 
@@ -1202,6 +1208,7 @@ class PlanSourceReferences(Check):
 
         names = plan_file_names(repo.path)
         hits = []
+        files = set()
         total = 0
         for rel, content in iter_plan_source_files(repo, tracked):
             if 'PLAN-' not in content:
@@ -1209,9 +1216,9 @@ class PlanSourceReferences(Check):
             if PLAN_SOURCE_FILE_OK in content:
                 continue
             for lineno, line in enumerate(content.splitlines(), 1):
-                if PLAN_SOURCE_REF_OK in line:
+                if 'PLAN-' not in line or PLAN_SOURCE_REF_OK in line:
                     continue
-                scannable = PLAN_SOURCE_URL_RE.sub('', line)
+                scannable = plan_source_strip_urls(line)
                 for match in PLAN_SOURCE_REF_RE.finditer(scannable):
                     token = match.group(0)
                     if os.path.basename(token) == PLAN_SOURCE_TEMPLATE_NAME:
@@ -1219,18 +1226,18 @@ class PlanSourceReferences(Check):
                     total += 1
                     if not plan_reference_resolves(repo.path, token, names):
                         hits.append(f'{rel}:{lineno} -> {token}')
+                        files.add(rel)
 
         if not total:
             return self.skip('No plan references outside markdown files')
 
         if hits:
-            shown = ', '.join(hits[:10])
-            more = '' if len(hits) <= 10 else f' (+{len(hits) - 10} more)'
             return self.fail(
                 f'{len(hits)} of {total} plan reference(s) in source '
-                f'or configuration do not resolve (update the path, '
-                f'or use an absolute https://github.com/... URL for a '
-                f'plan in another repository): {shown}{more}')
+                f'or configuration do not resolve, in {len(files)} '
+                f'file(s) (update the path, or use an absolute '
+                f'https://github.com/... URL for a plan in another '
+                f'repository)', findings=hits)
         return self.ok(f'All {total} plan reference(s) outside markdown resolve')
 
 
@@ -1243,69 +1250,52 @@ class PlanHistoryInSource(Check):
     def run(self, repo):
         """Check source and configuration do not cite plan phases, decisions or steps.
 
-        A comment saying code arrived in `phase 5`, or is the way it is
-        `per decision 3`, tells the next reader where the reasoning was
-        once written down rather than what it is, and the plan it
-        points at is usually finished, archived or not named at all.
-        The plan-references-in-code shared block asks for the reason
-        instead. This is the backlog half of enforcing it; the diff
-        half is a wave 1 grep in each repository's push audit.
-
-        The files read are the ones iter_plan_source_files() yields,
-        less mkdocs configuration (PLAN_HISTORY_MKDOCS_NAMES). Before a
-        line is matched against PLAN_HISTORY_RE, inline code spans are
-        removed as plan-phase-references removes them, and so are URLs
-        and plan filenames: a plan whose phases are separate files
-        carries the phase number in its name, and a pointer to it is
-        plan-source-references' business (does it resolve) and the
-        push audit's (should it be there), not history written as
-        prose. A line carrying PHASE_REFERENCE_TOKEN is skipped, and a
-        file carrying PHASE_REFERENCE_FILE_OK is skipped whole.
-
-        Generated files are deliberately not exempt. A generated stub
-        that repeats a plan citation copied it from the comment it was
-        generated from, so the fix is in that source, and the stub
-        follows on the next regeneration.
+        docs/audits/plan-history-in-source.md says what is matched,
+        what is stripped and what is exempt. The files are
+        iter_plan_source_files()'s, less mkdocs configuration. A line
+        loses its code spans, then its URLs, then its plan filenames,
+        before it is matched; the order matters, and is explained where
+        it happens. Generated files are deliberately not exempt: a stub
+        repeating a citation copied it from its source, which is where
+        the fix belongs.
         """
         tracked = tracked_paths(repo.path)
         if tracked is None:
             return self.fail(LS_FILES_FAILED)
 
         hits = []
+        files = set()
         walked = 0
         for rel, content in iter_plan_source_files(repo, tracked):
             if os.path.basename(rel) in PLAN_HISTORY_MKDOCS_NAMES:
                 continue
             walked += 1
-            # The file marker first: the line token is a prefix of it,
-            # so the order matters for reading, though not for the
-            # verdict.
             if PHASE_REFERENCE_FILE_OK in content:
                 continue
             if not PLAN_HISTORY_RE.search(content):
                 continue
             for lineno, line in enumerate(content.splitlines(), 1):
-                if PHASE_REFERENCE_TOKEN in line:
+                if not PLAN_HISTORY_RE.search(line) or PHASE_REFERENCE_TOKEN in line:
                     continue
                 # Code spans before URLs: a URL match runs to the next
                 # whitespace, so stripping it first could take a
                 # closing backtick with it and unpair the spans after.
-                scannable = re.sub(r'`+[^`\n]*`+', '', line)
-                scannable = PLAN_SOURCE_URL_RE.sub('', scannable)
+                scannable = CODE_SPAN_RE.sub('', line)
+                scannable = plan_source_strip_urls(scannable)
                 scannable = PLAN_SOURCE_REF_RE.sub('', scannable)
                 if PLAN_HISTORY_RE.search(scannable):
                     hits.append(f'{rel}:{lineno}')
+                    files.add(rel)
 
         if not walked:
             return self.skip('No source or configuration files outside markdown to audit')
 
         if hits:
-            shown = ', '.join(hits[:10])
-            more = '' if len(hits) <= 10 else f' (+{len(hits) - 10} more)'
             return self.fail(
-                f'{len(hits)} plan history reference(s) in source '
-                f'(write the reason the code is this way instead of '
-                f'citing the plan step that produced it): {shown}{more}')
+                f'{len(hits)} plan history reference(s) in source, in '
+                f'{len(files)} file(s) (write the reason the code is '
+                f'this way instead of citing the plan step that '
+                f'produced it)', findings=hits)
         return self.ok('No plan history references in source')
 
 
