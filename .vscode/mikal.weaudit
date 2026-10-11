@@ -807,6 +807,114 @@
     {
       "path": "scripts/review-tracking.py",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_manage_issues.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_audit_common.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_audit_snapshot.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_distros.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_markdown.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_metadata.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_packaging.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_plans.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_registry.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_runners.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/distros.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/packaging.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/plans.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/runners.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/files.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/registry.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/repo.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/markdown.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/plan-history-in-source.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/plan-source-references.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/push-audit.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/release-artifacts-exclude-plans.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/workflow-standards.md",
+      "author": "mikal"
+    },
+    {
+      "path": "PUSH-AUDIT.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".pre-commit-config.yaml",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit-update-docs.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

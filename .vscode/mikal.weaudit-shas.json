@@ -81,6 +81,10 @@
       "sha": "26a19958e61609c60e1b721594ab8151ddf1634f",
       "date": "2026-09-04"
     },
+    ".pre-commit-config.yaml": {
+      "sha": "805b262c50f6e356892f3bec35d4f42daeb9420f",
+      "date": "2026-10-12"
+    },
     "AGENTS.md": {
       "sha": "73c173317112c5bde0dd17901e1cf31eec33bc39",
       "date": "2026-10-05"
@@ -93,9 +97,17 @@
       "sha": "86398ca32ca7f9fd4ed46d4f6c8be1572290613d",
       "date": "2026-10-07"
     },
+    "PUSH-AUDIT.md": {
+      "sha": "8641eb9c64ce9e56ac2b311dc382b8ca3d0a2bb8",
+      "date": "2026-10-12"
+    },
     "README.md": {
       "sha": "2269add37483bd29c54af121efee0aeeb1939a53",
       "date": "2026-10-05"
+    },
+    "docs/audits/README.md": {
+      "sha": "5f953832d47635c4dc41a74b73da54d7e765a61b",
+      "date": "2026-10-12"
     },
     "docs/audits/ci-review-automation.md": {
       "sha": "1e71c7a37946b3534dad400d55374e00bad389b0",
@@ -205,6 +217,10 @@
       "sha": "fdb2179a490fe5c810e4f9f3d7d563dbaef44f5e",
       "date": "2026-10-05"
     },
+    "docs/audits/plan-history-in-source.md": {
+      "sha": "7c03ef16a75dd5f9c4df55c047185ecb0330d0dd",
+      "date": "2026-10-12"
+    },
     "docs/audits/plan-index.md": {
       "sha": "436cf37b2f9d0492d38ddf205f49bccbbad677c6",
       "date": "2026-10-05"
@@ -213,9 +229,17 @@
       "sha": "08e51b13f6f3ff523d292a1b5daad5a8c9568301",
       "date": "2026-10-05"
     },
+    "docs/audits/plan-source-references.md": {
+      "sha": "f4a5692ebc7df73e1408d526523d5b407ea851e4",
+      "date": "2026-10-12"
+    },
     "docs/audits/plan-template.md": {
       "sha": "4cf93d4dadebc842fc643300d689bb06aa6b539b",
       "date": "2026-10-05"
+    },
+    "docs/audits/push-audit.md": {
+      "sha": "54baefdd0b45a60aeae483fc5342e1795862f8f8",
+      "date": "2026-10-12"
     },
     "docs/audits/pyproject-usage.md": {
       "sha": "c7c1f0311e26b8fc94ff6f31653f9139ae538e09",
@@ -232,6 +256,10 @@
     "docs/audits/readme-structure.md": {
       "sha": "6013edfe5eb3323b9862d1df67a7e83509cd2654",
       "date": "2026-10-05"
+    },
+    "docs/audits/release-artifacts-exclude-plans.md": {
+      "sha": "6e621917aa19f71bf65987b990becf9fa0f9d53e",
+      "date": "2026-10-12"
     },
     "docs/audits/release-process.md": {
       "sha": "92a84b3ea9f590b75dcb36cf505cb1b94cdc1d07",
@@ -297,6 +325,10 @@
       "sha": "179afb0f85bc331ee7c78e5e8c20c8b497b242c3",
       "date": "2026-10-05"
     },
+    "docs/audits/workflow-standards.md": {
+      "sha": "5b51d5e2ebe7c5248ee14989bcbd21afcfcfd200",
+      "date": "2026-10-12"
+    },
     "docs/automated-pr-review.md": {
       "sha": "d60479307223048db30a9651ee8492b89c8b4049",
       "date": "2026-08-30"
@@ -333,6 +365,10 @@
       "sha": "5349a3921a828cda0feca51d1c1d4a4853ad4286",
       "date": "2026-09-24"
     },
+    "scripts/audit-update-docs.py": {
+      "sha": "ce04f496bef9dcaa4522dfa61e869df2c65438d5",
+      "date": "2026-10-12"
+    },
     "scripts/audit/__init__.py": {
       "sha": "86ffeb2a5deffaa05b04df768a1e43d2448435a0",
       "date": "2026-09-02"
@@ -348,6 +384,10 @@
     "scripts/audit/checks/ci_workflows.py": {
       "sha": "7d4ee84ae14076c62f559def01a7ff8ddb6314cb",
       "date": "2026-10-05"
+    },
+    "scripts/audit/checks/distros.py": {
+      "sha": "82b041f13425c69c65e929211031f94b4c636406",
+      "date": "2026-10-12"
     },
     "scripts/audit/checks/docs_content.py": {
       "sha": "3fb9bf166a0132485300a5cd94c41f391b117202",
@@ -365,9 +405,25 @@
       "sha": "01853364578a6139d3787ebfa9d09a65211bb37c",
       "date": "2026-09-15"
     },
+    "scripts/audit/checks/packaging.py": {
+      "sha": "d8cc290a502ef10725a222c03cf6ba0fb8f4aaca",
+      "date": "2026-10-12"
+    },
+    "scripts/audit/checks/plans.py": {
+      "sha": "8b9e3342a4929abb464b4fe3f9b281ede26d8046",
+      "date": "2026-10-12"
+    },
     "scripts/audit/checks/review.py": {
       "sha": "e32ae9a6de09ad0f0c2ec2bb44c5b87280078a6a",
       "date": "2026-09-26"
+    },
+    "scripts/audit/checks/runners.py": {
+      "sha": "a98f91387ada701eccd3f9f32d96e23534a44f59",
+      "date": "2026-10-12"
+    },
+    "scripts/audit/files.py": {
+      "sha": "a3ab52b827044a5855ce96a15e0867c9905da29a",
+      "date": "2026-10-12"
     },
     "scripts/audit/github.py": {
       "sha": "5fdb28856b27d63920448d38d2d77ae30c7aa061",
@@ -377,6 +433,14 @@
       "sha": "ef1d4a20156613830ec787fde806cbf955e9501e",
       "date": "2026-09-02"
     },
+    "scripts/audit/registry.py": {
+      "sha": "833453494153f2b1ba9e847150a1de594feef5fa",
+      "date": "2026-10-12"
+    },
+    "scripts/audit/repo.py": {
+      "sha": "3888c0a53594f3270a2e8917535e6d3c2c3ab540",
+      "date": "2026-10-12"
+    },
     "scripts/audit/scope.py": {
       "sha": "ab4cbcdd7c7eb198e834c654e4641ac44ce5e141",
       "date": "2026-10-07"
@@ -384,6 +448,10 @@
     "scripts/audit/text/__init__.py": {
       "sha": "dc2515cc9e2cdd5083c39a803bfdbcafb37dbe0d",
       "date": "2026-09-02"
+    },
+    "scripts/audit/text/markdown.py": {
+      "sha": "1f7c1ecedcb47f2f1843dc9593cc2c68af2d9323",
+      "date": "2026-10-12"
     },
     "scripts/audit/text/python_source.py": {
       "sha": "1e273dd7c16eee89cccc8265fce631b45fbd5617",
@@ -425,9 +493,17 @@
       "sha": "b55c8394f2b9fd2c195c942863e27754494864e8",
       "date": "2026-09-22"
     },
+    "scripts/tests/test_audit_common.py": {
+      "sha": "9eef1a9d1612f637ec145f2e33c185bb9b182c72",
+      "date": "2026-10-12"
+    },
     "scripts/tests/test_audit_seams.py": {
       "sha": "8c2839c763fc7c751693200c0fc62684167bc4ce",
       "date": "2026-09-24"
+    },
+    "scripts/tests/test_audit_snapshot.py": {
+      "sha": "66c329cc4b8746859483bd2b6a089d380d85c996",
+      "date": "2026-10-12"
     },
     "scripts/tests/test_audit_update_docs.py": {
       "sha": "4a6529b8091dac5df17d2cff835c1b42aff5bb39",
@@ -444,6 +520,10 @@
     "scripts/tests/test_ci_workflows.py": {
       "sha": "d96a41a0ea0e04421b922992dfdfdc9375a6b7c1",
       "date": "2026-10-05"
+    },
+    "scripts/tests/test_distros.py": {
+      "sha": "ef1624905677bed212b38155e1dc8ee66fd345ad",
+      "date": "2026-10-12"
     },
     "scripts/tests/test_docs_content.py": {
       "sha": "f2f1490100c7f144e6a41feaae9c65c5e30f9c54",
@@ -465,13 +545,37 @@
       "sha": "870142095e324116f7cb23293f1b6cc08111bc59",
       "date": "2026-10-05"
     },
+    "scripts/tests/test_manage_issues.py": {
+      "sha": "193008ee72ed77610904bf5fbc5cee665698d4a8",
+      "date": "2026-10-12"
+    },
+    "scripts/tests/test_markdown.py": {
+      "sha": "0711e45d61ef3c789ef196402a7ed2a9117d347a",
+      "date": "2026-10-12"
+    },
+    "scripts/tests/test_metadata.py": {
+      "sha": "c096085bd66ad77590fde88b34caff1622926d3c",
+      "date": "2026-10-12"
+    },
     "scripts/tests/test_npm_dependencies.py": {
       "sha": "e7360d31a425b52e8e309921993e392235309faa",
       "date": "2026-09-22"
     },
+    "scripts/tests/test_packaging.py": {
+      "sha": "842ccc52b2a1b71214c045be296095f3cca3ad46",
+      "date": "2026-10-12"
+    },
+    "scripts/tests/test_plans.py": {
+      "sha": "eeddf27ca97ebe470c2c149170545657640edfd4",
+      "date": "2026-10-12"
+    },
     "scripts/tests/test_python_source.py": {
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",
       "date": "2026-09-04"
+    },
+    "scripts/tests/test_registry.py": {
+      "sha": "4c4149d06943d9521b59cc557753a349d35ab880",
+      "date": "2026-10-12"
     },
     "scripts/tests/test_repo.py": {
       "sha": "89987f23cb42ec217670bda7881661ecdd8b0614",
@@ -484,6 +588,10 @@
     "scripts/tests/test_review_tracking.py": {
       "sha": "a349dadb49e0b841f151b3616354a7158cf0bab5",
       "date": "2026-10-09"
+    },
+    "scripts/tests/test_runners.py": {
+      "sha": "4b11b771f6df36c5008511e3200363f623952493",
+      "date": "2026-10-12"
     },
     "templates/ci-review-automation/README.md": {
       "sha": "086d654adc49954ae423fae08757c4d49843e01b",
