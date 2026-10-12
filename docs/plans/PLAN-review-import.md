@@ -907,9 +907,10 @@ lagged within a day of merging; kerbside's and ryll's
 `pr-re-review.yml` were already behind when they merged. Eight bot
 workflow copies lagged until a second round of re-sync pull
 requests (actions#134, hunkydory#66, kerbside#519, ryll#455)
-merged on 10-03 and 10-04. Renovate's bumps converge by themselves, because it makes
-the same edit in every repository; a hand edit to a template does
-not. Phase 4 takes this as its main input.
+merged on 10-03 and 10-04. Renovate's bumps converge by
+themselves, because it makes the same edit in every repository; a
+hand edit to a template does not. Phase 4 takes this as its main
+input.
 
 `audit-check.py` against the five default branches shows no failure
 this phase caused. hunkydory's `ci-review-automation` failure
@@ -1025,8 +1026,8 @@ review-tracking/review-tracking.sh:tools/review-tracking.sh"
 for r in actions hunkydory kerbside ryll; do
   for p in $pairs; do
     t=${p%%:*}; c=${p#*:}
-    th=$(git -C development hash-object templates/$t)
-    ch=$(git -C $r rev-parse -q --verify origin/${B[$r]}:$c) || continue
+    th=$(git -C development rev-parse origin/main:templates/$t)
+    ch=$(git -C $r rev-parse -q --verify origin/${B[$r]}:$c) || { echo "MISSING $r $c"; continue; }
     [ "$th" = "$ch" ] && echo "same $r $c" || echo "DIFF $r $c"
   done
 done
@@ -1034,7 +1035,11 @@ done
 
 On 2026-10-13 it prints `DIFF` for exactly the three per-repository
 copies (CodeQL in actions and kerbside, actions'
-`export-repo-config.yml`) and `same` for the other 36.
+`export-repo-config.yml`) and `same` for the other 36. It also
+prints 13 `MISSING` lines, for copies those repositories never had:
+`mermaid-lint` exists only in kerbside and ryll, and
+`pin-indirect-dependencies` only in kerbside, the one application
+among the four. A new `MISSING` line would mean a copy was deleted.
 
 **Risks.**
 
@@ -1179,6 +1184,11 @@ identity. "Verifying an imported entry by hand", added in this
 phase, closes both gaps. Michael's repeat of the check from the
 documented procedure: pending.
 
+The drift data below was posted to shakenfist/development#151 on
+2026-10-13
+(https://github.com/shakenfist/development/issues/151#issuecomment-6133037509).
+Dates in this plan are in Michael's local time (AEST/AEDT).
+
 **Template copy check.** Unchanged from this phase's first run on
 2026-10-13: three `DIFF` (CodeQL in actions and kerbside,
 actions' `export-repo-config.yml`), all per-repository by design,
@@ -1194,10 +1204,11 @@ phase 3 converged them:
 
 Eight bot workflow copies lagged from 10-01 until a second round
 of re-sync pull requests (actions#134, hunkydory#66, kerbside#519,
-ryll#455) merged on 10-03 and 10-04: two to three days. Renovate's bumps converged by themselves, because it
-makes the same edit everywhere; the hand edits did not. Import
-made this drift visible only as files dropping out of review;
-nothing named the template to re-sync from.
+ryll#455) merged on 10-03 and 10-04: two to three days. Renovate's
+bumps converged by themselves, because it makes the same edit
+everywhere; the hand edits did not. Import made this drift visible
+only as files dropping out of review; nothing named the template
+to re-sync from.
 
 ### Phase 5: push audit
 

@@ -863,8 +863,12 @@ may not have the commit yet, and step 4 compares against
 
    `<identity>` comes from `REVIEWER_IDENTITIES` in
    `scripts/review-tracking.py`, which maps a reviewer name to a
-   signing identity (for example, `mikal` signs as
-   `mikal@stillhq.com`). See "Commit signing" for the trust path
+   signing identity; that map is the authority, and the example
+   here (`mikal` signs as `mikal@stillhq.com`) may not list every
+   reviewer. Run this in a full clone, not a linked worktree:
+   gitsign reads the repository through go-git, which cannot
+   follow a worktree's `.git` file, and reports every commit as
+   "reference not found". See "Commit signing" for the trust path
    this checks.
 3. Confirm the commit records a full-file review of that blob:
 
