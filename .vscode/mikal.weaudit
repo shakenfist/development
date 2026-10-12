@@ -541,10 +541,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/ci-review-automation.md",
-      "author": "mikal"
-    },
-    {
       "path": ".claude/skills/standards-alignment/SKILL.md",
       "author": "mikal"
     },
@@ -694,14 +690,6 @@
     },
     {
       "path": "docs/audits/scope-coverage.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_ci_workflows.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/ci_workflows.py",
       "author": "mikal"
     },
     {
@@ -862,10 +850,6 @@
     },
     {
       "path": "scripts/audit/checks/runners.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/files.py",
       "author": "mikal"
     },
     {

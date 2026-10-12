@@ -109,10 +109,6 @@
       "sha": "5f953832d47635c4dc41a74b73da54d7e765a61b",
       "date": "2026-10-12"
     },
-    "docs/audits/ci-review-automation.md": {
-      "sha": "1e71c7a37946b3534dad400d55374e00bad389b0",
-      "date": "2026-10-05"
-    },
     "docs/audits/console-logging.md": {
       "sha": "7cb20bd303d81010d8f49ce64bf4c7a0e84263e7",
       "date": "2026-10-05"
@@ -381,10 +377,6 @@
       "sha": "d54faddeed246c3b084571825d542bf04c1bb930",
       "date": "2026-09-02"
     },
-    "scripts/audit/checks/ci_workflows.py": {
-      "sha": "7d4ee84ae14076c62f559def01a7ff8ddb6314cb",
-      "date": "2026-10-05"
-    },
     "scripts/audit/checks/distros.py": {
       "sha": "82b041f13425c69c65e929211031f94b4c636406",
       "date": "2026-10-12"
@@ -419,10 +411,6 @@
     },
     "scripts/audit/checks/runners.py": {
       "sha": "a98f91387ada701eccd3f9f32d96e23534a44f59",
-      "date": "2026-10-12"
-    },
-    "scripts/audit/files.py": {
-      "sha": "a3ab52b827044a5855ce96a15e0867c9905da29a",
       "date": "2026-10-12"
     },
     "scripts/audit/github.py": {
@@ -516,10 +504,6 @@
     "scripts/tests/test_ci_prune_reviews.py": {
       "sha": "4e0381abe43a6004c1e267cc5e630c2e30d1a70c",
       "date": "2026-09-27"
-    },
-    "scripts/tests/test_ci_workflows.py": {
-      "sha": "d96a41a0ea0e04421b922992dfdfdc9375a6b7c1",
-      "date": "2026-10-05"
     },
     "scripts/tests/test_distros.py": {
       "sha": "ef1624905677bed212b38155e1dc8ee66fd345ad",
