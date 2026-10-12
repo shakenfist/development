@@ -9,9 +9,9 @@ import re
 
 from audit.check import Check
 from audit.text.workflows import (
-    RUNS_ON_RE, STATIC_ALLOWED_LABELS, is_runner_label_value,
-    BIND_PREFIX, BOUND_PREFIX, literal_runner_labels,
-    parse_runner_labels, split_runner_labels,
+    BIND_PREFIX, BOUND_PREFIX, RUNS_ON_RE, STATIC_ALLOWED_LABELS,
+    is_runner_label_value, literal_runner_labels, parse_runner_labels,
+    split_runner_labels,
 )
 
 
@@ -70,13 +70,22 @@ VM_SIZE_EXCEPTION_RE = re.compile(r'audit-ok:\s*vm-runner-size')
 # labels are a superset of the job's.
 BOUND_ALLOWED_LABELS = frozenset({'self-hosted'})
 
+# What _bound_form_problem() returns for the one bound problem the
+# audit-ok marker may excuse: a size arriving through an expression.
+BOUND_UNSIZED = 'unsized'
+
+# The bind- token must vary per run and per attempt, or a run, or a
+# re-run of it, could take a runner started for another.
+BIND_RUN_ID_RE = re.compile(r'\$\{\{[^}]*\bgithub\.run_id\b')
+BIND_RUN_ATTEMPT_RE = re.compile(r'\$\{\{[^}]*\bgithub\.run_attempt\b')
+
 
 def _bound_form_problem(raw_labels):
     """Judge a runs-on that uses the bound form.
 
     Returns None when `raw_labels` does not use it at all, '' when it
     uses it correctly, and otherwise a short reason it does not.
-    'unsized' is returned for the one problem the audit-ok marker may
+    BOUND_UNSIZED is returned for the one problem the audit-ok marker may
     excuse: a size which could only arrive through an expression.
     """
     bound = [x for x in raw_labels if x.startswith(BOUND_PREFIX)]
@@ -100,11 +109,14 @@ def _bound_form_problem(raw_labels):
             'binding needs its token')
     if len(bind) > 1:
         return 'has more than one "bind-" element'
-    if 'github.run_id' not in bind[0]:
+    if not (BIND_RUN_ID_RE.search(bind[0])
+            and BIND_RUN_ATTEMPT_RE.search(bind[0])):
         return (
-            'has a "bind-" token without ${{ github.run_id }}; a '
-            'token that is the same in every run lets one run take '
-            'another\'s runner')
+            'has a "bind-" token without ${{ github.run_id }} and '
+            '${{ github.run_attempt }}; a token that is the same in '
+            'every run or attempt lets one take another\'s runner')
+    if 'self-hosted' not in raw_labels:
+        return 'names no "self-hosted" label'
     if len(bound) != 2:
         return (
             'names %d bound- label(s); a bound job names exactly one '
@@ -119,7 +131,7 @@ def _bound_form_problem(raw_labels):
     if sizes:
         return ''
     if any('${{' in x for x in bound):
-        return 'unsized'
+        return BOUND_UNSIZED
     return 'names no "bound-<size>" with a size from the vocabulary'
 
 
@@ -328,7 +340,7 @@ class VmRunnerSize(Check):
                     # read from the raw labels, and needs no marker.
                     # Only a size arriving through an expression may
                     # be excused; a malformed binding never is.
-                    if problem == 'unsized':
+                    if problem == BOUND_UNSIZED:
                         if excused:
                             continue
                         problem = (

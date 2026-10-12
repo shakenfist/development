@@ -147,7 +147,14 @@ class ExpensiveLanePathFilterTest(CheckTestCase):
         result = self._check({'functional.yml': (
             'on:\n  pull_request:\njobs:\n' + self.BOUND_JOB
         )})
-        self.assert_fail(result)
+        self.assert_fail(result, containing='functional.yml')
+
+    def test_a_filtered_bound_job_passes(self):
+        result = self._check({'functional.yml': (
+            'on:\n  pull_request:\n    paths-ignore:\n'
+            "      - 'docs/**'\njobs:\n" + self.BOUND_JOB
+        )})
+        self.assert_pass(result)
 
     def test_dedicated_scanner_workflow_needs_no_filter(self):
         # Reading the text a filter would skip is the whole job.

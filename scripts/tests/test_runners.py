@@ -248,6 +248,25 @@ class VmRunnerSizeTest(CheckTestCase):
         self.assert_fail(result, containing='ci.yml:5')
         self.assertIn('github.run_id', result['details'])
 
+    def test_a_bound_job_without_self_hosted_is_a_finding(self):
+        result = self._check({'ci.yml': self._job(
+            '[bound-debian-13, bound-s, %s]' % self.BIND)})
+        self.assert_fail(result, containing='ci.yml:5')
+        self.assertIn('self-hosted', result['details'])
+
+    def test_a_bind_token_without_run_attempt_is_a_finding(self):
+        # A re-run would share the earlier attempt's token.
+        result = self._check({'ci.yml': self._job(
+            '[self-hosted, bound-debian-13, bound-s, '
+            '"bind-${{ github.run_id }}-functional"]')})
+        self.assert_fail(result, containing='ci.yml:5')
+
+    def test_run_id_outside_an_expression_is_a_finding(self):
+        result = self._check({'ci.yml': self._job(
+            '[self-hosted, bound-debian-13, bound-s, '
+            '"bind-github.run_id-${{ github.run_attempt }}"]')})
+        self.assert_fail(result, containing='ci.yml:5')
+
     def test_two_sizes_and_no_image_is_a_finding(self):
         # Two bound- labels, the right count, but both are sizes.
         result = self._check({'ci.yml': self._job(
