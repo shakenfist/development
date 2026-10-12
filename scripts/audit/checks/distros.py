@@ -155,8 +155,11 @@ def _runner_label_re(releases):
         {label for release in releases for label in release.runner_labels},
         key=lambda label: (-len(label), label),
     )
+    # A job bound to a runner of its own names its image as
+    # 'bound-<label>' (workflow-standards.md), and that is the same
+    # retired image, so the prefix is matched and set aside.
     return re.compile(
-        r'(?<![\w.-])(' + '|'.join(re.escape(x) for x in labels)
+        r'(?<![\w.-])(?:bound-)?(' + '|'.join(re.escape(x) for x in labels)
         + r')(?![\w.-])'
     )
 

@@ -212,6 +212,18 @@ class EolDistroTest(CheckTestCase):
         self.assertEqual(['.github/workflows/ci.yml:3 (debian-12)'],
                          result['findings'])
 
+    def test_a_retired_bound_runner_label_fails(self):
+        # A bound job names its image as bound-<label>; it is the same
+        # retired image.
+        self.fixture.workflow(
+            'ci.yml',
+            'jobs:\n  a:\n    runs-on: [self-hosted, bound-debian-12, '
+            'bound-s, "bind-${{ github.run_id }}-a"]\n')
+        result = self.assert_fail(self.check(has_workflows_dir=True),
+                                  containing='Debian 12 (bookworm)')
+        self.assertEqual(['.github/workflows/ci.yml:3 (debian-12)'],
+                         result['findings'])
+
     def test_the_finding_says_what_to_move_to(self):
         self.fixture.workflow(
             'ci.yml',

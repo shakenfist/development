@@ -9,8 +9,9 @@ import re
 
 from audit.check import Check
 from audit.text.workflows import (
-    RUNS_ON_RE, STATIC_ALLOWED_LABELS, is_runner_label_value,
-    literal_runner_labels, parse_runner_labels,
+    BIND_PREFIX, BOUND_PREFIX, RUNS_ON_RE, STATIC_ALLOWED_LABELS,
+    is_runner_label_value, literal_runner_labels, parse_runner_labels,
+    split_runner_labels,
 )
 
 
@@ -60,6 +61,78 @@ VM_SIZE_LABELS = frozenset({
 # it is not a way to keep an unsized job, since writing "xs" costs one
 # word and states the same decision honestly.
 VM_SIZE_EXCEPTION_RE = re.compile(r'audit-ok:\s*vm-runner-size')
+
+
+# The labels a bound job may name besides its bound- and bind-
+# elements. Anything else -- vm, a plain image or size, an expression
+# that could evaluate to one -- would let an unbound job take the
+# runner started for it, because GitHub hands a job to any runner whose
+# labels are a superset of the job's.
+BOUND_ALLOWED_LABELS = frozenset({'self-hosted'})
+
+# What _bound_form_problem() returns for the one bound problem the
+# audit-ok marker may excuse: a size arriving through an expression.
+BOUND_UNSIZED = 'unsized'
+
+# The bind- token must vary per run and per attempt, or a run, or a
+# re-run of it, could take a runner started for another.
+BIND_RUN_ID_RE = re.compile(r'\$\{\{[^}]*\bgithub\.run_id\b')
+BIND_RUN_ATTEMPT_RE = re.compile(r'\$\{\{[^}]*\bgithub\.run_attempt\b')
+
+
+def _bound_form_problem(raw_labels):
+    """Judge a runs-on that uses the bound form.
+
+    Returns None when `raw_labels` does not use it at all, '' when it
+    uses it correctly, and otherwise a short reason it does not.
+    BOUND_UNSIZED is returned for the one problem the audit-ok marker may
+    excuse: a size which could only arrive through an expression.
+    """
+    bound = [x for x in raw_labels if x.startswith(BOUND_PREFIX)]
+    bind = [x for x in raw_labels if x.startswith(BIND_PREFIX)]
+    if not bound and not bind:
+        return None
+
+    others = [
+        x for x in raw_labels
+        if x not in bound and x not in bind
+        and x not in BOUND_ALLOWED_LABELS
+    ]
+    if others:
+        return (
+            'names %s beside the bound form; a bound job names no '
+            'plain image, size or "vm" label, or an unbound job could '
+            'take its runner' % ', '.join(others))
+    if not bind:
+        return (
+            'has a bound- label but no "bind-<token>" element; a '
+            'binding needs its token')
+    if len(bind) > 1:
+        return 'has more than one "bind-" element'
+    if not (BIND_RUN_ID_RE.search(bind[0])
+            and BIND_RUN_ATTEMPT_RE.search(bind[0])):
+        return (
+            'has a "bind-" token without ${{ github.run_id }} and '
+            '${{ github.run_attempt }}; a token that is the same in '
+            'every run or attempt lets one take another\'s runner')
+    if 'self-hosted' not in raw_labels:
+        return 'names no "self-hosted" label'
+    if len(bound) != 2:
+        return (
+            'names %d bound- label(s); a bound job names exactly one '
+            '"bound-<image>" and one "bound-<size>"' % len(bound))
+
+    sizes = [
+        x for x in bound
+        if '${{' not in x and x[len(BOUND_PREFIX):] in VM_SIZE_LABELS
+    ]
+    if len(sizes) > 1:
+        return 'names two bound sizes (%s)' % ', '.join(sizes)
+    if sizes:
+        return ''
+    if any('${{' in x for x in bound):
+        return BOUND_UNSIZED
+    return 'names no "bound-<size>" with a size from the vocabulary'
 
 
 class SelfHostedRunners(Check):
@@ -223,6 +296,16 @@ class VmRunnerSize(Check):
         sequence spread over the following lines is invisible here. No
         repository in scope writes one, and the sibling runner checks have
         the same blind spot, so this is recorded rather than handled.
+
+        A job bound to its own runner has no 'vm' label, so it is
+        recognised by any 'bound-' or 'bind-' element instead. It
+        passes when it names 'self-hosted', exactly one 'bind-' element
+        (always an expression, so never needing a marker), exactly one
+        'bound-<image>' and exactly one literal 'bound-<size>', and
+        nothing else; anything else using those prefixes is a finding.
+        A 'bound-<size>' which is itself an expression is treated like
+        an expression size above, and is the only bound finding the
+        marker excuses.
         """
         if not repo.props['has_workflows_dir']:
             return self.skip('No .github/workflows/ directory')
@@ -232,6 +315,7 @@ class VmRunnerSize(Check):
             return self.skip('No workflow files found')
 
         offenders = []
+        bound_offenders = []
         for wf in sorted(workflows):
             filepath = os.path.join(
                 repo.path, '.github', 'workflows', wf
@@ -244,31 +328,70 @@ class VmRunnerSize(Check):
                 if not match:
                     continue
                 labels = literal_runner_labels(match.group(1))
+                excused = bool(
+                    VM_SIZE_EXCEPTION_RE.search(line)
+                    or (i > 0 and VM_SIZE_EXCEPTION_RE.search(lines[i - 1])))
+                problem = _bound_form_problem(
+                    split_runner_labels(match.group(1)))
+                if problem is not None:
+                    # A bound job has no 'vm' label, so it is picked
+                    # out by its bound- / bind- elements instead. The
+                    # bind- element is always an expression, so it is
+                    # read from the raw labels, and needs no marker.
+                    # Only a size arriving through an expression may
+                    # be excused; a malformed binding never is.
+                    if problem == BOUND_UNSIZED:
+                        if excused:
+                            continue
+                        problem = (
+                            'names no literal "bound-<size>" with a '
+                            'size from the vocabulary')
+                    if problem:
+                        bound_offenders.append(
+                            f'{wf}:{i + 1} ({problem})')
+                    continue
                 if 'vm' not in labels:
                     continue
                 if any(label in VM_SIZE_LABELS for label in labels):
                     continue
-                if VM_SIZE_EXCEPTION_RE.search(line):
-                    continue
-                if i > 0 and VM_SIZE_EXCEPTION_RE.search(lines[i - 1]):
+                if excused:
                     continue
                 offenders.append(f'{wf}:{i + 1} ({", ".join(labels)})')
 
-        if offenders:
+        if bound_offenders:
+            bound_text = (
+                f'{len(bound_offenders)} malformed bound runner '
+                f'job(s): {", ".join(bound_offenders)}. A bound job '
+                f'is "[self-hosted, bound-<image>, bound-<size>, '
+                f'bind-<token>]" with no plain image, size or "vm" '
+                f'label (see "Binding a job to its runner" in '
+                f'shakenfist/private-ci docs/capacity-claims.md)')
+        else:
+            bound_text = ''
+        if offenders and bound_offenders:
             return self.fail(
-                f'{len(offenders)} "vm" runner job(s) naming no size: '
-                f'{", ".join(offenders)}. The conductor takes the '
-                f'runner size from the labels and falls back to the '
-                f'first CI_SIZES entry -- "xs", one vCPU and 2048 MB '
-                f'-- when it finds none, so an omitted size is a '
-                f'silent downgrade to the smallest runner rather than '
-                f'a free choice. Add the size the job actually wants '
-                f'(xs/s/m/l/xl; m-bigdisk/xl-bigdisk when the job '
-                f'needs the disk; s-cloud/s-cluster when it builds a '
-                f'nested cloud or cluster); "xs" is a valid answer '
-                f'stated explicitly. A job which genuinely cannot name '
-                f'one marks the line "audit-ok: vm-runner-size" with the '
-                f'reason')
+                self._unsized_text(offenders) + '. ' + bound_text)
+        if bound_offenders:
+            return self.fail(bound_text)
+        if offenders:
+            return self.fail(self._unsized_text(offenders))
         return self.ok(
             f'All "vm" runner jobs name a size in '
             f'{len(workflows)} workflow file(s)')
+
+    @staticmethod
+    def _unsized_text(offenders):
+        return (
+            f'{len(offenders)} "vm" runner job(s) naming no size: '
+            f'{", ".join(offenders)}. The conductor takes the '
+            f'runner size from the labels and falls back to the '
+            f'first CI_SIZES entry -- "xs", one vCPU and 2048 MB '
+            f'-- when it finds none, so an omitted size is a '
+            f'silent downgrade to the smallest runner rather than '
+            f'a free choice. Add the size the job actually wants '
+            f'(xs/s/m/l/xl; m-bigdisk/xl-bigdisk when the job '
+            f'needs the disk; s-cloud/s-cluster when it builds a '
+            f'nested cloud or cluster); "xs" is a valid answer '
+            f'stated explicitly. A job which genuinely cannot name '
+            f'one marks the line "audit-ok: vm-runner-size" with the '
+            f'reason')

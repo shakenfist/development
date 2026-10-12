@@ -133,6 +133,29 @@ class ExpensiveLanePathFilterTest(CheckTestCase):
         self.fixture.workflows(workflows)
         return self.check(has_workflows_dir=True)
 
+    BOUND_JOB = (
+        '  functional:\n'
+        '    runs-on: [self-hosted, bound-debian-13, bound-s, '
+        '"bind-${{ github.run_id }}-${{ github.run_attempt }}-functional"]\n'
+        '    steps:\n'
+        '      - run: make functional\n'
+    )
+
+    def test_a_bound_job_is_an_expensive_lane(self):
+        # A job bound to its own runner names no 'vm' label, but it
+        # runs on the same ephemeral VMs and must be filtered.
+        result = self._check({'functional.yml': (
+            'on:\n  pull_request:\njobs:\n' + self.BOUND_JOB
+        )})
+        self.assert_fail(result, containing='functional.yml')
+
+    def test_a_filtered_bound_job_passes(self):
+        result = self._check({'functional.yml': (
+            'on:\n  pull_request:\n    paths-ignore:\n'
+            "      - 'docs/**'\njobs:\n" + self.BOUND_JOB
+        )})
+        self.assert_pass(result)
+
     def test_dedicated_scanner_workflow_needs_no_filter(self):
         # Reading the text a filter would skip is the whole job.
         result = self._check({'gitleaks.yml': (
@@ -1093,6 +1116,16 @@ class MergeGroupCancellationTest(CheckTestCase):
     def test_no_concurrency_block_at_all_fails(self):
         result = self._check({'ci.yml': self._merge_group_workflow(
             self._job())})
+        self.assert_fail(result, containing='no concurrency block')
+
+    def test_a_bound_job_holds_a_scarce_runner(self):
+        # A bound job names no 'vm' and its bind- element is an
+        # expression, but it holds an ephemeral VM all the same.
+        result = self._check({'ci.yml': self._merge_group_workflow(
+            self._job(runs_on=(
+                '[self-hosted, bound-debian-13, bound-s, '
+                '"bind-${{ github.run_id }}-${{ github.run_attempt }}-x"]'
+            )))})
         self.assert_fail(result, containing='no concurrency block')
 
     def test_cancel_in_progress_must_be_on(self):
