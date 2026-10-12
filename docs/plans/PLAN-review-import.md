@@ -286,7 +286,7 @@ answers.
 | 1. `import` subcommand | Complete | 54c7ecc (#177) |
 | 2. Review tracking CI template and rollout | Complete | 02d6dbb (#186); actions 74a33c9 (#111); hunkydory f24d413 (#57); kerbside 62ccbcb (#504); ryll ce3ebb3 (#418) |
 | 3. Template convergence | Complete | b520c22 (#203); actions 89717fa (#122), e05bbb1 (#134); hunkydory 8730d75 (#63), c22059e (#66); kerbside 700102e (#511), ede2d7d (#519); ryll 79721f3 (#425), f8a4e2f (#455) |
-| 4. Verification | Not started | |
+| 4. Verification | In progress | |
 | 5. Push audit | Not started | |
 
 <!-- shared-block: plan-status-vocabulary v1 -->
@@ -913,25 +913,156 @@ reviewer, and this phase did not touch that file.
 
 ### Phase 4: verification
 
-Planning effort: medium.
+Planning effort: medium. Nothing here changes what a criterion
+means or touches `audit-check.py`'s scheduler; the one judgement
+call (decision 3) is recorded, not implemented.
 
-Once phases 2 and 3 have merged in every adopted repository, and
-the converged templates have been re-reviewed and stamped here:
+**Scope.** In: measure what phases 1 to 3 bought, against the
+2026-09-24 "Situation" baseline; test that the documentation is
+enough to verify an imported mark by hand, and fix it where it is
+not; record the evidence that `prune` removes an imported mark; and
+put the drift phase 3 hit in front of the decision about a template
+conformance criterion. Out: building that criterion, re-syncing any
+copy that has drifted since 2026-10-13 (that is ordinary
+`standards-alignment` work), and anything under Future work.
 
-* Record the imports each repository's first runs made, and the
-  per-repository counts in the "Situation" table re-measured, so
-  the plan says what the work actually bought.
-* Pick one imported mark in each repository and verify it by hand
-  from the review account, following the procedure the phase 1
-  documentation describes, to confirm the documentation is
-  sufficient.
-* Confirm `prune` removes an imported mark when the target file
-  changes, by watching it happen on the next ordinary change to an
-  imported file.
+**What the survey found (2026-10-13).** The section as first
+written was mostly right. Corrected here, in place of the old text:
+
+* **"Collect the `prune-reviews` run logs" is the wrong source.**
+  Actions logs expire after 90 days; the record that lasts is the
+  git history of each repository's `.vscode/imports.weaudit-shas.json`,
+  which every prune-and-import commit updates. In actions it shows
+  five commits from 2026-09-28 to 2026-10-09, each adding or removing
+  entries. 4a reads that history instead.
+* **The third bullet has already happened** and needs recording, not
+  watching for. In actions, 00642fd dropped the imported
+  `renovate.yml` mark after a Renovate bump, and 953a997 dropped
+  `pr-re-review.yml` and replaced `pr-retest.yml` after the 10-01
+  template change. 7e77693 then re-imported `renovate.yml` at the
+  new blob once it was stamped here.
+* **The documentation has no hand procedure for an imported mark.**
+  `docs/code-review-tracking.md` gives the `gitsign verify` command
+  for a commit ("Commit signing") and explains why an imported entry
+  is a pointer to an attestation, but not the steps a reader takes
+  to follow that pointer. Those are: verify the entry's `commit`
+  here, and confirm that commit's sidecar records the same blob SHA
+  at the entry's `path` with no partial marks. 4b tests whether a
+  reader can get there from the text alone; the expectation is
+  that it cannot, and the fix is a short procedure in the doc.
+* **Drift returned within a day** (see phase 3's Outcome), and
+  Renovate bumps converge by themselves while hand edits do not.
+  The Future work item "A template conformance criterion" asked to
+  revisit after this phase; shakenfist/development#151 asks the same
+  question for `templates/mermaid-lint/`.
+* **gitsign is installed on this host** (`/usr/bin/gitsign`), so the
+  hand verification needs no setup.
+
+**Decisions.**
+
+1. **The measurement is a script in this plan, not a new tool.**
+   Phase 3's Definition of done promised "a script run by phase 4".
+   It lives in 4a's brief, below, so it costs no review here and
+   no maintenance; if the conformance criterion is ever built, it
+   is that criterion's first draft.
+2. **The hand verification is done by an agent working only from
+   `docs/`**, then repeated by Michael on one entry. The agent is the
+   better test of whether the documentation is enough, because it
+   cannot fall back on knowing the code; Michael's run checks the
+   agent did not.
+3. **No conformance criterion in this plan.** The data argues for
+   one: import made drift *visible* (files fell out of review in
+   each repository), but nothing said *why* or which template to
+   re-sync from, and a person measuring by hand found it. That
+   change is high effort here (a new criterion that files issues in
+   other repositories), and #151 already frames it more broadly than
+   this plan can, across every template, not just the ones import
+   touches. 4c adds this plan's drift data to #151 and points the
+   Future work item at it.
+4. **A doc fix is the only change to shipped content.** If 4b finds
+   the procedure gap, the fix lands in this phase's pull request.
+   Anything else 4b finds is recorded and filed, not fixed.
+
+The decision most open to argument is 3. The drift cost a second
+round of four pull requests, and the next hand edit to a template
+will cost another; a reviewer could fairly say the criterion is
+the actual deliverable. The reason to defer it is that the right
+design (shared-block-style version markers, a hash comparison in
+the audit, or development opening the re-sync pull requests
+itself) is the question #151 already asks, and answering it inside
+a verification phase would be the scope creep this plan's phases
+have avoided.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 4a | medium | sonnet | none | Collect the `prune-reviews` run logs since phase 2 landed in each adopted repository (`ci-status`), extract the import lines, re-run the "Situation" measurement against fresh clones, and report. |
+| 4a | medium | sonnet | none | Measure, write nothing to any repository. For each of development (`main`), actions (`main`), hunkydory, kerbside and ryll (`develop`), make a detached worktree of the freshly fetched default branch in the scratchpad (local clones live beside this one under `src/shakenfist/`), and report: (1) in-scope files needing review, from `tools/review-tracking.sh status` (`python3 scripts/review-tracking.py status` here), against the "Situation" table; (2) how many in-scope files are byte-identical to a blob this repository has stamped as fully reviewed, at `HEAD` and anywhere in the sidecar's history, the same two counts "Situation" gives; (3) entries in `.vscode/imports.weaudit-shas.json` now, all with `verified: true` or not; (4) from `git log -p` of that file, every entry added and removed, with dates. Then run the template copy check below and report it as a table. Remove the worktrees afterwards. |
+| 4b | medium | sonnet | none | Using ONLY `docs/code-review-tracking.md` and `docs/` (do not read `scripts/review-tracking.py`), verify one imported entry by hand in each of actions, hunkydory, kerbside and ryll: pick an entry from its `.vscode/imports.weaudit-shas.json`, and establish from the doc's instructions that the named commit in shakenfist/development is signed by the named reviewer's identity and records a full review of that blob at that path. Report each step taken, where the doc did not say what to do next, and the result. If the doc lacks the procedure, draft the shortest addition that would have been enough, under "Importing reviews from this repository", for the management session to review. Michael then repeats the check on one entry from the drafted text. |
+| 4c | low | sonnet | none | Write the results into this section as an Outcome paragraph: the re-measured "Situation" table beside the baseline, the imports per repository and the prune removals (00642fd, 953a997 in actions, plus any 4a found elsewhere), 4b's result, and the copy check. Comment on shakenfist/development#151 with this plan's drift data (templates changed after convergence, the copies that lagged and for how long, and that Renovate bumps converged by themselves), and change the Future work item "A template conformance criterion" to point at #151. |
+
+The template copy check, for 4a (run from `src/shakenfist/`, after
+fetching each clone):
+
+```bash
+declare -A B=([actions]=main [hunkydory]=develop [kerbside]=develop [ryll]=develop)
+pairs="mermaid-lint/mermaid-lint.sh:tools/mermaid-lint.sh
+mermaid-lint/mermaid-lint.yml:.github/workflows/mermaid-lint.yml
+export-repo-config/export-repo-config.yml:.github/workflows/export-repo-config.yml
+renovate/renovate.yml:.github/workflows/renovate.yml
+ci-review-automation/pr-retest.yml:.github/workflows/pr-retest.yml
+ci-review-automation/pr-re-review.yml:.github/workflows/pr-re-review.yml
+codeql/codeql-analysis.yml:.github/workflows/codeql-analysis.yml
+pin-indirect-dependencies/pin-indirect-dependencies.yml:.github/workflows/pin-indirect-dependencies.yml
+pin-indirect-dependencies/pin-indirect-dependencies.sh:tools/pin-indirect-dependencies.sh
+pin-indirect-dependencies/pin-indirect-dependencies-apt.sh:tools/pin-indirect-dependencies-apt.sh
+review-tracking/prune-reviews.yml:.github/workflows/prune-reviews.yml
+review-tracking/ci-prune-reviews.sh:tools/ci-prune-reviews.sh
+review-tracking/review-tracking.sh:tools/review-tracking.sh"
+for r in actions hunkydory kerbside ryll; do
+  for p in $pairs; do
+    t=${p%%:*}; c=${p#*:}
+    th=$(git -C development hash-object templates/$t)
+    ch=$(git -C $r rev-parse -q --verify origin/${B[$r]}:$c) || continue
+    [ "$th" = "$ch" ] && echo "same $r $c" || echo "DIFF $r $c"
+  done
+done
+```
+
+On 2026-10-13 it prints `DIFF` for exactly the three per-repository
+copies (CodeQL in actions and kerbside, actions'
+`export-repo-config.yml`) and `same` for the other 36.
+
+**Risks.**
+
+* *4b's agent reads the code anyway, and the test proves nothing.*
+  The management session checks the agent's transcript lists only
+  `docs/` reads, and Michael's repeat from the drafted text is the
+  backstop.
+* *The re-measured counts are not comparable with the baseline.*
+  The baseline used local clones one to five days old; 4a uses fresh
+  default branches. The Outcome says so beside the table rather than
+  presenting the difference as all import's doing.
+* *A copy has drifted again by the time 4a runs.* That is a result,
+  not a failure: the Outcome reports it, and it goes into the #151
+  comment.
+
+**Definition of done.**
+
+* The phase 4 Outcome has a "Situation" table re-measured on a
+  stated date, beside the 2026-09-24 baseline, with imports per
+  repository.
+* `docs/code-review-tracking.md` has a hand procedure for an
+  imported entry (`grep -n 'imports.weaudit-shas.json'` finds it
+  next to a `gitsign verify` command), or 4b's report shows the doc
+  was already enough and the Outcome says so.
+* Michael has verified one imported entry from the doc text, and
+  the Outcome names it.
+* shakenfist/development#151 has a comment with this plan's drift
+  data, and the Future work item links #151.
+* `pre-commit run --all-files` passes, and `audit-check.py` for this
+  repository reports what it reported before.
+
+**Back brief.** None needed beyond the plan's: no step here is
+expensive to redo.
 
 ### Phase 5: push audit
 
