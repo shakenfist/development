@@ -133,6 +133,22 @@ class ExpensiveLanePathFilterTest(CheckTestCase):
         self.fixture.workflows(workflows)
         return self.check(has_workflows_dir=True)
 
+    BOUND_JOB = (
+        '  functional:\n'
+        '    runs-on: [self-hosted, bound-debian-13, bound-s, '
+        '"bind-${{ github.run_id }}-${{ github.run_attempt }}-functional"]\n'
+        '    steps:\n'
+        '      - run: make functional\n'
+    )
+
+    def test_a_bound_job_is_an_expensive_lane(self):
+        # A job bound to its own runner names no 'vm' label, but it
+        # runs on the same ephemeral VMs and must be filtered.
+        result = self._check({'functional.yml': (
+            'on:\n  pull_request:\njobs:\n' + self.BOUND_JOB
+        )})
+        self.assert_fail(result)
+
     def test_dedicated_scanner_workflow_needs_no_filter(self):
         # Reading the text a filter would skip is the whole job.
         result = self._check({'gitleaks.yml': (

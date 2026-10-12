@@ -10,7 +10,8 @@ import re
 from audit.check import Check
 from audit.text.workflows import (
     RUNS_ON_RE, STATIC_ALLOWED_LABELS, is_runner_label_value,
-    literal_runner_labels, parse_runner_labels, split_runner_labels,
+    BIND_PREFIX, BOUND_PREFIX, literal_runner_labels,
+    parse_runner_labels, split_runner_labels,
 )
 
 
@@ -62,49 +63,59 @@ VM_SIZE_LABELS = frozenset({
 VM_SIZE_EXCEPTION_RE = re.compile(r'audit-ok:\s*vm-runner-size')
 
 
-# A job may bind itself to a runner started for it alone by writing
-# 'bound-<image>', 'bound-<size>' and one 'bind-<token>' element, and
-# no plain image, size or 'vm' label (shakenfist/private-ci
-# docs/capacity-claims.md, "Binding a job to its runner"). A plain
-# label beside them would let an unbound job take the bound runner.
-BOUND_PREFIX = 'bound-'
-BIND_PREFIX = 'bind-'
+# The labels a bound job may name besides its bound- and bind-
+# elements. Anything else -- vm, a plain image or size, an expression
+# that could evaluate to one -- would let an unbound job take the
+# runner started for it, because GitHub hands a job to any runner whose
+# labels are a superset of the job's.
+BOUND_ALLOWED_LABELS = frozenset({'self-hosted'})
 
 
-def _bound_form_problem(raw_labels, labels):
+def _bound_form_problem(raw_labels):
     """Judge a runs-on that uses the bound form.
 
     Returns None when `raw_labels` does not use it at all, '' when it
     uses it correctly, and otherwise a short reason it does not.
     'unsized' is returned for the one problem the audit-ok marker may
-    excuse, a size which could only arrive through an expression.
+    excuse: a size which could only arrive through an expression.
     """
     bound = [x for x in raw_labels if x.startswith(BOUND_PREFIX)]
     bind = [x for x in raw_labels if x.startswith(BIND_PREFIX)]
     if not bound and not bind:
         return None
 
-    plain = [
-        x for x in labels
-        if x == 'vm' or x in VM_SIZE_LABELS
+    others = [
+        x for x in raw_labels
+        if x not in bound and x not in bind
+        and x not in BOUND_ALLOWED_LABELS
     ]
-    if plain:
+    if others:
         return (
-            'names the plain label(s) %s beside a bound- or bind- '
-            'label; a bound job names no plain image, size or "vm" '
-            'label, or an unbound job could take its runner'
-            % ', '.join(plain))
+            'names %s beside the bound form; a bound job names no '
+            'plain image, size or "vm" label, or an unbound job could '
+            'take its runner' % ', '.join(others))
     if not bind:
         return (
             'has a bound- label but no "bind-<token>" element; a '
             'binding needs its token')
     if len(bind) > 1:
         return 'has more than one "bind-" element'
-    if not any(
-            x.startswith(BOUND_PREFIX) and x[len(BOUND_PREFIX):]
-            in VM_SIZE_LABELS for x in labels):
+    if len(bound) != 2:
+        return (
+            'names %d bound- label(s); a bound job names exactly one '
+            '"bound-<image>" and one "bound-<size>"' % len(bound))
+
+    sizes = [
+        x for x in bound
+        if '${{' not in x and x[len(BOUND_PREFIX):] in VM_SIZE_LABELS
+    ]
+    if len(sizes) > 1:
+        return 'names two bound sizes (%s)' % ', '.join(sizes)
+    if sizes:
+        return ''
+    if any('${{' in x for x in bound):
         return 'unsized'
-    return ''
+    return 'names no "bound-<size>" with a size from the vocabulary'
 
 
 class SelfHostedRunners(Check):
@@ -271,11 +282,13 @@ class VmRunnerSize(Check):
 
         A job bound to its own runner has no 'vm' label, so it is
         recognised by any 'bound-' or 'bind-' element instead. It
-        passes with a literal 'bound-<size>' and one 'bind-' element
-        (always an expression, so never needing a marker) and no plain
-        'vm' or size label; anything else using those prefixes is a
-        finding. A 'bound-<size>' which is itself an expression is
-        treated like an expression size above.
+        passes when it names 'self-hosted', exactly one 'bind-' element
+        (always an expression, so never needing a marker), exactly one
+        'bound-<image>' and exactly one literal 'bound-<size>', and
+        nothing else; anything else using those prefixes is a finding.
+        A 'bound-<size>' which is itself an expression is treated like
+        an expression size above, and is the only bound finding the
+        marker excuses.
         """
         if not repo.props['has_workflows_dir']:
             return self.skip('No .github/workflows/ directory')
@@ -298,18 +311,20 @@ class VmRunnerSize(Check):
                 if not match:
                     continue
                 labels = literal_runner_labels(match.group(1))
+                excused = bool(
+                    VM_SIZE_EXCEPTION_RE.search(line)
+                    or (i > 0 and VM_SIZE_EXCEPTION_RE.search(lines[i - 1])))
                 problem = _bound_form_problem(
-                    split_runner_labels(match.group(1)), labels)
+                    split_runner_labels(match.group(1)))
                 if problem is not None:
                     # A bound job has no 'vm' label, so it is picked
                     # out by its bound- / bind- elements instead. The
                     # bind- element is always an expression, so it is
                     # read from the raw labels, and needs no marker.
+                    # Only a size arriving through an expression may
+                    # be excused; a malformed binding never is.
                     if problem == 'unsized':
-                        if VM_SIZE_EXCEPTION_RE.search(line):
-                            continue
-                        if i > 0 and VM_SIZE_EXCEPTION_RE.search(
-                                lines[i - 1]):
+                        if excused:
                             continue
                         problem = (
                             'names no literal "bound-<size>" with a '
@@ -322,9 +337,7 @@ class VmRunnerSize(Check):
                     continue
                 if any(label in VM_SIZE_LABELS for label in labels):
                     continue
-                if VM_SIZE_EXCEPTION_RE.search(line):
-                    continue
-                if i > 0 and VM_SIZE_EXCEPTION_RE.search(lines[i - 1]):
+                if excused:
                     continue
                 offenders.append(f'{wf}:{i + 1} ({", ".join(labels)})')
 

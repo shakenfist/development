@@ -95,12 +95,16 @@ otherwise picks for it.
   `[self-hosted, bound-debian-13, bound-s, "bind-${{ github.run_id }}-${{ github.run_attempt }}-<slug>"]`.
   This form names no `vm`, plain image or plain size, so that no
   unbound job can take the bound runner. It satisfies this rule when it
-  has a `bound-<size>` element with a size from the list above and one
-  `bind-` element. The `bind-` element is always an expression and needs
-  no marker; a `bound-<size>` that is itself an expression is treated
-  like any other expression size. Any `bound-` or `bind-` element
-  without the full form is a finding: `bound-` with no `bind-`, an
-  unknown bound size, or a plain `vm` or size label alongside them. See
+  names `self-hosted`, exactly one `bind-` element, exactly one
+  `bound-<image>` and exactly one `bound-<size>` with a size from the
+  list above, and nothing else. The `bind-` element is always an
+  expression and needs no marker; a `bound-<size>` that is itself an
+  expression is treated like any other expression size, and is the
+  only bound finding the marker excuses. Any `bound-` or `bind-`
+  element without the full form is a finding: `bound-` with no `bind-`,
+  `bind-` with no `bound-` labels, a missing image or size, two sizes,
+  an unknown bound size, or any other label alongside them -- `vm`, a
+  plain image or size, or an expression that could evaluate to one. See
   "Binding a job to its runner" in shakenfist/private-ci
   `docs/capacity-claims.md`.
 

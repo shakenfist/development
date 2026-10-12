@@ -206,6 +206,53 @@ class VmRunnerSizeTest(CheckTestCase):
             '[self-hosted, bound-debian-13, %s]' % self.BIND)})
         self.assert_fail(result, containing='ci.yml:5')
 
+    def test_a_plain_image_beside_a_bound_job_is_a_finding(self):
+        # A plain image on the bound runner is as much a way in for an
+        # unbound job as a plain size is.
+        result = self._check({'ci.yml': self._job(
+            '[self-hosted, debian-13, bound-debian-13, bound-s, %s]'
+            % self.BIND)})
+        self.assert_fail(result, containing='ci.yml:5')
+        self.assertIn('debian-13', result['details'])
+
+    def test_a_bare_expression_beside_a_bound_job_is_a_finding(self):
+        # It could evaluate to a plain image or size.
+        result = self._check({'ci.yml': self._job(
+            "[self-hosted, '${{ matrix.os }}', bound-debian-13, "
+            "bound-s, %s]" % self.BIND)})
+        self.assert_fail(result, containing='ci.yml:5')
+
+    def test_the_marker_does_not_excuse_a_bind_only_job(self):
+        # Only a size arriving through an expression is excusable; a
+        # bind- token with no bound- labels is a malformed binding.
+        result = self._check({'ci.yml': self._job(
+            '[self-hosted, %s]  # audit-ok: vm-runner-size' % self.BIND)})
+        self.assert_fail(result, containing='ci.yml:5')
+
+    def test_a_bound_job_with_no_image_is_a_finding(self):
+        result = self._check({'ci.yml': self._job(
+            '[self-hosted, bound-s, %s]' % self.BIND)})
+        self.assert_fail(result, containing='ci.yml:5')
+
+    def test_a_bound_job_with_two_sizes_is_a_finding(self):
+        result = self._check({'ci.yml': self._job(
+            '[self-hosted, bound-debian-13, bound-s, bound-xl, %s]'
+            % self.BIND)})
+        self.assert_fail(result, containing='ci.yml:5')
+
+    def test_two_sizes_and_no_image_is_a_finding(self):
+        # Two bound- labels, the right count, but both are sizes.
+        result = self._check({'ci.yml': self._job(
+            '[self-hosted, bound-s, bound-xl, %s]' % self.BIND)})
+        self.assert_fail(result, containing='ci.yml:5')
+        self.assertIn('two bound sizes', result['details'])
+
+    def test_a_bound_job_with_two_images_and_no_size_is_a_finding(self):
+        result = self._check({'ci.yml': self._job(
+            '[self-hosted, bound-debian-13, bound-rocky-9, %s]'
+            % self.BIND)})
+        self.assert_fail(result, containing='ci.yml:5')
+
     def test_a_bound_finding_does_not_hide_a_sizeless_vm_job(self):
         result = self._check({
             'a.yml': self._job('[self-hosted, bound-debian-13]'),

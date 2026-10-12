@@ -24,7 +24,8 @@ from audit.files import (
 )
 from audit.text.workflows import (
     RUNS_ON_RE, STATIC_ALLOWED_LABELS, indented_block, job_level_keys,
-    job_needs, job_outputs, jobs_inheriting_secrets, parse_runner_labels,
+    is_bound_runner_value, job_needs, job_outputs, jobs_inheriting_secrets,
+    parse_runner_labels,
     step_action, step_keys, strip_yaml_comments, workflow_job_blocks,
     workflow_step_blocks,
 )
@@ -1267,6 +1268,12 @@ class ExpensiveLanePathFilter(Check):
                     continue
                 labels = parse_runner_labels(match.group(1))
                 if labels and 'vm' in labels:
+                    has_vm = True
+                    break
+                # A job bound to its own runner is a VM job with no
+                # 'vm' label, and its bind- element is always an
+                # expression, so parse_runner_labels() cannot see it.
+                if is_bound_runner_value(match.group(1)):
                     has_vm = True
                     break
             if not has_vm:

@@ -98,6 +98,29 @@ def parse_runner_labels(value):
     return labels
 
 
+# A job bound to a runner of its own writes 'bound-<image>',
+# 'bound-<size>' and one 'bind-<token>' element, and no 'vm' label
+# (shakenfist/private-ci docs/capacity-claims.md, "Binding a job to its
+# runner"). The prefixes are that repository's contract, as
+# VM_SIZE_LABELS in checks/runners.py is: if private-ci changes its
+# binding grammar, these and the checks reading them change with it, or
+# correctly bound jobs become findings fleet-wide.
+BOUND_PREFIX = 'bound-'
+BIND_PREFIX = 'bind-'
+
+
+def is_bound_runner_value(value):
+    """Whether a `runs-on:` value uses the bound form at all.
+
+    A bound job names no 'vm' label and its 'bind-' element is always an
+    expression, so a check that looks for 'vm' among the statically
+    known labels never sees one. This reads the raw elements instead.
+    """
+    return any(
+        label.startswith((BOUND_PREFIX, BIND_PREFIX))
+        for label in split_runner_labels(value))
+
+
 def literal_runner_labels(value):
     """The statically-known labels of a `runs-on:` line.
 
