@@ -137,17 +137,9 @@
       "sha": "1ddbe383160b5f1e3f87e98c5a88e6b132130123",
       "date": "2026-10-07"
     },
-    "docs/audits/eol-distro.md": {
-      "sha": "bad6c1e41d79f294bdf991bf89a26133f4dd4142",
-      "date": "2026-10-06"
-    },
     "docs/audits/eol-producers.md": {
       "sha": "9812d895b4cb6fcf71431d1b27e51746960f5ea4",
       "date": "2026-10-07"
-    },
-    "docs/audits/expensive-lane-path-filter.md": {
-      "sha": "7c01864fc0ca8b95475afaded6ca4bef89aea31f",
-      "date": "2026-10-05"
     },
     "docs/audits/export-repo-config.md": {
       "sha": "28fad8b136775dd9a12a5a1ae2d74e0668a039fd",
@@ -179,10 +171,6 @@
     },
     "docs/audits/llm-tooling.md": {
       "sha": "dded2a59094bcf473cbeadeb56b75bab521c152b",
-      "date": "2026-10-05"
-    },
-    "docs/audits/merge-group-cancellation.md": {
-      "sha": "0a5288ca4603b0f0f3f5ba12c20fd44970d9aaad",
       "date": "2026-10-05"
     },
     "docs/audits/merge-queue-config.md": {
@@ -321,10 +309,6 @@
       "sha": "179afb0f85bc331ee7c78e5e8c20c8b497b242c3",
       "date": "2026-10-05"
     },
-    "docs/audits/workflow-standards.md": {
-      "sha": "5b51d5e2ebe7c5248ee14989bcbd21afcfcfd200",
-      "date": "2026-10-12"
-    },
     "docs/automated-pr-review.md": {
       "sha": "d60479307223048db30a9651ee8492b89c8b4049",
       "date": "2026-08-30"
@@ -377,10 +361,6 @@
       "sha": "d54faddeed246c3b084571825d542bf04c1bb930",
       "date": "2026-09-02"
     },
-    "scripts/audit/checks/distros.py": {
-      "sha": "82b041f13425c69c65e929211031f94b4c636406",
-      "date": "2026-10-12"
-    },
     "scripts/audit/checks/docs_content.py": {
       "sha": "3fb9bf166a0132485300a5cd94c41f391b117202",
       "date": "2026-10-07"
@@ -408,10 +388,6 @@
     "scripts/audit/checks/review.py": {
       "sha": "e32ae9a6de09ad0f0c2ec2bb44c5b87280078a6a",
       "date": "2026-09-26"
-    },
-    "scripts/audit/checks/runners.py": {
-      "sha": "a98f91387ada701eccd3f9f32d96e23534a44f59",
-      "date": "2026-10-12"
     },
     "scripts/audit/github.py": {
       "sha": "5fdb28856b27d63920448d38d2d77ae30c7aa061",
@@ -448,10 +424,6 @@
     "scripts/audit/text/shared_blocks.py": {
       "sha": "100a6bcd559df58c9dc57a27814d3bb846f59aef",
       "date": "2026-09-02"
-    },
-    "scripts/audit/text/workflows.py": {
-      "sha": "acb44da39623af14a74c71fa244128cee7aa7268",
-      "date": "2026-09-30"
     },
     "scripts/audit_common.py": {
       "sha": "b16e637f477d923b184b49c996658b21ef9bb7b4",
@@ -504,10 +476,6 @@
     "scripts/tests/test_ci_prune_reviews.py": {
       "sha": "4e0381abe43a6004c1e267cc5e630c2e30d1a70c",
       "date": "2026-09-27"
-    },
-    "scripts/tests/test_distros.py": {
-      "sha": "ef1624905677bed212b38155e1dc8ee66fd345ad",
-      "date": "2026-10-12"
     },
     "scripts/tests/test_docs_content.py": {
       "sha": "f2f1490100c7f144e6a41feaae9c65c5e30f9c54",
@@ -572,10 +540,6 @@
     "scripts/tests/test_review_tracking.py": {
       "sha": "a349dadb49e0b841f151b3616354a7158cf0bab5",
       "date": "2026-10-09"
-    },
-    "scripts/tests/test_runners.py": {
-      "sha": "4b11b771f6df36c5008511e3200363f623952493",
-      "date": "2026-10-12"
     },
     "templates/ci-review-automation/README.md": {
       "sha": "086d654adc49954ae423fae08757c4d49843e01b",

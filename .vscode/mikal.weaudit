@@ -365,10 +365,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/text/workflows.py",
-      "author": "mikal"
-    },
-    {
       "path": "templates/test-drift-fix/test-drift-fix.yml",
       "author": "mikal"
     },
@@ -557,10 +553,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/merge-group-cancellation.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/merge-queue-config.md",
       "author": "mikal"
     },
@@ -598,10 +590,6 @@
     },
     {
       "path": "docs/audits/fuzz-nightly-reporting.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/expensive-lane-path-filter.md",
       "author": "mikal"
     },
     {
@@ -725,10 +713,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/eol-distro.md",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/docs_content.py",
       "author": "mikal"
     },
@@ -809,10 +793,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_distros.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_markdown.py",
       "author": "mikal"
     },
@@ -833,23 +813,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_runners.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/distros.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/packaging.py",
       "author": "mikal"
     },
     {
       "path": "scripts/audit/checks/plans.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/runners.py",
       "author": "mikal"
     },
     {
@@ -882,10 +850,6 @@
     },
     {
       "path": "docs/audits/release-artifacts-exclude-plans.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/workflow-standards.md",
       "author": "mikal"
     },
     {
