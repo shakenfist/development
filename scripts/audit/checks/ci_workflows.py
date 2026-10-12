@@ -738,6 +738,11 @@ def job_runs_on_scarce_runner(body):
         match = RUNS_ON_RE.match(line)
         if not match:
             continue
+        # A job bound to its own runner holds an ephemeral VM, but its
+        # bind- element is always an expression, so it is read from
+        # the raw elements before the matrix resolution below.
+        if is_bound_runner_value(match.group(1)):
+            return True
         labels = parse_runner_labels(match.group(1))
         if labels is None:
             # An expression. It can only be scarce if the matrix it

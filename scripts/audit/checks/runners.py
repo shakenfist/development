@@ -100,6 +100,11 @@ def _bound_form_problem(raw_labels):
             'binding needs its token')
     if len(bind) > 1:
         return 'has more than one "bind-" element'
+    if 'github.run_id' not in bind[0]:
+        return (
+            'has a "bind-" token without ${{ github.run_id }}; a '
+            'token that is the same in every run lets one run take '
+            'another\'s runner')
     if len(bound) != 2:
         return (
             'names %d bound- label(s); a bound job names exactly one '

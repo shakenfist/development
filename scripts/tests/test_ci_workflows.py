@@ -1111,6 +1111,16 @@ class MergeGroupCancellationTest(CheckTestCase):
             self._job())})
         self.assert_fail(result, containing='no concurrency block')
 
+    def test_a_bound_job_holds_a_scarce_runner(self):
+        # A bound job names no 'vm' and its bind- element is an
+        # expression, but it holds an ephemeral VM all the same.
+        result = self._check({'ci.yml': self._merge_group_workflow(
+            self._job(runs_on=(
+                '[self-hosted, bound-debian-13, bound-s, '
+                '"bind-${{ github.run_id }}-${{ github.run_attempt }}-x"]'
+            )))})
+        self.assert_fail(result, containing='no concurrency block')
+
     def test_cancel_in_progress_must_be_on(self):
         # A stable key that queues instead of cancelling still leaves
         # the superseded run holding the runner.

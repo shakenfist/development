@@ -98,7 +98,8 @@ otherwise picks for it.
   names `self-hosted`, exactly one `bind-` element, exactly one
   `bound-<image>` and exactly one `bound-<size>` with a size from the
   list above, and nothing else. The `bind-` element is always an
-  expression and needs no marker; a `bound-<size>` that is itself an
+  expression including `${{ github.run_id }}`, so that every run binds
+  its own runners, and needs no marker; a `bound-<size>` that is itself an
   expression is treated like any other expression size, and is the
   only bound finding the marker excuses. Any `bound-` or `bind-`
   element without the full form is a finding: `bound-` with no `bind-`,

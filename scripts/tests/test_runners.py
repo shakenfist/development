@@ -240,6 +240,14 @@ class VmRunnerSizeTest(CheckTestCase):
             % self.BIND)})
         self.assert_fail(result, containing='ci.yml:5')
 
+    def test_a_literal_bind_token_is_a_finding(self):
+        # The same token in every run would let concurrent runs take
+        # each other's bound runners.
+        result = self._check({'ci.yml': self._job(
+            '[self-hosted, bound-debian-13, bound-s, bind-functional]')})
+        self.assert_fail(result, containing='ci.yml:5')
+        self.assertIn('github.run_id', result['details'])
+
     def test_two_sizes_and_no_image_is_a_finding(self):
         # Two bound- labels, the right count, but both are sizes.
         result = self._check({'ci.yml': self._job(
