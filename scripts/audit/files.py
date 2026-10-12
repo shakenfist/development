@@ -130,18 +130,6 @@ def workflow_has_permissions(repo_path, workflow_file):
     return False
 
 
-def any_workflow_contains(repo_path, pattern):
-    """Check if any workflow file contains a regex pattern."""
-    for wf in list_workflow_files(repo_path):
-        filepath = os.path.join(
-            repo_path, '.github', 'workflows', wf
-        )
-        with open(filepath, 'r', errors='replace') as f:
-            if re.search(pattern, f.read()):
-                return True
-    return False
-
-
 def iter_docs_markdown_files(repo_path, props):
     """Yield repo-relative paths of every .md file under docs/.
 

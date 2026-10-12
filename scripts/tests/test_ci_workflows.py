@@ -21,6 +21,7 @@ from tests.base import CheckTestCase, REPO_ROOT, repo_text  # noqa: E402
 
 CI_REVIEW_DEVELOPER_WORKFLOWS = ci_workflows.CI_REVIEW_DEVELOPER_WORKFLOWS
 CI_REVIEW_SHARED_ACTION = ci_workflows.CI_REVIEW_SHARED_ACTION
+CI_REVIEW_REUSABLE_WORKFLOW = ci_workflows.CI_REVIEW_REUSABLE_WORKFLOW
 CI_REVIEW_TRIGGER_ACTION = ci_workflows.CI_REVIEW_TRIGGER_ACTION
 RETIRED_ADDRESSER_SCRIPTS = ci_workflows.RETIRED_ADDRESSER_SCRIPTS
 RETIRED_ADDRESSER_WORKFLOW = ci_workflows.RETIRED_ADDRESSER_WORKFLOW
@@ -38,6 +39,25 @@ def template_workflow(wf):
     what the criterion has to accept.
     """
     return repo_text('templates', 'ci-review-automation', wf)
+
+
+# The automatic reviewer a compliant deployment adds to its own CI, as
+# templates/ci-review-automation/README.md gives it. It is not a
+# template file -- the needs: list differs per project -- so the
+# fixtures carry this copy. Without it a repository holding only the
+# two developer workflows is one with no automatic reviewer, which the
+# criterion fails.
+REVIEWER_WORKFLOW = (
+    'jobs:\n'
+    '  automated_reviewer:\n'
+    '    name: "Automated reviewer"\n'
+    '    needs: [sanity_checks]\n'
+    '    permissions:\n'
+    '      contents: read\n'
+    '      pull-requests: write\n'
+    '      issues: write\n'
+    '    uses: shakenfist/actions/.github/workflows/pr-auto-review.yml@main\n'
+)
 
 
 class CiReviewAutomationSpecTest(unittest.TestCase):
@@ -73,6 +93,7 @@ class CiReviewAutomationSpecTest(unittest.TestCase):
         for requirement in (
             CI_REVIEW_DEVELOPER_WORKFLOWS
             + (CI_REVIEW_SHARED_ACTION,
+               CI_REVIEW_REUSABLE_WORKFLOW,
                CI_REVIEW_TRIGGER_ACTION)
         ):
             with self.subTest(requirement=requirement):
@@ -264,6 +285,7 @@ class RetiredCommentAddresserTest(CheckTestCase):
             wf: template_workflow(wf)
             for wf in ('pr-re-review.yml', 'pr-retest.yml')
         })
+        self.fixture.workflow('ci.yml', REVIEWER_WORKFLOW)
         self.fixture.write_all({path: 'x\n' for path in leftovers})
         return self.check(is_docs_only=docs_only)
 
@@ -487,6 +509,7 @@ class PrReReviewTriggerTest(CheckTestCase):
         its own rather than an empty one.
         """
         self.fixture.workflow('pr-retest.yml', template_workflow('pr-retest.yml'))
+        self.fixture.workflow('ci.yml', REVIEWER_WORKFLOW)
         if re_review_body is not None:
             self.fixture.workflow('pr-re-review.yml', re_review_body)
         return self.check(is_docs_only=docs_only)
@@ -515,6 +538,85 @@ class PrReReviewTriggerTest(CheckTestCase):
 
     def test_the_docs_only_path_passes_when_the_action_is_used(self):
         self.assert_pass(self._check(self.USES_ACTION, docs_only=True))
+
+
+class AutomatedReviewerTest(CheckTestCase):
+    """Some workflow besides the developer ones reviews through the action.
+
+    The check once passed when any workflow at all named
+    review-pr-with-claude@main. pr-re-review.yml names it, so every
+    repository carrying that workflow passed whatever its automatic
+    reviewer was, and two passed with none -- while a repository whose
+    reviewer called the reusable pr-auto-review.yml, as the spec says
+    is enough, failed (shakenfist/development#233).
+    """
+
+    check_class = ci_workflows.CiReviewAutomation
+
+    HAND_WRITTEN = (
+        'jobs:\n'
+        '  automated_reviewer:\n'
+        '    steps:\n'
+        '      - uses: shakenfist/actions/review-pr-with-claude@main\n'
+    )
+
+    def _check(self, ci=None, docs_only=False):
+        """A compliant repository whose ci.yml is this; None means absent."""
+        self.fixture.workflows({
+            wf: template_workflow(wf)
+            for wf in CI_REVIEW_DEVELOPER_WORKFLOWS
+        })
+        if ci is not None:
+            self.fixture.workflow('ci.yml', ci)
+        return self.check(is_docs_only=docs_only)
+
+    def test_calling_the_reusable_workflow_passes(self):
+        self.assert_pass(self._check(REVIEWER_WORKFLOW))
+
+    def test_using_the_action_directly_passes(self):
+        self.assert_pass(self._check(self.HAND_WRITTEN))
+
+    def test_the_developer_workflows_alone_fail(self):
+        # Both template workflows are present and pr-re-review.yml names
+        # the shared action. That is a maintainer asking for a review,
+        # not every pull request getting one.
+        self.assertIn(CI_REVIEW_SHARED_ACTION,
+                      template_workflow('pr-re-review.yml'))
+        self.assert_fail(self._check(None), containing='No automated reviewer')
+
+    def test_the_reviewer_may_live_in_any_other_workflow(self):
+        self.fixture.workflow('functional-tests.yml', REVIEWER_WORKFLOW)
+        self.assert_pass(self._check(None))
+
+    def test_a_commented_out_reviewer_fails(self):
+        commented = ''.join(
+            '# ' + line for line in REVIEWER_WORKFLOW.splitlines(keepends=True))
+        self.assert_fail(self._check(commented), containing='No automated reviewer')
+
+    def test_the_reusable_workflow_at_another_ref_fails(self):
+        result = self._check(REVIEWER_WORKFLOW.replace(
+            'pr-auto-review.yml@main', 'pr-auto-review.yml@v1'))
+        self.assert_fail(result, containing='No automated reviewer')
+
+    def test_a_developer_workflow_calling_the_reusable_one_does_not_count(self):
+        # The exclusion is by file, not by which reference it carries.
+        self.fixture.workflow(
+            'pr-retest.yml',
+            template_workflow('pr-retest.yml') + REVIEWER_WORKFLOW.replace('jobs:\n', ''))
+        self.assert_fail(self._check(None), containing='No automated reviewer')
+
+    def test_a_per_project_script_fails(self):
+        result = self._check(
+            'jobs:\n  automated_reviewer:\n    steps:\n'
+            '      - run: tools/review-pr-with-claude.sh\n')
+        self.assert_fail(result, containing='No automated reviewer')
+
+    def test_the_docs_only_path_does_not_require_one(self):
+        # cloudgood carries pr-re-review.yml and nothing that tests a
+        # pull request, so there is nothing for a reviewer to wait on.
+        self.fixture.workflow('pr-re-review.yml',
+                              template_workflow('pr-re-review.yml'))
+        self.assert_pass(self.check(is_docs_only=True))
 
 
 class ForkGateAndConfirmStepTest(CheckTestCase):
@@ -550,6 +652,7 @@ class ForkGateAndConfirmStepTest(CheckTestCase):
         self.fixture.workflows({
             'pr-re-review.yml': re_review or template_workflow('pr-re-review.yml'),
             'pr-retest.yml': retest or template_workflow('pr-retest.yml'),
+            'ci.yml': REVIEWER_WORKFLOW,
         })
         return self.check(is_docs_only=docs_only)
 
