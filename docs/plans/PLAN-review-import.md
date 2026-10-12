@@ -285,7 +285,7 @@ answers.
 |-------|--------|--------|
 | 1. `import` subcommand | Complete | 54c7ecc (#177) |
 | 2. Review tracking CI template and rollout | Complete | 02d6dbb (#186); actions 74a33c9 (#111); hunkydory f24d413 (#57); kerbside 62ccbcb (#504); ryll ce3ebb3 (#418) |
-| 3. Template convergence | In progress | |
+| 3. Template convergence | Complete | b520c22 (#203); actions 89717fa (#122), e05bbb1 (#134); hunkydory 8730d75 (#63), c22059e (#66); kerbside 700102e (#511), ede2d7d (#519); ryll 79721f3 (#425), f8a4e2f (#455) |
 | 4. Verification | Not started | |
 | 5. Push audit | Not started | |
 
@@ -887,6 +887,29 @@ it.
 agrees the CodeQL template's event table with Michael. It is the
 one change here that alters a security scanner's coverage in every
 copy.
+
+**Outcome.** Re-measured 2026-10-13 against each repository's
+default branch: every copy the classification table converges is
+byte-identical to its template, stamped here, and reviewed in its
+repository (by import or by a direct stamp). The three copies that
+differ are the ones the table keeps per-repository: CodeQL in
+actions and kerbside, and actions' reusable `export-repo-config.yml`.
+A review-only hunkydory pull request (#68) merged with `Analyze`
+reported as skipped.
+
+Convergence did not hold on its own. Within a day of the re-sync
+pull requests merging, development changed both bot workflow
+templates (5e9a4b3, 3b5142c) and Renovate bumped `renovate.yml`, so
+eight copies lagged again and a second round of re-sync pull
+requests (actions#134, hunkydory#66, kerbside#519, ryll#455) was
+needed. Renovate's bumps converge by themselves, because it makes
+the same edit in every repository; a hand edit to a template does
+not. Phase 4 takes this as its main input.
+
+`audit-check.py` against the five default branches shows no failure
+this phase caused. hunkydory's `ci-review-automation` failure
+predates it: hunkydory's `ci.yml` has never called the automatic
+reviewer, and this phase did not touch that file.
 
 ### Phase 4: verification
 
