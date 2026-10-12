@@ -1064,6 +1064,119 @@ copies (CodeQL in actions and kerbside, actions'
 **Back brief.** None needed beyond the plan's: no step here is
 expensive to redo.
 
+**Outcome.** Measured 2026-10-13 on fresh default branches.
+"Needing review" is from `status`; "byte-identical" means
+identical to a blob this repository has stamped as fully
+reviewed, both at this repository's `HEAD` and anywhere in its
+sidecar's history:
+
+| Repository | In scope | Needing review 09-24 → 10-13 | Byte-identical (history) 09-24 → 10-13 | Byte-identical (at HEAD) 09-24 → 10-13 | Imported now |
+|---|---|---|---|---|---|
+| actions | 147 | 14 → 5 | 0 → 6 | 0 → 6 | 5 |
+| hunkydory | 40 | 2 → 0 | 5 → 9 | 5 → 9 | 7 |
+| kerbside | 258 | 140 → 130 | 4 → 12 | 3 → 12 | 5 |
+| ryll | 245 | 37 → 101 | 4 → 10 | 2 → 10 | 3 |
+
+Notes on the table:
+
+* Every imported entry is `verified: true`.
+* The at-`HEAD` and history counts are now equal in all four
+  repositories: no copy lags a template.
+* The byte-identical counts exceed the imported counts because a
+  native mark on the same blob pre-empts import.
+* ryll's rise is new Rust code entering scope
+  (`shakenfist-spice-protocol/`, `shakenfist-spice-renderer/`,
+  `ryll/src/app/`), not import.
+* The baseline used local clones one to five days old, so the
+  difference above is not all import's doing (see the risk above).
+
+**Import history**, from each repository's own
+`.vscode/imports.weaudit-shas.json` git log:
+
+* **actions**: 6e0aa3e (09-28) added three review tracking files;
+  017a178 (09-30) added `pr-re-review.yml`, `pr-retest.yml` and
+  `renovate.yml`; 00642fd (10-03) dropped `renovate.yml` after a
+  Renovate bump; 953a997 (10-03) dropped `pr-re-review.yml` and
+  replaced `pr-retest.yml` after the template change in 5e9a4b3;
+  7e77693 (10-09) re-imported `renovate.yml` at the new blob.
+* **hunkydory**: fff62e1 (09-28) added six; 0d24140 (09-30) added
+  `codeql-analysis.yml` and `renovate.yml`; 1cc5885/0e3e3fe (10-03)
+  dropped `renovate.yml` and `pr-re-review.yml`; cfc85d2 (10-10)
+  re-imported `renovate.yml`.
+* **kerbside**: 6df1ee3 (09-28) added four; 233eb40 (09-30) dropped
+  `pr-re-review.yml` and `prune-reviews.yml`; f126408 (10-01) added
+  eight; fddd582/89ac333 (10-03) dropped `renovate.yml` and
+  `pr-re-review.yml`; e425a42 (10-05) dropped
+  `export-repo-config.yml`, `mermaid-lint.yml`,
+  `pin-indirect-dependencies.yml` and `pr-retest.yml`; efc652b
+  (10-11) re-imported `renovate.yml`.
+* **ryll**: 6d5a3da (09-28) added three; 13fa6e9 (10-03) added
+  seven; 41541fb/09ffde3/3dc0ce4 (10-04) replaced entries; c494993
+  (10-05) dropped seven; ebca209 (10-10) re-imported
+  `renovate.yml`.
+
+**Prune of an imported mark when its file changes** is confirmed
+in every repository: the `renovate.yml` removals on 10-03, each
+re-imported once this repository stamped the new blob, with a lag
+of six to eight days.
+
+**Key finding: imported files were re-reviewed by hand anyway.**
+kerbside's e425a42 and ryll's c494993 dropped imports even though
+the files had not changed. In both repositories a human review
+commit had just stamped the same blobs natively:
+
+* kerbside 2dafb4e, "review: CI workflows", 2026-10-05, stamped
+  six files that were already imported;
+* ryll 3d16282, "review: docs, with a lot of unrelated stamp
+  updates too", 2026-10-05.
+
+A native mark always takes precedence, so `prune` dropped the
+now-redundant import entries. Import kept those files out of the
+review queue for days, but they were still read again by a human.
+The likely cause is that imported marks live only in
+`.vscode/imports.weaudit-shas.json` and never in a `.weaudit`
+file, so the weAudit editor shows those files as unreviewed and a
+reviewer working through the tree finds and re-reads them anyway.
+Not diagnosed further here; see Future work.
+
+**4b result.** An agent working only from `docs/` verified one
+imported entry in each repository:
+
+| Repository | Entry | Source commit |
+|---|---|---|
+| actions | `pr-retest.yml` | 3343336 |
+| hunkydory | `codeql-analysis.yml` | f82b09c |
+| kerbside | `tools/mermaid-lint.sh` | d7638dc |
+| ryll | `tools/ci-prune-reviews.sh` | d771816 |
+
+All four signatures verify and all four are full `auditedFiles`
+marks. The agent had to assemble the steps from three sections of
+`docs/code-review-tracking.md`, and two facts it needed were not
+written down anywhere in `docs/`: the `.weaudit` JSON shape for a
+full versus a partial mark, and how to find a reviewer's signing
+identity. "Verifying an imported entry by hand", added in this
+phase, closes both gaps. Michael's repeat of the check from the
+documented procedure: pending.
+
+**Template copy check.** Unchanged from this phase's first run on
+2026-10-13: three `DIFF` (CodeQL in actions and kerbside,
+actions' `export-repo-config.yml`), all per-repository by design,
+and 36 `same`.
+
+**Drift.** The templates behind those copies changed again after
+phase 3 converged them:
+
+* 5e9a4b3 (10-01) changed both bot workflow templates;
+* 3b5142c (10-03) changed `pr-re-review.yml`;
+* Renovate bumped `renovate.yml` more than once.
+
+Eight copies lagged until a second round of re-sync pull requests
+(actions#134, hunkydory#66, kerbside#519, ryll#455, merged 10-03
+to 10-04). Renovate's bumps converged by themselves, because it
+makes the same edit everywhere; the hand edits did not. Import
+made this drift visible only as files dropping out of review;
+nothing named the template to re-sync from.
+
 ### Phase 5: push audit
 
 Run `PUSH-AUDIT.md` over the merge commits recorded for phases 1
@@ -1373,10 +1486,24 @@ intend to do aligns with that plan.
   remove the copies altogether, leaving small identical callers.
   It changes the trust model (a caller pinned by SHA, bumped by
   Renovate) and is a bigger decision than this plan should make.
-* **A template conformance criterion.** Phase 3 converges the
-  copies once; without enforcement they will drift again. Revisit
-  after phase 4 shows whether import makes the drift visible
-  enough on its own.
+* **A template conformance criterion.** Tracked in
+  shakenfist/development#151. Phase 4 found that templates
+  changed again within days of phase 3's convergence (5e9a4b3,
+  3b5142c, and Renovate bumps), costing a second round of four
+  re-sync pull requests before Renovate's self-converging bumps
+  and the hand edits both landed; #151 asks the same question
+  across every template, not only the ones import touches.
+* **Imported marks are invisible in the editor.** Phase 4 found
+  that kerbside (2dafb4e) and ryll (3d16282) both carried native
+  review commits that re-stamped files already covered by an
+  import, even though the imported blobs had not changed. The
+  likely cause is that an imported entry lives only in
+  `.vscode/imports.weaudit-shas.json`, never in a `.weaudit` file,
+  so weAudit's own UI shows the file as unreviewed and a reviewer
+  working through the tree re-reads it anyway. A possible
+  direction is to show imported files as reviewed in weAudit, or
+  to have `next` and the reviewer's own workflow surface that a
+  file is already covered by an import; the design is left open.
 * **Shared blocks.** See the mission statement for why they are
   out of scope.
 * **Upgrading unverified imports.** An entry imported with
