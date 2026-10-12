@@ -897,12 +897,17 @@ actions and kerbside, and actions' reusable `export-repo-config.yml`.
 A review-only hunkydory pull request (#68) merged with `Analyze`
 reported as skipped.
 
-Convergence did not hold on its own. Within a day of the re-sync
-pull requests merging, development changed both bot workflow
-templates (5e9a4b3, 3b5142c) and Renovate bumped `renovate.yml`, so
-eight copies lagged again and a second round of re-sync pull
-requests (actions#134, hunkydory#66, kerbside#519, ryll#455) was
-needed. Renovate's bumps converge by themselves, because it makes
+Convergence did not hold on its own. The first-round re-sync pull
+requests merged on 09-30 (actions#122, hunkydory#63), 10-01
+(kerbside#511) and 10-03 (ryll#425). Meanwhile 5e9a4b3 (#204, on
+`main` 10-01) changed both bot workflow templates, 3b5142c (#212,
+on `main` 10-03) changed `pr-re-review.yml` again, and Renovate
+bumped `renovate.yml` on 10-02. actions' and hunkydory's copies
+lagged within a day of merging; kerbside's and ryll's
+`pr-re-review.yml` were already behind when they merged. Eight bot
+workflow copies lagged until a second round of re-sync pull
+requests (actions#134, hunkydory#66, kerbside#519, ryll#455)
+merged on 10-03 and 10-04. Renovate's bumps converge by themselves, because it makes
 the same edit in every repository; a hand edit to a template does
 not. Phase 4 takes this as its main input.
 
@@ -950,7 +955,7 @@ written was mostly right. Corrected here, in place of the old text:
   at the entry's `path` with no partial marks. 4b tests whether a
   reader can get there from the text alone; the expectation is
   that it cannot, and the fix is a short procedure in the doc.
-* **Drift returned within a day** (see phase 3's Outcome), and
+* **Drift returned within days** (see phase 3's Outcome), and
   Renovate bumps converge by themselves while hand edits do not.
   The Future work item "A template conformance criterion" asked to
   revisit after this phase; shakenfist/development#151 asks the same
@@ -1095,30 +1100,42 @@ Notes on the table:
 
 * **actions**: 6e0aa3e (09-28) added three review tracking files;
   017a178 (09-30) added `pr-re-review.yml`, `pr-retest.yml` and
-  `renovate.yml`; 00642fd (10-03) dropped `renovate.yml` after a
-  Renovate bump; 953a997 (10-03) dropped `pr-re-review.yml` and
-  replaced `pr-retest.yml` after the template change in 5e9a4b3;
-  7e77693 (10-09) re-imported `renovate.yml` at the new blob.
+  `renovate.yml`; 00642fd (10-03) dropped `renovate.yml` after the
+  v46.3.6 Renovate bump; 953a997 (10-03) dropped `pr-re-review.yml`
+  and replaced `pr-retest.yml` after the template change in
+  5e9a4b3; 7e77693 (10-09) imported `renovate.yml` at the v46.3.7
+  blob.
 * **hunkydory**: fff62e1 (09-28) added six; 0d24140 (09-30) added
   `codeql-analysis.yml` and `renovate.yml`; 1cc5885/0e3e3fe (10-03)
-  dropped `renovate.yml` and `pr-re-review.yml`; cfc85d2 (10-10)
-  re-imported `renovate.yml`.
+  dropped `renovate.yml` (v46.3.6 bump) and `pr-re-review.yml`;
+  cfc85d2 (10-10) imported `renovate.yml` at the v46.3.7 blob.
 * **kerbside**: 6df1ee3 (09-28) added four; 233eb40 (09-30) dropped
   `pr-re-review.yml` and `prune-reviews.yml`; f126408 (10-01) added
-  eight; fddd582/89ac333 (10-03) dropped `renovate.yml` and
-  `pr-re-review.yml`; e425a42 (10-05) dropped
-  `export-repo-config.yml`, `mermaid-lint.yml`,
-  `pin-indirect-dependencies.yml` and `pr-retest.yml`; efc652b
-  (10-11) re-imported `renovate.yml`.
+  eight; fddd582/89ac333 (10-03) dropped `renovate.yml` (v46.3.6
+  bump) and `pr-re-review.yml` (template change); e425a42 (10-05)
+  dropped `export-repo-config.yml`, `mermaid-lint.yml`,
+  `pin-indirect-dependencies.yml` and `pr-retest.yml` after native
+  re-stamps; efc652b (10-11) imported `renovate.yml` at the v46.3.7
+  blob.
 * **ryll**: 6d5a3da (09-28) added three; 13fa6e9 (10-03) added
-  seven; 41541fb/09ffde3/3dc0ce4 (10-04) replaced entries; c494993
-  (10-05) dropped seven; ebca209 (10-10) re-imported
-  `renovate.yml`.
+  seven; 41541fb (10-04) dropped `pr-re-review.yml` (template
+  change) and 09ffde3 (10-04) dropped `renovate.yml` (v46.3.6 bump,
+  merged in ryll#440 on 10-03); 3dc0ce4 (10-04) imported both at
+  their new blobs, stamped here hours earlier, and dropped
+  `prune-reviews.yml`, which had gained a native mark; c494993
+  (10-05) dropped seven after native re-stamps; ebca209 (10-10)
+  imported `renovate.yml` at the v46.3.7 blob.
 
 **Prune of an imported mark when its file changes** is confirmed
-in every repository: the `renovate.yml` removals on 10-03, each
-re-imported once this repository stamped the new blob, with a lag
-of six to eight days.
+in every repository. The v46.3.6 Renovate bump (10-02) dropped the
+imported `renovate.yml` in actions (00642fd), hunkydory (1cc5885)
+and kerbside (fddd582) on 10-03, and in ryll (09ffde3) on 10-04,
+after its bump merged. Only ryll re-imported that blob (3dc0ce4, the
+same day); the other three were re-stamped natively before an
+import could happen. For the v46.3.7 bump (10-08), this repository
+stamped the new blob on 10-09 (f2bc259), and all four repositories
+imported it between 10-09 and 10-11: a lag of one to three days
+from the bump.
 
 **Key finding: imported files were re-reviewed by hand anyway.**
 kerbside's e425a42 and ryll's c494993 dropped imports even though
@@ -1126,7 +1143,11 @@ the files had not changed. In both repositories a human review
 commit had just stamped the same blobs natively:
 
 * kerbside 2dafb4e, "review: CI workflows", 2026-10-05, stamped
-  six files that were already imported;
+  six files. Four of them (`export-repo-config.yml`,
+  `mermaid-lint.yml`, `pin-indirect-dependencies.yml`,
+  `pr-retest.yml`) were still imported at blobs that had not
+  changed; the other two, `pr-re-review.yml` and `renovate.yml`,
+  had lost their imports on 10-03 when their blobs changed;
 * ryll 3d16282, "review: docs, with a lot of unrelated stamp
   updates too", 2026-10-05.
 
@@ -1166,13 +1187,14 @@ and 36 `same`.
 **Drift.** The templates behind those copies changed again after
 phase 3 converged them:
 
-* 5e9a4b3 (10-01) changed both bot workflow templates;
-* 3b5142c (10-03) changed `pr-re-review.yml`;
-* Renovate bumped `renovate.yml` more than once.
+* 5e9a4b3 (#204, on `main` 10-01) changed both bot workflow
+  templates;
+* 3b5142c (#212, on `main` 10-03) changed `pr-re-review.yml` again;
+* Renovate bumped `renovate.yml` on 10-02 and 10-08.
 
-Eight copies lagged until a second round of re-sync pull requests
-(actions#134, hunkydory#66, kerbside#519, ryll#455, merged 10-03
-to 10-04). Renovate's bumps converged by themselves, because it
+Eight bot workflow copies lagged from 10-01 until a second round
+of re-sync pull requests (actions#134, hunkydory#66, kerbside#519,
+ryll#455) merged on 10-03 and 10-04: two to three days. Renovate's bumps converged by themselves, because it
 makes the same edit everywhere; the hand edits did not. Import
 made this drift visible only as files dropping out of review;
 nothing named the template to re-sync from.
@@ -1488,11 +1510,11 @@ intend to do aligns with that plan.
   Renovate) and is a bigger decision than this plan should make.
 * **A template conformance criterion.** Tracked in
   shakenfist/development#151. Phase 4 found that templates
-  changed again within days of phase 3's convergence (5e9a4b3,
-  3b5142c, and Renovate bumps), costing a second round of four
-  re-sync pull requests before Renovate's self-converging bumps
-  and the hand edits both landed; #151 asks the same question
-  across every template, not only the ones import touches.
+  changed again within days of phase 3's convergence. Renovate's
+  bumps converged by themselves; the hand edits to the bot
+  workflow templates (5e9a4b3, 3b5142c) needed a second round of
+  four re-sync pull requests. #151 asks the same question across
+  every template, not only the ones import touches.
 * **Imported marks are invisible in the editor.** Phase 4 found
   that kerbside (2dafb4e) and ryll (3d16282) both carried native
   review commits that re-stamped files already covered by an

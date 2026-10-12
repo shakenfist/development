@@ -843,7 +843,10 @@ CI job on a runner without gitsign neither fails nor marks anything
 reviewed. It still removes entries, which needs no verification.
 
 **Verifying an imported entry by hand.** Checking one imported
-mark without running `review-tracking.py` takes four steps:
+mark without running `review-tracking.py` takes four steps. Run
+`git fetch` in both clones first: a stale clone of this repository
+may not have the commit yet, and step 4 compares against
+`origin/<default branch>`.
 
 1. Read the entry from the target repository's
    `.vscode/imports.weaudit-shas.json` on its default branch. You
@@ -860,8 +863,8 @@ mark without running `review-tracking.py` takes four steps:
 
    `<identity>` comes from `REVIEWER_IDENTITIES` in
    `scripts/review-tracking.py`, which maps a reviewer name to a
-   signing identity; today its only reviewer is `mikal`, who signs
-   as `mikal@stillhq.com`. See "Commit signing" for the trust path
+   signing identity (for example, `mikal` signs as
+   `mikal@stillhq.com`). See "Commit signing" for the trust path
    this checks.
 3. Confirm the commit records a full-file review of that blob:
 
