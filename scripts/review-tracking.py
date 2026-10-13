@@ -125,6 +125,14 @@ REVIEWER_IDENTITIES = {
 }
 GITSIGN_ISSUER = 'https://github.com/login/oauth'
 GITSIGN_TIMEOUT = 120
+# How many verifications may time out in one import run before it stops
+# trying. gitsign waits up to GITSIGN_TIMEOUT for Rekor, a network
+# service, on every commit, and the prune-reviews job has thirty
+# minutes: a Rekor that hangs would otherwise kill every run with more
+# than about fifteen commits to verify, so that nothing ever lands.
+# Three is six minutes, which rides out a blip without mistaking an
+# outage for one; what is left is skipped, and a later run tries again.
+VERIFY_TIMEOUT_BUDGET = 3
 
 
 def git(*args, check=True, cwd=None):
@@ -892,7 +900,7 @@ def reviewed_blobs(source, revision):
 
 
 def verify_commit(git_dir, commit, identity):
-    """Check a source commit's gitsign signature by identity. Returns (ok, detail).
+    """Check a source commit's gitsign signature by identity. Returns (ok, detail, timed_out).
 
     identity is the certificate identity the reviewer who made the
     review signs as (REVIEWER_IDENTITIES): a commit signed by anyone
@@ -912,7 +920,8 @@ def verify_commit(git_dir, commit, identity):
     every adopted repository, not just the one it was pushed to. A
     gitsign that cannot run, or runs past the timeout (Rekor is a
     network service), is a failure: an unverifiable signature is not a
-    verified one.
+    verified one. timed_out says which of those it was, so that import
+    can stop asking a Rekor that is not answering (VERIFY_TIMEOUT_BUDGET).
     """
     try:
         p = subprocess.run(['gitsign', 'verify',
@@ -920,10 +929,12 @@ def verify_commit(git_dir, commit, identity):
                             '--certificate-oidc-issuer=%s' % GITSIGN_ISSUER,
                             commit],
                            capture_output=True, text=True, cwd=git_dir, timeout=GITSIGN_TIMEOUT)
-    except (OSError, subprocess.TimeoutExpired) as e:
-        return False, str(e)
+    except subprocess.TimeoutExpired as e:
+        return False, str(e), True
+    except OSError as e:
+        return False, str(e), False
     detail = (p.stderr.strip() or p.stdout.strip()).splitlines()
-    return p.returncode == 0, detail[-1] if detail else 'exit status %d' % p.returncode
+    return p.returncode == 0, detail[-1] if detail else 'exit status %d' % p.returncode, False
 
 
 def repository_identity(path):
@@ -1019,6 +1030,9 @@ def cmd_import(args):
     unverified = 0
     no_identity = 0
     blocked = 0
+    timeouts = 0
+    timed_out = 0
+    deferred = 0
     for path in sorted(tracked):
         if not in_scope(path, include, exclude) or excluded_by(path, import_exclude):
             continue
@@ -1054,8 +1068,19 @@ def cmd_import(args):
             # reviewers' state is two attestations, each checked
             # against its own signer.
             if (commit, identity) not in verified:
+                if timeouts >= VERIFY_TIMEOUT_BUDGET:
+                    deferred += 1
+                    continue
                 verified[(commit, identity)] = verify_commit(source_id[1], commit, identity)
-            ok, detail = verified[(commit, identity)]
+                if verified[(commit, identity)][2]:
+                    timeouts += 1
+            ok, detail, timeout = verified[(commit, identity)]
+            if not ok and timeout:
+                timed_out += 1
+                print('review-import: WARNING: not importing %s: the review of %s was introduced by '
+                      '%s, whose signature could not be checked in time (%s)'
+                      % (path, origin['path'], commit, detail), file=sys.stderr)
+                continue
             if not ok:
                 unverified += 1
                 print('review-import: WARNING: not importing %s: the review of %s was introduced by '
@@ -1087,6 +1112,11 @@ def cmd_import(args):
     # REVIEWS.md until the next prune. Removal only, as prune does it.
     removed.extend(drop_stale_imports(entries, head.get, 'review-import'))
 
+    if deferred:
+        print('review-import: WARNING: gitsign timed out %d time(s), so verification stopped; %d more '
+              'file(s) needing it were skipped, and a later run will try them again'
+              % (timeouts, deferred), file=sys.stderr)
+
     if added or removed:
         write_imports(imports, nl)
     regenerated = generate_reviews_md()
@@ -1097,6 +1127,10 @@ def cmd_import(args):
         summary += ', skipped %d whose reviewer has no signing identity' % no_identity
     if blocked:
         summary += ', skipped %d because gitsign is not installed' % blocked
+    if timed_out:
+        summary += ', skipped %d whose verification timed out' % timed_out
+    if deferred:
+        summary += ', skipped %d once verification stopped after %d timeout(s)' % (deferred, timeouts)
     print(summary)
     changed = ([IMPORTS_PATH] if added or removed else []) + ([REVIEWS_PATH] if regenerated else [])
     if changed:

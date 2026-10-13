@@ -760,16 +760,22 @@ class ReviewTrackingTest(unittest.TestCase):
 # A stand-in for gitsign, which needs Sigstore's network services. It
 # logs every invocation beside itself and fails exactly the commits
 # listed in gitsign.bad, so a test can say which signatures are good.
+# A commit listed in gitsign.slow hangs instead, as a Rekor that is not
+# answering would make the real one do.
 GITSIGN_STUB = """#!%s
 import json
 import os
 import sys
+import time
 
 here = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(here, 'gitsign.log'), 'a') as f:
     f.write(json.dumps({'argv': sys.argv[1:], 'cwd': os.getcwd()}) + '\\n')
 bad_path = os.path.join(here, 'gitsign.bad')
 bad = open(bad_path).read().split() if os.path.exists(bad_path) else []
+slow_path = os.path.join(here, 'gitsign.slow')
+if os.path.exists(slow_path) and sys.argv[-1] in open(slow_path).read().split():
+    time.sleep(60)
 if sys.argv[-1] in bad:
     print('error: no valid signature for this commit', file=sys.stderr)
     sys.exit(1)
@@ -934,6 +940,15 @@ class ImportTest(unittest.TestCase):
         self.assertIn(anchor, script)
         with open(self.script, 'w') as f:
             f.write(script.replace(anchor, anchor + "    '%s': '%s',\n" % (reviewer, identity), 1))
+
+    def set_gitsign_timeout(self, seconds):
+        """Shorten GITSIGN_TIMEOUT in the source's copy of the script, as add_reviewer_identity edits it."""
+        with open(self.script) as f:
+            script = f.read()
+        anchor = 'GITSIGN_TIMEOUT = 120\n'
+        self.assertIn(anchor, script)
+        with open(self.script, 'w') as f:
+            f.write(script.replace(anchor, 'GITSIGN_TIMEOUT = %s\n' % seconds, 1))
 
     def run_tool(self, *args, cwd=None):
         env = dict(os.environ, PATH=self.bin)
@@ -1267,6 +1282,43 @@ class ImportTest(unittest.TestCase):
         self.assertIn(commit, p.stderr)
         self.assertIn('no valid signature for this commit', p.stderr)
         self.assertIn('skipped 1 whose source commit did not verify', p.stdout)
+
+    def test_verification_stops_after_too_many_timeouts(self):
+        """A hung Rekor must not run every candidate into the job's timeout."""
+        self.set_gitsign_timeout(0.5)
+        commits = []
+        for name in 'abcde':
+            self.twrite('src/t%s.py' % name, 't = %r\n' % name)
+            self.swrite('templates/t%s.py' % name, 't = %r\n' % name)
+            commits.append(self.source_review({'templates/t%s.py' % name: '2026-01-02'}))
+        self.tcommit('more files')
+        with open(os.path.join(self.bin, 'gitsign.slow'), 'w') as f:
+            f.write('\n'.join(commits) + '\n')
+
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIsNone(self.imports())
+        self.assertEqual(len(self.gitsign_calls()), 3)
+        self.assertEqual(p.stderr.count('could not be checked in time'), 3)
+        self.assertNotIn('did not verify', p.stderr)
+        self.assertEqual(p.stderr.count('verification stopped'), 1)
+        self.assertIn('gitsign timed out 3 time(s), so verification stopped; 2 more file(s)', p.stderr)
+        self.assertIn('skipped 3 whose verification timed out, skipped 2 once verification stopped '
+                      'after 3 timeout(s)', p.stdout)
+
+    def test_a_failed_signature_does_not_count_towards_the_timeout_budget(self):
+        commits = []
+        for name in 'abcde':
+            self.twrite('src/t%s.py' % name, 't = %r\n' % name)
+            self.swrite('templates/t%s.py' % name, 't = %r\n' % name)
+            commits.append(self.source_review({'templates/t%s.py' % name: '2026-01-02'}))
+        self.tcommit('more files')
+        with open(os.path.join(self.bin, 'gitsign.bad'), 'w') as f:
+            f.write('\n'.join(commits[:4]) + '\n')
+        p = self.run_import()
+        self.assertEqual(sorted(self.imported()), ['src/te.py'])
+        self.assertEqual(len(self.gitsign_calls()), 5)
+        self.assertNotIn('verification stopped', p.stderr)
 
     def test_without_gitsign_nothing_is_imported_and_existing_imports_are_kept(self):
         """A missing gitsign must not quietly become --no-verify."""

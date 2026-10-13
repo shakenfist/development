@@ -74,9 +74,12 @@ digest from the new release's `checksums.txt`.
 
 Verification also needs egress to Rekor and to Sigstore's TUF root.
 If a runner cannot reach them, each import is skipped with a warning
-naming the commit that did not verify, and the run still succeeds;
-`timeout-minutes` allows for gitsign's per-commit timeout. The
-workflow never passes `--no-verify`.
+naming the commit that did not verify, and the run still succeeds.
+gitsign waits up to two minutes per commit, so after three timeouts
+in one run `import` stops verifying and skips the rest with one
+warning saying how many, leaving them for a later run; that keeps a
+hung Rekor inside `timeout-minutes` however many commits are waiting.
+The workflow never passes `--no-verify`.
 
 ## The development clone
 

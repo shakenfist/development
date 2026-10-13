@@ -831,7 +831,12 @@ see the attestation argument above for why `import` checks it before
 trusting the entry, rather than leaving verification to a later
 reader. A commit that fails verification is skipped with a warning
 naming it, as is a review by a reviewer with no entry in
-`REVIEWER_IDENTITIES` (see "Commit signing"). `status` does not
+`REVIEWER_IDENTITIES` (see "Commit signing"). A verification that
+times out is skipped the same way, and after three timeouts in one
+run (`VERIFY_TIMEOUT_BUDGET`) `import` stops verifying altogether:
+it skips every remaining candidate with a single warning giving the
+count, so that a Sigstore outage costs a run minutes rather than
+running it into its job timeout, and a later run picks them up. `status` does not
 verify an imported entry's provenance, any more than it verifies a
 native mark's signature: it only checks that the blob SHA still
 matches `HEAD`, the same as it does for a native mark.
