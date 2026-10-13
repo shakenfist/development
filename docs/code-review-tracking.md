@@ -873,16 +873,22 @@ may not have the commit yet, and step 4 compares against
 3. Confirm the commit records a full-file review of that blob:
 
    ```
-   git show <commit>:.vscode/<reviewer>.weaudit-shas.json
-   git show <commit>:.vscode/<reviewer>.weaudit
+   git show <commit>:.vscode/<reviewer>.weaudit-shas.json \
+       | jq -c --arg p '<source path>' '.files[$p]'
+   git show <commit>:.vscode/<reviewer>.weaudit \
+       | jq -c --arg p '<source path>' \
+           '{full: [.auditedFiles[] | select(.path == $p)],
+             partial: [.partiallyAuditedFiles[] | select(.path == $p)]}'
    ```
 
-   The first must have an entry for the source path with the same
-   `sha` and `date` as the imported entry. The second must list
-   the source path in the top-level `auditedFiles` array, as a
-   plain `{"path": ..., "author": ...}` entry -- not in
-   `partiallyAuditedFiles`, whose region marks never count for
-   import.
+   The first must print the same `sha` and `date` as the imported
+   entry. The second must show one `full` entry and an empty
+   `partial` list: a full-file mark is a plain
+   `{"path": ..., "author": ...}` entry in the top-level
+   `auditedFiles` array, and region marks in
+   `partiallyAuditedFiles` never count for import. (Both files are
+   whole-repository state, hundreds of entries long; `jq` keeps the
+   output to the one path being checked.)
 4. In the target repository, confirm the entry is still current:
 
    ```

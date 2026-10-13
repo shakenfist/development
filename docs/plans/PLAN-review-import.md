@@ -286,7 +286,7 @@ answers.
 | 1. `import` subcommand | Complete | 54c7ecc (#177) |
 | 2. Review tracking CI template and rollout | Complete | 02d6dbb (#186); actions 74a33c9 (#111); hunkydory f24d413 (#57); kerbside 62ccbcb (#504); ryll ce3ebb3 (#418) |
 | 3. Template convergence | Complete | b520c22 (#203); actions 89717fa (#122), e05bbb1 (#134); hunkydory 8730d75 (#63), c22059e (#66); kerbside 700102e (#511), ede2d7d (#519); ryll 79721f3 (#425), f8a4e2f (#455) |
-| 4. Verification | In progress | |
+| 4. Verification | Complete | bdc52ab (#249) |
 | 5. Push audit | Not started | |
 
 <!-- shared-block: plan-status-vocabulary v1 -->
@@ -1181,8 +1181,19 @@ marks. The agent had to assemble the steps from three sections of
 written down anywhere in `docs/`: the `.weaudit` JSON shape for a
 full versus a partial mark, and how to find a reviewer's signing
 identity. "Verifying an imported entry by hand", added in this
-phase, closes both gaps. Michael's repeat of the check from the
-documented procedure: pending.
+phase, closes both gaps. Michael repeated the check from the
+documented procedure on 2026-10-13, on ryll's imported
+`renovate.yml` (source commit f2bc259, blob d63b3b2): the signature,
+Rekor entry and certificate claims validate, the sidecar and
+`auditedFiles` both record a full review of that blob, and ryll's
+`develop` carries it. His one difficulty was that step 3 prints both
+state files whole, hundreds of lines to find one path; the step now
+filters to the path.
+
+The converged `renovate.yml` also works in practice: ryll's Renovate
+run on 2026-10-13 resolved the new `${{ github.repository }}` filter
+to `shakenfist/ryll` and autodiscovered exactly that repository
+(shakenfist/ryll Actions run 38329074401).
 
 The drift data below was posted to shakenfist/development#151 on
 2026-10-13
