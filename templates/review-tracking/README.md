@@ -111,11 +111,13 @@ earlier job could write is treated as hostile. The script therefore:
 - **ignores global and system git configuration**, by exporting
   `GIT_CONFIG_GLOBAL=/dev/null` and `GIT_CONFIG_NOSYSTEM=1` before its
   first git command, so that a `url.<x>.insteadOf` left in
-  `~/.gitconfig` cannot swap either clone for another. It sets the
-  bot's commit identity in the target clone's own configuration. A
-  runner that needs a proxy or a private CA must supply it through the
-  environment (`HTTPS_PROXY`, `GIT_SSL_CAINFO`), which git still
-  reads.
+  `~/.gitconfig` cannot swap either clone for another, and **any
+  repository above `RUNNER_TEMP`**, through `GIT_CEILING_DIRECTORIES`,
+  so that a `.git` planted in `_work` or the home directory is never
+  discovered. It sets the bot's commit identity in the target clone's
+  own configuration. A runner that needs a proxy or a private CA must
+  supply it through the environment (`HTTPS_PROXY`, `GIT_SSL_CAINFO`),
+  which git still reads.
 - **gives gitsign a fresh TUF cache** in `RUNNER_TEMP` on every run,
   through `TUF_ROOT`, rather than the shared `~/.sigstore`, where a
   poisoned cache could change which Fulcio roots and Rekor keys
@@ -136,8 +138,8 @@ earlier job could write is treated as hostile. The script therefore:
 
 This narrows what a poisoned runner can do; it does not make a runner
 whose user account is compromised safe. Such an account can still
-replace binaries on `PATH`, or the script in the workspace before it
-runs.
+replace binaries on `PATH`, or rewrite the script in `RUNNER_TEMP`
+between the step that fetches it and the step that runs it.
 
 ## The development clone
 

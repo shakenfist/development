@@ -1405,8 +1405,8 @@ taken from `git log`.
 | #251 review, round two | default history simplification hid review branches whose merge matched main | Fixed: the walk uses `--full-history`; an invalid or non-object imports file is treated as empty (c61040f) |
 
 **5. Follow-up.**
-- The template change (new hashes: `prune-reviews.yml` 4902e45,
-  `ci-prune-reviews.sh` 2cefe65) must be re-synced into actions,
+- The template change (new hashes: `prune-reviews.yml` 91ff178,
+  `ci-prune-reviews.sh` 883d3e9) must be re-synced into actions,
   hunkydory, kerbside and ryll. Script and workflow go together,
   because the script now requires `PUSH_TOKEN`.
 - Michael must re-stamp the changed files here before the copies

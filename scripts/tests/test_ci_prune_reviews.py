@@ -135,8 +135,8 @@ UNAME_STUB = '#!/bin/sh\necho "${PRUNE_TEST_ARCH:-x86_64}"\n'
 
 # Wraps the real git. It logs each call, one line apiece: the
 # arguments (newlines escaped, since a commit message has them), then
-# tab-separated, the git configuration variables the script sets and
-# whether PUSH_TOKEN is in the environment. And it redirects the
+# tab-separated, the git configuration variables the script sets,
+# whether PUSH_TOKEN is in the environment, and GIT_CEILING_DIRECTORIES. And it redirects the
 # development clone, and the clone of the repository being landed on,
 # to local repositories.
 GIT_STUB = '''#!/bin/bash
@@ -144,7 +144,7 @@ GIT_STUB = '''#!/bin/bash
     printf '%%s' "${*//$'\\n'/\\\\n}"
     printf '\\t%%s' "${GIT_CONFIG_GLOBAL-}" "${GIT_CONFIG_NOSYSTEM-}" "${GIT_CONFIG_COUNT-}" \\
         "${GIT_CONFIG_KEY_0-}" "${GIT_CONFIG_VALUE_0-}" "${GIT_CONFIG_KEY_1-}" "${GIT_CONFIG_VALUE_1-}" \\
-        "${PUSH_TOKEN+set}"
+        "${PUSH_TOKEN+set}" "${GIT_CEILING_DIRECTORIES-}"
     echo
 } >> "${PRUNE_TEST_GIT_LOG}"
 args=()
@@ -160,7 +160,7 @@ for arg in "$@"; do
 done
 exec '%(git)s' "${args[@]}"
 '''
-GIT_LOG_FIELDS = ('argv', 'global', 'nosystem', 'count', 'key0', 'value0', 'key1', 'value1', 'push_token')
+GIT_LOG_FIELDS = ('argv', 'global', 'nosystem', 'count', 'key0', 'value0', 'key1', 'value1', 'push_token', 'ceiling')
 SLEEP_STUB = '#!/bin/sh\necho "$@" >> "${PRUNE_TEST_SLEEP_LOG}"\n'
 
 
@@ -547,6 +547,17 @@ class CiPruneReviewsTest(unittest.TestCase):
         self.assertEqual(self.git('--git-dir', self.origin, 'rev-parse', self.tip() + '^'), before)
         self.assertEqual(self.git('--git-dir', attacker_origin, 'for-each-ref'), '')
 
+    def test_git_never_looks_for_a_repository_above_runner_temp(self):
+        """_work, the runner directory and home are writable by an earlier job, so a .git there must stay unseen."""
+        self.make_repository()
+        result = self.run_script(PRUNE_TEST_IMPORT='1')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = self.git_calls()
+        self.assertTrue(calls)
+        ceiling = os.path.dirname(self.env['RUNNER_TEMP'])
+        for call in calls:
+            self.assertEqual(call['ceiling'], ceiling, call['argv'])
+
     def test_gitsign_gets_a_fresh_tuf_cache(self):
         """Not the shared ~/.sigstore, which an earlier job on the runner could have poisoned."""
         self.make_repository()
@@ -594,7 +605,8 @@ class CiPruneReviewsTest(unittest.TestCase):
         subprocess.run(['bash', '-ec', fetch], cwd=env['RUNNER_TEMP'], env=fetch_env, check=True)
         clone = [call for call in self.git_calls() if call['argv'].startswith('clone ')][0]
         self.assertEqual(clone['argv'], 'clone --quiet --depth 1 --branch %s %s prune-script' % (BRANCH, TARGET_URL))
-        self.assertEqual((clone['global'], clone['nosystem']), (os.devnull, '1'))
+        self.assertEqual((clone['global'], clone['nosystem'], clone['ceiling']),
+                         (os.devnull, '1', os.path.dirname(env['RUNNER_TEMP'])))
         result = subprocess.run(['bash', '-ec', run], cwd=env['RUNNER_TEMP'], env=dict(env, PRUNE_TEST_IMPORT='1'),
                                 timeout=120, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                 universal_newlines=True)
