@@ -204,14 +204,18 @@ copy lives in shakenfist/development at
   gets a verdict, or a sentence saying why it does not apply.
   Do not borrow another repository's runbook instead: a runbook is
   written for one repository's blast radius.
-  1. Every recorded landing is a merge commit with two parents, or
-     an explicit range, and the diff read is against the first
-     parent.
+  1. Every recorded landing takes one of the forms above: a merge
+     commit with two parents, whose diff is read against its first
+     parent; every commit of a direct landing, or its `first..last`
+     range; a landing in another repository, whose own audit is
+     cited; or a statement that no range is recoverable, naming the
+     paths the audit read.
   2. Anything the diff added that runs unattended -- cron, a timer,
      a scheduled workflow, a self-update -- reports its own failure
      somewhere a human sees, or is named as not doing so.
-  3. No secret, token, private hostname or address entered a
-     repository more public than the one it came from.
+  3. No secret or token entered any repository, and no private
+     hostname or IP address entered a repository more public than
+     the one it came from.
   4. Anything the diff removed or renamed has no consumer left,
      checked by grep across every repository that could consume it
      rather than by assumption, with the greps stated.
