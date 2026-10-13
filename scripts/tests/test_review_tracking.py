@@ -1306,6 +1306,23 @@ class ImportTest(unittest.TestCase):
         self.assertIn('skipped 3 whose verification timed out, skipped 2 once verification stopped '
                       'after 3 timeout(s)', p.stdout)
 
+    def test_a_timed_out_commit_is_asked_once_for_every_file_it_reviewed(self):
+        """Two files introduced by one slow commit: one gitsign call, one timeout, two skipped files."""
+        self.set_gitsign_timeout(0.5)
+        for name in 'ab':
+            self.twrite('src/t%s.py' % name, 't = %r\n' % name)
+            self.swrite('templates/t%s.py' % name, 't = %r\n' % name)
+        commit = self.source_review({'templates/ta.py': '2026-01-02', 'templates/tb.py': '2026-01-02'})
+        self.tcommit('more files')
+        with open(os.path.join(self.bin, 'gitsign.slow'), 'w') as f:
+            f.write(commit + '\n')
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.gitsign_calls()), 1)
+        self.assertEqual(p.stderr.count('could not be checked in time'), 2)
+        self.assertIn('skipped 2 whose verification timed out', p.stdout)
+        self.assertNotIn('verification stopped', p.stderr)
+
     def test_a_failed_signature_does_not_count_towards_the_timeout_budget(self):
         commits = []
         for name in 'abcde':
@@ -1496,6 +1513,51 @@ class ImportTest(unittest.TestCase):
         self.assertIn('removed 0 import(s)', p.stdout)
         self.assertNotIn('WARNING', p.stderr)
 
+    def test_an_entry_pointing_at_a_re_stamp_after_a_prune_is_kept(self):
+        """Pruning and re-stamping the same blob introduces the review again, so both commits attest."""
+        self.review_a(date='2026-01-01')
+        self.source_review({}, message='prune')
+        again = self.review_a(date='2026-03-03')
+        self.forge('src/a.py', again)
+        before = self.tread(IMPORTS)
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.tread(IMPORTS), before)
+        self.assertNotIn('WARNING', p.stderr)
+
+    def test_a_review_branch_commit_attests_and_its_merge_does_not(self):
+        """The branch commit introduced its review even if main made the same one first; the merge carried it."""
+        base = self.git(self.source, 'rev-parse', 'HEAD').stdout.strip()
+        self.swrite('templates/a.py', 'a = 1\n')
+        self.swrite('templates/c.py', 'c = 3\n')
+        self.source_review({'templates/a.py': '2026-01-02'})
+        self.source_review({'templates/a.py': '2026-01-02', 'templates/c.py': '2026-01-04'})
+        self.git(self.source, 'checkout', '-b', 'review-branch', base)
+        self.swrite('templates/a.py', 'a = 1\n')
+        self.swrite('templates/b.py', 'b = 2\n')
+        branch = self.source_review({'templates/a.py': '2026-01-02', 'templates/b.py': '2026-01-03'},
+                                    publish=False)
+        self.git(self.source, 'checkout', 'main')
+        subprocess.run(['git', 'merge', '--no-commit', 'review-branch'], cwd=self.source, capture_output=True)
+        self.swrite('templates/b.py', 'b = 2\n')
+        self.source_review({'templates/a.py': '2026-01-02', 'templates/b.py': '2026-01-03',
+                            'templates/c.py': '2026-01-04'}, commit=False)
+        self.git(self.source, 'add', '-A')
+        self.git(self.source, 'commit', '--no-edit')
+        merge = self.git(self.source, 'rev-parse', 'HEAD').stdout.strip()
+        self.assertEqual(len(self.git(self.source, 'rev-parse', 'HEAD^@').stdout.split()), 2)
+        self.publish()
+
+        self.forge('src/a.py', branch)
+        self.forge('src/b.py', merge, source_path='templates/b.py')
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.imported()['src/a.py']['imported']['commit'], branch)
+        self.assertEqual(self.imported()['src/b.py']['imported']['commit'], branch)
+        self.assertNotIn('src/a.py: shakenfist/development history has no such attestation', p.stderr)
+        self.assertIn('replaced import of src/b.py: shakenfist/development history has no such attestation',
+                      p.stderr)
+
     def test_without_gitsign_an_unsupported_entry_is_kept(self):
         commit = self.review_a()
         self.forge('src/b.py', commit)
@@ -1668,6 +1730,50 @@ class ImportTest(unittest.TestCase):
         p = self.run_tool('prune')
         self.assertNotIn('changed since its review', p.stdout)
         self.assertEqual(self.tread(IMPORTS), before)
+
+    def write_malformed_imports(self):
+        """An imports file with one good entry and malformed ones, as a hand edit might leave it."""
+        self.review_a()
+        self.run_import()
+        imports = self.imports()
+        imports['files']['src/b.py'] = 'not an object'
+        imports['files']['src/gen_pb2.py'] = {'sha': self.tblob('src/gen_pb2.py')}
+        imports['files']['src/c.py'] = dict(imports['files']['src/a.py'], sha=7)
+        self.twrite(IMPORTS, json.dumps(imports, indent=2) + '\n')
+        self.tcommit('hand edit')
+
+    def assert_malformed_dropped(self, p):
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertNotIn('Traceback', p.stderr)
+        self.assertEqual(sorted(self.imported()), ['src/a.py'])
+        for path in ('src/b.py', 'src/c.py', 'src/gen_pb2.py'):
+            self.assertIn('entry for %s is malformed; ignoring it' % path, p.stderr)
+
+    def test_import_drops_malformed_imports_entries(self):
+        self.write_malformed_imports()
+        p = self.run_import()
+        self.assert_malformed_dropped(p)
+        self.assertIn('removed 3 import(s)', p.stdout)
+
+    def test_prune_drops_malformed_imports_entries(self):
+        self.write_malformed_imports()
+        self.assert_malformed_dropped(self.run_tool('prune'))
+
+    def test_readers_ignore_malformed_imports_entries(self):
+        self.write_malformed_imports()
+        for command in ('status', 'next'):
+            p = self.run_tool(command, '--no-open') if command == 'next' else self.run_tool(command)
+            self.assertNotIn('Traceback', p.stderr)
+            self.assertIn('entry for src/b.py is malformed; ignoring it', p.stderr)
+
+    def test_imports_files_that_is_not_an_object_is_ignored(self):
+        self.twrite(IMPORTS, json.dumps({'version': 1, 'files': ['src/a.py']}) + '\n')
+        self.tcommit('hand edit')
+        self.review_a()
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn('"files" is not an object; ignoring it', p.stderr)
+        self.assertEqual(sorted(self.imported()), ['src/a.py'])
 
     def test_stamp_ignores_the_imports_file(self):
         self.review_a()

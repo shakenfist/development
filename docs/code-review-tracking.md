@@ -709,45 +709,45 @@ so it catches the sidecar and hand-edited rows without making the
 file a hot spot. An adopting repository that copies that hook
 inherits the check; one that does not, does not.
 
-**Automatic pruning and importing.** Each adopting repository
-carries a `prune-reviews` workflow, copied byte-for-byte from
+**Automatic pruning and importing.** Each adopting repository carries
+a `prune-reviews` workflow, copied byte-for-byte from
 `templates/review-tracking/` (step 7 of "Adopting a repository"
-above), that runs on every push to its default branch, once a day,
-and on manual dispatch -- the push is the only event that can
-create staleness there, and the daily and dispatch runs are what
-pick up new reviews imported from this repository even when the
-target repository itself is quiet. It clones this repository for
-the script, runs `prune` then `import`, and commits the updated
-review state and regenerated `REVIEWS.md` whenever either changed
--- including a regeneration that pruned nothing, which is what
-corrects a moved header count -- directly back to that branch as
-shakenfist-bot, in one commit, `Prune and import review marks.`.
-It lands that commit by regenerating rather than rebasing: each of
-up to three attempts fetches the branch, resets to its tip, runs
-`prune` and `import` there, and pushes. Everything in the commit is
-derived from the tree beneath it, so a merge that lands mid-run
-costs a retry, never a conflict, and the retry also prunes the marks
-that merge made stale. If `import` fails, the run discards whatever
-it wrote, lands `prune`'s result alone, and only then fails: `prune`
-is what stops a changed file reading as reviewed, so an import bug
-must not hold it up, but it must not pass unnoticed either. A
-concurrency group serialises the workflow's own runs, and the loop
-terminates either way: a repository that can push with the default `GITHUB_TOKEN` never
-retriggers the workflow at all, while one whose ruleset forces a
-PAT instead -- as ryll's does, since develop requires a pull
-request before merging and GitHub will not accept the built-in
-Actions app as a bypass actor, so shakenfist-bot pushes with
-`DEPENDENCIES_TOKEN` -- retriggers exactly once, into a run that
-finds nothing left to do (observed 2026-09-11 04:57:20 UTC, before
-ryll carried the merged workflow, `Prune stale review marks.`,
-which committed nothing).
+above), that runs on every push to its default branch, once a day, and
+on manual dispatch -- the push is the only event that can create
+staleness there, and the daily and dispatch runs are what pick up new
+reviews imported from this repository even when the target repository
+itself is quiet. It clones this repository for the script, runs
+`prune` then `import`, and commits the updated review state and
+regenerated `REVIEWS.md` whenever either changed -- including a
+regeneration that pruned nothing, which is what corrects a moved
+header count -- directly back to that branch as shakenfist-bot, in one
+commit, `Prune and import review marks.`. It lands that commit by
+regenerating rather than rebasing: each of up to three attempts
+fetches the branch, resets to its tip, runs `prune` and `import`
+there, and pushes. Everything in the commit is derived from the tree
+beneath it, so a merge that lands mid-run costs a retry, never a
+conflict, and the retry also prunes the marks that merge made stale.
+If `import` fails, the run discards whatever it wrote, lands `prune`'s
+result alone, and only then fails: `prune` is what stops a changed
+file reading as reviewed, so an import bug must not hold it up, but it
+must not pass unnoticed either. A concurrency group serialises the
+workflow's own runs, and the loop terminates either way: a repository
+that can push with the default `GITHUB_TOKEN` never retriggers the
+workflow at all, while one whose ruleset forces a PAT instead -- as
+ryll's does, since develop requires a pull request before merging and
+GitHub will not accept the built-in Actions app as a bypass actor, so
+shakenfist-bot pushes with `DEPENDENCIES_TOKEN` -- retriggers exactly
+once, into a run that finds nothing left to do (observed 2026-09-11
+04:57:20 UTC, before ryll carried the merged workflow, `Prune stale
+review marks.`, which committed nothing).
 
 The job runs on shared, long-lived static runners that also run pull
 request code, so it trusts as little as it can of what an earlier job
-could have left there. It ignores global and system git configuration, gives gitsign
-a fresh TUF cache on every run, keeps no credentials in the checkout,
-and hands the push token to its one `git push` alone, through the
-environment rather than argv or `.git/config`. "Runner isolation" in
+could have left there. It ignores global and system git configuration,
+gives gitsign a fresh TUF cache on every run, keeps no credentials in
+the checkout, and hands the push token to its one `git push` alone,
+through the environment rather than argv or `.git/config`. "Runner
+isolation" in
 [templates/review-tracking/README.md](https://github.com/shakenfist/development/blob/main/templates/review-tracking/README.md#runner-isolation)
 has the detail.
 
@@ -863,22 +863,22 @@ itself:
 }
 ```
 
-`date` is the source stamp's date, not the day of the import,
-because it records when the content was actually read. `verified`
-records whether the introducing commit's signature was checked --
-see the attestation argument above for why `import` checks it before
-trusting the entry, rather than leaving verification to a later
-reader. A commit that fails verification is skipped with a warning
-naming it, as is a review by a reviewer with no entry in
-`REVIEWER_IDENTITIES` (see "Commit signing"). A verification that
-times out is skipped the same way, and after three timeouts in one
-run (`VERIFY_TIMEOUT_BUDGET`) `import` stops verifying altogether:
-it skips every remaining candidate with a single warning giving the
-count, so that a Sigstore outage costs a run minutes rather than
-running it into its job timeout, and a later run picks them up. `status` does not
-verify an imported entry's provenance, any more than it verifies a
-native mark's signature: it only checks that the blob SHA still
-matches `HEAD`, the same as it does for a native mark.
+`date` is the source stamp's date, not the day of the import, because
+it records when the content was actually read. `verified` records
+whether the introducing commit's signature was checked -- see the
+attestation argument above for why `import` checks it before trusting
+the entry, rather than leaving verification to a later reader. A
+commit that fails verification is skipped with a warning naming it, as
+is a review by a reviewer with no entry in `REVIEWER_IDENTITIES` (see
+"Commit signing"). A verification that times out is skipped the same
+way, and after three timeouts in one run (`VERIFY_TIMEOUT_BUDGET`)
+`import` stops verifying altogether: it skips every remaining
+candidate with a single warning giving the count, so that a Sigstore
+outage costs a run minutes rather than running it into its job
+timeout, and a later run picks them up. `status` does not verify an
+imported entry's provenance, any more than it verifies a native mark's
+signature: it only checks that the blob SHA still matches `HEAD`, the
+same as it does for a native mark.
 
 `--no-verify` is the only way to import without verification. It
 disables the check outright, every run under it says so on stderr,
@@ -938,8 +938,8 @@ each repository's `origin/<default branch>`.
        | jq -c --arg p '<source path>' '.files[$p]'
    git show <commit>:.vscode/<reviewer>.weaudit \
        | jq -c --arg p '<source path>' \
-           '{full: [.auditedFiles[] | select(.path == $p)],
-             partial: [.partiallyAuditedFiles[] | select(.path == $p)]}'
+           '{full: [.auditedFiles[]? | select(.path == $p)],
+             partial: [.partiallyAuditedFiles[]? | select(.path == $p)]}'
    ```
 
    The first must print the same `sha` and `date` as the imported
@@ -969,19 +969,29 @@ gives, so that `REVIEWS.md` never shows it as reviewed in the
 meantime. `import` regenerates `REVIEWS.md` when it changes
 anything, as `stamp` and `prune` do.
 
-Every run also checks the entries already in the imports file
-against this repository's history, not only the ones it adds. An
-entry whose `sha`, `imported.reviewer`, `imported.path` and
-`imported.commit` are not an attestation the history walk found --
-one written by hand, or one pointing at a commit that is not on
-`origin/main` or merely carries an earlier review forward -- is
-replaced by a real import of the same content if there is one, and
-otherwise removed, with a warning on stderr either way. Entries
-imported under `--no-verify` are checked the same way and kept when
-history supports them. A run that cannot judge an entry keeps it and
-says so: one without gitsign, one that has spent its timeout budget,
-and one walking a shallow clone or a clone with no `origin/main`,
-whose history may simply lack the attestation.
+Every run also checks the entries already in the imports file against
+this repository's history, not only the ones it adds. An attestation
+is introduced at a commit whose state holds the review and none of
+whose parents' state does, so the same review can be introduced more
+than once -- on a review branch merged after main made it too, or by
+re-stamping a blob after a prune -- and an entry pointing at any of
+those commits is supported. An entry whose `sha`, `imported.reviewer`,
+`imported.path` and `imported.commit` are not one of them -- one
+written by hand, or one pointing at a commit that is not on
+`origin/main` or merely carries a review forward, such as a prune or
+the merge of a review branch -- is replaced by a real import of the
+same content if there is one, and otherwise removed, with a warning on
+stderr either way. Entries imported under `--no-verify` are checked
+the same way and kept when history supports them. A run that cannot
+judge an entry keeps it and says so: one without gitsign, one that has
+spent its timeout budget, and one walking a shallow clone or a clone
+with no `origin/main`, whose history may simply lack the attestation.
+
+An entry not shaped as `import` writes it -- not an object, or missing
+a string `sha` or a string `repo`, `reviewer`, `path` or `commit`
+under `imported` -- is ignored with a warning by every command that
+reads the imports file, and dropped from it the next time `import` or
+`prune` writes it.
 
 A native review always supersedes an import: if a reviewer marks a
 file that already carries an imported entry, `import` removes its

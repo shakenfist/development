@@ -323,7 +323,40 @@ def load_imports():
     sees an imported entry. Nothing in this file was marked in this
     clone, so there is nothing for stamp to stamp or drop.
     """
-    return load_json(IMPORTS_PATH, {'version': 1, 'files': {}})
+    imports, nl = load_json(IMPORTS_PATH, {'version': 1, 'files': {}})
+    malformed = drop_malformed_imports(imports)
+    return imports, nl, malformed
+
+
+def drop_malformed_imports(imports):
+    """Remove, and report, imports entries not shaped as import writes them. Returns their paths.
+
+    The one place the imports file's shape is checked, so that nothing
+    reading it needs a guard of its own. Unlike the source's history,
+    which import walks defensively entry by entry, this file is the
+    target's own and can be hand-edited: an entry import did not write
+    is treated as absent, and import or prune drops it from the file
+    the next time either writes it.
+    """
+    entries = imports.get('files')
+    if not isinstance(entries, dict):
+        if entries is not None:
+            print('review-tracking: WARNING: %s "files" is not an object; ignoring it' % IMPORTS_PATH,
+                  file=sys.stderr)
+        imports['files'] = {}
+        return []
+    malformed = []
+    for path in sorted(entries):
+        entry = entries[path]
+        imported = entry.get('imported') if isinstance(entry, dict) else None
+        if (isinstance(entry, dict) and isinstance(entry.get('sha'), str) and isinstance(imported, dict)
+                and all(isinstance(imported.get(k), str) for k in ('repo', 'reviewer', 'path', 'commit'))):
+            continue
+        print('review-tracking: WARNING: %s entry for %s is malformed; ignoring it (%s)'
+              % (IMPORTS_PATH, path, json.dumps(entry, sort_keys=True)), file=sys.stderr)
+        del entries[path]
+        malformed.append(path)
+    return malformed
 
 
 def write_imports(imports, trailing_newline):
@@ -450,7 +483,7 @@ def render_reviews_md():
     # than checked against HEAD (see review_status). import removes an
     # entry a native review supersedes; the path check below keeps a
     # file to one row, the human's, even if that has not happened yet.
-    imports, _ = load_imports()
+    imports, _, _ = load_imports()
     native_paths = set(reviewed_paths)
     for path, entry in sorted(imports.get('files', {}).items()):
         if path in native_paths:
@@ -706,12 +739,11 @@ def prune_imports():
     to a blob SHA, not a path, so once the file changes the import says
     nothing about it. Returns the paths dropped.
     """
-    imports, nl = load_imports()
-    stale = drop_stale_imports(imports.get('files', {}), lambda path: blob_sha('HEAD:%s' % path),
-                               'review-prune')
-    if stale:
+    imports, nl, malformed = load_imports()
+    stale = drop_stale_imports(imports['files'], lambda path: blob_sha('HEAD:%s' % path), 'review-prune')
+    if stale or malformed:
         write_imports(imports, nl)
-    return stale
+    return malformed + stale
 
 
 def drop_stale_imports(entries, current_sha, prefix):
@@ -829,13 +861,17 @@ def reviewed_blobs(source, revision):
     recorded, and the one a new import points at.
 
     attested is the set of (sha, reviewer, path, commit) for every
-    attestation the history holds, not only the earliest per blob: the
-    commit at which each reviewer's full review of each path at each
-    blob first appeared. It is what an existing import is checked
-    against. An entry pointing at any of them points at a real
-    introducing commit, even if a branch merged since has put an older
-    one first; an entry pointing at a later commit that merely carries
-    the review forward (an unsigned prune, say) points at none.
+    attestation the history holds, not only the earliest per blob:
+    every commit that introduced a reviewer's full review of a path at
+    a blob, meaning the review is in that commit's state and in none of
+    its parents'. It is what an existing import is checked against. One
+    review can be introduced more than once -- on a branch merged after
+    another made the same review, or by re-stamping a blob whose mark
+    was pruned in between -- and an entry pointing at any of those
+    commits points at a real introducing commit, even if one earlier
+    sorts first. An entry pointing at a commit that merely carries the
+    review forward (an unsigned prune, or the merge of a review branch)
+    points at none.
 
     Only the history reachable from revision (source_revision()) is
     walked. The whole history, not just its tip, because the common
@@ -873,41 +909,66 @@ def reviewed_blobs(source, revision):
     # Oldest first, and never a commit before one of its ancestors, so
     # "first commit at which it qualifies" means the one that
     # introduced the attestation rather than a later one repeating it.
-    commits = git('log', '--reverse', '--date-order', '--format=%H', revision, '--', *pathspecs,
-                  cwd=source).stdout.split()
+    # Each commit's parents are read too: an attestation is introduced
+    # at a commit where it qualifies and no parent's state did.
+    walk = git('log', '--reverse', '--date-order', '--format=%H %P', revision, '--', *pathspecs,
+               cwd=source).stdout.splitlines()
+    parents = {}
+    for line in walk:
+        commit, *rest = line.split()
+        parents[commit] = rest
+    revs = sorted(set(parents) | set(p for ps in parents.values() for p in ps))
     specs = []
-    for commit in commits:
+    for rev in revs:
         for reviewer in reviewers:
-            specs.append('%s:.vscode/%s%s' % (commit, reviewer, sidecar_suffix))
-            specs.append('%s:.vscode/%s%s' % (commit, reviewer, state_suffix))
+            specs.append('%s:.vscode/%s%s' % (rev, reviewer, sidecar_suffix))
+            specs.append('%s:.vscode/%s%s' % (rev, reviewer, state_suffix))
     contents = read_blobs(source, specs)
+
+    stamped = {}
+
+    def fully_stamped(rev, reviewer):
+        """{(sha, path): stamp} the reviewer's sidecar stamps at rev with a full mark beside it."""
+        if (rev, reviewer) not in stamped:
+            found = {}
+            sidecar = parse_state(contents['%s:.vscode/%s%s' % (rev, reviewer, sidecar_suffix)])
+            state = parse_state(contents['%s:.vscode/%s%s' % (rev, reviewer, state_suffix)])
+            stamps = sidecar.get('files') if sidecar is not None and state is not None else None
+            if isinstance(stamps, dict):
+                full = full_marks(state)
+                for path, stamp in stamps.items():
+                    sha = stamp.get('sha') if isinstance(stamp, dict) else None
+                    if isinstance(sha, str) and sha and path in full:
+                        found[(sha, path)] = stamp
+            stamped[(rev, reviewer)] = found
+        return stamped[(rev, reviewer)]
+
+    trees = {}
+
+    def attests(rev, reviewer, sha, path):
+        """Whether rev's state holds the reviewer's full review of path at sha."""
+        if (sha, path) not in fully_stamped(rev, reviewer):
+            return False
+        # Only fetched for a candidate, which is a small fraction of
+        # the commits.
+        if rev not in trees:
+            listing = git('ls-tree', '-r', '-z', '--name-only', rev, cwd=source).stdout
+            trees[rev] = set(f for f in listing.split('\0') if f)
+        return not is_dir_entry(path, trees[rev])
 
     blobs = {}
     attested = set()
-    seen = set()
-    trees = {}
-    for commit in commits:
+    for commit in parents:
         for reviewer in reviewers:
-            sidecar = parse_state(contents['%s:.vscode/%s%s' % (commit, reviewer, sidecar_suffix)])
-            state = parse_state(contents['%s:.vscode/%s%s' % (commit, reviewer, state_suffix)])
-            if sidecar is None or state is None:
-                continue
-            full = full_marks(state)
-            stamps = sidecar.get('files')
-            if not isinstance(stamps, dict):
-                continue
-            for path, stamp in sorted(stamps.items()):
-                sha = stamp.get('sha') if isinstance(stamp, dict) else None
-                if not isinstance(sha, str) or not sha or (sha, reviewer, path) in seen or path not in full:
+            for (sha, path), stamp in sorted(fully_stamped(commit, reviewer).items()):
+                # Every parent is checked, not just the first, so that
+                # a merge carrying a review branch's attestation onto
+                # main is not mistaken for its introduction; the branch
+                # commit that made it is.
+                if any(attests(p, reviewer, sha, path) for p in parents[commit]):
                     continue
-                # Only fetched when something new would otherwise
-                # qualify, which is a small fraction of the commits.
-                if commit not in trees:
-                    listing = git('ls-tree', '-r', '-z', '--name-only', commit, cwd=source).stdout
-                    trees[commit] = set(f for f in listing.split('\0') if f)
-                if is_dir_entry(path, trees[commit]):
+                if not attests(commit, reviewer, sha, path):
                     continue
-                seen.add((sha, reviewer, path))
                 attested.add((sha, reviewer, path, commit))
                 if sha in blobs:
                     continue
@@ -918,16 +979,15 @@ def reviewed_blobs(source, revision):
 
 
 def attestation_of(entry):
-    """Return an imports entry's (sha, reviewer, path, commit), or None if it is malformed.
+    """Return an imports entry's (sha, reviewer, path, commit), or None if from another source.
 
     The key reviewed_blobs() records in attested, so that an entry can
     be checked against the history it claims to come from.
     """
-    imported = entry.get('imported') if isinstance(entry, dict) else None
-    if not isinstance(imported, dict) or imported.get('repo') != SOURCE_REPO:
+    imported = entry['imported']
+    if imported['repo'] != SOURCE_REPO:
         return None
-    key = (entry.get('sha'), imported.get('reviewer'), imported.get('path'), imported.get('commit'))
-    return key if all(isinstance(k, str) for k in key) else None
+    return (entry['sha'], imported['reviewer'], imported['path'], imported['commit'])
 
 
 def verify_commit(git_dir, commit, identity):
@@ -1038,13 +1098,13 @@ def cmd_import(args):
     tracked = set(tracked_files())
     head = head_blobs()
     native, valid = native_marks(tracked, head.get)
-    imports, nl = load_imports()
-    entries = imports.setdefault('files', {})
+    imports, nl, removed = load_imports()
+    entries = imports['files']
 
-    # First, what this run should no longer be carrying. A stale entry
-    # (its sha no longer HEAD's) is left for now: it is replaced below
-    # if the new content was reviewed too, and removed after that if not.
-    removed = []
+    # First, what this run should no longer be carrying (a malformed
+    # entry, load_imports() has already dropped). A stale entry (its sha
+    # no longer HEAD's) is left for now: it is replaced below if the new
+    # content was reviewed too, and removed after that if not.
     for path in sorted(entries):
         if path in valid:
             reason = 'superseded by a native review by %s' % native[path]
@@ -1159,16 +1219,14 @@ def cmd_import(args):
     # history of origin/main, whose attestations it may simply not have.
     # (One that is also stale goes anyway, just below.)
     if gitsign_missing or timeouts >= VERIFY_TIMEOUT_BUDGET or shallow or revision != SOURCE_BRANCH_REF:
-        kept = sorted(path for path in unsupported
-                      if isinstance(entries[path], dict) and entries[path].get('sha') == head.get(path))
+        kept = sorted(path for path in unsupported if entries[path]['sha'] == head.get(path))
         if kept:
             print('review-import: WARNING: kept %d import(s) that %s history does not support (%s), since '
                   'this run cannot judge them' % (len(kept), SOURCE_REPO, ', '.join(kept)), file=sys.stderr)
     else:
         for path in sorted(unsupported):
-            imported = entries[path].get('imported') if isinstance(entries[path], dict) else None
             print('review-import: WARNING: removed import of %s: %s history has no such attestation (%s)'
-                  % (path, SOURCE_REPO, json.dumps(imported, sort_keys=True)), file=sys.stderr)
+                  % (path, SOURCE_REPO, json.dumps(entries[path]['imported'], sort_keys=True)), file=sys.stderr)
             del entries[path]
             removed.append(path)
 
@@ -1262,7 +1320,7 @@ def review_status():
     # Native marks are not signature-checked by status either, and the
     # audit runs this against a depth-1 checkout of the source with no
     # history to check against; import checked it when it was added.
-    imports, _ = load_imports()
+    imports, _, _ = load_imports()
     imported = set()
     for path, entry in imports.get('files', {}).items():
         marked.add(path)
@@ -1414,7 +1472,7 @@ def cmd_next(args):
         audited, _partial = marked_paths(state)
         reviewed.update(audited)
     # An imported review is a review: the file is not offered.
-    imports, _ = load_imports()
+    imports, _, _ = load_imports()
     reviewed.update(imports.get('files', {}))
     pool = [p for p in candidates if p not in reviewed]
     if not pool:

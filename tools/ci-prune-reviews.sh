@@ -268,7 +268,11 @@ Automated commit by the prune-reviews workflow.'
 # the token reaches git here as an http.extraheader for github.com,
 # through GIT_CONFIG_COUNT and friends on this command alone: never in
 # argv, where any process on the runner could read it, and never in
-# .git/config, where it would outlive the push. printf is a builtin, so
+# .git/config, where it would outlive the push. The environment of git
+# push and its git-remote-https child is still readable, through
+# /proc/<pid>/environ, by any process running as the runner's own user
+# while the push runs; what bounds that is the runner killing a job's
+# orphaned processes when the job ends. printf is a builtin, so
 # the token is not in base64's argv either. core.hooksPath is pointed
 # away from .git/hooks, which a static runner's reused workspace keeps
 # from earlier jobs, so that no hook left there runs with the token in

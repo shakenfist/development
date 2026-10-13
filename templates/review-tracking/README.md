@@ -117,7 +117,11 @@ earlier job could write is treated as hostile. The script therefore:
   `GIT_CONFIG_COUNT`, never in argv. The push also runs with
   `core.hooksPath=/dev/null`, so that a hook left in a reused
   workspace's `.git/hooks` does not run with the token in its
-  environment.
+  environment. The push's environment is still readable, through
+  `/proc/<pid>/environ`, by any process running as the runner's user
+  while the push runs; what bounds that is the runner killing a
+  job's orphaned processes when the job ends, so such a process
+  would have to belong to this job.
 
 This narrows what a poisoned runner can do; it does not make a
 runner whose user account is compromised safe. Such an account can

@@ -1378,52 +1378,33 @@ comparison.
 
 No pull requests were needed for audit findings.
 
-**4. Development findings and dispositions**, as a table (finding,
-source, disposition):
+**4. Development findings and dispositions.** Commit hashes are
+taken from `git log`.
 
-Fixed, with the commit hashes taken from `git log`:
-- **5b-1** import walked the source's `HEAD`; it now walks
-  `origin/main` (59d2e02).
-- **5e-M1** wrongly typed history crashed the walk (05bb3e7).
-  Import failure lost prune's results (0aca89b).
-- **5b-2** no per-run verification budget (99a2783); the timeout
-  comment was corrected (ce3b32d).
-- **5e-L2** existing target entries were never re-checked
-  (cfc232a).
-- **5b-3** wrong exit-code docstring (648db83).
-- **5e-M3** residual trust in development's code and identity map:
-  documented (d0de9c3). Michael chose documentation over
-  CODEOWNERS, since he is the sole reviewer of development PRs.
-- **5d** CodeQL example in adoption step 8 out of date (89400f5).
-- **5e-L4** silent `DEPENDENCIES_TOKEN` fallback noted (944b61a).
-- **5e-M2** push token and global git config on shared static
-  runners: config isolation, a per-run `TUF_ROOT`, the token
-  scoped to the push, hooks disabled for the push (9556eba).
-- **5c** architecture refusal untested (8a2a37a).
-
-Declined:
-- **5e-L1**, stamps not tied to content in the commit's ancestry:
-  added to Future work. The exact-match fix is wrong, because 8
-  legitimate stamps survive rebases. The ancestry check is a
-  larger change.
-- **5e-L3**, `docs/**` could skip executable docs code: declined.
-  It would change the template for a speculative case, and no
-  adopted repository has code under `docs/`.
-- **5b-4**, buffering every state file in memory: declined. About
-  8.5 MB today; stream if it ever matters.
-- **5b-5**, partial-to-full upgrade without prune: declined. No
-  clean fix; stamp's stale ERROR is the defence.
-- **5b-6**, published details string change: intentional, no
-  action.
-- **5c**, verified-to-unverified downgrade protection is
-  incidental: no action; the property holds.
-- **The checkout's own `.git/config` on a reused workspace** stays
-  outside the isolation (from 9556eba's report). Landing from a
-  fresh clone would close it; added to Future work.
+| Finding | Source | Disposition |
+|---|---|---|
+| 5b-1 | import walked the source's `HEAD` | Fixed: it walks `origin/main` (59d2e02) |
+| 5e-M1, first half | wrongly typed history crashed the walk | Fixed (05bb3e7) |
+| 5e-M1, second half | an import failure lost prune's results | Fixed: prune's result lands, then the run fails (0aca89b) |
+| 5b-2 | no per-run verification budget | Fixed (99a2783); timeout comment corrected (ce3b32d) |
+| 5e-L2 | existing target entries never re-checked | Fixed (cfc232a) |
+| 5b-3 | wrong exit-code docstring | Fixed (648db83) |
+| 5e-M3 | residual trust in development's code and identity map | Documented (d0de9c3); Michael chose this over CODEOWNERS, as sole reviewer of development PRs |
+| 5d | CodeQL example in adoption step 8 out of date | Fixed (89400f5) |
+| 5e-L4 | silent `DEPENDENCIES_TOKEN` fallback | Documented (944b61a) |
+| 5e-M2 | push token and global git config on shared static runners | Fixed: config isolation, per-run `TUF_ROOT`, token scoped to the push, hooks off for the push (9556eba) |
+| 5c, first | architecture refusal untested | Fixed (8a2a37a) |
+| 5e-L1 | stamps not tied to content in the commit's ancestry | Declined, added to Future work: the exact-match fix is wrong, since 8 legitimate stamps survive rebases, and the ancestry check is a larger change |
+| 5e-L3 | `docs/**` could skip executable docs code | Declined: a template change for a speculative case; no adopted repository has code under `docs/` |
+| 5b-4 | every state file buffered in memory | Declined: about 8.5 MB today; stream if it ever matters |
+| 5b-5 | partial-to-full upgrade without prune | Declined: no clean fix; stamp's stale ERROR is the defence |
+| 5b-6 | published details string changed | No action: intentional |
+| 5c, second | verified-to-unverified downgrade protection is incidental | No action: the property holds |
+| 9556eba's report | the checkout's own `.git/config` on a reused workspace is outside the isolation | Declined, added to Future work: landing from a fresh clone would close it |
 
 **5. Follow-up.**
 - The template change (new hashes: `prune-reviews.yml` 7bdc604,
-  `ci-prune-reviews.sh` f3b7225) must be re-synced into actions,
+  `ci-prune-reviews.sh` a16f9d4) must be re-synced into actions,
   hunkydory, kerbside and ryll. Script and workflow go together,
   because the script now requires `PUSH_TOKEN`.
 - Michael must re-stamp the changed files here before the copies
