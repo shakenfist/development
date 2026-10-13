@@ -110,6 +110,11 @@ IMPORTS_PATH = os.path.join('.vscode', IMPORTS_REVIEWER + '.weaudit' + SIDECAR_S
 SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 SOURCE_REPO = 'shakenfist/development'
 SOURCE_LABEL = 'development'
+# The history import walks: the source's default branch as last
+# fetched, not whatever its working tree has checked out. A clone
+# sitting on an unmerged review branch would otherwise export reviews
+# that may never reach main, from commits a rebase may later discard.
+SOURCE_BRANCH_REF = 'refs/remotes/origin/main'
 
 # The signing identity each reviewer's review-state commits in the
 # source must carry (docs/code-review-tracking.md, "Commit signing").
@@ -771,7 +776,23 @@ def parse_state(raw):
     return data if isinstance(data, dict) else None
 
 
-def reviewed_blobs(source):
+def source_revision(source):
+    """Return the revision of the source whose history import walks.
+
+    SOURCE_BRANCH_REF when the source has it, as every clone of
+    shakenfist/development does, CI's fresh one included. A source
+    without it (a clone with no origin, say) falls back to HEAD and
+    says so, since that is a branch nobody has vouched for.
+    """
+    if git('rev-parse', '--verify', '--quiet', SOURCE_BRANCH_REF + '^{commit}', check=False,
+           cwd=source).returncode == 0:
+        return SOURCE_BRANCH_REF
+    print('review-import: WARNING: %s has no %s, so reviews are imported from its HEAD instead'
+          % (source, SOURCE_BRANCH_REF), file=sys.stderr)
+    return 'HEAD'
+
+
+def reviewed_blobs(source, revision):
     """Map every blob the source has fully reviewed to where that review happened.
 
     Returns {blob sha: {'reviewer', 'path', 'commit', 'date'}}, where
@@ -780,7 +801,8 @@ def reviewed_blobs(source):
     a full-file mark for the stamped path. Earliest wins across
     reviewers too: the first attestation is the one recorded.
 
-    The whole history, not just HEAD, because the common case during a
+    Only the history reachable from revision (source_revision()) is
+    walked. The whole history, not just its tip, because the common case during a
     rollout is a target copy lagging a template the source has since
     changed and re-reviewed; only history still records the review of
     the older blob.
@@ -802,7 +824,7 @@ def reviewed_blobs(source):
     sidecar_suffix = state_suffix + SIDECAR_SUFFIX
     pathspecs = ['.vscode/*' + sidecar_suffix, '.vscode/*' + state_suffix]
 
-    names = git('log', '--format=', '--name-only', '--', *pathspecs, cwd=source).stdout.splitlines()
+    names = git('log', '--format=', '--name-only', revision, '--', *pathspecs, cwd=source).stdout.splitlines()
     reviewers = sorted(set(
         os.path.basename(n)[:-len(sidecar_suffix)] for n in names
         if os.path.dirname(n) == '.vscode' and n.endswith(sidecar_suffix)))
@@ -815,7 +837,7 @@ def reviewed_blobs(source):
     # Oldest first, and never a commit before one of its ancestors, so
     # "first commit at which it qualifies" means the one that
     # introduced the attestation rather than a later one repeating it.
-    commits = git('log', '--reverse', '--date-order', '--format=%H', '--', *pathspecs,
+    commits = git('log', '--reverse', '--date-order', '--format=%H', revision, '--', *pathspecs,
                   cwd=source).stdout.split()
     specs = []
     for commit in commits:
@@ -946,7 +968,7 @@ def cmd_import(args):
         print('review-import: WARNING: %s is a shallow clone, so reviews older than its history '
               'cannot be found; fetch its full history to import them' % SOURCE_ROOT, file=sys.stderr)
 
-    blobs = reviewed_blobs(SOURCE_ROOT)
+    blobs = reviewed_blobs(SOURCE_ROOT, source_revision(SOURCE_ROOT))
     include, exclude = load_scope()
     import_exclude = load_import_exclude()
     tracked = set(tracked_files())

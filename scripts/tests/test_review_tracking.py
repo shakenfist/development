@@ -817,6 +817,7 @@ class ImportTest(unittest.TestCase):
         shutil.copy(SCRIPT, self.script)
         self.git(self.source, 'add', '-A')
         self.git(self.source, 'commit', '-m', 'tooling')
+        self.publish()
 
         os.mkdir(os.path.join(self.target, 'src'))
         self.twrite('src/a.py', 'a = 1\n')
@@ -867,7 +868,16 @@ class ImportTest(unittest.TestCase):
         """The imports file's entries, or {} when there is no file."""
         return (self.imports() or {}).get('files', {})
 
-    def source_review(self, stamps, full=None, partial=(), reviewer='mikal', message='review', commit=True):
+    def publish(self):
+        """Stand in for a push to the source's origin: move origin/main to HEAD.
+
+        import walks the source's origin/main, which a real clone has
+        from its fetch; a fixture with no origin gets the ref directly.
+        """
+        self.git(self.source, 'update-ref', 'refs/remotes/origin/main', 'HEAD')
+
+    def source_review(self, stamps, full=None, partial=(), reviewer='mikal', message='review', commit=True,
+                      publish=True):
         """Commit reviewer state in the source and return the commit.
 
         stamps maps each stamped path to its stamp date, and the sha is
@@ -878,6 +888,8 @@ class ImportTest(unittest.TestCase):
         scratch each time, so an unchanged argument leaves that file
         unchanged in the commit. commit=False writes without committing,
         so that the next call's commit carries two reviewers' state.
+        publish=False leaves the commit off origin/main, as a review
+        branch not yet merged is.
         """
         if full is None:
             full = list(stamps)
@@ -893,6 +905,8 @@ class ImportTest(unittest.TestCase):
             return None
         self.git(self.source, 'add', '-A')
         self.git(self.source, 'commit', '--allow-empty', '-m', message)
+        if publish:
+            self.publish()
         return self.git(self.source, 'rev-parse', 'HEAD').stdout.strip()
 
     def review_a(self, path='templates/a.py', date='2026-01-02'):
@@ -1278,6 +1292,30 @@ class ImportTest(unittest.TestCase):
         p = self.run_import('--no-verify')
         self.assertIn('imported 0 file(s)', p.stdout)
         self.assertIn('signature verification disabled by --no-verify', p.stderr)
+
+    # Which history is walked.
+
+    def test_a_review_not_on_origin_main_is_not_imported(self):
+        """A signed review on an unmerged branch may never reach main, or be rebased away."""
+        commit = self.review_a()
+        self.git(self.source, 'checkout', '-b', 'review-branch')
+        self.swrite('templates/b.py', 'b = 2\n')
+        unmerged = self.source_review({'templates/a.py': '2026-01-02', 'templates/b.py': '2026-01-03'},
+                                      publish=False)
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(sorted(self.imported()), ['src/a.py'])
+        self.assertEqual(self.imported()['src/a.py']['imported']['commit'], commit)
+        self.assertNotIn(unmerged, [c['argv'][-1] for c in self.gitsign_calls()])
+        self.assertNotIn('WARNING', p.stderr)
+
+    def test_a_source_without_origin_main_falls_back_to_head_and_says_so(self):
+        self.review_a()
+        self.git(self.source, 'update-ref', '-d', 'refs/remotes/origin/main')
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(sorted(self.imported()), ['src/a.py'])
+        self.assertIn('has no refs/remotes/origin/main, so reviews are imported from its HEAD instead', p.stderr)
 
     # Self-import, which is a no-op, and refusals.
 

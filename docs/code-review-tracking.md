@@ -770,6 +770,11 @@ repository's history, oldest commit first, and credits a
 `.vscode/<reviewer>.weaudit` has a full-file `auditedFiles` entry for
 that path. Where a blob was reviewed more than once, the earliest
 qualifying commit wins, since that is the attestation to point at.
+The history walked is that of `origin/main` in the clone `import`
+runs from, not whatever branch the clone has checked out: a review
+committed on a branch that has not merged is not yet an attestation,
+and may never become one. A clone with no `origin/main` falls back to
+its `HEAD`, with a warning saying so.
 Any path is eligible, not only `templates/`: identical bytes need no
 context the file does not carry, and a whole-file review never
 attested to context either -- a native mark does not go stale when a
@@ -845,8 +850,8 @@ reviewed. It still removes entries, which needs no verification.
 **Verifying an imported entry by hand.** Checking one imported
 mark without running `review-tracking.py` takes four steps. Run
 `git fetch` in both clones first: a stale clone of this repository
-may not have the commit yet, and step 4 compares against
-`origin/<default branch>`.
+may not have the commit yet, and steps 2 and 4 compare against
+each repository's `origin/<default branch>`.
 
 1. Read the entry from the target repository's
    `.vscode/imports.weaudit-shas.json` on its default branch. You
@@ -870,6 +875,18 @@ may not have the commit yet, and step 4 compares against
    follow a worktree's `.git` file, and reports every commit as
    "reference not found". See "Commit signing" for the trust path
    this checks.
+
+   Then confirm the commit is on this repository's default branch:
+
+   ```
+   git merge-base --is-ancestor <commit> origin/main && echo on main
+   ```
+
+   A signed commit that was never merged, or was rebased away, is
+   not an attestation: nobody accepted it into the record, and the
+   review it carries may have been rewritten since. `import` walks
+   only `origin/main` for this reason, so an entry whose commit is
+   not on it did not come from `import`.
 3. Confirm the commit records a full-file review of that blob:
 
    ```
