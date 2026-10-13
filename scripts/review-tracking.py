@@ -819,17 +819,27 @@ def source_revision(source):
 def reviewed_blobs(source, revision):
     """Map every blob the source has fully reviewed to where that review happened.
 
-    Returns {blob sha: {'reviewer', 'path', 'commit', 'date'}}, where
-    commit is the first commit in the source at which the reviewer's
-    sidecar stamped that blob and the same commit's state file carried
-    a full-file mark for the stamped path. Earliest wins across
-    reviewers too: the first attestation is the one recorded.
+    Returns (blobs, attested). blobs is {blob sha: {'reviewer', 'path',
+    'commit', 'date'}}, where commit is the first commit in the source
+    at which the reviewer's sidecar stamped that blob and the same
+    commit's state file carried a full-file mark for the stamped path.
+    Earliest wins across reviewers too: the first attestation is the one
+    recorded, and the one a new import points at.
+
+    attested is the set of (sha, reviewer, path, commit) for every
+    attestation the history holds, not only the earliest per blob: the
+    commit at which each reviewer's full review of each path at each
+    blob first appeared. It is what an existing import is checked
+    against. An entry pointing at any of them points at a real
+    introducing commit, even if a branch merged since has put an older
+    one first; an entry pointing at a later commit that merely carries
+    the review forward (an unsigned prune, say) points at none.
 
     Only the history reachable from revision (source_revision()) is
-    walked. The whole history, not just its tip, because the common case during a
-    rollout is a target copy lagging a template the source has since
-    changed and re-reviewed; only history still records the review of
-    the older blob.
+    walked. The whole history, not just its tip, because the common
+    case during a rollout is a target copy lagging a template the source
+    has since changed and re-reviewed; only history still records the
+    review of the older blob.
 
     The sidecar alone is not enough. stamp also stamps files that carry
     only partial (region) marks, so a stamped blob proves nothing about
@@ -856,7 +866,7 @@ def reviewed_blobs(source, revision):
     # reviews made there and must not be re-exported as if they were.
     reviewers = [r for r in reviewers if r != IMPORTS_REVIEWER]
     if not reviewers:
-        return {}
+        return {}, set()
 
     # Oldest first, and never a commit before one of its ancestors, so
     # "first commit at which it qualifies" means the one that
@@ -871,6 +881,8 @@ def reviewed_blobs(source, revision):
     contents = read_blobs(source, specs)
 
     blobs = {}
+    attested = set()
+    seen = set()
     trees = {}
     for commit in commits:
         for reviewer in reviewers:
@@ -884,7 +896,7 @@ def reviewed_blobs(source, revision):
                 continue
             for path, stamp in sorted(stamps.items()):
                 sha = stamp.get('sha') if isinstance(stamp, dict) else None
-                if not isinstance(sha, str) or not sha or sha in blobs or path not in full:
+                if not isinstance(sha, str) or not sha or (sha, reviewer, path) in seen or path not in full:
                     continue
                 # Only fetched when something new would otherwise
                 # qualify, which is a small fraction of the commits.
@@ -893,10 +905,27 @@ def reviewed_blobs(source, revision):
                     trees[commit] = set(f for f in listing.split('\0') if f)
                 if is_dir_entry(path, trees[commit]):
                     continue
+                seen.add((sha, reviewer, path))
+                attested.add((sha, reviewer, path, commit))
+                if sha in blobs:
+                    continue
                 date = stamp.get('date')
                 blobs[sha] = {'reviewer': reviewer, 'path': path, 'commit': commit,
                               'date': date if isinstance(date, str) else '-'}
-    return blobs
+    return blobs, attested
+
+
+def attestation_of(entry):
+    """Return an imports entry's (sha, reviewer, path, commit), or None if it is malformed.
+
+    The key reviewed_blobs() records in attested, so that an entry can
+    be checked against the history it claims to come from.
+    """
+    imported = entry.get('imported') if isinstance(entry, dict) else None
+    if not isinstance(imported, dict) or imported.get('repo') != SOURCE_REPO:
+        return None
+    key = (entry.get('sha'), imported.get('reviewer'), imported.get('path'), imported.get('commit'))
+    return key if all(isinstance(k, str) for k in key) else None
 
 
 def verify_commit(git_dir, commit, identity):
@@ -995,11 +1024,13 @@ def cmd_import(args):
     if not verify:
         print('review-import: WARNING: signature verification disabled by --no-verify; reviews '
               'imported by this run are recorded with "verified": false', file=sys.stderr)
-    if git('rev-parse', '--is-shallow-repository', cwd=SOURCE_ROOT).stdout.strip() == 'true':
+    shallow = git('rev-parse', '--is-shallow-repository', cwd=SOURCE_ROOT).stdout.strip() == 'true'
+    if shallow:
         print('review-import: WARNING: %s is a shallow clone, so reviews older than its history '
               'cannot be found; fetch its full history to import them' % SOURCE_ROOT, file=sys.stderr)
 
-    blobs = reviewed_blobs(SOURCE_ROOT, source_revision(SOURCE_ROOT))
+    revision = source_revision(SOURCE_ROOT)
+    blobs, attested = reviewed_blobs(SOURCE_ROOT, revision)
     include, exclude = load_scope()
     import_exclude = load_import_exclude()
     tracked = set(tracked_files())
@@ -1025,6 +1056,16 @@ def cmd_import(args):
         removed.append(path)
         print('review-import: removed import of %s (%s)' % (path, reason))
 
+    # Then entries the source's history does not support: their sha,
+    # reviewer, source path and commit are not an attestation the walk
+    # found. That is a hand-forged entry, or one imported from a commit
+    # that has since left the history (a branch rebased away, or one
+    # never merged, from before import walked origin/main only). Each
+    # is treated as absent below, so a real review of the same content
+    # replaces it, and whatever is not replaced is removed at the end --
+    # if this run can judge it at all.
+    unsupported = set(path for path in entries if attestation_of(entries[path]) not in attested)
+
     verified = {}
     added = []
     unverified = 0
@@ -1047,7 +1088,7 @@ def cmd_import(args):
         if sha is None or sha not in blobs:
             continue
         existing = entries.get(path)
-        if existing is not None and existing.get('sha') == sha:
+        if existing is not None and existing.get('sha') == sha and path not in unsupported:
             continue
         origin = blobs[sha]
         commit = origin['commit']
@@ -1101,9 +1142,33 @@ def cmd_import(args):
             },
         }
         added.append(path)
+        if path in unsupported:
+            unsupported.discard(path)
+            print('review-import: WARNING: replaced import of %s: %s history has no such attestation (%s)'
+                  % (path, SOURCE_REPO, json.dumps(existing.get('imported'), sort_keys=True)), file=sys.stderr)
         print('review-import: imported %s from %s @ %s (%s, %s, %s)'
               % (path, origin['path'], commit[:SHORT_SHA], origin['reviewer'], origin['date'],
                  'signature verified' if verify else 'signature NOT verified'))
+
+    # A run that could not verify everything it wanted to (no gitsign,
+    # or the timeout budget spent) leaves unsupported entries alone,
+    # since it could not have replaced them with what history does
+    # support. So does one that walked something other than the full
+    # history of origin/main, whose attestations it may simply not have.
+    # (One that is also stale goes anyway, just below.)
+    if gitsign_missing or timeouts >= VERIFY_TIMEOUT_BUDGET or shallow or revision != SOURCE_BRANCH_REF:
+        kept = sorted(path for path in unsupported
+                      if isinstance(entries[path], dict) and entries[path].get('sha') == head.get(path))
+        if kept:
+            print('review-import: WARNING: kept %d import(s) that %s history does not support (%s), since '
+                  'this run cannot judge them' % (len(kept), SOURCE_REPO, ', '.join(kept)), file=sys.stderr)
+    else:
+        for path in sorted(unsupported):
+            imported = entries[path].get('imported') if isinstance(entries[path], dict) else None
+            print('review-import: WARNING: removed import of %s: %s history has no such attestation (%s)'
+                  % (path, SOURCE_REPO, json.dumps(imported, sort_keys=True)), file=sys.stderr)
+            del entries[path]
+            removed.append(path)
 
     # Then whatever is still stale. Its content changed and was not
     # replaced above -- the new blob was never reviewed, or its review

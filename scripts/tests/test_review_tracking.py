@@ -1428,6 +1428,129 @@ class ImportTest(unittest.TestCase):
         self.assertEqual(sorted(self.imported()), ['src/a.py'])
         self.assertIn('has no refs/remotes/origin/main, so reviews are imported from its HEAD instead', p.stderr)
 
+    # Existing entries are checked against the source's history.
+
+    def forge(self, path, commit, source_path='templates/a.py', reviewer='mikal'):
+        """Write an imports entry for path at HEAD's blob, by hand, and commit it."""
+        imports = self.imports() or {'version': 1, 'files': {}}
+        imports['files'][path] = {
+            'sha': self.tblob(path),
+            'date': '2026-01-02',
+            'imported': {'repo': 'shakenfist/development', 'reviewer': reviewer, 'path': source_path,
+                         'commit': commit, 'verified': True},
+        }
+        self.twrite(IMPORTS, json.dumps(imports, indent=2) + '\n')
+        self.tcommit('forge')
+
+    def test_a_forged_entry_is_removed(self):
+        """A real commit, but it never reviewed b.py's content, so the entry points at nothing."""
+        commit = self.review_a()
+        self.forge('src/b.py', commit)
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(sorted(self.imported()), ['src/a.py'])
+        self.assertIn('removed import of src/b.py: shakenfist/development history has no such attestation',
+                      p.stderr)
+        self.assertIn('removed 1 import(s)', p.stdout)
+
+    def test_an_entry_pointing_at_a_commit_that_only_carries_a_review_forward_is_removed(self):
+        """The introducing commit is the attestation; a later one repeating it (a prune, say) is not."""
+        self.review_a()
+        self.swrite('templates/b.py', 'b = 2\n')
+        later = self.source_review({'templates/a.py': '2026-01-02', 'templates/b.py': '2026-01-03'})
+        self.run_import()
+        self.tcommit('import')
+        self.forge('src/a.py', later)
+        p = self.run_import()
+        self.assertIn('replaced import of src/a.py: shakenfist/development history has no such attestation',
+                      p.stderr)
+        # By the real attestation, in the same run.
+        self.assertNotEqual(self.imported()['src/a.py']['imported']['commit'], later)
+        self.assertIn('imported src/a.py from templates/a.py', p.stdout)
+
+    def test_a_forged_entry_is_replaced_by_a_real_review_of_the_same_content(self):
+        commit = self.review_a()
+        self.forge('src/a.py', '0' * 40)
+        p = self.run_import()
+        self.assertEqual(self.imported()['src/a.py']['imported']['commit'], commit)
+        self.assertIn('imported src/a.py from templates/a.py @ %s' % commit[:12], p.stdout)
+        self.assertIn('replaced import of src/a.py', p.stderr)
+
+    def test_a_legitimate_entry_is_kept(self):
+        """Including one imported unverified, and one that is not the earliest review of its blob."""
+        self.review_a()
+        self.swrite('templates/b.py', 'b = 2\n')
+        self.source_review({'templates/b.py': '2026-01-03'}, reviewer='zed')
+        self.run_import('--no-verify')
+        self.tcommit('import')
+        # A later review of the same blob under another path is an
+        # attestation too, if not the one a new import would choose.
+        self.swrite('other/a.py', 'a = 1\n')
+        other = self.source_review({'other/a.py': '2026-02-02'}, reviewer='zed')
+        self.forge('src/a.py', other, source_path='other/a.py', reviewer='zed')
+        before = self.tread(IMPORTS)
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.tread(IMPORTS), before)
+        self.assertIs(self.imported()['src/b.py']['imported']['verified'], False)
+        self.assertIn('removed 0 import(s)', p.stdout)
+        self.assertNotIn('WARNING', p.stderr)
+
+    def test_without_gitsign_an_unsupported_entry_is_kept(self):
+        commit = self.review_a()
+        self.forge('src/b.py', commit)
+        before = self.tread(IMPORTS)
+        os.remove(self.gitsign)
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.tread(IMPORTS), before)
+        self.assertIn('kept 1 import(s) that shakenfist/development history does not support (src/b.py)',
+                      p.stderr)
+
+    def test_an_unsupported_entry_that_is_also_stale_is_removed_once(self):
+        commit = self.review_a()
+        self.forge('src/b.py', commit)
+        self.twrite('src/b.py', 'b = 3\n')
+        self.tcommit('change b')
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(sorted(self.imported()), ['src/a.py'])
+        self.assertEqual(p.stderr.count('removed import of src/b.py'), 1)
+        self.assertIn('removed 1 import(s)', p.stdout)
+
+        # Kept by a run that cannot judge it only while it is current.
+        self.forge('src/b.py', commit)
+        self.twrite('src/b.py', 'b = 4\n')
+        self.tcommit('change b again')
+        os.remove(self.gitsign)
+        p = self.run_import()
+        self.assertNotIn('src/b.py', self.imported())
+        self.assertNotIn('does not support', p.stderr)
+
+    def test_walking_head_instead_of_origin_main_keeps_an_unsupported_entry(self):
+        """HEAD may lack attestations main has, so its history cannot condemn an entry."""
+        commit = self.review_a()
+        self.forge('src/b.py', commit)
+        self.git(self.source, 'update-ref', '-d', 'refs/remotes/origin/main')
+        p = self.run_import()
+        self.assertIn('src/b.py', self.imported())
+        self.assertIn('kept 1 import(s)', p.stderr)
+
+    def test_with_the_timeout_budget_spent_an_unsupported_entry_is_kept(self):
+        self.set_gitsign_timeout(0.5)
+        commits = []
+        for name in 'cde':
+            self.twrite('src/t%s.py' % name, 't = %r\n' % name)
+            self.swrite('templates/t%s.py' % name, 't = %r\n' % name)
+            commits.append(self.source_review({'templates/t%s.py' % name: '2026-01-02'}))
+        self.tcommit('more files')
+        with open(os.path.join(self.bin, 'gitsign.slow'), 'w') as f:
+            f.write('\n'.join(commits) + '\n')
+        self.forge('src/b.py', commits[0])
+        p = self.run_import()
+        self.assertIn('src/b.py', self.imported())
+        self.assertIn('kept 1 import(s)', p.stderr)
+
     # Self-import, which is a no-op, and refusals.
 
     def test_import_is_a_no_op_in_the_source_itself(self):

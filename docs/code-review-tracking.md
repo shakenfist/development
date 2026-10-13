@@ -930,6 +930,20 @@ gives, so that `REVIEWS.md` never shows it as reviewed in the
 meantime. `import` regenerates `REVIEWS.md` when it changes
 anything, as `stamp` and `prune` do.
 
+Every run also checks the entries already in the imports file
+against this repository's history, not only the ones it adds. An
+entry whose `sha`, `imported.reviewer`, `imported.path` and
+`imported.commit` are not an attestation the history walk found --
+one written by hand, or one pointing at a commit that is not on
+`origin/main` or merely carries an earlier review forward -- is
+replaced by a real import of the same content if there is one, and
+otherwise removed, with a warning on stderr either way. Entries
+imported under `--no-verify` are checked the same way and kept when
+history supports them. A run that cannot judge an entry keeps it and
+says so: one without gitsign, one that has spent its timeout budget,
+and one walking a shallow clone or a clone with no `origin/main`,
+whose history may simply lack the attestation.
+
 A native review always supersedes an import: if a reviewer marks a
 file that already carries an imported entry, `import` removes its
 own entry on the next run, so `REVIEWS.md` shows one row per file and
