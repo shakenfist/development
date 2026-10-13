@@ -1406,7 +1406,7 @@ taken from `git log`.
 
 **5. Follow-up.**
 - The template change (new hashes: `prune-reviews.yml` 91ff178,
-  `ci-prune-reviews.sh` 883d3e9) must be re-synced into actions,
+  `ci-prune-reviews.sh` b4ce5b6) must be re-synced into actions,
   hunkydory, kerbside and ryll. Script and workflow go together,
   because the script now requires `PUSH_TOKEN`.
 - Michael must re-stamp the changed files here before the copies
@@ -1424,9 +1424,14 @@ taken from `git log`.
   configuration in the reused workspace's `.git` still reached the
   job, and actions#157's that a hook could rewrite the script during
   the checkout itself, so the workflow now fetches the script, and
-  the script lands, from fresh clones. The re-sync pull
-  requests take the new hashes, and merge only after development's
-  own run with the fresh-clone script has also succeeded.
+  the script lands, from fresh clones. actions#157 and hunkydory#74
+  merged before this did, carrying ci-prune-reviews.sh 883d3e9, and
+  their first runs (actions 38480219082 on shakenfist-static-2,
+  hunkydory 38480253693 on shakenfist-static-1) cloned shallowly
+  with no checkout and pushed, so the fresh-clone workflow has run on
+  both static runners. The final template differs from 883d3e9 only
+  in a comment, so those two need one more verbatim re-sync; kerbside
+  and ryll take the final hashes directly.
 - The plan reaches `Complete` when the re-sync pull requests
   merge. Until then the success criterion "the three review
   tracking CI files are byte-identical across the four adopted
