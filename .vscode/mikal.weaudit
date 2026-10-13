@@ -201,10 +201,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/shared-blocks/plan-push-audit-phase.md",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/base.py",
       "author": "mikal"
     },
@@ -681,10 +677,6 @@
       "author": "mikal"
     },
     {
-      "path": "PLAN-TEMPLATE.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/eol-producers.md",
       "author": "mikal"
     },
@@ -694,10 +686,6 @@
     },
     {
       "path": "templates/shared-blocks/plan-file-conventions.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/shared-blocks",
       "author": "mikal"
     },
     {
@@ -738,10 +726,6 @@
     },
     {
       "path": "scripts/tests/test_packaging.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_plans.py",
       "author": "mikal"
     },
     {
@@ -858,10 +842,6 @@
     },
     {
       "path": "templates/review-tracking",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     },
     {

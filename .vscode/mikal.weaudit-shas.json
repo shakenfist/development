@@ -93,10 +93,6 @@
       "sha": "be0c7ecd7cd147d707f69447e45b7d575f97f6de",
       "date": "2026-10-05"
     },
-    "PLAN-TEMPLATE.md": {
-      "sha": "86398ca32ca7f9fd4ed46d4f6c8be1572290613d",
-      "date": "2026-10-07"
-    },
     "PUSH-AUDIT.md": {
       "sha": "8641eb9c64ce9e56ac2b311dc382b8ca3d0a2bb8",
       "date": "2026-10-12"
@@ -565,10 +561,6 @@
       "sha": "842ccc52b2a1b71214c045be296095f3cca3ad46",
       "date": "2026-10-12"
     },
-    "scripts/tests/test_plans.py": {
-      "sha": "eeddf27ca97ebe470c2c149170545657640edfd4",
-      "date": "2026-10-12"
-    },
     "scripts/tests/test_python_source.py": {
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",
       "date": "2026-09-04"
@@ -760,10 +752,6 @@
     "templates/shared-blocks/plan-planning-effort.md": {
       "sha": "1e7f1b0747ba292069e22f69a8a6b4a27c0518b1",
       "date": "2026-09-04"
-    },
-    "templates/shared-blocks/plan-push-audit-phase.md": {
-      "sha": "d2b289157a3de087b509c07bd52ae2caf968e011",
-      "date": "2026-09-16"
     },
     "templates/shared-blocks/plan-references-in-code.md": {
       "sha": "9432aa8e0135fd334edb264232b45174b52f62d4",
