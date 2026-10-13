@@ -677,10 +677,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/scope.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_docs_content.py",
       "author": "mikal"
     },
@@ -746,10 +742,6 @@
     },
     {
       "path": "scripts/tests/test_plans.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_registry.py",
       "author": "mikal"
     },
     {
