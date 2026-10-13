@@ -50,7 +50,10 @@ TEMPLATE_WORKFLOW = os.path.join(REPO_ROOT, 'templates', 'review-tracking', 'pru
 
 BRANCH = 'trunk'
 DEVELOPMENT_URL = 'https://github.com/shakenfist/development'
+REPOSITORY = 'shakenfist/adopted'
+TARGET_URL = 'https://github.com/' + REPOSITORY
 TOKEN = 'test-push-token-1d2e3f'
+WORKFLOW_STEP_SEPARATOR = '\n      - name: '
 COMMIT_MESSAGE = 'Prune and import review marks.\n\nAutomated commit by the prune-reviews workflow.'
 
 # Stands in for tools/review-tracking.sh. It logs each subcommand with
@@ -132,27 +135,32 @@ UNAME_STUB = '#!/bin/sh\necho "${PRUNE_TEST_ARCH:-x86_64}"\n'
 
 # Wraps the real git. It logs each call, one line apiece: the
 # arguments (newlines escaped, since a commit message has them), then
-# tab-separated, the git configuration variables the script sets and
-# whether PUSH_TOKEN is in the environment. And it redirects the
-# development clone to a local repository.
+# tab-separated, the git configuration variables the script sets,
+# whether PUSH_TOKEN is in the environment, and GIT_CEILING_DIRECTORIES. And it redirects the
+# development clone, and the clone of the repository being landed on,
+# to local repositories.
 GIT_STUB = '''#!/bin/bash
 {
     printf '%%s' "${*//$'\\n'/\\\\n}"
     printf '\\t%%s' "${GIT_CONFIG_GLOBAL-}" "${GIT_CONFIG_NOSYSTEM-}" "${GIT_CONFIG_COUNT-}" \\
         "${GIT_CONFIG_KEY_0-}" "${GIT_CONFIG_VALUE_0-}" "${GIT_CONFIG_KEY_1-}" "${GIT_CONFIG_VALUE_1-}" \\
-        "${PUSH_TOKEN+set}"
+        "${PUSH_TOKEN+set}" "${GIT_CEILING_DIRECTORIES-}"
     echo
 } >> "${PRUNE_TEST_GIT_LOG}"
 args=()
 for arg in "$@"; do
     if [ "${arg}" = '%(url)s' ]; then
         arg="${PRUNE_TEST_DEVELOPMENT}"
+    elif [ "${arg}" = '%(target_url)s' ]; then
+        # file:// so that --depth applies, as it does to the real URL:
+        # git ignores it for a plain path.
+        arg="file://${PRUNE_TEST_ORIGIN}"
     fi
     args+=("${arg}")
 done
 exec '%(git)s' "${args[@]}"
 '''
-GIT_LOG_FIELDS = ('argv', 'global', 'nosystem', 'count', 'key0', 'value0', 'key1', 'value1', 'push_token')
+GIT_LOG_FIELDS = ('argv', 'global', 'nosystem', 'count', 'key0', 'value0', 'key1', 'value1', 'push_token', 'ceiling')
 SLEEP_STUB = '#!/bin/sh\necho "$@" >> "${PRUNE_TEST_SLEEP_LOG}"\n'
 
 
@@ -202,7 +210,7 @@ class CiPruneReviewsTest(unittest.TestCase):
 
         # The harness runs the real git; only the script gets the wrapper.
         self.real_git = shutil.which('git', path=env['PATH'])
-        git_stub = GIT_STUB % {'url': DEVELOPMENT_URL, 'git': self.real_git}
+        git_stub = GIT_STUB % {'url': DEVELOPMENT_URL, 'target_url': TARGET_URL, 'git': self.real_git}
         for name, content in (('curl', CURL_STUB), ('sha256sum', SHA256SUM_STUB),
                               ('uname', UNAME_STUB), ('sleep', SLEEP_STUB), ('git', git_stub)):
             _write(os.path.join(stubs, name), content, 0o755)
@@ -222,6 +230,7 @@ class CiPruneReviewsTest(unittest.TestCase):
         self.env.update({
             'PATH': stubs + os.pathsep + env['PATH'],
             'DEFAULT_BRANCH': BRANCH,
+            'GITHUB_REPOSITORY': REPOSITORY,
             'RUNNER_TEMP': os.path.join(self.tmp, 'runner'),
             'PRUNE_TEST_LOG': self.logs['review'],
             'PRUNE_TEST_ENV_LOG': self.logs['env'],
@@ -295,6 +304,10 @@ class CiPruneReviewsTest(unittest.TestCase):
 
     def message(self, rev):
         return self.git('--git-dir', self.origin, 'log', '-1', '--format=%B', rev)
+
+    def target_clone(self):
+        """Where the script clones the repository it lands on."""
+        return os.path.join(self.env['RUNNER_TEMP'], 'target')
 
     def read_log(self, name):
         if not os.path.exists(self.logs[name]):
@@ -449,9 +462,8 @@ class CiPruneReviewsTest(unittest.TestCase):
         calls = self.git_calls()
         pushes = [call for call in calls if call['argv'].startswith('push ')]
         self.assertEqual([call['argv'] for call in pushes], ['push origin HEAD:%s' % BRANCH])
-        self.assertEqual((pushes[0]['count'], pushes[0]['key0'], pushes[0]['value0'],
-                          pushes[0]['key1'], pushes[0]['value1']),
-                         ('2', 'http.https://github.com/.extraheader', header, 'core.hooksPath', '/dev/null'))
+        self.assertEqual((pushes[0]['count'], pushes[0]['key0'], pushes[0]['value0'], pushes[0]['key1']),
+                         ('1', 'http.https://github.com/.extraheader', header, ''))
         for call in calls:
             self.assertNotIn(TOKEN, call['argv'])
             self.assertNotIn(header.split()[-1], call['argv'])
@@ -459,23 +471,57 @@ class CiPruneReviewsTest(unittest.TestCase):
             if call not in pushes:
                 self.assertEqual((call['count'], call['value0']), ('', ''), call['argv'])
 
-        with open(os.path.join(self.checkout, '.git', 'config')) as f:
-            self.assertNotIn(TOKEN, f.read())
+        for repo in (self.checkout, self.target_clone()):
+            with open(os.path.join(repo, '.git', 'config')) as f:
+                self.assertNotIn(TOKEN, f.read())
         self.assertNotIn('curl saw PUSH_TOKEN', self.read_log('curl'))
         self.assertEqual([line.split()[-1] for line in self.read_log('env')],
                          ['PUSH_TOKEN=', 'PUSH_TOKEN='])
         self.assertNotIn(TOKEN, result.stdout + result.stderr)
 
-    def test_a_hook_left_in_the_checkout_does_not_run_on_push(self):
-        """A static runner reuses the workspace, so an earlier job can leave one there."""
+    def test_the_workspace_git_state_is_never_used(self):
+        """A static runner reuses the workspace, .git included, so an earlier job can plant hooks and config there."""
         before = self.make_repository()
-        marker = os.path.join(self.tmp, 'hook-ran')
-        _write(os.path.join(self.checkout, '.git', 'hooks', 'pre-push'),
-               '#!/bin/sh\nenv > %s\n' % marker, 0o755)
+        marker = os.path.join(self.tmp, 'planted-code-ran')
+        attacker_origin = os.path.join(self.tmp, 'attacker-origin.git')
+        self.git('init', '-q', '--bare', attacker_origin)
+        hooks = os.path.join(self.checkout, '.git', 'hooks')
+        for hook in ('pre-commit', 'prepare-commit-msg', 'commit-msg', 'post-commit', 'reference-transaction',
+                     'post-checkout', 'pre-push'):
+            _write(os.path.join(hooks, hook), '#!/bin/sh\necho %s >> %s\n' % (hook, marker), 0o755)
+        fsmonitor = os.path.join(self.tmp, 'fsmonitor')
+        _write(fsmonitor, '#!/bin/sh\necho fsmonitor >> %s\n' % marker, 0o755)
+        included = os.path.join(self.tmp, 'included')
+        _write(included, '[url "%s"]\n\tinsteadOf = %s\n' % (attacker_origin, self.origin))
+        self.git('-C', self.checkout, 'config', 'core.fsmonitor', fsmonitor)
+        self.git('-C', self.checkout, 'config', 'remote.origin.pushurl', attacker_origin)
+        self.git('-C', self.checkout, 'config', 'include.path', included)
+        workspace_head = self.git('-C', self.checkout, 'rev-parse', 'HEAD')
+
         result = self.run_script(PRUNE_TEST_IMPORT='1')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(os.path.exists(marker))
         self.assertEqual(self.git('--git-dir', self.origin, 'rev-parse', self.tip() + '^'), before)
+        self.assertEqual(self.git('--git-dir', attacker_origin, 'for-each-ref'), '')
+        self.assertEqual(self.git('-C', self.checkout, 'rev-parse', 'HEAD'), workspace_head)
+        # Landed from a fresh, shallow clone of the URL GITHUB_REPOSITORY names.
+        clones = [call['argv'] for call in self.git_calls() if call['argv'].startswith('clone ')]
+        self.assertEqual(clones[-1], 'clone --quiet --depth 1 --branch %s %s %s'
+                         % (BRANCH, TARGET_URL, self.target_clone()))
+        self.assertEqual(self.git('-C', self.target_clone(), 'rev-parse', '--is-shallow-repository'), 'true')
+        self.assertEqual(self.git('-C', self.target_clone(), 'rev-list', '--count', 'HEAD'), '2')
+
+    def test_a_run_without_github_repository_is_refused(self):
+        before = self.make_repository()
+        env = dict(self.env)
+        del env['GITHUB_REPOSITORY']
+        result = subprocess.run([os.path.join(self.checkout, 'tools', 'ci-prune-reviews.sh')], cwd=self.tmp,
+                                env=env, timeout=120, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                universal_newlines=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('GITHUB_REPOSITORY must name the repository', result.stderr)
+        self.assertEqual(self.git_calls(), [])
+        self.assertEqual(self.tip(), before)
 
     def test_runner_git_configuration_is_ignored(self):
         """A poisoned ~/.gitconfig or system gitconfig can redirect neither the development clone nor the push."""
@@ -501,6 +547,17 @@ class CiPruneReviewsTest(unittest.TestCase):
         self.assertEqual(self.git('--git-dir', self.origin, 'rev-parse', self.tip() + '^'), before)
         self.assertEqual(self.git('--git-dir', attacker_origin, 'for-each-ref'), '')
 
+    def test_git_never_looks_for_a_repository_above_runner_temp(self):
+        """_work, the runner directory and home are writable by an earlier job, so a .git there must stay unseen."""
+        self.make_repository()
+        result = self.run_script(PRUNE_TEST_IMPORT='1')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = self.git_calls()
+        self.assertTrue(calls)
+        ceiling = os.path.dirname(self.env['RUNNER_TEMP'])
+        for call in calls:
+            self.assertEqual(call['ceiling'], ceiling, call['argv'])
+
     def test_gitsign_gets_a_fresh_tuf_cache(self):
         """Not the shared ~/.sigstore, which an earlier job on the runner could have poisoned."""
         self.make_repository()
@@ -511,18 +568,50 @@ class CiPruneReviewsTest(unittest.TestCase):
         self.assertEqual([line.split()[1] for line in self.read_log('env')], ['TUF_ROOT=' + tuf_root] * 2)
         self.assertEqual(os.listdir(tuf_root), [])
 
-    def test_the_workflow_keeps_no_credentials_in_the_checkout(self):
-        """The token goes to the script's environment alone, and the checkout persists none."""
+    def workflow_steps(self):
+        """The template workflow's steps, by name, with comments dropped.
+
+        Split on the step separator rather than parsed, since nothing
+        else here needs a YAML library; the exact set of names asserted
+        below is what stops a format change passing silently.
+        """
         with open(TEMPLATE_WORKFLOW) as f:
             lines = [line for line in f.read().splitlines() if not line.lstrip().startswith('#')]
         text = '\n'.join(lines) + '\n'
-        steps = {step.split('\n', 1)[0]: step for step in text.split('\n      - name: ')[1:]}
-        self.assertEqual(sorted(steps), ['Checkout', 'Prune and import review marks'])
-        self.assertIn('\n          persist-credentials: false\n', steps['Checkout'])
-        self.assertNotIn('token', steps['Checkout'])
+        steps = {step.split('\n', 1)[0]: step for step in text.split(WORKFLOW_STEP_SEPARATOR)[1:]}
+        self.assertEqual(sorted(steps), ['Fetch the prune script', 'Prune and import review marks'])
+        return text, steps
+
+    def test_the_workflow_never_checks_out_the_workspace(self):
+        """A hook left in the reused workspace would run during a checkout and could rewrite the script."""
+        text, steps = self.workflow_steps()
+        self.assertNotIn('actions/checkout', text)
+        for step in steps.values():
+            self.assertIn('\n        working-directory: ${{ runner.temp }}\n', step)
+        self.assertNotIn('token', steps['Fetch the prune script'])
         self.assertIn('\n          PUSH_TOKEN: ${{ secrets.DEPENDENCIES_TOKEN || github.token }}\n',
                       steps['Prune and import review marks'])
         self.assertEqual(text.count('secrets.'), 1)
+
+    def test_the_workflow_steps_land_the_review_state(self):
+        """Run as the workflow runs them: fetch the script into RUNNER_TEMP, then run it from there."""
+        before = self.make_repository()
+        _, steps = self.workflow_steps()
+        fetch = steps['Fetch the prune script'].split('run: >-\n', 1)[1]
+        fetch = ' '.join(line.strip() for line in fetch.splitlines() if line.strip())
+        run = steps['Prune and import review marks'].split('run: ', 1)[1].split('\n', 1)[0]
+        env = dict(self.env, GITHUB_REPOSITORY=REPOSITORY)
+        fetch_env = {k: v for k, v in env.items() if k != 'PUSH_TOKEN'}
+        subprocess.run(['bash', '-ec', fetch], cwd=env['RUNNER_TEMP'], env=fetch_env, check=True)
+        clone = [call for call in self.git_calls() if call['argv'].startswith('clone ')][0]
+        self.assertEqual(clone['argv'], 'clone --quiet --depth 1 --branch %s %s prune-script' % (BRANCH, TARGET_URL))
+        self.assertEqual((clone['global'], clone['nosystem'], clone['ceiling']),
+                         (os.devnull, '1', os.path.dirname(env['RUNNER_TEMP'])))
+        result = subprocess.run(['bash', '-ec', run], cwd=env['RUNNER_TEMP'], env=dict(env, PRUNE_TEST_IMPORT='1'),
+                                timeout=120, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                universal_newlines=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.git('--git-dir', self.origin, 'rev-parse', self.tip() + '^'), before)
 
     def test_a_gitignored_reviews_md_fails_the_run(self):
         """A REVIEWS.md ignored before it was first generated can never be committed either."""
@@ -581,8 +670,7 @@ class CiPruneReviewsTest(unittest.TestCase):
         self.assertEqual(self.read_log('curl'), [])
         self.assertEqual(self.read_log('sha256'), [])
         self.assertEqual(self.read_log('review'), [])
-        self.assertEqual([call['argv'] for call in self.git_calls()],
-                         ['-C %s rev-parse --show-toplevel' % os.path.join(self.checkout, 'tools')])
+        self.assertEqual(self.git_calls(), [])
         self.assertFalse(os.path.exists(os.path.join(self.env['RUNNER_TEMP'], 'development')))
         self.assertFalse(os.path.exists(os.path.join(self.env['RUNNER_TEMP'], 'gitsign')))
         self.assertEqual(self.tip(), before)

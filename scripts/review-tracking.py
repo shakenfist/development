@@ -1074,6 +1074,11 @@ def cmd_import(args):
     too, which is why every entry points at the signed source commit
     that introduced the review: the entry is a pointer to an
     attestation, not an attestation.
+
+    The prune job runs this, and prune, in a depth 1 clone of the
+    target, so neither may read the target's history; only the source's
+    is walked. test_prune_and_import_work_in_a_shallow_clone_of_the_target
+    holds them to that.
     """
     try:
         target_id = repository_identity(os.getcwd())

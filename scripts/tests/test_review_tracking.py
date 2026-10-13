@@ -1823,6 +1823,28 @@ class ImportTest(unittest.TestCase):
                 self.assertNotIn('Traceback', p.stderr)
                 self.assertEqual(sorted(self.imported()), ['src/a.py'])
 
+    def test_prune_and_import_work_in_a_shallow_clone_of_the_target(self):
+        """ci-prune-reviews.sh runs both in a depth 1 clone, so neither may read the target's history."""
+        self.review_a()
+        self.run_import()
+        self.tcommit('import')
+        self.twrite('src/a.py', 'a = 2\n')
+        self.tcommit('change a')
+        self.swrite('templates/b.py', 'b = 2\n')
+        self.source_review({'templates/a.py': '2026-01-02', 'templates/b.py': '2026-01-03'})
+        shallow = os.path.join(os.path.dirname(self.target), 'shallow')
+        self.git(os.path.dirname(self.target), 'clone', '-q', '--depth', '1', 'file://' + self.target, shallow)
+        self.assertEqual(self.git(shallow, 'rev-parse', '--is-shallow-repository').stdout.strip(), 'true')
+
+        p = self.run_tool('prune', cwd=shallow)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn('src/a.py changed since its review', p.stdout)
+        p = self.run_import(cwd=shallow)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn('imported src/b.py from templates/b.py', p.stdout)
+        with open(os.path.join(shallow, IMPORTS)) as f:
+            self.assertEqual(sorted(json.load(f)['files']), ['src/b.py'])
+
     def test_stamp_ignores_the_imports_file(self):
         self.review_a()
         self.run_import()

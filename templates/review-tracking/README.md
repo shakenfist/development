@@ -96,37 +96,50 @@ The static runners are long-lived, share one home directory across
 jobs and repositories, and run pull request code, so anything an
 earlier job could write is treated as hostile. The script therefore:
 
+- **never touches the workspace.** The workspace is reused, `.git`
+  included, so hooks an earlier job left in `.git/hooks` would run on
+  any git command there -- `actions/checkout`'s own included, which
+  could rewrite the script before it ran -- and keys left in
+  `.git/config` -- `core.fsmonitor`, an `include.path`, a `pushurl` or
+  `url.<x>.insteadOf` -- would run commands or redirect the push. So
+  the workflow has no checkout. Its first step, which has no token,
+  clones the default branch at depth 1 into `RUNNER_TEMP` from the URL
+  `GITHUB_REPOSITORY` names, which the runner sets, ignoring the
+  runner's git configuration, and the second runs the script from that
+  clone. The script then lands from a second fresh clone of the same
+  kind, fetching, pruning, importing, committing and pushing there.
 - **ignores global and system git configuration**, by exporting
-  `GIT_CONFIG_GLOBAL=/dev/null` and `GIT_CONFIG_NOSYSTEM=1` before
-  its first git command, so that a `url.<x>.insteadOf` left in
-  `~/.gitconfig` cannot swap the development clone, whose script the
-  job runs, for another. It sets the bot's commit identity in the
-  checkout's own configuration.
+  `GIT_CONFIG_GLOBAL=/dev/null` and `GIT_CONFIG_NOSYSTEM=1` before its
+  first git command, so that a `url.<x>.insteadOf` left in
+  `~/.gitconfig` cannot swap either clone for another, and **any
+  repository above `RUNNER_TEMP`**, through `GIT_CEILING_DIRECTORIES`,
+  so that a `.git` planted in `_work` or the home directory is never
+  discovered. It sets the bot's commit identity in the target clone's
+  own configuration. A runner that needs a proxy or a private CA must
+  supply it through the environment (`HTTPS_PROXY`, `GIT_SSL_CAINFO`),
+  which git still reads.
 - **gives gitsign a fresh TUF cache** in `RUNNER_TEMP` on every run,
   through `TUF_ROOT`, rather than the shared `~/.sigstore`, where a
   poisoned cache could change which Fulcio roots and Rekor keys
-  verification trusts. An empty cache starts from the root embedded
-  in the pinned gitsign binary.
-- **scopes the push token to the push.** The checkout uses
-  `persist-credentials: false`, so no token is left in the
-  checkout's git configuration; fetches need none, since these
-  repositories are public. The script takes `PUSH_TOKEN` out of its
-  environment before running anything, so curl, gitsign and
-  `review-tracking.py` never see it, and passes it to `git push`
-  alone as an `http.https://github.com/.extraheader` through
-  `GIT_CONFIG_COUNT`, never in argv. The push also runs with
-  `core.hooksPath=/dev/null`, so that a hook left in a reused
-  workspace's `.git/hooks` does not run with the token in its
-  environment. The push's environment is still readable, through
+  verification trusts. An empty cache starts from the root embedded in
+  the pinned gitsign binary.
+- **scopes the push token to the push.** No clone is given
+  credentials; fetches need none, since these repositories are public.
+  The script takes `PUSH_TOKEN` out of its environment before running
+  anything, so curl, gitsign and `review-tracking.py` never see it,
+  and passes it to `git push` alone as an
+  `http.https://github.com/.extraheader` through `GIT_CONFIG_COUNT`,
+  never in argv. The push's environment is still readable, through
   `/proc/<pid>/environ`, by any process running as the runner's user
-  while the push runs; what bounds that is the runner killing a
-  job's orphaned processes when the job ends, so such a process
-  would have to belong to this job.
+  while the push runs; what bounds that is the runner killing a job's
+  orphaned processes when the job ends, and the fresh clone, which
+  leaves an earlier job's code no hook through which to start such a
+  process inside this one.
 
-This narrows what a poisoned runner can do; it does not make a
-runner whose user account is compromised safe. Such an account can
-still edit the checkout's own `.git/config` or replace binaries on
-`PATH`.
+This narrows what a poisoned runner can do; it does not make a runner
+whose user account is compromised safe. Such an account can still
+replace binaries on `PATH`, or rewrite the script in `RUNNER_TEMP`
+between the step that fetches it and the step that runs it.
 
 ## The development clone
 
