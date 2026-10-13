@@ -54,6 +54,14 @@ the workflow does not work without them.
   `secrets.DEPENDENCIES_TOKEN || github.token`, so one file serves
   both.
 
+  That fallback is silent. If `DEPENDENCIES_TOKEN` exists in a
+  repository, or is ever added at the organisation level, the job
+  uses the PAT without saying so, and the workflow's `permissions:`
+  block constrains only `GITHUB_TOKEN`, not a PAT: the job then holds
+  whatever the token's owner can do, in every repository the PAT
+  reaches. Add the secret only where the ruleset needs it, and keep
+  it out of organisation-level secrets.
+
 ## gitsign
 
 `import` verifies the signature on each source commit it points at,
