@@ -750,6 +750,19 @@ what bounds it: the bot can only relay an attestation a human has
 already signed, and an entry it cannot verify is skipped and
 reported rather than written.
 
+That bound has a limit worth stating plainly. The code that does the
+verifying, and `REVIEWER_IDENTITIES`, the map saying whose signature
+counts for which reviewer, both come from this repository's main
+branch, the clone every adopted repository's workflow makes. gitsign
+therefore protects against forged review *data*: a stamp or a mark
+nobody signed. It does not protect against a change to the code or
+to the identity map, which could, say, add an identity, weaken the
+check, or skip it, and every adopted repository would run the
+changed version on its next import. A pull request that changes
+`scripts/review-tracking.py`'s import path or `REVIEWER_IDENTITIES`
+therefore deserves the same scrutiny as a review attestation, since
+in effect it decides what counts as one.
+
 **Importing reviews from this repository.** Much of what an adopted
 repository has to review is not its own code: workflow templates,
 helper scripts, and exported GitHub configuration are written and
