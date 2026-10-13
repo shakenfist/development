@@ -273,10 +273,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_review.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/review.py",
       "author": "mikal"
     },
@@ -285,23 +281,11 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/prune-reviews.yml",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/github_config.py",
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_ci_prune_reviews.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_github_config.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_review_tracking.py",
       "author": "mikal"
     },
     {
@@ -321,35 +305,11 @@
       "author": "mikal"
     },
     {
-      "path": "templates/review-tracking/ci-prune-reviews.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/review-tracking/prune-reviews.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/review-tracking/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/review-tracking/review-tracking.sh",
       "author": "mikal"
     },
     {
-      "path": "templates/review-tracking",
-      "author": "mikal"
-    },
-    {
-      "path": "tools/ci-prune-reviews.sh",
-      "author": "mikal"
-    },
-    {
       "path": "tools/review-tracking.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "tools",
       "author": "mikal"
     },
     {
@@ -753,27 +713,11 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
-      "author": "mikal"
-    },
-    {
       "path": "templates/renovate/renovate.yml",
       "author": "mikal"
     },
     {
       "path": "templates/renovate",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/review-tracking.py",
       "author": "mikal"
     },
     {

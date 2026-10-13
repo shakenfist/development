@@ -65,10 +65,6 @@
       "sha": "dab99349ea1867e984ae0e5fc73f70ec00cb519b",
       "date": "2026-10-02"
     },
-    ".github/workflows/prune-reviews.yml": {
-      "sha": "7fc119ce46252ba56037d99ddf90ea9dc180e3b8",
-      "date": "2026-09-27"
-    },
     ".github/workflows/renovate.yml": {
       "sha": "d63b3b2872578eb241b9749d162312260dc8e8bd",
       "date": "2026-10-09"
@@ -437,10 +433,6 @@
       "sha": "cc6bcdab6674b2c7c135fa9e59bebdb88b8576f6",
       "date": "2026-09-04"
     },
-    "scripts/review-tracking.py": {
-      "sha": "019a9126f30367ac4bdbe89cec1044720013cf27",
-      "date": "2026-10-09"
-    },
     "scripts/tests/__init__.py": {
       "sha": "531d26fbe639291831bc7dff3a4959a702b09fe8",
       "date": "2026-09-04"
@@ -468,10 +460,6 @@
     "scripts/tests/test_check_audit_smoke.py": {
       "sha": "fd95a25234c5e94659d422be80bdee1278e78fcf",
       "date": "2026-10-05"
-    },
-    "scripts/tests/test_ci_prune_reviews.py": {
-      "sha": "4e0381abe43a6004c1e267cc5e630c2e30d1a70c",
-      "date": "2026-09-27"
     },
     "scripts/tests/test_docs_content.py": {
       "sha": "f2f1490100c7f144e6a41feaae9c65c5e30f9c54",
@@ -528,14 +516,6 @@
     "scripts/tests/test_repo.py": {
       "sha": "89987f23cb42ec217670bda7881661ecdd8b0614",
       "date": "2026-09-22"
-    },
-    "scripts/tests/test_review.py": {
-      "sha": "93079587c44eb79cca3c705e283ee755bffcf360",
-      "date": "2026-09-26"
-    },
-    "scripts/tests/test_review_tracking.py": {
-      "sha": "a349dadb49e0b841f151b3616354a7158cf0bab5",
-      "date": "2026-10-09"
     },
     "templates/ci-review-automation/README.md": {
       "sha": "086d654adc49954ae423fae08757c4d49843e01b",
@@ -645,18 +625,6 @@
       "sha": "d63b3b2872578eb241b9749d162312260dc8e8bd",
       "date": "2026-10-09"
     },
-    "templates/review-tracking/README.md": {
-      "sha": "6b24f5a5c6c00c82778c3370201f8818e5d59fab",
-      "date": "2026-09-27"
-    },
-    "templates/review-tracking/ci-prune-reviews.sh": {
-      "sha": "cb496c3933ea26aa855b91eb7b8927aa5597e263",
-      "date": "2026-09-27"
-    },
-    "templates/review-tracking/prune-reviews.yml": {
-      "sha": "7fc119ce46252ba56037d99ddf90ea9dc180e3b8",
-      "date": "2026-09-27"
-    },
     "templates/review-tracking/review-tracking.sh": {
       "sha": "db83f953a7b90229111cf75bd24504a19a032c2f",
       "date": "2026-09-27"
@@ -760,10 +728,6 @@
     "tools/audit-snapshot.sh": {
       "sha": "9d7efbf68a9f510b036f0db47cff860b635bb41f",
       "date": "2026-09-04"
-    },
-    "tools/ci-prune-reviews.sh": {
-      "sha": "cb496c3933ea26aa855b91eb7b8927aa5597e263",
-      "date": "2026-09-27"
     },
     "tools/mermaid-lint.sh": {
       "sha": "22f14bf915f76875950bb5589212b55ab0a91db1",
