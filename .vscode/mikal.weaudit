@@ -795,6 +795,126 @@
     {
       "path": "scripts/audit-update-docs.py",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/distros.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_distros.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_ci_workflows.py",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/review-tracking/prune-reviews.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/review-tracking.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/code-review-tracking.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_ci_prune_reviews.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/ci_workflows.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/files.py",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/prune-reviews.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/review-tracking/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/review-tracking/ci-prune-reviews.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/review-tracking",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_runners.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci-prune-reviews.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/merge-group-cancellation.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_review_tracking.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_registry.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/eol-distro.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/runners.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/scope.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/expensive-lane-path-filter.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/ci-review-automation.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/workflows.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/workflow-standards.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
