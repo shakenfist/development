@@ -3295,6 +3295,10 @@ PUSH_AUDIT_BLOCK_RULES = {
     'not in the status cell': '`Status` column keeps',
     'one commit is not a range': 'only ever enough when it is a merge commit',
     'complete plans are not reopened': 'not reopened to acquire',
+    'no runbook still has a floor': 'at least the checklist below',
+    'unattended work reports failure': 'reports its own failure',
+    'removals are checked by grep': 'with the greps stated',
+    'publishing fails closed': 'fails closed',
 }
 
 
