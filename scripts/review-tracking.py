@@ -323,7 +323,15 @@ def load_imports():
     sees an imported entry. Nothing in this file was marked in this
     clone, so there is nothing for stamp to stamp or drop.
     """
-    imports, nl = load_json(IMPORTS_PATH, {'version': 1, 'files': {}})
+    try:
+        imports, nl = load_json(IMPORTS_PATH, {'version': 1, 'files': {}})
+    except (ValueError, UnicodeDecodeError) as e:
+        print('review-tracking: WARNING: %s is not valid JSON (%s); ignoring it' % (IMPORTS_PATH, e),
+              file=sys.stderr)
+        imports, nl = {'version': 1, 'files': {}}, True
+    if not isinstance(imports, dict):
+        print('review-tracking: WARNING: %s is not a JSON object; ignoring it' % IMPORTS_PATH, file=sys.stderr)
+        imports = {'version': 1, 'files': {}}
     malformed = drop_malformed_imports(imports)
     return imports, nl, malformed
 
@@ -336,7 +344,8 @@ def drop_malformed_imports(imports):
     which import walks defensively entry by entry, this file is the
     target's own and can be hand-edited: an entry import did not write
     is treated as absent, and import or prune drops it from the file
-    the next time either writes it.
+    the next time either writes it. (A whole file that is not a JSON
+    object, load_imports() treats as empty, with the same result.)
     """
     entries = imports.get('files')
     if not isinstance(entries, dict):
@@ -896,7 +905,8 @@ def reviewed_blobs(source, revision):
     sidecar_suffix = state_suffix + SIDECAR_SUFFIX
     pathspecs = ['.vscode/*' + sidecar_suffix, '.vscode/*' + state_suffix]
 
-    names = git('log', '--format=', '--name-only', revision, '--', *pathspecs, cwd=source).stdout.splitlines()
+    names = git('log', '--full-history', '--format=', '--name-only', revision, '--', *pathspecs,
+                cwd=source).stdout.splitlines()
     reviewers = sorted(set(
         os.path.basename(n)[:-len(sidecar_suffix)] for n in names
         if os.path.dirname(n) == '.vscode' and n.endswith(sidecar_suffix)))
@@ -911,8 +921,12 @@ def reviewed_blobs(source, revision):
     # introduced the attestation rather than a later one repeating it.
     # Each commit's parents are read too: an attestation is introduced
     # at a commit where it qualifies and no parent's state did.
-    walk = git('log', '--reverse', '--date-order', '--format=%H %P', revision, '--', *pathspecs,
-               cwd=source).stdout.splitlines()
+    # --full-history, because git's default simplification follows only
+    # the matching parent of a merge whose review state matches one of
+    # them, and so never walks a review branch merged after main made
+    # the same review -- whose commits introduced it too.
+    walk = git('log', '--full-history', '--reverse', '--date-order', '--format=%H %P', revision, '--',
+               *pathspecs, cwd=source).stdout.splitlines()
     parents = {}
     for line in walk:
         commit, *rest = line.split()
@@ -982,12 +996,22 @@ def attestation_of(entry):
     """Return an imports entry's (sha, reviewer, path, commit), or None if from another source.
 
     The key reviewed_blobs() records in attested, so that an entry can
-    be checked against the history it claims to come from.
+    be checked against the history it claims to come from. An entry
+    naming another repository has no such history -- import reads
+    SOURCE_REPO alone and never writes one -- so it is unsupported like
+    any other entry the history does not vouch for.
     """
     imported = entry['imported']
     if imported['repo'] != SOURCE_REPO:
         return None
     return (entry['sha'], imported['reviewer'], imported['path'], imported['commit'])
+
+
+def unsupported_reason(entry):
+    """Say why an imports entry is not an attestation the source's history holds."""
+    if entry['imported']['repo'] != SOURCE_REPO:
+        return 'it names %s, and imports come from %s alone' % (entry['imported']['repo'], SOURCE_REPO)
+    return '%s history has no such attestation' % SOURCE_REPO
 
 
 def verify_commit(git_dir, commit, identity):
@@ -1150,7 +1174,7 @@ def cmd_import(args):
         if sha is None or sha not in blobs:
             continue
         existing = entries.get(path)
-        if existing is not None and existing.get('sha') == sha and path not in unsupported:
+        if existing is not None and existing['sha'] == sha and path not in unsupported:
             continue
         origin = blobs[sha]
         commit = origin['commit']
@@ -1206,8 +1230,9 @@ def cmd_import(args):
         added.append(path)
         if path in unsupported:
             unsupported.discard(path)
-            print('review-import: WARNING: replaced import of %s: %s history has no such attestation (%s)'
-                  % (path, SOURCE_REPO, json.dumps(existing.get('imported'), sort_keys=True)), file=sys.stderr)
+            print('review-import: WARNING: replaced import of %s: %s (%s)'
+                  % (path, unsupported_reason(existing), json.dumps(existing['imported'], sort_keys=True)),
+                  file=sys.stderr)
         print('review-import: imported %s from %s @ %s (%s, %s, %s)'
               % (path, origin['path'], commit[:SHORT_SHA], origin['reviewer'], origin['date'],
                  'signature verified' if verify else 'signature NOT verified'))
@@ -1225,8 +1250,9 @@ def cmd_import(args):
                   'this run cannot judge them' % (len(kept), SOURCE_REPO, ', '.join(kept)), file=sys.stderr)
     else:
         for path in sorted(unsupported):
-            print('review-import: WARNING: removed import of %s: %s history has no such attestation (%s)'
-                  % (path, SOURCE_REPO, json.dumps(entries[path]['imported'], sort_keys=True)), file=sys.stderr)
+            print('review-import: WARNING: removed import of %s: %s (%s)'
+                  % (path, unsupported_reason(entries[path]), json.dumps(entries[path]['imported'], sort_keys=True)),
+                  file=sys.stderr)
             del entries[path]
             removed.append(path)
 

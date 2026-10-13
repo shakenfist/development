@@ -1403,14 +1403,18 @@ taken from `git log`.
 | 9556eba's report | the checkout's own `.git/config` on a reused workspace is outside the isolation | Declined, added to Future work: landing from a fresh clone would close it |
 
 **5. Follow-up.**
-- The template change (new hashes: `prune-reviews.yml` 7bdc604,
-  `ci-prune-reviews.sh` a16f9d4) must be re-synced into actions,
+- The template change (new hashes: `prune-reviews.yml` 3383bef,
+  `ci-prune-reviews.sh` ff66340) must be re-synced into actions,
   hunkydory, kerbside and ryll. Script and workflow go together,
   because the script now requires `PUSH_TOKEN`.
 - Michael must re-stamp the changed files here before the copies
   import.
 - The config isolation is untested on a real static runner until
-  development's own `prune-reviews` runs after this merges.
+  development's own `prune-reviews` runs after this merges. Ignoring
+  the global configuration also drops any `safe.directory`, proxy or
+  CA setting the runners rely on; if that run fails with "dubious
+  ownership" or a TLS error, add the setting for the checkout through
+  `GIT_CONFIG_COUNT` rather than restoring the global file.
 - The plan reaches `Complete` when the re-sync pull requests
   merge. Until then the success criterion "the three review
   tracking CI files are byte-identical across the four adopted

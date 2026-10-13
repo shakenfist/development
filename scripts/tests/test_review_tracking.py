@@ -1558,6 +1558,39 @@ class ImportTest(unittest.TestCase):
         self.assertIn('replaced import of src/b.py: shakenfist/development history has no such attestation',
                       p.stderr)
 
+    def test_a_review_branch_whose_merge_matches_main_still_attests(self):
+        """Default history simplification would follow main alone through such a merge and never see the branch."""
+        base = self.git(self.source, 'rev-parse', 'HEAD').stdout.strip()
+        self.review_a()
+        self.git(self.source, 'checkout', '-b', 'review-branch', base)
+        self.swrite('templates/b.py', 'b = 2\n')
+        self.git(self.source, 'add', 'templates/b.py')
+        self.git(self.source, 'commit', '-m', 'b')
+        branch = self.review_a()
+        self.git(self.source, 'checkout', 'main')
+        self.git(self.source, 'merge', '--no-ff', '--no-edit', 'review-branch')
+        self.assertEqual(self.git(self.source, 'diff', 'HEAD^1', 'HEAD', '--', '.vscode').stdout, '')
+        self.publish()
+
+        self.forge('src/a.py', branch)
+        before = self.tread(IMPORTS)
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.tread(IMPORTS), before)
+        self.assertNotIn('WARNING', p.stderr)
+
+    def test_an_entry_naming_another_repository_is_removed_and_says_why(self):
+        commit = self.review_a()
+        self.forge('src/a.py', commit)
+        imports = self.imports()
+        imports['files']['src/a.py']['imported']['repo'] = 'someone/else'
+        self.twrite(IMPORTS, json.dumps(imports, indent=2) + '\n')
+        self.tcommit('foreign')
+        p = self.run_import()
+        self.assertIn('replaced import of src/a.py: it names someone/else, and imports come from '
+                      'shakenfist/development alone', p.stderr)
+        self.assertEqual(self.imported()['src/a.py']['imported']['repo'], 'shakenfist/development')
+
     def test_without_gitsign_an_unsupported_entry_is_kept(self):
         commit = self.review_a()
         self.forge('src/b.py', commit)
@@ -1774,6 +1807,21 @@ class ImportTest(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertIn('"files" is not an object; ignoring it', p.stderr)
         self.assertEqual(sorted(self.imported()), ['src/a.py'])
+
+    def test_an_imports_file_that_is_not_an_object_or_not_json_is_ignored(self):
+        for content, warning in (('[]\n', 'is not a JSON object; ignoring it'),
+                                 ('{"files": \n', 'is not valid JSON')):
+            with self.subTest(content=content):
+                self.twrite(IMPORTS, content)
+                self.tcommit('hand edit')
+                p = self.run_tool('prune')
+                self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+                self.assertIn(warning, p.stderr)
+                self.review_a()
+                p = self.run_import()
+                self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+                self.assertNotIn('Traceback', p.stderr)
+                self.assertEqual(sorted(self.imported()), ['src/a.py'])
 
     def test_stamp_ignores_the_imports_file(self):
         self.review_a()

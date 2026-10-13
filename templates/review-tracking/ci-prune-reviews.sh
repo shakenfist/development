@@ -154,13 +154,19 @@ check_state_is_committable() {
 # rather than git add: in a repository that ignores .vscode/ outright,
 # git add refuses the directory before check_state_is_committable can
 # say why, and staging would also need deleted and untracked paths
-# handled separately.
+# handled separately. Only what exists is copied, so that a prune
+# that left no .vscode or REVIEWS.md is put back as it was: restore
+# removes both before copying the saved state over.
 save_prune_result() {
-    local saved="${RUNNER_TEMP}/after-prune"
+    local saved="${RUNNER_TEMP}/after-prune" path
 
     rm -rf "${saved}"
     mkdir -p "${saved}"
-    cp -a .vscode REVIEWS.md "${saved}/"
+    for path in .vscode REVIEWS.md; do
+        if [ -e "${path}" ]; then
+            cp -a "${path}" "${saved}/"
+        fi
+    done
 }
 
 restore_prune_result() {
@@ -230,7 +236,7 @@ land() {
         # discarded when the workspace is next cleaned.
         if [ -z "$(git status --porcelain -- .vscode/ REVIEWS.md)" ]; then
             echo 'No review marks to prune or import.'
-            finish
+            finish "${import_rc}"
         fi
 
         git add .vscode/ REVIEWS.md
@@ -240,7 +246,7 @@ Automated commit by the prune-reviews workflow.'
 
         if push_output="$(push_review_state 2>&1)"; then
             echo "${push_output}"
-            finish
+            finish "${import_rc}"
         fi
         echo "${push_output}" >&2
         case "${push_output}" in
@@ -291,7 +297,10 @@ push_review_state() {
 # or found nothing to put there. It succeeds unless that state is
 # prune's alone because import failed, in which case the failure that
 # land reported when it happened is repeated last, where it is seen.
+# Takes import's exit status from the last attempt.
 finish() {
+    local import_rc="$1"
+
     if [ "${import_rc}" -ne 0 ]; then
         echo "ERROR: review-tracking.sh import failed with exit ${import_rc}, so nothing was" >&2
         echo "imported; prune's result, if it had one, has landed. See import's output above." >&2

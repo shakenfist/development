@@ -979,8 +979,9 @@ those commits is supported. An entry whose `sha`, `imported.reviewer`,
 `imported.path` and `imported.commit` are not one of them -- one
 written by hand, or one pointing at a commit that is not on
 `origin/main` or merely carries a review forward, such as a prune or
-the merge of a review branch -- is replaced by a real import of the
-same content if there is one, and otherwise removed, with a warning on
+the merge of a review branch, or one naming a repository other than
+shakenfist/development -- is replaced by a real import of the same
+content if there is one, and otherwise removed, with a warning on
 stderr either way. Entries imported under `--no-verify` are checked
 the same way and kept when history supports them. A run that cannot
 judge an entry keeps it and says so: one without gitsign, one that has
@@ -991,7 +992,8 @@ An entry not shaped as `import` writes it -- not an object, or missing
 a string `sha` or a string `repo`, `reviewer`, `path` or `commit`
 under `imported` -- is ignored with a warning by every command that
 reads the imports file, and dropped from it the next time `import` or
-`prune` writes it.
+`prune` writes it. A file that is not valid JSON, or not a JSON
+object, is treated as empty the same way.
 
 A native review always supersedes an import: if a reviewer marks a
 file that already carries an imported entry, `import` removes its
