@@ -334,31 +334,34 @@ repository and passes through to the script.
    The job-level form uses a `check_paths` job running
    `dorny/paths-filter` to compute whether anything outside the
    review paths changed, and gates the real job on that output with
-   `needs:` and `if:`. hunkydory's
-   [`codeql-analysis.yml`](https://github.com/shakenfist/hunkydory/blob/develop/.github/workflows/codeql-analysis.yml)
-   is the worked example: `Analyze` is a required check on
-   hunkydory's default branch, so pull requests skip it at the job
-   level rather than with a trigger-level filter, while `push`
-   carries no required check and keeps `paths-ignore` directly
-   (trimmed). The fleet's CodeQL template,
+   `needs:` and `if:`. The fleet's CodeQL template,
    [`templates/codeql/codeql-analysis.yml`](https://github.com/shakenfist/development/blob/main/templates/codeql/codeql-analysis.yml),
-   has the same shape and also skips `docs/**` and fork pull
-   requests:
+   is the worked example, and hunkydory runs it unchanged:
+   `Analyze` is a required check on hunkydory's default branch, so
+   pull requests skip it at the job level rather than with a
+   trigger-level filter, while `push` carries no required check and
+   keeps `paths-ignore` directly. Besides the review paths it skips
+   `docs/**`, and it does not analyse fork pull requests at all
+   (trimmed; the template's comments say why each condition is
+   there):
 
    ```yaml
    on:
      push:
-       branches: [develop]
+       branches: [main, develop]
        paths-ignore:
          - 'REVIEWS.md'
          - '.vscode/*.weaudit'
          - '.vscode/*.weaudit-shas.json'
          - '.vscode/review-scope.toml'
+         - 'docs/**'
      pull_request:
-       branches: [develop]
+       branches: [main, develop]
+     # ... and a weekly schedule
 
    jobs:
      check_paths:
+       # ... name, runner and timeout
        permissions:
          pull-requests: read
        outputs:
@@ -376,12 +379,17 @@ repository and passes through to the script.
                  - '!.vscode/*.weaudit'
                  - '!.vscode/*.weaudit-shas.json'
                  - '!.vscode/review-scope.toml'
+                 - '!docs/**'
 
      analyze:
+       name: Analyze
        needs: [check_paths]
        if: |
          !cancelled()
          && needs.check_paths.outputs.code_changed != 'false'
+         && (github.event_name != 'pull_request'
+             || github.event.pull_request.head.repo.full_name == github.repository)
+       # ... runner, concurrency and permissions
        steps:
          - uses: actions/checkout@v7
          # ... the rest of the analysis
@@ -412,6 +420,12 @@ repository and passes through to the script.
      because its own dependency failed still reads as green to the
      merge gate. `!cancelled()` forces `analyze`'s own `if:` to be
      evaluated instead of inheriting that failure as a silent pass.
+   * The fork guard is specific to CodeQL's autobuild, which runs the
+     pull request's own build on the shared static runners. A fork's
+     pull request skips `analyze`, which satisfies the required check,
+     so its change is scanned by the push after it merges rather than
+     before. A workflow whose job runs nothing from the pull request
+     does not need the clause.
 
    Which mechanism a given workflow needs is a property of whether
    it backs a required status check, not of what kind of workflow it
