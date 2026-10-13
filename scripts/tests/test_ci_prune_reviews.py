@@ -128,7 +128,7 @@ SHA256SUM_STUB = '''#!/bin/bash
 exit "${PRUNE_TEST_SHA256_RC:-0}"
 '''
 
-UNAME_STUB = '#!/bin/sh\necho x86_64\n'
+UNAME_STUB = '#!/bin/sh\necho "${PRUNE_TEST_ARCH:-x86_64}"\n'
 
 # Wraps the real git. It logs each call, one line apiece: the
 # arguments (newlines escaped, since a commit message has them), then
@@ -569,6 +569,22 @@ class CiPruneReviewsTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn('does not list', result.stderr)
         self.assertEqual(self.read_log('review'), [])
+        self.assertEqual(self.tip(), before)
+
+    def test_a_runner_that_is_not_x86_64_is_refused(self):
+        """The pinned digest is the linux_amd64 binary's, so nothing else could be installed."""
+        before = self.make_repository()
+        result = self.run_script(PRUNE_TEST_IMPORT='1', PRUNE_TEST_ARCH='aarch64')
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('This script installs the linux_amd64 gitsign, but this runner is aarch64.', result.stderr)
+        # Refused before any download, clone, fetch or push.
+        self.assertEqual(self.read_log('curl'), [])
+        self.assertEqual(self.read_log('sha256'), [])
+        self.assertEqual(self.read_log('review'), [])
+        self.assertEqual([call['argv'] for call in self.git_calls()],
+                         ['-C %s rev-parse --show-toplevel' % os.path.join(self.checkout, 'tools')])
+        self.assertFalse(os.path.exists(os.path.join(self.env['RUNNER_TEMP'], 'development')))
+        self.assertFalse(os.path.exists(os.path.join(self.env['RUNNER_TEMP'], 'gitsign')))
         self.assertEqual(self.tip(), before)
 
     def test_a_binary_that_does_not_hash_to_the_digest_fails(self):
