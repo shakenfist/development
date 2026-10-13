@@ -611,7 +611,7 @@ this phase must not start until phase 2's ruleset is live.
 |------|--------|-------|-----------|---------------------|
 | 5a | high | opus | none | Classify every template directory under `templates/` except `shared-blocks/` and `renovate/` (which `PLAN-renovate-cadence.md` centralises). For each workflow file, fetch every live copy from each fleet repository's default branch through the GitHub API (local clones are stale), diff each one against the template, and sort the differences into drift and legitimate per-repository adaptation, citing the lines. Then decide one of three outcomes and say why: a reusable workflow in `actions`, a composite action in `actions` (when the steps need the caller's checkout or ship a script), or the template stays a template (when the differences are legitimate and cannot be expressed as `with:` inputs). For each repository and template, record which required status-check contexts its ruleset and merge queue name, because wrapping renames them. Write the result into this section as a table, and order the rollout by drift multiplied by copy count. Make no changes outside this plan file. |
 | 5b | high | opus | worktree | Pilot on `mermaid-lint` (6 copies, ships `mermaid-lint.sh`, runs on a docker-capable runner). In `shakenfist/actions`, add the composite action or reusable workflow 5a chose, carrying the script. Reduce `templates/mermaid-lint/mermaid-lint.yml` to the caller stub, update `templates/mermaid-lint/README.md`, and change the `mermaid-lint-ci` criterion (`scripts/audit/checks/docs_content.py:444`, which today requires `MERMAID_LINT_SCRIPT = 'tools/mermaid-lint.sh'` at `:143`) so it requires the caller (`uses: shakenfist/actions/...@main` with the documented inputs) and no longer requires `tools/mermaid-lint.sh`, with pass, fail and stale-copy tests. Convert this repository's own copy first, then roll out one pull request per repository, updating each repository's required-check names in the same step. Record each landing in this section. |
-| 5c | medium | sonnet | none | Add a test under `scripts/tests/` asserting that every template 5a classified as shared is a caller stub: it calls `shakenfist/actions` at `@main`, and it has no `run:` steps of its own. Then document the convention, that a template meant to be identical everywhere is a caller and anything else says in its README why it is not, in `docs/consistency-audits.md` beside its description of templates (there is no `templates/README.md`). Mention it in `AGENTS.md` only as a one-line pointer, because it is a convention change. |
+| 5c | medium | sonnet | none | Add a test under `scripts/tests/` asserting that every template 5a classified as shared is a caller stub: it calls `shakenfist/actions` at `@main`, and it has no `run:` steps of its own. Then document the convention, that a template meant to be identical everywhere is a caller and anything else says in its README why it is not, in `docs/consistency-audits.md` beside its description of templates (there is no `templates/README.md`). Mention it in `AGENTS.md` only as a one-line pointer, because it is a convention change. This step closes #151: with 5b, it answers that issue's question of whether template directories should carry a staleness marker like the shared blocks' `vN`, by removing the copies rather than versioning them, so put "Fixes #151" in the body of whichever pull request lands 5c. |
 | 5d | medium | sonnet | worktree | For each remaining template in 5a's rollout order, repeat 5b's shape: callee in `actions`, stub template, criterion change with tests, then one pull request per repository using the `consistency-fix` skill, with required checks updated in the same step. Each template is its own pull request in this repository, and its landing is recorded here. |
 
 ### Phase 6: push audit
@@ -1166,6 +1166,14 @@ Related issues, as of writing:
 - #153 is the issue this plan closes.
 - #211 replaces `DEPENDENCIES_TOKEN`, the residual from open
   question 1.
+- #151 (templates/mermaid-lint/ has no staleness mechanism) is
+  closed by phase 5: 5b removes the only copied mermaid-lint
+  script, and 5c makes "a caller, or a README saying why not" the
+  answer for every template. On 2026-10-13 the
+  `tools/mermaid-lint.sh` copies in instar, occystrap and
+  shakenfist lagged the template's exclusion-file hardening,
+  the drift this phase removes; they were re-synchronised
+  directly rather than left waiting for phase 5.
 - #88 (standardise renovate groupings) interacts with open
   question 4's grouping rule.
 - #58 (Dependency Dashboard) is where phase 3a's pinning pull
