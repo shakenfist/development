@@ -765,7 +765,11 @@ def parse_state(raw):
 
     A commit in the source's history holding a file that is not valid
     JSON (a botched merge, say) attests to nothing; it is skipped rather
-    than allowed to stop every import across the fleet.
+    than allowed to stop every import across the fleet. Valid JSON of
+    the wrong shape inside the object is the walk's to skip, entry by
+    entry (full_marks(), and the stamp checks in reviewed_blobs()):
+    the history is permanent, so one malformed entry that raised would
+    break every adopted repository's import until the code changed.
     """
     if raw is None:
         return None
@@ -774,6 +778,18 @@ def parse_state(raw):
     except ValueError:
         return None
     return data if isinstance(data, dict) else None
+
+
+def full_marks(state):
+    """Return the set of paths a historical state file marks as fully reviewed.
+
+    Entries that are not an object with a string path are skipped, as
+    is an auditedFiles that is not a list (see parse_state()).
+    """
+    audited = state.get('auditedFiles')
+    if not isinstance(audited, list):
+        return set()
+    return set(e['path'] for e in audited if isinstance(e, dict) and isinstance(e.get('path'), str))
 
 
 def source_revision(source):
@@ -854,10 +870,13 @@ def reviewed_blobs(source, revision):
             state = parse_state(contents['%s:.vscode/%s%s' % (commit, reviewer, state_suffix)])
             if sidecar is None or state is None:
                 continue
-            full = set(e.get('path') for e in state.get('auditedFiles', []) or [] if isinstance(e, dict))
-            for path, stamp in sorted((sidecar.get('files') or {}).items()):
+            full = full_marks(state)
+            stamps = sidecar.get('files')
+            if not isinstance(stamps, dict):
+                continue
+            for path, stamp in sorted(stamps.items()):
                 sha = stamp.get('sha') if isinstance(stamp, dict) else None
-                if not sha or sha in blobs or path not in full:
+                if not isinstance(sha, str) or not sha or sha in blobs or path not in full:
                     continue
                 # Only fetched when something new would otherwise
                 # qualify, which is a small fraction of the commits.
@@ -866,8 +885,9 @@ def reviewed_blobs(source, revision):
                     trees[commit] = set(f for f in listing.split('\0') if f)
                 if is_dir_entry(path, trees[commit]):
                     continue
+                date = stamp.get('date')
                 blobs[sha] = {'reviewer': reviewer, 'path': path, 'commit': commit,
-                              'date': stamp.get('date', '-')}
+                              'date': date if isinstance(date, str) else '-'}
     return blobs
 
 

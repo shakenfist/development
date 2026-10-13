@@ -1029,6 +1029,65 @@ class ImportTest(unittest.TestCase):
         self.assertEqual(entry['imported']['commit'], full)
         self.assertEqual(entry['date'], '2026-01-02')
 
+    # Malformed history. Valid JSON of the wrong shape in any commit of
+    # the source's history must be skipped, not raise: the history is
+    # permanent, so a crash would stop every adopted repository's import.
+
+    def assert_malformed_commit_is_skipped(self, state, sidecar):
+        """Commit raw state and sidecar JSON, then a good review; import must take the good one."""
+        self.swrite('templates/a.py', 'a = 1\n')
+        sha = self.git(self.source, 'hash-object', 'templates/a.py').stdout.strip()
+        self.swrite('.vscode/mikal.weaudit', json.dumps(state(sha)))
+        self.swrite('.vscode/mikal.weaudit-shas.json', json.dumps(sidecar(sha)))
+        self.git(self.source, 'add', '-A')
+        self.git(self.source, 'commit', '-m', 'malformed')
+        self.publish()
+        good = self.source_review({'templates/a.py': '2026-01-02'})
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertNotIn('Traceback', p.stderr)
+        self.assertEqual(self.imported()['src/a.py']['imported']['commit'], good)
+
+    def good_state(self, sha):
+        return make_weaudit(['templates/a.py'], author='mikal')
+
+    def good_sidecar(self, sha):
+        return {'version': 1, 'files': {'templates/a.py': {'sha': sha, 'date': '2026-01-01'}}}
+
+    def test_audited_files_that_is_not_a_list_is_skipped(self):
+        self.assert_malformed_commit_is_skipped(lambda sha: dict(self.good_state(sha), auditedFiles=5),
+                                                self.good_sidecar)
+
+    def test_an_audited_entry_whose_path_is_not_a_string_is_skipped(self):
+        def state(sha):
+            data = self.good_state(sha)
+            data['auditedFiles'] = [{'path': ['templates/a.py'], 'author': 'mikal'}]
+            return data
+        self.assert_malformed_commit_is_skipped(state, self.good_sidecar)
+
+    def test_sidecar_files_that_is_not_an_object_is_skipped(self):
+        self.assert_malformed_commit_is_skipped(self.good_state,
+                                                lambda sha: {'version': 1, 'files': [['templates/a.py', sha]]})
+
+    def test_a_stamp_whose_sha_is_not_a_string_is_skipped(self):
+        self.assert_malformed_commit_is_skipped(
+            self.good_state, lambda sha: {'version': 1, 'files': {'templates/a.py': {'sha': [sha]}}})
+
+    def test_a_stamp_whose_date_is_not_a_string_is_imported_undated(self):
+        self.swrite('templates/a.py', 'a = 1\n')
+        sha = self.git(self.source, 'hash-object', 'templates/a.py').stdout.strip()
+        self.swrite('.vscode/mikal.weaudit', json.dumps(self.good_state(sha)))
+        self.swrite('.vscode/mikal.weaudit-shas.json',
+                    json.dumps({'version': 1, 'files': {'templates/a.py': {'sha': sha, 'date': {'y': 2026}}}}))
+        self.git(self.source, 'add', '-A')
+        self.git(self.source, 'commit', '-m', 'odd date')
+        self.publish()
+        commit = self.git(self.source, 'rev-parse', 'HEAD').stdout.strip()
+        p = self.run_import()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.imported()['src/a.py']['imported']['commit'], commit)
+        self.assertEqual(self.imported()['src/a.py']['date'], '-')
+
     def test_the_earliest_of_two_paths_reviewing_a_blob_wins(self):
         self.swrite('first/a.py', 'a = 1\n')
         first = self.source_review({'first/a.py': '2026-01-01'})
