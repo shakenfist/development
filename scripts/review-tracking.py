@@ -23,13 +23,15 @@ development repository and passes through to this script:
   content no longer matches the stamped blob SHA, then regenerate
   REVIEWS.md. Run after a pull, merge, or rebase; always exits zero.
 - import: mark as reviewed every in-scope file whose blob at HEAD was
-  fully reviewed in the clone of shakenfist/development this script
-  lives in, recording where the signed attestation lives in
-  .vscode/imports.weaudit-shas.json, then regenerate REVIEWS.md. Never
-  writes a reviewer's own state file or sidecar. Run in that clone
-  itself, or a worktree of it, it says so and does nothing. Always
-  exits zero, except that it refuses to run beside a stray
-  .vscode/imports.weaudit.
+  fully reviewed on origin/main of the clone of shakenfist/development
+  this script lives in, recording where the signed attestation lives
+  in .vscode/imports.weaudit-shas.json, then regenerate REVIEWS.md.
+  Never writes a reviewer's own state file or sidecar. Run in that
+  clone itself, or a worktree of it, it says so and does nothing.
+  Exits zero whether or not it imported anything -- a review it cannot
+  verify is skipped with a warning, not an error -- and exits 1 when
+  git cannot identify the target or source repository, or when it
+  refuses to run beside a stray .vscode/imports.weaudit.
 - regen: regenerate REVIEWS.md from the current state.
 - next: pick a random in-scope file with no current review mark and
   open it in VSCode; with order = 'listed' in the scope config, the
