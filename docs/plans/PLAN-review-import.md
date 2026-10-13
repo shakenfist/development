@@ -1401,6 +1401,8 @@ taken from `git log`.
 | 5b-6 | published details string changed | No action: intentional |
 | 5c, second | verified-to-unverified downgrade protection is incidental | No action: the property holds |
 | 9556eba's report | the checkout's own `.git/config` on a reused workspace is outside the isolation | Declined, added to Future work: landing from a fresh clone would close it |
+| #251 review, round one | an entry pointing at a later genuine introduction of a review was replaced as unsupported; malformed imports entries crashed import | Fixed: every introducing commit attests, and `load_imports()` checks the file's shape in one place (559e9ef) |
+| #251 review, round two | default history simplification hid review branches whose merge matched main | Fixed: the walk uses `--full-history`; an invalid or non-object imports file is treated as empty (c61040f) |
 
 **5. Follow-up.**
 - The template change (new hashes: `prune-reviews.yml` 3383bef,
@@ -1415,6 +1417,8 @@ taken from `git log`.
   CA setting the runners rely on; if that run fails with "dubious
   ownership" or a TLS error, add the setting for the checkout through
   `GIT_CONFIG_COUNT` rather than restoring the global file.
+  The re-sync pull requests open only after that run has succeeded,
+  so that a runner dependency is found in one repository, not five.
 - The plan reaches `Complete` when the re-sync pull requests
   merge. Until then the success criterion "the three review
   tracking CI files are byte-identical across the four adopted
