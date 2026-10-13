@@ -743,11 +743,12 @@ review marks.`, which committed nothing).
 
 The job runs on shared, long-lived static runners that also run pull
 request code, so it trusts as little as it can of what an earlier job
-could have left there. It ignores global and system git configuration,
-gives gitsign a fresh TUF cache on every run, keeps no credentials in
-the checkout, and hands the push token to its one `git push` alone,
-through the environment rather than argv or `.git/config`. "Runner
-isolation" in
+could have left there. It runs no git command in the reused workspace,
+landing instead from a fresh clone in `RUNNER_TEMP`; it ignores global
+and system git configuration, gives gitsign a fresh TUF cache on every
+run, keeps no credentials in either the checkout or the clone, and
+hands the push token to its one `git push` alone, through the
+environment rather than argv or `.git/config`. "Runner isolation" in
 [templates/review-tracking/README.md](https://github.com/shakenfist/development/blob/main/templates/review-tracking/README.md#runner-isolation)
 has the detail.
 
