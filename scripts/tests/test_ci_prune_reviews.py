@@ -41,15 +41,21 @@ COMMIT_MESSAGE = 'Prune and import review marks.\n\nAutomated commit by the prun
 
 # Stands in for tools/review-tracking.sh. It logs each subcommand with
 # the HEAD it ran against; prune generates REVIEWS.md if it is missing,
-# as the real one regenerates it; import writes the imports file from HEAD
-# when asked to import anything; and import can push a concurrent
-# commit to origin, a set number of times, which is the race the
-# landing loop exists for.
+# as the real one regenerates it, and when asked to prune something
+# empties the reviewer's sidecar and rewrites REVIEWS.md; import writes
+# the imports file from HEAD when asked to import anything; import can
+# push a concurrent commit to origin, a set number of times, which is
+# the race the landing loop exists for; and after all that import can
+# fail, a set number of times, having scribbled on REVIEWS.md.
 REVIEW_TRACKING_STUB = '''#!/bin/bash
 set -e
 echo "$1 $(git rev-parse HEAD)" >> "${PRUNE_TEST_LOG}"
 if [ "$1" = 'prune' ] && [ ! -e REVIEWS.md ]; then
     echo '# Reviews' > REVIEWS.md
+fi
+if [ "$1" = 'prune' ] && [ -n "${PRUNE_TEST_PRUNE:-}" ]; then
+    echo '{"pruned": true}' > .vscode/mikal.weaudit-shas.json
+    echo '# Reviews, pruned' > REVIEWS.md
 fi
 if [ "$1" != 'import' ]; then
     exit 0
@@ -67,6 +73,13 @@ if [ "${races}" -gt 0 ]; then
     git -C "${other}" commit --quiet -m 'A concurrent merge.'
     git -C "${other}" push --quiet origin "HEAD:${DEFAULT_BRANCH}"
     rm -rf "${other}"
+fi
+failures="$(cat "${PRUNE_TEST_IMPORT_FAILURES}")"
+if [ "${failures}" -gt 0 ]; then
+    echo "$((failures - 1))" > "${PRUNE_TEST_IMPORT_FAILURES}"
+    echo 'half an import' >> REVIEWS.md
+    echo 'Traceback: import fell over' >&2
+    exit 3
 fi
 '''
 
@@ -153,8 +166,10 @@ class CiPruneReviewsTest(unittest.TestCase):
         self.expected = '%s  %s' % (digest, self.asset)
         self.checksums = os.path.join(self.tmp, 'checksums.txt')
         self.races = os.path.join(self.tmp, 'races')
+        self.import_failures = os.path.join(self.tmp, 'import-failures')
         self.set_checksums(['0' * 64 + '  gitsign_%s_darwin_amd64' % version, self.expected])
         self.set_races(0)
+        self.set_import_failures(0)
 
         self.logs = {name: os.path.join(logs, name) for name in ('review', 'curl', 'sha256', 'sleep')}
         self.env.update({
@@ -167,6 +182,7 @@ class CiPruneReviewsTest(unittest.TestCase):
             'PRUNE_TEST_SLEEP_LOG': self.logs['sleep'],
             'PRUNE_TEST_CHECKSUMS': self.checksums,
             'PRUNE_TEST_RACES': self.races,
+            'PRUNE_TEST_IMPORT_FAILURES': self.import_failures,
             'PRUNE_TEST_ORIGIN': self.origin,
         })
         os.makedirs(self.env['RUNNER_TEMP'])
@@ -186,6 +202,9 @@ class CiPruneReviewsTest(unittest.TestCase):
 
     def set_races(self, count):
         _write(self.races, '%d\n' % count)
+
+    def set_import_failures(self, count):
+        _write(self.import_failures, '%d\n' % count)
 
     def make_repository(self, gitignore=None, reviews_md=True, pre_receive=None):
         """An origin holding an adopted repository, and the runner's checkout of it."""
@@ -216,6 +235,9 @@ class CiPruneReviewsTest(unittest.TestCase):
         self.git('-C', other, 'commit', '-q', '-m', 'A merge.')
         self.git('-C', other, 'push', '-q', 'origin', 'HEAD:%s' % BRANCH)
         return self.tip()
+
+    def show(self, rev, path):
+        return self.git('--git-dir', self.origin, 'show', '%s:%s' % (rev, path))
 
     def tip(self):
         return self.git('--git-dir', self.origin, 'rev-parse', BRANCH)
@@ -317,6 +339,50 @@ class CiPruneReviewsTest(unittest.TestCase):
         self.assertEqual(self.read_log('sleep'), [])
         self.assertEqual(len([line for line in self.read_log('review') if line.startswith('import ')]), 1)
         self.assertEqual(self.tip(), before)
+
+    def test_a_failed_import_still_lands_prunes_result(self):
+        """Prune is what stops a changed file reading as reviewed, so an import failure must not lose it."""
+        before = self.make_repository()
+        self.set_import_failures(1)
+        result = self.run_script(PRUNE_TEST_PRUNE='1', PRUNE_TEST_IMPORT='1')
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('Traceback: import fell over', result.stderr)
+        self.assertIn('import failed with exit 3. Discarding', result.stderr)
+        # Said again last, after the push, where a reader of the log looks.
+        self.assertTrue(result.stderr.rstrip().endswith("has landed. See import's output above."),
+                        result.stderr)
+
+        tip = self.tip()
+        self.assertEqual(self.git('--git-dir', self.origin, 'rev-parse', tip + '^'), before)
+        self.assertEqual(self.message(tip), COMMIT_MESSAGE)
+        self.assertEqual(self.show(tip, '.vscode/mikal.weaudit-shas.json'), '{"pruned": true}')
+        # What the failed import wrote is not landed with it.
+        self.assertEqual(self.show(tip, 'REVIEWS.md'), '# Reviews, pruned')
+        self.assertNotIn('imports.weaudit-shas.json',
+                         self.git('--git-dir', self.origin, 'ls-tree', '-r', '--name-only', tip))
+
+    def test_a_failed_import_with_nothing_pruned_still_fails(self):
+        before = self.make_repository()
+        self.set_import_failures(1)
+        result = self.run_script(PRUNE_TEST_IMPORT='1')
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('No review marks to prune or import.', result.stdout)
+        self.assertIn('import failed with exit 3', result.stderr)
+        self.assertEqual(self.tip(), before)
+
+    def test_an_import_that_recovers_on_a_retry_lands_everything(self):
+        """Only the last attempt's import counts."""
+        self.make_repository()
+        self.set_races(1)
+        self.set_import_failures(1)
+        result = self.run_script(PRUNE_TEST_PRUNE='1', PRUNE_TEST_IMPORT='1')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Landing attempt 1 of 3 was rejected; retrying.', result.stdout)
+        tip = self.tip()
+        concurrent = self.git('--git-dir', self.origin, 'rev-parse', tip + '^')
+        self.assertEqual(self.message(concurrent), 'A concurrent merge.')
+        self.assertEqual(self.show(tip, '.vscode/imports.weaudit-shas.json'), concurrent)
+        self.assertEqual(self.show(tip, '.vscode/mikal.weaudit-shas.json'), '{"pruned": true}')
 
     def test_a_gitignored_reviews_md_fails_the_run(self):
         """A REVIEWS.md ignored before it was first generated can never be committed either."""

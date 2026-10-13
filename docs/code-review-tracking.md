@@ -727,9 +727,12 @@ up to three attempts fetches the branch, resets to its tip, runs
 `prune` and `import` there, and pushes. Everything in the commit is
 derived from the tree beneath it, so a merge that lands mid-run
 costs a retry, never a conflict, and the retry also prunes the marks
-that merge made stale. A concurrency group serialises the
-workflow's own runs, and the loop terminates either way:
-a repository that can push with the default `GITHUB_TOKEN` never
+that merge made stale. If `import` fails, the run discards whatever
+it wrote, lands `prune`'s result alone, and only then fails: `prune`
+is what stops a changed file reading as reviewed, so an import bug
+must not hold it up, but it must not pass unnoticed either. A
+concurrency group serialises the workflow's own runs, and the loop
+terminates either way: a repository that can push with the default `GITHUB_TOKEN` never
 retriggers the workflow at all, while one whose ruleset forces a
 PAT instead -- as ryll's does, since develop requires a pull
 request before merging and GitHub will not accept the built-in

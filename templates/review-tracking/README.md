@@ -14,7 +14,7 @@ why an unsigned bot commit may do either, is in
 | File | Destination | Description |
 |------|-------------|-------------|
 | `prune-reviews.yml` | `.github/workflows/prune-reviews.yml` | Runs the script on push, daily, and on dispatch, on the default branch only |
-| `ci-prune-reviews.sh` | `tools/ci-prune-reviews.sh` | Installs gitsign, clones this repository, runs `prune` then `import` against the branch tip, and lands the result, regenerating it on a new tip if a push is rejected |
+| `ci-prune-reviews.sh` | `tools/ci-prune-reviews.sh` | Installs gitsign, clones this repository, runs `prune` then `import` against the branch tip, and lands the result, regenerating it on a new tip if a push is rejected; if `import` fails, it lands `prune`'s result alone and then fails the run |
 | `review-tracking.sh` | `tools/review-tracking.sh` | The by-hand wrapper: finds a clone of this repository and passes its arguments to `scripts/review-tracking.py` |
 
 All three copy directly, with no per-project substitution, and must

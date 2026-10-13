@@ -104,6 +104,25 @@ check_state_is_committable() {
     fi
 }
 
+# Keep a copy of the review state as prune left it, for land to put
+# back if import fails part way through writing. A copy of the files
+# rather than git add: in a repository that ignores .vscode/ outright,
+# git add refuses the directory before check_state_is_committable can
+# say why, and staging would also need deleted and untracked paths
+# handled separately.
+save_prune_result() {
+    local saved="${RUNNER_TEMP}/after-prune"
+
+    rm -rf "${saved}"
+    mkdir -p "${saved}"
+    cp -a .vscode REVIEWS.md "${saved}/"
+}
+
+restore_prune_result() {
+    rm -rf .vscode REVIEWS.md
+    cp -a "${RUNNER_TEMP}/after-prune/." .
+}
+
 # Land the review state on the default branch, regenerating it on
 # every attempt rather than rebasing a commit made earlier. Everything
 # committed here is derived from the tree it is committed on top of,
@@ -123,10 +142,20 @@ check_state_is_committable() {
 # A push refused for any other reason -- a token that cannot write,
 # a ruleset that wants a pull request -- fails at once with the
 # push's own error, since regenerating would not change the answer;
-# so does a failing fetch, prune or import, under -e. The push runs
-# under LC_ALL=C so that its rejection reason can be matched.
+# so does a failing fetch or prune, under -e. The push runs under
+# LC_ALL=C so that its rejection reason can be matched.
+#
+# A failing import is different, because prune's result does not
+# depend on it. Prune is what stops a changed file reading as
+# reviewed, so a run that threw prune's result away because import
+# failed would leave stale marks counting until import was fixed.
+# Instead prune's result is saved before import runs; if import
+# fails, whatever it wrote is put back to that, prune's result lands
+# alone, and the run fails after landing (finish) so that the import
+# failure is still seen. Only the last attempt's import counts: one
+# that fails and then succeeds after a race has landed everything.
 land() {
-    local attempts=3 attempt push_output
+    local attempts=3 attempt push_output import_rc
 
     git config user.name 'shakenfist-bot'
     git config user.email 'bot@shakenfist.com'
@@ -138,7 +167,15 @@ land() {
         # Prune first: import will not import over a native mark,
         # stale or not, until prune has removed it.
         tools/review-tracking.sh prune
-        tools/review-tracking.sh import
+        save_prune_result
+
+        import_rc=0
+        tools/review-tracking.sh import || import_rc=$?
+        if [ "${import_rc}" -ne 0 ]; then
+            echo "ERROR: review-tracking.sh import failed with exit ${import_rc}. Discarding what it" >&2
+            echo "wrote and landing prune's result alone; the run will fail once that has landed." >&2
+            restore_prune_result
+        fi
         check_state_is_committable
 
         # git status --porcelain rather than git diff --quiet: the
@@ -148,7 +185,7 @@ land() {
         # discarded when the workspace is next cleaned.
         if [ -z "$(git status --porcelain -- .vscode/ REVIEWS.md)" ]; then
             echo 'No review marks to prune or import.'
-            exit 0
+            finish
         fi
 
         git add .vscode/ REVIEWS.md
@@ -158,7 +195,7 @@ Automated commit by the prune-reviews workflow.'
 
         if push_output="$(LC_ALL=C git push origin "HEAD:${DEFAULT_BRANCH}" 2>&1)"; then
             echo "${push_output}"
-            exit 0
+            finish
         fi
         echo "${push_output}" >&2
         case "${push_output}" in
@@ -179,6 +216,19 @@ Automated commit by the prune-reviews workflow.'
 
     echo "Could not land the review state after ${attempts} attempts." >&2
     exit 1
+}
+
+# The end of a run that got its review state onto the default branch,
+# or found nothing to put there. It succeeds unless that state is
+# prune's alone because import failed, in which case the failure that
+# land reported when it happened is repeated last, where it is seen.
+finish() {
+    if [ "${import_rc}" -ne 0 ]; then
+        echo "ERROR: review-tracking.sh import failed with exit ${import_rc}, so nothing was" >&2
+        echo "imported; prune's result, if it had one, has landed. See import's output above." >&2
+        exit 1
+    fi
+    exit 0
 }
 
 run() {
