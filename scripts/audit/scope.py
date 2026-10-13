@@ -54,7 +54,9 @@ IN_SCOPE_START = '## In-scope projects'
 # partially scoped, and an anchor naming the count stops matching on
 # exactly the edit that adds one. This phrase is a substring of both the
 # singular and the plural lead-in, appears nowhere else in the document,
-# and needs no edit when a third repository joins.
+# and needs no edit when a third repository joins. The count in front of
+# it is prose the parse never reads, so a test holds it to the
+# partial-scope paragraph instead.
 IN_SCOPE_END = 'in scope for part of the audit only'
 IN_SCOPE_BULLET = '- '
 
@@ -69,7 +71,7 @@ PARTIAL_SCOPE_START = ' is audited for the '
 #: `eol-distro` check, and nothing else." -- singular, correct English
 #: -- so the parse itself matches PARTIAL_SCOPE_END_PATTERN below
 #: rather than this string verbatim; this one is never made
-#: ungrammatical to satisfy a parser.
+#: ungrammatical to satisfy a parser. A test holds the two in step.
 PARTIAL_SCOPE_END = ' checks, and nothing else.'
 PARTIAL_SCOPE_END_PATTERN = r' checks?, and nothing else\.'
 
