@@ -1405,8 +1405,8 @@ taken from `git log`.
 | #251 review, round two | default history simplification hid review branches whose merge matched main | Fixed: the walk uses `--full-history`; an invalid or non-object imports file is treated as empty (c61040f) |
 
 **5. Follow-up.**
-- The template change (new hashes: `prune-reviews.yml` 0679ce6,
-  `ci-prune-reviews.sh` bcc779b) must be re-synced into actions,
+- The template change (new hashes: `prune-reviews.yml` 4902e45,
+  `ci-prune-reviews.sh` 2cefe65) must be re-synced into actions,
   hunkydory, kerbside and ryll. Script and workflow go together,
   because the script now requires `PUSH_TOKEN`.
 - Michael must re-stamp the changed files here before the copies
@@ -1422,7 +1422,9 @@ taken from `git log`.
   That run passed (38378512735, shakenfist-static-2) and the four
   opened, but kerbside#563's review then found hooks and
   configuration in the reused workspace's `.git` still reached the
-  job, so the script now lands from a fresh clone. The re-sync pull
+  job, and actions#157's that a hook could rewrite the script during
+  the checkout itself, so the workflow now fetches the script, and
+  the script lands, from fresh clones. The re-sync pull
   requests take the new hashes, and merge only after development's
   own run with the fresh-clone script has also succeeded.
 - The plan reaches `Complete` when the re-sync pull requests

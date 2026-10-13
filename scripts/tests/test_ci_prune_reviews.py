@@ -53,6 +53,7 @@ DEVELOPMENT_URL = 'https://github.com/shakenfist/development'
 REPOSITORY = 'shakenfist/adopted'
 TARGET_URL = 'https://github.com/' + REPOSITORY
 TOKEN = 'test-push-token-1d2e3f'
+WORKFLOW_STEP_SEPARATOR = '\n      - name: '
 COMMIT_MESSAGE = 'Prune and import review marks.\n\nAutomated commit by the prune-reviews workflow.'
 
 # Stands in for tools/review-tracking.sh. It logs each subcommand with
@@ -151,7 +152,9 @@ for arg in "$@"; do
     if [ "${arg}" = '%(url)s' ]; then
         arg="${PRUNE_TEST_DEVELOPMENT}"
     elif [ "${arg}" = '%(target_url)s' ]; then
-        arg="${PRUNE_TEST_ORIGIN}"
+        # file:// so that --depth applies, as it does to the real URL:
+        # git ignores it for a plain path.
+        arg="file://${PRUNE_TEST_ORIGIN}"
     fi
     args+=("${arg}")
 done
@@ -506,6 +509,7 @@ class CiPruneReviewsTest(unittest.TestCase):
         self.assertEqual(clones[-1], 'clone --quiet --depth 1 --branch %s %s %s'
                          % (BRANCH, TARGET_URL, self.target_clone()))
         self.assertEqual(self.git('-C', self.target_clone(), 'rev-parse', '--is-shallow-repository'), 'true')
+        self.assertEqual(self.git('-C', self.target_clone(), 'rev-list', '--count', 'HEAD'), '2')
 
     def test_a_run_without_github_repository_is_refused(self):
         before = self.make_repository()
@@ -553,18 +557,49 @@ class CiPruneReviewsTest(unittest.TestCase):
         self.assertEqual([line.split()[1] for line in self.read_log('env')], ['TUF_ROOT=' + tuf_root] * 2)
         self.assertEqual(os.listdir(tuf_root), [])
 
-    def test_the_workflow_keeps_no_credentials_in_the_checkout(self):
-        """The token goes to the script's environment alone, and the checkout persists none."""
+    def workflow_steps(self):
+        """The template workflow's steps, by name, with comments dropped.
+
+        Split on the step separator rather than parsed, since nothing
+        else here needs a YAML library; the exact set of names asserted
+        below is what stops a format change passing silently.
+        """
         with open(TEMPLATE_WORKFLOW) as f:
             lines = [line for line in f.read().splitlines() if not line.lstrip().startswith('#')]
         text = '\n'.join(lines) + '\n'
-        steps = {step.split('\n', 1)[0]: step for step in text.split('\n      - name: ')[1:]}
-        self.assertEqual(sorted(steps), ['Checkout', 'Prune and import review marks'])
-        self.assertIn('\n          persist-credentials: false\n', steps['Checkout'])
-        self.assertNotIn('token', steps['Checkout'])
+        steps = {step.split('\n', 1)[0]: step for step in text.split(WORKFLOW_STEP_SEPARATOR)[1:]}
+        self.assertEqual(sorted(steps), ['Fetch the prune script', 'Prune and import review marks'])
+        return text, steps
+
+    def test_the_workflow_never_checks_out_the_workspace(self):
+        """A hook left in the reused workspace would run during a checkout and could rewrite the script."""
+        text, steps = self.workflow_steps()
+        self.assertNotIn('actions/checkout', text)
+        for step in steps.values():
+            self.assertIn('\n        working-directory: ${{ runner.temp }}\n', step)
+        self.assertNotIn('token', steps['Fetch the prune script'])
         self.assertIn('\n          PUSH_TOKEN: ${{ secrets.DEPENDENCIES_TOKEN || github.token }}\n',
                       steps['Prune and import review marks'])
         self.assertEqual(text.count('secrets.'), 1)
+
+    def test_the_workflow_steps_land_the_review_state(self):
+        """Run as the workflow runs them: fetch the script into RUNNER_TEMP, then run it from there."""
+        before = self.make_repository()
+        _, steps = self.workflow_steps()
+        fetch = steps['Fetch the prune script'].split('run: >-\n', 1)[1]
+        fetch = ' '.join(line.strip() for line in fetch.splitlines() if line.strip())
+        run = steps['Prune and import review marks'].split('run: ', 1)[1].split('\n', 1)[0]
+        env = dict(self.env, GITHUB_REPOSITORY=REPOSITORY)
+        fetch_env = {k: v for k, v in env.items() if k != 'PUSH_TOKEN'}
+        subprocess.run(['bash', '-ec', fetch], cwd=env['RUNNER_TEMP'], env=fetch_env, check=True)
+        clone = [call for call in self.git_calls() if call['argv'].startswith('clone ')][0]
+        self.assertEqual(clone['argv'], 'clone --quiet --depth 1 --branch %s %s prune-script' % (BRANCH, TARGET_URL))
+        self.assertEqual((clone['global'], clone['nosystem']), (os.devnull, '1'))
+        result = subprocess.run(['bash', '-ec', run], cwd=env['RUNNER_TEMP'], env=dict(env, PRUNE_TEST_IMPORT='1'),
+                                timeout=120, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                universal_newlines=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.git('--git-dir', self.origin, 'rev-parse', self.tip() + '^'), before)
 
     def test_a_gitignored_reviews_md_fails_the_run(self):
         """A REVIEWS.md ignored before it was first generated can never be committed either."""

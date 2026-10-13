@@ -96,17 +96,18 @@ The static runners are long-lived, share one home directory across
 jobs and repositories, and run pull request code, so anything an
 earlier job could write is treated as hostile. The script therefore:
 
-- **lands from a fresh clone.** The workspace is reused, `.git`
-  included, and `actions/checkout` removes only the configuration it
-  wrote itself, so hooks an earlier job left in `.git/hooks` would run
-  on this job's fetch, reset and commit, and keys left in
+- **never touches the workspace.** The workspace is reused, `.git`
+  included, so hooks an earlier job left in `.git/hooks` would run on
+  any git command there -- `actions/checkout`'s own included, which
+  could rewrite the script before it ran -- and keys left in
   `.git/config` -- `core.fsmonitor`, an `include.path`, a `pushurl` or
-  `url.<x>.insteadOf` -- would run commands or redirect the push. The
-  script runs no git command in the workspace: it clones the
-  repository from the URL `GITHUB_REPOSITORY` names, which the runner
-  sets, into `RUNNER_TEMP` at depth 1, and fetches, prunes, imports,
-  commits and pushes there. The checkout supplies nothing but the
-  script itself.
+  `url.<x>.insteadOf` -- would run commands or redirect the push. So
+  the workflow has no checkout. Its first step, which has no token,
+  clones the default branch at depth 1 into `RUNNER_TEMP` from the URL
+  `GITHUB_REPOSITORY` names, which the runner sets, ignoring the
+  runner's git configuration, and the second runs the script from that
+  clone. The script then lands from a second fresh clone of the same
+  kind, fetching, pruning, importing, committing and pushing there.
 - **ignores global and system git configuration**, by exporting
   `GIT_CONFIG_GLOBAL=/dev/null` and `GIT_CONFIG_NOSYSTEM=1` before its
   first git command, so that a `url.<x>.insteadOf` left in
@@ -120,8 +121,7 @@ earlier job could write is treated as hostile. The script therefore:
   poisoned cache could change which Fulcio roots and Rekor keys
   verification trusts. An empty cache starts from the root embedded in
   the pinned gitsign binary.
-- **scopes the push token to the push.** The checkout uses
-  `persist-credentials: false`, and neither clone is given
+- **scopes the push token to the push.** No clone is given
   credentials; fetches need none, since these repositories are public.
   The script takes `PUSH_TOKEN` out of its environment before running
   anything, so curl, gitsign and `review-tracking.py` never see it,
