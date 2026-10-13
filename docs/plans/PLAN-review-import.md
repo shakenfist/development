@@ -1351,6 +1351,92 @@ those repositories since that did not come from this plan.
 repository, the management session lists the findings to Michael
 and he chooses which land.
 
+**Outcome.**
+
+**1. Range check.** All nine audit reports reproduced the survey
+table's totals exactly (5a-5i).
+
+**2. Methodology note.** Finding the template revision at a
+merge's date with `git rev-list -1 --before=<date> origin/main`
+needs `--first-parent`. Without it, a commit from a merged side
+branch can be chosen and give a false "differs". The actions and
+hunkydory audits (5f, 5g) both hit this and re-derived the
+comparison.
+
+**3. Adopted repositories: no findings in any of the four.**
+- actions: 452 tests, gitleaks clean, local
+  test/docs/`.gitignore`/CodeQL paths correct.
+- hunkydory: the `check_paths` jobs fail open and keep the
+  required check names; `RETEST_WORKFLOW` and `RENOVATE_TOKEN` are
+  present.
+- kerbside: all 11 copies identical; the apt list is right for
+  mysqlclient on Debian 13; `pyproject.toml` is at the root and
+  `functional-tests.yml` is dispatchable.
+- ryll: wave 1 passed including cargo in Docker; the docs,
+  `MERGE-TEMPLATE.md` and `renovate.json` are accurate;
+  `DEPENDENCIES_TOKEN` and the ruleset are confirmed.
+
+No pull requests were needed for audit findings.
+
+**4. Development findings and dispositions**, as a table (finding,
+source, disposition):
+
+Fixed, with the commit hashes taken from `git log`:
+- **5b-1** import walked the source's `HEAD`; it now walks
+  `origin/main` (59d2e02).
+- **5e-M1** wrongly typed history crashed the walk (05bb3e7).
+  Import failure lost prune's results (0aca89b).
+- **5b-2** no per-run verification budget (99a2783); the timeout
+  comment was corrected (ce3b32d).
+- **5e-L2** existing target entries were never re-checked
+  (cfc232a).
+- **5b-3** wrong exit-code docstring (648db83).
+- **5e-M3** residual trust in development's code and identity map:
+  documented (d0de9c3). Michael chose documentation over
+  CODEOWNERS, since he is the sole reviewer of development PRs.
+- **5d** CodeQL example in adoption step 8 out of date (89400f5).
+- **5e-L4** silent `DEPENDENCIES_TOKEN` fallback noted (944b61a).
+- **5e-M2** push token and global git config on shared static
+  runners: config isolation, a per-run `TUF_ROOT`, the token
+  scoped to the push, hooks disabled for the push (9556eba).
+- **5c** architecture refusal untested (8a2a37a).
+
+Declined:
+- **5e-L1**, stamps not tied to content in the commit's ancestry:
+  added to Future work. The exact-match fix is wrong, because 8
+  legitimate stamps survive rebases. The ancestry check is a
+  larger change.
+- **5e-L3**, `docs/**` could skip executable docs code: declined.
+  It would change the template for a speculative case, and no
+  adopted repository has code under `docs/`.
+- **5b-4**, buffering every state file in memory: declined. About
+  8.5 MB today; stream if it ever matters.
+- **5b-5**, partial-to-full upgrade without prune: declined. No
+  clean fix; stamp's stale ERROR is the defence.
+- **5b-6**, published details string change: intentional, no
+  action.
+- **5c**, verified-to-unverified downgrade protection is
+  incidental: no action; the property holds.
+- **The checkout's own `.git/config` on a reused workspace** stays
+  outside the isolation (from 9556eba's report). Landing from a
+  fresh clone would close it; added to Future work.
+
+**5. Follow-up.**
+- The template change (new hashes: `prune-reviews.yml` 7bdc604,
+  `ci-prune-reviews.sh` f3b7225) must be re-synced into actions,
+  hunkydory, kerbside and ryll. Script and workflow go together,
+  because the script now requires `PUSH_TOKEN`.
+- Michael must re-stamp the changed files here before the copies
+  import.
+- The config isolation is untested on a real static runner until
+  development's own `prune-reviews` runs after this merges.
+- The plan reaches `Complete` when the re-sync pull requests
+  merge. Until then the success criterion "the three review
+  tracking CI files are byte-identical across the four adopted
+  repositories" is false. So leave phase 5 and the index row `In
+  progress` in this commit, and say that a one-line close-out
+  follows the re-syncs.
+
 ## Agent guidance
 
 ### Execution model
@@ -1712,6 +1798,20 @@ intend to do aligns with that plan.
   Phase 3 makes the target a repository variable; whether the bot
   should instead re-run a pull request's own gating lanes is a
   change to the review automation template, not to convergence.
+* **Stamps are not tied to content in the commit's ancestry.**
+  Raised by phase 5's security audit (5e-L1). A stamp is matched
+  to a file by an exact content match today, which is deliberate:
+  8 legitimate stamps survive rebases that an ancestry check would
+  break. Tying a stamp to its blob's ancestry instead would catch
+  a narrower class of forgery, but is a larger change than this
+  plan should make.
+* **Landing from a fresh clone.** Raised by phase 5's security
+  audit (5e-M2). The prune job's config isolation keeps
+  `PUSH_TOKEN` and git configuration out of a reused static
+  runner's shared state, but the checkout's own `.git/config`
+  still sits inside the job's reach for the run. Landing from a
+  fresh clone each time would close that gap too, at the cost of
+  a clone on every run instead of reusing a checkout.
 
 Related issues: shakenfist/development#173 is this repository's
 own review-coverage issue; import does not affect it, because this
