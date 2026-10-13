@@ -32,6 +32,13 @@ from tests.base import REPO_ROOT  # noqa: E402
 
 sys.path.insert(0, REPO_ROOT)
 
+#: Count words a lead-in sentence might open with, indexed by value.
+NUMBER_WORDS = [
+    'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven',
+    'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen',
+    'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty',
+]
+
 
 def run_all_checks(repo_path, repo_name, org, github=None):
     """The entry point's scheduler, without importing the hyphenated file."""
@@ -358,6 +365,53 @@ class AuditScopeIsStatedOnceTest(unittest.TestCase):
                 'the partial-scope parse does not accept a singular '
                 '"check, and nothing else."',
             )
+
+    def test_the_partial_scope_end_phrase_matches_its_pattern(self):
+        # PARTIAL_SCOPE_END is what an error message quotes and
+        # PARTIAL_SCOPE_END_PATTERN is what the parse looks for. They
+        # are two spellings of one phrase, kept apart so the singular
+        # can parse, and an edit to one alone leaves an error message
+        # quoting something the parse never looks for.
+        self.assertIsNotNone(
+            re.fullmatch(scope.PARTIAL_SCOPE_END_PATTERN,
+                         scope.PARTIAL_SCOPE_END),
+            'PARTIAL_SCOPE_END and PARTIAL_SCOPE_END_PATTERN in '
+            'scripts/audit/scope.py no longer name the same phrase',
+        )
+
+    def test_the_partial_scope_lead_in_counts_its_paragraph(self):
+        # IN_SCOPE_END is count-free so that adding a partially scoped
+        # repository cannot break the parse, which leaves the number in
+        # front of it ("Two projects are in scope for part of the
+        # audit only:") as prose nothing reads. Hold it to the
+        # paragraph it introduces. A lead-in that states no count
+        # claims nothing and passes.
+        text = scope.PARAGRAPH_BREAK.sub(
+            '\n\n', scope.read(self.root, scope.IN_SCOPE_DOC))
+        text = scope.WRAPPED_LINE.sub(' ', text)
+        lead_ins = [
+            paragraph for paragraph in text.split('\n\n')
+            if scope.IN_SCOPE_END in paragraph
+        ]
+        self.assertEqual(
+            len(lead_ins), 1,
+            f'"{scope.IN_SCOPE_END}" should appear in exactly one '
+            f'paragraph of {scope.IN_SCOPE_DOC}',
+        )
+        first_word = lead_ins[0].split()[0].lower()
+        if first_word.isdigit():
+            stated = int(first_word)
+        elif first_word in NUMBER_WORDS:
+            stated = NUMBER_WORDS.index(first_word)
+        else:
+            return
+        documented = self.documented_partial_scope()
+        self.assertEqual(
+            stated, len(documented),
+            f'{scope.IN_SCOPE_DOC} says {first_word} projects are in '
+            f'scope for part of the audit only, but its partial-scope '
+            f'paragraph names {len(documented)}: {sorted(documented)}',
+        )
 
     def test_the_in_scope_end_anchor_survives_a_second_partial_repo(self):
         # IN_SCOPE_END used to be 'One project is in scope', which is
