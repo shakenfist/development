@@ -742,6 +742,15 @@ finds nothing left to do (observed 2026-09-11 04:57:20 UTC, before
 ryll carried the merged workflow, `Prune stale review marks.`,
 which committed nothing).
 
+The job runs on shared, long-lived static runners that also run pull
+request code, so it trusts as little as it can of what an earlier job
+could have left there. It ignores global and system git configuration, gives gitsign
+a fresh TUF cache on every run, keeps no credentials in the checkout,
+and hands the push token to its one `git push` alone, through the
+environment rather than argv or `.git/config`. "Runner isolation" in
+[templates/review-tracking/README.md](https://github.com/shakenfist/development/blob/main/templates/review-tracking/README.md#runner-isolation)
+has the detail.
+
 The bot's commit is not signed, and does not need to be for the
 prune half of it: prune can only *remove* marks, never add or
 refresh them ('a stamped entry is never re-stamped while it

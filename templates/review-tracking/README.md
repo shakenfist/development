@@ -50,9 +50,10 @@ the workflow does not work without them.
   does not accept the built-in Actions app as a bypass actor, so the
   push authenticates as shakenfist-bot with that token instead. A
   repository without the secret pushes with `GITHUB_TOKEN`, for which
-  the job asks `contents: write`. The checkout uses
-  `secrets.DEPENDENCIES_TOKEN || github.token`, so one file serves
-  both.
+  the job asks `contents: write`. The workflow passes
+  `secrets.DEPENDENCIES_TOKEN || github.token` to the script as
+  `PUSH_TOKEN`, so one file serves both; the script gives it to its
+  `git push` and nothing else (see "Runner isolation" below).
 
   That fallback is silent. If `DEPENDENCIES_TOKEN` exists in a
   repository, or is ever added at the organisation level, the job
@@ -89,6 +90,40 @@ warning saying how many, leaving them for a later run; that keeps a
 hung Rekor inside `timeout-minutes` however many commits are waiting.
 The workflow never passes `--no-verify`.
 
+## Runner isolation
+
+The static runners are long-lived, share one home directory across
+jobs and repositories, and run pull request code, so anything an
+earlier job could write is treated as hostile. The script therefore:
+
+- **ignores global and system git configuration**, by exporting
+  `GIT_CONFIG_GLOBAL=/dev/null` and `GIT_CONFIG_NOSYSTEM=1` before
+  its first git command, so that a `url.<x>.insteadOf` left in
+  `~/.gitconfig` cannot swap the development clone, whose script the
+  job runs, for another. It sets the bot's commit identity in the
+  checkout's own configuration.
+- **gives gitsign a fresh TUF cache** in `RUNNER_TEMP` on every run,
+  through `TUF_ROOT`, rather than the shared `~/.sigstore`, where a
+  poisoned cache could change which Fulcio roots and Rekor keys
+  verification trusts. An empty cache starts from the root embedded
+  in the pinned gitsign binary.
+- **scopes the push token to the push.** The checkout uses
+  `persist-credentials: false`, so no token is left in the
+  checkout's git configuration; fetches need none, since these
+  repositories are public. The script takes `PUSH_TOKEN` out of its
+  environment before running anything, so curl, gitsign and
+  `review-tracking.py` never see it, and passes it to `git push`
+  alone as an `http.https://github.com/.extraheader` through
+  `GIT_CONFIG_COUNT`, never in argv. The push also runs with
+  `core.hooksPath=/dev/null`, so that a hook left in a reused
+  workspace's `.git/hooks` does not run with the token in its
+  environment.
+
+This narrows what a poisoned runner can do; it does not make a
+runner whose user account is compromised safe. Such an account can
+still edit the checkout's own `.git/config` or replace binaries on
+`PATH`.
+
 ## The development clone
 
 The script clones this repository with full history into
@@ -96,7 +131,9 @@ The script clones this repository with full history into
 place the wrapper looks. Full history rather than depth 1, because a
 copy in a target often matches an older revision of a file reviewed
 here, and only the review state's history still records that review.
-The clone is about 16 MB.
+The clone is about 16 MB. It is a plain clone, because `import`
+walks the clone's remote-tracking ref for this repository's default
+branch.
 
 ## This repository
 
