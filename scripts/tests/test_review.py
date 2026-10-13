@@ -194,7 +194,10 @@ class ReviewCoverageTest(CheckTestCase):
                                  cwd=self.fixture.path, capture_output=True,
                                  text=True, check=True).stdout.strip()
             entries[path] = {'sha': sha, 'date': '2026-01-02',
-                             'imported': {'repo': 'shakenfist/development'}}
+                             'imported': {'repo': 'shakenfist/development',
+                                          'reviewer': 'mikal', 'path': path,
+                                          'commit': '0' * 40,
+                                          'verified': True}}
         self.fixture.write('.vscode/imports.weaudit-shas.json',
                            json.dumps({'version': 1, 'files': entries}))
         self.fixture.commit('import')

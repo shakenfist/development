@@ -14,7 +14,7 @@ why an unsigned bot commit may do either, is in
 | File | Destination | Description |
 |------|-------------|-------------|
 | `prune-reviews.yml` | `.github/workflows/prune-reviews.yml` | Runs the script on push, daily, and on dispatch, on the default branch only |
-| `ci-prune-reviews.sh` | `tools/ci-prune-reviews.sh` | Installs gitsign, clones this repository, runs `prune` then `import` against the branch tip, and lands the result, regenerating it on a new tip if a push is rejected |
+| `ci-prune-reviews.sh` | `tools/ci-prune-reviews.sh` | Installs gitsign, clones this repository, runs `prune` then `import` against the branch tip, and lands the result, regenerating it on a new tip if a push is rejected; if `import` fails, it lands `prune`'s result alone and then fails the run |
 | `review-tracking.sh` | `tools/review-tracking.sh` | The by-hand wrapper: finds a clone of this repository and passes its arguments to `scripts/review-tracking.py` |
 
 All three copy directly, with no per-project substitution, and must
@@ -50,9 +50,18 @@ the workflow does not work without them.
   does not accept the built-in Actions app as a bypass actor, so the
   push authenticates as shakenfist-bot with that token instead. A
   repository without the secret pushes with `GITHUB_TOKEN`, for which
-  the job asks `contents: write`. The checkout uses
-  `secrets.DEPENDENCIES_TOKEN || github.token`, so one file serves
-  both.
+  the job asks `contents: write`. The workflow passes
+  `secrets.DEPENDENCIES_TOKEN || github.token` to the script as
+  `PUSH_TOKEN`, so one file serves both; the script gives it to its
+  `git push` and nothing else (see "Runner isolation" below).
+
+  That fallback is silent. If `DEPENDENCIES_TOKEN` exists in a
+  repository, or is ever added at the organisation level, the job
+  uses the PAT without saying so, and the workflow's `permissions:`
+  block constrains only `GITHUB_TOKEN`, not a PAT: the job then holds
+  whatever the token's owner can do, in every repository the PAT
+  reaches. Add the secret only where the ruleset needs it, and keep
+  it out of organisation-level secrets.
 
 ## gitsign
 
@@ -74,9 +83,50 @@ digest from the new release's `checksums.txt`.
 
 Verification also needs egress to Rekor and to Sigstore's TUF root.
 If a runner cannot reach them, each import is skipped with a warning
-naming the commit that did not verify, and the run still succeeds;
-`timeout-minutes` allows for gitsign's per-commit timeout. The
-workflow never passes `--no-verify`.
+naming the commit that did not verify, and the run still succeeds.
+gitsign waits up to two minutes per commit, so after three timeouts
+in one run `import` stops verifying and skips the rest with one
+warning saying how many, leaving them for a later run; that keeps a
+hung Rekor inside `timeout-minutes` however many commits are waiting.
+The workflow never passes `--no-verify`.
+
+## Runner isolation
+
+The static runners are long-lived, share one home directory across
+jobs and repositories, and run pull request code, so anything an
+earlier job could write is treated as hostile. The script therefore:
+
+- **ignores global and system git configuration**, by exporting
+  `GIT_CONFIG_GLOBAL=/dev/null` and `GIT_CONFIG_NOSYSTEM=1` before
+  its first git command, so that a `url.<x>.insteadOf` left in
+  `~/.gitconfig` cannot swap the development clone, whose script the
+  job runs, for another. It sets the bot's commit identity in the
+  checkout's own configuration.
+- **gives gitsign a fresh TUF cache** in `RUNNER_TEMP` on every run,
+  through `TUF_ROOT`, rather than the shared `~/.sigstore`, where a
+  poisoned cache could change which Fulcio roots and Rekor keys
+  verification trusts. An empty cache starts from the root embedded
+  in the pinned gitsign binary.
+- **scopes the push token to the push.** The checkout uses
+  `persist-credentials: false`, so no token is left in the
+  checkout's git configuration; fetches need none, since these
+  repositories are public. The script takes `PUSH_TOKEN` out of its
+  environment before running anything, so curl, gitsign and
+  `review-tracking.py` never see it, and passes it to `git push`
+  alone as an `http.https://github.com/.extraheader` through
+  `GIT_CONFIG_COUNT`, never in argv. The push also runs with
+  `core.hooksPath=/dev/null`, so that a hook left in a reused
+  workspace's `.git/hooks` does not run with the token in its
+  environment. The push's environment is still readable, through
+  `/proc/<pid>/environ`, by any process running as the runner's user
+  while the push runs; what bounds that is the runner killing a
+  job's orphaned processes when the job ends, so such a process
+  would have to belong to this job.
+
+This narrows what a poisoned runner can do; it does not make a
+runner whose user account is compromised safe. Such an account can
+still edit the checkout's own `.git/config` or replace binaries on
+`PATH`.
 
 ## The development clone
 
@@ -85,7 +135,9 @@ The script clones this repository with full history into
 place the wrapper looks. Full history rather than depth 1, because a
 copy in a target often matches an older revision of a file reviewed
 here, and only the review state's history still records that review.
-The clone is about 16 MB.
+The clone is about 16 MB. It is a plain clone, because `import`
+walks the clone's remote-tracking ref for this repository's default
+branch.
 
 ## This repository
 
