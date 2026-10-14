@@ -106,6 +106,14 @@ although the floating tag moved it anyway.
 `setup-node`. Do not take one until the pinned Renovate's
 `engines.node` accepts it. A Renovate major that raises
 `engines.node` needs `node-version` raised in the same pull request.
+`renovate.json` carries a `packageRules` entry for Renovate majors
+whose `prBodyNotes` puts that check in front of the reviewer, since
+the bump itself only touches the pin. Keep it when adapting the file.
+
+The checkout sets `persist-credentials: false`. Only `hashFiles()`
+reads it, and Renovate clones the repository itself with
+`RENOVATE_TOKEN`, so nothing in the job needs the job token left in
+`.git/config`.
 
 ## The pre-commit manager
 

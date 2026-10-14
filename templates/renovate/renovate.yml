@@ -29,8 +29,13 @@ jobs:
       group: renovate
       cancel-in-progress: false
     steps:
+      # Only hashFiles() reads the checkout: Renovate clones into
+      # RENOVATE_BASE_DIR with RENOVATE_TOKEN, so the job token is not
+      # left in .git/config.
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       # Renovate runs from npm rather than through
       # renovatebot/github-action, which runs it as a container and so
