@@ -1,5 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "customManagers:githubActionsVersions"
+  ],
   "gitAuthor": "shakenfist-bot <bot@shakenfist.com>",
   "dependencyDashboard": true,
   "assignees": [
@@ -18,6 +21,18 @@
       "/^templates/.+\\.ya?ml$/"
     ]
   },
+  "customManagers": [
+    {
+      "description": "customManagers:githubActionsVersions reads the \"# renovate:\" version comments in .github/workflows, but not in templates/, for the same reason the github-actions block above exists: without this the pinned Renovate in templates/renovate/renovate.yml stays behind the copy this repository runs. The match string is the preset's.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^templates/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-zA-Z0-9-._]+?) depName=(?<depName>[^\\s]+?)(?: (?:lookupName|packageName)=(?<packageName>[^\\s]+?))?(?: versioning=(?<versioning>[^\\s]+?))?(?: extractVersion=(?<extractVersion>[^\\s]+?))?(?: registryUrl=(?<registryUrl>[^\\s]+?))?\\s+[A-Za-z0-9_]+?_VERSION\\s*:\\s*[\"']?(?<currentValue>.+?)[\"']?\\s"
+      ]
+    }
+  ],
   "packageRules": [
     {
       "description": "Minor, patch and digest updates are not merged automatically: every update needs review",

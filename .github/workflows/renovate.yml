@@ -32,10 +32,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Self-hosted Renovate
-        uses: renovatebot/github-action@v46.3.7
+      # Renovate runs from npm rather than through
+      # renovatebot/github-action, which runs it as a container and so
+      # needs a Docker daemon the runner may not have. node-version is
+      # the major Renovate's package.json declares in engines.node; read
+      # the template's README before bumping either.
+      - name: Set up Node
+        uses: actions/setup-node@v7
         with:
-          token: ${{ secrets.RENOVATE_TOKEN }}
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Self-hosted Renovate
         env:
+          # renovate: datasource=npm depName=renovate
+          PINNED_RENOVATE_VERSION: 44.155.1
+          RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
           RENOVATE_AUTODISCOVER: "true"
           RENOVATE_AUTODISCOVER_FILTER: ${{ github.repository }}
+          # A clone and cache per job, so a long-lived runner behaves
+          # like an ephemeral one.
+          RENOVATE_BASE_DIR: ${{ runner.temp }}/renovate
+        run: npx --yes "renovate@${PINNED_RENOVATE_VERSION}"
