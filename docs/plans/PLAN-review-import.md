@@ -287,7 +287,7 @@ answers.
 | 2. Review tracking CI template and rollout | Complete | 02d6dbb (#186); actions 74a33c9 (#111); hunkydory f24d413 (#57); kerbside 62ccbcb (#504); ryll ce3ebb3 (#418) |
 | 3. Template convergence | Complete | b520c22 (#203); actions 89717fa (#122), e05bbb1 (#134); hunkydory 8730d75 (#63), c22059e (#66); kerbside 700102e (#511), ede2d7d (#519); ryll 79721f3 (#425), f8a4e2f (#455) |
 | 4. Verification | Complete | bdc52ab (#249) |
-| 5. Push audit | In progress | |
+| 5. Push audit | Complete | 99158da (#251), 728f0ae (#254); actions e3e6155 (#157), 68dc806 (#160); hunkydory e5a9b0e (#74), e8c62e5 (#77); kerbside c608d2c (#563); ryll 60990bb (#530) |
 
 <!-- shared-block: plan-status-vocabulary v1 -->
 Plan status vocabulary (shared block; do not edit -- the canonical
