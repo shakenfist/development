@@ -51,15 +51,8 @@ def renovate_manages_pre_commit(repo_path):
     turned on deliberately. There are three supported ways to do that
     and all of them count.
     """
-    filepath = os.path.join(repo_path, 'renovate.json')
-    if not os.path.exists(filepath):
-        return False
-    try:
-        with open(filepath, 'r', errors='replace') as f:
-            config = json.load(f)
-    except ValueError:
-        return False
-    if not isinstance(config, dict):
+    config = renovate_config(repo_path)
+    if config is None:
         return False
 
     manager = config.get('pre-commit')
@@ -78,6 +71,44 @@ def renovate_manages_pre_commit(repo_path):
             ):
                 return True
     return False
+
+
+# renovatebot/github-action runs Renovate as a container, so it needs a
+# Docker daemon on the runner. The static pool's ephemeral runner pods
+# have none, and every run of the action that lands on one fails. The
+# template runs Renovate from npm instead.
+RENOVATE_CONTAINER_ACTION = 'renovatebot/github-action'
+
+# The built-in preset that reads "# renovate: datasource=... depName=..."
+# comments above *_VERSION keys in workflows. The template pins Renovate
+# that way, so without it the pin is invisible to Renovate and ages
+# silently. regexManagers: is the name the preset had before Renovate
+# renamed it, and Renovate still migrates it.
+RENOVATE_VERSION_COMMENT_PRESETS = (
+    'customManagers:githubActionsVersions',
+    'regexManagers:githubActionsVersions',
+)
+
+
+def renovate_workflow_runs_container(content):
+    """True when a step in renovate.yml runs renovatebot/github-action."""
+    return any(
+        step_action(step) == RENOVATE_CONTAINER_ACTION
+        for _, body in workflow_job_blocks(content)
+        for step in workflow_step_blocks(body)
+    )
+
+
+def renovate_reads_version_comments(repo_path):
+    """True when renovate.json extends the version comment preset."""
+    config = renovate_config(repo_path)
+    if config is None:
+        return False
+    extends = config.get('extends')
+    if not isinstance(extends, list):
+        return False
+    return any(preset in RENOVATE_VERSION_COMMENT_PRESETS
+               for preset in extends)
 
 
 # A project is in scope for indirect dependency pinning when it already
@@ -852,14 +883,30 @@ class Renovate(Check):
         if missing:
             return self.fail(f'Missing: {", ".join(missing)}', missing=missing)
 
+        issues = []
+        if renovate_workflow_runs_container(
+            repo.read('.github/workflows/renovate.yml') or ''
+        ):
+            issues.append(
+                f'renovate.yml runs Renovate through '
+                f'{RENOVATE_CONTAINER_ACTION}, which needs a Docker daemon '
+                f'the runner may not have; copy the template, which runs '
+                f'it from npm')
+        if not renovate_reads_version_comments(repo.path):
+            issues.append(
+                'renovate.json does not extend '
+                'customManagers:githubActionsVersions, so the Renovate '
+                'version pinned in renovate.yml is never bumped')
         if uses_remote_pre_commit_hooks(repo.path) and not (
             renovate_manages_pre_commit(repo.path)
         ):
-            return self.fail(
+            issues.append(
                 'renovate.json does not enable the pre-commit manager, '
                 'so the hook revisions in .pre-commit-config.yaml are '
                 'unmanaged and drift silently')
 
+        if issues:
+            return self.fail('; '.join(issues))
         return self.ok('Renovate workflow and config exist')
 
 

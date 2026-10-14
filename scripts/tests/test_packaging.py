@@ -247,6 +247,11 @@ class RenovatePreCommitManagerTest(CheckTestCase):
     )
 
     def _repo(self, renovate, pre_commit=None):
+        # The version comment preset is a separate finding, tested in
+        # RenovateWithoutDockerTest; every config here carries it.
+        renovate = dict(renovate)
+        renovate['extends'] = renovate.get('extends', []) + [
+            'customManagers:githubActionsVersions']
         self.fixture.workflow('renovate.yml', '')
         self.fixture.write('renovate.json', json.dumps(renovate))
         if pre_commit is not None:
@@ -289,6 +294,101 @@ class RenovatePreCommitManagerTest(CheckTestCase):
         result = self.check()
         self.assert_fail(result)
         self.assertIn('renovate.json', result['missing'])
+
+
+class RenovateWithoutDockerTest(CheckTestCase):
+    """renovate.yml runs Renovate from npm, and Renovate can see the pin.
+
+    The fixtures are the template's own steps, before and after the
+    change: the drift these findings exist to report is a copy of the
+    old template.
+    """
+
+    check_class = packaging.Renovate
+
+    CONTAINER_WORKFLOW = (
+        'jobs:\n'
+        '  renovate:\n'
+        '    runs-on: [self-hosted, static]\n'
+        '    steps:\n'
+        '      - name: Checkout\n'
+        '        uses: actions/checkout@v7\n'
+        '\n'
+        '      - name: Self-hosted Renovate\n'
+        '        uses: renovatebot/github-action@v46.3.7\n'
+        '        with:\n'
+        '          token: ${{ secrets.RENOVATE_TOKEN }}\n'
+    )
+
+    NPM_WORKFLOW = (
+        'jobs:\n'
+        '  renovate:\n'
+        '    runs-on: [self-hosted, static]\n'
+        '    steps:\n'
+        '      - name: Checkout\n'
+        '        uses: actions/checkout@v7\n'
+        '\n'
+        '      # renovatebot/github-action needs a Docker daemon.\n'
+        '      - name: Set up Node\n'
+        '        uses: actions/setup-node@v7\n'
+        '        with:\n'
+        '          node-version: 24\n'
+        '\n'
+        '      - name: Self-hosted Renovate\n'
+        '        env:\n'
+        '          # renovate: datasource=npm depName=renovate\n'
+        '          PINNED_RENOVATE_VERSION: 44.155.1\n'
+        '        run: npx --yes "renovate@${PINNED_RENOVATE_VERSION}"\n'
+    )
+
+    PRESET = {'extends': ['customManagers:githubActionsVersions']}
+
+    def _repo(self, workflow, renovate):
+        self.fixture.workflow('renovate.yml', workflow)
+        self.fixture.write('renovate.json', json.dumps(renovate))
+        return self.check()
+
+    def _template(self, name):
+        with open(os.path.join(REPO_ROOT, 'templates', 'renovate', name)) as f:
+            return f.read()
+
+    def test_the_template_itself_passes(self):
+        # The template is what an issue tells a repository to copy, so
+        # a copy of it has to close the issue.
+        self.assert_pass(self._repo(
+            self._template('renovate.yml'),
+            json.loads(self._template('renovate.json'))))
+
+    def test_the_npm_form_passes(self):
+        # Its comment names the action; only a step running it counts.
+        self.assert_pass(self._repo(self.NPM_WORKFLOW, self.PRESET))
+
+    def test_the_container_action_fails(self):
+        self.assert_fail(self._repo(self.CONTAINER_WORKFLOW, self.PRESET),
+                         containing='needs a Docker daemon')
+
+    def test_a_config_without_the_preset_fails(self):
+        self.assert_fail(self._repo(self.NPM_WORKFLOW, {}),
+                         containing='customManagers:githubActionsVersions')
+
+    def test_the_old_preset_name_passes(self):
+        self.assert_pass(self._repo(
+            self.NPM_WORKFLOW,
+            {'extends': ['regexManagers:githubActionsVersions']}))
+
+    def test_a_malformed_config_fails_rather_than_raising(self):
+        self.fixture.workflow('renovate.yml', self.NPM_WORKFLOW)
+        for renovate in ('{not json\n', '[]', '{"extends": "x"}'):
+            with self.subTest(renovate=renovate):
+                self.fixture.write('renovate.json', renovate)
+                self.assert_fail(self.check(),
+                                 containing='githubActionsVersions')
+
+    def test_an_old_copy_reports_both_findings(self):
+        # The copy the fleet has today: one issue names both changes.
+        result = self._repo(self.CONTAINER_WORKFLOW, {})
+        self.assert_fail(result, containing='needs a Docker daemon')
+        self.assertIn('githubActionsVersions', result['details'])
 
 
 class ConsoleLoggingTest(CheckTestCase):
