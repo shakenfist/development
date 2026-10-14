@@ -189,11 +189,19 @@ template.
 **How `prune-reviews` uses the token today.** The template and this
 repository's deployed copy are byte-identical, and all seven live
 copies still name `DEPENDENCIES_TOKEN`. Its one job,
-`prune-and-import`, checks out with `persist-credentials: false`
-and no token, and hands the push credential to
-`tools/ci-prune-reviews.sh` as the `PUSH_TOKEN` environment variable
-(`secrets.DEPENDENCIES_TOKEN || github.token`), which the script
-gives to its one `git push`. The commit's author and committer are
+`prune-and-import`, runs on `[self-hosted, static]` and has no
+`actions/checkout`. Since #254 its first step, `Fetch the prune
+script`, has no token. It clones the default branch into
+`RUNNER_TEMP`, ignoring the runner's git configuration. The second
+step, `Prune and import review marks`, runs
+`prune-script/tools/ci-prune-reviews.sh` from that clone, and hands
+the push credential to it as the `PUSH_TOKEN` environment variable
+(`secrets.DEPENDENCIES_TOKEN || github.token`). The script gives it
+to its one `git push`. `scripts/tests/test_ci_prune_reviews.py`
+holds the workflow to that shape (see step 2a). The template
+README's "Runner isolation" section says why: the static runners
+are long-lived, share one home directory across jobs and
+repositories, and run pull-request code. The commit's author and committer are
 set by the script (`git config user.name 'shakenfist-bot'`), not by
 the credential, so the commit metadata does not say which identity
 pushed it; the rule-suite history's `actor_name` does.
@@ -212,7 +220,10 @@ from every credential the bot carries elsewhere. Concretely:
    whose deployment branch policy admits only the default branch.
    A job on any other ref, including a pull request that edits the
    workflow, cannot read it. That is the property a repository or
-   organisation secret cannot have.
+   organisation secret cannot have. The branch policy decides which
+   job is given the key, not what else has run on the machine that
+   job runs on, so the job also moves off the shared static runners
+   (open question 6).
 3. `prune-reviews` mints a short-lived installation token from it,
    and the template, its README and every adopted copy change to
    match.
@@ -237,11 +248,12 @@ Out of scope:
   3).
 - Moving `prune-reviews` to open pull requests instead of pushing.
   `PLAN-review-import.md` keeps the push, and this plan does too.
-- Pinning `renovatebot/github-action` and the new
-  `actions/create-github-app-token` reference to a sha.
-  `PLAN-workflow-ref-trust.md` phase 3 owns pinning; this plan uses
-  whatever form that criterion will accept on the day, and phase 3
-  picks it up.
+- Pinning `renovatebot/github-action` to a sha.
+  `PLAN-workflow-ref-trust.md` phase 3 owns pinning. The one
+  exception is the new `actions/create-github-app-token` reference.
+  It handles the bypass identity's private key, so step 2a pins it
+  to a sha with a `# vX.Y.Z` comment, in the form that criterion
+  will accept, rather than waiting for phase 3.
 
 ## Open questions
 
@@ -265,7 +277,8 @@ Out of scope:
    step 2a. A repository with no ruleset to bypass gains nothing from
    the App, and `github.token` with `contents: write` already pushes
    there. *Default:* they move to `github.token`, which needs no
-   secret and no environment. The template mints the App token only
+   secret. They still get an empty `review-marks` environment with
+   the default-branch policy (open question 4). The template mints the App token only
    when the environment's secret is present, and `PUSH_TOKEN` falls
    back to `github.token` otherwise, so one file still serves both
    kinds (as the `DEPENDENCIES_TOKEN` bullet in
@@ -287,11 +300,20 @@ Out of scope:
    to create the environment first, would run the job in a new,
    unprotected environment holding no secret, mint nothing, and fall
    back to `github.token`, whose push the ruleset then refuses.
-   *Default:* that is failing closed, and acceptable, but the
-   adoption skill and the template README must say to create the
-   environment, with its branch policy, before adding the secret.
-   Phase 3 also adds an audit check (step 3c) so that an
-   environment without the branch policy is reported.
+   *Default:* that is failing closed, and acceptable. But an empty,
+   unprotected environment is a trap for whoever later adds the key
+   to it. So every repository that runs `prune-reviews` gets a
+   `review-marks` environment with the default-branch policy before
+   its first run of the new template, whether or not it will hold
+   the key (steps 1b and 2b). Then "the environment exists" implies
+   "it admits only the default branch" everywhere. The adoption skill
+   and the template README say so. They also say the key is only
+   ever an environment secret, never a repository or organisation
+   secret: `secrets.REVIEW_MARKS_APP_KEY` resolves at all three
+   levels, and the mint-when-present guard would work just as
+   quietly with a key that any branch can read. Step 3c reports
+   both an environment without the policy and the key held at
+   repository level.
 5. **Does `shakenfist-bot` stay an organisation owner?** It is one
    today (Situation), which makes it an admin of every repository,
    able to edit any ruleset. None of its known jobs needs that:
@@ -309,6 +331,24 @@ Out of scope:
    credential moves to an identity of its own. The plan records that
    as a blocker rather than leaving the bot an owner without saying
    so.
+6. **Which runner holds the key?** `prune-and-import` runs on the
+   static pool, which runs pull-request code from every repository
+   and shares one home directory across jobs (template README,
+   "Runner isolation"). The environment's branch policy decides which
+   ref's job is given the key. It does not decide what else has run
+   on the machine: a process an earlier pull-request job left behind
+   can read the key from the token step's environment, or the minted
+   token from the script's. The PAT has the same exposure today, so
+   this is not a new hole, but Mission item 2's claim is stronger
+   than a static runner delivers. *Default:* move `prune-and-import`
+   to the fleet's ephemeral vm runners, as `pin-indirect-dependencies`
+   uses (`[self-hosted, vm, debian-13, m]`), in the one template.
+   Step 1a confirms those labels serve all seven repositories that
+   run `prune-reviews`. If they do not, or the boot time makes the
+   job impractical on every push, keep `static` and say so instead,
+   in Mission, the template comment and the criterion spec's
+   reviewer-confirmed half: anyone who can run a pull-request job on
+   the static pool can reach the key.
 
 ## Execution
 
@@ -521,15 +561,16 @@ in this section.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 1a | high | opus | none | Operator step. With `gh auth refresh -s admin:org`, record here: each organisation secret's name and visibility (`gh secret list --org shakenfist` and, for a `selected` secret, `gh api orgs/shakenfist/actions/secrets/<name>/repositories`); which repositories hold `DEPENDENCIES_TOKEN` or `RENOVATE_TOKEN` as a repository secret; and what `sfconductor` is, who operates it and where its credential is held (open question 3). Re-run the rule-suite query from Situation (`repos/shakenfist/<r>/rulesets/rule-suites?time_period=month&rule_suite_result=bypass`) for the six repositories and confirm that `shakenfist-bot`'s bypasses are still only `prune-reviews` pushes. If anything else appears, stop: phase 3 would break it. Record `shakenfist-bot`'s organisation role (`gh api orgs/shakenfist/memberships/shakenfist-bot --jq .role`, `admin` on 2026-10-14) and its permission on each of the ten repositories in Situation (`repos/shakenfist/<r>/collaborators/shakenfist-bot/permission`). Then settle, by measurement, whose account each credential is. Use a throwaway workflow on a branch of this repository, deleted afterwards, since all three secrets are in scope here. For each of `DEPENDENCIES_TOKEN`, `RENOVATE_TOKEN` and `AUDIT_TOKEN`, it prints `gh api user --jq .login` and the `X-OAuth-Scopes` response header (never the token). For `AUDIT_TOKEN` alone it also prints `gh api repos/shakenfist/hunkydory/rulesets/23805020 --jq 'has("bypass_actors")'`. Record all of it here, and settle open question 5 from it. The `bypass_actors` answer decides which shape step 3c takes. `PLAN-workflow-ref-trust.md` step 2a asks the same question, and cites this record rather than measuring again (step 3b). |
-| 1b | high | opus | none | Operator step. Create the App under the organisation as open question 1 settles it: repository permission `contents: write` only, no webhook, no user authorisation. Install it on selected repositories: hunkydory, kerbside and ryll (open question 1). Generate a private key. In each of those three, create an environment named `review-marks` with a deployment branch policy of the default branch only (`develop` in all three), and add the key as an environment secret `REVIEW_MARKS_APP_KEY`. Put the App's client id in an organisation variable `REVIEW_MARKS_APP_CLIENT_ID`; a client id is not a secret. Record the App's id and the environment settings here, and keep the key file out of every repository and scratchpad that outlives the step. |
+| 1a | high | opus | none | Operator step. With `gh auth refresh -s admin:org`, record here: each organisation secret's name and visibility (`gh secret list --org shakenfist` and, for a `selected` secret, `gh api orgs/shakenfist/actions/secrets/<name>/repositories`); which repositories hold `DEPENDENCIES_TOKEN` or `RENOVATE_TOKEN` as a repository secret; and what `sfconductor` is, who operates it and where its credential is held (open question 3). Re-run the rule-suite query from Situation (`repos/shakenfist/<r>/rulesets/rule-suites?time_period=month&rule_suite_result=bypass`) for the six repositories and confirm that `shakenfist-bot`'s bypasses are still only `prune-reviews` pushes. If anything else appears, stop: phase 3 would break it. Record `shakenfist-bot`'s organisation role (`gh api orgs/shakenfist/memberships/shakenfist-bot --jq .role`, `admin` on 2026-10-14) and its permission on each of the ten repositories in Situation (`repos/shakenfist/<r>/collaborators/shakenfist-bot/permission`). Then settle, by measurement, whose account each credential is. Use a throwaway workflow on a branch of this repository, deleted afterwards, since all three secrets are in scope here. For each of `DEPENDENCIES_TOKEN`, `RENOVATE_TOKEN` and `AUDIT_TOKEN`, it prints `gh api user --jq .login` and the `X-OAuth-Scopes` response header (never the token). For `AUDIT_TOKEN` alone it also prints `gh api repos/shakenfist/hunkydory/rulesets/23805020 --jq 'has("bypass_actors")'`. Also record: the organisation rulesets (`orgs/shakenfist/rulesets`), and whether any applies to the six default branches (none had classic branch protection on 2026-10-14: `branches/develop/protection` reports "Branch not protected" in all six); every repository or organisation secret named `REVIEW_MARKS_APP_KEY` (there should be none, now or ever); and which runner labels serve the seven repositories that run `prune-reviews` (open question 6). Record all of it here, and settle open questions 5 and 6 from it. The `bypass_actors` answer decides which shape step 3c takes. `PLAN-workflow-ref-trust.md` step 2a asks the same question, and cites this record rather than measuring again (step 3b). |
+| 1b | high | opus | none | Operator step. Create the App under the organisation as open question 1 settles it: repository permission `contents: write` only, no webhook, no user authorisation. Install it on selected repositories: hunkydory, kerbside and ryll (open question 1). Generate a private key. In each of the seven repositories that run `prune-reviews` (hunkydory, kerbside, ryll, actions, development, sfui, kerbside-client), create an environment named `review-marks` with a deployment branch policy of the default branch only (open question 4). In hunkydory, kerbside and ryll alone, add the key to it as an environment secret `REVIEW_MARKS_APP_KEY`; never as a repository or organisation secret. Put the App's client id in an organisation variable `REVIEW_MARKS_APP_CLIENT_ID`; a client id is not a secret. Record the App's id and the environment settings here, and keep the key file out of every repository and scratchpad that outlives the step. |
 
 **Definition of done.** The inventory and the App's id are written
-into this section; hunkydory, kerbside and ryll each have a `review-marks`
-environment whose
+into this section; all seven repositories that run `prune-reviews`
+have a `review-marks` environment whose
 `gh api repos/shakenfist/<r>/environments/review-marks --jq .deployment_branch_policy`
 shows custom branch policies, and whose only policy
-(`.../deployment-branch-policies`) is the default branch.
+(`.../deployment-branch-policies`) is the default branch; only
+hunkydory's, kerbside's and ryll's hold the key.
 
 ### Phase 2: `prune-reviews` mints an App token
 
@@ -544,12 +585,14 @@ the copies in hunkydory, kerbside and ryll have merged.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 2a | high | opus | worktree | In this repository, change `templates/review-tracking/prune-reviews.yml` and its deployed twin `.github/workflows/prune-reviews.yml` (keep them byte-identical). Add `environment: review-marks` to the `prune-and-import` job. Add a step `id: app-token` before the step that runs `tools/ci-prune-reviews.sh`, using `actions/create-github-app-token` (a v3 release or later: its `action.yml` at v3.3.0, read on 2026-10-14, accepts `client-id` and the `permission-<name>` inputs and deprecates `app-id`) with `client-id: ${{ vars.REVIEW_MARKS_APP_CLIENT_ID }}`, `private-key: ${{ secrets.REVIEW_MARKS_APP_KEY }}`, and `permission-contents: write`. Guard it on the key being present, but note that the `secrets` context is not available in a step's `if:`: expose presence through a job-level `env:` entry (for example `HAS_REVIEW_MARKS_KEY: ${{ secrets.REVIEW_MARKS_APP_KEY != '' }}`) and test that, and confirm with `actionlint` that the form you choose is accepted. The script step's `PUSH_TOKEN` becomes `${{ steps.app-token.outputs.token \|\| github.token }}`; the checkout keeps `persist-credentials: false` and no token, and the token still goes only to the script. Rewrite the token comment above the job's `permissions:` block (it begins "Repositories whose default branch ruleset requires a pull request") to say why: the App is the ruleset's bypass actor, its key lives in an environment only the default branch can use, a repository with no pull-request ruleset has neither and pushes with `github.token`, and an App push, like the PAT push before it, retriggers the workflow once into a run that finds nothing to do. Remember the `&&`/`\|\|` value semantics explained at `templates/pin-indirect-dependencies/pin-indirect-dependencies.yml:154-159`. Leave the script's `git config user.name 'shakenfist-bot'` alone: the commit identity is not the push identity, and changing it is outside this plan. Update `templates/review-tracking/README.md`: replace the "Optionally, a `DEPENDENCIES_TOKEN` secret" bullet and its "That fallback is silent" paragraph with the environment, its branch policy, the secret and the variable, in the order an operator must create them (open question 4), keeping the warning about a silent fallback in its new form. Also say that a repository without the environment gets one on the job's first run, empty and with no branch policy, and that it must be given its branch policy before it ever holds the key; change the Token column of its projects table; and fix the top of the file and the workflow's header comment where they say the commit lands "as shakenfist-bot", so that they say who pushes. Add the environment setup, as an operator step before the first `prune-reviews` run, to `.claude/skills/review-tracking-adoption/SKILL.md`, which today says nothing about tokens. Run `actionlint` and `pre-commit run --all-files`. |
-| 2b | medium | sonnet | worktree | Roll the 2a template out with the `review-tracking-adoption` skill, one pull request per repository, in this order: hunkydory, ryll, kerbside (the three whose pushes need the bypass), then the four without a pull-request ruleset (actions, sfui, kerbside-client, and development, whose own copy 2a already changed). If shakenfist, instar or client-python-k3s has adopted review tracking by then, it joins the first group and phase 1 step 1b is repeated for it. Each pull request copies the template byte for byte and changes nothing else. After each merge, confirm the next `prune-reviews` run either pushed as the App or found nothing to do, and record the run URL here. The commit's author and committer do not show this, because the script sets them; in the three repositories with a ruleset, the rule-suite history (`repos/shakenfist/<r>/rulesets/rule-suites?rule_suite_result=bypass`) shows the push's `actor_name`, and in the four without one the run's own log does. A run that fails to mint a token in a repository that has the environment means 1b's setup is wrong there: stop and report rather than adding a fallback. |
+| 2a | high | opus | worktree | In this repository, change `templates/review-tracking/prune-reviews.yml` and its deployed twin `.github/workflows/prune-reviews.yml` (keep them byte-identical). The template is the post-#254 shape described in Situation: no checkout, a token-free `Fetch the prune script` step, then `Prune and import review marks`. Add `environment: review-marks` to the `prune-and-import` job; if `actionlint` and GitHub accept `environment: {name: review-marks, deployment: false}`, use that so each run does not record a deployment, and otherwise say in the README that every run appears in the Deployments view. Change `runs-on` as open question 6 settled, and revisit the `timeout-minutes` reasoning for a vm runner's boot time if it moved. Add a step `id: app-token` between the two, using `actions/create-github-app-token` pinned to a sha with a `# vX.Y.Z` comment (a v3 release or later: its `action.yml` at v3.3.0, read on 2026-10-14, accepts `client-id` and the `permission-<name>` inputs and deprecates `app-id`) with `client-id: ${{ vars.REVIEW_MARKS_APP_CLIENT_ID }}`, `private-key: ${{ secrets.REVIEW_MARKS_APP_KEY }}`, and `permission-contents: write`. Leave `owner` and `repositories` unset, which limits the token to the current repository, and say why in a comment: the App is installed on several repositories, and naming the owner would widen every token to all of them. Guard it on the key being present, but note that the `secrets` context is not available in a step's `if:`: expose presence through a job-level `env:` entry (for example `HAS_REVIEW_MARKS_KEY: ${{ secrets.REVIEW_MARKS_APP_KEY != '' }}`) and test that, and confirm with `actionlint` that the form you choose is accepted. The script step's `PUSH_TOKEN` becomes `${{ steps.app-token.outputs.token \|\| github.token }}`. The fetch step still has no token, and the push token still goes only to the script. `scripts/tests/test_ci_prune_reviews.py`'s `workflow_steps` and `test_the_workflow_never_checks_out_the_workspace` hold the old shape, and will fail. Restate each of their assertions, keeping what it protects rather than loosening it. (1) The exact step-name set gains the token step's name. (2) The `PUSH_TOKEN` line assertion becomes the new expression. (3) `text.count('secrets.') == 1` becomes: `secrets.REVIEW_MARKS_APP_KEY` appears only in the job-level presence flag and the token step, and neither the fetch step nor the script step contains `secrets.`. (4) No token or secret reaches `Fetch the prune script`, as now. Add assertions that the job carries `environment: review-marks` and that the token step has no `owner:` or `repositories:` input. `test_the_workflow_steps_land_the_review_state` runs the fetch and script steps by name, and must not try to run the token step. Rewrite the token comment above the job's `permissions:` block (it begins "Repositories whose default branch ruleset requires a pull request") to say why: the App is the ruleset's bypass actor, its key lives in an environment only the default branch can use, a repository with no pull-request ruleset has neither and pushes with `github.token`, and an App push, like the PAT push before it, retriggers the workflow once into a run that finds nothing to do. Remember the `&&`/`\|\|` value semantics explained at `templates/pin-indirect-dependencies/pin-indirect-dependencies.yml:154-159`. Leave the script's `git config user.name 'shakenfist-bot'` alone: the commit identity is not the push identity, and changing it is outside this plan. Update `templates/review-tracking/README.md`: replace the "Optionally, a `DEPENDENCIES_TOKEN` secret" bullet and its "That fallback is silent" paragraph with the environment, its branch policy, the secret and the variable, in the order an operator must create them (open question 4), keeping the warning about a silent fallback in its new form. Also say that every repository running the workflow gets the environment, with its policy, before its first run, whether or not it holds the key, since one GitHub creates on first reference has no policy; and that the key is only ever an environment secret, never a repository or organisation one (open question 4); change the Token column of its projects table; and fix the top of the file and the workflow's header comment where they say the commit lands "as shakenfist-bot", so that they say who pushes. Add the environment setup, as an operator step before the first `prune-reviews` run, to `.claude/skills/review-tracking-adoption/SKILL.md`, which today says nothing about tokens, with the same two warnings. Run `actionlint` and `pre-commit run --all-files`. |
+| 2b | medium | sonnet | worktree | Roll the 2a template out with the `review-tracking-adoption` skill, one pull request per repository, in this order: hunkydory, ryll, kerbside (the three whose pushes need the bypass), then the four without a pull-request ruleset (actions, sfui, kerbside-client, and development, whose own copy 2a already changed). Before each pull request merges, confirm its repository's `review-marks` environment exists with the default-branch policy (phase 1 step 1b created all seven), so the first run never creates an unprotected one. If shakenfist, instar or client-python-k3s has adopted review tracking by then, it joins the first group and phase 1 step 1b is repeated for it. Each pull request copies the template byte for byte and changes nothing else. After each merge, confirm the next `prune-reviews` run either pushed as the App or found nothing to do, and record the run URL here. The commit's author and committer do not show this, because the script sets them; in the three repositories with a ruleset, the rule-suite history (`repos/shakenfist/<r>/rulesets/rule-suites?rule_suite_result=bypass`) shows the push's `actor_name`, and in the four without one the run's own log does. A run that fails to mint a token in a repository that has the environment means 1b's setup is wrong there: stop and report rather than adding a fallback. |
 
-**Definition of done.** Every live `prune-reviews.yml` matches the
-template (`gh api` content, as in the sweep in Situation, prints no
-`DEPENDENCIES_TOKEN`); hunkydory, kerbside and ryll each have a
+**Definition of done.** Every live `prune-reviews.yml` is
+byte-identical to the template (compare `gh api` content against
+it; a comment may still mention the PAT by name, so grep for
+`secrets.DEPENDENCIES_TOKEN`, not the bare name, if grepping at
+all); hunkydory, kerbside and ryll each have a
 `prune-reviews` push to its default branch whose rule-suite
 `actor_name` is the App.
 
@@ -562,8 +605,8 @@ leaves the old path open without anything saying so.
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
 | 3a | high | opus | none | Operator step. On the rulesets of hunkydory, kerbside and ryll, add the App as a bypass actor (`actor_type: Integration`, the App's id, `bypass_mode: always`), preserving every other field, using the GET-then-PUT shape under "Template" in `docs/audits/merge-queue-config.md`. Then trigger `prune-reviews` by `workflow_dispatch` in hunkydory and confirm it lands. Add the App only to the rulesets of the repositories it is installed on; GitHub is expected to refuse an App that is not installed there as a bypass actor, so confirm that on the first one rather than assuming it. A repository that adopts review tracking later gets the bypass when it gets its environment. Only then remove `shakenfist-bot` from `sf-can-skip-merge-queue`, which takes its bypass away on all six. Change its organisation role and repository permissions as open question 5 settled, and record `repos/shakenfist/<r>/collaborators/shakenfist-bot/permission` for all ten repositories afterwards. Prove both halves. First, a push to `develop` in hunkydory is rejected by the ruleset, once authenticated with `DEPENDENCIES_TOKEN` and once with `RENOVATE_TOKEN`, from a throwaway workflow on a branch, deleted afterwards. A bypass belongs to an identity, and no ruleset names the admin role or `OrganizationAdmin`, so one repository proves it for all six. If the bot still holds admin anywhere, because open question 5 left it so, list where and say why the proof still covers those repositories. Second, the next `prune-reviews` run in hunkydory, kerbside and ryll lands or finds nothing to do. If `AUDIT_TOKEN` is the bot's (step 1a) and its role changed, re-run 1a's `bypass_actors` probe now, since 3c runs under the state this step leaves. Record the ruleset JSON's `bypass_actors` for each repository here. |
-| 3b | medium | sonnet | none | In this repository, amend `docs/plans/PLAN-workflow-ref-trust.md`: open question 1's default becomes the App from this plan rather than a team of one, with a sentence saying the residual it described is closed; step 2a's brief installs the App on `actions`, creates `actions`' `review-marks` environment and secret as phase 1 step 1b did, and names the App as the only bypass actor; the "documented set" that step 2b's criterion compares `bypass_actors` against is that App. Step 2a's question of whether the audit token sees `bypass_actors` cites this plan's step 1a record (and 3a's, if it re-ran the probe) rather than measuring again. Remove the #211 entry from that plan's Future work and its related-issues list, citing this plan. Touch nothing else in that plan. |
-| 3c | high | opus | worktree | Add a criterion `bypass-actor-identity` in `scripts/audit/checks/github_config.py`, following `DeleteBranchOnMerge` for the API-call shape, with id `bypass-actor-identity`, its `spec` and its `issue_title` (`Bypass actor identity`). For each ruleset that applies to the default branch and carries a `pull_request` rule, it judges every bypass actor by its `actor_type`, and reports each one that fails. `Team` fails. `RepositoryRole` passes only for the admin role (confirm its `actor_id` against a real ruleset GET rather than assuming it) and fails for any other. `OrganizationAdmin` passes. `Integration` passes only if it is the review-marks App (a module constant holding its id). `DeployKey` fails: a deploy key with write access is an automation credential, like the PATs this plan removes. Any other `actor_type` is an error, never a pass. The admin-role and `OrganizationAdmin` passes rest on 3a having left no automation identity as an owner or an admin. The check cannot see that, so the spec puts it in its "Required, but confirmed by a reviewer" half. For a repository whose ruleset bypasses the App, the check also reads `repos/{org}/{repo}/environments/review-marks`, and fails unless the deployment branch policy admits only the default branch. A ruleset response without `bypass_actors` is an error, never a pass, as in `PLAN-workflow-ref-trust.md`'s phase 2. Repositories with no pull-request ruleset report `not_applicable` with that reason. **If step 1a (or 3a) recorded that `AUDIT_TOKEN` cannot see `bypass_actors`**, do not widen the token. Instead, the check measures only the `review-marks` environment's branch policy, wherever that environment exists. The spec moves the bypass list to its reviewer-confirmed half, as `PLAN-workflow-ref-trust.md` step 2b does, and the actor-type tests below become tests of the spec's table rather than of code. Register it in `CHECKS` in `scripts/audit/registry.py`, write `docs/audits/bypass-actor-identity.md` following `docs/audits/README.md`, add its row there, add its lines to `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`, and add pass, fail and not-applicable tests to `scripts/tests/test_github_config.py` using `CheckTestCase` and a stubbed GitHub client, including a team bypass, a non-admin repository role, an `OrganizationAdmin` actor (a pass), a `DeployKey` actor, an unrecognised `actor_type` (an error), a missing `bypass_actors` key, an unknown App, and an environment with no branch policy. Before writing the team rule, decide with the operator what `sfconductor`'s bypass becomes (open question 3); if it stays a team, the spec says the check is expected to fail there and why, rather than exempting it in code. State in the commit message how many repositories it newly fails, including this one, against this prediction. If open question 3 leaves `sf-can-skip-merge-queue` in place for `mikalstill` and `sfconductor`, all six repositories in Situation fail on the team rule. This repository, actions (until `PLAN-workflow-ref-trust.md` step 2a), sfui and kerbside-client carry only the "Protect default branch history" ruleset, with no `pull_request` rule, and report `not_applicable`. So six newly fail, none of them this one. |
+| 3b | medium | sonnet | none | In this repository, amend `docs/plans/PLAN-workflow-ref-trust.md`: open question 1's default becomes the App from this plan rather than a team of one, with a sentence saying the residual it described is closed; step 2a's brief installs the App on `actions`, adds the key to the `review-marks` environment that phase 1 step 1b already created in `actions` (as an environment secret, never a repository one), and names the App as the only bypass actor; the "documented set" that step 2b's criterion compares `bypass_actors` against is that App. Step 2a's question of whether the audit token sees `bypass_actors` cites this plan's step 1a record (and 3a's, if it re-ran the probe) rather than measuring again. Remove the #211 entry from that plan's Future work and its related-issues list, citing this plan. Touch nothing else in that plan. |
+| 3c | high | opus | worktree | Add a criterion `bypass-actor-identity` in `scripts/audit/checks/github_config.py`, following `DeleteBranchOnMerge` for the API-call shape, with id `bypass-actor-identity`, its `spec` and its `issue_title` (`Bypass actor identity`). For each ruleset that applies to the default branch and carries a `pull_request` rule, it judges every bypass actor by its `actor_type`, and reports each one that fails. `Team` fails. `RepositoryRole` passes only for the admin role (confirm its `actor_id` against a real ruleset GET rather than assuming it) and fails for any other. `OrganizationAdmin` passes. `Integration` passes only if it is the review-marks App (a module constant holding its id). `DeployKey` fails: a deploy key with write access is an automation credential, like the PATs this plan removes. Any other `actor_type` is an error, never a pass. The admin-role and `OrganizationAdmin` passes rest on 3a having left no automation identity as an owner or an admin. The check cannot see that, so the spec puts it in its "Required, but confirmed by a reviewer" half. Separately, in every repository whether or not it has a pull-request ruleset, the check reads `repos/{org}/{repo}/environments/review-marks`. Where the environment exists, it fails unless the deployment branch policy admits only the default branch. It also fails if `REVIEW_MARKS_APP_KEY` appears in `repos/{org}/{repo}/actions/secrets` (names only), since a repository-level copy is readable from any branch. If `AUDIT_TOKEN` cannot list secrets, that half moves to the spec's reviewer-confirmed half, beside the organisation-level check, which the audit cannot make either way. A ruleset response without `bypass_actors` is an error, never a pass, as in `PLAN-workflow-ref-trust.md`'s phase 2. A repository with no pull-request ruleset and no `review-marks` environment reports `not_applicable` with that reason. **If step 1a (or 3a) recorded that `AUDIT_TOKEN` cannot see `bypass_actors`**, do not widen the token. Instead, the check measures only the environment and secret half above. The spec moves the bypass list to its reviewer-confirmed half, as `PLAN-workflow-ref-trust.md` step 2b does, and the actor-type tests below become tests of the spec's table rather than of code. Register it in `CHECKS` in `scripts/audit/registry.py`, write `docs/audits/bypass-actor-identity.md` following `docs/audits/README.md`, add its row there, add its lines to `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`, and add pass, fail and not-applicable tests to `scripts/tests/test_github_config.py` using `CheckTestCase` and a stubbed GitHub client, including a team bypass, a non-admin repository role, an `OrganizationAdmin` actor (a pass), a `DeployKey` actor, an unrecognised `actor_type` (an error), a missing `bypass_actors` key, an unknown App, an environment with no branch policy in a repository with no pull-request ruleset, a repository-level `REVIEW_MARKS_APP_KEY`, and a repository with neither a pull-request ruleset nor the environment (`not_applicable`). Before writing the team rule, decide with the operator what `sfconductor`'s bypass becomes (open question 3); if it stays a team, the spec says the check is expected to fail there and why, rather than exempting it in code. State in the commit message how many repositories it newly fails, including this one, against this prediction. If open question 3 leaves `sf-can-skip-merge-queue` in place for `mikalstill` and `sfconductor`, all six repositories in Situation fail on the team rule. This repository, actions (until `PLAN-workflow-ref-trust.md` step 2a), sfui and kerbside-client carry only the "Protect default branch history" ruleset, with no `pull_request` rule. They pass on the environment half, because 1b gave each one its policy. So six newly fail, none of them this one. On the fallback shape, the team rule is not measured, and if 1b and 2b did their job nothing newly fails. |
 
 **Definition of done.** `shakenfist-bot` is not a member of
 `sf-can-skip-merge-queue`, and its role is what open question 5
@@ -864,7 +907,11 @@ Specific to this plan:
   still needs that and the blocker that tracks moving it (open
   question 5).
 * The App's key exists only as an environment secret, in
-  environments that admit only the default branch.
+  environments that admit only the default branch, and every
+  `review-marks` environment admits only the default branch, key or
+  no key.
+* `prune-and-import` runs where open question 6 settled, and the
+  plan says what residual remains if that is still the static pool.
 * `prune-reviews` keeps landing review marks in every adopted
   repository.
 * #211 is closed, and `PLAN-workflow-ref-trust.md` step 2a names
