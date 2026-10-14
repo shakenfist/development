@@ -37,6 +37,7 @@ jobs:
           - andris
           - client-python
           - client-python-k3s
+          - client-python-ova
           - clingwrap
           - cloudgood
           # The repository this workflow lives in. It holds the audit
