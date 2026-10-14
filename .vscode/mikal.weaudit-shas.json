@@ -41,10 +41,6 @@
       "sha": "975f656d8135aefe12ba2f2094d8671460ef1a8a",
       "date": "2026-10-01"
     },
-    ".github/workflows/consistency-audit.yml": {
-      "sha": "06af2da901d65c9d861ecc1fe7d586e75b2530d5",
-      "date": "2026-10-09"
-    },
     ".github/workflows/export-repo-config.yml": {
       "sha": "b9b3936053b8685ef0ae47f656b2f35aa62ba637",
       "date": "2026-09-27"
@@ -96,10 +92,6 @@
     "README.md": {
       "sha": "2269add37483bd29c54af121efee0aeeb1939a53",
       "date": "2026-10-05"
-    },
-    "docs/audits/README.md": {
-      "sha": "5f953832d47635c4dc41a74b73da54d7e765a61b",
-      "date": "2026-10-12"
     },
     "docs/audits/ci-review-automation.md": {
       "sha": "ebf3f7509524618319902eec52dab7ebf92619b0",
