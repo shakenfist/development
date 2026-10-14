@@ -297,19 +297,11 @@
       "author": "mikal"
     },
     {
-      "path": "templates/renovate/renovate.json",
-      "author": "mikal"
-    },
-    {
       "path": "templates/review-tracking/review-tracking.sh",
       "author": "mikal"
     },
     {
       "path": "tools/review-tracking.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "renovate.json",
       "author": "mikal"
     },
     {
@@ -350,10 +342,6 @@
     },
     {
       "path": "templates/codeql",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate/README.md",
       "author": "mikal"
     },
     {
@@ -486,10 +474,6 @@
     },
     {
       "path": "docs/audits/npm-pin-indirect-dependencies.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/renovate.md",
       "author": "mikal"
     },
     {
@@ -689,18 +673,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_manage_issues.py",
       "author": "mikal"
     },
@@ -718,14 +690,6 @@
     },
     {
       "path": "scripts/tests/test_metadata.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_packaging.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/packaging.py",
       "author": "mikal"
     },
     {

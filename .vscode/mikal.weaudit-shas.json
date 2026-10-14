@@ -61,10 +61,6 @@
       "sha": "dab99349ea1867e984ae0e5fc73f70ec00cb519b",
       "date": "2026-10-02"
     },
-    ".github/workflows/renovate.yml": {
-      "sha": "d63b3b2872578eb241b9749d162312260dc8e8bd",
-      "date": "2026-10-09"
-    },
     ".github/workflows/secret-scan.yml": {
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
       "date": "2026-08-24"
@@ -253,10 +249,6 @@
       "sha": "d026bd14334862ab010cc95a7da17de9a5351d6f",
       "date": "2026-10-05"
     },
-    "docs/audits/renovate.md": {
-      "sha": "c588b8fa42d90cc5fdaa952c920a0a601abd139e",
-      "date": "2026-10-05"
-    },
     "docs/audits/reusable-workflow-secrets.md": {
       "sha": "2ebc5177a729dd8b6025ea36afdd1b305f7b536f",
       "date": "2026-10-05"
@@ -329,10 +321,6 @@
       "sha": "9807720ead26729e88b627892fbb73cb81edef91",
       "date": "2026-10-06"
     },
-    "renovate.json": {
-      "sha": "1255d62568362a8c44341f008d8c3c4c143eba7c",
-      "date": "2026-09-27"
-    },
     "scripts/audit-check.py": {
       "sha": "97673b9e35622a6049cab81725d8554754e715b5",
       "date": "2026-09-04"
@@ -384,10 +372,6 @@
     "scripts/audit/checks/npm_dependencies.py": {
       "sha": "01853364578a6139d3787ebfa9d09a65211bb37c",
       "date": "2026-09-15"
-    },
-    "scripts/audit/checks/packaging.py": {
-      "sha": "d8cc290a502ef10725a222c03cf6ba0fb8f4aaca",
-      "date": "2026-10-12"
     },
     "scripts/audit/checks/plans.py": {
       "sha": "8b9e3342a4929abb464b4fe3f9b281ede26d8046",
@@ -533,10 +517,6 @@
       "sha": "e7360d31a425b52e8e309921993e392235309faa",
       "date": "2026-09-22"
     },
-    "scripts/tests/test_packaging.py": {
-      "sha": "842ccc52b2a1b71214c045be296095f3cca3ad46",
-      "date": "2026-10-12"
-    },
     "scripts/tests/test_python_source.py": {
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",
       "date": "2026-09-04"
@@ -652,18 +632,6 @@
     "templates/release-automation/release.yml": {
       "sha": "932143a87e482d3e08101a485e249f347dfee26d",
       "date": "2026-10-01"
-    },
-    "templates/renovate/README.md": {
-      "sha": "e392aec0396e9e05fa7b7f2d46b67d99832d58bb",
-      "date": "2026-10-01"
-    },
-    "templates/renovate/renovate.json": {
-      "sha": "bc3d203dd9e9ab9c2f83e551382dbfb7e60e08fd",
-      "date": "2026-09-27"
-    },
-    "templates/renovate/renovate.yml": {
-      "sha": "d63b3b2872578eb241b9749d162312260dc8e8bd",
-      "date": "2026-10-09"
     },
     "templates/review-tracking/review-tracking.sh": {
       "sha": "db83f953a7b90229111cf75bd24504a19a032c2f",
