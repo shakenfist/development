@@ -40,17 +40,40 @@ The environment is what the action passed into its container:
 `/tmp/renovate`, bind-mounted from the runner's `/tmp` and owned by
 the container's user. A per-job directory under `runner.temp` gives
 every run a clean clone and cache, on a long-lived VM as much as on a
-pod. The action's `FORCE_COLOR=3`, which only coloured the log, is
-dropped.
+pod. The cost is that Renovate's lookup cache no longer survives
+between runs on a VM, so every run repeats its datasource lookups
+against GitHub and the registries. If that ever shows up as rate
+limiting, an `actions/cache` of the cache directory would bring
+persistence back on both kinds of runner. The action's `FORCE_COLOR=3`,
+which only coloured the log, is dropped.
 
-One difference is not cosmetic. The container installed tools such as
-`cargo` on demand to refresh lock files (Renovate's
-`binarySource=install`). Outside the container Renovate uses whatever
-is on the runner's `PATH` (`binarySource=global`), which is Node and
-npm from `setup-node`, plus the runner's own packages. A repository
-whose lock files need another tool, such as `Cargo.lock`, gets
-Renovate's "artifact update problem" on those pull requests until the
-runner has that tool.
+### Lock files
+
+The container installed tools such as `cargo` on demand to refresh
+lock files (Renovate's `binarySource=install`). Outside the container
+Renovate uses whatever is on the runner's `PATH`
+(`binarySource=global`), so the workflow has to provide each tool a
+lock file needs, or Renovate's pull requests carry an "artifact update
+problem" instead of a refreshed lock file. For the lock files the
+fleet has:
+
+| Lock file | Tool Renovate runs | Provided by |
+|-----------|--------------------|-------------|
+| `package-lock.json` | `npm` | `actions/setup-node`, always |
+| `Cargo.lock` | `cargo update` | `dtolnay/rust-toolchain@stable`, only when the repository has a `Cargo.lock` |
+| `requirements*.txt` | nothing | Renovate edits the pins as text. Only a file with `--hash` lines needs a tool (`hashin`), and the fleet has none |
+
+The Rust step installs stable with rustup's minimal profile (`rustc`,
+`cargo` and the standard library, no clippy, rustfmt or docs) and
+makes it rustup's default. It sets no override, so a repository with a
+`rust-toolchain.toml` still gets the toolchain it names: rustup reads
+that file from the directory Renovate runs `cargo` in, and installs
+the toolchain on first use.
+
+A repository that adds another kind of lock file -- `uv.lock`,
+`poetry.lock`, `go.sum`, `pnpm-lock.yaml` and so on -- needs a step of
+the same shape here, conditional on `hashFiles()` so the template
+stays one file for every repository.
 
 ### The version pin
 
@@ -71,8 +94,12 @@ not named `RENOVATE_*`, because Renovate reads those as its own
 configuration.
 
 The action floated on the image's `44` tag, so it picked up every new
-release unasked. An exact pin trades that for a pull request, but
-nothing changes under a repository without a commit saying so.
+release unasked. An exact pin trades that for a pull request. It pins
+Renovate itself, not its dependency tree: with no lockfile, `npx`
+resolves Renovate's dependencies within their declared ranges on each
+fresh install, and their install scripts run in the step that holds
+`RENOVATE_TOKEN`. The container image was a fixed tree per tag,
+although the floating tag moved it anyway.
 
 `node-version` follows Renovate's `engines.node` (`^24.11.0` for
 44.x). Renovate's github-actions manager also proposes Node majors for

@@ -43,6 +43,14 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
+      # Renovate refreshes lock files with the runner's own tools, which
+      # a container used to install for it. Cargo is the one the fleet
+      # needs that the runner lacks. A rust-toolchain.toml in the
+      # repository still wins: this only sets rustup's default.
+      - name: Set up Rust for Cargo.lock
+        if: hashFiles('**/Cargo.lock') != ''
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Self-hosted Renovate
         env:
           # renovate: datasource=npm depName=renovate

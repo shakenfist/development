@@ -35,8 +35,10 @@ Renovate renamed it, also passes.
 Both findings go in the one issue, so a repository still on the old
 copy is told to change both files at once. The template README covers
 what else changes when Renovate leaves its container. The one that
-matters is lock files whose tool is not on the runner, such as
-`Cargo.lock`.
+matters is lock files, which Renovate now refreshes with the runner's
+own tools. The template provides npm always and a Rust toolchain when
+the repository has a `Cargo.lock`, so every repository can copy it
+unmodified.
 
 ### The pre-commit manager
 
