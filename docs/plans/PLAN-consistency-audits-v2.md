@@ -336,19 +336,19 @@ it: by August 2026 `audits/` held 34 criteria rather than 13, backed
 by 37 registered checks (some criteria, such as `workflow-standards`,
 decompose into several), and the audit matrix covered 17 repositories
 rather than 10. On 2026-10-16 `docs/audits/` holds 55 criteria backed
-by 62 registered checks, over a matrix of 24 repositories. `actions` and `development` were both moved off the
-exempt list -- the fleet depends on `actions` for every composite action
-it runs, and `development` is where these rules are written, so an
-exemption there is an exemption the authors of the standard wrote for
-themselves.
+by 62 registered checks, over a matrix of 24 repositories. `actions`
+and `development` were both moved off the exempt list -- the fleet
+depends on `actions` for every composite action it runs, and
+`development` is where these rules are written, so an exemption there
+is an exemption the authors of the standard wrote for themselves.
 
 ### Phase 2: CI-based audit runner -- DONE
 
 1. ~~Write audit check scripts (shell or Python) for each
    criterion.~~ In August 2026 `scripts/audit-check.py` ran 37
-   registered checks across 34 criteria (4 judged by reading rather than matching:
-   security-sanitization, console-logging, python-version,
-   test-coverage).
+   registered checks across 34 criteria (4 judged by reading rather
+   than matching: security-sanitization, console-logging,
+   python-version, test-coverage).
 2. ~~Create a scheduled workflow in `development` that runs all
    checks across all projects.~~
    `.github/workflows/consistency-audit.yml` ran daily at 06:00 UTC
@@ -604,11 +604,9 @@ on 2026-10-16.
    and `pr-bot-trigger/`. `actions` has a `PUSH-AUDIT.md` that
    reads the same `AUDIT_RANGE` variable this repository's does, so
    the empty-tree technique in decision 2 carries over unchanged.
-   `actions` has no open pull requests. Two worktrees in the local
-   `actions` clone (`actions-plan-history-in-source`,
-   `actions-pr-bot-trigger-rejected-branch`) look stale, but they
-   belong to that repository's sessions and this phase does not
-   touch them.
+   `actions` has no open pull requests. 5a and 5c read `actions`
+   at its `origin/main` and touch no existing worktree or branch
+   there.
 4. **Several facts elsewhere in this plan had gone stale, and were
    corrected at their source in this planning commit**, so later
    steps need not redo it:
@@ -640,10 +638,14 @@ In this repository, read at `origin/main` for phases 2 and 3:
   `scripts/audit-raised.py`, `scripts/audit_snapshot.py`,
   `scripts/check-audit-smoke.py`, `scripts/commit-audit-docs.sh`,
   `tools/audit-snapshot.sh` and `.github/workflows/consistency-audit.yml`.
-  Outside `checks/` this is 3,082 lines.
+  Outside `checks/` this is 3,162 lines.
 - Tests: every file under `scripts/tests/` except
-  `test_review_tracking.py`, `test_review.py`'s review-tracking cases
-  and `test_ci_prune_reviews.py`. That is about 21,600 lines.
+  `test_review_tracking.py` and `test_ci_prune_reviews.py`, which
+  test `review-tracking.py` and belong to code review tracking. That
+  is 22,065 lines. Exclusions are whole files, because a pathspec
+  cannot exclude part of one. `test_review.py` stays in: every class
+  in it is a `CheckTestCase` for an audit check (`review-marks-pre-commit`,
+  `review-coverage`, `review-scope-completeness`, `sfui-vendor`).
 - Documentation: `docs/consistency-audits.md` and the criterion
   specs under `docs/audits/`. `docs/audits/compliance.md` is
   generated, so the audit reads it but never edits it by hand.
@@ -684,10 +686,13 @@ survey item 3.
    lines of runner code is more than one agent reads with care. 2a
    is split by file: `packaging.py` and `ci_workflows.py` (5,042
    lines); the other checks modules (6,340); and everything outside
-   `checks/` (3,082). The tests, documentation and security briefs
-   stay one agent each, which makes six agents here and four in
-   `actions`. That is ten in all, at the session's workflow size
-   guideline.
+   `checks/` (3,162). The tests, documentation and security briefs
+   stay one agent each, which makes six agents here. `actions`
+   gets the runbook's four over its 3,124 lines, so ten in all.
+   The count follows from the size of what is read, not from any
+   session's configuration, so a session whose workflow size
+   guideline is below ten needs the operator to raise it, or must
+   run the two repositories one after the other.
 4. **`actions` runs under its own runbook, and its findings land in
    `actions`.** Phase 3 was built there, and the fork-guard reasoning
    in phase 3 item 7 is a security claim about code in that
