@@ -711,12 +711,27 @@ survey item 3.
    The same helper does the job in `actions`, with the four phase 3
    paths as `OWNED`.
 
-   Any grep that matches removed lines (`^-`) cannot fire against
-   the empty tree, because everything is an addition there. That
-   covers the frozen issue-title check and the `issue_title` rename
-   check. These greps only mean something on the five historical
-   ranges, so the current-state run records them as not applicable
-   rather than as passing.
+   Wave 1's greps come in two kinds, and only one of them survives
+   the empty tree. *Content* greps ask whether something is present
+   at all: long lines, file size, imports, TODO markers,
+   suppressions, plan references in code, and generated blocks in a
+   spec. They mean the same thing against current state as against a
+   diff. *Change* greps ask whether something was edited, and against
+   the empty tree every line is an addition, so they fire on all of
+   the content and say nothing. There are five of them:
+
+   - hand-edited `docs/audits/compliance.md` (`^\+`, which hits
+     every line of the generated file);
+   - the `FROZEN_ISSUE_TITLES` change (`^[-+]`);
+   - the `issue_title` change in `scripts/audit/checks/` (`^[-+]`,
+     62 hits on 2026-10-16, one per registered check);
+   - the shared-block version bump, whose `templates/shared-blocks`
+     paths are out of scope anyway;
+   - "documentation touched at all", which lists every document.
+
+   These five run only on the five historical ranges. On the
+   current-state pass they are recorded as not applicable, *because
+   they detect change*, rather than as passing or as hits to triage.
 
    All of this departs from running the runbook verbatim, and the
    result says so.
@@ -760,7 +775,7 @@ survey item 3.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 5a | medium | opus | none | Management session, inline. `git fetch origin` in this repository and in `../actions`. Run this repository's `pre-commit run --all-files` at `origin/main`, then wave 1 of `PUSH-AUDIT.md` once per recorded range: `a56f5f6^..200e007`, `4a970a6^..fed8aa4`, `b8bf764^1..b8bf764`, `ada14ef^1..ada14ef`, `e3d1333^1..e3d1333`. Re-check every hit against `origin/main` and drop the ones whose text no longer exists, keeping a count of how many were dropped. Then run wave 1 once more over current state, using decision 2's empty-tree range, with each command's own pathspec replaced by its `scope` intersection with the owned files (decision 2's snippet). Record an empty intersection as not applicable and do not run that command; record the removed-line greps as not applicable on this pass. In `actions`, run its `PUSH-AUDIT.md` wave 1 over the same empty-tree range, with the four phase 3 paths as `OWNED` and the same `scope` intersection. Record each command's insertion and deletion totals: they are the numbers the wave 2 reports are checked against. Wave 2 is only worth spending on if wave 1 passes, so stop and report if it does not. No commit. |
+| 5a | medium | opus | none | Management session, inline. `git fetch origin` in this repository and in `../actions`. Run this repository's `pre-commit run --all-files` on this phase's branch, which differs from `origin/main` only in this plan, then wave 1 of `PUSH-AUDIT.md` once per recorded range: `a56f5f6^..200e007`, `4a970a6^..fed8aa4`, `b8bf764^1..b8bf764`, `ada14ef^1..ada14ef`, `e3d1333^1..e3d1333`. Re-check every hit against `origin/main` and drop the ones whose text no longer exists, keeping a count of how many were dropped. Then run wave 1 once more over current state, using decision 2's empty-tree range, with each command's own pathspec replaced by its `scope` intersection with the owned files (decision 2's snippet). Record an empty intersection as not applicable and do not run that command; record decision 2's five change greps as not applicable on this pass, and run the content greps as normal. In `actions`, run its `PUSH-AUDIT.md` wave 1 over the same empty-tree range, with the four phase 3 paths as `OWNED` and the same `scope` intersection. Record each command's insertion and deletion totals: they are the numbers the wave 2 reports are checked against. Wave 2 is only worth spending on if wave 1 passes, so stop and report if it does not. No commit. |
 | 5b | high | opus | none | Six read-only wave 2 agents in this repository, spawned in parallel: 2a three times (split as in decision 3), then 2b, 2c and 2d, each with its brief copied from `PUSH-AUDIT.md`. Substitute the concrete range and pathspec into every brief rather than passing the shell expansion, because an agent inherits no environment and the default expands to the empty diff. Each agent states which files it read and the totals it measured; a report whose totals do not match 5a's is re-run rather than triaged. Agents report findings and change nothing. |
 | 5c | high | opus | none | Four read-only wave 2 agents in `../actions`, spawned in parallel with 5b: `actions`' own 2a–2d briefs from its `PUSH-AUDIT.md`, over the four phase 3 paths at its `origin/main`, using the same range substitution and the same totals check. Point 2d at the claim in phase 3 item 7: does `pr-bot-trigger` refuse fork pull requests, and does every output a caller hands to `checkout` or `git push` come from something it has vouched for? Findings only. |
 | 5d | high | opus | none | Management session. Triage per decision 5: merge duplicates; open `Consistency:` issues (`gh search issues --owner shakenfist --state open Consistency`), `PLAN-workflow-ref-trust.md`, `PLAN-bot-bypass-identity.md` and Future work are cross-referenced rather than fixed. Write a `#### Results` subsection here with one row per finding, giving source agent, file:line, verdict (fix / decline / cross-reference) and reason. If there are no findings, write that in one sentence. Commit on this phase's branch: "Record the consistency audits v2 push audit." |
@@ -814,7 +829,9 @@ survey item 3.
 #### Back brief
 
 Before running 5a, back brief the operator: which ranges and which
-pathspec will be audited, the agent count, and whether 5b and 5c
+pathspec will be audited, the line counts behind decision 3 re-measured
+(re-split 2a if any has moved by more than about 10%), the agent
+count, and whether 5b and 5c
 run in parallel (ten agents) or one after the other (decision 3).
 Before 5e and 5f,
 there is a gate: the 5d Results table is reviewed and agreed first,
