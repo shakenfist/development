@@ -305,10 +305,6 @@
       "sha": "c7887a6a693c802ed166dfe1db5fb62c96db7557",
       "date": "2026-10-05"
     },
-    "docs/audits/sfui-vendor.md": {
-      "sha": "0541a684ad7f81e5ac2c214212c35cfe701b320d",
-      "date": "2026-10-05"
-    },
     "docs/audits/test-coverage.md": {
       "sha": "54f7bfcad8af5ac2edd635cee6d6818e45d30bc0",
       "date": "2026-08-29"
@@ -412,10 +408,6 @@
     "scripts/audit/checks/plans.py": {
       "sha": "8b9e3342a4929abb464b4fe3f9b281ede26d8046",
       "date": "2026-10-12"
-    },
-    "scripts/audit/checks/review.py": {
-      "sha": "e32ae9a6de09ad0f0c2ec2bb44c5b87280078a6a",
-      "date": "2026-09-26"
     },
     "scripts/audit/checks/runners.py": {
       "sha": "251b123e68715890e0d3971d77667d83acf7b138",
@@ -580,10 +572,6 @@
     "scripts/tests/test_repo.py": {
       "sha": "89987f23cb42ec217670bda7881661ecdd8b0614",
       "date": "2026-09-22"
-    },
-    "scripts/tests/test_review.py": {
-      "sha": "8c92367a9b21b79c248f4abc1f8a123c3ae354dc",
-      "date": "2026-10-14"
     },
     "scripts/tests/test_review_tracking.py": {
       "sha": "13228a480cc5f25af118188794c77314fa354576",

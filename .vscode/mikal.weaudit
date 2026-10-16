@@ -269,10 +269,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/review.py",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/export-repo-config.yml",
       "author": "mikal"
     },
@@ -517,10 +513,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/sfui-vendor.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/ci-review-automation/pr-re-review.yml",
       "author": "mikal"
     },
@@ -750,10 +742,6 @@
     },
     {
       "path": "scripts/audit/checks/ci_workflows.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_review.py",
       "author": "mikal"
     },
     {
