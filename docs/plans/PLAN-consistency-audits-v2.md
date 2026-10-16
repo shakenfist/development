@@ -301,6 +301,20 @@ Still open:
 
 ## Execution
 
+| Phase | Status | Merged |
+|-------|--------|--------|
+| 1. Modular audit specs | Complete | Reconstructed; see Phase 5 |
+| 2. CI-based audit runner | Complete | Not recoverable; see Phase 5 |
+| 3. Automatic review, and the fix/retest split | Complete | Not recoverable; see Phase 5 |
+| 4. Cleanup | Complete | Reconstructed; see Phase 5 |
+| 5. Push audit | Not started | |
+
+This table was added on 2026-10-16, when phases 2 and 3 were closed
+out; until then the phases were tracked only by the `-- DONE` suffix
+on each heading below. The landing commits predate the
+`plan-push-audit-phase` convention and were reconstructed after the
+fact, so they sit in Phase 5's own section rather than in this table.
+
 ### Phase 1: Modular audit specs -- DONE
 
 1. ~~Create `audits/` directory with README explaining the
@@ -327,7 +341,7 @@ it runs, and `development` is where these rules are written, so an
 exemption there is an exemption the authors of the standard wrote for
 themselves.
 
-### Phase 2: CI-based audit runner -- MOSTLY DONE
+### Phase 2: CI-based audit runner -- DONE
 
 1. ~~Write audit check scripts (shell or Python) for each
    criterion.~~ `scripts/audit-check.py` runs 37 registered checks
@@ -358,11 +372,14 @@ themselves.
    this repository. This matters more than it sounds: while the audit
    is down the tables keep showing the previous run's verdicts, so a
    broken audit looks like a healthy one from the outside.
-7. Check the audit matrix against the organisation's actual repository
-   list, so a repository added to the org is not silently unaudited.
-   Tracked as issue #40.
+7. ~~Check the audit matrix against the organisation's actual
+   repository list, so a repository added to the org is not silently
+   unaudited.~~ Done: issue #40 is closed, and the `scope-coverage`
+   check (`docs/audits/scope-coverage.md`) compares the matrix with
+   the in-scope and excluded lists in `docs/audits/README.md`. This
+   item read as open until the phase 2 close-out on 2026-10-16.
 
-### Phase 3: Automatic review, and the fix/retest split -- MOSTLY DONE
+### Phase 3: Automatic review, and the fix/retest split -- DONE
 
 This phase was planned as one workflow doing review, fix and retest.
 What was built automates the *review* half and deliberately leaves fix
@@ -415,18 +432,39 @@ nothing in the chain reads a secret.
 5. ~~Implement as a reusable workflow in `shakenfist/actions`.~~
 6. ~~Pilot it.~~ Piloted on `actions` and on this repository, rather
    than on `shakenfist` as originally written.
-7. Roll out to the remaining projects. Twelve of the sixteen audited
-   projects now call `pr-auto-review.yml`; `cloudgood`, `divergulent`,
-   `kerbside-patches` and `library-utilities` do not. Separately, and
-   larger, ten projects still hand-roll the bot trigger handling in
-   `pr-re-review.yml` instead of calling
-   `shakenfist/actions/pr-bot-trigger@main`. That is a security gap
-   rather than an untidiness: a hand-rolled copy does not inherit the
-   action's refusal to act on fork pull requests, and the `pr-ref` it
-   substitutes is a head-repository branch name that callers hand
-   straight to `checkout` and `git push` against their own repository.
-   The `standards-alignment` skill is the vehicle for this, one
-   repository per commit.
+7. ~~Roll out to the remaining projects.~~ Handed off to the audit
+   on 2026-10-16 rather than finished here. That is not the same as
+   done, and is recorded as a decision: the rollout is exactly what
+   the `ci-review-automation` check measures, and it files and closes
+   one issue per repository, so holding this plan open until the
+   fleet complies would track the same work twice. That would also
+   leave the plan unable to close for reasons that have nothing to do
+   with its own work.
+
+   On the 2026-10-11 compliance run, nine repositories fail the
+   check, each with an open issue:
+
+   | Repository | Issue | Gap |
+   |------------|-------|-----|
+   | sfui | shakenfist/sfui#26 | Hand-rolled trigger; retired addresser still deployed |
+   | clingwrap | shakenfist/clingwrap#121 | Hand-rolled trigger; retired addresser still deployed |
+   | agent-python | shakenfist/agent-python#145 | Unconfirmed checkout; same-repo output not exported |
+   | client-python | shakenfist/client-python#408 | Unconfirmed checkout; same-repo output not exported |
+   | divergulent | shakenfist/divergulent#120 | Unconfirmed checkout; same-repo output not exported |
+   | library-utilities | shakenfist/library-utilities#62 | Unconfirmed checkout; same-repo output not exported |
+   | cloudgood | shakenfist/cloudgood#1 | No `pr-re-review.yml` |
+   | kerbside-client | shakenfist/kerbside-client#5 | No re-review, retest or shared reviewer |
+   | uncalibrated-sextant | shakenfist/uncalibrated-sextant#16 | No re-review, retest or shared reviewer |
+
+   sfui and clingwrap come first, because theirs is a security gap
+   rather than an untidiness: a hand-rolled trigger does not inherit
+   `shakenfist/actions/pr-bot-trigger@main`'s refusal to act on fork
+   pull requests, and the `pr-ref` it substitutes is a
+   head-repository branch name that callers hand straight to
+   `checkout` and `git push` against their own repository. The
+   retired addresser they also carry holds `contents: write` on the
+   pull request branch. The `consistency-fix` skill is the vehicle,
+   one issue per commit.
 
 ### Phase 4: Cleanup -- DONE
 
