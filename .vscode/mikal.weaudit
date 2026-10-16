@@ -793,10 +793,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
       "path": "renovate.json",
       "author": "mikal"
     },
@@ -849,10 +845,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/renovate/renovate.yml",
-      "author": "mikal"
-    },
-    {
       "path": "templates/review-tracking/ci-prune-reviews.sh",
       "author": "mikal"
     },
@@ -873,10 +865,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/renovate",
-      "author": "mikal"
-    },
-    {
       "path": "templates/shared-blocks/plan-push-audit-phase.md",
       "author": "mikal"
     },
@@ -885,19 +873,7 @@
       "author": "mikal"
     },
     {
-      "path": "templates",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/consistency-audit.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
       "author": "mikal"
     },
     {
