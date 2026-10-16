@@ -918,7 +918,7 @@ actions groups the same way, in 5f:
 | D5 | development | Parser and matcher defects in individual checks, each with the test 2b found missing |
 | D6 | development | Duplicated helpers that have drifted |
 | D7 | development | Stale comments and documentation |
-| A1 | actions | Fixed in actions#168 (open) |
+| A1 | actions | Fixed in actions#168 |
 | A2 | actions | Drop review issue filing (decision 3 above) |
 | A3 | actions | Tests that execute the security guards rather than search their text |
 | A4 | actions | Review JSON extraction and validation |
@@ -1041,9 +1041,14 @@ actions groups the same way, in 5f:
 
 **Summary.** 111 findings:
 
-- 105 to fix. Five are fixed in open pull requests: 2d-1 in #263, and
-  5c-2d-1, -2, -3 and 5c-2a-7 in actions#168. The remaining 100 are
-  spread across the thirteen groups.
+- 105 to fix:
+  - five in the fast-track pull requests, both merged on 2026-10-16:
+    2d-1 in #263, and 5c-2d-1, -2, -3 and 5c-2a-7 (group A1) in
+    actions#168;
+  - one, 2c-11, closed by this commit's Future work update;
+  - the remaining 99 spread across the twelve groups still to land:
+    D1-D7, A2-A5 and T. 5c-2c-2 is among them: its actions half
+    landed in actions#168, and its development half is in D7.
 - 1 split: 2d-8. Its pinning half is cross-referenced, and its
   credential half is fixed in D4.
 - 2 declined: the advisory file-size splits.
