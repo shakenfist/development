@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 import unittest
+import unittest.mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -387,6 +388,7 @@ class SfuiVendorTest(CheckTestCase):
                 '#!/bin/bash\n'
                 'src="$(cd "$(dirname "$0")/.." && pwd)"\n'
                 '[ "$1" = "--check" ] || exit 2\n'
+                '[ -z "${GH_TOKEN:-}${GITHUB_TOKEN:-}" ] || exit 3\n'
                 'diff -u "$2/tokens.css" "$src/tokens.css"\n'
             )
         self._git(repo, 'init', '--quiet')
@@ -447,6 +449,37 @@ class SfuiVendorTest(CheckTestCase):
         result = self.check(check_args={'canonical_url': canonical})
         self.assert_fail(result,
                          containing='not in the canonical repository')
+
+    def test_commit_off_the_default_branch_fails_without_running_it(self):
+        # A full clone holds every pushed branch, so a commit nobody
+        # merged is still "in the canonical repository". Its
+        # tools/vendor.sh is unreviewed code, and must not run.
+        tmp = self.tempdir()
+        canonical = self._make_canonical(tmp)
+        self._git(canonical, 'checkout', '--quiet', '-b', 'unmerged')
+        marker = os.path.join(tmp, 'vendor-sh-ran')
+        with open(os.path.join(canonical, 'tools', 'vendor.sh'), 'w') as f:
+            f.write(f'#!/bin/bash\ntouch {marker}\n')
+        self._git(canonical, 'commit', '--quiet', '-am', 'unreviewed')
+        unmerged = self._head(canonical)
+        self._git(canonical, 'checkout', '--quiet', '-')
+        self._make_consumer(tmp, unmerged)
+        result = self.check(check_args={'canonical_url': canonical})
+        self.assert_fail(result,
+                         containing='not on the canonical default branch')
+        self.assertFalse(os.path.exists(marker))
+
+    def test_canonical_tooling_sees_no_github_credential(self):
+        # The audit step holds AUDIT_TOKEN. The stand-in vendor.sh exits
+        # non-zero if either variable reaches it, which would read as an
+        # edited copy.
+        tmp = self.tempdir()
+        canonical = self._make_canonical(tmp)
+        self._make_consumer(tmp, self._head(canonical))
+        with unittest.mock.patch.dict(os.environ, {
+                'GH_TOKEN': 'audit-token', 'GITHUB_TOKEN': 'job-token'}):
+            result = self.check(check_args={'canonical_url': canonical})
+        self.assert_pass(result)
 
     def test_malformed_stamp_fails(self):
         tmp = self.tempdir()
