@@ -329,6 +329,22 @@ class ReviewScopeCompleteness(Check):
             f'.vscode/review-scope.toml names them', missing=orphans)
 
 
+# Variables that hand a GitHub credential to a child process. The audit
+# step holds AUDIT_TOKEN, which can file and close issues across the
+# organisation, and SfuiVendor runs a script out of another repository,
+# so none of its subprocesses inherit them. Cloning the public canonical
+# repository needs no credential.
+CREDENTIAL_ENV = ('GH_TOKEN', 'GITHUB_TOKEN')
+
+
+def environment_without_credentials():
+    """os.environ with every CREDENTIAL_ENV variable removed."""
+    return {
+        name: value for name, value in os.environ.items()
+        if name not in CREDENTIAL_ENV
+    }
+
+
 class SfuiVendor(Check):
     id = 'sfui-vendor'
     spec = 'docs/audits/sfui-vendor.md'
@@ -357,7 +373,15 @@ class SfuiVendor(Check):
         commit, so the distributable file list always matches the
         commit the copy claims to be. Repositories with no vendored
         copy are N/A.
+
+        Running that script is running code an audited repository
+        chose, because the commit comes from its .sfui-commit. So the
+        commit must be on the canonical default branch -- merged, and
+        so reviewed -- before anything is checked out, rather than
+        merely present: a full clone also holds every pushed branch.
+        And no subprocess here sees a GitHub credential.
         """
+        env = environment_without_credentials()
         vendored = find_sfui_vendored_dirs(repo.path)
         if not vendored:
             return self.skip('No vendored sfui copy (no .sfui-commit file)')
@@ -372,6 +396,7 @@ class SfuiVendor(Check):
                         self.canonical_url or SFUI_CANONICAL_URL, canonical,
                     ],
                     capture_output=True, text=True, timeout=120,
+                    env=env,
                 )
                 if clone.returncode != 0:
                     return self.fail(
@@ -398,6 +423,7 @@ class SfuiVendor(Check):
                             f'{sha}^{{commit}}',
                         ],
                         capture_output=True, text=True, timeout=30,
+                        env=env,
                     )
                     if exists.returncode != 0:
                         problems.append(
@@ -407,12 +433,30 @@ class SfuiVendor(Check):
                         )
                         continue
 
+                    merged = subprocess.run(
+                        [
+                            'git', '-C', canonical, 'merge-base',
+                            '--is-ancestor', sha, 'origin/HEAD',
+                        ],
+                        capture_output=True, text=True, timeout=30,
+                        env=env,
+                    )
+                    if merged.returncode == 1:
+                        problems.append(
+                            f'{rel}: recorded commit {sha[:9]} is not on '
+                            f'the canonical default branch; vendor from a '
+                            f'merged commit'
+                        )
+                        continue
+                    merged.check_returncode()
+
                     subprocess.run(
                         [
                             'git', '-C', canonical, 'checkout', '--quiet',
                             sha,
                         ],
                         capture_output=True, text=True, timeout=30,
+                        env=env,
                         check=True,
                     )
                     verbatim = subprocess.run(
@@ -422,6 +466,7 @@ class SfuiVendor(Check):
                             '--check', os.path.abspath(directory),
                         ],
                         capture_output=True, text=True, timeout=60,
+                        env=env,
                     )
                     if verbatim.returncode != 0:
                         problems.append(
@@ -437,6 +482,7 @@ class SfuiVendor(Check):
                             f'{sha}..origin/HEAD',
                         ],
                         capture_output=True, text=True, timeout=30,
+                        env=env,
                     )
                     if (behind.returncode == 0
                             and int(behind.stdout.strip()) > 0):
