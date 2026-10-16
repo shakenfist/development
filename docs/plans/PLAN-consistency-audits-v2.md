@@ -3,7 +3,7 @@
 ## Prompt
 
 Before responding to questions or discussion points in this
-document, explore this repository thoroughly: `audits/`, the audit
+document, explore this repository thoroughly: `docs/audits/`, the audit
 tooling in `scripts/`, `.github/workflows/consistency-audit.yml`, and
 the reusable workflows and composite actions in `shakenfist/actions`.
 Ground your answers in what the tooling does today rather than in what
@@ -332,10 +332,11 @@ fact, so they sit in Phase 5's own section rather than in this table.
    issues created across 10 repos.
 
 The structure has since outgrown those numbers, which is the point of
-it: `audits/` now holds 34 criteria rather than 13, backed by 37
-registered checks (some criteria, such as `workflow-standards`,
-decompose into several), and the audit matrix covers 17 repositories
-rather than 10. `actions` and `development` were both moved off the
+it: by August 2026 `audits/` held 34 criteria rather than 13, backed
+by 37 registered checks (some criteria, such as `workflow-standards`,
+decompose into several), and the audit matrix covered 17 repositories
+rather than 10. On 2026-10-16 `docs/audits/` holds 55 criteria backed
+by 62 registered checks, over a matrix of 24 repositories. `actions` and `development` were both moved off the
 exempt list -- the fleet depends on `actions` for every composite action
 it runs, and `development` is where these rules are written, so an
 exemption there is an exemption the authors of the standard wrote for
@@ -344,14 +345,16 @@ themselves.
 ### Phase 2: CI-based audit runner -- DONE
 
 1. ~~Write audit check scripts (shell or Python) for each
-   criterion.~~ `scripts/audit-check.py` runs 37 registered checks
-   across 34 criteria (4 judged by reading rather than matching:
+   criterion.~~ In August 2026 `scripts/audit-check.py` ran 37
+   registered checks across 34 criteria (4 judged by reading rather than matching:
    security-sanitization, console-logging, python-version,
    test-coverage).
 2. ~~Create a scheduled workflow in `development` that runs all
    checks across all projects.~~
-   `.github/workflows/consistency-audit.yml` runs daily at
-   06:00 UTC with a matrix of 17 repos.
+   `.github/workflows/consistency-audit.yml` ran daily at 06:00 UTC
+   over 17 repositories. Since #210 (2026-10-03) it runs weekly, at
+   18:00 UTC on Sunday, because a daily run filed and closed issues
+   faster than the fleet could absorb them.
 3. ~~Add issue creation/closure automation for audit results.~~
    `scripts/audit-manage-issues.py` creates issues for failures
    and closes them when checks pass, using exact title matching
@@ -423,12 +426,11 @@ nothing in the chain reads a secret.
    anyone reaching for it. A retired addresser leaves no fix step for
    a review to be combined with, so the two commands that survive are
    `please re-review` and `please retest`. Removed in PR #43 -- from
-   this repository and from the template. Eleven of the sixteen
-   audited projects still carry the workflow (actions, agent-python,
-   client-python, client-python-k3s, clingwrap, instar, kerbside,
-   occystrap, ryll, shakenfist and sfui), so the command still answers
-   across most of the fleet; the `ci-review-automation` check files an
-   issue against each until it does not.
+   this repository and from the template. At the time eleven of the
+   sixteen audited projects still carried the workflow; on the
+   2026-10-11 run the `ci-review-automation` check flags only sfui
+   and clingwrap for it, and files an issue against each until it is
+   gone.
 5. ~~Implement as a reusable workflow in `shakenfist/actions`.~~
 6. ~~Pilot it.~~ Piloted on `actions` and on this repository, rather
    than on `shakenfist` as originally written.
@@ -498,16 +500,47 @@ nothing in the chain reads a secret.
 
 ### Phase 5: Push audit -- NOT STARTED
 
-Run `PUSH-AUDIT.md` over the accumulated diff of every phase in
-this plan against `main`, not over the last phase's diff alone --
-the interactions between phases are most of what a whole-plan
-audit is for.
+Run `PUSH-AUDIT.md` over the whole plan's work rather than over the
+last phase's diff alone -- the interactions between phases are most
+of what a whole-plan audit is for. Planned on 2026-10-16, after
+phases 2 and 3 were closed out (see the Execution table).
 
-Phases 1--4 are already on `main`, so `git diff main` for this plan
-is empty and would read as a clean audit. The
-`plan-push-audit-phase` block asks for the commit each phase landed
-under; this plan predates that, so what can be reconstructed is
-recorded here and what cannot is named as such:
+**Planning effort:** high. **Review effort:** high for wave 2, per
+the runbook; the triage step is the management session's.
+
+#### Scope
+
+In:
+
+- This repository's runbook, `PUSH-AUDIT.md`, over the reconstructed
+  ranges of phases 1 and 4, and over the current state of the paths
+  the plan owns for phases 2 and 3 (listed below).
+- `shakenfist/actions`' own `PUSH-AUDIT.md` over the current state of
+  the four phase 3 paths that live there. That runbook exists, so the
+  shared block's "a phase that landed in another repository is audited
+  against that repository's default branch" applies directly.
+- Findings fixed in their own pull requests (one in this repository,
+  one in `actions` if it has any), and each finding not fixed declined
+  in writing here.
+
+Out:
+
+- The fleet rollout of review automation. Phase 3 item 7 handed that
+  to the `ci-review-automation` issues, and this phase does not take
+  it back.
+- `scripts/review-tracking.py` and its tests. Code review tracking
+  has a plan of its own.
+- `templates/`. The audits point at it, but its contents are
+  `PLAN-plan-template-blocks.md`'s and other plans' work.
+- Future work entries. A finding that turns out to be one of them is
+  cross-referenced, not fixed.
+
+#### Landing record
+
+The `plan-push-audit-phase` block asks for the commit each phase
+landed under. This plan predates that rule, so the record below was
+reconstructed afterwards. What could be recovered is given; what
+could not is named as such.
 
 | Phase | Merged |
 |-------|--------|
@@ -516,39 +549,229 @@ recorded here and what cannot is named as such:
 | 3. Automatic review and the fix/retest split | not recoverable |
 | 4. Cleanup | `b8bf764` (#41), `ada14ef` (#44), `e3d1333` (#47) |
 
-The phase 4 merges are the plan's work but not only the plan's
+The phase 4 merges contain the plan's work, but not only the plan's
 work: #47 landed `54df816`, which published the audit specs under
-`docs/`, alongside unrelated review-tracking fixes. Recording a
-merge commit buys a range that certainly contains the phase, at the
-cost of a range that may contain more -- which is the right trade
-against the alternative of a range that contains neither reliably,
-but the audit says which files it read rather than reporting the
-whole merge as this plan's diff.
+`docs/`, alongside unrelated review-tracking fixes. Recording a merge
+commit buys a range that certainly contains the phase, at the cost of
+a range that may contain more. That is the right trade against the
+alternative, a range that reliably contains neither, but the audit
+says which files it read rather than reporting the whole merge as
+this plan's diff.
 
 Phases 2 and 3 are the honest gap. Phase 2 shipped one runner in
-March 2026 and then accreted from 13 criteria to 34 over five
-months, in commits interleaved with everything else this repository
-did; phase 3 was built largely in `shakenfist/actions`, so it spans
-two repositories. No commit range recovers either
-without also recovering unrelated work, which is the failure v2
-names. So the audit for those two phases reads the current state of
-the paths the plan owns rather than a diff -- `scripts/audit-check.py`,
-`scripts/audit_common.py`, `scripts/audit-manage-issues.py`,
-`scripts/audit-update-docs.py`, `docs/audits/`,
-`.github/workflows/consistency-audit.yml` and
-`docs/consistency-audits.md` -- and says so in its result. An audit
+March 2026 and then grew from 13 criteria to 55 over seven months,
+in commits interleaved with everything else this repository did.
+Phase 3 was built largely in `shakenfist/actions`, so it spans two
+repositories. No commit range recovers either without also
+recovering unrelated work, which is the failure v2 names. So the
+audit for those two phases reads the current state of the paths the
+plan owns rather than a diff, and says so in its result. An audit
 that states what it could not scope is a result; one that quietly
 diffs nothing is not.
 
-This plan is the worked example for why v2 requires recording as
-phases land rather than deriving afterwards: five months on, the
-range genuinely is gone.
+This plan is the worked example for why v2 requires recording landings
+as phases land rather than deriving them afterwards: seven months on,
+the range genuinely is gone.
 
-Findings land as their own pull request; the plan is not complete
-until each is resolved or declined in writing, with the reason
-recorded here. If the audit finds nothing, say so in one sentence:
-that is a real result, and a run of them is the evidence for making
-this phase conditional rather than mandatory.
+#### What the survey found
+
+Every claim below was checked against `origin/main` at `a19f647`
+on 2026-10-16.
+
+1. **All nine recorded commits exist and are ancestors of `main`.**
+   On the first-parent line, phase 1 and the start of phase 2 are
+   five consecutive direct commits, so they reduce to two ranges with
+   the runbook's caret: `a56f5f6^..200e007` (16 files, +743/-9) and
+   `4a970a6^..fed8aa4` (5 files, +1052/-8). The phase 4 merges are
+   `b8bf764^1..b8bf764` (+111/-791), `ada14ef^1..ada14ef`
+   (+765/-241) and `e3d1333^1..e3d1333` (69 files, +1739/-1783).
+2. **The owned-path list this section used to give was too short to
+   audit against.** It named `scripts/audit-check.py`,
+   `scripts/audit_common.py`, `scripts/audit-manage-issues.py`,
+   `scripts/audit-update-docs.py`, `docs/audits/`,
+   `.github/workflows/consistency-audit.yml` and
+   `docs/consistency-audits.md`. Since then the checks have moved
+   into a package. `scripts/audit/` (11,382 lines under `checks/`
+   alone) is now most of the runner, and the list also missed
+   `scripts/audit-raised.py`, `scripts/audit_snapshot.py`,
+   `scripts/check-audit-smoke.py`, `scripts/commit-audit-docs.sh`,
+   `tools/audit-snapshot.sh` and the audit tests in `scripts/tests/`.
+   Auditing the old list would have skipped most of the code.
+   Corrected below.
+3. **The phase 3 paths in `actions` exist** and total 3,124 lines:
+   `.github/workflows/pr-auto-review.yml`,
+   `.github/workflows/pr-re-review.yml`, `review-pr-with-claude/`
+   and `pr-bot-trigger/`. `actions` has a `PUSH-AUDIT.md` that
+   reads the same `AUDIT_RANGE` variable this repository's does, so
+   the empty-tree technique in decision 2 carries over unchanged.
+   `actions` has no open pull requests. Two worktrees in the local
+   `actions` clone (`actions-plan-history-in-source`,
+   `actions-pr-bot-trigger-rejected-branch`) look stale, but they
+   belong to that repository's sessions and this phase does not
+   touch them.
+4. **Several facts elsewhere in this plan had gone stale, and were
+   corrected at their source in this planning commit**, so later
+   steps need not redo it:
+   - The Prompt said `audits/`; the tree is `docs/audits/`.
+   - Phase 2 item 2 said the audit runs daily at 06:00 UTC. It has
+     run weekly, at 18:00 UTC on Sunday, since #210 (2026-10-03).
+   - Phase 1's closing paragraph and phase 2 item 1 gave 34
+     criteria, 37 checks and 17 repositories. Today it is 55
+     criteria, 62 registered checks and 24 repositories in the
+     matrix. Those counts now say "in August 2026" where they are
+     historical.
+   - Phase 3 item 4 said eleven projects still carry the retired
+     addresser. On the 2026-10-11 run only sfui and clingwrap are
+     flagged for it.
+5. **Some of the overlapping work is already planned elsewhere.**
+   `PLAN-workflow-ref-trust.md` covers how callers pin
+   `pr-bot-trigger@main` and the other `actions` references, and
+   `PLAN-bot-bypass-identity.md` covers the review-marks App. An
+   `actions` finding about either is cross-referenced to that plan
+   rather than fixed here.
+
+#### Owned paths
+
+In this repository, read at `origin/main` for phases 2 and 3:
+
+- Runner and tooling: `scripts/audit/` (the package, `checks/`
+  included), `scripts/audit-check.py`, `scripts/audit_common.py`,
+  `scripts/audit-manage-issues.py`, `scripts/audit-update-docs.py`,
+  `scripts/audit-raised.py`, `scripts/audit_snapshot.py`,
+  `scripts/check-audit-smoke.py`, `scripts/commit-audit-docs.sh`,
+  `tools/audit-snapshot.sh` and `.github/workflows/consistency-audit.yml`.
+  Outside `checks/` this is 3,082 lines.
+- Tests: every file under `scripts/tests/` except
+  `test_review_tracking.py`, `test_review.py`'s review-tracking cases
+  and `test_ci_prune_reviews.py`. That is about 21,600 lines.
+- Documentation: `docs/consistency-audits.md` and the criterion
+  specs under `docs/audits/`. `docs/audits/compliance.md` is
+  generated, so the audit reads it but never edits it by hand.
+
+In `shakenfist/actions`, read at its `origin/main`: the four paths in
+survey item 3.
+
+#### Decisions
+
+1. **One current-state wave 2, not one wave 2 per range.** The
+   block says that a plan which landed as several merges runs every
+   command once per merge. Here that would mean six wave 2 passes,
+   five of them over content that has since been rewritten: the
+   phase 1 specs were dissolved and re-homed under `docs/` in phase
+   4, and the March runner is unrecognisable in today's package. A
+   finding against superseded text either duplicates a finding
+   against current text or describes something that no longer
+   exists. So wave 1, which is cheap, runs once per recorded range,
+   and any hit is re-checked against `origin/main` before it is
+   reported. Wave 2 reads the current state of the owned paths once.
+   This is the decision a reviewer is most likely to push back on,
+   because it reads as auditing less than the block asks. It is
+   actually wider: it reads everything the plan owns today, not just
+   what a range happens to contain. What it gives up is catching a
+   regression that was introduced and then reverted, and there is
+   nothing left in the tree to fix for one of those.
+2. **Current state is diffed against the empty tree.** Every runbook
+   command is written `git diff "${AUDIT_RANGE:-...}"`. Setting
+   `AUDIT_RANGE="$(git hash-object -t tree /dev/null)..origin/main"`
+   makes those commands see the current state as one large
+   addition. Each command then gets the owned-path list appended as
+   a pathspec, after a `--`, by hand. That is a deliberate
+   departure from running the runbook verbatim, and the result says
+   so. Without the pathspec the range covers the whole repository.
+   Without the empty tree, the diff is the empty one the block
+   warns about.
+3. **Code quality gets three wave 2 agents, not one.** About 14,500
+   lines of runner code is more than one agent reads with care. 2a
+   is split by file: `packaging.py` and `ci_workflows.py` (5,042
+   lines); the other checks modules (6,340); and everything outside
+   `checks/` (3,082). The tests, documentation and security briefs
+   stay one agent each, which makes six agents here and four in
+   `actions`. That is ten in all, at the session's workflow size
+   guideline.
+4. **`actions` runs under its own runbook, and its findings land in
+   `actions`.** Phase 3 was built there, and the fork-guard reasoning
+   in phase 3 item 7 is a security claim about code in that
+   repository, so leaving it unaudited would leave the plan's sharpest
+   claim unchecked. This repository's briefs are written for this
+   repository's blast radius, so they are not reused there.
+5. **Triage happens before anything is fixed, and it is the
+   management session's job.** Duplicates across agents are merged.
+   A finding already covered by an open `Consistency:` issue, by
+   another plan (survey item 5) or by Future work is cross-referenced
+   instead of fixed. Every other finding is either fixed or declined
+   with a stated reason. The triage table is written into this
+   section before any fix branch is cut, so that the record does not
+   depend on the fix pull request merging.
+6. **The fix pull requests do not touch `REVIEWS.md`.** Fixing files
+   that carry review marks stales those marks. Per `AGENTS.md`, the
+   `prune-reviews` workflow corrects that on the next push to
+   `main`, and a pull request runs neither `prune` nor `regen`. The
+   pull request body names the reviewed files it touched, so that
+   whoever re-reads them knows which ones to look at.
+7. **This phase closes itself out in its own pull request**, as the
+   `next-phase` convention requires of a push-audit phase, and
+   records no `Merged` cell. If there is nothing to fix, that pull
+   request is just this section's results plus the close-out.
+
+#### Step plan
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 5a | medium | opus | none | Management session, inline. `git fetch origin` in this repository and in `../actions`. Run this repository's `pre-commit run --all-files` at `origin/main`, then wave 1 of `PUSH-AUDIT.md` once per recorded range: `a56f5f6^..200e007`, `4a970a6^..fed8aa4`, `b8bf764^1..b8bf764`, `ada14ef^1..ada14ef`, `e3d1333^1..e3d1333`. Re-check every hit against `origin/main` and drop the ones whose text no longer exists, keeping a count of how many were dropped. Then run wave 1 once more over current state, using decision 2's empty-tree range with the owned-path list (see *Owned paths*) appended after `--` to every command. In `actions`, run its `PUSH-AUDIT.md` wave 1 over the same empty-tree range, restricted to the four phase 3 paths. Record each command's insertion and deletion totals: they are the numbers the wave 2 reports are checked against. Wave 2 is only worth spending on if wave 1 passes, so stop and report if it does not. No commit. |
+| 5b | high | opus | none | Six read-only wave 2 agents in this repository, spawned in parallel: 2a three times (split as in decision 3), then 2b, 2c and 2d, each with its brief copied from `PUSH-AUDIT.md`. Substitute the concrete range and pathspec into every brief rather than passing the shell expansion, because an agent inherits no environment and the default expands to the empty diff. Each agent states which files it read and the totals it measured; a report whose totals do not match 5a's is re-run rather than triaged. Agents report findings and change nothing. |
+| 5c | high | opus | none | Four read-only wave 2 agents in `../actions`, spawned in parallel with 5b: `actions`' own 2a–2d briefs from its `PUSH-AUDIT.md`, over the four phase 3 paths at its `origin/main`, using the same range substitution and the same totals check. Point 2d at the claim in phase 3 item 7: does `pr-bot-trigger` refuse fork pull requests, and does every output a caller hands to `checkout` or `git push` come from something it has vouched for? Findings only. |
+| 5d | high | opus | none | Management session. Triage per decision 5: merge duplicates; open `Consistency:` issues (`gh search issues --owner shakenfist --state open Consistency`), `PLAN-workflow-ref-trust.md`, `PLAN-bot-bypass-identity.md` and Future work are cross-referenced rather than fixed. Write a `#### Results` subsection here with one row per finding, giving source agent, file:line, verdict (fix / decline / cross-reference) and reason. If there are no findings, write that in one sentence. Commit on this phase's branch: "Record the consistency audits v2 push audit." |
+| 5e | high | opus | worktree | Fix this repository's findings marked *fix* in 5d, one commit per finding, on a branch cut from `main` (e.g. `consistency-audits-v2-push-audit-fixes`). Every change to a `Check` updates its spec in `docs/audits/` in the same commit. Never rename an `issue_title`: `scripts/tests/test_metadata.py` freezes them, and a rename orphans issues fleet-wide. Keep `audit-manage-issues.py` to `--dry-run` if it is run at all. Run `pre-commit run --all-files`, plus `tools/mermaid-lint.sh` if a diagram changed. A change to what a check reports also needs the before/after fleet comparison with `tools/audit-snapshot.sh`, with the expected moves listed before measuring. Leave `REVIEWS.md` alone (decision 6). Skip this step if 5d found nothing to fix here. |
+| 5f | high | opus | worktree | The same for `actions`' findings marked *fix*, in `actions`, under that repository's conventions (its `AGENTS.md` and `PLAN-TEMPLATE.md`), one commit per finding. If a fix changes a composite action's inputs or outputs, check every fleet caller (`gh search code --owner shakenfist <action>@main`) and say in the pull request which callers need a follow-up. Skip if there is nothing to fix there. |
+| 5g | low | sonnet | none | Close-out, on this phase's branch once 5e and 5f have merged (or been skipped): set phase 5 to `Complete` in the Execution table, and this plan's row in `docs/plans/index.md` to `Complete`. Retitle this section `-- DONE`. Check each Success criteria bullet against the tree, and add a line under any that does not hold. Commit: "Close out consistency audits v2." |
+
+#### Risks and mitigations
+
+- **Agents audit an empty diff and call it clean.** This is the
+  failure the runbook's totals rule exists for. Mitigation: 5a
+  records the totals, and the management session compares every
+  wave 2 report against them before reading any findings.
+- **The empty-tree pathspec drifts from the owned-path list.**
+  Mitigation: 5a builds the pathspec once, in a shell array, from
+  *Owned paths*. The same array goes into every brief, and the
+  Results subsection quotes it.
+- **The `actions` fixes break callers fleet-wide**, since `@main`
+  is what every caller uses. Mitigation: 5f's caller check, plus
+  `actions`' own push audit on its pull request. Any change to an
+  interface gets a note in the pull request listing which callers
+  need follow-up.
+- **Findings collide with work in flight in another plan.**
+  Mitigation: 5d's cross-reference pass, run before any fix branch
+  is cut.
+- **Triage quietly declines inconvenient findings.** Mitigation:
+  each decline records its reason in Results, where the review of
+  5d's commit sees it. A decline that just says "out of scope"
+  names the plan or issue the finding belongs to.
+
+#### Definition of done
+
+- The Results subsection exists and has one row per finding, or a
+  sentence saying there were none. Each row's verdict is fix,
+  decline or cross-reference, and every decline has a reason. Check:
+  every row has a non-empty reason cell.
+- Each wave 2 report quotes insertion and deletion totals that
+  match the 5a range it was given.
+- Every finding marked *fix* has a merged commit, and the Results
+  row cites it.
+- `pre-commit run --all-files` passes on this phase's final commit.
+- `python3 scripts/audit-check.py --repo-path . --repo-name development`
+  reports `plan-audit-phase` and `plan-index` as passing for this
+  repository; both read this plan and its `index.md` row.
+- The Execution table's phase 5 row and this plan's `index.md` row
+  both read `Complete`.
+
+#### Back brief
+
+Before running 5a, back brief the operator: which ranges and which
+pathspec will be audited, and the agent count. Before 5e and 5f,
+there is a gate: the 5d Results table is reviewed and agreed first,
+because fixing a finding that should have been declined is cheap to
+propose and expensive to unwind across the fleet.
 
 ## Administration and logistics
 
