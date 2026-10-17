@@ -771,6 +771,26 @@
     {
       "path": "renovate.json",
       "author": "mikal"
+    },
+    {
+      "path": "templates/renovate/renovate.json",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

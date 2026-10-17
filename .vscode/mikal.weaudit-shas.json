@@ -573,6 +573,18 @@
       "sha": "932143a87e482d3e08101a485e249f347dfee26d",
       "date": "2026-10-01"
     },
+    "templates/renovate/README.md": {
+      "sha": "c756bd4986a986a6ef690de782577a751683b427",
+      "date": "2026-10-18"
+    },
+    "templates/renovate/renovate.json": {
+      "sha": "0155b2e100a310454fe89e015823b3372be4777a",
+      "date": "2026-10-18"
+    },
+    "templates/renovate/renovate.yml": {
+      "sha": "c6d89a69dbc94ad3d08ac4bf57349190ee9602ab",
+      "date": "2026-10-18"
+    },
     "templates/review-tracking/README.md": {
       "sha": "1501500bc92a3b31381f771c66c7d2b8578f2ac8",
       "date": "2026-10-16"
