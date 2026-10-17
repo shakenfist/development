@@ -65,8 +65,12 @@ jobs:
           - uncalibrated-sextant
           - visual-digest-rust
     steps:
+      # No credential left in .git/config. Nothing in this job pushes,
+      # and its later steps run code over another repository's files.
       - name: Checkout development repo
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       # Every path this job writes is under runner.temp, which belongs
       # to this runner and is emptied between jobs. The static runners
@@ -177,8 +181,12 @@ jobs:
     permissions:
       contents: read
     steps:
+      # This job does not push either; update-docs below does, so its
+      # checkout keeps the credential.
       - name: Checkout development repo
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Download all audit results
         uses: actions/download-artifact@v8
