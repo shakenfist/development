@@ -23,13 +23,16 @@ With --no-issues the GitHub issue column is omitted from lookups
 which is how to render a page locally without touching the tree: the
 criterion specifications beside the real one are hand-written, so
 `git restore docs/audits/` is no longer a safe way to clean up after a
-test run. It redirects the output only -- the criteria the page
-describes are always read from docs/audits/.
+test run. A --page that does not exist yet is seeded from the real
+page first, so it has the markers to splice between. It redirects the
+output only -- the criteria the page describes are always read from
+docs/audits/.
 """
 
 import argparse
 import json
 import os
+import shutil
 import sys
 
 from audit.registry import CHECKS
@@ -311,6 +314,26 @@ def update_compliance_page(page, section):
     return True
 
 
+def seed_page(page, source=COMPLIANCE_PAGE):
+    """Copy the real compliance page to a --page that does not exist yet.
+
+    Only the block between the markers is generated; the preamble
+    around it is hand-written, and the markers are what the splice
+    looks for. A fresh scratch path has neither, so without this a
+    local run with --page /tmp/compliance.md stops on a
+    FileNotFoundError. Starting from a copy of the real page gives the
+    run both, and leaves the real page untouched.
+
+    Returns True if the page was seeded. An existing page is left alone:
+    it is either a previous local run, which is safe to rewrite, or the
+    real page itself.
+    """
+    if os.path.exists(page) or not os.path.isfile(source):
+        return False
+    shutil.copyfile(source, page)
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Regenerate the audit compliance page from results',
@@ -342,6 +365,8 @@ def main():
         sys.exit(0)
 
     section = render_page(results, args.no_issues)
+    if seed_page(args.page):
+        print(f'Seeded {args.page} from {COMPLIANCE_PAGE}')
     if not update_compliance_page(args.page, section):
         # The markers are the only thing tying the generated block to
         # its page. Losing them silently would leave the previous run's

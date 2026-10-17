@@ -13,10 +13,12 @@ anything under `scripts/` or `docs/audits/`.
 
 The parts worth knowing before you start:
 
-- A criterion is a `Check` subclass in `scripts/audit/checks/`,
-  registered in `scripts/audit/registry.py`, plus its specification
-  under `docs/audits/`. The metadata tables are views over the
-  registry, so there is nothing to keep in sync by hand.
+- A criterion spans six files: its `Check` subclass, its
+  registration, its tests, its spec, a line in the spec index and its
+  frozen lines in `scripts/tests/test_metadata.py`. The list, with
+  the test that catches each omission, is *Adding a criterion* in
+  `docs/consistency-audits.md`. The metadata tables are views over
+  the registry; only the frozen copies are edited by hand.
 - The compliance tables live in `docs/audits/compliance.md` between
   the `consistency-audit` markers, and are regenerated and pushed by
   the weekly workflow. Never edit them by hand, and never add a table
@@ -30,6 +32,11 @@ The parts worth knowing before you start:
 - A check that does not apply must report `not_applicable` with a
   reason rather than being omitted; an omitted check renders as
   `unknown`.
+- A check whose own tooling fails (an API error, a failed
+  `git ls-files` or clone, a timeout) raises, so it reports `error`:
+  never `fail`, which files an issue for our outage, and never
+  `not_applicable`, which closes one. See *What each status means*
+  in `docs/consistency-audits.md`.
 - Always pass `--dry-run` to `audit-manage-issues.py` when running it
   by hand. Without it, it files and closes real issues fleet-wide.
 
@@ -153,9 +160,13 @@ content scanner differs per project and takes judgment.
   splitting it on literal phrases, and raises `ScopeParseError` unless
   those phrases still delimit a list of repository names -- so reword
   freely and let its two consumers, `AuditScopeIsStatedOnceTest` and
-  the `scope-coverage` check, say when a phrase mattered. Any new
-  parse of a document by phrase gets the same treatment: a named
-  constant and a guard, not a bare `split()`.
+  the `scope-coverage` check, say when a phrase mattered. Likewise
+  `UnmeasuredCriteriaTest` finds the paragraph of
+  `docs/consistency-audits.md` naming the criteria with no check by
+  its `UNMEASURED_ANCHOR` phrase, "at the time of writing", and fails
+  unless exactly one paragraph carries it. Any new parse of a
+  document by phrase gets the same treatment: a named constant and a
+  guard, not a bare `split()`.
 - This repository is audited by its own consistency audits. Two checks
   are N/A for stated reasons in `REPO_OVERRIDES` (its Python is never
   packaged, and it keeps `main` because it publishes no releases); see
