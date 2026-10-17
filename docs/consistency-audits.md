@@ -97,6 +97,34 @@ and stays off `PATH`: the audit step names the binary in
 interpreter running the checks (see
 [llm-context-lint](audits/llm-context-lint.md)).
 
+The workflow holds two tokens, and the legs get the weaker one. The
+checks read files the audited repositories control, and some run
+programs over them, so the legs hold `AUDIT_READ_TOKEN`, a
+fine-grained personal access token that can read every repository in
+the organisation and write to none. `AUDIT_TOKEN`, which files and
+closes issues and pushes the compliance page, appears only in
+`manage-issues` and `update-docs`. `AUDIT_READ_TOKEN` is minted with
+the `shakenfist` organisation as its resource owner, access to all
+repositories, no organisation permissions, and these repository
+permissions, each read-only:
+
+* **Metadata** -- the repository itself (default branch, visibility),
+  its branch rules, and the organisation's repository listing.
+* **Contents** -- cloning the private repositories.
+* **Actions** -- the workflows and their runs, which
+  `scheduled-workflow-health` reads.
+* **Administration** -- `delete_branch_on_merge` and
+  `security_and_analysis`, which GitHub leaves out of the repository
+  for a caller without admin access.
+
+Each leg checks first that the read token is set -- an unset secret
+is an empty string, and `gh` with an empty `GH_TOKEN` falls back to
+whatever login the runner's user holds -- and that it can see those
+last two fields. Without them `delete-branch-on-merge` would fail
+every repository, and `github-security` would stop checking secret
+scanning without saying so, so a token that cannot see them fails
+every leg instead.
+
 **2. `manage-issues`** -- downloads every artifact and runs
 `scripts/audit-manage-issues.py`, which files, updates and closes issues. See
 [Issues are the work tracking](#issues-are-the-work-tracking) below.

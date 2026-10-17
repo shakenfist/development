@@ -83,6 +83,29 @@ jobs:
         with:
           persist-credentials: false
 
+      # The legs hold AUDIT_READ_TOKEN, which can read every repository
+      # in the organisation and write to none of them. AUDIT_TOKEN, which
+      # files issues and pushes, appears only in manage-issues and
+      # update-docs: the checks here read files the audited repositories
+      # control, and run programs over them.
+      #
+      # An unset secret expands to an empty string, and gh given an
+      # empty GH_TOKEN falls back to whatever login the runner's user
+      # holds, so test for it rather than let that decide what is
+      # measured. Then check the token can see the two repository fields
+      # GitHub hides from callers without admin access: without them
+      # delete-branch-on-merge would fail every repository, and
+      # github-security would stop checking secret scanning without
+      # saying so.
+      - name: Check the read token
+        env:
+          GH_TOKEN: ${{ secrets.AUDIT_READ_TOKEN }}
+        run: |
+          test -n "${GH_TOKEN}" || { echo '::error::AUDIT_READ_TOKEN is not set'; exit 1; }
+          visible=$(gh api "repos/${GITHUB_REPOSITORY}" \
+              --jq '.delete_branch_on_merge != null and .security_and_analysis != null')
+          [ "${visible}" = true ] || { echo '::error::AUDIT_READ_TOKEN cannot see repository settings'; exit 1; }
+
       # Every path this job writes is under runner.temp, which belongs
       # to this runner and is emptied between jobs. The static runners
       # share hosts, and a fixed /tmp path is shared by every leg and
@@ -93,7 +116,7 @@ jobs:
         run: |
           gh repo clone "shakenfist/${{ matrix.repo }}" "${RUNNER_TEMP}/audit-target" -- --depth 1
         env:
-          GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUDIT_READ_TOKEN }}
 
       # Pinned deliberately. The llm-context-lint check reports what
       # skillsaw calls an error, and skillsaw's rule set moves between
@@ -146,7 +169,7 @@ jobs:
             > "${RUNNER_TEMP}/audit-result-${{ matrix.repo }}.json"
           cat "${RUNNER_TEMP}/audit-result-${{ matrix.repo }}.json"
         env:
-          GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUDIT_READ_TOKEN }}
           AUDIT_SKILLSAW: ${{ runner.temp }}/skillsaw-venv/bin/skillsaw
 
       - name: Upload audit results
