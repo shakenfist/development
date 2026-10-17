@@ -321,9 +321,17 @@
       "sha": "d60479307223048db30a9651ee8492b89c8b4049",
       "date": "2026-08-30"
     },
+    "docs/ci-review-automation.md": {
+      "sha": "f6b4172ded2843c7764d89522b6766d2ddb2ffc7",
+      "date": "2026-10-18"
+    },
     "docs/code-review-tracking.md": {
       "sha": "b8778a9bcbbd432ea2c13e2551f40134ae75ff44",
       "date": "2026-10-16"
+    },
+    "docs/consistency-audits.md": {
+      "sha": "ecd859a88eec1b2c0d8018932ecff7b1f39741c8",
+      "date": "2026-10-18"
     },
     "docs/release-automation.md": {
       "sha": "9807720ead26729e88b627892fbb73cb81edef91",
