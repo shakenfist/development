@@ -137,10 +137,6 @@
       "sha": "279a5906de0220f7131045c0b7677c650ccc0500",
       "date": "2026-10-05"
     },
-    "docs/audits/llm-context-lint-ci.md": {
-      "sha": "fa2365071839c7982aa34a3694d765307185af47",
-      "date": "2026-10-05"
-    },
     "docs/audits/llm-doc-naming.md": {
       "sha": "f2daf0a03ecdca1d2d892101965dac427db28917",
       "date": "2026-10-05"
