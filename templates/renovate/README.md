@@ -140,6 +140,20 @@ Any of the three supported forms satisfies the audit:
 Repositories with no `.pre-commit-config.yaml`, or whose config only
 declares `repo: local` hooks, have nothing to bump and are not checked.
 
+### shellcheck-py's four-part tags
+
+Enabling the manager is not enough for the shellcheck hook. Upstream
+tags a fourth, packaging, component (`v0.11.0.1`), which renovate's
+default versioning cannot parse, so the lookup fails with "Can't find
+version matching v0.11.0.1" on the dependency dashboard and the hook is
+never bumped. That is the same silent ageing the manager was enabled to
+prevent, with a warning only the dashboard shows. The template's
+`shellcheck-py/shellcheck-py` package rule sets a regex versioning
+that reads all four components. Keep it when adapting the template:
+it is inert in a repository that does not use the hook. `kerbside`
+found this first, and its `renovate.json` additionally groups the hook
+with the `tox.ini` pin of the same tool.
+
 ## Customisation
 
 ### Python version constraints
