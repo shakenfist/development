@@ -185,10 +185,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/npm_dependencies.py",
-      "author": "mikal"
-    },
-    {
       "path": "templates/mermaid-lint/mermaid-lint.yml",
       "author": "mikal"
     },
@@ -198,10 +194,6 @@
     },
     {
       "path": "scripts/tests/test_npm_dependencies.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_repo.py",
       "author": "mikal"
     },
     {
@@ -249,10 +241,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/text/python_source.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_audit_seams.py",
       "author": "mikal"
     },
@@ -262,10 +250,6 @@
     },
     {
       "path": ".github/workflows/export-repo-config.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/github_config.py",
       "author": "mikal"
     },
     {
@@ -577,10 +561,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/docs_content.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_docs_content.py",
       "author": "mikal"
     },
@@ -605,15 +585,7 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/plans.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/registry.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/repo.py",
       "author": "mikal"
     },
     {
@@ -653,14 +625,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/ci_workflows.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/files.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_runners.py",
       "author": "mikal"
     },
@@ -670,14 +634,6 @@
     },
     {
       "path": "docs/audits/eol-distro.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/runners.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/scope.py",
       "author": "mikal"
     },
     {
@@ -701,27 +657,11 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/packaging.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_review_tracking.py",
       "author": "mikal"
     },
     {
       "path": "tools/ci-prune-reviews.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_packaging.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_plans.py",
       "author": "mikal"
     },
     {
