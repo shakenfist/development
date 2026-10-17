@@ -359,6 +359,16 @@ shell: that each step calls the action in the right mode, that the
 checkout takes the resolved ref, and that the confirm step is
 unconditional and follows the hooks step.
 
+The same audit found that the trigger's bot-comment guard,
+`github.event.comment.user.type != 'Bot'`, does not exclude
+`shakenfist-bot`. That account is a User-type admin collaborator, so a
+comment it posts through a token -- review text quoting the phrase,
+say -- passes both the type test and `pr-bot-trigger`'s permission
+check. The trigger job now also requires
+`github.event.comment.user.login != 'shakenfist-bot'`.
+`ReviewWorkflowGuardTest` in shakenfist/actions pins it on that
+repository's copy, and `MergeRefResolutionTest` on the two here.
+
 ### The fork guard
 
 `pr-bot-trigger`'s `pr-ref` output is `.head.ref`: the branch name in the

@@ -937,6 +937,28 @@ class MergeRefResolutionTest(unittest.TestCase):
                         wf, content)
                 self.assertEqual([], findings)
 
+    BOT_GUARDS = [
+        "github.event.comment.user.type != 'Bot'",
+        "github.event.comment.user.login != 'shakenfist-bot'",
+    ]
+
+    def test_the_re_review_trigger_ignores_the_bot_and_its_account(self):
+        # The type test catches github-actions[bot], but shakenfist-bot
+        # is a User-type admin account: a comment it posts through a
+        # token passes the type test and pr-bot-trigger's permission
+        # check, so review text quoting the phrase would fire a forced
+        # review. Read from the job's own if:, since the comment above
+        # it quotes both.
+        for name in [self.DEPLOYED_RE_REVIEW, self.TEMPLATE_RE_REVIEW]:
+            with self.subTest(workflow=name):
+                with open(os.path.join(REPO_ROOT, name)) as f:
+                    jobs = dict(workflow_job_blocks(f.read()))
+                condition = job_level_keys(jobs['trigger-re-review'])['if']
+                self.assertNotIn('||', condition)
+                terms = [term.strip() for term in condition.split('&&')]
+                for guard in self.BOT_GUARDS:
+                    self.assertIn(guard, terms)
+
     ORIGIN_STEP = "- name: Confirm pr-bot-trigger reported the pull request's origin"
 
     def test_trigger_outputs_are_confirmed(self):

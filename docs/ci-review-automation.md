@@ -85,6 +85,12 @@ elevated permissions. Security is enforced through multiple layers:
    reporting the outputs it reads, rather than letting the work job
    skip silently. The `ci-review-automation` criterion measures both
    halves of the gate on every adopter.
+
+   `pr-re-review.yml` also ignores comments posted by a bot, or by
+   the `shakenfist-bot` account, which is a user rather than a bot as
+   far as GitHub is concerned and holds admin rights. Text the
+   automation posts, such as a review that quotes a trigger phrase,
+   therefore cannot request another review.
 2. **Trusted tools** -- scripts are checked out from the base branch,
    not the PR, preventing execution of malicious PR code
 3. **No credential persistence** -- `persist-credentials: false`
