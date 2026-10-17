@@ -165,8 +165,10 @@ matrix runs that branch's checks against the whole fleet and uploads
 its results as artifacts, and `manage-issues`, `update-docs` and
 `report-failure` are skipped. That is the way to measure a change to
 the checks against the fleet before merging it, and it is safe
-because the matrix holds only the read-only token. Runs never
-overlap: a second run, on any branch, waits for the first to finish.
+because the matrix holds only the read-only token. Two runs of one
+ref never overlap: the second waits for the first to finish. Runs of
+different refs do not wait for each other, so a branch run can never
+hold up or displace the scheduled run of `main`.
 
 ## Issues are the work tracking
 

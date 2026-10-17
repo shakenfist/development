@@ -36,6 +36,9 @@ WRITING_JOBS = ('manage-issues', 'update-docs', 'report-failure')
 # The only jobs that may hold the writing token.
 AUDIT_TOKEN_JOBS = ('manage-issues', 'update-docs')
 
+# The only job that pushes, so the only checkout that keeps its credential.
+PUSHING_JOBS = ('update-docs',)
+
 MAIN_ONLY = "github.ref == 'refs/heads/main'"
 
 
@@ -63,20 +66,29 @@ class AuditWorkflowGuardsTest(unittest.TestCase):
         self.assertIn('test -n "${GH_TOKEN}"', audit)
 
     def test_the_writing_jobs_run_only_from_main(self):
+        # The condition must be a conjunction with MAIN_ONLY as one of its
+        # terms. Finding MAIN_ONLY anywhere in it is not enough:
+        # `always() || github.ref == ...` contains it and runs everywhere.
         for name in WRITING_JOBS:
             with self.subTest(job=name):
                 condition = job_level_keys(self.jobs[name]).get('if', '')
-                self.assertIn(MAIN_ONLY, condition)
+                condition = re.sub(r'^\$\{\{(.*)\}\}$', r'\1', condition.strip()).strip()
+                self.assertNotIn('||', condition)
+                terms = [term.strip() for term in condition.split('&&')]
+                self.assertIn(MAIN_ONLY, terms)
 
-    def test_the_audit_checkout_drops_its_credential(self):
-        checkouts = [
-            step for step in workflow_step_blocks(self.jobs['audit'])
-            if step_action(step) == 'actions/checkout'
-        ]
-        self.assertTrue(checkouts)
-        for step in checkouts:
-            self.assertEqual(
-                step_with_inputs(step).get('persist-credentials'), 'false')
+    def test_only_the_pushing_job_keeps_its_checkout_credential(self):
+        # Every other job runs code with a token in its environment and
+        # pushes nothing, so it has no use for a credential left in
+        # .git/config.
+        keeping = set()
+        for name, body in self.jobs.items():
+            for step in workflow_step_blocks(body):
+                if step_action(step) != 'actions/checkout':
+                    continue
+                if step_with_inputs(step).get('persist-credentials') != 'false':
+                    keeping.add(name)
+        self.assertEqual(sorted(keeping), sorted(PUSHING_JOBS))
 
     def test_skillsaw_stays_off_path(self):
         # On PATH, skillsaw's venv supplies the python3 the audit runs
@@ -92,11 +104,13 @@ class AuditWorkflowGuardsTest(unittest.TestCase):
                 self.assertNotRegex(
                     self.code(repo_text(workflow)), r'(?<![\w}])/tmp\b')
 
-    def test_runs_never_overlap(self):
+    def test_runs_of_one_ref_never_overlap(self):
+        # Keyed on the ref: one group for everything lets a branch
+        # dispatch replace a scheduled run of main waiting in it.
         header = self.code(self.text.split('\njobs:', 1)[0])
         self.assertRegex(
             header,
-            r'(?m)^concurrency:\n  group: consistency-audit\n'
+            r'(?m)^concurrency:\n  group: consistency-audit-\$\{\{ github\.ref \}\}\n'
             r'  cancel-in-progress: false$')
 
 

@@ -16,15 +16,22 @@ on:
 
 permissions: {}
 
-# One run at a time, across the schedule and every dispatch. Two runs
-# that overlapped would each file the issues the other was about to,
-# and race each other's compliance page pushes. cancel-in-progress is
-# off, so a run that has started is never killed part way through
-# managing issues: a later one waits for it instead. GitHub keeps one
-# waiting run per group, so if several are queued the newest replaces
-# the others before they start.
+# One run at a time per ref. Two runs of main that overlapped would
+# each file the issues the other was about to, and race each other's
+# compliance page pushes. cancel-in-progress is off, so a run that has
+# started is never killed part way through managing issues: a later
+# one waits for it instead. GitHub keeps one waiting run per group, so
+# if several are queued the newest replaces the others before they
+# start.
+#
+# Per ref rather than one group for everything, because that last rule
+# would otherwise let a branch dispatch replace a scheduled run of main
+# waiting behind an earlier branch run. A cancelled run is not a failed
+# one, so report-failure would not fire and the week's audit would be
+# lost without a word. Branch runs write nothing (see manage-issues), so
+# they have nothing to race main for.
 concurrency:
-  group: consistency-audit
+  group: consistency-audit-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -109,8 +116,11 @@ jobs:
           GH_TOKEN: ${{ secrets.AUDIT_READ_TOKEN }}
         run: |
           test -n "${GH_TOKEN}" || { echo '::error::AUDIT_READ_TOKEN is not set'; exit 1; }
+          # A fine-grained token expires, and under bash -e a refused
+          # call would end the step with gh's own error and not this one.
           visible=$(gh api "repos/${GITHUB_REPOSITORY}" \
-              --jq '.delete_branch_on_merge != null and .security_and_analysis != null')
+              --jq '.delete_branch_on_merge != null and .security_and_analysis != null') \
+              || { echo '::error::AUDIT_READ_TOKEN was refused by the API (expired or revoked?)'; exit 1; }
           [ "${visible}" = true ] || { echo '::error::AUDIT_READ_TOKEN cannot see repository settings'; exit 1; }
 
       # Every path this job writes is under runner.temp, which belongs
@@ -216,7 +226,7 @@ jobs:
     # !cancelled() rather than always(): a run somebody stopped
     # should not go on to file and close issues across the fleet from
     # whichever artifacts happened to land before it was killed. A
-    # newer run cannot supersede this one part way through: the
+    # newer run of main cannot supersede this one part way through: the
     # concurrency group above makes it wait.
     #
     # And only from main. A dispatch runs the workflow and scripts of
