@@ -157,10 +157,15 @@ gh search issues 'org:shakenfist label:consistency is:open'
 Two properties matter when changing any of this.
 
 **Issue titles are the idempotency key.** They are
-`Consistency: <check name>`, matched exactly to decide whether an issue
-already exists. Renaming a check name silently orphans every open issue
-for it and files a fresh set, so treat `ISSUE_TITLES` in
-`scripts/audit_common.py` as an interface, not a label.
+`Consistency: <issue_title>`, from the check's `issue_title` class
+attribute, matched exactly to decide whether an issue already exists.
+Renaming one silently orphans every open issue for it and files a
+fresh set, so treat a check's `issue_title` as an interface, not a
+label. `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`
+holds every one as a literal, so a rename fails the tests until it is
+made there too, on purpose. (`ISSUE_TITLES` in
+`scripts/audit_common.py` is a view over the registry, not the place
+to change one.)
 
 **Repository renames are handled, but noisily on purpose.** Repo names
 are resolved to their canonical form before searching, because GitHub's
