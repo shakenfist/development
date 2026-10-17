@@ -160,9 +160,13 @@ content scanner differs per project and takes judgment.
   splitting it on literal phrases, and raises `ScopeParseError` unless
   those phrases still delimit a list of repository names -- so reword
   freely and let its two consumers, `AuditScopeIsStatedOnceTest` and
-  the `scope-coverage` check, say when a phrase mattered. Any new
-  parse of a document by phrase gets the same treatment: a named
-  constant and a guard, not a bare `split()`.
+  the `scope-coverage` check, say when a phrase mattered. Likewise
+  `UnmeasuredCriteriaTest` finds the paragraph of
+  `docs/consistency-audits.md` naming the criteria with no check by
+  its `UNMEASURED_ANCHOR` phrase, "at the time of writing", and fails
+  unless exactly one paragraph carries it. Any new parse of a
+  document by phrase gets the same treatment: a named constant and a
+  guard, not a bare `split()`.
 - This repository is audited by its own consistency audits. Two checks
   are N/A for stated reasons in `REPO_OVERRIDES` (its Python is never
   packaged, and it keeps `main` because it publishes no releases); see

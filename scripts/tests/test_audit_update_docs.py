@@ -353,6 +353,12 @@ class UnmeasuredCriteriaTest(unittest.TestCase):
     REPO = REPO_ROOT
     DOC = 'docs/consistency-audits.md'
 
+    #: The literal phrase in DOC that marks the paragraph naming the
+    #: unmeasured criteria. It is prose, so a reword can drop it; the
+    #: exactly-one-paragraph assertion below is the guard that says so,
+    #: rather than this class quietly comparing an empty set.
+    UNMEASURED_ANCHOR = 'at the time of writing'
+
     def _unmeasured(self):
         return set(audit_update_docs.unmeasured_specs())
 
@@ -367,12 +373,12 @@ class UnmeasuredCriteriaTest(unittest.TestCase):
             for p in re.split(r'\n\s*\n', body)
         ]
         paragraphs = [
-            p for p in paragraphs if 'at the time of writing' in p
+            p for p in paragraphs if self.UNMEASURED_ANCHOR in p
         ]
         self.assertEqual(
             len(paragraphs), 1,
             f'{self.DOC} should name the unmeasured criteria in exactly '
-            f'one paragraph, anchored by "at the time of writing"',
+            f'one paragraph, anchored by "{self.UNMEASURED_ANCHOR}"',
         )
         return {
             token for token in re.findall(r'`([a-z0-9-]+)`', paragraphs[0])
@@ -394,8 +400,8 @@ class UnmeasuredCriteriaTest(unittest.TestCase):
             self._unmeasured(),
             f'every criterion spec in docs/audits/ has a check in '
             f'AUDIT_METADATA. Either every criterion is measured now '
-            f'-- in which case delete this class and the "at the time '
-            f'of writing" paragraph in {self.DOC} -- or '
+            f'-- in which case delete this class and the '
+            f'"{self.UNMEASURED_ANCHOR}" paragraph in {self.DOC} -- or '
             f'unmeasured_specs() is no longer finding the spec files.',
         )
 
