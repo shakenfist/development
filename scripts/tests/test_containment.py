@@ -29,6 +29,12 @@ files it opened are recorded, and then:
   of the fixture, which is the shape a walk follows: os.walk descends
   into its root even when the root is a link.
 
+Running a check sees only the reads its fixture reaches, and only
+through builtins.open, so SourceOpenTest also parses the package and
+fails on any call that opens a file -- open(), os.open(), io.open(),
+Path.open(), read_text(), read_bytes() -- outside an allowlist. That
+covers the exempt checks and the branches no fixture reaches.
+
 A check added to the registry is covered without anything being added
 here. The fixture is this repository's own tracked tree, which carries
 real workflows, plans, docs, templates and Python, with a small overlay
@@ -40,6 +46,7 @@ their reads, so the suite's hook need not fire on every file in it.
 Run with: python3 -m unittest tests.test_containment
 """
 
+import ast
 import builtins
 import json
 import os
@@ -65,10 +72,10 @@ from tests.base import REPO_ROOT  # noqa: E402
 EXEMPT = {
     # It clones canonical sfui to compare a vendored copy against, so
     # a fixture that reaches its reads needs a vendored copy and a
-    # canonical repository to clone. Its run() also still opens the
-    # .sfui-commit stamp directly, the one raw open() of an audited
-    # repository left in the package, so this entry goes when that
-    # does. SfuiVendorTest covers it with its own fixtures.
+    # canonical repository to clone. Its reads go through Repo like
+    # every other check's, which SourceOpenTest holds it to without
+    # running it, and SfuiVendorTest covers the stamp's shapes with its
+    # own fixtures.
     'sfui-vendor': 'clones canonical sfui; covered by its own suite',
 }
 
@@ -382,6 +389,73 @@ class ContainmentTest(unittest.TestCase):
                 _recorder, result = self.run_one(check, work)
                 self.assertNotEqual(result['status'], ERROR,
                                     result['details'])
+
+
+#: The calls in the audit package allowed to open a file, as
+#: (path relative to scripts/audit, enclosing function). Each needs a
+#: reason, because an entry here is an open nothing else checks.
+OPEN_ALLOWED = {
+    # The one guarded open of an audited repository.
+    ('repo.py', 'read_within'),
+    # Reads this repository's own templates/shared-blocks/, never the
+    # repository under audit.
+    ('text/shared_blocks.py', 'load_canonical_block'),
+}
+
+#: Call names that open a file, whether as a builtin, a module
+#: function (os.open, io.open, os.fdopen) or a method (Path.open).
+OPENERS = {'open', 'fdopen', 'read_text', 'read_bytes'}
+
+
+class SourceOpenTest(unittest.TestCase):
+    """No code in the audit package opens a file except through the guard.
+
+    Matched on the call's name rather than resolved, so it errs towards
+    a false alarm -- a method called open() on something that is not a
+    file would need an entry above -- and not towards a miss. Reads by
+    a subprocess (git show, a canonical repository's vendor.sh) are not
+    calls this can see, and are out of its scope.
+    """
+
+    def opens(self):
+        package = os.path.join(REPO_ROOT, 'scripts', 'audit')
+        found = set()
+        for root, _dirnames, filenames in os.walk(package):
+            for name in filenames:
+                if not name.endswith('.py'):
+                    continue
+                path = os.path.join(root, name)
+                relative = os.path.relpath(path, package)
+                with open(path) as f:
+                    tree = ast.parse(f.read(), path)
+                for function, node in self.calls(tree, '<module>'):
+                    func = node.func
+                    called = (func.id if isinstance(func, ast.Name)
+                              else getattr(func, 'attr', None))
+                    if called in OPENERS:
+                        found.add((relative, function, node.lineno))
+        return found
+
+    def calls(self, node, function):
+        """Every Call under node, with the function it is in."""
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                yield from self.calls(child, child.name)
+                continue
+            if isinstance(child, ast.Call):
+                yield function, child
+            yield from self.calls(child, function)
+
+    def test_only_the_allowlist_opens_files(self):
+        found = self.opens()
+        unexpected = sorted(f'{path}:{line} in {function}()'
+                            for path, function, line in found
+                            if (path, function) not in OPEN_ALLOWED)
+        self.assertEqual(unexpected, [])
+
+    def test_the_allowlist_is_still_needed(self):
+        found = {(path, function) for path, function, _line in self.opens()}
+        self.assertEqual(OPEN_ALLOWED - found, set())
 
 
 if __name__ == '__main__':

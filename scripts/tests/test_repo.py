@@ -23,6 +23,7 @@ Run with: python3 -m unittest tests.test_repo
 """
 
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -61,6 +62,27 @@ class RepoReadTest(unittest.TestCase):
 
     def test_an_absent_file_reads_as_none(self):
         self.assertIsNone(self.repo.read('tools/ci/helper.sh'))
+
+    def test_a_file_is_read_as_utf8_whatever_the_locale(self):
+        """The runner's locale does not decide what a file says.
+
+        A subprocess, because the locale encoding is fixed when the
+        interpreter starts: the C locale with coercion and UTF-8 mode
+        both off is the one where text mode would decode as ASCII.
+        """
+        self.fixture.write('pyproject.toml', 'name = "caf\u00e9"\n')
+        reader = ('import sys; sys.path.insert(0, sys.argv[1]); '
+                  'from audit.repo import Repo; '
+                  'print(ascii(Repo(sys.argv[2], "t", props={})'
+                  '.read("pyproject.toml")))')
+        env = dict(os.environ, LC_ALL='C', PYTHONCOERCECLOCALE='0',
+                   PYTHONUTF8='0')
+        result = subprocess.run(
+            [sys.executable, '-c', reader,
+             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+             self._tmp.name],
+            capture_output=True, text=True, env=env, check=True)
+        self.assertEqual(ascii('name = "caf\u00e9"\n'), result.stdout.strip())
 
     def test_a_directory_named_like_a_script_reads_as_none(self):
         """It exists, and opening it raises IsADirectoryError.

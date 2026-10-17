@@ -231,9 +231,10 @@ def read_within(real_root, full):
       that grows or lies about its size.
 
     Decoding errors are replaced rather than raised, and newlines are
-    translated, exactly as open() in text mode would: the bytes are
-    read first so that the cap is in bytes, then decoded the way text
-    mode decodes them.
+    translated, as open() in text mode would: the bytes are read first
+    so that the cap is in bytes, then decoded the way text mode decodes
+    them. Always as UTF-8 rather than in the runner's locale, so that a
+    verdict does not depend on where the audit ran.
     """
     if not (os.path.isfile(full)
             and path_is_within(real_root, full, root_is_real=True)):
@@ -245,7 +246,8 @@ def read_within(real_root, full):
         return None
     if len(data) > READ_MAX_BYTES:
         return None
-    return io.TextIOWrapper(io.BytesIO(data), errors='replace').read()
+    return io.TextIOWrapper(io.BytesIO(data), encoding='utf-8',
+                            errors='replace').read()
 
 
 class Repo:
@@ -329,10 +331,10 @@ class Repo:
         unresolved root would then reject every file in the
         repository.
 
-        Public because `read()` is not the only way a check opens a
-        file: a criterion that walks the tree for source files opens
-        what it finds itself, and the containment rule above is the
-        same one there. One implementation of it, called from both,
+        Public for the questions read() does not answer: whether a
+        directory is inside the checkout before a check lists it, as
+        workflows() does. Reads still go through read(), and the
+        containment rule is one implementation, path_is_within(),
         rather than a second realpath comparison that drifts.
         """
         return path_is_within(self._real_path, full, root_is_real=True)

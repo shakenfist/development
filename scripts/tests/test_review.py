@@ -412,6 +412,37 @@ class SfuiVendorTest(CheckTestCase):
     def test_not_applicable_without_sfui_commit(self):
         self.assert_skip(self.check())
 
+    def _stamp_shaped(self, shape):
+        """A vendored copy whose .sfui-commit is not a file to read.
+
+        A link out of the clone points at a real sha, so that a check
+        which followed it would go on to clone and judge it.
+        """
+        tmp = self.tempdir()
+        canonical = self._make_canonical(tmp)
+        self._make_consumer(tmp, self._head(canonical))
+        stamp = os.path.join(self.fixture.path, 'static/sfui/.sfui-commit')
+        outside = os.path.join(tmp, 'outside-stamp')
+        with open(stamp) as f, open(outside, 'w') as g:
+            g.write(f.read())
+        os.remove(stamp)
+        if shape == 'link':
+            os.symlink(outside, stamp)
+        elif shape == 'dangling':
+            os.symlink(os.path.join(tmp, 'missing'), stamp)
+        elif shape == 'directory':
+            os.makedirs(stamp)
+        return self.check(check_args={'canonical_url': canonical})
+
+    def test_stamp_linked_out_of_the_clone_is_no_stamp(self):
+        self.assert_skip(self._stamp_shaped('link'))
+
+    def test_dangling_stamp_is_no_stamp(self):
+        self.assert_skip(self._stamp_shaped('dangling'))
+
+    def test_directory_named_like_the_stamp_is_no_stamp(self):
+        self.assert_skip(self._stamp_shaped('directory'))
+
     def test_verbatim_copy_at_head_passes(self):
         tmp = self.tempdir()
         canonical = self._make_canonical(tmp)

@@ -368,7 +368,11 @@ so a step added to it reaches both.
    `scripts/tests/test_containment.py` runs every scheduled check with
    the files it read replaced by links out of the checkout, dangling
    links and directories, and fails on any `open()` of the checkout
-   that did not come through that one guard.
+   that did not come through that one guard. It also parses the
+   package for any call that opens a file -- `open()`, `os.open()`,
+   `Path.read_text()` and the like -- outside a short allowlist, which
+   covers the branches no fixture reaches. A read is decoded as UTF-8
+   whatever the runner's locale.
 
 2. **`scripts/audit/registry.py`** -- register the instance in
    `CHECKS`, beside the rest of its family. That list is the order the
