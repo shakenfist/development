@@ -23,6 +23,7 @@ CI_REVIEW_DEVELOPER_WORKFLOWS = ci_workflows.CI_REVIEW_DEVELOPER_WORKFLOWS
 CI_REVIEW_SHARED_ACTION = ci_workflows.CI_REVIEW_SHARED_ACTION
 CI_REVIEW_REUSABLE_WORKFLOW = ci_workflows.CI_REVIEW_REUSABLE_WORKFLOW
 CI_REVIEW_TRIGGER_ACTION = ci_workflows.CI_REVIEW_TRIGGER_ACTION
+CI_REVIEW_REF_ACTION = ci_workflows.CI_REVIEW_REF_ACTION
 RETIRED_ADDRESSER_SCRIPTS = ci_workflows.RETIRED_ADDRESSER_SCRIPTS
 RETIRED_ADDRESSER_WORKFLOW = ci_workflows.RETIRED_ADDRESSER_WORKFLOW
 is_dedicated_scanner_workflow = ci_workflows.is_dedicated_scanner_workflow
@@ -55,7 +56,6 @@ REVIEWER_WORKFLOW = (
     '    permissions:\n'
     '      contents: read\n'
     '      pull-requests: write\n'
-    '      issues: write\n'
     '    uses: shakenfist/actions/.github/workflows/pr-auto-review.yml@main\n'
 )
 
@@ -94,7 +94,8 @@ class CiReviewAutomationSpecTest(unittest.TestCase):
             CI_REVIEW_DEVELOPER_WORKFLOWS
             + (CI_REVIEW_SHARED_ACTION,
                CI_REVIEW_REUSABLE_WORKFLOW,
-               CI_REVIEW_TRIGGER_ACTION)
+               CI_REVIEW_TRIGGER_ACTION,
+               CI_REVIEW_REF_ACTION)
         ):
             with self.subTest(requirement=requirement):
                 self.assertIn(requirement, spec)
@@ -815,13 +816,91 @@ class ForkGateAndConfirmStepTest(CheckTestCase):
             'pr-retest.yml: the shakenfist/actions/pr-bot-trigger@main '
             'step in job trigger-retest has no id:'))
 
+    # The confirm step as copies made before pr-review-ref carry it:
+    # inline shell, which the criterion still accepts so that a working
+    # copy is not filed against. Trimmed to the lines the criterion
+    # reads; the fleet's copies also carry the messages.
+    INLINE_CONFIRM_STEP = (
+        '      - name: Confirm the checkout is the validated commit\n'
+        '        id: confirm\n'
+        '        env:\n'
+        '          HEAD_SHA: ${{ steps.ref.outputs.head_sha }}\n'
+        '          MERGED: ${{ steps.ref.outputs.merged }}\n'
+        '        run: |\n'
+        '          case "${MERGED}" in\n'
+        '            true)\n'
+        '              if ! reviewed=$(git rev-parse HEAD^2 2>/dev/null); then\n'
+        '                exit 1\n'
+        '              fi\n'
+        '              ;;\n'
+        '            false)\n'
+        '              if ! reviewed=$(git rev-parse HEAD 2>/dev/null); then\n'
+        '                exit 1\n'
+        '              fi\n'
+        '              ;;\n'
+        '            *)\n'
+        '              exit 1\n'
+        '              ;;\n'
+        '          esac\n'
+        '          if [ "${reviewed}" != "${HEAD_SHA}" ]; then\n'
+        '            echo "cause=moved" >> "${GITHUB_OUTPUT}"\n'
+        '            exit 1\n'
+        '          fi\n'
+        '\n')
+    SHARED_CONFIRM = (
+        '        uses: shakenfist/actions/pr-review-ref@main\n'
+        '        with:\n'
+        '          mode: confirm\n')
+
+    def _inline(self, old=None, new=None):
+        """The template with its confirm step written out as inline shell."""
+        body = template_workflow('pr-re-review.yml')
+        start = body.index(self.CONFIRM_STEP)
+        end = body.index('      # Which ref was reviewed', start)
+        step = self.INLINE_CONFIRM_STEP
+        if old is not None:
+            self.assertIn(old, step)
+            step = step.replace(old, new)
+        return body[:start] + step + body[end:]
+
+    def test_an_inline_confirm_step_passes(self):
+        self.assert_pass(self._check(re_review=self._inline()))
+
+    def test_a_conditional_inline_confirm_step_fails(self):
+        re_review = self._inline(
+            self.CONFIRM_STEP,
+            self.CONFIRM_STEP + "        if: steps.ref.outputs.merged == 'true'\n")
+        self.assert_fail(self._check(re_review=re_review),
+                         containing='confirm step is conditional')
+
     def test_a_confirm_step_without_the_head_comparison_fails(self):
-        re_review = self._mutate(
-            'pr-re-review.yml',
+        re_review = self._inline(
             'if ! reviewed=$(git rev-parse HEAD 2>/dev/null); then',
             'if ! reviewed=$(echo "${HEAD_SHA}"); then')
         self.assert_fail(self._check(re_review=re_review),
                          containing='merge path only')
+
+    def test_a_quoted_confirm_mode_passes(self):
+        re_review = self._mutate(
+            'pr-re-review.yml', self.SHARED_CONFIRM,
+            self.SHARED_CONFIRM.replace('mode: confirm', "mode: 'confirm'"))
+        self.assert_pass(self._check(re_review=re_review))
+
+    def test_the_shared_action_resolving_is_not_a_confirm_step(self):
+        # The template calls pr-review-ref twice, and only the second
+        # call confirms anything.
+        re_review = self._mutate(
+            'pr-re-review.yml', self.SHARED_CONFIRM,
+            self.SHARED_CONFIRM.replace('mode: confirm', 'mode: resolve'))
+        self.assert_fail(self._check(re_review=re_review),
+                         containing='does not confirm that the tree')
+
+    def test_an_action_of_the_same_name_elsewhere_is_not_a_confirm_step(self):
+        re_review = self._mutate(
+            'pr-re-review.yml', self.SHARED_CONFIRM,
+            self.SHARED_CONFIRM.replace('shakenfist/actions/', 'someone/actions/'))
+        self.assert_fail(self._check(re_review=re_review),
+                         containing='does not confirm that the tree')
 
     def test_no_confirm_step_fails(self):
         body = template_workflow('pr-re-review.yml')
