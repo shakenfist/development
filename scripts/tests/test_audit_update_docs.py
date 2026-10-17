@@ -738,6 +738,57 @@ class UpdateCompliancePageTest(unittest.TestCase):
         self.assertIn('*Generated when from', body)
         self.assertIn('| repo | compliant |', body)
 
+    def test_a_missing_page_is_seeded_from_the_real_one(self):
+        """The local run docs/consistency-audits.md documents works.
+
+        That command names a scratch --page that does not exist yet.
+        Without a seed it has no markers to splice between, so the run
+        it tells people to make fails before rendering anything.
+        """
+        real = os.path.join(REPO_ROOT, audit_update_docs.COMPLIANCE_PAGE)
+        with open(real) as f:
+            before = f.read()
+        results = os.path.join(self.tmp, 'results')
+        os.makedirs(results)
+        check_id = sorted(audit_update_docs.AUDIT_METADATA)[0]
+        with open(os.path.join(results, 'audit-result-repo.json'), 'w') as f:
+            json.dump({
+                'repo': 'repo', 'org': 'shakenfist', 'timestamp': 'when',
+                'checks': [
+                    {'id': check_id, 'status': 'pass', 'details': ''}],
+            }, f)
+        self.assertFalse(os.path.exists(self.page))
+        proc = subprocess.run(
+            [sys.executable, SCRIPT, '--results-dir', results,
+             '--no-issues', '--page', self.page],
+            capture_output=True, text=True, cwd=REPO_ROOT)
+        self.assertEqual(0, proc.returncode, proc.stderr)
+        body = self._read()
+        # The hand-written preamble came across from the real page...
+        self.assertIn(before.split('\n')[0], body)
+        # ...and the block between the markers is this run's.
+        self.assertIn('*Generated when from', body)
+        self.assertIn('| repo | compliant |', body)
+        with open(real) as f:
+            self.assertEqual(before, f.read(), 'the real page was written')
+
+    def test_an_existing_page_is_not_reseeded(self):
+        # A page from an earlier local run is the run's own output, and
+        # the default --page is the real page: neither is overwritten.
+        source = os.path.join(self.tmp, 'source.md')
+        with open(source, 'w') as f:
+            f.write('source\n')
+        self._write('existing\n')
+        self.assertFalse(audit_update_docs.seed_page(self.page, source))
+        self.assertEqual('existing\n', self._read())
+
+    def test_a_missing_source_seeds_nothing(self):
+        # Run from the wrong directory, there is no real page to copy;
+        # the run then fails on the missing page rather than on a copy.
+        self.assertFalse(audit_update_docs.seed_page(
+            self.page, os.path.join(self.tmp, 'absent.md')))
+        self.assertFalse(os.path.exists(self.page))
+
 
 class DefuseTest(unittest.TestCase):
     """Harvested detail strings cannot restructure the page.

@@ -414,6 +414,7 @@ The tests cover the machinery, not what a check *decides* about a real
 repository. Test that half against local clones:
 
 ```
+mkdir -p /tmp/results
 python3 scripts/audit-check.py --repo-path ~/src/shakenfist/<repo> \
     --repo-name <repo> > /tmp/results/audit-result-<repo>.json
 python3 scripts/audit-manage-issues.py --results-dir /tmp/results/ --dry-run
@@ -424,10 +425,14 @@ python3 scripts/audit-update-docs.py --results-dir /tmp/results/ \
 Always pass `--dry-run` to `audit-manage-issues.py`. Without it the
 script creates, edits and closes real issues on real repositories.
 
-Pass `--page` as well, as above. A locally generated page only covers
-the repositories you fed it, so it is never what you want to keep, and
-without `--page` the script rewrites the real
-`docs/audits/compliance.md` in place. The old advice here was to
+Run them from the root of this repository, and pass `--page` as well,
+as above. A locally generated page only covers the repositories you
+fed it, so it is never what you want to keep, and without `--page` the
+script rewrites the real `docs/audits/compliance.md` in place. A
+`--page` that does not exist yet is seeded with a copy of the real
+page, because the generated block is spliced between markers the
+hand-written page carries; an existing one, such as the output of an
+earlier run, is rewritten. The old advice here was to
 discard the result with `git restore docs/audits/`, which is now
 actively dangerous: the other 35 files in that directory are
 hand-written, and a `git restore` of the directory throws away
