@@ -115,21 +115,6 @@ PLAN_HISTORY_RE = re.compile(
 PLAN_HISTORY_MKDOCS_NAMES = ('mkdocs.yml', 'mkdocs.yaml')
 
 
-PLAN_SOURCE_MAX_BYTES = 2 * 1024 * 1024
-
-
-def plan_source_is_oversize(path):
-    """Is this file too large to be the plan document it claims to be?
-
-    Markdown from another repository, parsed by this one on every
-    run, so its size is that repository's to choose. Every caller
-    declines to judge rather than reading a prefix: a truncated plan
-    is a wrong verdict rather than a declined one, and a wrong
-    verdict here files an issue on somebody else's repository.
-    """
-    return os.path.getsize(path) > PLAN_SOURCE_MAX_BYTES
-
-
 def plan_source_is_plan_record(rel):
     """Is this tracked path part of a plans directory under docs/?
 
@@ -159,9 +144,13 @@ def iter_plan_source_files(repo, tracked):
       plan-phase-references.
     - anything under a plans directory in docs/, which is plan
       history rather than source; see plan_source_is_plan_record().
-    - anything that is not a regular file once symlinks are followed,
-      or that resolves outside the repository.
-    - anything over PLAN_SOURCE_MAX_BYTES; see plan_source_is_oversize().
+    - anything Repo.read() will not return: a file that is not a
+      regular file once symlinks are followed, that resolves outside
+      the repository, or that is over READ_MAX_BYTES. A file too large
+      to judge is declined rather than read in part, because a
+      truncated file is a wrong verdict rather than a declined one,
+      and a wrong verdict here files an issue on somebody else's
+      repository.
 
     Content is decoded with errors='replace', so a binary file that
     slips through is read as noise rather than raising.
@@ -171,20 +160,12 @@ def iter_plan_source_files(repo, tracked):
             continue
         if plan_source_is_plan_record(rel):
             continue
-        path = os.path.join(repo.path, rel)
-        if not os.path.isfile(path):
+        # git tracks symlinks, so a repository can point one at
+        # anything on the runner and have a check quote what it reads
+        # into an issue body. Repo.read() is what refuses it.
+        content = repo.read(rel)
+        if content is None:
             continue
-        # isfile() follows a symlink, and git tracks symlinks, so a
-        # repository can point one at anything on the runner and have
-        # a check quote what it reads into an issue body. The
-        # containment the index link targets get, on the path beside
-        # them.
-        if not repo.contains(path):
-            continue
-        if plan_source_is_oversize(path):
-            continue
-        with open(path, 'r', errors='replace') as f:
-            content = f.read()
         yield rel, content
 
 
@@ -253,7 +234,7 @@ def plan_file_names(repo_path):
     return names
 
 
-def plan_reference_resolves(repo_path, token, names):
+def plan_reference_resolves(repo, token, names):
     """Whether a plan reference names a file this repository has.
 
     A path-qualified reference (docs/plans/PLAN-<name>.md) is resolved
@@ -262,9 +243,9 @@ def plan_reference_resolves(repo_path, token, names):
     documentation root. A bare filename is matched against every
     plan file in the repository.
     """
-    if os.path.exists(os.path.join(repo_path, token)):
+    if repo.exists(token):
         return True
-    if os.path.exists(os.path.join(repo_path, 'docs', token)):
+    if repo.exists(os.path.join('docs', token)):
         return True
     return '/' not in token and token in names
 
@@ -571,7 +552,7 @@ PLAN_AUDIT_OK = 'ok'
 PLAN_AUDIT_PROBLEM = 'problem'
 
 
-def plan_index_entries(path):
+def plan_index_entries(content):
     """Every master plan the index links, with the status beside it.
 
     The index formats differ across the fleet by design -- one
@@ -608,17 +589,7 @@ def plan_index_entries(path):
     Returns a list of (filename, link target, status or None) in the
     order the index introduces them.
     """
-    # An index too large to be one is not read at all, rather than
-    # read in part: truncating would hand the link parser a fragment
-    # and report whatever survived the cut as the whole index. Same
-    # constant and same shape as the plan-source-references check
-    # below, which skips an oversize file rather than truncating it.
-    # This repository's own index is under 8 KB.
-    if plan_source_is_oversize(path):
-        return []
-
-    with open(path, 'r', errors='replace') as f:
-        lines = f.read().splitlines()
+    lines = content.splitlines()
 
     found = {}
 
@@ -697,7 +668,7 @@ def plan_file_paths(plans_dir):
     return paths
 
 
-def plan_index_target_path(plans_dir, target, name, paths):
+def plan_index_target_path(repo, plans_dir, target, name, paths):
     """The plan file an index link names, or None if there is none.
 
     Resolved as the link is written first, so that a plan linked from
@@ -707,19 +678,30 @@ def plan_index_target_path(plans_dir, target, name, paths):
     docs/plans/, which is how plan references resolve elsewhere in
     this module and covers an index whose links are written from the
     repository root rather than from beside it.
+
+    Held to two roots. docs/plans/ is the narrower rule: a plan sits
+    there. The repository is the one that keeps the read inside the
+    clone, and it is not implied by the first: when docs/plans is
+    itself a symlink out of the clone, every candidate resolves
+    inside the directory it points at, so the narrower comparison
+    passes a path the audit was never pointed at.
     """
+    def contained(path):
+        return (plan_path_is_contained(plans_dir, path)
+                and repo.contains(path))
+
     candidate = os.path.normpath(os.path.join(plans_dir, target))
     root = os.path.normpath(plans_dir)
     if (candidate == root or candidate.startswith(root + os.sep)) \
             and os.path.isfile(candidate) \
-            and plan_path_is_contained(plans_dir, candidate):
+            and contained(candidate):
         return candidate
     # The by-name fallback needs the same proof. plan_file_paths()
     # walks docs/plans/, so every value in the map is textually
     # inside it, which says nothing about where a symlink there
     # points.
     fallback = paths.get(name)
-    if fallback is not None and plan_path_is_contained(plans_dir, fallback):
+    if fallback is not None and contained(fallback):
         return fallback
     return None
 
@@ -1134,16 +1116,13 @@ class PlanPhaseReferences(Check):
         consistency-audit blocks, and lines carrying the audit-ok:
         phase-reference marker are skipped.
         """
-        files = list(iter_doc_content_files(repo.path, repo.props))
+        files = list(iter_doc_content_files(repo))
         if not files:
             return self.skip('No documentation content to audit')
 
         hits = []
         for rel in files:
-            with open(
-                os.path.join(repo.path, rel), 'r', errors='replace'
-            ) as f:
-                content = blank_generated_blocks(f.read())
+            content = blank_generated_blocks(repo.read(rel))
 
             fence = None
             for lineno, line in enumerate(content.splitlines(), 1):
@@ -1224,7 +1203,7 @@ class PlanSourceReferences(Check):
                     if os.path.basename(token) == PLAN_SOURCE_TEMPLATE_NAME:
                         continue
                     total += 1
-                    if not plan_reference_resolves(repo.path, token, names):
+                    if not plan_reference_resolves(repo, token, names):
                         hits.append(f'{rel}:{lineno} -> {token}')
                         files.add(rel)
 
@@ -1319,7 +1298,9 @@ class PlanIndex(Check):
         project should plan this way is a separate decision.
         """
         plans_dir = os.path.join(repo.path, 'docs', 'plans')
-        if not os.path.isdir(plans_dir):
+        # The names listed here are quoted into the finding, so a
+        # docs/plans that is a link out of the clone is not one.
+        if not (os.path.isdir(plans_dir) and repo.exists('docs/plans')):
             return self.skip('No docs/plans/ directory')
 
         masters = sorted(
@@ -1327,18 +1308,15 @@ class PlanIndex(Check):
             if name.endswith('.md')
             and name != 'index.md'
             and not PLAN_PHASE_FILE_RE.search(name)
-            and os.path.isfile(os.path.join(plans_dir, name))
+            and repo.isfile(f'docs/plans/{name}')
         )
-        index_path = os.path.join(plans_dir, 'index.md')
-        if not os.path.exists(index_path):
+        content = repo.read('docs/plans/index.md')
+        if content is None:
             if not masters:
                 return self.skip('No plans in docs/plans/')
             return self.fail(
                 f'docs/plans/index.md is missing, so none of the '
                 f'{len(masters)} plan(s) in docs/plans/ are registered')
-
-        with open(index_path, 'r', errors='replace') as f:
-            content = f.read()
 
         linked = set()
         statuses = {s.lower() for s in PLAN_STATUSES}
@@ -1527,11 +1505,11 @@ class PlanAuditPhase(Check):
         every project should plan this way is a separate decision,
         made by plan-index rather than here.
         """
-        index_path = os.path.join(repo.path, 'docs', 'plans', 'index.md')
-        if not os.path.exists(index_path):
+        index = repo.read('docs/plans/index.md')
+        if index is None:
             return self.skip('No docs/plans/index.md')
 
-        plans_dir = os.path.dirname(index_path)
+        plans_dir = repo.join('docs', 'plans')
         # Built once rather than per link: the by-name fallback fires
         # for every index whose links are written from the repository
         # root, and that is a walk of docs/plans/ per plan.
@@ -1542,8 +1520,8 @@ class PlanAuditPhase(Check):
         unresolved = []
         statusless = []
         problems = []
-        for name, target, status in plan_index_entries(index_path):
-            path = plan_index_target_path(plans_dir, target, name, paths)
+        for name, target, status in plan_index_entries(index):
+            path = plan_index_target_path(repo, plans_dir, target, name, paths)
             if path is None:
                 # Whose fault a broken link is stays docs-external-
                 # links' business, and this check does not fail for
@@ -1568,16 +1546,15 @@ class PlanAuditPhase(Check):
                 terminal += 1
                 continue
 
-            if plan_source_is_oversize(path):
-                # Declined rather than judged on a fragment. Reading
-                # the first 2 MB and reporting "no push audit phase"
-                # would file an issue on another repository about a
-                # phase that may sit just past the cut.
+            content = repo.read(repo.relative(path))
+            if content is None:
+                # An oversize plan, declined rather than judged on a
+                # fragment. Reading the first 2 MB and reporting "no
+                # push audit phase" would file an issue on another
+                # repository about a phase that may sit just past the
+                # cut.
                 unresolved.append(name)
                 continue
-
-            with open(path, 'r', errors='replace') as f:
-                content = f.read()
             state, detail = plan_audit_phase_state(content)
             if state == PLAN_AUDIT_UNPHASED:
                 unphased.append(name)
@@ -1674,8 +1651,8 @@ class PushAudit(Check):
         into every session, which makes it the one place a reference is
         certain to be read.
         """
-        has_new = repo.exists('PUSH-AUDIT.md')
-        has_legacy = repo.exists('PUSH-TEMPLATE.md')
+        has_new = repo.isfile('PUSH-AUDIT.md')
+        has_legacy = repo.isfile('PUSH-TEMPLATE.md')
         if not has_new and not has_legacy:
             return self.skip('No pre-push audit file')
 
@@ -1687,10 +1664,7 @@ class PushAudit(Check):
             )
 
         filename = 'PUSH-AUDIT.md' if has_new else 'PUSH-TEMPLATE.md'
-        with open(
-            os.path.join(repo.path, filename), 'r', errors='replace'
-        ) as f:
-            content = f.read()
+        content = repo.read(filename)
         problems += validate_shared_blocks(
             content,
             required=PUSH_AUDIT_BLOCKS,
@@ -1701,13 +1675,13 @@ class PushAudit(Check):
         # actually uses, so a repository on the legacy name is told
         # about the rename once rather than being told twice that
         # nothing points at a file it does not have.
-        if not repo.exists('AGENTS.md'):
+        if not repo.isfile('AGENTS.md'):
             problems.append(
                 f'no AGENTS.md to reference {filename} from (see the '
                 'llm-tooling audit)'
             )
         elif not check_file_contains(
-            repo.path, 'AGENTS.md', re.escape(filename)
+            repo, 'AGENTS.md', re.escape(filename)
         ):
             problems.append(
                 f'AGENTS.md does not reference {filename} (an audit '
@@ -1749,14 +1723,9 @@ class PlanTemplate(Check):
         Repositories with no PLAN-TEMPLATE.md at all are N/A: whether
         every project should have one is a separate decision.
         """
-        if not repo.exists('PLAN-TEMPLATE.md'):
+        content = repo.read('PLAN-TEMPLATE.md')
+        if content is None:
             return self.skip('No PLAN-TEMPLATE.md')
-
-        with open(
-            os.path.join(repo.path, 'PLAN-TEMPLATE.md'), 'r',
-            errors='replace',
-        ) as f:
-            content = f.read()
         problems = validate_shared_blocks(
             content,
             required=PLAN_TEMPLATE_BLOCKS,

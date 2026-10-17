@@ -10,6 +10,7 @@ shape: content somebody attested to, checked against what it was
 attested from.
 """
 
+import io
 import json
 import os
 import re
@@ -48,11 +49,10 @@ FILE_REWRITING_HOOK_IDS = (
 )
 
 
-def pre_commit_rewriting_hooks(repo_path):
+def pre_commit_rewriting_hooks(repo):
     """Which file-rewriting hooks does .pre-commit-config.yaml run?"""
-    filepath = os.path.join(repo_path, '.pre-commit-config.yaml')
     found = set()
-    with open(filepath, 'r', errors='replace') as f:
+    with io.StringIO(repo.read('.pre-commit-config.yaml') or '') as f:
         for line in f:
             match = re.match(r'\s*-\s*id:\s*(\S+)', line)
             if not match:
@@ -63,7 +63,7 @@ def pre_commit_rewriting_hooks(repo_path):
     return sorted(found)
 
 
-def pre_commit_excludes_review_marks(repo_path):
+def pre_commit_excludes_review_marks(repo):
     """Does .pre-commit-config.yaml exempt the weAudit review marks?
 
     Line-based rather than YAML-parsed, matching the rest of this
@@ -74,8 +74,7 @@ def pre_commit_excludes_review_marks(repo_path):
     compile is skipped rather than raising: an unrelated malformed
     pattern is pre-commit's problem to report, not this audit's.
     """
-    filepath = os.path.join(repo_path, '.pre-commit-config.yaml')
-    with open(filepath, 'r', errors='replace') as f:
+    with io.StringIO(repo.read('.pre-commit-config.yaml') or '') as f:
         for line in f:
             match = re.match(r'\s*exclude:\s*(\S.*?)\s*$', line)
             if not match:
@@ -157,14 +156,14 @@ class ReviewMarksPreCommit(Check):
             return self.skip(
                 'Human review tracking not deployed '
                 '(no .vscode/review-scope.toml)')
-        if not repo.exists('.pre-commit-config.yaml'):
+        if not repo.isfile('.pre-commit-config.yaml'):
             return self.skip('No .pre-commit-config.yaml')
-        rewriting = pre_commit_rewriting_hooks(repo.path)
+        rewriting = pre_commit_rewriting_hooks(repo)
         if not rewriting:
             return self.skip(
                 'No file-rewriting pre-commit hooks, so nothing '
                 'rewrites the review marks')
-        if not pre_commit_excludes_review_marks(repo.path):
+        if not pre_commit_excludes_review_marks(repo):
             return self.fail(
                 f'{", ".join(rewriting)} rewrite(s) the review marks; '
                 r'add exclude: ^\.vscode/.*\.weaudit to those hooks')

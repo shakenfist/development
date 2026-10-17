@@ -442,6 +442,26 @@ class ConsoleLoggingTest(CheckTestCase):
         self.fixture.write_all(files)
         return self.check()
 
+    def test_an_entry_point_naming_a_path_out_of_the_clone_is_not_read(self):
+        """A dotted module name is the repository's to write.
+
+        Its dots become separators, so a leading pair turns into `//`,
+        which os.path.join takes as an absolute path: the module named
+        here is the file below, outside the checkout, and it was read
+        and judged. It resolves to no file of this checkout's instead.
+        """
+        outside = os.path.join(self.tempdir(), 'leak')
+        if '.' in outside:
+            self.skipTest('the temporary directory has a dot in its path')
+        with open(outside + '.py', 'w') as f:
+            f.write('# LEAKED-SENTINEL\n' + self.NO_BASIC_CONFIG)
+        module = outside.replace(os.sep, '.')
+        result = self._check({}, pyproject=(
+            '[project]\nname = "thing"\n\n[project.scripts]\n'
+            f'thing = "{module}:cli"\n'))
+        self.assert_skip(result, containing='resolved to no file')
+        self.assertNotIn('LEAKED-SENTINEL', result['details'])
+
     def test_a_commented_out_basic_config_does_not_satisfy_it(self):
         # The state of any file somebody was debugging, and the exact
         # misconfiguration this check exists to catch. Grepping the
@@ -1830,9 +1850,9 @@ class ReleaseProcessTest(CheckTestCase):
                         path=path, subject=path + '*', checkout=checkout,
                         packages=path if publish else None, publish=publish)
                     workspace = packaging.release_workspace_issues(
-                        self.fixture.path)
+                        self.repo())
                     container = packaging.release_container_path_issues(
-                        self.fixture.path)
+                        self.repo())
                     self.assertFalse(
                         workspace and container,
                         'both fired for checkout=%r path=%r publish=%r: %s / %s'

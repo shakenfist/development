@@ -18,8 +18,7 @@ import subprocess
 from audit.check import Check
 from audit.github import GhCli
 from audit.files import (
-    WALK_SKIP, check_file_contains, check_file_exists, file_mentions,
-    list_workflow_files, workflow_has_permissions,
+    WALK_SKIP, check_file_contains, file_mentions, workflow_has_permissions,
     workflows_inheriting_secrets_into,
 )
 from audit.text.workflows import (
@@ -166,7 +165,7 @@ CI_REVIEW_REUSABLE_WORKFLOW = (
     'shakenfist/actions/.github/workflows/pr-auto-review.yml@main')
 
 
-def automated_reviewer_workflows(repo_path):
+def automated_reviewer_workflows(repo):
     """The workflows which review pull requests through the shared action.
 
     Either reference counts: the reusable pr-auto-review.yml reaches
@@ -185,11 +184,10 @@ def automated_reviewer_workflows(repo_path):
     Returns the matching workflow file names, sorted.
     """
     return sorted(
-        wf for wf in list_workflow_files(repo_path)
+        wf for wf in repo.workflows()
         if wf not in CI_REVIEW_DEVELOPER_WORKFLOWS
         and any(
-            file_mentions(
-                os.path.join(repo_path, '.github', 'workflows', wf), needle)
+            file_mentions(repo, f'.github/workflows/{wf}', needle)
             for needle in (CI_REVIEW_SHARED_ACTION,
                            CI_REVIEW_REUSABLE_WORKFLOW)))
 
@@ -197,7 +195,7 @@ def automated_reviewer_workflows(repo_path):
 CI_REVIEW_TRIGGER_ACTION = 'shakenfist/actions/pr-bot-trigger@main'
 
 
-def pr_re_review_open_codes_the_trigger(repo_path):
+def pr_re_review_open_codes_the_trigger(repo):
     """True when pr-re-review.yml hand-rolls what pr-bot-trigger does.
 
     An earlier version of the template open-coded the trigger handling --
@@ -224,13 +222,13 @@ def pr_re_review_open_codes_the_trigger(repo_path):
     missing file.
     """
     path = '.github/workflows/pr-re-review.yml'
-    if not check_file_exists(repo_path, path):
+    if not repo.isfile(path):
         return False
     return not check_file_contains(
-        repo_path, path, re.escape(CI_REVIEW_TRIGGER_ACTION.split('/')[-1]))
+        repo, path, re.escape(CI_REVIEW_TRIGGER_ACTION.split('/')[-1]))
 
 
-def pr_auto_review_callers_inheriting_secrets(repo_path):
+def pr_auto_review_callers_inheriting_secrets(repo):
     """Find reviewer jobs which hand the shared workflow every secret.
 
     pr-auto-review.yml declares no secrets and reads none: it and
@@ -258,7 +256,7 @@ def pr_auto_review_callers_inheriting_secrets(repo_path):
 
     Returns the workflow files whose reviewer job still inherits.
     """
-    return workflows_inheriting_secrets_into(repo_path, 'pr-auto-review.yml')
+    return workflows_inheriting_secrets_into(repo, 'pr-auto-review.yml')
 
 
 # The workflows whose work job must repeat pr-bot-trigger's fork guard.
@@ -386,23 +384,21 @@ def confirm_step_findings(wf, content):
             f'with no warning']
 
 
-def fork_gate_and_confirm_issues(repo_path):
+def fork_gate_and_confirm_issues(repo):
     """The fork gate and confirm step findings for a repository.
 
     Absent workflows are skipped: their absence is already a finding.
     """
     findings = []
     for wf in CI_REVIEW_FORK_GATED_WORKFLOWS:
-        path = os.path.join(repo_path, '.github', 'workflows', wf)
-        if not os.path.isfile(path):
+        content = repo.workflow(wf)
+        if content is None:
             continue
-        with open(path, 'r', errors='replace') as f:
-            content = f.read()
         if wf == 'pr-re-review.yml':
             # A hand-rolled trigger is already a finding of its own (see
             # pr_re_review_open_codes_the_trigger()), and a second one
             # saying the same thing about the same file would be noise.
-            if not pr_re_review_open_codes_the_trigger(repo_path):
+            if not pr_re_review_open_codes_the_trigger(repo):
                 findings.extend(fork_gate_findings(wf, content))
             findings.extend(confirm_step_findings(wf, content))
         else:
@@ -410,14 +406,14 @@ def fork_gate_and_confirm_issues(repo_path):
     return findings
 
 
-def secrets_inherit_issues(repo_path):
+def secrets_inherit_issues(repo):
     """Findings for reviewer jobs which inherit secrets needlessly."""
     return [
         f'{wf} passes "secrets: inherit" to pr-auto-review.yml, which '
         'reads no secrets and authenticates with github.token, so '
         'every secret this repository holds is handed to a workflow '
         'in another repository for no benefit'
-        for wf in pr_auto_review_callers_inheriting_secrets(repo_path)
+        for wf in pr_auto_review_callers_inheriting_secrets(repo)
     ]
 
 
@@ -977,23 +973,21 @@ class CiReviewAutomation(Check):
         if repo.props['is_docs_only']:
             # cloudgood: only pr-re-review is expected.
             missing = []
-            if not check_file_exists(
-                repo.path, '.github/workflows/pr-re-review.yml'
-            ):
+            if not repo.isfile('.github/workflows/pr-re-review.yml'):
                 missing.append('pr-re-review.yml')
             deployed = carries_retired_comment_addresser(repo.path)
             if deployed:
                 return self.fail(addresser_retired_detail(deployed))
-            if pr_re_review_open_codes_the_trigger(repo.path):
+            if pr_re_review_open_codes_the_trigger(repo):
                 return self.fail(
                     'pr-re-review.yml does not use '
                     'shakenfist/actions/pr-bot-trigger@main, so it '
                     'hand-rolls the trigger handling and does not inherit '
                     "the action's fork pull request guard")
-            inheriting = secrets_inherit_issues(repo.path)
+            inheriting = secrets_inherit_issues(repo)
             if inheriting:
                 return self.fail('; '.join(inheriting))
-            unguarded = fork_gate_and_confirm_issues(repo.path)
+            unguarded = fork_gate_and_confirm_issues(repo)
             if unguarded:
                 return self.fail('; '.join(unguarded))
             if missing:
@@ -1004,14 +998,12 @@ class CiReviewAutomation(Check):
         issues = []
         # Check developer automation workflows
         for wf in CI_REVIEW_DEVELOPER_WORKFLOWS:
-            if not check_file_exists(
-                repo.path, f'.github/workflows/{wf}'
-            ):
+            if not repo.isfile(f'.github/workflows/{wf}'):
                 issues.append(f'Missing {wf}')
 
         # The automatic reviewer reaches the shared review action. See
         # the helper's docstring.
-        if not automated_reviewer_workflows(repo.path):
+        if not automated_reviewer_workflows(repo):
             issues.append(
                 f'No automated reviewer: no workflow other than '
                 f'{" or ".join(CI_REVIEW_DEVELOPER_WORKFLOWS)} calls '
@@ -1021,7 +1013,7 @@ class CiReviewAutomation(Check):
 
         # A hand-rolled pr-re-review.yml misses the shared action's fork
         # guard. See the helper's docstring.
-        if pr_re_review_open_codes_the_trigger(repo.path):
+        if pr_re_review_open_codes_the_trigger(repo):
             issues.append(
                 f'pr-re-review.yml does not use {CI_REVIEW_TRIGGER_ACTION}, '
                 f'so it hand-rolls the trigger handling and does not '
@@ -1031,12 +1023,12 @@ class CiReviewAutomation(Check):
         # "secrets: inherit" on the reviewer job hands every secret this
         # repository holds to a workflow in another one, for a workflow
         # which reads none. See the helper's docstring.
-        issues.extend(secrets_inherit_issues(repo.path))
+        issues.extend(secrets_inherit_issues(repo))
 
         # The fork gate on the work jobs, and the re-review's check that
         # it reviews the commit it validated. See the helpers'
         # docstrings.
-        issues.extend(fork_gate_and_confirm_issues(repo.path))
+        issues.extend(fork_gate_and_confirm_issues(repo))
 
         # The comment addresser is retired. See the helper's docstring.
         deployed = carries_retired_comment_addresser(repo.path)
@@ -1068,7 +1060,7 @@ class WorkflowPermissions(Check):
 
         missing = [
             wf for wf in workflows
-            if not workflow_has_permissions(repo.path, wf)
+            if not workflow_has_permissions(repo, wf)
         ]
 
         if missing:
@@ -1116,11 +1108,7 @@ class DevpiFallback(Check):
         devpi_seen = False
         offenders = []
         for wf in sorted(repo.workflows()):
-            filepath = os.path.join(
-                repo.path, '.github', 'workflows', wf
-            )
-            with open(filepath, 'r', errors='replace') as f:
-                lines = f.read().splitlines()
+            lines = repo.workflow(wf).splitlines()
 
             for i, line in enumerate(lines):
                 if not DEVPI_INDEX_RE.search(line):
@@ -1166,11 +1154,7 @@ class DevpiStaleIp(Check):
 
         offenders = []
         for wf in sorted(repo.workflows()):
-            filepath = os.path.join(
-                repo.path, '.github', 'workflows', wf
-            )
-            with open(filepath, 'r', errors='replace') as f:
-                lines = f.read().splitlines()
+            lines = repo.workflow(wf).splitlines()
 
             for i, line in enumerate(lines):
                 if DEVPI_STALE_IP_RE.search(line):
@@ -1255,11 +1239,7 @@ class ExpensiveLanePathFilter(Check):
         offenders = []
         expensive = 0
         for wf in sorted(workflows):
-            filepath = os.path.join(
-                repo.path, '.github', 'workflows', wf
-            )
-            with open(filepath, 'r', errors='replace') as f:
-                content = f.read()
+            content = repo.workflow(wf)
 
             if not (PR_TRIGGER_RE.search(content)
                     or PR_TRIGGER_FLOW_RE.search(content)):
@@ -1430,11 +1410,7 @@ class MergeGroupCancellation(Check):
         saw_merge_group = False
         keyed_on_base_ref = False
         for wf in sorted(workflows):
-            filepath = os.path.join(
-                repo.path, '.github', 'workflows', wf
-            )
-            with open(filepath, 'r', errors='replace') as f:
-                content = f.read()
+            content = repo.workflow(wf)
 
             triggered = bool(
                 MERGE_GROUP_TRIGGER_RE.search(content)
@@ -1562,12 +1538,7 @@ class SecretScanningCi(Check):
             return self.skip('No workflow files found')
 
         for workflow in workflows:
-            path = os.path.join(repo.path, '.github', 'workflows', workflow)
-            try:
-                with open(path, 'r', errors='replace') as f:
-                    content = f.read()
-            except OSError:
-                continue
+            content = repo.workflow(workflow)
 
             # Full-line comments do not count. Workflows routinely mention
             # a scanner in a header comment explaining that some other
