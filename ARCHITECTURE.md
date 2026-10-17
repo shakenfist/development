@@ -47,10 +47,10 @@ The weekly `consistency-audit.yml` workflow turns "are the projects
 consistent" into a measurement, in four stages:
 
 1. A matrix job per target repository shallow-clones it and runs
-   `scripts/audit-check.py`, producing an `audit-result-<repo>.json`
-   artifact. Checks are file-based where possible; a few query the
-   GitHub API through `gh`, and the git-hygiene checks shell out to
-   `git` in the clone.
+   `scripts/audit-check.py`, uploading its `audit-result-<repo>.json`
+   as the artifact `audit-<repo>`. Checks are file-based where
+   possible; a few query the GitHub API through `gh`, and the
+   git-hygiene checks shell out to `git` in the clone.
 2. `scripts/audit-manage-issues.py` reads every artifact and files a
    `consistency`-labelled issue on each target repository for each
    failing check, closing issues for checks that now pass or no longer

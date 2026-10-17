@@ -80,8 +80,10 @@ The audit workflow has four jobs.
 **1. `audit`** -- a matrix job per repository. Each leg shallow-clones
 the target with `gh repo clone`, installs a pinned `skillsaw` into a
 virtualenv, asserts that skillsaw answers at that pinned version, then
-runs `scripts/audit-check.py` and uploads the result as an
-`audit-result-<repo>.json` artifact.
+runs `scripts/audit-check.py` and uploads its result,
+`audit-result-<repo>.json`, as an artifact named `audit-<repo>`. The
+two later jobs download every artifact matching `audit-*`, so that
+prefix is what ties a leg's result to them.
 
 Most checks read files out of the clone, several of them by asking
 `git` inside it what the index holds. A few reach the network instead:
