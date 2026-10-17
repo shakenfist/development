@@ -60,7 +60,10 @@ path, `HEAD` itself on the fallback path -- because a push between
 resolving the ref and checking it out moves what the ref reaches. If
 the head moved in that window the run fails rather than reviewing
 code nobody validated, and the requester comments again to review the
-new head.
+new head. Both halves are the `pr-review-ref` action in
+shakenfist/actions, which the workflow calls before and after the
+checkout, so the logic is tested once there rather than copied into
+every repository.
 
 ## Security Model
 

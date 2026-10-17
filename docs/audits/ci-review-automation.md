@@ -30,8 +30,10 @@ workflow files alone, so a reviewer confirms it instead.
   requires that export to be `'true'` in its `if:`.
 * `pr-re-review.yml` confirms that the tree it checked out is the commit
   its resolve step validated, on the head fallback path as well as the
-  merge path: the step comparing `HEAD^2` has no `if:` and also
-  compares `HEAD`.
+  merge path. The confirm step has no `if:`, and it is either a call to
+  `shakenfist/actions/pr-review-ref@main` with `mode: confirm`, as the
+  template makes, or inline shell that compares `HEAD^2` and also
+  compares `HEAD`, as copies made before that action existed carry.
 * The retired comment addresser is gone from the tree, as below.
 
 ### Required, but confirmed by a reviewer
@@ -93,6 +95,12 @@ merge ref, so an earlier template confirming only the merge path let a
 fallback review be of a commit nobody validated. Measured rather than
 left to the template because every adopter copied the earlier one
 (shakenfist/development#172).
+
+The comparison itself lives in `pr-review-ref`, where its tests run
+every path against a stub `gh` and real git repositories, so a call to
+it is all that is measured. The inline shape still passes because it
+works, and a repository should not be filed against for a copy that
+is correct; it is a re-sync to make when convenient, not a defect.
 
 **Same-repository pull requests only.** The diff is untrusted input,
 and the reviewer reads it on a shared, long-lived runner pool in a job

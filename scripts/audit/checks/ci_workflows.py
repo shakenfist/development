@@ -26,7 +26,8 @@ from audit.text.workflows import (
     RUNS_ON_RE, STATIC_ALLOWED_LABELS, indented_block,
     is_bound_runner_value, job_level_keys, job_needs, job_outputs,
     jobs_inheriting_secrets, parse_runner_labels, step_action, step_keys,
-    strip_yaml_comments, workflow_job_blocks, workflow_step_blocks,
+    step_with_inputs, strip_yaml_comments, workflow_job_blocks,
+    workflow_step_blocks,
 )
 
 
@@ -343,6 +344,22 @@ def fork_gate_findings(wf, content):
 REV_PARSE_HEAD_RE = re.compile(r'rev-parse\s+HEAD(?![\^~\w])')
 
 
+# The shared action the template resolves and confirms its checkout
+# through, and the mode that confirms. Its logic lives in
+# shakenfist/actions as tools/pr-review-ref.sh, whose tests run every
+# path against a stub gh and real git repositories, so a step calling
+# it is a confirm step without this check reading any shell.
+CI_REVIEW_REF_ACTION = 'shakenfist/actions/pr-review-ref@main'
+
+
+def calls_shared_confirm(step):
+    """True when a step confirms its checkout through pr-review-ref."""
+    if step_action(step) != CI_REVIEW_REF_ACTION.split('@')[0]:
+        return False
+    mode = step_with_inputs(step).get('mode', '')
+    return mode.strip('\'"') == 'confirm'
+
+
 def confirm_step_findings(wf, content):
     """Findings for a re-review that does not confirm what it checked out.
 
@@ -354,20 +371,28 @@ def confirm_step_findings(wf, content):
     fallback review could be of a commit nobody validated
     (shakenfist/development#172).
 
-    Read from the step's shell rather than its name, since the shell is
-    what does the confirming: a step which compares HEAD^2 is the
-    confirm step, whatever it is called.
+    Two shapes are confirm steps. The template calls
+    CI_REVIEW_REF_ACTION with `mode: confirm`, and that is accepted
+    when it is unconditional: the comparison is the action's, and is
+    tested there. Copies made before the logic moved into the action
+    carry it as inline shell, and those are read from the step's shell
+    rather than its name, since the shell is what does the confirming:
+    a step which compares HEAD^2 is the confirm step, whatever it is
+    called. Both pass, so a repository that has not re-synced is not
+    filed against for a copy that works.
 
-    This measures the step's shape, not its semantics: a step which
-    names both revisions but no longer compares them, or no longer
-    fails when they differ, still passes. The failure it is built to
-    catch is a stale verbatim copy of the earlier template, which it
-    does; a pass is not evidence that a rewritten step still works.
+    For the inline shape this measures the step's shape, not its
+    semantics: a step which names both revisions but no longer compares
+    them, or no longer fails when they differ, still passes. The failure
+    it is built to catch is a stale verbatim copy of the earlier
+    template, which it does; a pass is not evidence that a rewritten
+    step still works.
     """
     for _, body in workflow_job_blocks(content):
         for step in workflow_step_blocks(body):
+            shared = calls_shared_confirm(step)
             script = strip_yaml_comments(step)
-            if 'rev-parse HEAD^2' not in script:
+            if not shared and 'rev-parse HEAD^2' not in script:
                 continue
             condition = step_keys(step).get('if')
             if condition:
@@ -375,7 +400,7 @@ def confirm_step_findings(wf, content):
                     f'{wf}: the confirm step is conditional (if: '
                     f'{condition}), so at least one checkout path goes '
                     f'unconfirmed']
-            if not REV_PARSE_HEAD_RE.search(script):
+            if not shared and not REV_PARSE_HEAD_RE.search(script):
                 return [
                     f'{wf} confirms the checkout on the merge path only, '
                     f'so a review of the head fallback can be of a '

@@ -330,6 +330,35 @@ notice keys on that rather than on the step's outcome; every other
 failure points at the run log. `MergeRefResolutionTest` holds both
 halves. Like the notice itself, this is not measured by the criterion.
 
+### The resolve and confirm logic lives in shakenfist/actions (2026-10-17)
+
+Found by the consistency audits v2 push audit. About 115 lines of
+`pr-re-review.yml` were the shell that resolves the merge ref and
+confirms the checkout, and nothing ran them: every test of them read
+their text. They also broke the fleet's limit of about five lines of
+inline shell per step, and they could not simply move to `tools/`,
+because the copies in other repositories do not check out
+shakenfist/actions. Both steps now call
+`shakenfist/actions/pr-review-ref@main`, once with `mode: resolve`
+before the checkout and once with `mode: confirm` after it. The
+action runs `tools/pr-review-ref.sh` from its own ref, and that
+repository's `tests/test_pr_review_ref.py` runs it against a stub `gh`
+and real git repositories: a current merge ref, a stale one retried
+until it catches up, one that never does, an absent or unreadable one,
+the head and merge paths of the confirm step, and a head that moved.
+The behaviour is unchanged, with two additions: a confirm step handed
+no validated sha fails as a defect rather than blaming a moved head,
+and a pull request number that is not a number is refused before it
+reaches an API path.
+
+The `ci-review-automation` criterion accepts both shapes, the call to
+the action and the inline shell, so a copy that predates this is not
+filed against: it works, and re-syncing it is a convenience rather
+than a fix. `MergeRefResolutionTest` now pins the wiring instead of the
+shell: that each step calls the action in the right mode, that the
+checkout takes the resolved ref, and that the confirm step is
+unconditional and follows the hooks step.
+
 ### The fork guard
 
 `pr-bot-trigger`'s `pr-ref` output is `.head.ref`: the branch name in the
