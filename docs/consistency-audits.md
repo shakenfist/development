@@ -218,9 +218,16 @@ Two files: the check and its specification.
    otherwise C-quotes any non-ASCII path into a name that opens
    nothing, and it returns `None` for a listing that failed, which is
    not the same answer as an empty index. `repo.read()` is how to open
-   a repository file: it returns `None` for anything that is not a
-   regular file inside the checkout, so a dangling or escaping symlink
-   is skipped rather than raised on or followed.
+   a repository file, and the only way: it returns `None` for anything
+   that is not a regular file inside the checkout once symlinks are
+   followed -- a dangling link, a directory, a link out of the clone,
+   a device -- and for anything over `READ_MAX_BYTES` (2 MiB), so none
+   of them is raised on, followed or read in part. `repo.isfile()`
+   asks the same question without wanting the content,
+   `repo.exists()` allows a directory but not a link out of the clone,
+   and `repo.workflows()` lists only workflows `repo.workflow()` will
+   read. A tree walk hands what it finds to `repo.read()` through
+   `repo.relative()` rather than opening it.
 
 2. **`docs/audits/<check-id>.md`** -- the specification, following the
    structure in `docs/audits/README.md`, and a line for it in that
