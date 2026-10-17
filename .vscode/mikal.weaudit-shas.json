@@ -229,10 +229,6 @@
       "sha": "d026bd14334862ab010cc95a7da17de9a5351d6f",
       "date": "2026-10-05"
     },
-    "docs/audits/renovate.md": {
-      "sha": "d9445c79c88d8f61e61384529b466a833a3e417d",
-      "date": "2026-10-16"
-    },
     "docs/audits/reusable-workflow-secrets.md": {
       "sha": "2ebc5177a729dd8b6025ea36afdd1b305f7b536f",
       "date": "2026-10-05"
@@ -288,10 +284,6 @@
     "docs/release-automation.md": {
       "sha": "9807720ead26729e88b627892fbb73cb81edef91",
       "date": "2026-10-06"
-    },
-    "renovate.json": {
-      "sha": "8c4bf47f1e11d237ae5e71114a177a4d7f91e868",
-      "date": "2026-10-16"
     },
     "scripts/audit-check.py": {
       "sha": "97673b9e35622a6049cab81725d8554754e715b5",
@@ -568,14 +560,6 @@
     "templates/release-automation/release.yml": {
       "sha": "932143a87e482d3e08101a485e249f347dfee26d",
       "date": "2026-10-01"
-    },
-    "templates/renovate/README.md": {
-      "sha": "933813585d159faee3864c78cc2ab3c9620eee6c",
-      "date": "2026-10-16"
-    },
-    "templates/renovate/renovate.json": {
-      "sha": "8b4b77d8c30f45c68b13d4e42c416a75e44d4045",
-      "date": "2026-10-16"
     },
     "templates/review-tracking/README.md": {
       "sha": "1501500bc92a3b31381f771c66c7d2b8578f2ac8",

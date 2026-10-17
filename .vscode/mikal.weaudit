@@ -693,10 +693,6 @@
       "author": "mikal"
     },
     {
-      "path": "renovate.json",
-      "author": "mikal"
-    },
-    {
       "path": "templates/review-tracking/README.md",
       "author": "mikal"
     },
@@ -714,10 +710,6 @@
     },
     {
       "path": "scripts/tests/test_review_tracking.py",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate/renovate.json",
       "author": "mikal"
     },
     {
@@ -750,14 +742,6 @@
     },
     {
       "path": "PLAN-TEMPLATE.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/renovate.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate/README.md",
       "author": "mikal"
     },
     {
