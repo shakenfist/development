@@ -249,6 +249,12 @@ repositories and exits non-zero at the end. On the compliance page the
 same failure renders the repository's Issue cells as `?` rather than
 `-`, which would claim that no issue is open.
 
+**A refused write fails the run.** A create, edit or close that GitHub
+refuses, or that times out, is counted, and once every repository has
+been managed the script exits non-zero and names them. An issue is
+closed before its closing comment is posted, so a close that fails
+leaves nothing behind for the next run to post again.
+
 **Repository renames are handled, but noisily on purpose.** Repo names
 are resolved to their canonical form before searching, because GitHub's
 issue search does not follow renames while issue creation does -- so a

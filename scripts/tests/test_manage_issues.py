@@ -17,6 +17,7 @@ import io
 import os
 import re
 import json
+import subprocess
 import sys
 import tempfile
 import types
@@ -367,6 +368,19 @@ class IssueLifecycleCase(unittest.TestCase):
         return self.module.process_results(
             self.results(*checks), dry_run=dry_run, github=self.tracker)
 
+    def run_main(self, *repos):
+        """Run main() over one results file per repository."""
+        tmp = self.enterContext(tempfile.TemporaryDirectory())
+        for repo in repos:
+            with open(os.path.join(tmp, f'{repo}.json'), 'w') as f:
+                json.dump(self.results(('eol-distro', 'fail'), repo=repo), f)
+        self.module.GhCli = lambda: self.tracker
+        with mock.patch.object(sys, 'argv',
+                               ['audit-manage-issues.py', '--results-dir', tmp]):
+            with self.assertRaises(SystemExit) as raised:
+                self.module.main()
+        return raised.exception.code
+
     def body(self, check_id):
         return self.module.build_issue_body(
             check_id, {'id': check_id, 'status': 'fail', 'details': 'found'})
@@ -534,25 +548,94 @@ class OpenIssueListingTest(IssueLifecycleCase):
         self.process((check_for(root), 'pass'))
         self.assertEqual(sorted(self.written('close')), duplicates)
 
-    def run_main(self, *repos):
-        """Run main() over one results file per repository."""
-        tmp = self.enterContext(tempfile.TemporaryDirectory())
-        for repo in repos:
-            with open(os.path.join(tmp, f'{repo}.json'), 'w') as f:
-                json.dump(self.results(('eol-distro', 'fail'), repo=repo), f)
-        self.module.GhCli = lambda: self.tracker
-        with mock.patch.object(sys, 'argv',
-                               ['audit-manage-issues.py', '--results-dir', tmp]):
-            with self.assertRaises(SystemExit) as raised:
-                self.module.main()
-        return raised.exception.code
-
     def test_main_fails_after_managing_the_repositories_it_could(self):
         self.tracker = self.fresh_tracker(fail={'list:shakenfist/broken'})
         self.assertEqual(self.run_main('broken', 'testrepo'), 1)
         self.assertEqual(self.tracker.writes,
                          [('create', REPO, title_for('eol-distro'))])
         self.assertIn('shakenfist/broken', self.err.getvalue())
+
+
+class WriteFailureTest(IssueLifecycleCase):
+    """A write GitHub refuses is counted, and fails the run at the end.
+
+    Each failure used to be printed and forgotten, so a run in which
+    every write failed -- an expired token, say -- was green.
+    """
+
+    def test_a_failed_create_is_counted(self):
+        self.tracker = self.fresh_tracker(fail={'create'})
+        tally = self.process(('eol-distro', 'fail'))
+        self.assertEqual(len(tally.write_failures), 1)
+        self.assertIn(title_for('eol-distro'), tally.write_failures[0])
+        self.assertTrue(tally.failed())
+
+    def test_a_failed_edit_is_counted(self):
+        self.tracker = self.fresh_tracker(fail={'edit'})
+        number = self.tracker.add(REPO, title_for('eol-distro'), 'stale')
+        tally = self.process(('eol-distro', 'fail'))
+        self.assertEqual(tally.write_failures, [f'{REPO}: edit #{number}'])
+
+    def test_a_failed_close_is_counted_and_not_commented_on(self):
+        """Otherwise every run repeats the comment on an issue left open."""
+        self.tracker = self.fresh_tracker(fail={'close'})
+        number = self.tracker.add(REPO, title_for('eol-distro'))
+        tally = self.process(('eol-distro', 'pass'))
+        self.assertEqual(tally.write_failures, [f'{REPO}: close #{number}'])
+        self.assertEqual(self.tracker.writes, [])
+        self.assertEqual(self.tracker.issue(number)['state'], 'open')
+
+    def test_a_failed_duplicate_close_is_counted(self):
+        self.tracker = self.fresh_tracker(fail={'close'})
+        body = self.body('eol-distro')
+        self.tracker.add(REPO, title_for('eol-distro'), body)
+        duplicate = self.tracker.add(REPO, title_for('eol-distro'), body)
+        tally = self.process(('eol-distro', 'fail'))
+        self.assertEqual(tally.write_failures, [f'{REPO}: close #{duplicate}'])
+
+    def test_the_close_comes_before_its_comment(self):
+        number = self.tracker.add(REPO, title_for('eol-distro'))
+        self.process(('eol-distro', 'pass'))
+        self.assertEqual(self.tracker.writes,
+                         [('close', REPO, number), ('comment', REPO, number)])
+
+    def test_a_failed_comment_after_a_close_is_not_counted(self):
+        """The issue is closed, and no later run could retry it."""
+        self.tracker = self.fresh_tracker(fail={'comment'})
+        number = self.tracker.add(REPO, title_for('eol-distro'))
+        tally = self.process(('eol-distro', 'pass'))
+        self.assertEqual(self.tracker.issue(number)['state'], 'closed')
+        self.assertFalse(tally.failed())
+        self.assertIn('commenting on closed issue', self.err.getvalue())
+
+    def test_a_write_that_times_out_is_counted_and_the_run_goes_on(self):
+        tracker = self.tracker
+        original = tracker.run
+
+        def run(args, timeout=30):
+            if args[:2] == ['issue', 'create']:
+                raise subprocess.TimeoutExpired('gh', timeout)
+            return original(args, timeout)
+
+        tracker.run = run
+        renovate = tracker.add(REPO, title_for('renovate'))
+        tally = self.process(('eol-distro', 'fail'), ('renovate', 'pass'))
+        self.assertEqual(len(tally.write_failures), 1)
+        self.assertEqual(self.written('close'), [renovate])
+
+    def test_a_dry_run_counts_nothing(self):
+        self.tracker = self.fresh_tracker(fail={'create', 'close'})
+        self.tracker.add(REPO, title_for('renovate'))
+        tally = self.process(('eol-distro', 'fail'), ('renovate', 'pass'),
+                             dry_run=True)
+        self.assertFalse(tally.failed())
+
+    def test_main_exits_non_zero_after_a_failed_write(self):
+        self.tracker = self.fresh_tracker(fail={'create:shakenfist/broken'})
+        self.assertEqual(self.run_main('broken', 'testrepo'), 1)
+        self.assertEqual(self.tracker.writes,
+                         [('create', REPO, title_for('eol-distro'))])
+        self.assertIn('1 issue write(s) failed', self.err.getvalue())
 
 
 class OpenIssueRefreshTest(IssueLifecycleCase):
