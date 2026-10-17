@@ -239,10 +239,14 @@ jobs:
     # The audit matrix still runs on a branch, which is how to measure
     # a change to the checks against the fleet before merging it.
     # This stops a dispatch of the wrong ref, not someone determined:
-    # a branch can edit the condition out of its own copy, or name
-    # AUDIT_TOKEN in a matrix step. The trust boundary is push access
-    # to this repository.
+    # a branch can edit the condition out of its own copy. What stops
+    # that is the audit-write environment, which holds AUDIT_TOKEN and
+    # deploys only from main, so a branch run that edits this out
+    # fails to start the job, and one that names AUDIT_TOKEN in a
+    # matrix step gets an empty string. The condition stays so that
+    # a branch run shows these jobs as skipped rather than failed.
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
+    environment: audit-write
     runs-on: [self-hosted, static]
     permissions:
       contents: read
@@ -296,9 +300,10 @@ jobs:
     # the manage-issues failure. Waiting for its success would throw
     # away a correct page over a transient GitHub error.
     #
-    # Only from main, as for manage-issues: a branch's page would
-    # otherwise be pushed to main.
+    # Only from main, and in the audit-write environment, as for
+    # manage-issues: a branch's page would otherwise be pushed to main.
     if: ${{ !cancelled() && needs.audit.result == 'success' && github.ref == 'refs/heads/main' }}
+    environment: audit-write
     needs: [audit, manage-issues]
     runs-on: [self-hosted, static]
     permissions:

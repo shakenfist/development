@@ -138,6 +138,33 @@ fails at "Check the read token" and `report-failure` files its issue
 pointing at the run. Mint a replacement with the permissions above and
 replace the secret, then dispatch a run of `main` to confirm it.
 
+`AUDIT_TOKEN` is not a repository secret. It is an environment secret
+in the `audit-write` environment, whose deployment branch policy
+allows only `main`, and `manage-issues` and `update-docs` are the only
+jobs that name that environment (`test_audit_workflow.py` pins both).
+A repository secret goes to every run that names it, including a
+dispatch of any branch; an environment secret goes only to a job the
+environment admits. So a branch that edits the `main`-only condition
+out of its copy of a writing job fails at the deployment check, and
+one that names `AUDIT_TOKEN` in an audit leg gets an empty string. The
+environment is set up once, by a repository admin:
+
+1. Settings, Environments, New environment, named `audit-write`.
+2. Deployment branches and tags: Selected branches and tags, with the
+   single rule `main` (a branch rule, not a tag rule).
+3. Add the token as the environment secret `AUDIT_TOKEN`. GitHub
+   cannot copy a secret from one scope to another, so this means
+   pasting the token again, or minting a replacement.
+4. Delete the repository secret `AUDIT_TOKEN`, so that nothing outside
+   the environment can name it.
+
+Do the first three before merging a change that adds the
+`environment:` lines, and the fourth after: in between, both copies
+exist and the workflow works whichever one it reads. Dispatch a run of
+`main` to confirm, and check that a dispatch of a branch still shows
+the writing jobs as skipped. Leave out required reviewers and wait
+timers: the scheduled run has nobody to approve it.
+
 The split is between jobs, not between hosts, and that bounds what it
 buys. Every job runs on the persistent `[self-hosted, static]`
 runners, as the same user, and only `runner.temp` is emptied between
@@ -191,11 +218,13 @@ Only a run of `main` writes anything. Dispatched on another branch
 matrix runs that branch's checks against the whole fleet and uploads
 its results as artifacts, and `manage-issues`, `update-docs` and
 `report-failure` are skipped. That is the way to measure a change to
-the checks against the fleet before merging it. The guard catches a
-dispatch of the wrong ref, not a determined branch: the read token can
-read every private repository in the organisation, and a branch
-controls the code that runs with it, including whether it names
-`AUDIT_TOKEN` at all. The trust boundary is push access to this
+the checks against the fleet before merging it. The `main`-only
+condition catches a dispatch of the wrong ref; the `audit-write`
+environment above is what keeps `AUDIT_TOKEN` from a branch that edits
+the condition out. The read token is another matter: a branch run
+needs it to measure anything, and a branch controls the code that runs
+with it, so a branch can read every private repository in the
+organisation. For reading, the trust boundary is push access to this
 repository, as it always was. Two runs of one ref never overlap: the
 second waits for the first to finish. Runs of different refs do not
 wait for each other, so a branch run can never hold up or displace the
