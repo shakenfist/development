@@ -382,6 +382,13 @@ The full gate, which `ci.yml` also runs on every pull request:
 pre-commit run --all-files
 ```
 
+The scripts are standard library only and run on whatever `python3`
+is on the path, which has to be Python 3.11 or later: the audit and
+`review-tracking.py` read TOML with `tomllib`, which 3.11 added to the
+standard library. That floor applies to a local run and to the
+runners the workflows use alike, and an older interpreter fails at
+import rather than measuring anything.
+
 Every test suite lives in `scripts/tests/`, including the suites for
 the scripts around the package -- `test_review_tracking.py`,
 `test_audit_update_docs.py`, `test_audit_snapshot.py`,
