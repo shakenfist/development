@@ -18,9 +18,11 @@ one: `registry.run_check()` reports it as `error` so that the other
 checks still run, and the scheduled workflow fails the leg on it with
 audit-raised.py. Accepting it here would let a pull request that
 introduces a raising check pass CI and fail the next scheduled run
-instead, which is the failure this job exists to move earlier. Which checks fail against this
-repository is not this script's business: development is exempt from
-the audits and several checks fail here by design.
+instead, which is the failure this job exists to move earlier.
+
+Which checks fail against this repository is not this script's
+business: development is exempt from the audits and several checks
+fail here by design.
 
 Usage: check-audit-smoke.py RESULTS.json
 """

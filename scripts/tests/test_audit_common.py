@@ -16,9 +16,12 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import audit_common  # noqa: E402
-from audit.github import CompletedCommand, FakeGitHub  # noqa: E402
+from audit.github import (  # noqa: E402
+    DEFAULT_TIMEOUT, CompletedCommand, FakeGitHub,
+)
 from audit_common import (  # noqa: E402
     BEGIN_MARKER, END_MARKER, ISSUE_TITLES, OPEN_ISSUE_LIMIT,
+    OPEN_ISSUE_TIMEOUT,
     IssueListingError, defuse, gh_open_issues, issue_title_for,
     issues_titled,
 )
@@ -84,7 +87,8 @@ class OpenIssuesTest(unittest.TestCase):
     """
 
     LISTING = ('issue list --repo shakenfist/testrepo --label consistency '
-               f'--state open --json number,title,body --limit {OPEN_ISSUE_LIMIT}')
+               '--state open --json number,title,body '
+               f'--limit {OPEN_ISSUE_LIMIT}')
 
     def setUp(self):
         audit_common._CANONICAL_CACHE.clear()
@@ -93,6 +97,21 @@ class OpenIssuesTest(unittest.TestCase):
     def listing(self, response):
         return gh_open_issues(FakeGitHub({self.LISTING: response}),
                               'shakenfist', 'testrepo')
+
+    def test_the_listing_has_a_longer_timeout_than_a_write(self):
+        # It carries every open issue's body, and a timeout leaves the
+        # whole repository unmanaged.
+        seen = {}
+
+        class Recording(FakeGitHub):
+            def run(self, args, timeout=DEFAULT_TIMEOUT):
+                seen[' '.join(args)] = timeout
+                return super().run(args, timeout=timeout)
+
+        gh_open_issues(Recording({self.LISTING: CompletedCommand(
+            stdout='[]')}), 'shakenfist', 'testrepo')
+        self.assertEqual(OPEN_ISSUE_TIMEOUT, seen[self.LISTING])
+        self.assertGreater(OPEN_ISSUE_TIMEOUT, DEFAULT_TIMEOUT)
 
     def test_the_open_issues_are_returned(self):
         issues = [{'number': 3, 'title': 'Consistency: x', 'body': ''}]
@@ -143,7 +162,8 @@ class IssuesTitledTest(unittest.TestCase):
         ]
         self.assertEqual(
             [2, 9],
-            [i['number'] for i in issues_titled(issues, 'Consistency: Renovate')])
+            [i['number']
+             for i in issues_titled(issues, 'Consistency: Renovate')])
 
 
 if __name__ == '__main__':

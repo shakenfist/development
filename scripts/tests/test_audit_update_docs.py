@@ -856,7 +856,8 @@ class IssueColumnTest(unittest.TestCase):
                                for c in audit_update_docs.AUDIT_METADATA]}
                    for repo in repos]
         with contextlib.redirect_stderr(self.err):
-            return audit_update_docs.render_page(results, False, github=self.tracker)
+            return audit_update_docs.render_page(
+                results, False, github=self.tracker)
 
     def rows(self, section, repo):
         return [line for line in section.split('\n')
@@ -870,7 +871,8 @@ class IssueColumnTest(unittest.TestCase):
         number = self.tracker.add('shakenfist/testrepo',
                                   'Consistency: End-of-life distributions')
         # A sibling title sharing a prefix links nowhere it should not.
-        self.tracker.add('shakenfist/testrepo', 'Consistency: Renovate lockstep groups')
+        self.tracker.add('shakenfist/testrepo',
+                         'Consistency: Renovate lockstep groups')
         section = self.page('testrepo')
         cells = self.issue_cells(section, 'testrepo')
         self.assertEqual(cells.count(f'shakenfist/testrepo#{number}'), 1)
@@ -893,9 +895,12 @@ class IssueColumnTest(unittest.TestCase):
         self.assertEqual(len(listings), 2)
 
     def test_no_issues_makes_no_lookups(self):
-        results = [{'repo': 'testrepo', 'org': 'shakenfist', 'timestamp': 'when',
-                    'checks': [{'id': 'eol-distro', 'status': 'fail', 'details': 'x'}]}]
-        section = audit_update_docs.render_page(results, True, github=self.tracker)
+        results = [{'repo': 'testrepo', 'org': 'shakenfist',
+                    'timestamp': 'when',
+                    'checks': [{'id': 'eol-distro', 'status': 'fail',
+                                'details': 'x'}]}]
+        section = audit_update_docs.render_page(
+            results, True, github=self.tracker)
         self.assertEqual(self.tracker.calls, [])
         self.assertIn('| testrepo | non-compliant | - |', section)
 

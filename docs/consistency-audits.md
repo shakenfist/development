@@ -254,7 +254,11 @@ same failure renders the repository's Issue cells as `?` rather than
 refuses, or that times out, is counted, and once every repository has
 been managed the script exits non-zero and names them. An issue is
 closed before its closing comment is posted, so a close that fails
-leaves nothing behind for the next run to post again.
+leaves nothing behind for the next run to post again. A failed
+`manage-issues` does not hold back the compliance page: `update-docs`
+runs once it has finished, whatever its outcome, as long as every
+`audit` leg passed, because a refused write does not make a verdict
+wrong.
 
 **Repository renames are handled, but noisily on purpose.** Repo names
 are resolved to their canonical form before searching, because GitHub's
@@ -412,7 +416,10 @@ Every later run of `audit-manage-issues.py` closes any open issue
 carrying a retired title, with a comment saying the criterion was
 retired. Leave the entry in place afterwards: it costs one comparison
 per repository, and a repository whose audit leg failed on the first
-run after the retirement is closed on a later one. A retired title can
+run after the retirement is closed on a later one. Retirement only
+reaches repositories still in the audit matrix, since it runs over
+each run's results: issues in a repository dropped from scope have to
+be closed by hand, as its live criteria's issues do. A retired title can
 never be filed again by a live criterion, and
 `RetiredIssueTitlesTest` in `scripts/tests/test_metadata.py` fails if
 one is. Renaming a title safely is the second step on its own: change

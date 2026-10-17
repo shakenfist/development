@@ -19,8 +19,8 @@ Usage:
 
 With --no-issues the GitHub issue lookups are skipped (cells show
 '-'), which allows offline testing without `gh`. A repository whose
-issues could not be listed shows '?' (NO_LOOKUP) in its cells instead, so
-a failed lookup is not published as "no issue". With
+issues could not be listed shows '?' (NO_LOOKUP) in its cells
+instead, so a failed lookup is not published as "no issue". With
 --page the output goes somewhere other than docs/audits/compliance.md,
 which is how to render a page locally without touching the tree: the
 criterion specifications beside the real one are hand-written, so

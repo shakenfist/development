@@ -14,9 +14,9 @@ Run with: python3 scripts/tests/test_manage_issues.py
 import contextlib
 import importlib.util
 import io
+import json
 import os
 import re
-import json
 import subprocess
 import sys
 import tempfile
@@ -375,8 +375,8 @@ class IssueLifecycleCase(unittest.TestCase):
             with open(os.path.join(tmp, f'{repo}.json'), 'w') as f:
                 json.dump(self.results(('eol-distro', 'fail'), repo=repo), f)
         self.module.GhCli = lambda: self.tracker
-        with mock.patch.object(sys, 'argv',
-                               ['audit-manage-issues.py', '--results-dir', tmp]):
+        argv = ['audit-manage-issues.py', '--results-dir', tmp]
+        with mock.patch.object(sys, 'argv', argv):
             with self.assertRaises(SystemExit) as raised:
                 self.module.main()
         return raised.exception.code
@@ -470,7 +470,8 @@ class ExactTitleTest(IssueLifecycleCase):
 
     def seed_family(self, members, skip=None):
         """Open one issue per family member, returning {title: number}."""
-        return {title: self.tracker.add(REPO, title, self.body(check_for(title)))
+        return {title: self.tracker.add(REPO, title,
+                                        self.body(check_for(title)))
                 for title in members if title != skip}
 
     def test_a_verdict_closes_only_its_own_title_in_a_family(self):
@@ -716,7 +717,8 @@ class OpenIssueRefreshTest(IssueLifecycleCase):
         self.assertEqual(self.tracker.issue(number)['body'], expected)
 
     def test_a_current_body_is_left_alone(self):
-        self.open_issue(self.module.build_issue_body('eol-distro', self.check()))
+        self.open_issue(
+            self.module.build_issue_body('eol-distro', self.check()))
         self.process(self.check())
         self.assertEqual(self.tracker.writes, [])
         self.assertIn('already open and current', self.out.getvalue())
@@ -737,7 +739,8 @@ class OpenIssueRefreshTest(IssueLifecycleCase):
         number = self.open_issue('old')
         self.process(self.check(), dry_run=True)
         self.assertEqual(self.tracker.writes, [])
-        self.assertIn(f'#{number} already open, updating body', self.out.getvalue())
+        self.assertIn(f'#{number} already open, updating body',
+                      self.out.getvalue())
 
     def test_only_the_surviving_original_is_updated(self):
         original = self.open_issue('old')

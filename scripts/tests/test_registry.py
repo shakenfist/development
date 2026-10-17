@@ -1011,6 +1011,48 @@ class MergeRefResolutionTest(unittest.TestCase):
                 self.assertNotIn('steps.confirm.outcome', notice)
 
 
+class AuditWorkflowGatesTest(unittest.TestCase):
+    """The audit's own jobs run on the conditions their comments give.
+
+    Each gate fails quietly in one direction. manage-issues waiting on
+    every audit leg stops issue filing fleet-wide over one timeout.
+    update-docs without the audit condition commits a page of
+    `unknown` verdicts for a leg that failed, and update-docs waiting
+    on manage-issues' success throws away a correct page over one
+    refused issue write. Pinned as exact strings so that changing one
+    is a decision made by editing this test. The main-only term each
+    carries is test_audit_workflow.py's to explain.
+    """
+
+    WORKFLOW = os.path.join('.github', 'workflows', 'consistency-audit.yml')
+
+    def keys(self, job):
+        with open(os.path.join(REPO_ROOT, self.WORKFLOW)) as f:
+            jobs = dict(workflow_job_blocks(f.read()))
+        return job_level_keys(jobs[job])
+
+    def test_manage_issues_runs_after_a_partial_audit(self):
+        self.assertEqual(
+            "${{ !cancelled() && github.ref == 'refs/heads/main' }}",
+            self.keys('manage-issues').get('if'))
+
+    def test_update_docs_needs_the_audit_but_not_issue_success(self):
+        keys = self.keys('update-docs')
+        self.assertEqual('[audit, manage-issues]', keys.get('needs'))
+        self.assertEqual(
+            "${{ !cancelled() && needs.audit.result == 'success' "
+            "&& github.ref == 'refs/heads/main' }}",
+            keys.get('if'))
+
+    def test_a_failure_anywhere_is_reported(self):
+        keys = self.keys('report-failure')
+        self.assertEqual('[audit, manage-issues, update-docs]',
+                         keys.get('needs'))
+        self.assertEqual(
+            "${{ failure() && github.ref == 'refs/heads/main' }}",
+            keys.get('if'))
+
+
 class CodeqlTemplateTest(unittest.TestCase):
     """The CodeQL template's review-only skip must fail open.
 
@@ -1384,7 +1426,8 @@ class ErrorResultsLeaveIssuesAloneTest(unittest.TestCase):
         spec.loader.exec_module(module)
 
         tracker = FakeIssueTracker()
-        tracker.add('shakenfist/testrepo', 'Consistency: End-of-life distributions')
+        tracker.add('shakenfist/testrepo',
+                    'Consistency: End-of-life distributions')
         results = {
             'org': 'shakenfist', 'repo': 'testrepo',
             'summary': {'pass': 0, 'fail': 0, 'not_applicable': 0, 'error': 1},

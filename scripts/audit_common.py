@@ -115,6 +115,12 @@ def gh_canonical_repo(github, org, repo):
 #: short, and is treated as a failure rather than as the whole answer.
 OPEN_ISSUE_LIMIT = 1000
 
+#: How long that listing may take, in seconds. It carries every open
+#: issue's body and gh pages through it, and it replaces about thirty
+#: searches that each had the default thirty seconds; a timeout here
+#: leaves a whole repository unmanaged and fails the run.
+OPEN_ISSUE_TIMEOUT = 120
+
 
 class IssueListingError(Exception):
     """A repository's open issues could not be listed.
@@ -154,7 +160,7 @@ def gh_open_issues(github, org, repo, label='consistency'):
             '--state', 'open',
             '--json', 'number,title,body',
             '--limit', str(OPEN_ISSUE_LIMIT),
-        ])
+        ], timeout=OPEN_ISSUE_TIMEOUT)
     except (subprocess.TimeoutExpired, FileNotFoundError) as e:
         raise IssueListingError(f'{where}: {e}') from e
     if result.returncode != 0:

@@ -38,7 +38,8 @@ class AuditRaisedTest(unittest.TestCase):
     def test_one_error_result_exits_one(self):
         result = self.run_on([
             {'id': 'eol-distro', 'status': 'pass', 'details': 'ok'},
-            {'id': 'renovate', 'status': 'error', 'details': 'ValueError: boom'},
+            {'id': 'renovate', 'status': 'error',
+             'details': 'ValueError: boom'},
         ])
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn('testrepo: renovate: ValueError: boom', result.stderr)

@@ -279,19 +279,27 @@ jobs:
   # specs, which are hand-written, can hold a human review mark.
   update-docs:
     name: Update the audit compliance page
-    # Deliberately NOT given manage-issues' !cancelled() treatment,
-    # and the asymmetry is the point rather than an oversight. That
-    # job only touches the repositories it has results for, so a
-    # partial run is partial work. This one regenerates the whole
-    # page: a repository whose leg failed has no artifact, renders as
-    # `unknown` (AGENTS.md), and would be committed to main that way
-    # -- replacing good verdicts with unknowns is worse than the
-    # stale page report-failure already warns about.
+    # Every audit leg must have passed, which is a stricter condition
+    # than manage-issues' and the asymmetry is the point rather than
+    # an oversight. That job only touches the repositories it has
+    # results for, so a partial run is partial work. This one
+    # regenerates the whole page: a repository whose leg failed has
+    # no artifact, renders as `unknown` (AGENTS.md), and would be
+    # committed to main that way -- replacing good verdicts with
+    # unknowns is worse than the stale page report-failure already
+    # warns about.
+    #
+    # manage-issues, on the other hand, only has to have finished.
+    # It fails the run on a single refused write or failed listing,
+    # and neither makes the verdicts wrong: the page renders an issue
+    # it could not look up as `?`, and report-failure still fires on
+    # the manage-issues failure. Waiting for its success would throw
+    # away a correct page over a transient GitHub error.
     #
     # Only from main, as for manage-issues: a branch's page would
     # otherwise be pushed to main.
+    if: ${{ !cancelled() && needs.audit.result == 'success' && github.ref == 'refs/heads/main' }}
     needs: [audit, manage-issues]
-    if: github.ref == 'refs/heads/main'
     runs-on: [self-hosted, static]
     permissions:
       contents: write
