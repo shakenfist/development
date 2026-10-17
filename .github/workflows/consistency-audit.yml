@@ -320,6 +320,11 @@ jobs:
       contents: read
       issues: write
     steps:
+      - name: Checkout development repo
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
       # gh issue create fails outright if the label does not exist, so
       # the report would be lost at exactly the moment it is wanted.
       # --force makes this idempotent.
@@ -336,42 +341,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          set -e
-          existing=$(gh issue list --repo "${GITHUB_REPOSITORY}" \
-              --label audit-failure --state open --limit 1 --json number \
-              --jq '.[0].number // empty')
-
-          # printf rather than a multi-line quoted string: the latter
-          # carries this file's indentation into every continuation
-          # line, and four leading spaces make GitHub-flavoured Markdown
-          # render the whole body as a code block.
-          body=$(printf '%s\n' \
-              "The scheduled consistency audit failed." \
-              "" \
-              "Run: ${RUN_URL}" \
-              "" \
-              "While this is failing no compliance page is being" \
-              "regenerated and no consistency issues are being filed or" \
-              "closed, across every audited repository. The tables still" \
-              "show the previous run's verdicts, so the audit looks" \
-              "healthy from the outside -- check the run before trusting" \
-              "anything in docs/audits/." \
-              "" \
-              "The audit runs weekly and nothing retries it, so a failure" \
-              "lasts until the next Sunday unless someone acts. Once the" \
-              "cause is fixed, start a run by hand with" \
-              "\`gh workflow run consistency-audit.yml --repo ${GITHUB_REPOSITORY}\`" \
-              "and close this issue once that run passes.")
-
-          if [ -n "${existing}" ]; then
-              echo "Commenting on existing audit failure issue #${existing}."
-              gh issue comment "${existing}" \
-                  --repo "${GITHUB_REPOSITORY}" --body "${body}"
-          else
-              echo "Filing a new audit failure issue."
-              gh issue create --repo "${GITHUB_REPOSITORY}" \
-                  --title "Scheduled consistency audit is failing" \
-                  --label audit-failure \
-                  --body "${body}"
-          fi
+        run: tools/report-audit-failure.sh

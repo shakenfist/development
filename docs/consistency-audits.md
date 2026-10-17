@@ -147,7 +147,8 @@ The tables are therefore always a rendering of the most recent run.
 Never edit one by hand: the next run overwrites it.
 
 **4. `report-failure`** -- runs only when one of the above fails, and
-files or updates an issue labelled `audit-failure` on this repository.
+files or updates an issue labelled `audit-failure` on this repository,
+with `tools/report-audit-failure.sh`.
 
 That last job exists because this pipeline's worst failure mode is a
 quiet one. A scheduled workflow that fails emails whoever pushed last,
