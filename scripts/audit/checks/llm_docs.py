@@ -140,7 +140,15 @@ SKILLSAW_RUN_RE = re.compile(
 # reference invocation in this repository's own consistency-audit.yml,
 # which installs skillsaw from PyPI and so never names the upstream
 # repository either.
-PRE_COMMIT_RUN_RE = re.compile(r'pre-commit\s+run\b')
+#
+# The command is matched however it is spelled, as SKILLSAW_RUN_RE
+# does for skillsaw: bare, as a quoted path into a venv
+# ("${RUNNER_TEMP}/venv/bin/pre-commit" run, which is how this
+# repository's own ci.yml calls it, so the closing quote sits between
+# the command and its subcommand), or as the module
+# (python -m pre_commit run). Only the run subcommand counts:
+# installing pre-commit, or running "pre-commit install", runs no hook.
+PRE_COMMIT_RUN_RE = re.compile(r'pre[-_]commit[\'"]?\s+run\b')
 
 
 def file_matches(filepath, pattern):

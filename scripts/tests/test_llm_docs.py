@@ -379,6 +379,51 @@ class LlmContextLintCiTest(CheckTestCase):
         })
         self.assert_pass(result)
 
+    def test_ci_running_pre_commit_counts_however_it_is_spelled(self):
+        # A venv's pre-commit is commonly called by a quoted path, which
+        # puts the closing quote between the command and "run". That is
+        # how development's own ci.yml calls it, and it went unseen.
+        for line in (
+            '      - run: pre-commit run --all-files\n',
+            '      - run: "${RUNNER_TEMP}/venv/bin/pre-commit" run --all-files\n',
+            "      - run: '/opt/venv/bin/pre-commit' run --all-files\n",
+            '      - run: python3 -m pre_commit run --all-files\n',
+            '      - run: uvx pre-commit run --all-files\n',
+        ):
+            with self.subTest(line=line):
+                result = self._check({
+                    'CLAUDE.md': '# Context\n',
+                    '.pre-commit-config.yaml': self.PRE_COMMIT,
+                    '.github/workflows/ci.yml': (
+                        'jobs:\n'
+                        '  lint:\n'
+                        '    steps:\n' + line
+                    ),
+                })
+                self.assert_pass(result)
+
+    def test_installing_pre_commit_does_not_count(self):
+        # Installing pre-commit, or installing its git hook, runs no
+        # hook at all, so neither is the CI half.
+        for line in (
+            '      - run: pip install pre-commit\n',
+            '      - run: "${RUNNER_TEMP}/venv/bin/pip" install pre-commit\n',
+            '      - run: pre-commit install\n',
+            '      - run: python3 -m pre_commit --version\n',
+            '      - name: Run pre-commit hooks\n',
+        ):
+            with self.subTest(line=line):
+                result = self._check({
+                    'CLAUDE.md': '# Context\n',
+                    '.pre-commit-config.yaml': self.PRE_COMMIT,
+                    '.github/workflows/ci.yml': (
+                        'jobs:\n'
+                        '  lint:\n'
+                        '    steps:\n' + line
+                    ),
+                })
+                self.assert_fail(result, containing='CI workflow')
+
     def test_ci_running_pre_commit_without_the_hook_still_fails(self):
         # The indirection only counts when the hook is actually
         # declared; otherwise pre-commit runs everything except
