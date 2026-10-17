@@ -211,7 +211,16 @@ jobs:
     # whichever artifacts happened to land before it was killed. A
     # newer run cannot supersede this one part way through: the
     # concurrency group above makes it wait.
-    if: ${{ !cancelled() }}
+    #
+    # And only from main. A dispatch runs the workflow and scripts of
+    # whichever branch it names, so without this a branch would file
+    # and close real issues fleet-wide from its own copy of the checks.
+    # The audit matrix still runs on a branch, which is how to measure
+    # a change to the checks against the fleet before merging it, and
+    # that is safe because the matrix holds only the read-only token.
+    # This stops a dispatch of the wrong ref, not someone determined:
+    # a branch can edit the condition out of its own copy.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
     runs-on: [self-hosted, static]
     permissions:
       contents: read
@@ -256,7 +265,11 @@ jobs:
     # `unknown` (AGENTS.md), and would be committed to main that way
     # -- replacing good verdicts with unknowns is worse than the
     # stale page report-failure already warns about.
+    #
+    # Only from main, as for manage-issues: a branch's page would
+    # otherwise be pushed to main.
     needs: [audit, manage-issues]
+    if: github.ref == 'refs/heads/main'
     runs-on: [self-hosted, static]
     permissions:
       contents: write
@@ -293,10 +306,14 @@ jobs:
   # verdicts -- so the audit looked like it was working. This puts a
   # failure somewhere it will be seen, and updates one issue rather than
   # filing a fresh one on every run an outage continues.
+  #
+  # Only from main as well. A branch run that fails is being watched by
+  # whoever dispatched it, and is not the scheduled audit the issue
+  # says is failing.
   report-failure:
     name: Report audit failure
     needs: [audit, manage-issues, update-docs]
-    if: failure()
+    if: ${{ failure() && github.ref == 'refs/heads/main' }}
     runs-on: [self-hosted, static]
     timeout-minutes: 10
     permissions:

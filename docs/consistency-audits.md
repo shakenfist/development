@@ -158,6 +158,15 @@ that ran for a full day; on a weekly cadence the same failure would
 last a week. Nothing retries a failed run, so the issue says how to
 start one by hand once the cause is fixed.
 
+Only a run of `main` writes anything. Dispatched on another branch
+(`gh workflow run consistency-audit.yml --ref <branch>`), the audit
+matrix runs that branch's checks against the whole fleet and uploads
+its results as artifacts, and `manage-issues`, `update-docs` and
+`report-failure` are skipped. That is the way to measure a change to
+the checks against the fleet before merging it, and it is safe
+because the matrix holds only the read-only token. Runs never
+overlap: a second run, on any branch, waits for the first to finish.
+
 ## Issues are the work tracking
 
 `audit-manage-issues.py` files one issue per failing check, on the
