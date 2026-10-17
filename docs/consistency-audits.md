@@ -228,6 +228,10 @@ Two files: the check and its specification.
    and `repo.workflows()` lists only workflows `repo.workflow()` will
    read. A tree walk hands what it finds to `repo.read()` through
    `repo.relative()` rather than opening it.
+   `scripts/tests/test_containment.py` runs every scheduled check with
+   the files it read replaced by links out of the checkout, dangling
+   links and directories, and fails on any `open()` of the checkout
+   that did not come through that one guard.
 
 2. **`docs/audits/<check-id>.md`** -- the specification, following the
    structure in `docs/audits/README.md`, and a line for it in that
