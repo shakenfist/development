@@ -17,8 +17,10 @@ under docs/audits/ is now hand-written except this one page.
 Usage:
     python audit-update-docs.py --results-dir ./audit-results/
 
-With --no-issues the GitHub issue column is omitted from lookups
-(cells show '-'), which allows offline testing without `gh`. With
+With --no-issues the GitHub issue lookups are skipped (cells show
+'-'), which allows offline testing without `gh`. A repository whose
+issues could not be listed shows '?' (NO_LOOKUP) in its cells instead, so
+a failed lookup is not published as "no issue". With
 --page the output goes somewhere other than docs/audits/compliance.md,
 which is how to render a page locally without touching the tree: the
 criterion specifications beside the real one are hand-written, so
@@ -41,9 +43,11 @@ from audit_common import (
     AUDIT_METADATA,
     BEGIN_MARKER,
     END_MARKER,
+    IssueListingError,
     defuse,
-    gh_search_issues,
+    gh_open_issues,
     issue_title_for,
+    issues_titled,
 )
 
 # The one generated file under docs/audits/. It is the only path in
@@ -141,17 +145,56 @@ def load_results(results_dir):
     return sorted(results, key=lambda r: r['repo'])
 
 
-def issue_cell(org, repo, check_ids, github):
+# What the Issue column says when a repository's issues could not be
+# listed. Not '-', which says there is no open issue: a lookup that
+# failed knows nothing either way, and publishing it as "no issue"
+# misreports a criterion whose issue is open and being worked.
+NO_LOOKUP = '?'
+
+
+class OpenIssues:
+    """Each repository's open consistency issues, listed once.
+
+    The page has a table per specification and a row per repository in
+    each, so a lookup per cell asked GitHub the same question dozens of
+    times per repository. One listing per repository, kept for the run,
+    asks it once -- and gives a failure one answer for the whole
+    repository rather than a scatter of cells that happened to fail.
+    """
+
+    def __init__(self, github):
+        self.github = github
+        self.listed = {}
+
+    def of(self, org, repo):
+        """The repository's open issues, or None if they cannot be listed."""
+        key = (org, repo)
+        if key not in self.listed:
+            try:
+                self.listed[key] = gh_open_issues(self.github, org, repo)
+            except IssueListingError as e:
+                print(
+                    f'warning: could not list open issues, so the page '
+                    f'shows {NO_LOOKUP} for them: {e}',
+                    file=sys.stderr,
+                )
+                self.listed[key] = None
+        return self.listed[key]
+
+
+def issue_cell(org, repo, check_ids, issues):
     """Build the issue-links cell for one repo row.
 
-    `github` is the audit.github.GitHubClient to look the issues up
-    with, or None to skip the lookups.
+    `issues` is the run's OpenIssues, or None to skip the lookups.
     """
-    if github is None:
+    if issues is None:
         return '-'
+    open_issues = issues.of(org, repo)
+    if open_issues is None:
+        return NO_LOOKUP
     links = set()
     for check_id in check_ids:
-        for issue in gh_search_issues(github, org, repo, issue_title_for(check_id)):
+        for issue in issues_titled(open_issues, issue_title_for(check_id)):
             links.add(f'{org}/{repo}#{issue["number"]}')
     return ', '.join(sorted(links)) if links else '-'
 
@@ -184,7 +227,7 @@ def column_name(check_id):
     return COLUMN_NAMES.get(check_id, check_id)
 
 
-def render_table(check_ids, results, github):
+def render_table(check_ids, results, issues):
     """Render the compliance table for one audit spec.
 
     Returns the table lines, followed by the per-project failure
@@ -220,7 +263,7 @@ def render_table(check_ids, results, github):
                 failures.append(
                     f'- **{repo}** ({column}): {defuse(check["details"])}'
                 )
-        issue = issue_cell(result['org'], repo, check_ids, github)
+        issue = issue_cell(result['org'], repo, check_ids, issues)
         lines.append(
             f'| {repo} | ' + ' | '.join(cells) + f' | {issue} |'
         )
@@ -240,10 +283,9 @@ def render_page(results, no_issues, github=None):
     Issues are looked up through `github`, an audit.github.GitHubClient
     defaulting to the real `gh`, unless `no_issues` is set.
     """
-    if no_issues:
-        github = None
-    elif github is None:
-        github = GhCli()
+    issues = None
+    if not no_issues:
+        issues = OpenIssues(github if github is not None else GhCli())
     timestamps = sorted(r['timestamp'] for r in results)
     when = f' {timestamps[-1]}' if timestamps else ''
 
@@ -259,7 +301,7 @@ def render_page(results, no_issues, github=None):
         lines.append('')
         lines.append(f'Criterion: [{anchor}.md]({anchor}.md)')
         lines.append('')
-        lines.extend(render_table(check_ids, results, github))
+        lines.extend(render_table(check_ids, results, issues))
 
     # Deliberately the real audits tree rather than wherever --page
     # writes. Which criteria have no check is a property of this

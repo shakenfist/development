@@ -91,39 +91,85 @@ def gh_canonical_repo(github, org, repo):
     return tuple(_CANONICAL_CACHE[key].split('/', 1))
 
 
-def gh_search_issues(github, org, repo, title_prefix, label='consistency'):
-    """Search for open issues matching a title prefix and label.
+#: The most open issues one listing asks for. A repository has one per
+#: criterion it fails plus whatever duplicates have accumulated, so a
+#: listing that comes back this full is one that may have been cut
+#: short, and is treated as a failure rather than as the whole answer.
+OPEN_ISSUE_LIMIT = 1000
 
-    Each issue carries its body as well as its number and title, so that
-    a caller can tell whether an open issue still says what the latest
-    audit result would have it say.
+
+class IssueListingError(Exception):
+    """A repository's open issues could not be listed.
+
+    Raised rather than answered with an empty list, because the two
+    callers act on an empty list: audit-manage-issues.py files a fresh
+    issue for every failing check that appears to have none, and
+    audit-update-docs.py publishes "no issue" for each. A listing that
+    failed says nothing about which issues are open.
+    """
+
+
+def gh_open_issues(github, org, repo, label='consistency'):
+    """Every open issue on a repository carrying `label`.
+
+    One listing per repository, matched against titles by the caller
+    with issues_titled(). It used to be one search per check, which
+    made a failure in any one of them read as "no issue" for that
+    check, and searched with a limit of ten that a family of nine
+    titles sharing a prefix came within one of filling. A label
+    listing is not a search, either: it reads the repository's issues
+    directly rather than through the search index, which lags behind
+    an issue created moments earlier.
+
+    Each issue carries its body as well as its number and title, so
+    that a caller can tell whether an open issue still says what the
+    latest audit result would have it say. Raises IssueListingError
+    if the listing fails, cannot be parsed, or may be incomplete.
     """
     org, repo = gh_canonical_repo(github, org, repo)
+    where = f'{org}/{repo}'
     try:
         result = github.run([
             'issue', 'list',
-            '--repo', f'{org}/{repo}',
+            '--repo', where,
             '--label', label,
             '--state', 'open',
-            '--search', f'"{title_prefix}" in:title',
             '--json', 'number,title,body',
-            '--limit', '10',
+            '--limit', str(OPEN_ISSUE_LIMIT),
         ])
-        if result.returncode != 0:
-            return []
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        raise IssueListingError(f'{where}: {e}') from e
+    if result.returncode != 0:
+        raise IssueListingError(
+            f'{where}: gh exited {result.returncode}: '
+            f'{result.stderr.strip()}')
+    try:
         issues = json.loads(result.stdout)
-        # Filter to exact title match to avoid prefix collisions
-        # (e.g. "Workflow standards" matching
-        # "Workflow standards (flake8wrap)"). Sort oldest first so
-        # callers treat the original issue as the survivor and any
-        # later duplicates as disposable.
-        return sorted(
-            (i for i in issues if i['title'] == title_prefix),
-            key=lambda i: i['number'],
-        )
-    except (subprocess.TimeoutExpired, FileNotFoundError,
-            json.JSONDecodeError):
-        return []
+    except json.JSONDecodeError as e:
+        raise IssueListingError(f'{where}: unparseable listing: {e}') from e
+    if not isinstance(issues, list):
+        raise IssueListingError(f'{where}: listing is not a list')
+    if len(issues) >= OPEN_ISSUE_LIMIT:
+        raise IssueListingError(
+            f'{where}: {len(issues)} open issues, which is the listing '
+            f'limit, so the list may be incomplete')
+    return issues
+
+
+def issues_titled(open_issues, title):
+    """The issues among `open_issues` whose title is exactly `title`.
+
+    Exactly, because several titles are prefixes of others ("Workflow
+    standards" of every "Workflow standards (...)" criterion), and a
+    looser match lets one criterion's verdict close or rewrite a
+    sibling's issue in every repository at once. Sorted oldest first so
+    callers treat the original issue as the survivor and any later
+    duplicates as disposable.
+    """
+    return sorted(
+        (i for i in open_issues if i['title'] == title),
+        key=lambda i: i['number'],
+    )
 
 
 def defuse(details):

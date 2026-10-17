@@ -228,7 +228,10 @@ Two properties matter when changing any of this.
 
 **Issue titles are the idempotency key.** They are
 `Consistency: <issue_title>`, from the check's `issue_title` class
-attribute, matched exactly to decide whether an issue already exists.
+attribute, built by `issue_title_for()` in `scripts/audit_common.py`
+and matched exactly to decide whether an issue already exists --
+exactly, because several titles are prefixes of others, and "Workflow
+standards" must not close a "Workflow standards (flake8wrap)" issue.
 Renaming one silently orphans every open issue for it and files a
 fresh set, so treat a check's `issue_title` as an interface, not a
 label. `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`
@@ -236,6 +239,15 @@ holds every one as a literal, so a rename fails the tests until it is
 made there too, on purpose. (`ISSUE_TITLES` in
 `scripts/audit_common.py` is a view over the registry, not the place
 to change one.)
+
+**A failed listing is not an empty one.** Each repository's open
+`consistency` issues are listed once per run and matched by title in
+Python. If the listing fails, that repository's issues are not managed
+at all -- read as "no issues", every failing check would file a
+duplicate -- and `audit-manage-issues.py` carries on with the other
+repositories and exits non-zero at the end. On the compliance page the
+same failure renders the repository's Issue cells as `?` rather than
+`-`, which would claim that no issue is open.
 
 **Repository renames are handled, but noisily on purpose.** Repo names
 are resolved to their canonical form before searching, because GitHub's

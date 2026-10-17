@@ -39,7 +39,8 @@ class FakeIssueTracker(GitHubClient):
 
     `fail` names the operations that should fail, as the second word
     of the `gh issue` invocation ('list', 'create', 'edit', 'comment',
-    'close'). `writes` records each successful write as an
+    'close'), or as 'operation:org/repo' to fail it on one repository
+    only. `writes` records each successful write as an
     (operation, repository, title-or-number) tuple, in order.
     """
 
@@ -79,7 +80,7 @@ class FakeIssueTracker(GitHubClient):
         operation = args[1]
         options, positional = _options(args[2:])
         repo = options['--repo']
-        if operation in self.fail:
+        if operation in self.fail or f'{operation}:{repo}' in self.fail:
             return CompletedCommand(returncode=1, stderr=f'{operation} failed')
 
         if operation == 'list':

@@ -21,10 +21,12 @@ from audit.github import GhCli
 from audit_common import (
     AUDIT_METADATA,
     ISSUE_TITLES,
+    IssueListingError,
     defuse,
     gh_canonical_repo,
-    gh_search_issues,
+    gh_open_issues,
     issue_title_for,
+    issues_titled,
 )
 
 
@@ -347,16 +349,38 @@ def close_duplicates(github, org, repo, check_id, duplicates, original,
             time.sleep(1)
 
 
-def process_results(results, dry_run=False, github=None):
+class Tally:
+    """What went wrong across a run, so that main() can fail on it.
+
+    Each is a reason to exit non-zero once every repository has been
+    processed, rather than to stop at the first: one repository whose
+    issues cannot be listed is no reason to leave the rest unmanaged.
+    """
+
+    def __init__(self):
+        # Repositories whose configured name is stale (renamed on
+        # GitHub). Their issues were managed under the canonical name.
+        self.renamed = []
+        # Repositories whose open issues could not be listed, and so
+        # whose issues were not managed at all.
+        self.unlisted = []
+
+    def failed(self):
+        return bool(self.renamed or self.unlisted)
+
+
+def process_results(results, dry_run=False, github=None, tally=None):
     """Process audit results and manage issues.
 
     `github` is the audit.github.GitHubClient every `gh` invocation
-    goes through; tests pass a fake one. Returns True if the configured
-    repo name is stale (the repo has been renamed on GitHub) so the
-    caller can fail the run visibly.
+    goes through; tests pass a fake one. Problems the caller should
+    fail the run on are recorded in `tally`, a Tally, which is
+    returned.
     """
     if github is None:
         github = GhCli()
+    if tally is None:
+        tally = Tally()
     org = results['org']
     repo = results['repo']
 
@@ -365,14 +389,14 @@ def process_results(results, dry_run=False, github=None):
     # issue creation follows the rename redirect, so a stale name
     # files a fresh duplicate on every run.
     canonical_org, canonical_repo = gh_canonical_repo(github, org, repo)
-    renamed = (canonical_org, canonical_repo) != (org, repo)
-    if renamed:
+    if (canonical_org, canonical_repo) != (org, repo):
         print(
             f'WARNING: {org}/{repo} has been renamed to '
             f'{canonical_org}/{canonical_repo}; update the matrix in '
             f'.github/workflows/consistency-audit.yml',
             file=sys.stderr,
         )
+        tally.renamed.append(f'{org}/{repo}')
         org, repo = canonical_org, canonical_repo
 
     print(f'\n=== {repo} ===')
@@ -383,6 +407,21 @@ def process_results(results, dry_run=False, github=None):
         f'{results["summary"].get("error", 0)} error'
     )
 
+    # Listed once, and before anything is written. A listing that
+    # failed is not an empty one: treated as one, every failing check
+    # would file a duplicate of the issue it already has. So nothing
+    # in this repository is touched, and the run fails at the end.
+    try:
+        open_issues = gh_open_issues(github, org, repo)
+    except IssueListingError as e:
+        print(
+            f'  ERROR: could not list open issues, so none were '
+            f'managed: {e}',
+            file=sys.stderr,
+        )
+        tally.unlisted.append(f'{org}/{repo}')
+        return tally
+
     for check in results['checks']:
         check_id = check['id']
         status = check['status']
@@ -390,7 +429,7 @@ def process_results(results, dry_run=False, github=None):
 
         if status == 'fail':
             body = build_issue_body(check_id, check)
-            existing = gh_search_issues(github, org, repo, title_prefix)
+            existing = issues_titled(open_issues, title_prefix)
             if existing:
                 original = existing[0]
                 # The body is the work queue, so it has to follow the
@@ -427,7 +466,7 @@ def process_results(results, dry_run=False, github=None):
         elif status == 'pass':
             # Close any existing open issues (all of them, in case
             # duplicates have accumulated)
-            existing = gh_search_issues(github, org, repo, title_prefix)
+            existing = issues_titled(open_issues, title_prefix)
             if existing:
                 for issue in existing:
                     print(
@@ -449,7 +488,7 @@ def process_results(results, dry_run=False, github=None):
 
         elif status == 'not_applicable':
             # Close any existing issues if any were opened
-            existing = gh_search_issues(github, org, repo, title_prefix)
+            existing = issues_titled(open_issues, title_prefix)
             if existing:
                 for issue in existing:
                     print(
@@ -477,7 +516,7 @@ def process_results(results, dry_run=False, github=None):
             # the same answer for the same reason.
             print(f'  [{check_id}] {status.upper()} -- issues left alone')
 
-    return renamed
+    return tally
 
 
 def main():
@@ -512,25 +551,33 @@ def main():
         sys.exit(0)
 
     github = GhCli()
-    stale_names = False
+    tally = Tally()
     for filename in result_files:
         filepath = os.path.join(args.results_dir, filename)
         with open(filepath, 'r') as f:
             results = json.load(f)
-        if process_results(results, dry_run=args.dry_run, github=github):
-            stale_names = True
+        process_results(results, dry_run=args.dry_run, github=github,
+                        tally=tally)
 
     print('\nDone.')
 
-    if stale_names:
+    if tally.renamed:
         print(
-            '\nOne or more repos have been renamed on GitHub but the '
-            'audit still uses the old name (see warnings above). '
-            'Issues were managed under the canonical names, but the '
-            'workflow matrix needs updating. Failing so this gets '
-            'fixed.',
+            f'\n{len(tally.renamed)} repo(s) have been renamed on GitHub '
+            f'but the audit still uses the old name (see warnings '
+            f'above): {", ".join(tally.renamed)}. Issues were managed '
+            f'under the canonical names, but the workflow matrix needs '
+            f'updating. Failing so this gets fixed.',
             file=sys.stderr,
         )
+    if tally.unlisted:
+        print(
+            f'\nThe open issues of {len(tally.unlisted)} repo(s) could '
+            f'not be listed, so their issues were not managed this run: '
+            f'{", ".join(tally.unlisted)}.',
+            file=sys.stderr,
+        )
+    if tally.failed():
         sys.exit(1)
 
 

@@ -16,9 +16,12 @@ import importlib.util
 import io
 import os
 import re
+import json
 import sys
+import tempfile
 import types
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -350,14 +353,19 @@ class IssueLifecycleCase(unittest.TestCase):
         self.addCleanup(audit_common._CANONICAL_CACHE.clear)
         return FakeIssueTracker(fail=fail)
 
-    def process(self, *checks, dry_run=False):
-        """Process (check id, status) pairs as one repository's results."""
-        return self.module.process_results({
-            'org': 'shakenfist', 'repo': 'testrepo',
+    def results(self, *checks, repo='testrepo'):
+        """One repository's results, from (check id, status) pairs."""
+        return {
+            'org': 'shakenfist', 'repo': repo,
             'summary': {'pass': 0, 'fail': 0, 'not_applicable': 0},
             'checks': [{'id': check_id, 'status': status, 'details': 'found'}
                        for check_id, status in checks],
-        }, dry_run=dry_run, github=self.tracker)
+        }
+
+    def process(self, *checks, dry_run=False):
+        """Process (check id, status) pairs as one repository's results."""
+        return self.module.process_results(
+            self.results(*checks), dry_run=dry_run, github=self.tracker)
 
     def body(self, check_id):
         return self.module.build_issue_body(
@@ -474,6 +482,77 @@ class ExactTitleTest(IssueLifecycleCase):
                     self.process((check_for(title), 'fail'))
                     self.assertEqual(self.tracker.writes,
                                      [('create', REPO, title)])
+
+
+class OpenIssueListingTest(IssueLifecycleCase):
+    """A repository's open issues are listed once, and a failure is loud.
+
+    One search per check, with failures answered as an empty list, made
+    a transient error look like "no issue": a failing check then filed
+    a duplicate of the issue it already had, and the compliance page
+    published the issue as missing.
+    """
+
+    def test_the_issues_are_listed_once_per_repository(self):
+        self.process(('eol-distro', 'fail'), ('renovate', 'pass'),
+                     ('sfui-vendor', 'not_applicable'))
+        listings = [call for call in self.tracker.calls
+                    if call[:2] == ['issue', 'list']]
+        self.assertEqual(len(listings), 1)
+        self.assertNotIn('--search', listings[0])
+
+    def test_a_failed_listing_writes_nothing(self):
+        self.tracker = self.fresh_tracker(fail={'list'})
+        self.tracker.add(REPO, title_for('renovate'))
+        tally = self.process(('eol-distro', 'fail'), ('renovate', 'pass'))
+        self.assertEqual(self.tracker.writes, [])
+        self.assertEqual(tally.unlisted, [REPO])
+        self.assertTrue(tally.failed())
+        self.assertIn('could not list open issues', self.err.getvalue())
+
+    def test_a_failed_listing_does_not_stop_the_next_repository(self):
+        self.tracker = self.fresh_tracker(fail={'list:shakenfist/broken'})
+        tally = self.module.Tally()
+        for repo in ('broken', 'testrepo'):
+            self.module.process_results(
+                self.results(('eol-distro', 'fail'), repo=repo),
+                github=self.tracker, tally=tally)
+        self.assertEqual(self.tracker.writes,
+                         [('create', REPO, title_for('eol-distro'))])
+        self.assertEqual(tally.unlisted, ['shakenfist/broken'])
+
+    def test_a_clean_run_is_not_a_failure(self):
+        self.assertFalse(self.process(('eol-distro', 'fail')).failed())
+
+    def test_more_than_ten_issues_with_one_title_are_all_found(self):
+        """The search this replaced stopped at ten, family included."""
+        root, family = max(title_families().items(),
+                           key=lambda item: len(item[1]))
+        for title in family[1:]:
+            self.tracker.add(REPO, title)
+        duplicates = [self.tracker.add(REPO, root) for _ in range(12)]
+        self.process((check_for(root), 'pass'))
+        self.assertEqual(sorted(self.written('close')), duplicates)
+
+    def run_main(self, *repos):
+        """Run main() over one results file per repository."""
+        tmp = self.enterContext(tempfile.TemporaryDirectory())
+        for repo in repos:
+            with open(os.path.join(tmp, f'{repo}.json'), 'w') as f:
+                json.dump(self.results(('eol-distro', 'fail'), repo=repo), f)
+        self.module.GhCli = lambda: self.tracker
+        with mock.patch.object(sys, 'argv',
+                               ['audit-manage-issues.py', '--results-dir', tmp]):
+            with self.assertRaises(SystemExit) as raised:
+                self.module.main()
+        return raised.exception.code
+
+    def test_main_fails_after_managing_the_repositories_it_could(self):
+        self.tracker = self.fresh_tracker(fail={'list:shakenfist/broken'})
+        self.assertEqual(self.run_main('broken', 'testrepo'), 1)
+        self.assertEqual(self.tracker.writes,
+                         [('create', REPO, title_for('eol-distro'))])
+        self.assertIn('shakenfist/broken', self.err.getvalue())
 
 
 class OpenIssueRefreshTest(IssueLifecycleCase):
