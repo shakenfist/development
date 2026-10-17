@@ -83,6 +83,13 @@ jobs:
         with:
           persist-credentials: false
 
+      # The checks parse TOML with tomllib, which arrived in Python 3.11.
+      # On an older runner that is an ImportError part way into the
+      # audit step; this says what is wrong before anything runs.
+      - name: Check the Python floor
+        run: |
+          python3 -c 'import sys; sys.exit(sys.version_info < (3, 11) and f"python3 is {sys.version.split()[0]}; the audit needs 3.11 or later")'
+
       # The legs hold AUDIT_READ_TOKEN, which can read every repository
       # in the organisation and write to none of them. AUDIT_TOKEN, which
       # files issues and pushes, appears only in manage-issues and
