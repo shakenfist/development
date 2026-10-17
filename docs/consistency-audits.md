@@ -375,12 +375,15 @@ else is a suite no hook runs, and `SuiteLocationTest` in
 `scripts/tests/test_hooks.py` fails on one.
 
 Two `local` pre-commit hooks run them. `audit-package-tests` discovers
-the directory and runs all of it, on any change under `scripts/`,
-`tools/`, `templates/`, the workflows, `.pre-commit-config.yaml` or
-any `.md`. `review-tracking-tests` runs that one suite again, on
-everything else: it is the only hook with `always_run`, because it
-asserts properties of the whole tree and a review-only commit matches
-nothing the other pattern names.
+the directory and runs all of it, on a change to any Python file under
+`scripts/`, anything under `tools/` or `templates/`, a workflow,
+`.pre-commit-config.yaml` or any `.md`. `review-tracking-tests` runs
+that one suite again on every commit, whatever it touches: it is the
+only hook with `always_run`, because it asserts properties of the
+whole tree and a review-only commit matches nothing the other pattern
+names. A commit that matches both runs that suite twice. The patterns
+themselves are in `.pre-commit-config.yaml`, which is the authority
+when this paragraph and it disagree.
 
 One module at a time, which is quicker while iterating, and each runs
 standalone:
