@@ -8,8 +8,9 @@ findings as a structured comment.
 
 The automated reviewer reviews a pull request once CI passes and posts
 structured feedback as a comment. It runs Claude Code on a self-hosted GitHub
-Actions runner with the `--dangerously-skip-permissions` flag for autonomous
-operation.
+Actions runner with read-only tools, confined to the checkout and without the
+job's GitHub token in its environment; everything that talks to GitHub happens
+in the shared action around it.
 
 A second component, the comment addresser, used to act on that feedback when a
 maintainer asked it to. It was retired in August 2026 -- see [The comment
@@ -321,8 +322,9 @@ Potential enhancements to consider:
 - **Custom review focus** - Allow PR authors to request focus areas
 - **Metrics dashboard** - Track review quality and fix rates over time
 
-Automatic issue creation for deferred items was on this list and is
-done: `create-review-issues.py` in the shared action files every `fix`
-and `document` item. Having the reviewer also apply its own fixes was
-tried, as the comment addresser, and retired -- see
+Two things that were on this list have been tried and dropped. Filing
+an issue for every `fix` and `document` item was built into the shared
+action and removed, because it never filed one: the items stay in the
+review, for whoever reads it to act on. Having the reviewer also apply
+its own fixes was tried, as the comment addresser, and retired -- see
 [`ci-review-automation.md`](ci-review-automation.md).

@@ -56,7 +56,6 @@ REVIEWER_WORKFLOW = (
     '    permissions:\n'
     '      contents: read\n'
     '      pull-requests: write\n'
-    '      issues: write\n'
     '    uses: shakenfist/actions/.github/workflows/pr-auto-review.yml@main\n'
 )
 

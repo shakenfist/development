@@ -45,7 +45,10 @@ workflow files alone, so a reviewer confirms it instead.
   project's `check-bot-commit` job too. A compliant hand-written job
   that uses the shared action still passes, because only the
   measurement above is made.
-* The calling job sets `pull-requests: write` and `issues: write`.
+* The calling job sets `contents: read` and `pull-requests: write`.
+  `issues: write` is not needed, since the reviewer files no issues; a
+  caller that still grants it is not at fault, because the reusable
+  workflow narrows what it is given.
 * The automatic review does not pass `force`, and runs on
   same-repository pull requests only.
 * Optional, for suites prone to drift: `pr-fix-tests.yml` +

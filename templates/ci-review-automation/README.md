@@ -408,7 +408,6 @@ names:
     permissions:
       contents: read
       pull-requests: write
-      issues: write
     uses: shakenfist/actions/.github/workflows/pr-auto-review.yml@main
 ```
 
@@ -423,7 +422,13 @@ Three details specific to reusable workflows:
 * The `permissions:` block goes on the **calling** job. A
   cross-repository reusable workflow cannot grant itself more token
   scope than its caller has, so omitting this leaves the reviewer
-  unable to post.
+  unable to post. It does not need `issues: write`: the reviewer files
+  no issues, and it posts its review and its explanatory comments
+  through the pull request, which `pull-requests: write` covers. A
+  caller still granting `issues: write` is unaffected, since the
+  reusable workflow narrows what it is given. The two developer
+  workflows in this directory keep it, because `pr-bot-trigger`
+  reacts to the triggering comment, and that is an Issues write.
 * The calling job cannot set `runs-on:` or `timeout-minutes:`; both
   are defined inside the reusable workflow.
 * Do **not** add `secrets: inherit`. Nothing in the reviewer chain
@@ -481,12 +486,14 @@ Three independent gates, in order:
 ### Fork pull requests are not reviewed
 
 The reusable workflow requires the PR to come from a branch in the
-same repository. The reviewer runs Claude Code with
-`--dangerously-skip-permissions` on a runner holding a token with
-`pull-requests: write` and `issues: write`, and it is fed the PR diff,
-which is untrusted input. Reviewing a fork PR would put an attacker's
-text in front of a write-capable token. Lifting this restriction means
-sandboxing the reviewer or giving it a read-only token first.
+same repository. The reviewer runs Claude Code with read-only tools,
+confined to the checkout and without the job's token in its
+environment, but the job around it holds `pull-requests: write`, runs
+on a shared, long-lived runner pool, and feeds the reviewer the PR
+diff, which is untrusted input. Reviewing a fork PR would put text
+nobody has read in front of that job. Lifting this restriction means
+isolating the reviewer from the job's token and the shared runner
+first.
 
 The restriction lives in the reusable workflow rather than in each
 caller, so it cannot be lost when a project edits its CI workflow.
