@@ -40,9 +40,9 @@ from audit_common import (
     AUDIT_METADATA,
     BEGIN_MARKER,
     END_MARKER,
-    ISSUE_TITLES,
     defuse,
     gh_search_issues,
+    issue_title_for,
 )
 
 # The one generated file under docs/audits/. It is the only path in
@@ -146,8 +146,7 @@ def issue_cell(org, repo, check_ids, no_issues):
         return '-'
     links = set()
     for check_id in check_ids:
-        title = f'Consistency: {ISSUE_TITLES[check_id]}'
-        for issue in gh_search_issues(org, repo, title):
+        for issue in gh_search_issues(org, repo, issue_title_for(check_id)):
             links.add(f'{org}/{repo}#{issue["number"]}')
     return ', '.join(sorted(links)) if links else '-'
 

@@ -24,6 +24,7 @@ from audit_common import (
     defuse,
     gh_canonical_repo,
     gh_search_issues,
+    issue_title_for,
 )
 
 
@@ -396,7 +397,7 @@ def process_results(results, dry_run=False):
     for check in results['checks']:
         check_id = check['id']
         status = check['status']
-        title_prefix = f'Consistency: {ISSUE_TITLES.get(check_id, check_id)}'
+        title_prefix = issue_title_for(check_id)
 
         if status == 'fail':
             body = build_issue_body(check_id, check)

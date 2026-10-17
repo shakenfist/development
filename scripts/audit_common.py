@@ -50,6 +50,18 @@ AUDIT_METADATA = _metadata()
 ISSUE_TITLES = _issue_titles()
 
 
+def issue_title_for(check_id):
+    """The title of the issue a check files, and is matched by.
+
+    One function rather than an f-string in each caller, because the
+    two callers have to agree to the character: audit-manage-issues.py
+    files and closes by this title, and audit-update-docs.py links the
+    issues it finds by it. A check id missing from the registry falls
+    back to the id, which is what an issue for it was filed under.
+    """
+    return f'Consistency: {ISSUE_TITLES.get(check_id, check_id)}'
+
+
 _CANONICAL_CACHE = {}
 
 
