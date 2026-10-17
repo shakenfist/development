@@ -240,17 +240,16 @@ asserts that `run()` raises instead.
 
 ## Adding a criterion
 
-Two files: the check and its specification.
+Six files, all in this repository. This is the one list of them:
+`PUSH-AUDIT.md` and `AGENTS.md` link here rather than keep their own,
+so a step added to it reaches both.
 
 1. **`scripts/audit/checks/<family>.py`** -- add a `Check` subclass to
    the module whose specifications it belongs with. It declares what it
    is as class attributes -- `id`, `spec`, `issue_title`, an optional
    `template`, and a `column` heading when it shares a specification
    page with another criterion -- and implements `run(repo)`, returning
-   `self.ok()`, `self.fail()` or `self.skip()`. Register the instance in
-   `CHECKS` in `scripts/audit/registry.py`, beside the rest of its
-   family -- that list is the order the results are reported in, and
-   there is no second table to add the id to.
+   `self.ok()`, `self.fail()` or `self.skip()`.
 
    Put the applicability test in `applies(repo)` rather than at the top
    of `run()`. The scheduler asks the cheap question first, which is
@@ -269,13 +268,35 @@ Two files: the check and its specification.
    regular file inside the checkout, so a dangling or escaping symlink
    is skipped rather than raised on or followed.
 
-2. **`docs/audits/<check-id>.md`** -- the specification, following the
-   structure in `docs/audits/README.md`, and a line for it in that
-   index. Under `## Projects`, link `compliance.md#<check-id>`; the
-   section appears there at the first run. Do not add a
-   `consistency-audit` marker block -- the tables live on the
-   compliance page so that every specification stays reviewable, and
-   `test_audit_update_docs.py` fails on a marker in a spec.
+2. **`scripts/audit/registry.py`** -- register the instance in
+   `CHECKS`, beside the rest of its family. That list is the order the
+   results are reported in, and there is no second table to add the id
+   to.
+
+3. **`scripts/tests/test_<family>.py`** -- tests beside the check,
+   following the `CheckTestCase` convention in
+   [Testing a change](#testing-a-change). A criterion no test module
+   instantiates fails
+   `test_every_check_is_reachable_from_a_test_module` in
+   `scripts/tests/test_metadata.py`.
+
+4. **`docs/audits/<check-id>.md`** -- the specification, following the
+   structure in `docs/audits/README.md`. Under `## Projects`, link
+   `compliance.md#<check-id>`; the section appears there at the first
+   run. Do not add a `consistency-audit` marker block -- the tables
+   live on the compliance page so that every specification stays
+   reviewable, and `test_audit_update_docs.py` fails on a marker in a
+   spec.
+
+5. **`docs/audits/README.md`** -- a line for the specification in the
+   criterion index. `test_every_spec_file_is_named_in_the_index` in
+   `scripts/tests/test_audit_update_docs.py` fails on a spec the index
+   does not name.
+
+6. **`scripts/tests/test_metadata.py`** -- the criterion's lines in
+   `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES`, and in
+   `FROZEN_COLUMN_NAMES` when it declares a `column`. Why these are
+   frozen is below.
 
 `AUDIT_METADATA` and `ISSUE_TITLES` in `scripts/audit_common.py`, and
 `COLUMN_NAMES` in `scripts/audit-update-docs.py`, are views over the
@@ -303,10 +324,6 @@ publishes a bad label beats a run that publishes nothing;
 `test_criteria_sharing_a_spec_page_all_declare_a_column` in
 `scripts/tests/test_metadata.py` fails on it from the other direction,
 reading the registry rather than the documentation.
-
-Add tests beside the check, in `scripts/tests/test_<family>.py`. A
-criterion with no test module entry fails the contract tests in
-`scripts/tests/test_metadata.py`.
 
 A new criterion does not require a re-audit of anything else, and does
 not require touching any project repository. The next run measures it

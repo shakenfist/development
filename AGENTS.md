@@ -13,10 +13,12 @@ anything under `scripts/` or `docs/audits/`.
 
 The parts worth knowing before you start:
 
-- A criterion is a `Check` subclass in `scripts/audit/checks/`,
-  registered in `scripts/audit/registry.py`, plus its specification
-  under `docs/audits/`. The metadata tables are views over the
-  registry, so there is nothing to keep in sync by hand.
+- A criterion spans six files: its `Check` subclass, its
+  registration, its tests, its spec, a line in the spec index and its
+  frozen lines in `scripts/tests/test_metadata.py`. The list, with
+  the test that catches each omission, is *Adding a criterion* in
+  `docs/consistency-audits.md`. The metadata tables are views over
+  the registry; only the frozen copies are edited by hand.
 - The compliance tables live in `docs/audits/compliance.md` between
   the `consistency-audit` markers, and are regenerated and pushed by
   the weekly workflow. Never edit them by hand, and never add a table
