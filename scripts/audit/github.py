@@ -8,6 +8,12 @@ existed each of the five that predate it built its own
 `FileNotFoundError` handling, and none of them had a test, because
 there was nothing to substitute for the network.
 
+The issue scripts go through it too: audit-manage-issues.py, which
+files and closes issues across the fleet, and audit-update-docs.py,
+which links them from the compliance page. Those are the calls with
+the widest reach in the audit, and the seam is what lets a test watch
+what they would do to a repository's issues.
+
 `GhCli` is what runs in production. `FakeGitHub` is what the tests
 use. `RecordingGitHubClient` sits in front of a real client and keeps
 a transcript, so that a before-and-after snapshot over the same clones

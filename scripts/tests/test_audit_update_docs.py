@@ -5,6 +5,7 @@
 Run with: python3 scripts/tests/test_audit_update_docs.py
 """
 
+import contextlib
 import importlib.util
 import io
 import json
@@ -28,6 +29,9 @@ sys.path.insert(0, SCRIPT_DIR)
 _spec = importlib.util.spec_from_file_location('audit_update_docs', SCRIPT)
 audit_update_docs = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(audit_update_docs)
+
+import audit_common  # noqa: E402
+from tests.fake_issues import FakeIssueTracker  # noqa: E402
 
 # The heading render_page gives the list of criteria with no
 # automated check. It is not a spec anchor, so the section-count
@@ -830,6 +834,75 @@ class DefuseTest(unittest.TestCase):
             'a harvested detail produced a second end marker')
         self.assertEqual(
             1, lines.count(audit_update_docs.BEGIN_MARKER))
+
+
+class IssueColumnTest(unittest.TestCase):
+    """The Issue column links each repository's open issues, or says why not.
+
+    '-' says no issue is open. A lookup that failed knows nothing
+    either way, so it must not render as '-': that would publish a
+    criterion whose issue is open and being worked as having none.
+    """
+
+    def setUp(self):
+        audit_common._CANONICAL_CACHE.clear()
+        self.addCleanup(audit_common._CANONICAL_CACHE.clear)
+        self.err = io.StringIO()
+        self.tracker = FakeIssueTracker(fail={'list:shakenfist/broken'})
+
+    def page(self, *repos):
+        results = [{'repo': repo, 'org': 'shakenfist', 'timestamp': 'when',
+                    'checks': [{'id': c, 'status': 'fail', 'details': 'x'}
+                               for c in audit_update_docs.AUDIT_METADATA]}
+                   for repo in repos]
+        with contextlib.redirect_stderr(self.err):
+            return audit_update_docs.render_page(
+                results, False, github=self.tracker)
+
+    def rows(self, section, repo):
+        return [line for line in section.split('\n')
+                if line.startswith(f'| {repo} |')]
+
+    def issue_cells(self, section, repo):
+        return [row.rstrip(' |').rsplit('| ', 1)[1]
+                for row in self.rows(section, repo)]
+
+    def test_an_open_issue_is_linked_from_its_criterion_only(self):
+        number = self.tracker.add('shakenfist/testrepo',
+                                  'Consistency: End-of-life distributions')
+        # A sibling title sharing a prefix links nowhere it should not.
+        self.tracker.add('shakenfist/testrepo',
+                         'Consistency: Renovate lockstep groups')
+        section = self.page('testrepo')
+        cells = self.issue_cells(section, 'testrepo')
+        self.assertEqual(cells.count(f'shakenfist/testrepo#{number}'), 1)
+        renovate = section.split('## renovate\n', 1)[1].split('\n## ', 1)[0]
+        self.assertIn('| testrepo | non-compliant | - |', renovate)
+
+    def test_a_failed_lookup_is_not_published_as_no_issue(self):
+        section = self.page('broken', 'testrepo')
+        self.assertEqual(set(self.issue_cells(section, 'broken')),
+                         {audit_update_docs.NO_LOOKUP})
+        self.assertNotIn(audit_update_docs.NO_LOOKUP,
+                         self.issue_cells(section, 'testrepo'))
+        self.assertNotEqual('-', audit_update_docs.NO_LOOKUP)
+        self.assertIn('shakenfist/broken', self.err.getvalue())
+
+    def test_each_repository_is_listed_once(self):
+        self.page('broken', 'testrepo')
+        listings = [call for call in self.tracker.calls
+                    if call[:2] == ['issue', 'list']]
+        self.assertEqual(len(listings), 2)
+
+    def test_no_issues_makes_no_lookups(self):
+        results = [{'repo': 'testrepo', 'org': 'shakenfist',
+                    'timestamp': 'when',
+                    'checks': [{'id': 'eol-distro', 'status': 'fail',
+                                'details': 'x'}]}]
+        section = audit_update_docs.render_page(
+            results, True, github=self.tracker)
+        self.assertEqual(self.tracker.calls, [])
+        self.assertIn('| testrepo | non-compliant | - |', section)
 
 
 if __name__ == '__main__':

@@ -95,6 +95,28 @@ class CheckAuditSmokeTest(unittest.TestCase):
         self.assertIn('renovate', output)
         self.assertIn('neither passed nor failed', output)
 
+    def test_a_check_that_raised_fails(self):
+        # registry.run_check() turns a raise into an `error` result so
+        # the other checks still run. The scheduled workflow fails the
+        # leg on it; so must this job, or the first sign of a raising
+        # check is the next scheduled run across the whole fleet.
+        code, output = self.run_on(report([
+            MEASURED,
+            {'id': 'renovate', 'status': 'error',
+             'details': 'ValueError: boom'},
+        ]))
+        self.assertEqual(code, 1)
+        self.assertIn('renovate raised', output)
+        self.assertIn('ValueError: boom', output)
+
+    def test_the_measured_check_raising_fails(self):
+        code, output = self.run_on(report([
+            {'id': 'llm-context-lint', 'status': 'error',
+             'details': 'Traceback'},
+        ]))
+        self.assertEqual(code, 1)
+        self.assertIn('llm-context-lint raised', output)
+
     def test_a_check_with_no_id_fails(self):
         code, output = self.run_on(report([MEASURED, {'status': 'pass'}]))
         self.assertEqual(code, 1)

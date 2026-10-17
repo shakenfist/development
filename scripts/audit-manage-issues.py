@@ -18,12 +18,17 @@ import subprocess
 import sys
 import time
 
+from audit.github import GhCli
 from audit_common import (
     AUDIT_METADATA,
     ISSUE_TITLES,
+    IssueListingError,
     defuse,
     gh_canonical_repo,
-    gh_search_issues,
+    gh_open_issues,
+    issue_title_for,
+    issues_titled,
+    retired_issue_titles,
 )
 
 
@@ -32,74 +37,70 @@ DEV_REPO_URL = (
 )
 
 
-def gh_ensure_label(org, repo, label='consistency'):
+def gh_write(github, args, failure):
+    """Run one `gh` write, returning its result, or None if it failed.
+
+    A write that fails is reported here and counted by the caller, which
+    is what lets the run exit non-zero once every repository has been
+    managed. A timeout or a missing `gh` is a failed write like any
+    other rather than a traceback that abandons the rest of the fleet.
+    """
+    try:
+        result = github.run(args)
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        print(f'  ERROR {failure}: {e}', file=sys.stderr)
+        return None
+    if result.returncode != 0:
+        print(f'  ERROR {failure}: {result.stderr.strip()}', file=sys.stderr)
+        return None
+    return result
+
+
+def gh_ensure_label(github, org, repo, label='consistency'):
     """Ensure the label exists on the target repo.
 
     gh issue create refuses to create an issue if the requested label
     does not exist, so create it first. --force makes this idempotent.
+    A failure here is not counted: if the label really is missing, the
+    create that follows fails and is counted instead.
     """
-    result = subprocess.run(
-        [
-            'gh', 'label', 'create', label,
-            '--repo', f'{org}/{repo}',
-            '--description', 'Project consistency audit item',
-            '--color', '0075ca',
-            '--force',
-        ],
-        capture_output=True, text=True, timeout=30,
-    )
-    if result.returncode != 0:
-        print(
-            f'  WARNING: could not ensure label {label} exists: '
-            f'{result.stderr.strip()}',
-            file=sys.stderr,
-        )
+    gh_write(github, [
+        'label', 'create', label,
+        '--repo', f'{org}/{repo}',
+        '--description', 'Project consistency audit item',
+        '--color', '0075ca',
+        '--force',
+    ], f'ensuring label {label} exists')
 
 
-def gh_create_issue(org, repo, title, body, label='consistency'):
-    """Create a new issue on the target repo."""
-    gh_ensure_label(org, repo, label)
-    result = subprocess.run(
-        [
-            'gh', 'issue', 'create',
-            '--repo', f'{org}/{repo}',
-            '--title', title,
-            '--label', label,
-            '--body', body,
-        ],
-        capture_output=True, text=True, timeout=30,
-    )
-    if result.returncode == 0:
-        url = result.stdout.strip()
-        print(f'  Created issue: {url}')
-        return url
-    else:
-        print(
-            f'  ERROR creating issue: {result.stderr.strip()}',
-            file=sys.stderr,
-        )
-        return None
+def gh_create_issue(github, org, repo, title, body, label='consistency'):
+    """Create a new issue on the target repo. Returns whether it did."""
+    gh_ensure_label(github, org, repo, label)
+    result = gh_write(github, [
+        'issue', 'create',
+        '--repo', f'{org}/{repo}',
+        '--title', title,
+        '--label', label,
+        '--body', body,
+    ], 'creating issue')
+    if result is None:
+        return False
+    print(f'  Created issue: {result.stdout.strip()}')
+    return True
 
 
-def gh_edit_issue_body(org, repo, issue_number, body):
-    """Replace the body of an existing issue."""
-    result = subprocess.run(
-        [
-            'gh', 'issue', 'edit',
-            '--repo', f'{org}/{repo}',
-            str(issue_number),
-            '--body', body,
-        ],
-        capture_output=True, text=True, timeout=30,
-    )
-    if result.returncode == 0:
-        print(f'  Updated body of issue #{issue_number}')
-    else:
-        print(
-            f'  ERROR updating issue #{issue_number}: '
-            f'{result.stderr.strip()}',
-            file=sys.stderr,
-        )
+def gh_edit_issue_body(github, org, repo, issue_number, body):
+    """Replace the body of an existing issue. Returns whether it did."""
+    result = gh_write(github, [
+        'issue', 'edit',
+        '--repo', f'{org}/{repo}',
+        str(issue_number),
+        '--body', body,
+    ], f'updating issue #{issue_number}')
+    if result is None:
+        return False
+    print(f'  Updated body of issue #{issue_number}')
+    return True
 
 
 def body_is_current(existing_body, body):
@@ -115,34 +116,33 @@ def body_is_current(existing_body, body):
     return normalise(existing_body) == normalise(body)
 
 
-def gh_close_issue(org, repo, issue_number, comment=None):
-    """Close an issue with an optional comment."""
+def gh_close_issue(github, org, repo, issue_number, comment=None):
+    """Close an issue, then explain why. Returns whether it closed.
+
+    Closed first and commented on only once closed. Commenting first
+    meant a close that failed left the explanation behind on an issue
+    that was still open, and the next run, finding it open, posted the
+    same explanation again -- once a run for as long as the close kept
+    failing. A comment that fails after the close is reported but not
+    counted: the issue is closed, which was the point, and no later run
+    can retry it.
+    """
+    result = gh_write(github, [
+        'issue', 'close',
+        '--repo', f'{org}/{repo}',
+        str(issue_number),
+    ], f'closing issue #{issue_number}')
+    if result is None:
+        return False
+    print(f'  Closed issue #{issue_number}')
     if comment:
-        subprocess.run(
-            [
-                'gh', 'issue', 'comment',
-                '--repo', f'{org}/{repo}',
-                str(issue_number),
-                '--body', comment,
-            ],
-            capture_output=True, text=True, timeout=30,
-        )
-    result = subprocess.run(
-        [
-            'gh', 'issue', 'close',
+        gh_write(github, [
+            'issue', 'comment',
             '--repo', f'{org}/{repo}',
             str(issue_number),
-        ],
-        capture_output=True, text=True, timeout=30,
-    )
-    if result.returncode == 0:
-        print(f'  Closed issue #{issue_number}')
-    else:
-        print(
-            f'  ERROR closing issue #{issue_number}: '
-            f'{result.stderr.strip()}',
-            file=sys.stderr,
-        )
+            '--body', comment,
+        ], f'commenting on closed issue #{issue_number}')
+    return True
 
 
 # GitHub rejects an issue body over 65536 characters outright, so a
@@ -342,8 +342,8 @@ def build_issue_body(check_id, check_result):
     return body
 
 
-def close_duplicates(org, repo, check_id, duplicates, original,
-                     dry_run):
+def close_duplicates(github, org, repo, check_id, duplicates, original,
+                     dry_run, tally):
     """Close duplicate issues, pointing at the surviving original."""
     for dup in duplicates:
         print(
@@ -351,22 +351,57 @@ def close_duplicates(org, repo, check_id, duplicates, original,
             f'#{dup["number"]} (original is #{original["number"]})'
         )
         if not dry_run:
-            gh_close_issue(
-                org, repo, dup['number'],
+            closed = gh_close_issue(
+                github, org, repo, dup['number'],
                 comment=(
                     f'Duplicate of #{original["number"]}. '
                     'Closing automatically.'
                 ),
             )
+            tally.wrote(closed, org, repo, f'close #{dup["number"]}')
             time.sleep(1)
 
 
-def process_results(results, dry_run=False):
+class Tally:
+    """What went wrong across a run, so that main() can fail on it.
+
+    Each is a reason to exit non-zero once every repository has been
+    processed, rather than to stop at the first: one repository whose
+    issues cannot be listed is no reason to leave the rest unmanaged.
+    """
+
+    def __init__(self):
+        # Repositories whose configured name is stale (renamed on
+        # GitHub). Their issues were managed under the canonical name.
+        self.renamed = []
+        # Repositories whose open issues could not be listed, and so
+        # whose issues were not managed at all.
+        self.unlisted = []
+        # Creates, edits and closes that GitHub refused, as
+        # 'org/repo: what' strings.
+        self.write_failures = []
+
+    def wrote(self, succeeded, org, repo, what):
+        """Record the outcome of one write."""
+        if not succeeded:
+            self.write_failures.append(f'{org}/{repo}: {what}')
+
+    def failed(self):
+        return bool(self.renamed or self.unlisted or self.write_failures)
+
+
+def process_results(results, dry_run=False, github=None, tally=None):
     """Process audit results and manage issues.
 
-    Returns True if the configured repo name is stale (the repo has
-    been renamed on GitHub) so the caller can fail the run visibly.
+    `github` is the audit.github.GitHubClient every `gh` invocation
+    goes through; tests pass a fake one. Problems the caller should
+    fail the run on are recorded in `tally`, a Tally, which is
+    returned.
     """
+    if github is None:
+        github = GhCli()
+    if tally is None:
+        tally = Tally()
     org = results['org']
     repo = results['repo']
 
@@ -374,15 +409,15 @@ def process_results(results, dry_run=False):
     # issue search silently returns nothing for the old name, while
     # issue creation follows the rename redirect, so a stale name
     # files a fresh duplicate on every run.
-    canonical_org, canonical_repo = gh_canonical_repo(org, repo)
-    renamed = (canonical_org, canonical_repo) != (org, repo)
-    if renamed:
+    canonical_org, canonical_repo = gh_canonical_repo(github, org, repo)
+    if (canonical_org, canonical_repo) != (org, repo):
         print(
             f'WARNING: {org}/{repo} has been renamed to '
             f'{canonical_org}/{canonical_repo}; update the matrix in '
             f'.github/workflows/consistency-audit.yml',
             file=sys.stderr,
         )
+        tally.renamed.append(f'{org}/{repo}')
         org, repo = canonical_org, canonical_repo
 
     print(f'\n=== {repo} ===')
@@ -393,14 +428,29 @@ def process_results(results, dry_run=False):
         f'{results["summary"].get("error", 0)} error'
     )
 
+    # Listed once, and before anything is written. A listing that
+    # failed is not an empty one: treated as one, every failing check
+    # would file a duplicate of the issue it already has. So nothing
+    # in this repository is touched, and the run fails at the end.
+    try:
+        open_issues = gh_open_issues(github, org, repo)
+    except IssueListingError as e:
+        print(
+            f'  ERROR: could not list open issues, so none were '
+            f'managed: {e}',
+            file=sys.stderr,
+        )
+        tally.unlisted.append(f'{org}/{repo}')
+        return tally
+
     for check in results['checks']:
         check_id = check['id']
         status = check['status']
-        title_prefix = f'Consistency: {ISSUE_TITLES.get(check_id, check_id)}'
+        title_prefix = issue_title_for(check_id)
 
         if status == 'fail':
             body = build_issue_body(check_id, check)
-            existing = gh_search_issues(org, repo, title_prefix)
+            existing = issues_titled(open_issues, title_prefix)
             if existing:
                 original = existing[0]
                 # The body is the work queue, so it has to follow the
@@ -419,25 +469,29 @@ def process_results(results, dry_run=False):
                         f'#{original["number"]} already open, updating body'
                     )
                     if not dry_run:
-                        gh_edit_issue_body(
-                            org, repo, original['number'], body)
+                        edited = gh_edit_issue_body(
+                            github, org, repo, original['number'], body)
+                        tally.wrote(edited, org, repo,
+                                    f'edit #{original["number"]}')
                         time.sleep(1)  # Rate limiting
                 close_duplicates(
-                    org, repo, check_id, existing[1:], original,
-                    dry_run,
+                    github, org, repo, check_id, existing[1:], original,
+                    dry_run, tally,
                 )
             else:
                 print(f'  [{check_id}] FAIL -- creating issue')
                 if not dry_run:
-                    gh_create_issue(
-                        org, repo, title_prefix, body,
+                    created = gh_create_issue(
+                        github, org, repo, title_prefix, body,
                     )
+                    tally.wrote(created, org, repo,
+                                f'create "{title_prefix}"')
                     time.sleep(1)  # Rate limiting
 
         elif status == 'pass':
             # Close any existing open issues (all of them, in case
             # duplicates have accumulated)
-            existing = gh_search_issues(org, repo, title_prefix)
+            existing = issues_titled(open_issues, title_prefix)
             if existing:
                 for issue in existing:
                     print(
@@ -445,21 +499,23 @@ def process_results(results, dry_run=False):
                         f'#{issue["number"]}'
                     )
                     if not dry_run:
-                        gh_close_issue(
-                            org, repo, issue['number'],
+                        closed = gh_close_issue(
+                            github, org, repo, issue['number'],
                             comment=(
                                 'This check is now passing in the '
                                 'automated consistency audit. '
                                 'Closing automatically.'
                             ),
                         )
+                        tally.wrote(closed, org, repo,
+                                    f'close #{issue["number"]}')
                         time.sleep(1)
             else:
                 print(f'  [{check_id}] PASS')
 
         elif status == 'not_applicable':
             # Close any existing issues if any were opened
-            existing = gh_search_issues(org, repo, title_prefix)
+            existing = issues_titled(open_issues, title_prefix)
             if existing:
                 for issue in existing:
                     print(
@@ -467,13 +523,15 @@ def process_results(results, dry_run=False):
                         f'#{issue["number"]}'
                     )
                     if not dry_run:
-                        gh_close_issue(
-                            org, repo, issue['number'],
+                        closed = gh_close_issue(
+                            github, org, repo, issue['number'],
                             comment=(
                                 'This check is not applicable to '
                                 'this project. Closing automatically.'
                             ),
                         )
+                        tally.wrote(closed, org, repo,
+                                    f'close #{issue["number"]}')
                         time.sleep(1)
             else:
                 print(f'  [{check_id}] N/A')
@@ -487,7 +545,31 @@ def process_results(results, dry_run=False):
             # the same answer for the same reason.
             print(f'  [{check_id}] {status.upper()} -- issues left alone')
 
-    return renamed
+    close_retired(github, org, repo, open_issues, dry_run, tally)
+    return tally
+
+
+def close_retired(github, org, repo, open_issues, dry_run, tally):
+    """Close the issues of criteria the audit no longer measures.
+
+    Run for every repository with results, on every run, rather than
+    once: a repository whose audit leg failed on the run after a
+    retirement still has its issues closed on a later one.
+    """
+    for title in retired_issue_titles():
+        for issue in issues_titled(open_issues, title):
+            print(f'  [retired] closing issue #{issue["number"]} ({title})')
+            if not dry_run:
+                closed = gh_close_issue(
+                    github, org, repo, issue['number'],
+                    comment=(
+                        'The consistency audit no longer measures this '
+                        'criterion: it has been retired. Closing '
+                        'automatically.'
+                    ),
+                )
+                tally.wrote(closed, org, repo, f'close #{issue["number"]}')
+                time.sleep(1)
 
 
 def main():
@@ -521,25 +603,40 @@ def main():
         print('No JSON result files found.')
         sys.exit(0)
 
-    stale_names = False
+    github = GhCli()
+    tally = Tally()
     for filename in result_files:
         filepath = os.path.join(args.results_dir, filename)
         with open(filepath, 'r') as f:
             results = json.load(f)
-        if process_results(results, dry_run=args.dry_run):
-            stale_names = True
+        process_results(results, dry_run=args.dry_run, github=github,
+                        tally=tally)
 
     print('\nDone.')
 
-    if stale_names:
+    if tally.renamed:
         print(
-            '\nOne or more repos have been renamed on GitHub but the '
-            'audit still uses the old name (see warnings above). '
-            'Issues were managed under the canonical names, but the '
-            'workflow matrix needs updating. Failing so this gets '
-            'fixed.',
+            f'\n{len(tally.renamed)} repo(s) have been renamed on GitHub '
+            f'but the audit still uses the old name (see warnings '
+            f'above): {", ".join(tally.renamed)}. Issues were managed '
+            f'under the canonical names, but the workflow matrix needs '
+            f'updating. Failing so this gets fixed.',
             file=sys.stderr,
         )
+    if tally.unlisted:
+        print(
+            f'\nThe open issues of {len(tally.unlisted)} repo(s) could '
+            f'not be listed, so their issues were not managed this run: '
+            f'{", ".join(tally.unlisted)}.',
+            file=sys.stderr,
+        )
+    if tally.write_failures:
+        print(
+            f'\n{len(tally.write_failures)} issue write(s) failed: '
+            f'{"; ".join(tally.write_failures)}.',
+            file=sys.stderr,
+        )
+    if tally.failed():
         sys.exit(1)
 
 

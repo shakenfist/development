@@ -29,7 +29,9 @@ from audit.check import STATUSES  # noqa: E402
 from audit.github import FakeGitHub  # noqa: E402
 from audit.registry import CHECKS  # noqa: E402
 from audit.repo import Repo  # noqa: E402
-from audit_common import AUDIT_METADATA, ISSUE_TITLES  # noqa: E402
+from audit_common import (  # noqa: E402
+    AUDIT_METADATA, ISSUE_TITLE_PREFIX, ISSUE_TITLES, RETIRED_ISSUE_TITLES,
+)
 from tests.base import REPO_ROOT  # noqa: E402
 
 
@@ -387,6 +389,36 @@ class FrozenMetadataTest(unittest.TestCase):
 
     def test_column_names_match_the_frozen_table(self):
         self.assertEqual(_update_docs().COLUMN_NAMES, FROZEN_COLUMN_NAMES)
+
+
+class RetiredIssueTitlesTest(unittest.TestCase):
+    """RETIRED_ISSUE_TITLES closes issues fleet-wide on every run.
+
+    So an entry has to be one no live criterion files under: otherwise
+    each run would close the issue a failing check had just refreshed,
+    and the next would file it again.
+    """
+
+    def check(self, retired):
+        live = set(ISSUE_TITLES.values())
+        for title in retired:
+            self.assertNotIn(title, live,
+                             f'{title!r} is retired but still filed by a check')
+            self.assertFalse(
+                title.startswith(ISSUE_TITLE_PREFIX),
+                f'{title!r} carries the prefix, so it would never match')
+        self.assertEqual(len(retired), len(set(retired)))
+
+    def test_no_retired_title_is_live(self):
+        self.check(RETIRED_ISSUE_TITLES)
+
+    def test_the_guard_catches_a_live_title(self):
+        with self.assertRaises(AssertionError):
+            self.check((ISSUE_TITLES['eol-distro'],))
+
+    def test_the_guard_catches_a_prefixed_title(self):
+        with self.assertRaises(AssertionError):
+            self.check(('Consistency: Something old',))
 
 
 class DerivationTest(unittest.TestCase):

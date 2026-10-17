@@ -50,10 +50,40 @@ AUDIT_METADATA = _metadata()
 ISSUE_TITLES = _issue_titles()
 
 
+# The `issue_title` of each criterion that has been retired from the
+# audit, spelled exactly as it was on the check and without the
+# "Consistency: " prefix. Deleting a check would otherwise orphan its
+# open issues the way renaming one does: no later run measures it, so
+# none would ever close them. audit-manage-issues.py closes any open
+# issue carrying one of these titles, with a comment saying why.
+# docs/consistency-audits.md has the procedure, and test_metadata.py
+# fails on a title that is retired and live at once.
+RETIRED_ISSUE_TITLES = ()
+
+ISSUE_TITLE_PREFIX = 'Consistency: '
+
+
+def issue_title_for(check_id):
+    """The title of the issue a check files, and is matched by.
+
+    One function rather than an f-string in each caller, because the
+    two callers have to agree to the character: audit-manage-issues.py
+    files and closes by this title, and audit-update-docs.py links the
+    issues it finds by it. A check id missing from the registry falls
+    back to the id, which is what an issue for it was filed under.
+    """
+    return ISSUE_TITLE_PREFIX + ISSUE_TITLES.get(check_id, check_id)
+
+
+def retired_issue_titles():
+    """The full issue titles of the retired criteria."""
+    return [ISSUE_TITLE_PREFIX + title for title in RETIRED_ISSUE_TITLES]
+
+
 _CANONICAL_CACHE = {}
 
 
-def gh_canonical_repo(org, repo):
+def gh_canonical_repo(github, org, repo):
     """Resolve a repository to its canonical org and name.
 
     When a repository is renamed on GitHub, REST calls (issue create,
@@ -63,20 +93,14 @@ def gh_canonical_repo(org, repo):
     while never finding the previous one. Resolving the canonical
     name first makes every code path agree on which repo is meant.
 
-    Returns an (org, repo) tuple. Falls back to the input values if
-    the API call fails.
+    `github` is an audit.github.GitHubClient. Returns an (org, repo)
+    tuple. Falls back to the input values if the API call fails.
     """
     key = f'{org}/{repo}'
     if key not in _CANONICAL_CACHE:
         canonical = key
         try:
-            result = subprocess.run(
-                [
-                    'gh', 'api', f'repos/{org}/{repo}',
-                    '--jq', '.full_name',
-                ],
-                capture_output=True, text=True, timeout=30,
-            )
+            result = github.api(f'repos/{org}/{repo}', jq='.full_name')
             if result.returncode == 0 and result.stdout.strip():
                 canonical = result.stdout.strip()
         except (subprocess.TimeoutExpired, FileNotFoundError):
@@ -85,42 +109,91 @@ def gh_canonical_repo(org, repo):
     return tuple(_CANONICAL_CACHE[key].split('/', 1))
 
 
-def gh_search_issues(org, repo, title_prefix, label='consistency'):
-    """Search for open issues matching a title prefix and label.
+#: The most open issues one listing asks for. A repository has one per
+#: criterion it fails plus whatever duplicates have accumulated, so a
+#: listing that comes back this full is one that may have been cut
+#: short, and is treated as a failure rather than as the whole answer.
+OPEN_ISSUE_LIMIT = 1000
 
-    Each issue carries its body as well as its number and title, so that
-    a caller can tell whether an open issue still says what the latest
-    audit result would have it say.
+#: How long that listing may take, in seconds. It carries every open
+#: issue's body and gh pages through it, and it replaces about thirty
+#: searches that each had the default thirty seconds; a timeout here
+#: leaves a whole repository unmanaged and fails the run.
+OPEN_ISSUE_TIMEOUT = 120
+
+
+class IssueListingError(Exception):
+    """A repository's open issues could not be listed.
+
+    Raised rather than answered with an empty list, because the two
+    callers act on an empty list: audit-manage-issues.py files a fresh
+    issue for every failing check that appears to have none, and
+    audit-update-docs.py publishes "no issue" for each. A listing that
+    failed says nothing about which issues are open.
     """
-    org, repo = gh_canonical_repo(org, repo)
+
+
+def gh_open_issues(github, org, repo, label='consistency'):
+    """Every open issue on a repository carrying `label`.
+
+    One listing per repository, matched against titles by the caller
+    with issues_titled(). It used to be one search per check, which
+    made a failure in any one of them read as "no issue" for that
+    check, and searched with a limit of ten that a family of nine
+    titles sharing a prefix came within one of filling. A label
+    listing is not a search, either: it reads the repository's issues
+    directly rather than through the search index, which lags behind
+    an issue created moments earlier.
+
+    Each issue carries its body as well as its number and title, so
+    that a caller can tell whether an open issue still says what the
+    latest audit result would have it say. Raises IssueListingError
+    if the listing fails, cannot be parsed, or may be incomplete.
+    """
+    org, repo = gh_canonical_repo(github, org, repo)
+    where = f'{org}/{repo}'
     try:
-        result = subprocess.run(
-            [
-                'gh', 'issue', 'list',
-                '--repo', f'{org}/{repo}',
-                '--label', label,
-                '--state', 'open',
-                '--search', f'"{title_prefix}" in:title',
-                '--json', 'number,title,body',
-                '--limit', '10',
-            ],
-            capture_output=True, text=True, timeout=30,
-        )
-        if result.returncode != 0:
-            return []
+        result = github.run([
+            'issue', 'list',
+            '--repo', where,
+            '--label', label,
+            '--state', 'open',
+            '--json', 'number,title,body',
+            '--limit', str(OPEN_ISSUE_LIMIT),
+        ], timeout=OPEN_ISSUE_TIMEOUT)
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        raise IssueListingError(f'{where}: {e}') from e
+    if result.returncode != 0:
+        raise IssueListingError(
+            f'{where}: gh exited {result.returncode}: '
+            f'{result.stderr.strip()}')
+    try:
         issues = json.loads(result.stdout)
-        # Filter to exact title match to avoid prefix collisions
-        # (e.g. "Workflow standards" matching
-        # "Workflow standards (flake8wrap)"). Sort oldest first so
-        # callers treat the original issue as the survivor and any
-        # later duplicates as disposable.
-        return sorted(
-            (i for i in issues if i['title'] == title_prefix),
-            key=lambda i: i['number'],
-        )
-    except (subprocess.TimeoutExpired, FileNotFoundError,
-            json.JSONDecodeError):
-        return []
+    except json.JSONDecodeError as e:
+        raise IssueListingError(f'{where}: unparseable listing: {e}') from e
+    if not isinstance(issues, list):
+        raise IssueListingError(f'{where}: listing is not a list')
+    if len(issues) >= OPEN_ISSUE_LIMIT:
+        raise IssueListingError(
+            f'{where}: {len(issues)} open issues, which is the listing '
+            f'limit, so the list may be incomplete')
+    return issues
+
+
+def issues_titled(open_issues, title):
+    """The issues among `open_issues` whose title is exactly `title`.
+
+    Exactly, because several titles are prefixes of others ("Workflow
+    standards" of every "Workflow standards (...)" criterion), and a
+    looser match lets one criterion's verdict close or rewrite a
+    sibling's issue in every repository at once. Sorted oldest first so
+    callers treat the original issue as the survivor and any later
+    duplicates as disposable.
+    """
+    return sorted(
+        (i for i in open_issues if i['title'] == title),
+        key=lambda i: i['number'],
+    )
 
 
 def defuse(details):

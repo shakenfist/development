@@ -136,6 +136,14 @@ git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- 'scripts/tests/test_metadata.py
 git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- 'scripts/audit/checks/*.py' | \
     grep -nE '^[-+].*issue_title'
 
+# A retired issue title. Every run closes each open issue carrying
+# one, fleet-wide, so an entry that is still a live title, or is
+# misspelled, closes the wrong issues or none at all. The whole file
+# is diffed as context so that awk can print only the changed lines
+# between the declaration and its closing parenthesis
+git diff -U100000 "${AUDIT_RANGE:-origin/main...HEAD}" -- 'scripts/audit_common.py' | \
+    awk '/^[-+ ]RETIRED_ISSUE_TITLES = /{f=1} f && /^[-+]/{print NR": "$0} f && /\)$/{f=0}'
+
 # A shared block edited without its version bumped. Editing the
 # wording without the bump means every embedding repository keeps
 # the old text and the audit never notices

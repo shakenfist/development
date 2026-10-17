@@ -7,14 +7,23 @@ of an issue filed on the audited repository. Kept beside either
 publisher, it is easy to apply to one and forget the other, so these
 tests sit with the function rather than with either publisher.
 """
+import json
 import os
+import subprocess
 import sys
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+import audit_common  # noqa: E402
+from audit.github import (  # noqa: E402
+    DEFAULT_TIMEOUT, CompletedCommand, FakeGitHub,
+)
 from audit_common import (  # noqa: E402
-    BEGIN_MARKER, END_MARKER, defuse,
+    BEGIN_MARKER, END_MARKER, ISSUE_TITLES, OPEN_ISSUE_LIMIT,
+    OPEN_ISSUE_TIMEOUT,
+    IssueListingError, defuse, gh_open_issues, issue_title_for,
+    issues_titled,
 )
 
 
@@ -50,6 +59,111 @@ class DefuseTest(unittest.TestCase):
         # another repository's markdown, quoted into an issue.
         self.assertNotIn(
             '\n## ', defuse('a plan named "x\n## Not a heading"'))
+
+
+class IssueTitleForTest(unittest.TestCase):
+    """The one spelling of the title an issue is filed and found by."""
+
+    def test_the_title_is_the_check_s_issue_title_prefixed(self):
+        self.assertEqual('Consistency: End-of-life distributions',
+                         issue_title_for('eol-distro'))
+
+    def test_every_check_has_a_distinct_title(self):
+        # Titles are the idempotency key, so two checks sharing one
+        # would close each other's issues.
+        titles = [issue_title_for(check_id) for check_id in ISSUE_TITLES]
+        self.assertEqual(len(titles), len(set(titles)))
+
+    def test_an_unregistered_id_falls_back_to_the_id(self):
+        self.assertEqual('Consistency: no-such-check',
+                         issue_title_for('no-such-check'))
+
+
+class OpenIssuesTest(unittest.TestCase):
+    """One listing of a repository's open issues, or an exception.
+
+    Never an empty list on failure: both callers read an empty list as
+    "no issue is open", and act on it.
+    """
+
+    LISTING = ('issue list --repo shakenfist/testrepo --label consistency '
+               '--state open --json number,title,body '
+               f'--limit {OPEN_ISSUE_LIMIT}')
+
+    def setUp(self):
+        audit_common._CANONICAL_CACHE.clear()
+        self.addCleanup(audit_common._CANONICAL_CACHE.clear)
+
+    def listing(self, response):
+        return gh_open_issues(FakeGitHub({self.LISTING: response}),
+                              'shakenfist', 'testrepo')
+
+    def test_the_listing_has_a_longer_timeout_than_a_write(self):
+        # It carries every open issue's body, and a timeout leaves the
+        # whole repository unmanaged.
+        seen = {}
+
+        class Recording(FakeGitHub):
+            def run(self, args, timeout=DEFAULT_TIMEOUT):
+                seen[' '.join(args)] = timeout
+                return super().run(args, timeout=timeout)
+
+        gh_open_issues(Recording({self.LISTING: CompletedCommand(
+            stdout='[]')}), 'shakenfist', 'testrepo')
+        self.assertEqual(OPEN_ISSUE_TIMEOUT, seen[self.LISTING])
+        self.assertGreater(OPEN_ISSUE_TIMEOUT, DEFAULT_TIMEOUT)
+
+    def test_the_open_issues_are_returned(self):
+        issues = [{'number': 3, 'title': 'Consistency: x', 'body': ''}]
+        self.assertEqual(
+            issues, self.listing(CompletedCommand(stdout=json.dumps(issues))))
+
+    def test_a_failed_listing_raises(self):
+        with self.assertRaises(IssueListingError):
+            self.listing(CompletedCommand(returncode=1, stderr='HTTP 502'))
+
+    def test_a_timeout_raises(self):
+        with self.assertRaises(IssueListingError):
+            self.listing(subprocess.TimeoutExpired('gh', 30))
+
+    def test_a_missing_gh_raises(self):
+        with self.assertRaises(IssueListingError):
+            self.listing(FileNotFoundError('gh'))
+
+    def test_unparseable_output_raises(self):
+        with self.assertRaises(IssueListingError):
+            self.listing(CompletedCommand(stdout='[{"number": 3'))
+
+    def test_output_that_is_not_a_list_raises(self):
+        with self.assertRaises(IssueListingError):
+            self.listing(CompletedCommand(stdout='{"message": "rate limited"}'))
+
+    def test_a_full_listing_may_be_truncated_and_raises(self):
+        issues = [{'number': n, 'title': 't', 'body': ''}
+                  for n in range(OPEN_ISSUE_LIMIT)]
+        with self.assertRaises(IssueListingError):
+            self.listing(CompletedCommand(stdout=json.dumps(issues)))
+
+    def test_one_under_the_limit_is_complete(self):
+        issues = [{'number': n, 'title': 't', 'body': ''}
+                  for n in range(OPEN_ISSUE_LIMIT - 1)]
+        self.assertEqual(
+            len(issues),
+            len(self.listing(CompletedCommand(stdout=json.dumps(issues)))))
+
+
+class IssuesTitledTest(unittest.TestCase):
+    def test_only_the_exact_title_matches_oldest_first(self):
+        issues = [
+            {'number': 9, 'title': 'Consistency: Renovate'},
+            {'number': 4, 'title': 'Consistency: Renovate lockstep groups'},
+            {'number': 2, 'title': 'Consistency: Renovate'},
+            {'number': 5, 'title': 'consistency: renovate'},
+        ]
+        self.assertEqual(
+            [2, 9],
+            [i['number']
+             for i in issues_titled(issues, 'Consistency: Renovate')])
 
 
 if __name__ == '__main__':
