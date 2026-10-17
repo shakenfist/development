@@ -14,8 +14,9 @@ import re
 import subprocess
 
 from audit.check import Check
-from audit.files import check_file_exists, file_mentions, tracked_paths
+from audit.files import file_mentions, tracked_paths
 from audit.github import environment_without_credentials
+from audit.repo import path_is_within
 from audit.text.markdown import iter_markdown_headings, normalise_heading
 
 
@@ -151,29 +152,26 @@ SKILLSAW_RUN_RE = re.compile(
 PRE_COMMIT_RUN_RE = re.compile(r'pre[-_]commit[\'"]?\s+run\b')
 
 
-def file_matches(filepath, pattern):
-    """Does a file match a regex, outside of its comments?
+def file_matches(repo, path, pattern):
+    """Does a repository file match a regex, outside of its comments?
 
     The comment handling matches file_mentions: a header comment
     describing what something else does must not count as doing it.
     """
-    if not os.path.exists(filepath):
+    content = repo.read(path)
+    if content is None:
         return False
-    with open(filepath, 'r', errors='replace') as f:
-        for line in f:
-            if line.lstrip().startswith('#'):
-                continue
-            if pattern.search(line):
-                return True
+    for line in content.split('\n'):
+        if line.lstrip().startswith('#'):
+            continue
+        if pattern.search(line):
+            return True
     return False
 
 
-def has_agent_context(repo_path):
+def has_agent_context(repo):
     """Does this repository carry agent context files at all?"""
-    return any(
-        check_file_exists(repo_path, marker)
-        for marker in AGENT_CONTEXT_MARKERS
-    )
+    return any(repo.exists(marker) for marker in AGENT_CONTEXT_MARKERS)
 
 
 def vendor_agent_docs(paths):
@@ -218,7 +216,11 @@ def orphan_skill_markdown(repo_path):
     orphans = []
     for relative in SKILL_ROOTS:
         skills_dir = os.path.join(repo_path, relative)
-        if not os.path.isdir(skills_dir):
+        # Names only are read here, but they are quoted into the
+        # finding, so a skills directory that is a link out of the
+        # clone is not this repository's to report on.
+        if not (os.path.isdir(skills_dir)
+                and path_is_within(repo_path, skills_dir)):
             continue
 
         for entry in sorted(os.listdir(skills_dir)):
@@ -327,18 +329,13 @@ class LlmDocStructure(Check):
         any, and two duplication signals -- a heading shared between the
         two files, and a heading naming a page that docs/ already has.
         """
-        present = {
-            name: os.path.join(repo.path, name)
+        contents = {
+            name: repo.read(name)
             for name in LLM_DOC_LIMITS
-            if repo.exists(name)
+            if repo.isfile(name)
         }
-        if not present:
+        if not contents:
             return self.skip('No AGENTS.md or ARCHITECTURE.md')
-
-        contents = {}
-        for name, path in present.items():
-            with open(path, 'r', errors='replace') as f:
-                contents[name] = f.read()
 
         # docs/ pages the two files could be delegating to, keyed by
         # normalised filename stem. A docs/ directory holding nothing but
@@ -347,13 +344,11 @@ class LlmDocStructure(Check):
         # pointer to something that does not exist.
         docs_pages = {}
         docs_dir = os.path.join(repo.path, 'docs')
-        if os.path.isdir(docs_dir):
+        if os.path.isdir(docs_dir) and repo.exists('docs'):
             for entry in sorted(os.listdir(docs_dir)):
                 if entry.endswith('.md') and entry != 'index.md':
                     docs_pages[normalise_heading(entry[:-3])] = f'docs/{entry}'
-        has_docs = bool(docs_pages) or os.path.exists(
-            os.path.join(docs_dir, 'index.md')
-        )
+        has_docs = bool(docs_pages) or repo.exists('docs/index.md')
         problems = []
 
         for name in sorted(contents):
@@ -451,7 +446,7 @@ class LlmContextLint(Check):
         state should not arise; when it does, every row flipping to N/A at
         once is the signal that it has.
         """
-        if not has_agent_context(repo.path):
+        if not has_agent_context(repo):
             return self.skip('No agent context files to lint')
 
         problems = []
@@ -509,32 +504,34 @@ class LlmContextLintCi(Check):
         both distinctions are drawn and neither costs the check any
         tolerance for how the command is written.
         """
-        if not has_agent_context(repo.path):
+        if not has_agent_context(repo):
             return self.skip('No agent context files to lint')
 
         missing = []
 
-        pre_commit_config = os.path.join(repo.path, '.pre-commit-config.yaml')
-        in_pre_commit = file_mentions(pre_commit_config, SKILLSAW_SOURCE)
+        in_pre_commit = file_mentions(
+            repo, '.pre-commit-config.yaml', SKILLSAW_SOURCE)
         if not in_pre_commit:
             missing.append('.pre-commit-config.yaml')
 
         workflows = [
-            os.path.join(repo.path, '.github', 'workflows', workflow)
-            for workflow in repo.workflows()
+            f'.github/workflows/{workflow}' for workflow in repo.workflows()
         ]
         named_in_ci = any(
-            file_mentions(workflow, SKILLSAW_SOURCE) for workflow in workflows
+            file_mentions(repo, workflow, SKILLSAW_SOURCE)
+            for workflow in workflows
         )
         # A workflow which runs pre-commit runs the skillsaw hook with it,
         # so the linter reaches CI without the workflow naming it.
         via_pre_commit = in_pre_commit and any(
-            file_matches(workflow, PRE_COMMIT_RUN_RE) for workflow in workflows
+            file_matches(repo, workflow, PRE_COMMIT_RUN_RE)
+            for workflow in workflows
         )
         # A workflow can also invoke skillsaw directly, having installed
         # it from PyPI rather than naming the upstream repository.
         run_directly = any(
-            file_matches(workflow, SKILLSAW_RUN_RE) for workflow in workflows
+            file_matches(repo, workflow, SKILLSAW_RUN_RE)
+            for workflow in workflows
         )
         if not named_in_ci and not via_pre_commit and not run_directly:
             missing.append('a CI workflow')

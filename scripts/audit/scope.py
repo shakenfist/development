@@ -32,6 +32,8 @@ delimit a list of repository names before anything trusts them.
 import os
 import re
 
+from audit.repo import read_within
+
 
 class ScopeParseError(Exception):
     """A scope list could not be read the way this module expects.
@@ -144,9 +146,19 @@ def read(root, relative):
     the scheduled run, taking issue filing and the compliance page with
     it. Replacing the byte lets the parse proceed and either succeed or
     raise `ScopeParseError`, which is a `fail()` a reader can act on.
+
+    Read through read_within(), the guarded open `Repo.read()` uses,
+    because `scope-coverage` passes the checkout under audit as root:
+    a document that is a link out of it, a directory or an oversize
+    file is not read. A file that is not there is raised as the
+    OSError an open() would have raised, which is what that check
+    handles; returning None would surface as a TypeError in the parse.
     """
-    with open(os.path.join(root, relative), 'r', errors='replace') as f:
-        return f.read()
+    content = read_within(os.path.realpath(root), os.path.join(root, relative))
+    if content is None:
+        raise FileNotFoundError(
+            f'{relative} is not a readable file inside {root}')
+    return content
 
 
 def bulleted_block(root, path, start, end, bullet):

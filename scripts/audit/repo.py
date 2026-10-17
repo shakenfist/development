@@ -12,9 +12,28 @@ is a decision that a rule does not apply, and an unexplained one is
 indistinguishable from silencing a real finding.
 """
 
+import io
 import os
 
 from audit.github import GhCli
+
+
+#: The largest file a check reads, in bytes. Anything larger reads as
+#: absent rather than in part: a truncated file is a wrong verdict
+#: rather than a declined one, and a wrong verdict files an issue on
+#: somebody else's repository. The size is the audited repository's to
+#: choose, so without a cap a committed file of any size -- or a read
+#: that never ends -- is the audit's to absorb.
+#:
+#: Two MiB because that is the cap plan-source-references applied
+#: before every read shared it, and because the largest file any check
+#: reads across the fleet is well inside it: shakenfist's
+#: shakenfist/mariadb.py at 1.1 MB, a Python source file the dependency
+#: checks scan, measured from the local clones on 2026-10-17. The 247
+#: tracked files above it are all kerbside-patches CI data (.jsonl and
+#: .csv), which only plan-source-references and plan-history-in-source
+#: would read, and which they already skipped.
+READ_MAX_BYTES = 2 * 1024 * 1024
 
 
 # Minimal hardcoded overrides for properties that cannot be detected
@@ -129,20 +148,21 @@ REPO_OVERRIDES = {
 def detect_repo_properties(repo_path, repo_name):
     """Auto-detect repo type from files present."""
     overrides = REPO_OVERRIDES.get(repo_name, {})
+    real_root = os.path.realpath(repo_path)
+
+    def present(*parts):
+        # The containment Repo.exists() applies, so that a property
+        # cannot say a file is there which every read of it refuses.
+        return exists_within(
+            real_root, os.path.join(repo_path, *parts))
+
     return {
-        'has_pyproject_toml': os.path.exists(
-            os.path.join(repo_path, 'pyproject.toml')
-        ),
+        'has_pyproject_toml': present('pyproject.toml'),
         'has_cargo_toml': (
-            os.path.exists(os.path.join(repo_path, 'Cargo.toml'))
-            or os.path.exists(os.path.join(repo_path, 'src', 'Cargo.toml'))
+            present('Cargo.toml') or present('src', 'Cargo.toml')
         ),
-        'has_workflows_dir': os.path.exists(
-            os.path.join(repo_path, '.github', 'workflows')
-        ),
-        'has_flake8wrap': os.path.exists(
-            os.path.join(repo_path, 'tools', 'flake8wrap.sh')
-        ),
+        'has_workflows_dir': present('.github', 'workflows'),
+        'has_flake8wrap': present('tools', 'flake8wrap.sh'),
         'is_private': overrides.get('is_private', False),
         'is_docs_only': overrides.get('is_docs_only', False),
         'not_python': overrides.get('not_python', False),
@@ -173,6 +193,63 @@ def path_is_within(root, candidate, root_is_real=False):
     return os.path.realpath(candidate).startswith(real_root + os.sep)
 
 
+def exists_within(real_root, full):
+    """Does full exist, as a file or a directory, inside real_root?
+
+    The existence half of read_within(). A directory counts, because
+    some of what is asked about is one (`.claude`, `docs/`); a symlink
+    out of the root does not, for the reason read_within() gives.
+    """
+    return os.path.exists(full) and path_is_within(
+        real_root, full, root_is_real=True)
+
+
+def read_within(real_root, full):
+    """Read the file at full, or None if it is not one we will read.
+
+    The one guarded open of an audited repository's files. `Repo.read`
+    is the interface to it; the only other caller is audit.scope, whose
+    parser takes a directory rather than a Repo because its tests point
+    it at this repository's own tree, while the scope-coverage check
+    points it at the checkout under audit.
+
+    None covers every shape that would otherwise raise or read
+    something the repository did not contain:
+
+    - anything that is not a regular file once symlinks are followed:
+      a directory, a dangling link, a device. isfile() rather than
+      exists(), because a directory named `helper.sh` opens as an
+      IsADirectoryError and a link to /dev/zero is a read that never
+      ends;
+    - anything resolving outside real_root. A committed symlink is a
+      path the audited repository chose, and following one out of the
+      clone would let a repository decide what the audit reads and
+      quotes into an issue;
+    - a file that cannot be opened;
+    - a file over READ_MAX_BYTES. The bytes are counted as they are
+      read rather than taken from a stat, so the cap holds for a file
+      that grows or lies about its size.
+
+    Decoding errors are replaced rather than raised, and newlines are
+    translated, as open() in text mode would: the bytes are read first
+    so that the cap is in bytes, then decoded the way text mode decodes
+    them. Always as UTF-8 rather than in the runner's locale, so that a
+    verdict does not depend on where the audit ran.
+    """
+    if not (os.path.isfile(full)
+            and path_is_within(real_root, full, root_is_real=True)):
+        return None
+    try:
+        with open(full, 'rb') as f:
+            data = f.read(READ_MAX_BYTES + 1)
+    except OSError:
+        return None
+    if len(data) > READ_MAX_BYTES:
+        return None
+    return io.TextIOWrapper(io.BytesIO(data), encoding='utf-8',
+                            errors='replace').read()
+
+
 class Repo:
     """A checkout being audited, and the answers read from it."""
 
@@ -197,39 +274,54 @@ class Repo:
         return os.path.join(self.path, *parts)
 
     def exists(self, path):
-        """Does a repository-relative path exist?"""
-        return os.path.exists(self.join(path))
+        """Does a repository-relative path exist inside the checkout?
+
+        A file or a directory. A symlink out of the clone does not
+        exist as far as a check is concerned, for the reason read()
+        gives. Use isfile() for "is there a file here to read".
+        """
+        return exists_within(self._real_path, self.join(path))
+
+    def isfile(self, path):
+        """Is there a file at path that read() will return?
+
+        Defined as exactly that, so that a criterion asking whether a
+        file is present and the read that follows cannot disagree: a
+        dangling link, a directory, a link out of the clone and an
+        oversize file are all "no file" to both.
+        """
+        return self.read(path) is not None
 
     def read(self, path):
         """Read a repository-relative file, or None if it is absent.
 
-        Decoding errors are replaced rather than raised. An audited
+        Every read of an audited repository's files comes through
+        here, and read_within() says what None covers. An audited
         repository can contain anything, and a check that crashes on
-        one file reports nothing about any of the other criteria. The
-        same reasoning covers the two shapes that would raise before a
-        byte is read: isfile rather than exists, because a directory
-        named `helper.sh` opens as an IsADirectoryError, and the
-        realpath containment below, because a symlink is followed by
-        both exists and open.
+        one file reports nothing about any of the other criteria.
 
         Nothing outside the checkout is read. Checks derive the paths
         they read from the repository's own files -- a workflow names
-        a script, a script names its helper -- so a committed symlink
-        is a path the audited repository chose, and following one out
-        of the clone would let a repository decide what the audit
-        reads. A symlink that stays inside the checkout is fine and is
-        read through.
+        a script, a script names its helper, pyproject.toml names an
+        entry point module -- so a `..`, an absolute path or a
+        committed symlink is a path the audited repository chose. A
+        symlink that stays inside the checkout is fine and is read
+        through.
         """
         if path in self._reads:
             return self._reads[path]
 
-        full = self.join(path)
-        content = None
-        if os.path.isfile(full) and self.contains(full):
-            with open(full, 'r', errors='replace') as f:
-                content = f.read()
+        content = read_within(self._real_path, self.join(path))
         self._reads[path] = content
         return content
+
+    def relative(self, full):
+        """The repository-relative spelling of a path under self.path.
+
+        For the tree walks, which find absolute paths and hand them
+        to read().
+        """
+        return os.path.relpath(full, self.path)
 
     def contains(self, full):
         """Does an absolute path resolve to something in the checkout?
@@ -239,24 +331,31 @@ class Repo:
         unresolved root would then reject every file in the
         repository.
 
-        Public because `read()` is not the only way a check opens a
-        file: a criterion that walks the tree for source files opens
-        what it finds itself, and the containment rule above is the
-        same one there. One implementation of it, called from both,
+        Public for the questions read() does not answer: whether a
+        directory is inside the checkout before a check lists it, as
+        workflows() does. Reads still go through read(), and the
+        containment rule is one implementation, path_is_within(),
         rather than a second realpath comparison that drifts.
         """
         return path_is_within(self._real_path, full, root_is_real=True)
 
     def workflows(self):
-        """Workflow file names under .github/workflows/, cached."""
+        """Workflow file names under .github/workflows/, cached.
+
+        Only names workflow() will read. A dangling link or a
+        directory named `ci.yml` is not a workflow, and listing one
+        would hand every check that walks the list a None to trip
+        over.
+        """
         if self._workflows is None:
             directory = self.join('.github', 'workflows')
-            if not os.path.isdir(directory):
+            if not (os.path.isdir(directory) and self.contains(directory)):
                 self._workflows = []
             else:
                 self._workflows = [
                     f for f in os.listdir(directory)
-                    if f.endswith('.yml') or f.endswith('.yaml')
+                    if (f.endswith('.yml') or f.endswith('.yaml'))
+                    and self.workflow(f) is not None
                 ]
         return self._workflows
 

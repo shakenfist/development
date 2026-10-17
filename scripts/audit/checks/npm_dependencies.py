@@ -437,20 +437,19 @@ def source_files(repo):
         for filename in sorted(filenames):
             if not filename.endswith(SOURCE_EXTENSIONS):
                 continue
-            full = os.path.join(dirpath, filename)
-            # The walk opens these itself rather than going through
-            # Repo.read, so it applies Repo's containment rule itself:
-            # a committed symlink pointing out of the clone is a path
-            # the audited repository chose, and following it would let
-            # a repository decide what the audit reads. Symlinked
+            # Only what Repo.read will return: a committed symlink
+            # pointing out of the clone is a path the audited
+            # repository chose, and following it would let a
+            # repository decide what the audit reads. Symlinked
             # directories need no such guard, because os.walk does not
             # follow them.
-            if repo.contains(full):
-                found.append(full)
+            relative = repo.relative(os.path.join(dirpath, filename))
+            if repo.isfile(relative):
+                found.append(relative)
     return found
 
 
-def imported_packages(paths):
+def imported_packages(repo, paths):
     """The set of package names imported across a list of files.
 
     Every import form counts: `import`, `import type`, a side-effect
@@ -459,17 +458,13 @@ def imported_packages(paths):
     it is resolved at build time, and the build breaks when it is not
     installed.
 
-    The paths are opened directly rather than through `Repo.read`,
-    because there is nothing to cache here and the walk already holds
-    absolute paths. `source_files()` applies the containment rule
-    `Repo.read` applies, so nothing outside the checkout arrives here.
+    The paths are the repository-relative ones source_files() returns,
+    read through `Repo.read` like every other file a check opens.
     """
     names = set()
     for path in paths:
-        try:
-            with open(path, 'r', errors='replace') as f:
-                content = f.read()
-        except OSError:
+        content = repo.read(path)
+        if content is None:
             continue
         code = strip_comments(content)
         for pattern in (IMPORT_FROM_RE, BARE_IMPORT_RE, CALL_IMPORT_RE):
@@ -964,7 +959,7 @@ class NpmUnusedDeclaredDependency(NpmPackageCheck):
                 'and a tool invoked from a scripts entry would look unused')
 
         sources = source_files(repo)
-        imported = imported_packages(sources)
+        imported = imported_packages(repo, sources)
         configuration = configuration_text(repo, manifest)
         exempted = not_imported_exemptions(manifest)
 
@@ -1070,7 +1065,7 @@ class NpmUndeclaredDirectDependency(NpmPackageCheck):
                              'build directories, so nothing here imports '
                              'anything')
 
-        imported = imported_packages(sources)
+        imported = imported_packages(repo, sources)
         # Declared first, then builtins, then the host. Order matters:
         # a project that declares a package named after a builtin has
         # declared it, and subtracting the builtins first would hide

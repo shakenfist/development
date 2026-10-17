@@ -30,6 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import plans  # noqa: E402
 from audit.text import shared_blocks  # noqa: E402
+from audit.repo import READ_MAX_BYTES  # noqa: E402
 from tests.base import (  # noqa: E402
     REPO_ROOT, CheckTestCase, FixtureRepo, repo_text,
 )
@@ -360,8 +361,8 @@ def link_outside(case, rel, content):
 
 
 def oversize(content):
-    """content padded past PLAN_SOURCE_MAX_BYTES, the walk's size cap."""
-    return content + 'x' * (plans.PLAN_SOURCE_MAX_BYTES + 1 - len(content))
+    """content padded past READ_MAX_BYTES, the cap on every read."""
+    return content + 'x' * (READ_MAX_BYTES + 1 - len(content))
 
 
 # Long single-line bodies that a pattern opening with an unanchored
@@ -1366,6 +1367,29 @@ class PlanAuditPhaseTest(CheckTestCase):
         self.assertIn('PLAN-leak.md', result['details'])
         self.assertIn('link', result['details'].lower())
 
+    def test_a_plans_directory_linked_out_of_the_clone_is_not_read(self):
+        """Holding a plan to docs/plans/ does not hold it to the clone.
+
+        When docs/plans is itself a symlink out of the checkout, every
+        candidate resolves inside the directory it points at, so a
+        comparison against docs/plans alone passes a file the audit was
+        never pointed at.
+        """
+        elsewhere = self.tempdir()
+        with open(os.path.join(elsewhere, 'PLAN-leak.md'), 'w') as f:
+            f.write(self._plan(['Build']))
+        with open(os.path.join(elsewhere, 'index.md'), 'w') as f:
+            f.write(self.HEADER + '| 2026-01-01 | [Leak](PLAN-leak.md) | '
+                    'Nope | In progress |\n')
+        os.makedirs(os.path.join(self.fixture.path, 'docs'))
+        plans_dir = os.path.join(self.fixture.path, 'docs', 'plans')
+        os.symlink(elsewhere, plans_dir)
+        repo = self.repo()
+        self.assertIsNone(plans.plan_index_target_path(
+            repo, plans_dir, 'PLAN-leak.md', 'PLAN-leak.md',
+            plans.plan_file_paths(plans_dir)))
+        self.assert_skip(self.check(), containing='No docs/plans/index.md')
+
     def test_an_oversize_plan_is_declined_rather_than_truncated(self):
         """A truncated plan is a wrong verdict, not a declined one.
 
@@ -1374,9 +1398,8 @@ class PlanAuditPhaseTest(CheckTestCase):
         just past the cut, so an oversize plan joins the unresolved
         bucket instead.
         """
-        from audit.checks.plans import PLAN_SOURCE_MAX_BYTES
         huge = self._audit_plan(['Build']) + ('\n<!-- %s -->' % ('x' * 128))
-        huge += 'y' * (PLAN_SOURCE_MAX_BYTES + 1 - len(huge))
+        huge += 'y' * (READ_MAX_BYTES + 1 - len(huge))
         result = self._check(
             {'PLAN-huge.md': huge},
             index=(

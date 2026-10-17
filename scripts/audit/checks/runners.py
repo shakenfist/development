@@ -4,7 +4,6 @@ Which runners a job asks for, whether the labels it names are static
 enough to schedule against, and whether a VM job declares a size.
 """
 
-import os
 import re
 
 from audit.check import Check
@@ -165,11 +164,7 @@ class SelfHostedRunners(Check):
 
         offenders = []
         for wf in sorted(workflows):
-            filepath = os.path.join(
-                repo.path, '.github', 'workflows', wf
-            )
-            with open(filepath, 'r', errors='replace') as f:
-                lines = f.read().splitlines()
+            lines = repo.workflow(wf).splitlines()
 
             for i, line in enumerate(lines):
                 match = GITHUB_HOSTED_LABEL_RE.search(line)
@@ -225,11 +220,7 @@ class StaticRunnerTags(Check):
 
         offenders = []
         for wf in sorted(workflows):
-            filepath = os.path.join(
-                repo.path, '.github', 'workflows', wf
-            )
-            with open(filepath, 'r', errors='replace') as f:
-                lines = f.read().splitlines()
+            lines = repo.workflow(wf).splitlines()
 
             for i, line in enumerate(lines):
                 match = RUNS_ON_RE.match(line)
@@ -317,11 +308,7 @@ class VmRunnerSize(Check):
         offenders = []
         bound_offenders = []
         for wf in sorted(workflows):
-            filepath = os.path.join(
-                repo.path, '.github', 'workflows', wf
-            )
-            with open(filepath, 'r', errors='replace') as f:
-                lines = f.read().splitlines()
+            lines = repo.workflow(wf).splitlines()
 
             for i, line in enumerate(lines):
                 match = RUNS_ON_RE.match(line)

@@ -48,22 +48,20 @@ FILE_REWRITING_HOOK_IDS = (
 )
 
 
-def pre_commit_rewriting_hooks(repo_path):
+def pre_commit_rewriting_hooks(repo):
     """Which file-rewriting hooks does .pre-commit-config.yaml run?"""
-    filepath = os.path.join(repo_path, '.pre-commit-config.yaml')
     found = set()
-    with open(filepath, 'r', errors='replace') as f:
-        for line in f:
-            match = re.match(r'\s*-\s*id:\s*(\S+)', line)
-            if not match:
-                continue
-            hook_id = match.group(1).strip('\'"')
-            if hook_id in FILE_REWRITING_HOOK_IDS:
-                found.add(hook_id)
+    for line in (repo.read('.pre-commit-config.yaml') or '').splitlines():
+        match = re.match(r'\s*-\s*id:\s*(\S+)', line)
+        if not match:
+            continue
+        hook_id = match.group(1).strip('\'"')
+        if hook_id in FILE_REWRITING_HOOK_IDS:
+            found.add(hook_id)
     return sorted(found)
 
 
-def pre_commit_excludes_review_marks(repo_path):
+def pre_commit_excludes_review_marks(repo):
     """Does .pre-commit-config.yaml exempt the weAudit review marks?
 
     Line-based rather than YAML-parsed, matching the rest of this
@@ -74,19 +72,17 @@ def pre_commit_excludes_review_marks(repo_path):
     compile is skipped rather than raising: an unrelated malformed
     pattern is pre-commit's problem to report, not this audit's.
     """
-    filepath = os.path.join(repo_path, '.pre-commit-config.yaml')
-    with open(filepath, 'r', errors='replace') as f:
-        for line in f:
-            match = re.match(r'\s*exclude:\s*(\S.*?)\s*$', line)
-            if not match:
-                continue
-            pattern = match.group(1).strip('\'"')
-            try:
-                compiled = re.compile(pattern)
-            except re.error:
-                continue
-            if all(compiled.search(p) for p in REVIEW_MARK_SAMPLE_PATHS):
-                return True
+    for line in (repo.read('.pre-commit-config.yaml') or '').splitlines():
+        match = re.match(r'\s*exclude:\s*(\S.*?)\s*$', line)
+        if not match:
+            continue
+        pattern = match.group(1).strip('\'"')
+        try:
+            compiled = re.compile(pattern)
+        except re.error:
+            continue
+        if all(compiled.search(p) for p in REVIEW_MARK_SAMPLE_PATHS):
+            return True
     return False
 
 
@@ -111,21 +107,25 @@ REVIEW_TRACKING_SCRIPT = os.path.join(
 SFUI_CANONICAL_URL = 'https://github.com/shakenfist/sfui'
 
 
-def find_sfui_vendored_dirs(repo_path):
+def find_sfui_vendored_dirs(repo):
     """Find directories holding a vendored sfui copy.
 
     A vendored copy is identified by its .sfui-commit provenance
-    stamp. Hidden directories are pruned: as well as .git, local
-    build state like .tox and .venv can hold site-packages copies
-    of a consumer's static assets, which are installation artifacts
-    rather than vendored copies. Returns repo-relative directory
-    paths.
+    stamp, and only a stamp repo.isfile() accepts counts: a dangling
+    link, a directory or a link out of the clone named .sfui-commit
+    is no stamp, so the run() that reads it cannot find it missing.
+    Hidden directories are pruned: as well as .git, local build state
+    like .tox and .venv can hold site-packages copies of a consumer's
+    static assets, which are installation artifacts rather than
+    vendored copies. Returns repo-relative directory paths.
     """
     found = []
-    for root, dirs, files in os.walk(repo_path):
+    for root, dirs, files in os.walk(repo.path):
         dirs[:] = [d for d in dirs if not d.startswith('.')]
-        if '.sfui-commit' in files:
-            found.append(os.path.relpath(root, repo_path))
+        rel = repo.relative(root)
+        if ('.sfui-commit' in files
+                and repo.isfile(os.path.join(rel, '.sfui-commit'))):
+            found.append(rel)
     return sorted(found)
 
 
@@ -157,14 +157,14 @@ class ReviewMarksPreCommit(Check):
             return self.skip(
                 'Human review tracking not deployed '
                 '(no .vscode/review-scope.toml)')
-        if not repo.exists('.pre-commit-config.yaml'):
+        if not repo.isfile('.pre-commit-config.yaml'):
             return self.skip('No .pre-commit-config.yaml')
-        rewriting = pre_commit_rewriting_hooks(repo.path)
+        rewriting = pre_commit_rewriting_hooks(repo)
         if not rewriting:
             return self.skip(
                 'No file-rewriting pre-commit hooks, so nothing '
                 'rewrites the review marks')
-        if not pre_commit_excludes_review_marks(repo.path):
+        if not pre_commit_excludes_review_marks(repo):
             return self.fail(
                 f'{", ".join(rewriting)} rewrite(s) the review marks; '
                 r'add exclude: ^\.vscode/.*\.weaudit to those hooks')
@@ -367,7 +367,7 @@ class SfuiVendor(Check):
         And no subprocess here sees a GitHub credential.
         """
         env = environment_without_credentials()
-        vendored = find_sfui_vendored_dirs(repo.path)
+        vendored = find_sfui_vendored_dirs(repo)
         if not vendored:
             return self.skip('No vendored sfui copy (no .sfui-commit file)')
 
@@ -390,11 +390,8 @@ class SfuiVendor(Check):
 
                 for rel in vendored:
                     directory = os.path.join(repo.path, rel)
-                    with open(
-                        os.path.join(directory, '.sfui-commit'), 'r',
-                        errors='replace',
-                    ) as f:
-                        sha = f.read().strip()
+                    sha = (repo.read(os.path.join(rel, '.sfui-commit'))
+                           or '').strip()
                     if not re.fullmatch(r'[0-9a-f]{40}', sha):
                         problems.append(
                             f'{rel}: .sfui-commit does not contain a '

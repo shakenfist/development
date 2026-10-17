@@ -15,8 +15,8 @@ import tomllib
 
 from audit.check import Check
 from audit.files import (
-    LS_FILES_FAILED, check_file_contains, check_file_exists,
-    toml_section_has_key, tracked_paths,
+    LS_FILES_FAILED, check_file_contains, toml_section_has_key,
+    tracked_paths,
 )
 from audit.text.workflows import (
     has_workflow_dispatch, job_is_push_guarded, job_is_tag_guarded,
@@ -31,7 +31,7 @@ from audit.text.python_source import (
 )
 
 
-def uses_remote_pre_commit_hooks(repo_path):
+def uses_remote_pre_commit_hooks(repo):
     """True when .pre-commit-config.yaml pins at least one remote hook.
 
     Remote hooks are the only kind that carry a version to bump: a
@@ -40,18 +40,18 @@ def uses_remote_pre_commit_hooks(repo_path):
     is something for renovate to manage.
     """
     return check_file_contains(
-        repo_path, '.pre-commit-config.yaml', r'(?m)^\s*rev:'
+        repo, '.pre-commit-config.yaml', r'(?m)^\s*rev:'
     )
 
 
-def renovate_manages_pre_commit(repo_path):
+def renovate_manages_pre_commit(repo):
     """True when renovate.json enables the pre-commit manager.
 
     Renovate ships the pre-commit manager disabled, so it has to be
     turned on deliberately. There are three supported ways to do that
     and all of them count.
     """
-    config = renovate_config(repo_path)
+    config = renovate_config(repo)
     if config is None:
         return False
 
@@ -99,9 +99,9 @@ def renovate_workflow_runs_container(content):
     )
 
 
-def renovate_reads_version_comments(repo_path):
+def renovate_reads_version_comments(repo):
     """True when renovate.json extends the version comment preset."""
-    config = renovate_config(repo_path)
+    config = renovate_config(repo)
     if config is None:
         return False
     extends = config.get('extends')
@@ -124,7 +124,25 @@ def renovate_reads_version_comments(repo_path):
 PIN_INTENT_THRESHOLD = 0.5
 
 
-def pins_direct_dependencies(repo_path):
+def parse_pyproject(repo):
+    """pyproject.toml parsed, or None when it is unreadable or malformed.
+
+    Parsed from the text Repo.read returns rather than from the bytes,
+    so that the read is the guarded one. The two agree on every valid
+    file, since TOML is UTF-8. On invalid UTF-8 tomllib.load raises a
+    UnicodeDecodeError, which is not a TOMLDecodeError, where the
+    replaced text parses or is reported as malformed like any other.
+    """
+    content = repo.read('pyproject.toml')
+    if content is None:
+        return None
+    try:
+        return tomllib.loads(content)
+    except tomllib.TOMLDecodeError:
+        return None
+
+
+def pins_direct_dependencies(repo):
     """Report whether a project exactly pins its own direct dependencies.
 
     Returns (in_scope, exact, total). Only the [project] dependencies
@@ -132,11 +150,8 @@ def pins_direct_dependencies(repo_path):
     pinned test extra says nothing about how the project wants its
     runtime resolved.
     """
-    pyproject = os.path.join(repo_path, 'pyproject.toml')
-    try:
-        with open(pyproject, 'rb') as f:
-            parsed = tomllib.load(f)
-    except (OSError, tomllib.TOMLDecodeError):
+    parsed = parse_pyproject(repo)
+    if parsed is None:
         return False, 0, 0
 
     dependencies = parsed.get('project', {}).get('dependencies', [])
@@ -295,7 +310,7 @@ DEP_ENTRY_NAME_RE = re.compile(
 )
 
 
-def read_dependency_array(repo_path):
+def read_dependency_array(repo):
     """Read [project] dependencies, keeping what TOML parsing discards.
 
     Returns (direct, generated, markers):
@@ -320,11 +335,8 @@ def read_dependency_array(repo_path):
     the block boundaries and the annotations, both of which are
     comments and so are gone by the time tomllib has finished.
     """
-    pyproject = os.path.join(repo_path, 'pyproject.toml')
-    try:
-        with open(pyproject, 'rb') as f:
-            parsed = tomllib.load(f)
-    except (OSError, tomllib.TOMLDecodeError):
+    parsed = parse_pyproject(repo)
+    if parsed is None:
         return {}, {}, {}
 
     declared = {
@@ -336,8 +348,7 @@ def read_dependency_array(repo_path):
     if not declared:
         return {}, {}, {}
 
-    with open(pyproject, 'r', errors='replace') as f:
-        lines = f.read().splitlines()
+    lines = repo.read('pyproject.toml').splitlines()
 
     entries, generated, markers = {}, {}, {}
     section, in_array, in_generated = None, False, False
@@ -430,7 +441,7 @@ CONTAINER_PATH_ACTIONS = {
 }
 
 
-def release_asset_issues(repo_path):
+def release_asset_issues(repo):
     """Findings for a release.yml which can publish an empty release.
 
     Two defects, and it takes both to make the failure silent.
@@ -462,11 +473,9 @@ def release_asset_issues(repo_path):
     that publishes no release assets is not asked to configure how it
     would.
     """
-    filepath = os.path.join(repo_path, '.github', 'workflows', 'release.yml')
-    if not os.path.exists(filepath):
+    content = repo.workflow('release.yml')
+    if content is None:
         return []
-    with open(filepath, 'r', errors='replace') as f:
-        content = f.read()
 
     issues = []
     for name, body in workflow_job_blocks(content):
@@ -540,7 +549,7 @@ def dist_directory(value):
     return value.rstrip('/')
 
 
-def release_workspace_issues(repo_path):
+def release_workspace_issues(repo):
     """Findings for publishing jobs which trust a shared workspace.
 
     The static runner pool is persistent and the publishing jobs do
@@ -562,11 +571,9 @@ def release_workspace_issues(repo_path):
     Jobs which check out are not judged: checkout cleans, which is
     the same guarantee arrived at by a different route.
     """
-    filepath = os.path.join(repo_path, '.github', 'workflows', 'release.yml')
-    if not os.path.exists(filepath):
+    content = repo.workflow('release.yml')
+    if content is None:
         return []
-    with open(filepath, 'r', errors='replace') as f:
-        content = f.read()
 
     issues = []
     for name, body in workflow_job_blocks(content):
@@ -623,7 +630,7 @@ def is_workspace_relative(value):
     return not value.startswith('/') and not HOST_PATH_EXPRESSION_RE.search(value)
 
 
-def release_container_path_issues(repo_path):
+def release_container_path_issues(repo):
     """Findings for a container action pointed at a runner path.
 
     gh-action-pypi-publish is a composite action which delegates the
@@ -646,11 +653,9 @@ def release_container_path_issues(repo_path):
     workspace-relative paths, and so a checkout to clean the
     workspace they sit in.
     """
-    filepath = os.path.join(repo_path, '.github', 'workflows', 'release.yml')
-    if not os.path.exists(filepath):
+    content = repo.workflow('release.yml')
+    if content is None:
         return []
-    with open(filepath, 'r', errors='replace') as f:
-        content = f.read()
 
     issues = []
     for name, body in workflow_job_blocks(content):
@@ -694,7 +699,7 @@ def release_container_path_issues(repo_path):
     return issues
 
 
-def dist_agreement_issues(repo_path):
+def dist_agreement_issues(repo):
     """Findings for a step reading the distribution from elsewhere.
 
     Separate from where the download goes, and asked of every job that
@@ -705,11 +710,9 @@ def dist_agreement_issues(repo_path):
     two are several lines apart and only one of them is obviously
     about the distribution.
     """
-    filepath = os.path.join(repo_path, '.github', 'workflows', 'release.yml')
-    if not os.path.exists(filepath):
+    content = repo.workflow('release.yml')
+    if content is None:
         return []
-    with open(filepath, 'r', errors='replace') as f:
-        content = f.read()
 
     issues = []
     for name, body in workflow_job_blocks(content):
@@ -769,7 +772,7 @@ def job_publishes(body):
     )
 
 
-def release_dispatch_guard_issues(repo_path):
+def release_dispatch_guard_issues(repo):
     """Findings for publishing jobs a manual dispatch can reach.
 
     release.yml offers `workflow_dispatch` so that a maintainer can
@@ -788,11 +791,9 @@ def release_dispatch_guard_issues(repo_path):
     is for, and requiring the guard on them would remove the feature
     rather than make it safe.
     """
-    filepath = os.path.join(repo_path, '.github', 'workflows', 'release.yml')
-    if not os.path.exists(filepath):
+    content = repo.workflow('release.yml')
+    if content is None:
         return []
-    with open(filepath, 'r', errors='replace') as f:
-        content = f.read()
 
     if not has_workflow_dispatch(content):
         return []
@@ -847,17 +848,15 @@ class ReleaseProcess(Check):
             issues.append('release.sh still exists (should be removed)')
         if repo.exists('requirements.txt'):
             issues.append('requirements.txt still exists (use pyproject.toml)')
-        if not check_file_exists(
-            repo.path, '.github/workflows/release.yml'
-        ):
+        if not repo.isfile('.github/workflows/release.yml'):
             issues.append('Missing .github/workflows/release.yml')
         if not repo.exists('RELEASE-SETUP.md'):
             issues.append('Missing RELEASE-SETUP.md')
-        issues.extend(release_asset_issues(repo.path))
-        issues.extend(release_dispatch_guard_issues(repo.path))
-        issues.extend(release_workspace_issues(repo.path))
-        issues.extend(dist_agreement_issues(repo.path))
-        issues.extend(release_container_path_issues(repo.path))
+        issues.extend(release_asset_issues(repo))
+        issues.extend(release_dispatch_guard_issues(repo))
+        issues.extend(release_workspace_issues(repo))
+        issues.extend(dist_agreement_issues(repo))
+        issues.extend(release_container_path_issues(repo))
 
         if issues:
             return self.fail('; '.join(issues))
@@ -873,11 +872,9 @@ class Renovate(Check):
     def run(self, repo):
         """Check for renovate workflow and config."""
         missing = []
-        if not check_file_exists(
-            repo.path, '.github/workflows/renovate.yml'
-        ):
+        if not repo.isfile('.github/workflows/renovate.yml'):
             missing.append('.github/workflows/renovate.yml')
-        if not repo.exists('renovate.json'):
+        if not repo.isfile('renovate.json'):
             missing.append('renovate.json')
 
         if missing:
@@ -892,13 +889,13 @@ class Renovate(Check):
                 f'{RENOVATE_CONTAINER_ACTION}, which needs a Docker daemon '
                 f'the runner may not have; copy the template, which runs '
                 f'it from npm')
-        if not renovate_reads_version_comments(repo.path):
+        if not renovate_reads_version_comments(repo):
             issues.append(
                 'renovate.json does not extend '
                 'customManagers:githubActionsVersions, so the Renovate '
                 'version pinned in renovate.yml is never bumped')
-        if uses_remote_pre_commit_hooks(repo.path) and not (
-            renovate_manages_pre_commit(repo.path)
+        if uses_remote_pre_commit_hooks(repo) and not (
+            renovate_manages_pre_commit(repo)
         ):
             issues.append(
                 'renovate.json does not enable the pre-commit manager, '
@@ -921,7 +918,7 @@ class PinIndirectDependencies(Check):
         if not repo.props['has_pyproject_toml']:
             return self.skip('No pyproject.toml (not a Python package)')
 
-        in_scope, exact, total = pins_direct_dependencies(repo.path)
+        in_scope, exact, total = pins_direct_dependencies(repo)
         if not in_scope:
             return self.skip(
                 f'Direct dependencies are not exactly pinned '
@@ -931,33 +928,26 @@ class PinIndirectDependencies(Check):
                 f'consumers and distribution packagers')
 
         issues = []
-        if not check_file_exists(
-            repo.path,
-            '.github/workflows/pin-indirect-dependencies.yml',
-        ):
+        if not repo.isfile('.github/workflows/pin-indirect-dependencies.yml'):
             issues.append(
                 'Missing .github/workflows/'
                 'pin-indirect-dependencies.yml'
             )
         for marker in ['START_OF_INDIRECT_DEPS', 'END_OF_INDIRECT_DEPS']:
-            if not check_file_contains(
-                repo.path, 'pyproject.toml', marker
-            ):
+            if not check_file_contains(repo, 'pyproject.toml', marker):
                 issues.append(
                     f'Missing # {marker} marker in pyproject.toml'
                 )
-        if not check_file_exists(
-            repo.path, 'tools/pin-indirect-dependencies.sh'
-        ):
+        if not repo.isfile('tools/pin-indirect-dependencies.sh'):
             issues.append(
                 'Missing tools/pin-indirect-dependencies.sh '
                 '(reconciler script from the template)'
             )
         for script in workflow_tools_scripts(
-                repo.path, '.github/workflows/pin-indirect-dependencies.yml'):
+                repo, '.github/workflows/pin-indirect-dependencies.yml'):
             if script == 'tools/pin-indirect-dependencies.sh':
                 continue
-            if not check_file_exists(repo.path, script):
+            if not repo.isfile(script):
                 issues.append(
                     f'Missing {script}, which pin-indirect-dependencies.yml '
                     f'runs (copy it from the template)'
@@ -968,7 +958,7 @@ class PinIndirectDependencies(Check):
         return self.ok('Indirect dependency pinning is configured')
 
 
-def workflow_tools_scripts(repo_path, workflow):
+def workflow_tools_scripts(repo, workflow):
     """The tools/ shell scripts a workflow names, outside its comments.
 
     Derived from the workflow rather than listed in the check, so a
@@ -977,15 +967,14 @@ def workflow_tools_scripts(repo_path, workflow):
     otherwise fails every run with "No such file or directory", and
     nothing else notices. A missing workflow names nothing.
     """
-    path = os.path.join(repo_path, workflow)
-    if not os.path.exists(path):
+    content = repo.read(workflow)
+    if content is None:
         return []
     scripts = set()
-    with open(path, 'r', errors='replace') as f:
-        for line in f:
-            if line.lstrip().startswith('#'):
-                continue
-            scripts.update(TOOLS_SCRIPT_RE.findall(line))
+    for line in content.split('\n'):
+        if line.lstrip().startswith('#'):
+            continue
+        scripts.update(TOOLS_SCRIPT_RE.findall(line))
     return sorted(scripts)
 
 
@@ -1011,9 +1000,10 @@ class DependencyNameNormalization(Check):
         if not repo.props['has_pyproject_toml']:
             return self.skip('No pyproject.toml (not a Python package)')
 
-        pyproject = os.path.join(repo.path, 'pyproject.toml')
-        with open(pyproject, 'r', errors='replace') as f:
-            lines = f.read().splitlines()
+        content = repo.read('pyproject.toml')
+        if content is None:
+            return self.skip('No pyproject.toml (not a Python package)')
+        lines = content.splitlines()
 
         conflicts = []
 
@@ -1083,14 +1073,13 @@ LOCKSTEP_FAMILIES = (
 )
 
 
-def renovate_config(repo_path):
+def renovate_config(repo):
     """Parse renovate.json, or None when it is missing or malformed."""
-    filepath = os.path.join(repo_path, 'renovate.json')
-    if not os.path.exists(filepath):
+    content = repo.read('renovate.json')
+    if content is None:
         return None
     try:
-        with open(filepath, 'r', errors='replace') as f:
-            config = json.load(f)
+        config = json.loads(content)
     except ValueError:
         return None
     return config if isinstance(config, dict) else None
@@ -1257,7 +1246,7 @@ def grouping_rules(config):
     ]
 
 
-def declared_distributions(repo_path):
+def declared_distributions(repo):
     """Every distribution named in pyproject.toml, canonically.
 
     Returns a mapping of canonical name to the spellings the manifest
@@ -1269,11 +1258,8 @@ def declared_distributions(repo_path):
     both: a lockstep family sitting in a test extra churns exactly as
     much as one in the runtime set.
     """
-    pyproject = os.path.join(repo_path, 'pyproject.toml')
-    try:
-        with open(pyproject, 'rb') as f:
-            parsed = tomllib.load(f)
-    except (OSError, tomllib.TOMLDecodeError):
+    parsed = parse_pyproject(repo)
+    if parsed is None:
         return {}
 
     project = parsed.get('project', {})
@@ -1324,19 +1310,19 @@ class UnusedDeclaredDependency(Check):
         than imported, and reading it would flag every one of tox,
         stestr, coverage and flake8.
         """
-        direct, _generated, markers = read_dependency_array(repo.path)
+        direct, _generated, markers = read_dependency_array(repo)
         if not direct:
             return self.skip(
                 '[project] dependencies is empty or unreadable, so there '
                 'is nothing declared to use')
 
-        sources = python_source_files(repo.path)
+        sources = python_source_files(repo)
         if not sources:
             return self.skip(
                 'No Python source outside build and environment '
                 'directories, so nothing here imports anything')
 
-        imported = imported_top_level_modules(sources)
+        imported = imported_top_level_modules(repo, sources)
 
         unused, annotated = [], 0
         for name in sorted(direct):
@@ -1397,19 +1383,19 @@ class UndeclaredDirectDependency(Check):
         that stops being true -- so an import of one of those names is
         a break with a date on it rather than a style problem.
         """
-        direct, generated, _markers = read_dependency_array(repo.path)
+        direct, generated, _markers = read_dependency_array(repo)
         if not generated:
             return self.skip(
                 'No generated indirect dependency block, so there are no '
                 'transitive pins an import could be relying on')
 
-        sources = python_source_files(repo.path)
+        sources = python_source_files(repo)
         if not sources:
             return self.skip(
                 'No Python source outside build and environment '
                 'directories, so nothing here imports anything')
 
-        imported = imported_top_level_modules(sources)
+        imported = imported_top_level_modules(repo, sources)
 
         # A module a directly declared distribution could equally have
         # provided is not evidence about the transitive one. The
@@ -1450,7 +1436,7 @@ class RenovateLockstepGroups(Check):
     def applies(self, repo):
         if not repo.props['has_pyproject_toml']:
             return 'No pyproject.toml (not a Python package)'
-        if renovate_config(repo.path) is None:
+        if renovate_config(repo) is None:
             return (
                 'No readable renovate.json, so there is no grouping '
                 'configuration to hold to this -- the renovate criterion '
@@ -1467,8 +1453,8 @@ class RenovateLockstepGroups(Check):
         four pull requests on the same evening for one upstream event,
         four CI runs, and four chances to land a partial upgrade.
         """
-        config = renovate_config(repo.path)
-        declared = declared_distributions(repo.path)
+        config = renovate_config(repo)
+        declared = declared_distributions(repo)
         rules = grouping_rules(config)
 
         applicable, problems = [], []
@@ -1573,9 +1559,9 @@ class VersionFileGitignore(Check):
         if not repo.props['has_pyproject_toml']:
             return self.skip('No pyproject.toml (not a Python package)')
 
-        pyproject = os.path.join(repo.path, 'pyproject.toml')
-        with open(pyproject, 'r', errors='replace') as f:
-            content = f.read()
+        content = repo.read('pyproject.toml')
+        if content is None:
+            return self.skip('No pyproject.toml (not a Python package)')
 
         match = re.search(
             r'^\s*(?:write_to|version_file|version-file)\s*=\s*'
@@ -2316,7 +2302,7 @@ class ConsoleLogging(Check):
         applicable: this is a rule about how the helper is used, not a
         requirement to use it.
         """
-        entry_points, unresolved = console_entry_point_files(repo.path)
+        entry_points, unresolved = console_entry_point_files(repo)
         if not entry_points:
             # "None declared" and "declared, none found" are different
             # facts, and reporting the second as the first is a false
@@ -2332,12 +2318,8 @@ class ConsoleLogging(Check):
         using = []
         exempt = []
         for relative in entry_points:
-            try:
-                with open(
-                    os.path.join(repo.path, relative), 'r', errors='replace'
-                ) as f:
-                    content = f.read()
-            except OSError:
+            content = repo.read(relative)
+            if content is None:
                 continue
 
             # Matched against the code rather than the file: a
@@ -2451,11 +2433,8 @@ class HeaderSanitization(Check):
         unreadable = []
         problems = []
         for relative in sources:
-            path = os.path.join(repo.path, relative)
-            try:
-                with open(path, 'r', errors='replace') as f:
-                    content = f.read()
-            except OSError:
+            content = repo.read(relative)
+            if content is None:
                 continue
             if not any(
                 base in mask_comments_and_strings(content)
@@ -2574,10 +2553,12 @@ class PythonVersionTargeting(Check):
         if not repo.props['has_pyproject_toml']:
             return self.skip('No pyproject.toml (not a Python package)')
 
+        content = repo.read('pyproject.toml')
+        if content is None:
+            return self.skip('No pyproject.toml (not a Python package)')
         try:
-            with open(os.path.join(repo.path, 'pyproject.toml'), 'rb') as f:
-                data = tomllib.load(f)
-        except (tomllib.TOMLDecodeError, OSError) as e:
+            data = tomllib.loads(content)
+        except tomllib.TOMLDecodeError as e:
             return self.fail(f'Could not parse pyproject.toml: {e}')
 
         # A pyproject.toml holding only [tool.*] sections configures
@@ -2604,12 +2585,11 @@ class PythonVersionTargeting(Check):
                 'package claims to support every interpreter and pip '
                 'has nothing to refuse an install with')
 
-        renovate = os.path.join(repo.path, 'renovate.json')
-        if os.path.exists(renovate):
+        renovate = repo.read('renovate.json')
+        if renovate is not None:
             try:
-                with open(renovate, 'r', errors='replace') as f:
-                    config = json.load(f)
-            except (json.JSONDecodeError, OSError):
+                config = json.loads(renovate)
+            except json.JSONDecodeError:
                 config = {}
             # Guarded rather than assumed: renovate.json's top level can
             # be any JSON value, and calling .get() on the array one
@@ -2660,7 +2640,7 @@ class RustUnwrapLint(Check):
         if not repo.props['has_cargo_toml']:
             return self.skip('No Cargo.toml (not a Rust project)')
 
-        if repo.exists('Cargo.toml'):
+        if repo.isfile('Cargo.toml'):
             root_manifest = 'Cargo.toml'
         else:
             root_manifest = 'src/Cargo.toml'
@@ -2672,10 +2652,9 @@ class RustUnwrapLint(Check):
 
         issues = []
 
-        with open(
-            os.path.join(repo.path, root_manifest), 'r', errors='replace'
-        ) as f:
-            root_content = f.read()
+        root_content = repo.read(root_manifest)
+        if root_content is None:
+            return self.skip('No Cargo.toml (not a Rust project)')
         if not (
             toml_section_has_key(
                 root_content, 'workspace.lints.clippy', lint_pattern
@@ -2691,7 +2670,7 @@ class RustUnwrapLint(Check):
 
         clippy_toml = os.path.join(root_dir, 'clippy.toml')
         if not check_file_contains(
-            repo.path, clippy_toml,
+            repo, clippy_toml,
             r'(?m)^\s*allow-unwrap-in-tests\s*=\s*true',
         ):
             issues.append(
@@ -2753,9 +2732,9 @@ class Flake8Wrap(Check):
         if not repo.props['has_flake8wrap']:
             return self.skip('No tools/flake8wrap.sh')
 
-        filepath = os.path.join(repo.path, 'tools', 'flake8wrap.sh')
-        with open(filepath, 'r', errors='replace') as f:
-            content = f.read()
+        content = repo.read('tools/flake8wrap.sh')
+        if content is None:
+            return self.skip('No tools/flake8wrap.sh')
 
         issues = []
         if 'SC2086' not in content:

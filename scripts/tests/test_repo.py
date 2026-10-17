@@ -23,15 +23,18 @@ Run with: python3 -m unittest tests.test_repo
 """
 
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.check import Check  # noqa: E402
 from audit.github import FakeGitHub  # noqa: E402
-from audit.repo import Repo  # noqa: E402
+from audit import scope  # noqa: E402
+from audit.repo import READ_MAX_BYTES, Repo, detect_repo_properties  # noqa: E402
 from tests.base import (  # noqa: E402
     CheckTestCase, FixtureRepo, repo_file, repo_text,
 )
@@ -59,6 +62,27 @@ class RepoReadTest(unittest.TestCase):
 
     def test_an_absent_file_reads_as_none(self):
         self.assertIsNone(self.repo.read('tools/ci/helper.sh'))
+
+    def test_a_file_is_read_as_utf8_whatever_the_locale(self):
+        """The runner's locale does not decide what a file says.
+
+        A subprocess, because the locale encoding is fixed when the
+        interpreter starts: the C locale with coercion and UTF-8 mode
+        both off is the one where text mode would decode as ASCII.
+        """
+        self.fixture.write('pyproject.toml', 'name = "caf\u00e9"\n')
+        reader = ('import sys; sys.path.insert(0, sys.argv[1]); '
+                  'from audit.repo import Repo; '
+                  'print(ascii(Repo(sys.argv[2], "t", props={})'
+                  '.read("pyproject.toml")))')
+        env = dict(os.environ, LC_ALL='C', PYTHONCOERCECLOCALE='0',
+                   PYTHONUTF8='0')
+        result = subprocess.run(
+            [sys.executable, '-c', reader,
+             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+             self._tmp.name],
+            capture_output=True, text=True, env=env, check=True)
+        self.assertEqual(ascii('name = "caf\u00e9"\n'), result.stdout.strip())
 
     def test_a_directory_named_like_a_script_reads_as_none(self):
         """It exists, and opening it raises IsADirectoryError.
@@ -112,6 +136,145 @@ class RepoReadTest(unittest.TestCase):
         through = Repo(link, 'testrepo', 'shakenfist', github=FakeGitHub())
         self.assertEqual('gh issue create\n',
                          through.read('tools/ci/helper.sh'))
+
+    def outside_file(self, content='not ours\n'):
+        path = os.path.join(self._outside.name, 'outside.txt')
+        with open(path, 'w') as f:
+            f.write(content)
+        return path
+
+    def test_a_dangling_symlink_reads_as_none(self):
+        os.symlink(os.path.join(self._outside.name, 'gone'),
+                   os.path.join(self._tmp.name, 'README.md'))
+        self.assertIsNone(self.repo.read('README.md'))
+        self.assertFalse(self.repo.isfile('README.md'))
+
+    def test_a_relative_or_absolute_escape_reads_as_none(self):
+        """The path a check derives from content is the repository's.
+
+        A workflow naming `../x`, or a pyproject.toml entry point whose
+        dotted name becomes `//etc/x.py`, is joined onto the checkout
+        and lands outside it; os.path.join takes the second as
+        absolute.
+        """
+        outside = self.outside_file()
+        self.assertIsNone(self.repo.read(os.path.relpath(
+            outside, self._tmp.name)))
+        self.assertIsNone(self.repo.read(outside))
+
+    def test_a_file_at_the_cap_is_read_and_one_past_it_is_not(self):
+        """Declined rather than truncated: a prefix is a wrong verdict."""
+        self.fixture.write('at.txt', 'x' * READ_MAX_BYTES)
+        self.fixture.write('over.txt', 'x' * (READ_MAX_BYTES + 1))
+        self.assertEqual(READ_MAX_BYTES, len(self.repo.read('at.txt')))
+        self.assertIsNone(self.repo.read('over.txt'))
+
+    def test_the_cap_counts_bytes_rather_than_characters(self):
+        """A multi-byte character is more than one byte of the cap."""
+        self.fixture.write('wide.txt', '\u00e9' * (READ_MAX_BYTES // 2 + 1))
+        self.assertIsNone(self.repo.read('wide.txt'))
+
+    def test_a_link_to_a_device_reads_as_none(self):
+        """README.md -> /dev/zero is a read that never ends.
+
+        A device is not a regular file, so isfile() refuses it before a
+        byte is read, and it is outside the checkout in any case. The
+        cap is the guard for the case neither catches.
+        """
+        if not os.path.exists('/dev/zero'):
+            self.skipTest('no /dev/zero here')
+        os.symlink('/dev/zero', os.path.join(self._tmp.name, 'README.md'))
+        self.assertIsNone(self.repo.read('README.md'))
+
+    def test_a_fifo_in_the_checkout_is_never_opened(self):
+        """isfile() is checked before open(), not left to open() to fail.
+
+        A dangling link and a directory both make open() raise, and a
+        raise is caught, so either order would read them as None. A
+        FIFO does not raise: opening one blocks until something writes
+        to it, which in a scheduled audit is never. git cannot commit
+        one, but a check should not need that to be true.
+        """
+        if not hasattr(os, 'mkfifo'):
+            self.skipTest('no FIFOs here')
+        os.mkfifo(os.path.join(self._tmp.name, 'README.md'))
+        with mock.patch('builtins.open', side_effect=AssertionError(
+                'opened a FIFO')):
+            self.assertIsNone(self.repo.read('README.md'))
+
+    def test_newlines_are_translated_as_text_mode_would(self):
+        """The bytes are read for the cap and decoded like open() would."""
+        with open(os.path.join(self._tmp.name, 'crlf.txt'), 'wb') as f:
+            f.write(b'one\r\ntwo\rthree\n')
+        self.assertEqual('one\ntwo\nthree\n', self.repo.read('crlf.txt'))
+
+    def test_exists_does_not_follow_a_link_out_of_the_checkout(self):
+        """Presence is a question about the clone too."""
+        os.symlink(self._outside.name, os.path.join(self._tmp.name, '.claude'))
+        self.assertFalse(self.repo.exists('.claude'))
+        os.makedirs(os.path.join(self._tmp.name, 'docs'))
+        self.assertTrue(self.repo.exists('docs'))
+
+    def test_a_directory_named_like_a_file_is_not_a_file(self):
+        os.makedirs(os.path.join(self._tmp.name, 'AGENTS.md'))
+        self.assertTrue(self.repo.exists('AGENTS.md'))
+        self.assertFalse(self.repo.isfile('AGENTS.md'))
+
+    def test_workflows_lists_only_what_workflow_reads(self):
+        directory = os.path.join(self._tmp.name, '.github', 'workflows')
+        self.fixture.write('.github/workflows/ci.yml', 'on: push\n')
+        os.symlink(os.path.join(self._outside.name, 'gone.yml'),
+                   os.path.join(directory, 'dangling.yml'))
+        os.symlink(self.outside_file(),
+                   os.path.join(directory, 'leak.yml'))
+        os.makedirs(os.path.join(directory, 'folder.yml'))
+        self.assertEqual(['ci.yml'], self.repo.workflows())
+
+    def test_a_workflows_directory_out_of_the_checkout_lists_nothing(self):
+        """Its names would be another directory's names, quoted as ours."""
+        elsewhere = os.path.join(self._outside.name, 'workflows')
+        os.makedirs(elsewhere)
+        with open(os.path.join(elsewhere, 'ci.yml'), 'w') as f:
+            f.write('on: push\n')
+        os.makedirs(os.path.join(self._tmp.name, '.github'))
+        os.symlink(elsewhere,
+                   os.path.join(self._tmp.name, '.github', 'workflows'))
+        self.assertEqual([], self.repo.workflows())
+
+    def test_properties_do_not_follow_a_link_out_of_the_checkout(self):
+        """A property may not say a file is there that every read refuses."""
+        os.symlink(self.outside_file('[project]\n'),
+                   os.path.join(self._tmp.name, 'pyproject.toml'))
+        self.assertFalse(
+            detect_repo_properties(self._tmp.name, 'testrepo')[
+                'has_pyproject_toml'])
+
+
+class ScopeReadTest(unittest.TestCase):
+    """audit.scope parses the checkout under audit through the same guard."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self._outside = tempfile.TemporaryDirectory()
+        self.addCleanup(self._outside.cleanup)
+
+    def test_a_scope_document_linked_out_of_the_checkout_is_not_read(self):
+        target = os.path.join(self._outside.name, 'README.md')
+        with open(target, 'w') as f:
+            f.write('not ours\n')
+        os.makedirs(os.path.join(self._tmp.name, 'docs', 'audits'))
+        os.symlink(target, os.path.join(
+            self._tmp.name, 'docs', 'audits', 'README.md'))
+        with self.assertRaises(OSError) as raised:
+            scope.read(self._tmp.name, 'docs/audits/README.md')
+        self.assertNotIn('not ours', str(raised.exception))
+
+    def test_a_scope_document_is_read(self):
+        os.makedirs(os.path.join(self._tmp.name, 'docs'))
+        with open(os.path.join(self._tmp.name, 'docs', 'x.md'), 'w') as f:
+            f.write('ours\n')
+        self.assertEqual('ours\n', scope.read(self._tmp.name, 'docs/x.md'))
 
 
 class ConstructedCheck(Check):

@@ -22,7 +22,7 @@ import subprocess
 
 from audit import scope
 from audit.check import Check
-from audit.files import check_file_exists, workflows_inheriting_secrets_into
+from audit.files import workflows_inheriting_secrets_into
 
 
 def evaluate_merge_queue_rules(rules):
@@ -96,12 +96,10 @@ class ExportRepoConfig(Check):
         from here on -- the same reasoning, and the same matcher, as the
         pr-auto-review.yml finding under ci-review-automation.
         """
-        if not check_file_exists(
-            repo.path, '.github/workflows/export-repo-config.yml'
-        ):
+        if not repo.isfile('.github/workflows/export-repo-config.yml'):
             return self.fail('Missing .github/workflows/export-repo-config.yml')
         inheriting = workflows_inheriting_secrets_into(
-            repo.path, 'export-repo-config.yml')
+            repo, 'export-repo-config.yml')
         if inheriting:
             return self.fail(
                 'Passing "secrets: inherit" to export-repo-config.yml: '
@@ -187,9 +185,7 @@ class GithubSecurity(Check):
             pass  # Private repos can't use CodeQL without GHAS
         elif repo.props['is_docs_only']:
             pass  # No code to scan
-        elif not check_file_exists(
-            repo.path, '.github/workflows/codeql-analysis.yml'
-        ):
+        elif not repo.isfile('.github/workflows/codeql-analysis.yml'):
             issues.append('Missing .github/workflows/codeql-analysis.yml')
 
         if security:
