@@ -101,7 +101,10 @@ jobs:
       # in the organisation and write to none of them. AUDIT_TOKEN, which
       # files issues and pushes, appears only in manage-issues and
       # update-docs: the checks here read files the audited repositories
-      # control, and run programs over them.
+      # control, and run programs over them. That split is per job, not
+      # per host: every job runs on the same persistent runners as the
+      # same user, so see docs/consistency-audits.md for what it does
+      # not cover.
       #
       # An unset secret expands to an empty string, and gh given an
       # empty GH_TOKEN falls back to whatever login the runner's user
@@ -152,9 +155,10 @@ jobs:
       # audit step names the binary in AUDIT_SKILLSAW instead. On PATH,
       # this venv's python3 would be the one audit-check.py ran under,
       # importing skillsaw's unpinned dependencies into the interpreter
-      # that holds the token. No step that touches this venv has a
-      # token in its environment, and skillsaw_errors() strips it from
-      # skillsaw's.
+      # that holds the token. This step and the version check below hold
+      # no token. The audit step does, and skillsaw_errors() strips it
+      # from skillsaw's own environment -- defence in depth rather than
+      # isolation, since skillsaw runs as the same user as its parent.
       - name: Install skillsaw
         run: |
           python3 -m venv --clear "${RUNNER_TEMP}/skillsaw-venv"
@@ -233,10 +237,11 @@ jobs:
     # whichever branch it names, so without this a branch would file
     # and close real issues fleet-wide from its own copy of the checks.
     # The audit matrix still runs on a branch, which is how to measure
-    # a change to the checks against the fleet before merging it, and
-    # that is safe because the matrix holds only the read-only token.
+    # a change to the checks against the fleet before merging it.
     # This stops a dispatch of the wrong ref, not someone determined:
-    # a branch can edit the condition out of its own copy.
+    # a branch can edit the condition out of its own copy, or name
+    # AUDIT_TOKEN in a matrix step. The trust boundary is push access
+    # to this repository.
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
     runs-on: [self-hosted, static]
     permissions:
@@ -337,6 +342,10 @@ jobs:
       contents: read
       issues: write
     steps:
+      # The report needs this checkout for its script, so a failure of
+      # checkout itself goes unreported. That costs less than an issue
+      # body inline in YAML, which nothing lints, and a checkout that
+      # fails is rare enough to accept it.
       - name: Checkout development repo
         uses: actions/checkout@v7
         with:

@@ -125,6 +125,26 @@ every repository, and `github-security` would stop checking secret
 scanning without saying so, so a token that cannot see them fails
 every leg instead.
 
+`AUDIT_READ_TOKEN` is a repository secret on this repository, and a
+fine-grained token always has an expiry date. When it lapses, every leg
+fails at "Check the read token" and `report-failure` files its issue
+pointing at the run. Mint a replacement with the permissions above and
+replace the secret, then dispatch a run of `main` to confirm it.
+
+The split is between jobs, not between hosts, and that bounds what it
+buys. Every job runs on the persistent `[self-hosted, static]`
+runners, as the same user, and only `runner.temp` is emptied between
+jobs. Code an audit leg runs -- skillsaw's unpinned dependencies, or
+anything an audited repository can steer -- could leave something in
+that user's home directory (a `.pth` file in the user site-packages,
+a `~/.gitconfig` hook) that `manage-issues` or `update-docs` then runs
+with `AUDIT_TOKEN`. Likewise skillsaw runs as the same user as
+`audit-check.py`, so taking the token out of its environment is
+defence in depth, not isolation: it could still read its parent's.
+What the split does do is keep `AUDIT_TOKEN` out of every process
+the legs start. Isolating the writing jobs properly needs runners
+nothing else uses, which is a runner change rather than a workflow one.
+
 **2. `manage-issues`** -- downloads every artifact and runs
 `scripts/audit-manage-issues.py`, which files, updates and closes issues. See
 [Issues are the work tracking](#issues-are-the-work-tracking) below.
@@ -164,11 +184,15 @@ Only a run of `main` writes anything. Dispatched on another branch
 matrix runs that branch's checks against the whole fleet and uploads
 its results as artifacts, and `manage-issues`, `update-docs` and
 `report-failure` are skipped. That is the way to measure a change to
-the checks against the fleet before merging it, and it is safe
-because the matrix holds only the read-only token. Two runs of one
-ref never overlap: the second waits for the first to finish. Runs of
-different refs do not wait for each other, so a branch run can never
-hold up or displace the scheduled run of `main`.
+the checks against the fleet before merging it. The guard catches a
+dispatch of the wrong ref, not a determined branch: the read token can
+read every private repository in the organisation, and a branch
+controls the code that runs with it, including whether it names
+`AUDIT_TOKEN` at all. The trust boundary is push access to this
+repository, as it always was. Two runs of one ref never overlap: the
+second waits for the first to finish. Runs of different refs do not
+wait for each other, so a branch run can never hold up or displace the
+scheduled run of `main`.
 
 ## Issues are the work tracking
 

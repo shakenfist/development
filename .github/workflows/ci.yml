@@ -84,7 +84,17 @@ jobs:
       group: ${{ github.workflow }}-${{ github.ref }}-audit-smoke
       cancel-in-progress: true
     steps:
+      # As in consistency-audit.yml: nothing here pushes, and skillsaw's
+      # unpinned dependencies run below.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # The same floor consistency-audit.yml asserts, for the same
+      # reason: the audit runs under the runner's python3, not a venv's.
+      - name: Check the Python floor
+        run: |
+          python3 -c 'import sys; sys.exit(sys.version_info < (3, 11) and f"python3 is {sys.version.split()[0]}; the audit needs 3.11 or later")'
 
       # Deliberately the same install as consistency-audit.yml, on the
       # same runner class. The point of this job is that the scheduled

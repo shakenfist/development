@@ -90,12 +90,30 @@ class AuditWorkflowGuardsTest(unittest.TestCase):
                     keeping.add(name)
         self.assertEqual(sorted(keeping), sorted(PUSHING_JOBS))
 
+    def test_the_smoke_job_makes_the_same_assumptions(self):
+        # ci.yml's audit-smoke exists to exercise the scheduled run's
+        # environment on a pull request, so it drops its checkout
+        # credential and asserts the same Python floor.
+        smoke = dict(workflow_job_blocks(repo_text('.github/workflows/ci.yml')))['audit-smoke']
+        checkouts = [step for step in workflow_step_blocks(smoke)
+                     if step_action(step) == 'actions/checkout']
+        self.assertTrue(checkouts)
+        for step in checkouts:
+            self.assertEqual(step_with_inputs(step).get('persist-credentials'), 'false')
+        floor = re.search(r"python3 -c 'import sys; sys\.exit\(sys\.version_info.*$",
+                          self.code(self.jobs['audit']), re.M)
+        self.assertIsNotNone(floor)
+        self.assertIn(floor.group(0), self.code(smoke))
+
     def test_skillsaw_stays_off_path(self):
         # On PATH, skillsaw's venv supplies the python3 the audit runs
         # under. The audit step names the binary in AUDIT_SKILLSAW.
+        # Named by the venv's own path: anything else is looked up on a
+        # PATH that does not hold it, and skillsaw_errors() reports a
+        # missing skillsaw as not_applicable rather than failing.
         audit = self.code(self.jobs['audit'])
         self.assertNotIn('GITHUB_PATH', audit)
-        self.assertIn('AUDIT_SKILLSAW:', audit)
+        self.assertIn('AUDIT_SKILLSAW: ${{ runner.temp }}/skillsaw-venv/bin/skillsaw', audit)
 
     def test_no_fixed_tmp_paths(self):
         # The static runners share hosts; runner.temp is per runner.
