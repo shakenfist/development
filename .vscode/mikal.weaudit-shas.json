@@ -385,6 +385,46 @@
       "sha": "4f0f4391251374a00b66c7ad711b00e32dc2ad3d",
       "date": "2026-10-14"
     },
+    "scripts/audit/checks/docs_content.py": {
+      "sha": "3fb9bf166a0132485300a5cd94c41f391b117202",
+      "date": "2026-10-07"
+    },
+    "scripts/audit/checks/github_config.py": {
+      "sha": "83169e9378c0609d61b0a62ceed3212cc91c9e11",
+      "date": "2026-09-27"
+    },
+    "scripts/audit/checks/llm_docs.py": {
+      "sha": "6c506566ac3b48505eb9615faf3930bf513f5d41",
+      "date": "2026-10-18"
+    },
+    "scripts/audit/checks/npm_dependencies.py": {
+      "sha": "01853364578a6139d3787ebfa9d09a65211bb37c",
+      "date": "2026-09-15"
+    },
+    "scripts/audit/checks/packaging.py": {
+      "sha": "3b9a60c3a218f2f698a45e2f2539b2379d48024c",
+      "date": "2026-10-16"
+    },
+    "scripts/audit/checks/plans.py": {
+      "sha": "8b9e3342a4929abb464b4fe3f9b281ede26d8046",
+      "date": "2026-10-12"
+    },
+    "scripts/audit/checks/review.py": {
+      "sha": "1daae815993a9cc05fa9269a0abca6b1e220353d",
+      "date": "2026-10-18"
+    },
+    "scripts/audit/checks/runners.py": {
+      "sha": "251b123e68715890e0d3971d77667d83acf7b138",
+      "date": "2026-10-14"
+    },
+    "scripts/audit/files.py": {
+      "sha": "d509f1bae66ca627e6bf38d487cb782fd9ef7bd4",
+      "date": "2026-10-14"
+    },
+    "scripts/audit/github.py": {
+      "sha": "511af1bdd06b13ee1b584ff8fc5dbfcc146d709b",
+      "date": "2026-10-18"
+    },
     "scripts/audit/markers.py": {
       "sha": "ef1d4a20156613830ec787fde806cbf955e9501e",
       "date": "2026-09-02"
@@ -772,6 +812,10 @@
     "tools/mermaid-lint.sh": {
       "sha": "22f14bf915f76875950bb5589212b55ab0a91db1",
       "date": "2026-09-22"
+    },
+    "tools/report-audit-failure.sh": {
+      "sha": "44d17f77b0a35be27b7368141c1bdadb9200e807",
+      "date": "2026-10-18"
     },
     "tools/review-tracking.sh": {
       "sha": "1e1eca1209a714310e8c007daa33a2a58b0b0e0b",

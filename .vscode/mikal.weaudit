@@ -851,6 +851,26 @@
     {
       "path": "scripts/check-audit-smoke.py",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/llm_docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/github.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/report-audit-failure.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
