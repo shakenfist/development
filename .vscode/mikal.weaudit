@@ -173,10 +173,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/github.py",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/issue-link-check.yml",
       "author": "mikal"
     },
@@ -425,14 +421,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/llm_docs.py",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/llm-context-lint.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/version-file-gitignore.md",
       "author": "mikal"
     },
@@ -517,15 +505,7 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_llm_docs.py",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/pin-indirect-dependencies.md",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/ci.yml",
       "author": "mikal"
     },
     {
@@ -781,10 +761,6 @@
       "author": "mikal"
     },
     {
-      "path": "tools",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_packaging.py",
       "author": "mikal"
     },
@@ -826,10 +802,6 @@
     },
     {
       "path": "templates/shared-blocks",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/consistency-audit.yml",
       "author": "mikal"
     },
     {

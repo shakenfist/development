@@ -33,17 +33,9 @@
       "sha": "63b5043da65a8228e4c56540364b6a253ef14cbe",
       "date": "2026-09-01"
     },
-    ".github/workflows/ci.yml": {
-      "sha": "19bfa0f17fa41147cd4370806ea0aab1c9faabdd",
-      "date": "2026-10-05"
-    },
     ".github/workflows/codeql-analysis.yml": {
       "sha": "975f656d8135aefe12ba2f2094d8671460ef1a8a",
       "date": "2026-10-01"
-    },
-    ".github/workflows/consistency-audit.yml": {
-      "sha": "fb5663e7f918cf6aa6a94f08dd502ad3747089b1",
-      "date": "2026-10-16"
     },
     ".github/workflows/export-repo-config.yml": {
       "sha": "b9b3936053b8685ef0ae47f656b2f35aa62ba637",
@@ -147,10 +139,6 @@
     },
     "docs/audits/llm-context-lint-ci.md": {
       "sha": "fa2365071839c7982aa34a3694d765307185af47",
-      "date": "2026-10-05"
-    },
-    "docs/audits/llm-context-lint.md": {
-      "sha": "a664dc93214726c8c45df4e4c88cbda05e78e3d1",
       "date": "2026-10-05"
     },
     "docs/audits/llm-doc-naming.md": {
@@ -349,10 +337,6 @@
       "sha": "83169e9378c0609d61b0a62ceed3212cc91c9e11",
       "date": "2026-09-27"
     },
-    "scripts/audit/checks/llm_docs.py": {
-      "sha": "b387bdbfee642d64efe45b7b27466f11adcfe9fe",
-      "date": "2026-10-05"
-    },
     "scripts/audit/checks/npm_dependencies.py": {
       "sha": "01853364578a6139d3787ebfa9d09a65211bb37c",
       "date": "2026-09-15"
@@ -372,10 +356,6 @@
     "scripts/audit/files.py": {
       "sha": "d509f1bae66ca627e6bf38d487cb782fd9ef7bd4",
       "date": "2026-10-14"
-    },
-    "scripts/audit/github.py": {
-      "sha": "5fdb28856b27d63920448d38d2d77ae30c7aa061",
-      "date": "2026-09-06"
     },
     "scripts/audit/markers.py": {
       "sha": "ef1d4a20156613830ec787fde806cbf955e9501e",
@@ -484,10 +464,6 @@
     "scripts/tests/test_issue_fix_extraction.py": {
       "sha": "84d34be6471d4e4765aeebf8197cab5849053b36",
       "date": "2026-09-22"
-    },
-    "scripts/tests/test_llm_docs.py": {
-      "sha": "870142095e324116f7cb23293f1b6cc08111bc59",
-      "date": "2026-10-05"
     },
     "scripts/tests/test_manage_issues.py": {
       "sha": "193008ee72ed77610904bf5fbc5cee665698d4a8",
