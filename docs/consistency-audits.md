@@ -21,7 +21,7 @@ A criterion exists in two places, and both have to agree.
 | Layer | Lives in | Audience |
 |-------|----------|----------|
 | Specification | `docs/audits/<check-id>.md` | Humans and agents. Why the rule exists, what is checked, what it does not cover, which template implements it, and a link to its section of the compliance page. Hand-written throughout. |
-| Check | `scripts/audit/checks/<family>.py` | The runner. A `Check` subclass returning `self.ok()`, `self.fail()` or `self.skip()` with a reason, registered in `CHECKS` in `scripts/audit/registry.py`. `scripts/audit-check.py` is the entry point that runs the schedule and prints the results. |
+| Check | `scripts/audit/checks/<family>.py` | The runner. A `Check` subclass returning `self.ok()`, `self.fail()` or `self.skip()` with a reason, or raising when it cannot measure (see [What each status means](#what-each-status-means)), registered in `CHECKS` in `scripts/audit/registry.py`. `scripts/audit-check.py` is the entry point that runs the schedule and prints the results. |
 
 The split is deliberate. The specification is where a rule explains
 itself, and it is what an agent or a person reads when they pick up an
@@ -179,22 +179,53 @@ trailing whitespace are ignored, so an unchanged result edits nothing.
 Hand edits to a body are not preserved -- anything worth saying to the
 next reader belongs in a comment.
 
+### What each status means
+
+Every result carries one of four statuses. The first three are
+verdicts about the audited repository; the fourth is a statement about
+the audit.
+
+| Status | Means | Effect on the criterion's issue |
+|--------|-------|---------------------------------|
+| `pass` | The repository meets the criterion. | Closes an open one. |
+| `fail` | The repository does not, and `details` says how. | Files one, or refreshes the open one's body. |
+| `not_applicable` | The criterion does not apply here, for the reason in `details`. | Closes an open one. |
+| `error` | The audit could not reach a verdict. | None. |
+
 A check that starts passing closes its issue. A check that becomes
 `not_applicable` closes it too: "we decided this does not apply" and
 "this now complies" are both reasons not to keep a work item open.
 
-A check that raises is reported as `error`, which is not a verdict and
-touches no issue either way: filing one would blame the audited
-repository for a bug in the audit, and closing one would read as the
-repository having fixed it. `registry.run_check()` is the boundary --
-one raising criterion costs that criterion rather than all of them for
-the repository -- and prints the traceback to the audit step's log. The
-leg then fails on its *Fail if any check raised* step, after the
-results are uploaded, so `manage-issues` still manages every other
-criterion for that repository while `report-failure` makes the bug
-visible and `update-docs` holds back the compliance page until it is
-fixed. The tests call `run()` directly and assert a verdict, so a check
-that raises still fails them.
+`error` means the audit failed rather than the repository, and it is
+not a verdict: it touches no issue either way. Filing one would blame
+the audited repository for a bug in the audit, and closing one would
+read as the repository having fixed it. A check never returns it.
+`registry.run_check()` reports it for a check that raised -- one
+raising criterion costs that criterion rather than all of them for
+the repository -- and prints the traceback to the audit step's log.
+The leg then fails on its *Fail if any check raised* step
+(`scripts/audit-raised.py`), after the results are uploaded, so
+`manage-issues` still manages every other criterion for that
+repository while `report-failure` makes the bug visible and
+`update-docs` holds back the compliance page until it is fixed.
+
+**When a check's own tooling fails, the status is `error`.** That
+covers the GitHub API returning an error, `git ls-files` failing
+(`audit.files.tracked_paths()` returning `None`), a clone failing,
+and a subprocess timing out. The check has learned nothing about the
+repository, so it has no verdict to give: it raises, and
+`run_check()` reports `error`. It does not return `self.fail()`, and
+it does not return `self.skip()`. Each of those is a claim about the
+repository. A `fail` files an issue on it, under the bot's identity,
+for an outage on our side. A `not_applicable` closes the issue it
+already has, and does so for every repository the outage reached at
+once. The line is whether the tool answered: an answer is evidence a
+verdict can rest on, including an answer that the thing asked about
+does not exist, while a failure to answer is not.
+
+The tests call `run()` directly and assert a verdict, so a check that
+raises unexpectedly still fails them. A test of a tool-failure path
+asserts that `run()` raises instead.
 
 ## Adding a criterion
 

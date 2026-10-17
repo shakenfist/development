@@ -30,6 +30,11 @@ The parts worth knowing before you start:
 - A check that does not apply must report `not_applicable` with a
   reason rather than being omitted; an omitted check renders as
   `unknown`.
+- A check whose own tooling fails (an API error, a failed
+  `git ls-files` or clone, a timeout) raises, so it reports `error`:
+  never `fail`, which files an issue for our outage, and never
+  `not_applicable`, which closes one. See *What each status means*
+  in `docs/consistency-audits.md`.
 - Always pass `--dry-run` to `audit-manage-issues.py` when running it
   by hand. Without it, it files and closes real issues fleet-wide.
 
