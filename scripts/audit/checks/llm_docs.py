@@ -15,6 +15,7 @@ import subprocess
 
 from audit.check import Check
 from audit.files import check_file_exists, file_mentions, tracked_paths
+from audit.github import environment_without_credentials
 from audit.text.markdown import iter_markdown_headings, normalise_heading
 
 
@@ -235,6 +236,15 @@ def orphan_skill_markdown(repo_path):
     return orphans
 
 
+# The skillsaw to run, named by absolute path. The audit workflow
+# installs skillsaw into a venv of its own and names it here rather than
+# putting that venv on PATH: on PATH, the venv's python3 is also the one
+# audit-check.py runs under, so skillsaw's unpinned dependencies would
+# be imported into the interpreter holding the audit's token. Unset, the
+# command is looked up on PATH, which is what a run by hand wants.
+SKILLSAW_ENV = 'AUDIT_SKILLSAW'
+
+
 def skillsaw_errors(repo_path):
     """Error-severity skillsaw violations, or None if it cannot run.
 
@@ -244,16 +254,20 @@ def skillsaw_errors(repo_path):
     spend more of our time than it saves. The error tier is the
     structural subset: invalid frontmatter, malformed manifests,
     embedded secrets, smuggled unicode.
+
+    skillsaw reads the audited repository and needs no GitHub access,
+    so it runs without the credential variables in its environment.
     """
     try:
         result = subprocess.run(
             [
-                'skillsaw', 'lint',
+                os.environ.get(SKILLSAW_ENV) or 'skillsaw', 'lint',
                 '--no-progress', '--no-custom-rules',
                 '--format', 'json',
                 repo_path,
             ],
             capture_output=True, text=True, timeout=120,
+            env=environment_without_credentials(),
         )
     except (subprocess.TimeoutExpired, FileNotFoundError):
         return None

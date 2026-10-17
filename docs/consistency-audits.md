@@ -98,7 +98,59 @@ changes.
 The skillsaw pin is deliberate, and so is the assertion next to it.
 `llm-context-lint` reports what skillsaw calls an error, and skillsaw's
 rule set moves between releases, so an unpinned upgrade would change the
-compliance page for reasons nobody chose.
+compliance page for reasons nobody chose. skillsaw's venv is its own
+and stays off `PATH`: the audit step names the binary in
+`AUDIT_SKILLSAW`, so its unpinned dependencies never load into the
+interpreter running the checks (see
+[llm-context-lint](audits/llm-context-lint.md)).
+
+The workflow holds two tokens, and the legs get the weaker one. The
+checks read files the audited repositories control, and some run
+programs over them, so the legs hold `AUDIT_READ_TOKEN`, a
+fine-grained personal access token that can read every repository in
+the organisation and write to none. `AUDIT_TOKEN`, which files and
+closes issues and pushes the compliance page, appears only in
+`manage-issues` and `update-docs`. `AUDIT_READ_TOKEN` is minted with
+the `shakenfist` organisation as its resource owner, access to all
+repositories, no organisation permissions, and these repository
+permissions, each read-only:
+
+* **Metadata** -- the repository itself (default branch, visibility),
+  its branch rules, and the organisation's repository listing.
+* **Contents** -- cloning the private repositories.
+* **Actions** -- the workflows and their runs, which
+  `scheduled-workflow-health` reads.
+* **Administration** -- `delete_branch_on_merge` and
+  `security_and_analysis`, which GitHub leaves out of the repository
+  for a caller without admin access.
+
+Each leg checks first that the read token is set -- an unset secret
+is an empty string, and `gh` with an empty `GH_TOKEN` falls back to
+whatever login the runner's user holds -- and that it can see those
+last two fields. Without them `delete-branch-on-merge` would fail
+every repository, and `github-security` would stop checking secret
+scanning without saying so, so a token that cannot see them fails
+every leg instead.
+
+`AUDIT_READ_TOKEN` is a repository secret on this repository, and a
+fine-grained token always has an expiry date. When it lapses, every leg
+fails at "Check the read token" and `report-failure` files its issue
+pointing at the run. Mint a replacement with the permissions above and
+replace the secret, then dispatch a run of `main` to confirm it.
+
+The split is between jobs, not between hosts, and that bounds what it
+buys. Every job runs on the persistent `[self-hosted, static]`
+runners, as the same user, and only `runner.temp` is emptied between
+jobs. Code an audit leg runs -- skillsaw's unpinned dependencies, or
+anything an audited repository can steer -- could leave something in
+that user's home directory (a `.pth` file in the user site-packages,
+a `~/.gitconfig` hook) that `manage-issues` or `update-docs` then runs
+with `AUDIT_TOKEN`. Likewise skillsaw runs as the same user as
+`audit-check.py`, so taking the token out of its environment is
+defence in depth, not isolation: it could still read its parent's.
+What the split does do is keep `AUDIT_TOKEN` out of every process
+the legs start. Isolating the writing jobs properly needs runners
+nothing else uses, which is a runner change rather than a workflow one.
 
 **2. `manage-issues`** -- downloads every artifact and runs
 `scripts/audit-manage-issues.py`, which files, updates and closes issues. See
@@ -122,7 +174,8 @@ The tables are therefore always a rendering of the most recent run.
 Never edit one by hand: the next run overwrites it.
 
 **4. `report-failure`** -- runs only when one of the above fails, and
-files or updates an issue labelled `audit-failure` on this repository.
+files or updates an issue labelled `audit-failure` on this repository,
+with `tools/report-audit-failure.sh`.
 
 That last job exists because this pipeline's worst failure mode is a
 quiet one. A scheduled workflow that fails emails whoever pushed last,
@@ -132,6 +185,21 @@ verdicts, so the audit looks healthy from the outside. In August 2026
 that ran for a full day; on a weekly cadence the same failure would
 last a week. Nothing retries a failed run, so the issue says how to
 start one by hand once the cause is fixed.
+
+Only a run of `main` writes anything. Dispatched on another branch
+(`gh workflow run consistency-audit.yml --ref <branch>`), the audit
+matrix runs that branch's checks against the whole fleet and uploads
+its results as artifacts, and `manage-issues`, `update-docs` and
+`report-failure` are skipped. That is the way to measure a change to
+the checks against the fleet before merging it. The guard catches a
+dispatch of the wrong ref, not a determined branch: the read token can
+read every private repository in the organisation, and a branch
+controls the code that runs with it, including whether it names
+`AUDIT_TOKEN` at all. The trust boundary is push access to this
+repository, as it always was. Two runs of one ref never overlap: the
+second waits for the first to finish. Runs of different refs do not
+wait for each other, so a branch run can never hold up or displace the
+scheduled run of `main`.
 
 ## Issues are the work tracking
 

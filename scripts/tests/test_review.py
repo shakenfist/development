@@ -470,7 +470,7 @@ class SfuiVendorTest(CheckTestCase):
         self.assertFalse(os.path.exists(marker))
 
     def test_canonical_tooling_sees_no_github_credential(self):
-        # The audit step holds AUDIT_TOKEN. The stand-in vendor.sh exits
+        # The audit step holds a GitHub token. The stand-in vendor.sh exits
         # non-zero if either variable reaches it, which would read as an
         # edited copy.
         tmp = self.tempdir()

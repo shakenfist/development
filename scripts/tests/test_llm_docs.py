@@ -17,6 +17,7 @@ import os
 import sys
 import tempfile
 import unittest
+import unittest.mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -256,6 +257,52 @@ class OrphanSkillMarkdownTest(CheckTestCase):
         finally:
             llm_docs.skillsaw_errors = original
         self.assert_skip(result)
+
+
+class SkillsawInvocationTest(CheckTestCase):
+    """Which skillsaw the check runs, and what reaches its environment."""
+
+    check_class = llm_docs.LlmContextLint
+
+    # Reports one error violation, whose rule says whether a GitHub
+    # credential reached it. A real skillsaw would have to be installed,
+    # and could not tell the test what it saw.
+    STAND_IN = (
+        'import json\n'
+        'import os\n'
+        'seen = [n for n in ("GH_TOKEN", "GITHUB_TOKEN") if n in os.environ]\n'
+        'rule = "credential-seen" if seen else "stand-in-ran"\n'
+        'print(json.dumps({"violations": [\n'
+        '    {"severity": "error", "rule_id": rule, "file_path": "CLAUDE.md"}]}))\n'
+    )
+
+    def setUp(self):
+        super().setUp()
+        self.fixture.write('CLAUDE.md', '# Context\n')
+        self.stand_in = os.path.join(self.tempdir(), 'skillsaw')
+        with open(self.stand_in, 'w') as f:
+            f.write(f'#!{sys.executable}\n{self.STAND_IN}')
+        os.chmod(self.stand_in, 0o755)
+
+    def test_runs_the_skillsaw_the_workflow_names(self):
+        # The workflow keeps skillsaw's venv off PATH, so the check has
+        # to run the binary AUDIT_SKILLSAW names rather than look one
+        # up. An empty PATH makes a lookup find nothing.
+        with unittest.mock.patch.dict(os.environ, {
+                llm_docs.SKILLSAW_ENV: self.stand_in,
+                'PATH': self.tempdir()}):
+            result = self.check()
+        self.assert_fail(result, containing='stand-in-ran')
+
+    def test_skillsaw_sees_no_github_credential(self):
+        # The audit step holds a token, and skillsaw and its unpinned
+        # dependencies have no use for it.
+        with unittest.mock.patch.dict(os.environ, {
+                llm_docs.SKILLSAW_ENV: self.stand_in,
+                'GH_TOKEN': 'audit-token', 'GITHUB_TOKEN': 'job-token'}):
+            result = self.check()
+        self.assert_fail(result, containing='stand-in-ran')
+        self.assertNotIn('credential-seen', result['details'])
 
 
 class LlmContextLintCiTest(CheckTestCase):

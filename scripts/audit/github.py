@@ -21,10 +21,27 @@ already handle `returncode`, `stdout`, `stderr`, `TimeoutExpired` and
 rewriting them at the same time as moving them.
 """
 
+import os
 import subprocess
 
 
 DEFAULT_TIMEOUT = 30
+
+
+# Variables that hand a GitHub credential to a child process. The audit
+# step holds a GitHub token, and some checks run another program over
+# the audited repository or out of another one -- skillsaw, sfui's
+# tools/vendor.sh -- which needs no credential and must not inherit
+# one. Only `gh` itself, through GhCli, is meant to see the token.
+CREDENTIAL_ENV = ('GH_TOKEN', 'GITHUB_TOKEN')
+
+
+def environment_without_credentials():
+    """os.environ with every CREDENTIAL_ENV variable removed."""
+    return {
+        name: value for name, value in os.environ.items()
+        if name not in CREDENTIAL_ENV
+    }
 
 
 class CompletedCommand:

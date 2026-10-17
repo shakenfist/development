@@ -54,11 +54,13 @@ jobs:
       - uses: actions/checkout@v7
 
       # A venv for the same reason consistency-audit.yml uses one: the
-      # runners enforce PEP 668 and refuse a bare install.
+      # runners enforce PEP 668 and refuse a bare install. Under
+      # runner.temp, with --clear, for the reason it gives as well: a
+      # fixed /tmp path is shared with every other job on the host.
       - name: Install pre-commit
         run: |
-          python3 -m venv /tmp/venv-lint
-          /tmp/venv-lint/bin/pip install --quiet --disable-pip-version-check \
+          python3 -m venv --clear "${RUNNER_TEMP}/venv-lint"
+          "${RUNNER_TEMP}/venv-lint/bin/pip" install --quiet --disable-pip-version-check \
               pre-commit
 
       # This is the whole gate, and it was already the whole gate --
@@ -67,12 +69,12 @@ jobs:
       # it other than whoever remembers to.
       - name: Run pre-commit hooks
         run: |
-          /tmp/venv-lint/bin/pre-commit run --all-files \
+          "${RUNNER_TEMP}/venv-lint/bin/pre-commit" run --all-files \
               --show-diff-on-failure
 
       - name: Clean up
         if: always()
-        run: rm -rf /tmp/venv-lint
+        run: rm -rf "${RUNNER_TEMP}/venv-lint"
 
   audit-smoke:
     name: Audit smoke run
@@ -82,7 +84,17 @@ jobs:
       group: ${{ github.workflow }}-${{ github.ref }}-audit-smoke
       cancel-in-progress: true
     steps:
+      # As in consistency-audit.yml: nothing here pushes, and skillsaw's
+      # unpinned dependencies run below.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # The same floor consistency-audit.yml asserts, for the same
+      # reason: the audit runs under the runner's python3, not a venv's.
+      - name: Check the Python floor
+        run: |
+          python3 -c 'import sys; sys.exit(sys.version_info < (3, 11) and f"python3 is {sys.version.split()[0]}; the audit needs 3.11 or later")'
 
       # Deliberately the same install as consistency-audit.yml, on the
       # same runner class. The point of this job is that the scheduled
@@ -93,12 +105,9 @@ jobs:
       # comment is the thing that goes stale without anything noticing.
       - name: Install skillsaw
         run: |
-          python3 -m venv /tmp/audit-venv
-          /tmp/audit-venv/bin/pip install --disable-pip-version-check \
+          python3 -m venv --clear "${RUNNER_TEMP}/skillsaw-venv"
+          "${RUNNER_TEMP}/skillsaw-venv/bin/pip" install --disable-pip-version-check \
               skillsaw==0.18.0
-
-      - name: Put skillsaw on PATH
-        run: echo "/tmp/audit-venv/bin" >> "${GITHUB_PATH}"
 
       # Audits this repository against itself. The verdicts are not the
       # point and are not asserted here. development is audited for
@@ -117,7 +126,9 @@ jobs:
             --repo-path . \
             --repo-name development \
             --github-org shakenfist \
-            > /tmp/audit-smoke.json
+            > "${RUNNER_TEMP}/audit-smoke.json"
+        env:
+          AUDIT_SKILLSAW: ${{ runner.temp }}/skillsaw-venv/bin/skillsaw
 
       # The load-bearing assertion. skillsaw_errors() returns None when
       # skillsaw cannot run, and check_llm_context_lint turns that into
@@ -127,11 +138,11 @@ jobs:
       # reached a verdict is what makes this job a detector rather than
       # a smoke test that happens to pass.
       - name: Check the audit actually measured
-        run: python3 scripts/check-audit-smoke.py /tmp/audit-smoke.json
+        run: python3 scripts/check-audit-smoke.py "${RUNNER_TEMP}/audit-smoke.json"
 
       - name: Clean up
         if: always()
-        run: rm -rf /tmp/audit-venv /tmp/audit-smoke.json
+        run: rm -rf "${RUNNER_TEMP}/skillsaw-venv" "${RUNNER_TEMP}/audit-smoke.json"
 
   # The automatic review, gated on both jobs above passing: a job that
   # is skipped because a dependency failed never starts the reusable

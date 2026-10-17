@@ -16,6 +16,24 @@ on:
 
 permissions: {}
 
+# One run at a time per ref. Two runs of main that overlapped would
+# each file the issues the other was about to, and race each other's
+# compliance page pushes. cancel-in-progress is off, so a run that has
+# started is never killed part way through managing issues: a later
+# one waits for it instead. GitHub keeps one waiting run per group, so
+# if several are queued the newest replaces the others before they
+# start.
+#
+# Per ref rather than one group for everything, because that last rule
+# would otherwise let a branch dispatch replace a scheduled run of main
+# waiting behind an earlier branch run. A cancelled run is not a failed
+# one, so report-failure would not fire and the week's audit would be
+# lost without a word. Branch runs write nothing (see manage-issues), so
+# they have nothing to race main for.
+concurrency:
+  group: consistency-audit-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   audit:
     name: Audit ${{ matrix.repo }}
@@ -65,14 +83,60 @@ jobs:
           - uncalibrated-sextant
           - visual-digest-rust
     steps:
+      # No credential left in .git/config. Nothing in this job pushes,
+      # and its later steps run code over another repository's files.
       - name: Checkout development repo
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
+      # The checks parse TOML with tomllib, which arrived in Python 3.11.
+      # On an older runner that is an ImportError part way into the
+      # audit step; this says what is wrong before anything runs.
+      - name: Check the Python floor
+        run: |
+          python3 -c 'import sys; sys.exit(sys.version_info < (3, 11) and f"python3 is {sys.version.split()[0]}; the audit needs 3.11 or later")'
+
+      # The legs hold AUDIT_READ_TOKEN, which can read every repository
+      # in the organisation and write to none of them. AUDIT_TOKEN, which
+      # files issues and pushes, appears only in manage-issues and
+      # update-docs: the checks here read files the audited repositories
+      # control, and run programs over them. That split is per job, not
+      # per host: every job runs on the same persistent runners as the
+      # same user, so see docs/consistency-audits.md for what it does
+      # not cover.
+      #
+      # An unset secret expands to an empty string, and gh given an
+      # empty GH_TOKEN falls back to whatever login the runner's user
+      # holds, so test for it rather than let that decide what is
+      # measured. Then check the token can see the two repository fields
+      # GitHub hides from callers without admin access: without them
+      # delete-branch-on-merge would fail every repository, and
+      # github-security would stop checking secret scanning without
+      # saying so.
+      - name: Check the read token
+        env:
+          GH_TOKEN: ${{ secrets.AUDIT_READ_TOKEN }}
+        run: |
+          test -n "${GH_TOKEN}" || { echo '::error::AUDIT_READ_TOKEN is not set'; exit 1; }
+          # A fine-grained token expires, and under bash -e a refused
+          # call would end the step with gh's own error and not this one.
+          visible=$(gh api "repos/${GITHUB_REPOSITORY}" \
+              --jq '.delete_branch_on_merge != null and .security_and_analysis != null') \
+              || { echo '::error::AUDIT_READ_TOKEN was refused by the API (expired or revoked?)'; exit 1; }
+          [ "${visible}" = true ] || { echo '::error::AUDIT_READ_TOKEN cannot see repository settings'; exit 1; }
+
+      # Every path this job writes is under runner.temp, which belongs
+      # to this runner and is emptied between jobs. The static runners
+      # share hosts, and a fixed /tmp path is shared by every leg and
+      # every other job on one: a leg's clean-up could remove another
+      # leg's clone mid-audit, and a venv an earlier job left behind
+      # would run its code in an interpreter holding the token.
       - name: Clone target repo
         run: |
-          gh repo clone shakenfist/${{ matrix.repo }} /tmp/audit-target -- --depth 1
+          gh repo clone "shakenfist/${{ matrix.repo }}" "${RUNNER_TEMP}/audit-target" -- --depth 1
         env:
-          GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUDIT_READ_TOKEN }}
 
       # Pinned deliberately. The llm-context-lint check reports what
       # skillsaw calls an error, and skillsaw's rule set moves between
@@ -83,17 +147,23 @@ jobs:
       # so a bare `pip install` is refused with
       # "error: externally-managed-environment" -- which is how every
       # leg of this matrix started failing on 2026-08-20, taking the
-      # compliance page and issue filing with it.
+      # compliance page and issue filing with it. --clear because a
+      # .pth file left in a venv survives a second `python3 -m venv`
+      # over the top of it.
+      #
+      # And a venv of skillsaw's own, which goes nowhere near PATH: the
+      # audit step names the binary in AUDIT_SKILLSAW instead. On PATH,
+      # this venv's python3 would be the one audit-check.py ran under,
+      # importing skillsaw's unpinned dependencies into the interpreter
+      # that holds the token. This step and the version check below hold
+      # no token. The audit step does, and skillsaw_errors() strips it
+      # from skillsaw's own environment -- defence in depth rather than
+      # isolation, since skillsaw runs as the same user as its parent.
       - name: Install skillsaw
         run: |
-          python3 -m venv /tmp/audit-venv
-          /tmp/audit-venv/bin/pip install --disable-pip-version-check \
+          python3 -m venv --clear "${RUNNER_TEMP}/skillsaw-venv"
+          "${RUNNER_TEMP}/skillsaw-venv/bin/pip" install --disable-pip-version-check \
               skillsaw==0.18.0
-
-      # audit-check.py invokes skillsaw by name, so the venv has to be
-      # on PATH by the time the audit step runs.
-      - name: Put skillsaw on PATH
-        run: echo "/tmp/audit-venv/bin" >> "${GITHUB_PATH}"
 
       # A skillsaw that cannot run does not fail the audit:
       # skillsaw_errors() catches FileNotFoundError and returns None,
@@ -107,26 +177,27 @@ jobs:
       - name: Check skillsaw runs, at the pinned version
         run: |
           set -e
-          echo "skillsaw reports: $(skillsaw --version)"
-          skillsaw --version | grep -qx 'skillsaw 0.18.0'
+          echo "skillsaw reports: $("${RUNNER_TEMP}/skillsaw-venv/bin/skillsaw" --version)"
+          "${RUNNER_TEMP}/skillsaw-venv/bin/skillsaw" --version | grep -qx 'skillsaw 0.18.0'
 
       - name: Run audit checks
         id: audit
         run: |
           python3 scripts/audit-check.py \
-            --repo-path /tmp/audit-target \
-            --repo-name ${{ matrix.repo }} \
+            --repo-path "${RUNNER_TEMP}/audit-target" \
+            --repo-name "${{ matrix.repo }}" \
             --github-org shakenfist \
-            > /tmp/audit-result-${{ matrix.repo }}.json
-          cat /tmp/audit-result-${{ matrix.repo }}.json
+            > "${RUNNER_TEMP}/audit-result-${{ matrix.repo }}.json"
+          cat "${RUNNER_TEMP}/audit-result-${{ matrix.repo }}.json"
         env:
-          GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUDIT_READ_TOKEN }}
+          AUDIT_SKILLSAW: ${{ runner.temp }}/skillsaw-venv/bin/skillsaw
 
       - name: Upload audit results
         uses: actions/upload-artifact@v7
         with:
           name: audit-${{ matrix.repo }}
-          path: /tmp/audit-result-${{ matrix.repo }}.json
+          path: ${{ runner.temp }}/audit-result-${{ matrix.repo }}.json
           retention-days: 30
 
       # A check that raised is reported as `error` rather than taking
@@ -136,12 +207,14 @@ jobs:
       # with a hole in it -- while manage-issues still gets this
       # repository's artifact and manages every other criterion.
       - name: Fail if any check raised
-        run: python3 scripts/audit-raised.py /tmp/audit-result-${{ matrix.repo }}.json
+        run: python3 scripts/audit-raised.py "${RUNNER_TEMP}/audit-result-${{ matrix.repo }}.json"
 
+      # This leg's paths and nothing else's.
       - name: Clean up
         if: always()
         run: |
-          rm -rf /tmp/audit-target /tmp/audit-result-*.json /tmp/audit-venv
+          rm -rf "${RUNNER_TEMP}/audit-target" "${RUNNER_TEMP}/skillsaw-venv" \
+              "${RUNNER_TEMP}/audit-result-${{ matrix.repo }}.json"
 
   manage-issues:
     name: Manage consistency issues
@@ -154,17 +227,32 @@ jobs:
     # finds, so a repository with no artifact is not processed at all
     # -- its open issues are left alone rather than closed as passing.
     #
-    # !cancelled() rather than always(): a run somebody stopped, or
-    # one superseded by a newer dispatch, should not go on to file
-    # and close issues across the fleet from whichever artifacts
-    # happened to land before it was killed.
-    if: ${{ !cancelled() }}
+    # !cancelled() rather than always(): a run somebody stopped
+    # should not go on to file and close issues across the fleet from
+    # whichever artifacts happened to land before it was killed. A
+    # newer run of main cannot supersede this one part way through: the
+    # concurrency group above makes it wait.
+    #
+    # And only from main. A dispatch runs the workflow and scripts of
+    # whichever branch it names, so without this a branch would file
+    # and close real issues fleet-wide from its own copy of the checks.
+    # The audit matrix still runs on a branch, which is how to measure
+    # a change to the checks against the fleet before merging it.
+    # This stops a dispatch of the wrong ref, not someone determined:
+    # a branch can edit the condition out of its own copy, or name
+    # AUDIT_TOKEN in a matrix step. The trust boundary is push access
+    # to this repository.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
     runs-on: [self-hosted, static]
     permissions:
       contents: read
     steps:
+      # This job does not push either; update-docs below does, so its
+      # checkout keeps the credential.
       - name: Checkout development repo
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Download all audit results
         uses: actions/download-artifact@v8
@@ -199,7 +287,11 @@ jobs:
     # `unknown` (AGENTS.md), and would be committed to main that way
     # -- replacing good verdicts with unknowns is worse than the
     # stale page report-failure already warns about.
+    #
+    # Only from main, as for manage-issues: a branch's page would
+    # otherwise be pushed to main.
     needs: [audit, manage-issues]
+    if: github.ref == 'refs/heads/main'
     runs-on: [self-hosted, static]
     permissions:
       contents: write
@@ -210,14 +302,14 @@ jobs:
       - name: Download all audit results
         uses: actions/download-artifact@v8
         with:
-          path: /tmp/consistency-audit-results
+          path: ${{ runner.temp }}/consistency-audit-results
           pattern: audit-*
           merge-multiple: true
 
       - name: Regenerate the audit compliance page
         run: |
           python3 scripts/audit-update-docs.py \
-            --results-dir /tmp/consistency-audit-results
+            --results-dir "${RUNNER_TEMP}/consistency-audit-results"
         env:
           GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
 
@@ -226,7 +318,7 @@ jobs:
 
       - name: Clean up
         if: always()
-        run: rm -rf /tmp/consistency-audit-results
+        run: rm -rf "${RUNNER_TEMP}/consistency-audit-results"
 
   # A scheduled workflow that fails emails whoever last pushed, which
   # is nobody's inbox in particular and is easy to miss for a workflow
@@ -236,16 +328,29 @@ jobs:
   # verdicts -- so the audit looked like it was working. This puts a
   # failure somewhere it will be seen, and updates one issue rather than
   # filing a fresh one on every run an outage continues.
+  #
+  # Only from main as well. A branch run that fails is being watched by
+  # whoever dispatched it, and is not the scheduled audit the issue
+  # says is failing.
   report-failure:
     name: Report audit failure
     needs: [audit, manage-issues, update-docs]
-    if: failure()
+    if: ${{ failure() && github.ref == 'refs/heads/main' }}
     runs-on: [self-hosted, static]
     timeout-minutes: 10
     permissions:
       contents: read
       issues: write
     steps:
+      # The report needs this checkout for its script, so a failure of
+      # checkout itself goes unreported. That costs less than an issue
+      # body inline in YAML, which nothing lints, and a checkout that
+      # fails is rare enough to accept it.
+      - name: Checkout development repo
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
       # gh issue create fails outright if the label does not exist, so
       # the report would be lost at exactly the moment it is wanted.
       # --force makes this idempotent.
@@ -262,42 +367,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          set -e
-          existing=$(gh issue list --repo "${GITHUB_REPOSITORY}" \
-              --label audit-failure --state open --limit 1 --json number \
-              --jq '.[0].number // empty')
-
-          # printf rather than a multi-line quoted string: the latter
-          # carries this file's indentation into every continuation
-          # line, and four leading spaces make GitHub-flavoured Markdown
-          # render the whole body as a code block.
-          body=$(printf '%s\n' \
-              "The scheduled consistency audit failed." \
-              "" \
-              "Run: ${RUN_URL}" \
-              "" \
-              "While this is failing no compliance page is being" \
-              "regenerated and no consistency issues are being filed or" \
-              "closed, across every audited repository. The tables still" \
-              "show the previous run's verdicts, so the audit looks" \
-              "healthy from the outside -- check the run before trusting" \
-              "anything in docs/audits/." \
-              "" \
-              "The audit runs weekly and nothing retries it, so a failure" \
-              "lasts until the next Sunday unless someone acts. Once the" \
-              "cause is fixed, start a run by hand with" \
-              "\`gh workflow run consistency-audit.yml --repo ${GITHUB_REPOSITORY}\`" \
-              "and close this issue once that run passes.")
-
-          if [ -n "${existing}" ]; then
-              echo "Commenting on existing audit failure issue #${existing}."
-              gh issue comment "${existing}" \
-                  --repo "${GITHUB_REPOSITORY}" --body "${body}"
-          else
-              echo "Filing a new audit failure issue."
-              gh issue create --repo "${GITHUB_REPOSITORY}" \
-                  --title "Scheduled consistency audit is failing" \
-                  --label audit-failure \
-                  --body "${body}"
-          fi
+        run: tools/report-audit-failure.sh
