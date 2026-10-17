@@ -11,15 +11,22 @@ test_metadata.py loads audit-update-docs.py.
 Run with: python3 scripts/tests/test_manage_issues.py
 """
 
+import contextlib
 import importlib.util
+import io
 import os
 import re
 import sys
+import types
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import audit_common  # noqa: E402
+from audit_common import ISSUE_TITLES  # noqa: E402
 from tests.base import REPO_ROOT  # noqa: E402
+from tests.fake_issues import FakeIssueTracker, SubprocessAdapter  # noqa: E402
 
 
 def _manage_issues():
@@ -297,6 +304,181 @@ class ItemDefusingTest(unittest.TestCase):
         for line in body.splitlines():
             if 'Not a real heading' in line:
                 self.assertTrue(line.startswith('- '), line)
+
+
+REPO = 'shakenfist/testrepo'
+
+
+def title_for(check_id):
+    return f'Consistency: {ISSUE_TITLES[check_id]}'
+
+
+def check_for(title):
+    """The check whose issue carries `title`; titles are unique."""
+    return next(check_id for check_id in ISSUE_TITLES
+                if title_for(check_id) == title)
+
+
+def title_families():
+    """Issue titles that are a prefix of another, with all they prefix.
+
+    Matching an issue to its check by anything looser than the exact
+    title closes or rewrites a sibling's issue in every one of these.
+    Derived rather than listed, so a criterion joining a family is
+    covered without anybody remembering to add it here.
+    """
+    titles = sorted(title_for(check_id) for check_id in ISSUE_TITLES)
+    families = {}
+    for title in titles:
+        members = [other for other in titles if other.startswith(title)]
+        if len(members) > 1:
+            families[title] = members
+    return families
+
+
+class IssueLifecycleCase(unittest.TestCase):
+    """Run process_results against a fake tracker and see what it did."""
+
+    def setUp(self):
+        self.module = _manage_issues()
+        self.module.time = types.SimpleNamespace(sleep=lambda seconds: None)
+        self.out = self.enterContext(contextlib.redirect_stdout(io.StringIO()))
+        self.err = self.enterContext(contextlib.redirect_stderr(io.StringIO()))
+        self.tracker = self.fresh_tracker()
+
+    def fresh_tracker(self, fail=()):
+        tracker = FakeIssueTracker(fail=fail)
+        adapter = SubprocessAdapter(tracker)
+        self.module.subprocess = adapter
+        self.enterContext(mock.patch.object(audit_common, 'subprocess', adapter))
+        audit_common._CANONICAL_CACHE.clear()
+        self.addCleanup(audit_common._CANONICAL_CACHE.clear)
+        return tracker
+
+    def process(self, *checks, dry_run=False):
+        """Process (check id, status) pairs as one repository's results."""
+        return self.module.process_results({
+            'org': 'shakenfist', 'repo': 'testrepo',
+            'summary': {'pass': 0, 'fail': 0, 'not_applicable': 0},
+            'checks': [{'id': check_id, 'status': status, 'details': 'found'}
+                       for check_id, status in checks],
+        }, dry_run=dry_run)
+
+    def body(self, check_id):
+        return self.module.build_issue_body(
+            check_id, {'id': check_id, 'status': 'fail', 'details': 'found'})
+
+    def written(self, operation):
+        return [write[2] for write in self.tracker.writes
+                if write[0] == operation]
+
+
+class IssueLifecycleTest(IssueLifecycleCase):
+    """What a verdict does to the issues of the repository it is about.
+
+    The rest of this file tests the body. These test the lifecycle --
+    which verdict files an issue, which closes one, and which issue it
+    is -- which is the part that touches every repository in the fleet
+    on every scheduled run.
+    """
+
+    def test_a_failure_with_no_open_issue_files_one(self):
+        self.process(('eol-distro', 'fail'))
+        self.assertEqual(self.written('create'), [title_for('eol-distro')])
+        filed = self.tracker.issues[0]
+        self.assertEqual(filed['labels'], ['consistency'])
+        self.assertEqual(filed['body'], self.body('eol-distro'))
+
+    def test_a_failure_with_its_issue_open_files_no_second(self):
+        self.tracker.add(REPO, title_for('eol-distro'), self.body('eol-distro'))
+        self.process(('eol-distro', 'fail'))
+        self.assertEqual(self.tracker.writes, [])
+
+    def test_a_closed_issue_does_not_count_as_open(self):
+        self.tracker.add(REPO, title_for('eol-distro'), state='closed')
+        self.process(('eol-distro', 'fail'))
+        self.assertEqual(self.written('create'), [title_for('eol-distro')])
+
+    def test_a_pass_closes_every_open_issue_for_its_title(self):
+        first = self.tracker.add(REPO, title_for('eol-distro'))
+        second = self.tracker.add(REPO, title_for('eol-distro'))
+        self.process(('eol-distro', 'pass'))
+        self.assertEqual(sorted(self.written('close')), [first, second])
+        self.assertEqual(self.tracker.open_titles(REPO), [])
+        self.assertEqual(sorted(self.written('comment')), [first, second])
+
+    def test_not_applicable_closes_them_too(self):
+        first = self.tracker.add(REPO, title_for('eol-distro'))
+        second = self.tracker.add(REPO, title_for('eol-distro'))
+        self.process(('eol-distro', 'not_applicable'))
+        self.assertEqual(sorted(self.written('close')), [first, second])
+        self.assertEqual(self.tracker.open_titles(REPO), [])
+
+    def test_a_pass_with_nothing_open_writes_nothing(self):
+        self.process(('eol-distro', 'pass'), ('renovate', 'not_applicable'))
+        self.assertEqual(self.tracker.writes, [])
+
+    def test_another_repository_s_issue_is_not_touched(self):
+        self.tracker.add('shakenfist/other', title_for('eol-distro'))
+        self.process(('eol-distro', 'pass'))
+        self.assertEqual(self.tracker.writes, [])
+
+    def test_a_dry_run_creates_and_closes_nothing(self):
+        self.tracker.add(REPO, title_for('eol-distro'))
+        self.tracker.add(REPO, title_for('renovate'), 'stale body')
+        self.process(('eol-distro', 'pass'), ('renovate', 'fail'),
+                     ('sfui-vendor', 'fail'), dry_run=True)
+        self.assertEqual(self.tracker.writes, [])
+        output = self.out.getvalue()
+        self.assertIn('[eol-distro] PASS -- closing issue #1', output)
+        self.assertIn('[renovate] FAIL -- issue #2 already open, updating body',
+                      output)
+        self.assertIn('[sfui-vendor] FAIL -- creating issue', output)
+
+
+class ExactTitleTest(IssueLifecycleCase):
+    """An issue belongs to the check whose title it carries exactly.
+
+    Several titles are prefixes of others: "Workflow standards" of
+    every "Workflow standards (...)" criterion, and so on. GitHub's
+    search matches a quoted phrase anywhere in a title, so a prefix
+    match would let one criterion's verdict close, or rewrite the body
+    of, a sibling criterion's issue in every repository at once.
+    """
+
+    def test_there_are_families_to_test(self):
+        # Guards the other cases in this class against passing by
+        # vacuum, should the titles ever stop overlapping.
+        self.assertTrue(title_families())
+
+    def seed_family(self, members, skip=None):
+        """Open one issue per family member, returning {title: number}."""
+        return {title: self.tracker.add(REPO, title, self.body(check_for(title)))
+                for title in members if title != skip}
+
+    def test_a_verdict_closes_only_its_own_title_in_a_family(self):
+        for family in title_families().values():
+            for title in family:
+                for status in ('pass', 'not_applicable'):
+                    with self.subTest(title=title, status=status):
+                        self.tracker = self.fresh_tracker()
+                        numbers = self.seed_family(family)
+                        self.process((check_for(title), status))
+                        self.assertEqual(self.written('close'),
+                                         [numbers[title]])
+                        self.assertEqual(
+                            self.tracker.open_titles(REPO),
+                            sorted(t for t in family if t != title))
+
+    def test_a_failure_does_not_adopt_a_sibling_s_issue(self):
+        for family in title_families().values():
+            for title in family:
+                with self.subTest(title=title):
+                    self.tracker = self.fresh_tracker()
+                    self.seed_family(family, skip=title)
+                    self.process((check_for(title), 'fail'))
+                    self.assertEqual(self.tracker.writes,
+                                     [('create', REPO, title)])
 
 
 class OpenIssueRefreshTest(unittest.TestCase):
