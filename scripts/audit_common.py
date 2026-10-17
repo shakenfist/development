@@ -50,6 +50,19 @@ AUDIT_METADATA = _metadata()
 ISSUE_TITLES = _issue_titles()
 
 
+# The `issue_title` of each criterion that has been retired from the
+# audit, spelled exactly as it was on the check and without the
+# "Consistency: " prefix. Deleting a check would otherwise orphan its
+# open issues the way renaming one does: no later run measures it, so
+# none would ever close them. audit-manage-issues.py closes any open
+# issue carrying one of these titles, with a comment saying why.
+# docs/consistency-audits.md has the procedure, and test_metadata.py
+# fails on a title that is retired and live at once.
+RETIRED_ISSUE_TITLES = ()
+
+ISSUE_TITLE_PREFIX = 'Consistency: '
+
+
 def issue_title_for(check_id):
     """The title of the issue a check files, and is matched by.
 
@@ -59,7 +72,12 @@ def issue_title_for(check_id):
     issues it finds by it. A check id missing from the registry falls
     back to the id, which is what an issue for it was filed under.
     """
-    return f'Consistency: {ISSUE_TITLES.get(check_id, check_id)}'
+    return ISSUE_TITLE_PREFIX + ISSUE_TITLES.get(check_id, check_id)
+
+
+def retired_issue_titles():
+    """The full issue titles of the retired criteria."""
+    return [ISSUE_TITLE_PREFIX + title for title in RETIRED_ISSUE_TITLES]
 
 
 _CANONICAL_CACHE = {}

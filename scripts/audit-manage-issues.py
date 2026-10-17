@@ -28,6 +28,7 @@ from audit_common import (
     gh_open_issues,
     issue_title_for,
     issues_titled,
+    retired_issue_titles,
 )
 
 
@@ -544,7 +545,31 @@ def process_results(results, dry_run=False, github=None, tally=None):
             # the same answer for the same reason.
             print(f'  [{check_id}] {status.upper()} -- issues left alone')
 
+    close_retired(github, org, repo, open_issues, dry_run, tally)
     return tally
+
+
+def close_retired(github, org, repo, open_issues, dry_run, tally):
+    """Close the issues of criteria the audit no longer measures.
+
+    Run for every repository with results, on every run, rather than
+    once: a repository whose audit leg failed on the run after a
+    retirement still has its issues closed on a later one.
+    """
+    for title in retired_issue_titles():
+        for issue in issues_titled(open_issues, title):
+            print(f'  [retired] closing issue #{issue["number"]} ({title})')
+            if not dry_run:
+                closed = gh_close_issue(
+                    github, org, repo, issue['number'],
+                    comment=(
+                        'The consistency audit no longer measures this '
+                        'criterion: it has been retired. Closing '
+                        'automatically.'
+                    ),
+                )
+                tally.wrote(closed, org, repo, f'close #{issue["number"]}')
+                time.sleep(1)
 
 
 def main():

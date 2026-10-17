@@ -234,11 +234,12 @@ exactly, because several titles are prefixes of others, and "Workflow
 standards" must not close a "Workflow standards (flake8wrap)" issue.
 Renaming one silently orphans every open issue for it and files a
 fresh set, so treat a check's `issue_title` as an interface, not a
-label. `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`
-holds every one as a literal, so a rename fails the tests until it is
-made there too, on purpose. (`ISSUE_TITLES` in
-`scripts/audit_common.py` is a view over the registry, not the place
-to change one.)
+label; retiring the old title, described under adding a criterion
+below, is what closes them. `FROZEN_ISSUE_TITLES` in
+`scripts/tests/test_metadata.py` holds every one as a literal, so a
+rename fails the tests until it is made there too, on purpose.
+(`ISSUE_TITLES` in `scripts/audit_common.py` is a view over the
+registry, not the place to change one.)
 
 **A failed listing is not an empty one.** Each repository's open
 `consistency` issues are listed once per run and matched by title in
@@ -395,6 +396,28 @@ issue title is the idempotency key for filing and closing: renaming one
 orphans every open issue for that criterion across the fleet. Adding a
 criterion adds a line to the frozen table; changing an existing line is
 meant to be difficult.
+
+Removing a criterion orphans its issues the same way: no later run
+measures it, so nothing would ever close them. Retire it instead, in
+one commit:
+
+1. Delete the check -- its class, its line in `CHECKS`, its lines in
+   the frozen tables, its specification and its row in
+   `docs/audits/README.md`.
+2. Add its `issue_title`, spelled exactly as it was and without the
+   `Consistency: ` prefix, to `RETIRED_ISSUE_TITLES` in
+   `scripts/audit_common.py`.
+
+Every later run of `audit-manage-issues.py` closes any open issue
+carrying a retired title, with a comment saying the criterion was
+retired. Leave the entry in place afterwards: it costs one comparison
+per repository, and a repository whose audit leg failed on the first
+run after the retirement is closed on a later one. A retired title can
+never be filed again by a live criterion, and
+`RetiredIssueTitlesTest` in `scripts/tests/test_metadata.py` fails if
+one is. Renaming a title safely is the second step on its own: change
+the `issue_title` and its frozen line, retire the old spelling, and the
+next run closes the old issues and files under the new title.
 
 The column heading is the part with history. Before it was a class
 attribute it was a fifth file to remember, and forgetting it broke the

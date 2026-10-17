@@ -136,6 +136,12 @@ git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- 'scripts/tests/test_metadata.py
 git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- 'scripts/audit/checks/*.py' | \
     grep -nE '^[-+].*issue_title'
 
+# A retired issue title. Every run closes each open issue carrying
+# one, fleet-wide, so an entry that is still a live title, or is
+# misspelled, closes the wrong issues or none at all
+git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- 'scripts/audit_common.py' | \
+    grep -nE '^[-+](RETIRED_ISSUE_TITLES|\s+'\''[^'\'']+'\'',?\)?$)'
+
 # A shared block edited without its version bumped. Editing the
 # wording without the bump means every embedding repository keeps
 # the old text and the audit never notices

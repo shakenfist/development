@@ -638,6 +638,53 @@ class WriteFailureTest(IssueLifecycleCase):
         self.assertIn('1 issue write(s) failed', self.err.getvalue())
 
 
+class RetiredTitleTest(IssueLifecycleCase):
+    """A retired criterion's open issues are closed, not orphaned."""
+
+    RETIRED = 'Retired criterion'
+
+    def setUp(self):
+        super().setUp()
+        self.enterContext(mock.patch.object(
+            audit_common, 'RETIRED_ISSUE_TITLES', (self.RETIRED,)))
+
+    def test_a_retired_title_s_open_issues_are_closed_with_a_reason(self):
+        first = self.tracker.add(REPO, f'Consistency: {self.RETIRED}')
+        second = self.tracker.add(REPO, f'Consistency: {self.RETIRED}')
+        live = self.tracker.add(REPO, title_for('eol-distro'),
+                                self.body('eol-distro'))
+        self.process(('eol-distro', 'fail'))
+        self.assertEqual(sorted(self.written('close')), [first, second])
+        self.assertEqual(self.tracker.issue(live)['state'], 'open')
+        self.assertIn('[retired] closing issue', self.out.getvalue())
+
+    def test_the_comment_says_the_criterion_was_retired(self):
+        number = self.tracker.add(REPO, f'Consistency: {self.RETIRED}')
+        self.process(('eol-distro', 'pass'))
+        comments = [call for call in self.tracker.calls
+                    if call[:2] == ['issue', 'comment']]
+        self.assertEqual(len(comments), 1)
+        self.assertIn(str(number), comments[0])
+        self.assertIn('retired', comments[0][-1])
+
+    def test_only_the_exact_retired_title_is_closed(self):
+        self.tracker.add(REPO, f'Consistency: {self.RETIRED} (kept)')
+        self.process(('eol-distro', 'pass'))
+        self.assertEqual(self.tracker.writes, [])
+
+    def test_a_dry_run_closes_nothing(self):
+        self.tracker.add(REPO, f'Consistency: {self.RETIRED}')
+        self.process(('eol-distro', 'pass'), dry_run=True)
+        self.assertEqual(self.tracker.writes, [])
+        self.assertIn('[retired] closing issue #1', self.out.getvalue())
+
+    def test_a_failed_close_is_counted(self):
+        self.tracker = self.fresh_tracker(fail={'close'})
+        number = self.tracker.add(REPO, f'Consistency: {self.RETIRED}')
+        tally = self.process(('eol-distro', 'pass'))
+        self.assertEqual(tally.write_failures, [f'{REPO}: close #{number}'])
+
+
 class OpenIssueRefreshTest(IssueLifecycleCase):
     """A failing check's open issue follows the latest result.
 
