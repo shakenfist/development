@@ -179,8 +179,12 @@ closed.
 keeps failing, its issue's body is re-rendered from the latest result
 and rewritten with `gh issue edit` whenever it differs, so the counts,
 the per-item lists and the spec links stay current rather than
-remaining the snapshot taken at filing. Differences in line endings and
-trailing whitespace are ignored, so an unchanged result edits nothing.
+remaining the snapshot taken at filing. `body_is_current()` in
+`scripts/audit-manage-issues.py` ignores CRLF line endings and
+whitespace at the start or end of the whole body, which GitHub
+introduces without the content changing, so an unchanged result edits
+nothing. Any other difference, including trailing whitespace on a line
+inside the body, is an edit.
 Hand edits to a body are not preserved -- anything worth saying to the
 next reader belongs in a comment.
 
