@@ -65,7 +65,7 @@ def issue_title_for(check_id):
 _CANONICAL_CACHE = {}
 
 
-def gh_canonical_repo(org, repo):
+def gh_canonical_repo(github, org, repo):
     """Resolve a repository to its canonical org and name.
 
     When a repository is renamed on GitHub, REST calls (issue create,
@@ -75,20 +75,14 @@ def gh_canonical_repo(org, repo):
     while never finding the previous one. Resolving the canonical
     name first makes every code path agree on which repo is meant.
 
-    Returns an (org, repo) tuple. Falls back to the input values if
-    the API call fails.
+    `github` is an audit.github.GitHubClient. Returns an (org, repo)
+    tuple. Falls back to the input values if the API call fails.
     """
     key = f'{org}/{repo}'
     if key not in _CANONICAL_CACHE:
         canonical = key
         try:
-            result = subprocess.run(
-                [
-                    'gh', 'api', f'repos/{org}/{repo}',
-                    '--jq', '.full_name',
-                ],
-                capture_output=True, text=True, timeout=30,
-            )
+            result = github.api(f'repos/{org}/{repo}', jq='.full_name')
             if result.returncode == 0 and result.stdout.strip():
                 canonical = result.stdout.strip()
         except (subprocess.TimeoutExpired, FileNotFoundError):
@@ -97,27 +91,24 @@ def gh_canonical_repo(org, repo):
     return tuple(_CANONICAL_CACHE[key].split('/', 1))
 
 
-def gh_search_issues(org, repo, title_prefix, label='consistency'):
+def gh_search_issues(github, org, repo, title_prefix, label='consistency'):
     """Search for open issues matching a title prefix and label.
 
     Each issue carries its body as well as its number and title, so that
     a caller can tell whether an open issue still says what the latest
     audit result would have it say.
     """
-    org, repo = gh_canonical_repo(org, repo)
+    org, repo = gh_canonical_repo(github, org, repo)
     try:
-        result = subprocess.run(
-            [
-                'gh', 'issue', 'list',
-                '--repo', f'{org}/{repo}',
-                '--label', label,
-                '--state', 'open',
-                '--search', f'"{title_prefix}" in:title',
-                '--json', 'number,title,body',
-                '--limit', '10',
-            ],
-            capture_output=True, text=True, timeout=30,
-        )
+        result = github.run([
+            'issue', 'list',
+            '--repo', f'{org}/{repo}',
+            '--label', label,
+            '--state', 'open',
+            '--search', f'"{title_prefix}" in:title',
+            '--json', 'number,title,body',
+            '--limit', '10',
+        ])
         if result.returncode != 0:
             return []
         issues = json.loads(result.stdout)

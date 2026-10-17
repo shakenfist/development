@@ -19,14 +19,13 @@ import re
 import sys
 import types
 import unittest
-from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import audit_common  # noqa: E402
 from audit_common import ISSUE_TITLES  # noqa: E402
 from tests.base import REPO_ROOT  # noqa: E402
-from tests.fake_issues import FakeIssueTracker, SubprocessAdapter  # noqa: E402
+from tests.fake_issues import FakeIssueTracker  # noqa: E402
 
 
 def _manage_issues():
@@ -347,13 +346,9 @@ class IssueLifecycleCase(unittest.TestCase):
         self.tracker = self.fresh_tracker()
 
     def fresh_tracker(self, fail=()):
-        tracker = FakeIssueTracker(fail=fail)
-        adapter = SubprocessAdapter(tracker)
-        self.module.subprocess = adapter
-        self.enterContext(mock.patch.object(audit_common, 'subprocess', adapter))
         audit_common._CANONICAL_CACHE.clear()
         self.addCleanup(audit_common._CANONICAL_CACHE.clear)
-        return tracker
+        return FakeIssueTracker(fail=fail)
 
     def process(self, *checks, dry_run=False):
         """Process (check id, status) pairs as one repository's results."""
@@ -362,7 +357,7 @@ class IssueLifecycleCase(unittest.TestCase):
             'summary': {'pass': 0, 'fail': 0, 'not_applicable': 0},
             'checks': [{'id': check_id, 'status': status, 'details': 'found'}
                        for check_id, status in checks],
-        }, dry_run=dry_run)
+        }, dry_run=dry_run, github=self.tracker)
 
     def body(self, check_id):
         return self.module.build_issue_body(
@@ -481,7 +476,7 @@ class ExactTitleTest(IssueLifecycleCase):
                                      [('create', REPO, title)])
 
 
-class OpenIssueRefreshTest(unittest.TestCase):
+class OpenIssueRefreshTest(IssueLifecycleCase):
     """A failing check's open issue follows the latest result.
 
     It used to be left as the snapshot it was filed with: ryll#304 went
@@ -489,24 +484,6 @@ class OpenIssueRefreshTest(unittest.TestCase):
     and kerbside#227 went on reporting none reviewed after 114 had
     been, both still linking a spec path that had since moved.
     """
-
-    def setUp(self):
-        import contextlib
-        import io
-        import types
-        self.module = _manage_issues()
-        self.module.time = types.SimpleNamespace(sleep=lambda seconds: None)
-        self.calls = []
-        self.open_issues = []
-        self.module.gh_canonical_repo = lambda org, repo: (org, repo)
-        self.module.gh_search_issues = lambda *a: self.open_issues
-        self.module.gh_create_issue = (
-            lambda *a, **k: self.calls.append(('create', a[1:])))
-        self.module.gh_edit_issue_body = (
-            lambda *a: self.calls.append(('edit', a[1:])))
-        self.module.gh_close_issue = (
-            lambda *a, **k: self.calls.append(('close', a[1:])))
-        self.out = self.enterContext(contextlib.redirect_stdout(io.StringIO()))
 
     def check(self, details='120 of 214 need review'):
         return {'id': 'eol-distro', 'status': 'fail', 'details': details}
@@ -516,48 +493,50 @@ class OpenIssueRefreshTest(unittest.TestCase):
             'org': 'shakenfist', 'repo': 'testrepo',
             'summary': {'pass': 0, 'fail': 1, 'not_applicable': 0},
             'checks': [check],
-        }, dry_run=dry_run)
+        }, dry_run=dry_run, github=self.tracker)
+
+    def open_issue(self, body):
+        return self.tracker.add(REPO, title_for('eol-distro'), body)
 
     def test_a_stale_body_is_rewritten_to_the_latest_result(self):
-        self.open_issues = [{'number': 7, 'title': 't',
-                             'body': self.module.build_issue_body(
-                                 'eol-distro', self.check('63 need review'))}]
+        number = self.open_issue(self.module.build_issue_body(
+            'eol-distro', self.check('63 need review')))
         self.process(self.check())
         expected = self.module.build_issue_body('eol-distro', self.check())
-        self.assertEqual(self.calls, [('edit', ('testrepo', 7, expected))])
+        self.assertEqual(self.tracker.writes, [('edit', REPO, number)])
+        self.assertEqual(self.tracker.issue(number)['body'], expected)
 
     def test_a_current_body_is_left_alone(self):
-        body = self.module.build_issue_body('eol-distro', self.check())
-        self.open_issues = [{'number': 7, 'title': 't', 'body': body}]
+        self.open_issue(self.module.build_issue_body('eol-distro', self.check()))
         self.process(self.check())
-        self.assertEqual(self.calls, [])
+        self.assertEqual(self.tracker.writes, [])
         self.assertIn('already open and current', self.out.getvalue())
 
     def test_line_endings_and_trailing_space_are_not_a_change(self):
         """Otherwise every issue is rewritten on every run."""
         body = self.module.build_issue_body('eol-distro', self.check())
-        self.open_issues = [{'number': 7, 'title': 't',
-                             'body': body.replace('\n', '\r\n').rstrip()}]
+        self.open_issue(body.replace('\n', '\r\n').rstrip())
         self.process(self.check())
-        self.assertEqual(self.calls, [])
+        self.assertEqual(self.tracker.writes, [])
 
     def test_an_issue_with_no_body_is_filled_in(self):
-        self.open_issues = [{'number': 7, 'title': 't', 'body': None}]
+        self.open_issue(None)
         self.process(self.check())
-        self.assertEqual([c[0] for c in self.calls], ['edit'])
+        self.assertEqual(self.written('edit'), [1])
 
     def test_a_dry_run_reports_the_update_without_making_it(self):
-        self.open_issues = [{'number': 7, 'title': 't', 'body': 'old'}]
+        number = self.open_issue('old')
         self.process(self.check(), dry_run=True)
-        self.assertEqual(self.calls, [])
-        self.assertIn('#7 already open, updating body', self.out.getvalue())
+        self.assertEqual(self.tracker.writes, [])
+        self.assertIn(f'#{number} already open, updating body', self.out.getvalue())
 
     def test_only_the_surviving_original_is_updated(self):
-        self.open_issues = [{'number': 7, 'title': 't', 'body': 'old'},
-                            {'number': 9, 'title': 't', 'body': 'old'}]
+        original = self.open_issue('old')
+        duplicate = self.open_issue('old')
         self.process(self.check())
-        self.assertEqual([(c[0], c[1][1]) for c in self.calls],
-                         [('edit', 7), ('close', 9)])
+        self.assertEqual(self.written('edit'), [original])
+        self.assertEqual(self.written('close'), [duplicate])
+        self.assertEqual(self.tracker.issue(duplicate)['state'], 'closed')
 
     def test_the_footer_says_the_body_is_maintained(self):
         """A reader should know the list is live, not a filing snapshot."""

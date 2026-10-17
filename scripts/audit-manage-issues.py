@@ -14,10 +14,10 @@ close issues on all target repos.
 import argparse
 import json
 import os
-import subprocess
 import sys
 import time
 
+from audit.github import GhCli
 from audit_common import (
     AUDIT_METADATA,
     ISSUE_TITLES,
@@ -33,22 +33,19 @@ DEV_REPO_URL = (
 )
 
 
-def gh_ensure_label(org, repo, label='consistency'):
+def gh_ensure_label(github, org, repo, label='consistency'):
     """Ensure the label exists on the target repo.
 
     gh issue create refuses to create an issue if the requested label
     does not exist, so create it first. --force makes this idempotent.
     """
-    result = subprocess.run(
-        [
-            'gh', 'label', 'create', label,
-            '--repo', f'{org}/{repo}',
-            '--description', 'Project consistency audit item',
-            '--color', '0075ca',
-            '--force',
-        ],
-        capture_output=True, text=True, timeout=30,
-    )
+    result = github.run([
+        'label', 'create', label,
+        '--repo', f'{org}/{repo}',
+        '--description', 'Project consistency audit item',
+        '--color', '0075ca',
+        '--force',
+    ])
     if result.returncode != 0:
         print(
             f'  WARNING: could not ensure label {label} exists: '
@@ -57,19 +54,16 @@ def gh_ensure_label(org, repo, label='consistency'):
         )
 
 
-def gh_create_issue(org, repo, title, body, label='consistency'):
+def gh_create_issue(github, org, repo, title, body, label='consistency'):
     """Create a new issue on the target repo."""
-    gh_ensure_label(org, repo, label)
-    result = subprocess.run(
-        [
-            'gh', 'issue', 'create',
-            '--repo', f'{org}/{repo}',
-            '--title', title,
-            '--label', label,
-            '--body', body,
-        ],
-        capture_output=True, text=True, timeout=30,
-    )
+    gh_ensure_label(github, org, repo, label)
+    result = github.run([
+        'issue', 'create',
+        '--repo', f'{org}/{repo}',
+        '--title', title,
+        '--label', label,
+        '--body', body,
+    ])
     if result.returncode == 0:
         url = result.stdout.strip()
         print(f'  Created issue: {url}')
@@ -82,17 +76,14 @@ def gh_create_issue(org, repo, title, body, label='consistency'):
         return None
 
 
-def gh_edit_issue_body(org, repo, issue_number, body):
+def gh_edit_issue_body(github, org, repo, issue_number, body):
     """Replace the body of an existing issue."""
-    result = subprocess.run(
-        [
-            'gh', 'issue', 'edit',
-            '--repo', f'{org}/{repo}',
-            str(issue_number),
-            '--body', body,
-        ],
-        capture_output=True, text=True, timeout=30,
-    )
+    result = github.run([
+        'issue', 'edit',
+        '--repo', f'{org}/{repo}',
+        str(issue_number),
+        '--body', body,
+    ])
     if result.returncode == 0:
         print(f'  Updated body of issue #{issue_number}')
     else:
@@ -116,26 +107,20 @@ def body_is_current(existing_body, body):
     return normalise(existing_body) == normalise(body)
 
 
-def gh_close_issue(org, repo, issue_number, comment=None):
+def gh_close_issue(github, org, repo, issue_number, comment=None):
     """Close an issue with an optional comment."""
     if comment:
-        subprocess.run(
-            [
-                'gh', 'issue', 'comment',
-                '--repo', f'{org}/{repo}',
-                str(issue_number),
-                '--body', comment,
-            ],
-            capture_output=True, text=True, timeout=30,
-        )
-    result = subprocess.run(
-        [
-            'gh', 'issue', 'close',
+        github.run([
+            'issue', 'comment',
             '--repo', f'{org}/{repo}',
             str(issue_number),
-        ],
-        capture_output=True, text=True, timeout=30,
-    )
+            '--body', comment,
+        ])
+    result = github.run([
+        'issue', 'close',
+        '--repo', f'{org}/{repo}',
+        str(issue_number),
+    ])
     if result.returncode == 0:
         print(f'  Closed issue #{issue_number}')
     else:
@@ -343,7 +328,7 @@ def build_issue_body(check_id, check_result):
     return body
 
 
-def close_duplicates(org, repo, check_id, duplicates, original,
+def close_duplicates(github, org, repo, check_id, duplicates, original,
                      dry_run):
     """Close duplicate issues, pointing at the surviving original."""
     for dup in duplicates:
@@ -353,7 +338,7 @@ def close_duplicates(org, repo, check_id, duplicates, original,
         )
         if not dry_run:
             gh_close_issue(
-                org, repo, dup['number'],
+                github, org, repo, dup['number'],
                 comment=(
                     f'Duplicate of #{original["number"]}. '
                     'Closing automatically.'
@@ -362,12 +347,16 @@ def close_duplicates(org, repo, check_id, duplicates, original,
             time.sleep(1)
 
 
-def process_results(results, dry_run=False):
+def process_results(results, dry_run=False, github=None):
     """Process audit results and manage issues.
 
-    Returns True if the configured repo name is stale (the repo has
-    been renamed on GitHub) so the caller can fail the run visibly.
+    `github` is the audit.github.GitHubClient every `gh` invocation
+    goes through; tests pass a fake one. Returns True if the configured
+    repo name is stale (the repo has been renamed on GitHub) so the
+    caller can fail the run visibly.
     """
+    if github is None:
+        github = GhCli()
     org = results['org']
     repo = results['repo']
 
@@ -375,7 +364,7 @@ def process_results(results, dry_run=False):
     # issue search silently returns nothing for the old name, while
     # issue creation follows the rename redirect, so a stale name
     # files a fresh duplicate on every run.
-    canonical_org, canonical_repo = gh_canonical_repo(org, repo)
+    canonical_org, canonical_repo = gh_canonical_repo(github, org, repo)
     renamed = (canonical_org, canonical_repo) != (org, repo)
     if renamed:
         print(
@@ -401,7 +390,7 @@ def process_results(results, dry_run=False):
 
         if status == 'fail':
             body = build_issue_body(check_id, check)
-            existing = gh_search_issues(org, repo, title_prefix)
+            existing = gh_search_issues(github, org, repo, title_prefix)
             if existing:
                 original = existing[0]
                 # The body is the work queue, so it has to follow the
@@ -421,24 +410,24 @@ def process_results(results, dry_run=False):
                     )
                     if not dry_run:
                         gh_edit_issue_body(
-                            org, repo, original['number'], body)
+                            github, org, repo, original['number'], body)
                         time.sleep(1)  # Rate limiting
                 close_duplicates(
-                    org, repo, check_id, existing[1:], original,
+                    github, org, repo, check_id, existing[1:], original,
                     dry_run,
                 )
             else:
                 print(f'  [{check_id}] FAIL -- creating issue')
                 if not dry_run:
                     gh_create_issue(
-                        org, repo, title_prefix, body,
+                        github, org, repo, title_prefix, body,
                     )
                     time.sleep(1)  # Rate limiting
 
         elif status == 'pass':
             # Close any existing open issues (all of them, in case
             # duplicates have accumulated)
-            existing = gh_search_issues(org, repo, title_prefix)
+            existing = gh_search_issues(github, org, repo, title_prefix)
             if existing:
                 for issue in existing:
                     print(
@@ -447,7 +436,7 @@ def process_results(results, dry_run=False):
                     )
                     if not dry_run:
                         gh_close_issue(
-                            org, repo, issue['number'],
+                            github, org, repo, issue['number'],
                             comment=(
                                 'This check is now passing in the '
                                 'automated consistency audit. '
@@ -460,7 +449,7 @@ def process_results(results, dry_run=False):
 
         elif status == 'not_applicable':
             # Close any existing issues if any were opened
-            existing = gh_search_issues(org, repo, title_prefix)
+            existing = gh_search_issues(github, org, repo, title_prefix)
             if existing:
                 for issue in existing:
                     print(
@@ -469,7 +458,7 @@ def process_results(results, dry_run=False):
                     )
                     if not dry_run:
                         gh_close_issue(
-                            org, repo, issue['number'],
+                            github, org, repo, issue['number'],
                             comment=(
                                 'This check is not applicable to '
                                 'this project. Closing automatically.'
@@ -522,12 +511,13 @@ def main():
         print('No JSON result files found.')
         sys.exit(0)
 
+    github = GhCli()
     stale_names = False
     for filename in result_files:
         filepath = os.path.join(args.results_dir, filename)
         with open(filepath, 'r') as f:
             results = json.load(f)
-        if process_results(results, dry_run=args.dry_run):
+        if process_results(results, dry_run=args.dry_run, github=github):
             stale_names = True
 
     print('\nDone.')

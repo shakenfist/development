@@ -35,6 +35,7 @@ import os
 import shutil
 import sys
 
+from audit.github import GhCli
 from audit.registry import CHECKS
 from audit_common import (
     AUDIT_METADATA,
@@ -140,13 +141,17 @@ def load_results(results_dir):
     return sorted(results, key=lambda r: r['repo'])
 
 
-def issue_cell(org, repo, check_ids, no_issues):
-    """Build the issue-links cell for one repo row."""
-    if no_issues:
+def issue_cell(org, repo, check_ids, github):
+    """Build the issue-links cell for one repo row.
+
+    `github` is the audit.github.GitHubClient to look the issues up
+    with, or None to skip the lookups.
+    """
+    if github is None:
         return '-'
     links = set()
     for check_id in check_ids:
-        for issue in gh_search_issues(org, repo, issue_title_for(check_id)):
+        for issue in gh_search_issues(github, org, repo, issue_title_for(check_id)):
             links.add(f'{org}/{repo}#{issue["number"]}')
     return ', '.join(sorted(links)) if links else '-'
 
@@ -179,7 +184,7 @@ def column_name(check_id):
     return COLUMN_NAMES.get(check_id, check_id)
 
 
-def render_table(check_ids, results, no_issues):
+def render_table(check_ids, results, github):
     """Render the compliance table for one audit spec.
 
     Returns the table lines, followed by the per-project failure
@@ -215,7 +220,7 @@ def render_table(check_ids, results, no_issues):
                 failures.append(
                     f'- **{repo}** ({column}): {defuse(check["details"])}'
                 )
-        issue = issue_cell(result['org'], repo, check_ids, no_issues)
+        issue = issue_cell(result['org'], repo, check_ids, github)
         lines.append(
             f'| {repo} | ' + ' | '.join(cells) + f' | {issue} |'
         )
@@ -229,8 +234,16 @@ def render_table(check_ids, results, no_issues):
     return lines
 
 
-def render_page(results, no_issues):
-    """Render the generated block of the whole compliance page."""
+def render_page(results, no_issues, github=None):
+    """Render the generated block of the whole compliance page.
+
+    Issues are looked up through `github`, an audit.github.GitHubClient
+    defaulting to the real `gh`, unless `no_issues` is set.
+    """
+    if no_issues:
+        github = None
+    elif github is None:
+        github = GhCli()
     timestamps = sorted(r['timestamp'] for r in results)
     when = f' {timestamps[-1]}' if timestamps else ''
 
@@ -246,7 +259,7 @@ def render_page(results, no_issues):
         lines.append('')
         lines.append(f'Criterion: [{anchor}.md]({anchor}.md)')
         lines.append('')
-        lines.extend(render_table(check_ids, results, no_issues))
+        lines.extend(render_table(check_ids, results, github))
 
     # Deliberately the real audits tree rather than wherever --page
     # writes. Which criteria have no check is a property of this

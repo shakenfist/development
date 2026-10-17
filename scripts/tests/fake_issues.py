@@ -122,21 +122,3 @@ class FakeIssueTracker(GitHubClient):
         fields = options['--json'].split(',')
         return CompletedCommand(stdout=json.dumps(
             [{field: i[field] for field in fields} for i in matched]))
-
-
-class SubprocessAdapter:
-    """Present a FakeIssueTracker as the `subprocess` module.
-
-    For code that still calls `subprocess.run(['gh', ...])` directly
-    rather than through a GitHubClient.
-    """
-
-    import subprocess as _subprocess
-    TimeoutExpired = _subprocess.TimeoutExpired
-
-    def __init__(self, tracker):
-        self.tracker = tracker
-
-    def run(self, argv, **kwargs):
-        assert argv[0] == 'gh', argv
-        return self.tracker.run(argv[1:], timeout=kwargs.get('timeout'))

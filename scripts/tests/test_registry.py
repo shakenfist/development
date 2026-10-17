@@ -1373,29 +1373,28 @@ class ErrorResultsLeaveIssuesAloneTest(unittest.TestCase):
     repository's open issue as though the check no longer applied.
     """
 
-    def test_an_error_neither_searches_nor_closes(self):
+    def test_an_error_neither_files_nor_closes(self):
         import contextlib
         import importlib.util
         import io
+        from tests.fake_issues import FakeIssueTracker
         path = os.path.join(REPO_ROOT, 'scripts', 'audit-manage-issues.py')
         spec = importlib.util.spec_from_file_location('audit_manage_issues', path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
 
-        calls = []
-        module.gh_canonical_repo = lambda org, repo: (org, repo)
-        module.gh_search_issues = lambda *a: calls.append(('search', a)) or [{'number': 1}]
-        module.gh_close_issue = lambda *a, **k: calls.append(('close', a))
-        module.gh_create_issue = lambda *a, **k: calls.append(('create', a))
-
+        tracker = FakeIssueTracker()
+        tracker.add('shakenfist/testrepo', 'Consistency: End-of-life distributions')
         results = {
             'org': 'shakenfist', 'repo': 'testrepo',
             'summary': {'pass': 0, 'fail': 0, 'not_applicable': 0, 'error': 1},
             'checks': [{'id': 'eol-distro', 'status': 'error', 'details': 'boom'}],
         }
         with contextlib.redirect_stdout(io.StringIO()) as out:
-            module.process_results(results, dry_run=False)
-        self.assertEqual(calls, [])
+            module.process_results(results, dry_run=False, github=tracker)
+        self.assertEqual(tracker.writes, [])
+        self.assertEqual(tracker.open_titles('shakenfist/testrepo'),
+                         ['Consistency: End-of-life distributions'])
         self.assertIn('ERROR -- issues left alone', out.getvalue())
 
 
