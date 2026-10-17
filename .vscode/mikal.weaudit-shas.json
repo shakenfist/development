@@ -85,9 +85,21 @@
       "sha": "805b262c50f6e356892f3bec35d4f42daeb9420f",
       "date": "2026-10-12"
     },
+    "AGENTS.md": {
+      "sha": "dd4e9bcf06e4ee7957cc38b980b9ca11ef8c240e",
+      "date": "2026-10-18"
+    },
+    "ARCHITECTURE.md": {
+      "sha": "14b095d3e14c0182017b4196655805dbaca91fc0",
+      "date": "2026-10-18"
+    },
     "PLAN-TEMPLATE.md": {
       "sha": "121bfae4d5735b0ab0c72ebca68532e94ea29d6b",
       "date": "2026-10-16"
+    },
+    "PUSH-AUDIT.md": {
+      "sha": "32c3231274122ed8249d061e393cc09430c771e4",
+      "date": "2026-10-18"
     },
     "README.md": {
       "sha": "2269add37483bd29c54af121efee0aeeb1939a53",
@@ -336,6 +348,10 @@
     "docs/release-automation.md": {
       "sha": "9807720ead26729e88b627892fbb73cb81edef91",
       "date": "2026-10-06"
+    },
+    "renovate.json": {
+      "sha": "9545114a3c885e9efc56da8514dffd8bcb643030",
+      "date": "2026-10-18"
     },
     "scripts/audit-check.py": {
       "sha": "97673b9e35622a6049cab81725d8554754e715b5",
