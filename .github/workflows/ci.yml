@@ -95,12 +95,9 @@ jobs:
       # comment is the thing that goes stale without anything noticing.
       - name: Install skillsaw
         run: |
-          python3 -m venv --clear "${RUNNER_TEMP}/audit-venv"
-          "${RUNNER_TEMP}/audit-venv/bin/pip" install --disable-pip-version-check \
+          python3 -m venv --clear "${RUNNER_TEMP}/skillsaw-venv"
+          "${RUNNER_TEMP}/skillsaw-venv/bin/pip" install --disable-pip-version-check \
               skillsaw==0.18.0
-
-      - name: Put skillsaw on PATH
-        run: echo "${RUNNER_TEMP}/audit-venv/bin" >> "${GITHUB_PATH}"
 
       # Audits this repository against itself. The verdicts are not the
       # point and are not asserted here. development is audited for
@@ -120,6 +117,8 @@ jobs:
             --repo-name development \
             --github-org shakenfist \
             > "${RUNNER_TEMP}/audit-smoke.json"
+        env:
+          AUDIT_SKILLSAW: ${{ runner.temp }}/skillsaw-venv/bin/skillsaw
 
       # The load-bearing assertion. skillsaw_errors() returns None when
       # skillsaw cannot run, and check_llm_context_lint turns that into
@@ -133,7 +132,7 @@ jobs:
 
       - name: Clean up
         if: always()
-        run: rm -rf "${RUNNER_TEMP}/audit-venv" "${RUNNER_TEMP}/audit-smoke.json"
+        run: rm -rf "${RUNNER_TEMP}/skillsaw-venv" "${RUNNER_TEMP}/audit-smoke.json"
 
   # The automatic review, gated on both jobs above passing: a job that
   # is skipped because a dependency failed never starts the reusable

@@ -18,6 +18,7 @@ import sys
 import tempfile
 
 from audit.check import Check
+from audit.github import environment_without_credentials
 
 
 # Paths a review session rewrites, used to test candidate pre-commit
@@ -327,22 +328,6 @@ class ReviewScopeCompleteness(Check):
             f'{len(orphans)} tracked file(s) are out of review scope '
             f'only because no include pattern in '
             f'.vscode/review-scope.toml names them', missing=orphans)
-
-
-# Variables that hand a GitHub credential to a child process. The audit
-# step holds AUDIT_TOKEN, which can file and close issues across the
-# organisation, and SfuiVendor runs a script out of another repository,
-# so none of its subprocesses inherit them. Cloning the public canonical
-# repository needs no credential.
-CREDENTIAL_ENV = ('GH_TOKEN', 'GITHUB_TOKEN')
-
-
-def environment_without_credentials():
-    """os.environ with every CREDENTIAL_ENV variable removed."""
-    return {
-        name: value for name, value in os.environ.items()
-        if name not in CREDENTIAL_ENV
-    }
 
 
 class SfuiVendor(Check):

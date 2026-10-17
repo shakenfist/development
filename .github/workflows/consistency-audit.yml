@@ -92,16 +92,19 @@ jobs:
       # compliance page and issue filing with it. --clear because a
       # .pth file left in a venv survives a second `python3 -m venv`
       # over the top of it.
+      #
+      # And a venv of skillsaw's own, which goes nowhere near PATH: the
+      # audit step names the binary in AUDIT_SKILLSAW instead. On PATH,
+      # this venv's python3 would be the one audit-check.py ran under,
+      # importing skillsaw's unpinned dependencies into the interpreter
+      # that holds the token. No step that touches this venv has a
+      # token in its environment, and skillsaw_errors() strips it from
+      # skillsaw's.
       - name: Install skillsaw
         run: |
-          python3 -m venv --clear "${RUNNER_TEMP}/audit-venv"
-          "${RUNNER_TEMP}/audit-venv/bin/pip" install --disable-pip-version-check \
+          python3 -m venv --clear "${RUNNER_TEMP}/skillsaw-venv"
+          "${RUNNER_TEMP}/skillsaw-venv/bin/pip" install --disable-pip-version-check \
               skillsaw==0.18.0
-
-      # audit-check.py invokes skillsaw by name, so the venv has to be
-      # on PATH by the time the audit step runs.
-      - name: Put skillsaw on PATH
-        run: echo "${RUNNER_TEMP}/audit-venv/bin" >> "${GITHUB_PATH}"
 
       # A skillsaw that cannot run does not fail the audit:
       # skillsaw_errors() catches FileNotFoundError and returns None,
@@ -115,8 +118,8 @@ jobs:
       - name: Check skillsaw runs, at the pinned version
         run: |
           set -e
-          echo "skillsaw reports: $(skillsaw --version)"
-          skillsaw --version | grep -qx 'skillsaw 0.18.0'
+          echo "skillsaw reports: $("${RUNNER_TEMP}/skillsaw-venv/bin/skillsaw" --version)"
+          "${RUNNER_TEMP}/skillsaw-venv/bin/skillsaw" --version | grep -qx 'skillsaw 0.18.0'
 
       - name: Run audit checks
         id: audit
@@ -129,6 +132,7 @@ jobs:
           cat "${RUNNER_TEMP}/audit-result-${{ matrix.repo }}.json"
         env:
           GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
+          AUDIT_SKILLSAW: ${{ runner.temp }}/skillsaw-venv/bin/skillsaw
 
       - name: Upload audit results
         uses: actions/upload-artifact@v7
@@ -150,7 +154,7 @@ jobs:
       - name: Clean up
         if: always()
         run: |
-          rm -rf "${RUNNER_TEMP}/audit-target" "${RUNNER_TEMP}/audit-venv" \
+          rm -rf "${RUNNER_TEMP}/audit-target" "${RUNNER_TEMP}/skillsaw-venv" \
               "${RUNNER_TEMP}/audit-result-${{ matrix.repo }}.json"
 
   manage-issues:

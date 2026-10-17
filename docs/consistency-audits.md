@@ -91,7 +91,11 @@ Visibility is queried live rather than hardcoded because it changes.
 The skillsaw pin is deliberate, and so is the assertion next to it.
 `llm-context-lint` reports what skillsaw calls an error, and skillsaw's
 rule set moves between releases, so an unpinned upgrade would change the
-compliance page for reasons nobody chose.
+compliance page for reasons nobody chose. skillsaw's venv is its own
+and stays off `PATH`: the audit step names the binary in
+`AUDIT_SKILLSAW`, so its unpinned dependencies never load into the
+interpreter running the checks (see
+[llm-context-lint](audits/llm-context-lint.md)).
 
 **2. `manage-issues`** -- downloads every artifact and runs
 `scripts/audit-manage-issues.py`, which files, updates and closes issues. See
