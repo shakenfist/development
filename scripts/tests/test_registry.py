@@ -25,7 +25,7 @@ from audit.repo import REPO_OVERRIDES, detect_repo_properties  # noqa: E402
 from audit_common import AUDIT_METADATA, ISSUE_TITLES  # noqa: E402
 from audit.checks import ci_workflows  # noqa: E402
 from audit.text.workflows import (  # noqa: E402
-    indented_block, job_level_keys, step_action, step_keys,
+    indented_block, job_level_keys, mapping_entries, step_action, step_keys,
     step_with_inputs, workflow_job_blocks, workflow_step_blocks,
 )
 from tests.base import REPO_ROOT  # noqa: E402
@@ -802,7 +802,7 @@ class MergeRefResolutionTest(unittest.TestCase):
     # because the shell is the part expected to change. A rename is a
     # decision somebody makes; a deletion should not be.
     RESOLVE_STEP = '- name: Resolve the ref to review'
-    CHECKOUT_REF = 'ref: ${{ steps.ref.outputs.ref }}'
+    CHECKOUT_STEP = '- name: Checkout the pull request'
 
     # A checkout naming the merge ref directly is the shape this
     # replaced, and re-introducing it would pass every other check in
@@ -829,10 +829,6 @@ class MergeRefResolutionTest(unittest.TestCase):
                     f'{name} must carry a "{self.RESOLVE_STEP}" step: '
                     f'without it a re-review can check out a merge '
                     f'commit for a superseded head')
-                self.assertIn(
-                    self.CHECKOUT_REF, body,
-                    f'{name} must check out the ref that step '
-                    f'resolved, or resolving it changes nothing')
                 self.assertIsNone(
                     self.NAMED_MERGE_REF.search(body),
                     f'{name} names a merge ref in a checkout rather '
@@ -848,6 +844,37 @@ class MergeRefResolutionTest(unittest.TestCase):
                     ci_workflows.CI_REVIEW_REF_ACTION.split('@')[0])
                 self.assertEqual(
                     step_with_inputs(resolve).get('mode'), 'resolve')
+                # Read from the checkout step's own inputs: a search of
+                # the whole file would be satisfied by the same text in
+                # a comment, or in some other step.
+                checkout = self._step(
+                    self._re_review_steps(name), self.CHECKOUT_STEP)
+                self.assertEqual(
+                    step_with_inputs(checkout).get('ref'),
+                    '${{ steps.ref.outputs.ref }}',
+                    f'{name} must check out the ref that step '
+                    f'resolved, or resolving it changes nothing')
+
+    FALLBACK_NOTICE = (
+        '- name: Say that the head was reviewed, not the merge result')
+
+    def test_the_fallback_notice_reads_the_resolved_reason(self):
+        # An output the action does not declare reads as empty rather
+        # than failing, and the notice's case statement has a generic
+        # arm for that, so a rename of reason would go on posting a
+        # plausible notice with the cause left out. The outputs'
+        # values are pr-review-ref's, and are tested in
+        # shakenfist/actions; the wiring is only testable here.
+        for name in [self.DEPLOYED_RE_REVIEW, self.TEMPLATE_RE_REVIEW]:
+            with self.subTest(workflow=name):
+                notice = self._step(
+                    self._re_review_steps(name), self.FALLBACK_NOTICE)
+                self.assertEqual(
+                    step_keys(notice).get('if'),
+                    "steps.ref.outputs.merged == 'false'")
+                env = mapping_entries(indented_block(notice, 'env'))
+                self.assertEqual(
+                    env.get('REASON'), '${{ steps.ref.outputs.reason }}')
 
     CONFIRM_STEP = '- name: Confirm the checkout is the validated commit'
 

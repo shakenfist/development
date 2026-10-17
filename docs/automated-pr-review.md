@@ -9,8 +9,8 @@ findings as a structured comment.
 The automated reviewer reviews a pull request once CI passes and posts
 structured feedback as a comment. It runs Claude Code on a self-hosted GitHub
 Actions runner with read-only tools, confined to the checkout and without the
-job's GitHub token in its environment; everything that talks to GitHub happens
-in the shared action around it.
+job's GitHub token in its environment (shakenfist/actions#168); everything that
+talks to GitHub happens in the shared action around it.
 
 A second component, the comment addresser, used to act on that feedback when a
 maintainer asked it to. It was retired in August 2026 -- see [The comment

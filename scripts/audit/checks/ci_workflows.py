@@ -352,12 +352,47 @@ REV_PARSE_HEAD_RE = re.compile(r'rev-parse\s+HEAD(?![\^~\w])')
 CI_REVIEW_REF_ACTION = 'shakenfist/actions/pr-review-ref@main'
 
 
-def calls_shared_confirm(step):
-    """True when a step confirms its checkout through pr-review-ref."""
+def calls_shared_ref_action(step, mode):
+    """True when a step calls pr-review-ref in the given mode."""
     if step_action(step) != CI_REVIEW_REF_ACTION.split('@')[0]:
         return False
-    mode = step_with_inputs(step).get('mode', '')
-    return mode.strip('\'"') == 'confirm'
+    return step_with_inputs(step).get('mode', '').strip('\'"') == mode
+
+
+def calls_shared_confirm(step):
+    """True when a step confirms its checkout through pr-review-ref."""
+    return calls_shared_ref_action(step, 'confirm')
+
+
+# What a confirm step's inputs must be: an expression reading the named
+# output of one step, and nothing else.
+SHARED_CONFIRM_INPUT_RE = r'^\$\{\{\s*steps\.([\w-]+)\.outputs\.%s\s*\}\}$'
+
+
+def shared_confirm_input_findings(wf, steps, confirm):
+    """Findings for a shared confirm step not fed by a shared resolve.
+
+    The confirm call compares the checkout against its head-sha and
+    merged inputs, so it is only as good as what it is handed. Each must
+    read the output of that name from a step in the same job calling
+    pr-review-ref with `mode: resolve`. The case that matters is a copy
+    re-synced by hand from the inline shape, whose resolve step wrote
+    head_sha: against the action that output is empty, and the confirm
+    step then fails every run.
+    """
+    resolvers = {step_keys(step).get('id') for step in steps
+                 if calls_shared_ref_action(step, 'resolve')}
+    inputs = step_with_inputs(confirm)
+    for name in ('head-sha', 'merged'):
+        value = inputs.get(name, '').strip('\'"')
+        match = re.match(SHARED_CONFIRM_INPUT_RE % re.escape(name), value)
+        if not match or match.group(1) not in resolvers:
+            return [
+                f'{wf}: the confirm step\'s {name} input is '
+                f'{value or "not set"}, not the {name} output of a '
+                f'{CI_REVIEW_REF_ACTION} step with mode: resolve, so it '
+                f'has nothing valid to confirm against']
+    return []
 
 
 def confirm_step_findings(wf, content):
@@ -373,8 +408,8 @@ def confirm_step_findings(wf, content):
 
     Two shapes are confirm steps. The template calls
     CI_REVIEW_REF_ACTION with `mode: confirm`, and that is accepted
-    when it is unconditional: the comparison is the action's, and is
-    tested there. Copies made before the logic moved into the action
+    when it is unconditional and fed by the action's resolve mode: the
+    comparison is the action's, and is tested there. Copies made before the logic moved into the action
     carry it as inline shell, and those are read from the step's shell
     rather than its name, since the shell is what does the confirming:
     a step which compares HEAD^2 is the confirm step, whatever it is
@@ -389,7 +424,8 @@ def confirm_step_findings(wf, content):
     step still works.
     """
     for _, body in workflow_job_blocks(content):
-        for step in workflow_step_blocks(body):
+        steps = workflow_step_blocks(body)
+        for step in steps:
             shared = calls_shared_confirm(step)
             script = strip_yaml_comments(step)
             if not shared and 'rev-parse HEAD^2' not in script:
@@ -405,6 +441,8 @@ def confirm_step_findings(wf, content):
                     f'{wf} confirms the checkout on the merge path only, '
                     f'so a review of the head fallback can be of a '
                     f'commit the resolve step never validated']
+            if shared:
+                return shared_confirm_input_findings(wf, steps, step)
             return []
     return [f'{wf} does not confirm that the tree it checked out is the '
             f'commit it resolved, so a push between the two is reviewed '

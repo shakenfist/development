@@ -488,12 +488,12 @@ Three independent gates, in order:
 The reusable workflow requires the PR to come from a branch in the
 same repository. The reviewer runs Claude Code with read-only tools,
 confined to the checkout and without the job's token in its
-environment, but the job around it holds `pull-requests: write`, runs
-on a shared, long-lived runner pool, and feeds the reviewer the PR
-diff, which is untrusted input. Reviewing a fork PR would put text
-nobody has read in front of that job. Lifting this restriction means
-isolating the reviewer from the job's token and the shared runner
-first.
+environment (shakenfist/actions#168), but the job around it holds
+`pull-requests: write`, runs on a shared, long-lived runner pool, and
+feeds the reviewer the PR diff, which is untrusted input. Reviewing a
+fork PR would put text nobody has read in front of that job. Lifting
+this restriction means moving the reviewer into a job that holds no
+write token, on a runner nobody else shares, first.
 
 The restriction lives in the reusable workflow rather than in each
 caller, so it cannot be lost when a project edits its CI workflow.

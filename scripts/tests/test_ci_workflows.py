@@ -902,6 +902,56 @@ class ForkGateAndConfirmStepTest(CheckTestCase):
         self.assert_fail(self._check(re_review=re_review),
                          containing='does not confirm that the tree')
 
+    CONFIRM_INPUTS = (
+        '          head-sha: ${{ steps.ref.outputs.head-sha }}\n'
+        '          merged: ${{ steps.ref.outputs.merged }}\n')
+
+    def test_quoted_shared_confirm_inputs_pass(self):
+        re_review = self._mutate(
+            'pr-re-review.yml', self.CONFIRM_INPUTS,
+            "          head-sha: '${{ steps.ref.outputs.head-sha }}'\n"
+            '          merged: "${{ steps.ref.outputs.merged }}"\n')
+        self.assert_pass(self._check(re_review=re_review))
+
+    def test_a_shared_confirm_step_without_its_inputs_fails(self):
+        re_review = self._mutate(
+            'pr-re-review.yml', self.SHARED_CONFIRM + self.CONFIRM_INPUTS,
+            self.SHARED_CONFIRM)
+        self.assert_fail(self._check(re_review=re_review),
+                         containing="head-sha input is not set")
+
+    def test_a_shared_confirm_step_fed_the_inline_output_name_fails(self):
+        # The hand re-sync from the inline shape: its resolve step wrote
+        # head_sha, which the action does not set.
+        re_review = self._mutate(
+            'pr-re-review.yml', 'steps.ref.outputs.head-sha }}',
+            'steps.ref.outputs.head_sha }}')
+        self.assert_fail(self._check(re_review=re_review),
+                         containing='head-sha input is')
+
+    def test_a_shared_confirm_step_without_merged_fails(self):
+        re_review = self._mutate(
+            'pr-re-review.yml', self.CONFIRM_INPUTS,
+            self.CONFIRM_INPUTS.splitlines(keepends=True)[0])
+        self.assert_fail(self._check(re_review=re_review),
+                         containing='merged input is not set')
+
+    def test_a_shared_confirm_step_fed_by_another_step_fails(self):
+        # Fed by a step that is not the action resolving: an inline
+        # resolve step left in place, say.
+        re_review = self._mutate(
+            'pr-re-review.yml', self.CONFIRM_INPUTS,
+            self.CONFIRM_INPUTS.replace('steps.ref.', 'steps.other.'))
+        self.assert_fail(self._check(re_review=re_review),
+                         containing='head-sha input is')
+
+    def test_a_shared_confirm_step_with_an_inline_resolve_fails(self):
+        re_review = self._mutate(
+            'pr-re-review.yml',
+            '          mode: resolve\n', '          mode: inline\n')
+        self.assert_fail(self._check(re_review=re_review),
+                         containing='head-sha input is')
+
     def test_no_confirm_step_fails(self):
         body = template_workflow('pr-re-review.yml')
         start = body.index(self.CONFIRM_STEP)
