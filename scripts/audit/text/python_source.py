@@ -14,8 +14,6 @@ import os
 import re
 import tomllib
 
-from audit.repo import path_is_within
-
 
 def mask_source(content, comments=True, strings=True):
     """Blank out comment and/or string-literal bodies, keeping offsets.
@@ -94,7 +92,7 @@ def mask_strings(content):
     return mask_source(content, comments=False)
 
 
-def console_entry_point_files(repo_path):
+def console_entry_point_files(repo):
     """Return (resolved files, unresolved targets) for the entry points.
 
     The spec is about how a *CLI entry point* uses setup_console(),
@@ -117,13 +115,12 @@ def console_entry_point_files(repo_path):
     table and a non-string target reach the same false statement by
     another door, so they come back the same way.
     """
-    pyproject = os.path.join(repo_path, 'pyproject.toml')
-    if not os.path.exists(pyproject):
+    content = repo.read('pyproject.toml')
+    if content is None:
         return [], []
     try:
-        with open(pyproject, 'rb') as f:
-            data = tomllib.load(f)
-    except (tomllib.TOMLDecodeError, OSError):
+        data = tomllib.loads(content)
+    except tomllib.TOMLDecodeError:
         return [], []
 
     # Guarded at every level rather than assumed, the way
@@ -171,13 +168,19 @@ def console_entry_point_files(repo_path):
             continue
         module = target.split(':', 1)[0].strip()
         relative = module.replace('.', os.sep)
+        # The module name is the repository's to write, and a dotted
+        # name is turned into a path by replacing its dots: `..etc.x`
+        # becomes `//etc/x`, which os.path.join takes as absolute and
+        # so as a path out of the clone. Repo.isfile() refuses it,
+        # and the file it would have named is then unresolved like
+        # any other.
         for candidate in (
             f'{relative}.py',
             os.path.join(relative, '__init__.py'),
             os.path.join('src', f'{relative}.py'),
             os.path.join('src', relative, '__init__.py'),
         ):
-            if os.path.exists(os.path.join(repo_path, candidate)):
+            if repo.isfile(candidate):
                 if candidate not in files:
                     files.append(candidate)
                 break
@@ -405,7 +408,7 @@ IMPORT_RE = re.compile(
 )
 
 
-def python_source_files(repo_path):
+def python_source_files(repo):
     """The Python files belonging to the checkout's own package.
 
     NON_SOURCE_DIRS is pruned rather than filtered afterwards, so the
@@ -424,32 +427,30 @@ def python_source_files(repo_path):
 
     The root is never pruned: the walk only tests subdirectories, so a
     checkout is always read against its own manifest.
+
+    Returns repository-relative paths, and only those Repo.read will
+    return: a dangling symlink, or one pointing out of the clone, is
+    not source of this checkout's.
     """
     found = []
-    real_root = os.path.realpath(repo_path)
-    for dirpath, dirnames, filenames in os.walk(repo_path):
+    for dirpath, dirnames, filenames in os.walk(repo.path):
         dirnames[:] = [
             d for d in dirnames
             if d not in NON_SOURCE_DIRS
             and not d.endswith('.egg-info')
-            and not os.path.exists(
-                os.path.join(dirpath, d, 'pyproject.toml'))
+            and not repo.exists(
+                repo.relative(os.path.join(dirpath, d, 'pyproject.toml')))
         ]
         for filename in filenames:
             if not filename.endswith('.py'):
                 continue
-            full = os.path.join(dirpath, filename)
-            # Opened later by imported_top_level_modules(), so the
-            # rule Repo.read applies is applied here: a dangling
-            # symlink would raise there, and one pointing out of the
-            # clone would let the repository choose what is read.
-            if (os.path.isfile(full)
-                    and path_is_within(real_root, full, root_is_real=True)):
-                found.append(full)
+            relative = repo.relative(os.path.join(dirpath, filename))
+            if repo.isfile(relative):
+                found.append(relative)
     return sorted(found)
 
 
-def imported_top_level_modules(sources):
+def imported_top_level_modules(repo, sources):
     """The set of top-level module names imported in a list of files.
 
     Lowercased, because the question asked of this set is whether a
@@ -474,8 +475,7 @@ def imported_top_level_modules(sources):
     """
     modules = set()
     for path in sources:
-        with open(path, 'r', errors='replace') as f:
-            code = mask_comments_and_strings(f.read())
+        code = mask_comments_and_strings(repo.read(path))
         for match in IMPORT_RE.finditer(code):
             targets = match.group('from') or match.group('import')
             for target in targets.split(','):

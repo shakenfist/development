@@ -1,9 +1,10 @@
 """Reading files out of a checkout.
 
-The primitives the criteria are built from. They take a repository
-path rather than a `Repo` because most of them are called from helper
-functions that are pure by design and have no business holding one;
-`Repo` wraps the two that every check reaches for and caches them.
+The primitives the criteria are built from. The ones that read take
+a `Repo` and read through `Repo.read`, which is the one guarded open of
+an audited repository's files: nothing outside the clone, nothing that
+is not a regular file, nothing over the size cap. tracked_paths() asks
+git rather than the filesystem, so it takes the path.
 """
 
 import os
@@ -37,36 +38,28 @@ WALK_SKIP = frozenset({
 })
 
 
-def check_file_exists(repo_path, path):
-    """Check if a file exists relative to repo root."""
-    return os.path.exists(os.path.join(repo_path, path))
+def check_file_contains(repo, path, pattern):
+    """Does a repository file contain a match for a regex?"""
+    content = repo.read(path)
+    return content is not None and bool(re.search(pattern, content))
 
 
-def check_file_contains(repo_path, path, pattern):
-    """Check if a file contains a regex pattern."""
-    filepath = os.path.join(repo_path, path)
-    if not os.path.exists(filepath):
-        return False
-    with open(filepath, 'r', errors='replace') as f:
-        return bool(re.search(pattern, f.read()))
-
-
-def file_mentions(filepath, needle):
-    """Does a file name something, outside of its comments?
+def file_mentions(repo, path, needle):
+    """Does a repository file name something, outside of its comments?
 
     Full-line comments do not count. A config or workflow routinely
     mentions a tool in a header comment explaining that something else
     runs it, and matching those would report a project as compliant
     for describing the thing it does not do.
     """
-    if not os.path.exists(filepath):
+    content = repo.read(path)
+    if content is None:
         return False
-    with open(filepath, 'r', errors='replace') as f:
-        for line in f:
-            if line.lstrip().startswith('#'):
-                continue
-            if needle in line:
-                return True
+    for line in content.split('\n'):
+        if line.lstrip().startswith('#'):
+            continue
+        if needle in line:
+            return True
     return False
 
 
@@ -88,49 +81,29 @@ def toml_section_has_key(content, section, key_pattern):
     return False
 
 
-def list_workflow_files(repo_path):
-    """List all .yml files in .github/workflows/."""
-    workflows_dir = os.path.join(repo_path, '.github', 'workflows')
-    if not os.path.isdir(workflows_dir):
-        return []
-    return [
-        f for f in os.listdir(workflows_dir)
-        if f.endswith('.yml') or f.endswith('.yaml')
-    ]
-
-
-def workflows_inheriting_secrets_into(repo_path, reusable):
+def workflows_inheriting_secrets_into(repo, reusable):
     """The workflow files with a job passing "secrets: inherit" to reusable.
 
     Returned sorted, so a finding naming them is stable from run to run.
     """
-    offenders = []
-    for wf in list_workflow_files(repo_path):
-        filepath = os.path.join(repo_path, '.github', 'workflows', wf)
-        with open(filepath, 'r', errors='replace') as f:
-            if calls_with_inherited_secrets(f.read(), reusable):
-                offenders.append(wf)
-    return sorted(offenders)
+    return sorted(
+        wf for wf in repo.workflows()
+        if calls_with_inherited_secrets(repo.workflow(wf), reusable))
 
 
-def workflow_has_permissions(repo_path, workflow_file):
+def workflow_has_permissions(repo, workflow_file):
     """Check if a workflow file has a top-level permissions block.
 
     We do a simple line-based check rather than full YAML parsing to
     avoid a PyYAML dependency. A top-level permissions block is a line
     starting with 'permissions:' (no leading whitespace).
     """
-    filepath = os.path.join(
-        repo_path, '.github', 'workflows', workflow_file
-    )
-    with open(filepath, 'r', errors='replace') as f:
-        for line in f:
-            if line.startswith('permissions:'):
-                return True
-    return False
+    content = repo.workflow(workflow_file)
+    return content is not None and any(
+        line.startswith('permissions:') for line in content.split('\n'))
 
 
-def iter_docs_markdown_files(repo_path, props):
+def iter_docs_markdown_files(repo):
     """Yield repo-relative paths of every .md file under docs/.
 
     Unlike iter_doc_content_files, plan documents are in scope. Plans
@@ -141,25 +114,27 @@ def iter_docs_markdown_files(repo_path, props):
     A repository's doc_content_excludes prefixes are skipped for the
     usual reason: they are imported copies of another repository's
     documentation, audited at their source.
+
+    Only paths repo.read() will return are yielded; see
+    iter_doc_content_files().
     """
     excludes = [
         e.strip('/') + '/'
-        for e in props.get('doc_content_excludes', [])
+        for e in repo.props.get('doc_content_excludes', [])
     ]
-    for dirpath, dirnames, filenames in os.walk(
-        os.path.join(repo_path, 'docs')
-    ):
-        rel_dir = os.path.relpath(dirpath, repo_path).replace(os.sep, '/')
+    for dirpath, dirnames, filenames in os.walk(repo.join('docs')):
+        rel_dir = repo.relative(dirpath).replace(os.sep, '/')
         dirnames[:] = sorted(
             d for d in dirnames
             if not any(f'{rel_dir}/{d}/'.startswith(e) for e in excludes)
         )
         for filename in sorted(filenames):
-            if filename.endswith('.md'):
-                yield f'{rel_dir}/{filename}'
+            rel = f'{rel_dir}/{filename}'
+            if filename.endswith('.md') and repo.isfile(rel):
+                yield rel
 
 
-def iter_doc_content_files(repo_path, props):
+def iter_doc_content_files(repo):
     """Yield repo-relative paths of documentation content to audit.
 
     The scope is the top-level README.md, AGENTS.md and
@@ -173,21 +148,25 @@ def iter_doc_content_files(repo_path, props):
     README.md is: they describe the current state of the software to
     a reader who was not present for its construction, so
     `wired up in phase 6` is noise there too.
+
+    Only paths repo.read() will return are yielded. A walk lists a
+    dangling link, a link out of the clone and an oversize file like
+    any other name, and every caller reads what it is handed, so a
+    name it cannot read is not documentation content to audit. A
+    `docs` that is itself a link out of the clone is covered by the
+    same test: os.walk follows its root, and every file below it then
+    resolves outside the checkout.
     """
     for name in ('README.md', 'AGENTS.md', 'ARCHITECTURE.md'):
-        if os.path.exists(os.path.join(repo_path, name)):
+        if repo.isfile(name):
             yield name
 
     excludes = [
         e.strip('/') + '/'
-        for e in props.get('doc_content_excludes', [])
+        for e in repo.props.get('doc_content_excludes', [])
     ]
-    for dirpath, dirnames, filenames in os.walk(
-        os.path.join(repo_path, 'docs')
-    ):
-        rel_dir = os.path.relpath(dirpath, repo_path).replace(
-            os.sep, '/'
-        )
+    for dirpath, dirnames, filenames in os.walk(repo.join('docs')):
+        rel_dir = repo.relative(dirpath).replace(os.sep, '/')
         dirnames[:] = sorted(
             d for d in dirnames
             if d != 'plans'
@@ -196,8 +175,9 @@ def iter_doc_content_files(repo_path, props):
             )
         )
         for filename in sorted(filenames):
-            if filename.endswith('.md'):
-                yield f'{rel_dir}/{filename}'
+            rel = f'{rel_dir}/{filename}'
+            if filename.endswith('.md') and repo.isfile(rel):
+                yield rel
 
 
 #: The finding a criterion reports when tracked_paths() returns None.

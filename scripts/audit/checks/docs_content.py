@@ -190,13 +190,14 @@ def repo_has_mermaid(repo):
     plan or a template counts for whether the linter is needed even
     though it is out of scope for diagram-format.
 
-    A name the walk lists is opened only if it is a file inside the
-    checkout, the rule `Repo.read` applies. A committed `*.md` symlink
-    whose target does not exist used to raise here, and before the
-    scheduler contained exceptions that took every criterion for the
-    repository down with it (shakenfist/development#152). It is skipped
-    rather than reported: it holds no diagram, and a symlink that does
-    resolve inside the checkout is read through its target anyway.
+    A name the walk lists is read through `Repo.read`, so one that is
+    not a file inside the checkout reads as None. A committed `*.md`
+    symlink whose target does not exist used to raise here, and before
+    the scheduler contained exceptions that took every criterion for
+    the repository down with it (shakenfist/development#152). It is
+    skipped rather than reported: it holds no diagram, and a symlink
+    that does resolve inside the checkout is read through its target
+    anyway.
     """
     for dirpath, dirnames, filenames in os.walk(repo.path):
         dirnames[:] = [
@@ -207,13 +208,13 @@ def repo_has_mermaid(repo):
         for filename in filenames:
             if not filename.endswith('.md'):
                 continue
-            path = os.path.join(dirpath, filename)
-            if not (os.path.isfile(path) and repo.contains(path)):
+            content = repo.read(
+                repo.relative(os.path.join(dirpath, filename)))
+            if content is None:
                 continue
-            with open(path, 'r', errors='replace') as f:
-                for line in f:
-                    if MERMAID_FENCE_RE.match(line):
-                        return True
+            for line in content.split('\n'):
+                if MERMAID_FENCE_RE.match(line):
+                    return True
     return False
 
 
@@ -231,13 +232,9 @@ class ReadmeStructure(Check):
         check enforces the measurable proxies: a length cap, and a link
         into docs/ when a docs/ directory exists.
         """
-        if not repo.exists('README.md'):
+        content = repo.read('README.md')
+        if content is None:
             return self.skip('No top-level README.md')
-
-        with open(
-            os.path.join(repo.path, 'README.md'), 'r', errors='replace'
-        ) as f:
-            content = f.read()
 
         problems = []
         lines = len(content.splitlines())
@@ -284,13 +281,9 @@ class ReadmeAbsoluteLinks(Check):
         on the GitHub tree, where relative links resolve correctly, so
         they are intentionally out of scope.
         """
-        if not repo.exists('README.md'):
+        content = repo.read('README.md')
+        if content is None:
             return self.skip('No top-level README.md')
-
-        with open(
-            os.path.join(repo.path, 'README.md'), 'r', errors='replace'
-        ) as f:
-            content = f.read()
 
         scannable = strip_markdown_code(content)
         relative = []
@@ -351,13 +344,10 @@ class DocsExternalLinks(Check):
             return self.skip('No docs/ directory')
 
         offenders = []
-        for rel_path in iter_docs_markdown_files(repo.path, repo.props):
-            with open(
-                os.path.join(repo.path, rel_path), 'r', errors='replace'
-            ) as f:
-                scannable = strip_markdown_code(
-                    blank_generated_blocks(f.read())
-                )
+        for rel_path in iter_docs_markdown_files(repo):
+            scannable = strip_markdown_code(
+                blank_generated_blocks(repo.read(rel_path))
+            )
 
             rel_dir = os.path.dirname(rel_path)
             raw_targets = [m.group(1) for m in MD_LINK_RE.finditer(scannable)]
@@ -377,7 +367,7 @@ class DocsExternalLinks(Check):
                     os.path.join(rel_dir, urllib.parse.unquote(path))
                 )
                 if resolved == 'docs' or resolved.startswith('docs/'):
-                    if os.path.exists(os.path.join(repo.path, resolved)):
+                    if repo.exists(resolved):
                         continue
                 offenders.append(f'{rel_path} -> {target}')
 
@@ -425,16 +415,13 @@ class DiagramFormat(Check):
         "audit-ok: diagram-format" comment on the fence line or the line
         above it.
         """
-        files = list(iter_doc_content_files(repo.path, repo.props))
+        files = list(iter_doc_content_files(repo))
         if not files:
             return self.skip('No documentation content to audit')
 
         hits = []
         for rel in files:
-            with open(
-                os.path.join(repo.path, rel), 'r', errors='replace'
-            ) as f:
-                content = blank_generated_blocks(f.read())
+            content = blank_generated_blocks(repo.read(rel))
             lines = content.splitlines()
             for lang, start, body in iter_fenced_blocks(content):
                 if not is_ascii_diagram(lang, body):
@@ -467,7 +454,7 @@ class DocsLineReferences(Check):
     issue_title = 'Documentation names code by symbol, not line number'
 
     def applies(self, repo):
-        if not any(iter_doc_content_files(repo.path, repo.props)):
+        if not any(iter_doc_content_files(repo)):
             return 'No documentation content to audit'
         return None
 
@@ -495,11 +482,8 @@ class DocsLineReferences(Check):
         "audit-ok: docs-line-references" comment.
         """
         hits = []
-        for rel in iter_doc_content_files(repo.path, repo.props):
-            with open(
-                os.path.join(repo.path, rel), 'r', errors='replace'
-            ) as f:
-                content = blank_generated_blocks(f.read())
+        for rel in iter_doc_content_files(repo):
+            content = blank_generated_blocks(repo.read(rel))
             for offset, line in iter_lines_outside_fences(
                 content.splitlines()
             ):
@@ -554,13 +538,10 @@ class MermaidLintCi(Check):
         if not repo.exists(MERMAID_LINT_SCRIPT):
             missing.append(MERMAID_LINT_SCRIPT)
 
-        workflows = [
-            os.path.join(repo.path, '.github', 'workflows', workflow)
-            for workflow in repo.workflows()
-        ]
         if not any(
-            file_mentions(workflow, MERMAID_LINT_SCRIPT)
-            for workflow in workflows
+            file_mentions(
+                repo, f'.github/workflows/{workflow}', MERMAID_LINT_SCRIPT)
+            for workflow in repo.workflows()
         ):
             missing.append('a CI workflow that runs it')
 
