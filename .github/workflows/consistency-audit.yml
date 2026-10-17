@@ -16,6 +16,17 @@ on:
 
 permissions: {}
 
+# One run at a time, across the schedule and every dispatch. Two runs
+# that overlapped would each file the issues the other was about to,
+# and race each other's compliance page pushes. cancel-in-progress is
+# off, so a run that has started is never killed part way through
+# managing issues: a later one waits for it instead. GitHub keeps one
+# waiting run per group, so if several are queued the newest replaces
+# the others before they start.
+concurrency:
+  group: consistency-audit
+  cancel-in-progress: false
+
 jobs:
   audit:
     name: Audit ${{ matrix.repo }}
@@ -172,10 +183,11 @@ jobs:
     # finds, so a repository with no artifact is not processed at all
     # -- its open issues are left alone rather than closed as passing.
     #
-    # !cancelled() rather than always(): a run somebody stopped, or
-    # one superseded by a newer dispatch, should not go on to file
-    # and close issues across the fleet from whichever artifacts
-    # happened to land before it was killed.
+    # !cancelled() rather than always(): a run somebody stopped
+    # should not go on to file and close issues across the fleet from
+    # whichever artifacts happened to land before it was killed. A
+    # newer run cannot supersede this one part way through: the
+    # concurrency group above makes it wait.
     if: ${{ !cancelled() }}
     runs-on: [self-hosted, static]
     permissions:
