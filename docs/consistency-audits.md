@@ -501,11 +501,18 @@ import rather than measuring anything.
 Every test suite lives in `scripts/tests/`, including the suites for
 the scripts around the package -- `test_review_tracking.py`,
 `test_audit_update_docs.py`, `test_audit_snapshot.py`,
-`test_check_audit_smoke.py`, `test_issue_fix_extraction.py` and
+`test_check_audit_smoke.py`, `test_manage_issues.py`,
+`test_audit_clis.py`, `test_issue_fix_extraction.py` and
 `test_audit_seams.py`. They sat in `scripts/` until there were two
 directories with no rule telling them apart. A suite written anywhere
 else is a suite no hook runs, and `SuiteLocationTest` in
 `scripts/tests/test_hooks.py` fails on one.
+
+The issue scripts are tested against `FakeIssueTracker` in
+`scripts/tests/fake_issues.py`, which answers their `gh` invocations
+out of an in-memory tracker and records every write, so a test asserts
+what a run would do to a repository's issues rather than which helper
+it called.
 
 Two `local` pre-commit hooks run them. `audit-package-tests` discovers
 the directory and runs all of it, on a change to any Python file under
