@@ -93,10 +93,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/check-audit-smoke.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/commit-audit-docs.sh",
       "author": "mikal"
     },
@@ -297,10 +293,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit-manage-issues.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit_snapshot.py",
       "author": "mikal"
     },
@@ -386,10 +378,6 @@
     },
     {
       "path": "README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_check_audit_smoke.py",
       "author": "mikal"
     },
     {
@@ -509,10 +497,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit_common.py",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/renovate-lockstep-groups.md",
       "author": "mikal"
     },
@@ -617,23 +601,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_manage_issues.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_audit_common.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_audit_snapshot.py",
       "author": "mikal"
     },
     {
       "path": "scripts/tests/test_markdown.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_metadata.py",
       "author": "mikal"
     },
     {
@@ -698,10 +670,6 @@
     },
     {
       "path": "docs/audits/merge-group-cancellation.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_registry.py",
       "author": "mikal"
     },
     {
