@@ -68,9 +68,15 @@ jobs:
       - name: Checkout development repo
         uses: actions/checkout@v7
 
+      # Every path this job writes is under runner.temp, which belongs
+      # to this runner and is emptied between jobs. The static runners
+      # share hosts, and a fixed /tmp path is shared by every leg and
+      # every other job on one: a leg's clean-up could remove another
+      # leg's clone mid-audit, and a venv an earlier job left behind
+      # would run its code in an interpreter holding the token.
       - name: Clone target repo
         run: |
-          gh repo clone shakenfist/${{ matrix.repo }} /tmp/audit-target -- --depth 1
+          gh repo clone "shakenfist/${{ matrix.repo }}" "${RUNNER_TEMP}/audit-target" -- --depth 1
         env:
           GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
 
@@ -83,17 +89,19 @@ jobs:
       # so a bare `pip install` is refused with
       # "error: externally-managed-environment" -- which is how every
       # leg of this matrix started failing on 2026-08-20, taking the
-      # compliance page and issue filing with it.
+      # compliance page and issue filing with it. --clear because a
+      # .pth file left in a venv survives a second `python3 -m venv`
+      # over the top of it.
       - name: Install skillsaw
         run: |
-          python3 -m venv /tmp/audit-venv
-          /tmp/audit-venv/bin/pip install --disable-pip-version-check \
+          python3 -m venv --clear "${RUNNER_TEMP}/audit-venv"
+          "${RUNNER_TEMP}/audit-venv/bin/pip" install --disable-pip-version-check \
               skillsaw==0.18.0
 
       # audit-check.py invokes skillsaw by name, so the venv has to be
       # on PATH by the time the audit step runs.
       - name: Put skillsaw on PATH
-        run: echo "/tmp/audit-venv/bin" >> "${GITHUB_PATH}"
+        run: echo "${RUNNER_TEMP}/audit-venv/bin" >> "${GITHUB_PATH}"
 
       # A skillsaw that cannot run does not fail the audit:
       # skillsaw_errors() catches FileNotFoundError and returns None,
@@ -114,11 +122,11 @@ jobs:
         id: audit
         run: |
           python3 scripts/audit-check.py \
-            --repo-path /tmp/audit-target \
-            --repo-name ${{ matrix.repo }} \
+            --repo-path "${RUNNER_TEMP}/audit-target" \
+            --repo-name "${{ matrix.repo }}" \
             --github-org shakenfist \
-            > /tmp/audit-result-${{ matrix.repo }}.json
-          cat /tmp/audit-result-${{ matrix.repo }}.json
+            > "${RUNNER_TEMP}/audit-result-${{ matrix.repo }}.json"
+          cat "${RUNNER_TEMP}/audit-result-${{ matrix.repo }}.json"
         env:
           GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
 
@@ -126,7 +134,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: audit-${{ matrix.repo }}
-          path: /tmp/audit-result-${{ matrix.repo }}.json
+          path: ${{ runner.temp }}/audit-result-${{ matrix.repo }}.json
           retention-days: 30
 
       # A check that raised is reported as `error` rather than taking
@@ -136,12 +144,14 @@ jobs:
       # with a hole in it -- while manage-issues still gets this
       # repository's artifact and manages every other criterion.
       - name: Fail if any check raised
-        run: python3 scripts/audit-raised.py /tmp/audit-result-${{ matrix.repo }}.json
+        run: python3 scripts/audit-raised.py "${RUNNER_TEMP}/audit-result-${{ matrix.repo }}.json"
 
+      # This leg's paths and nothing else's.
       - name: Clean up
         if: always()
         run: |
-          rm -rf /tmp/audit-target /tmp/audit-result-*.json /tmp/audit-venv
+          rm -rf "${RUNNER_TEMP}/audit-target" "${RUNNER_TEMP}/audit-venv" \
+              "${RUNNER_TEMP}/audit-result-${{ matrix.repo }}.json"
 
   manage-issues:
     name: Manage consistency issues
@@ -210,14 +220,14 @@ jobs:
       - name: Download all audit results
         uses: actions/download-artifact@v8
         with:
-          path: /tmp/consistency-audit-results
+          path: ${{ runner.temp }}/consistency-audit-results
           pattern: audit-*
           merge-multiple: true
 
       - name: Regenerate the audit compliance page
         run: |
           python3 scripts/audit-update-docs.py \
-            --results-dir /tmp/consistency-audit-results
+            --results-dir "${RUNNER_TEMP}/consistency-audit-results"
         env:
           GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
 
@@ -226,7 +236,7 @@ jobs:
 
       - name: Clean up
         if: always()
-        run: rm -rf /tmp/consistency-audit-results
+        run: rm -rf "${RUNNER_TEMP}/consistency-audit-results"
 
   # A scheduled workflow that fails emails whoever last pushed, which
   # is nobody's inbox in particular and is easy to miss for a workflow

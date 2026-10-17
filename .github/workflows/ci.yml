@@ -54,11 +54,13 @@ jobs:
       - uses: actions/checkout@v7
 
       # A venv for the same reason consistency-audit.yml uses one: the
-      # runners enforce PEP 668 and refuse a bare install.
+      # runners enforce PEP 668 and refuse a bare install. Under
+      # runner.temp, with --clear, for the reason it gives as well: a
+      # fixed /tmp path is shared with every other job on the host.
       - name: Install pre-commit
         run: |
-          python3 -m venv /tmp/venv-lint
-          /tmp/venv-lint/bin/pip install --quiet --disable-pip-version-check \
+          python3 -m venv --clear "${RUNNER_TEMP}/venv-lint"
+          "${RUNNER_TEMP}/venv-lint/bin/pip" install --quiet --disable-pip-version-check \
               pre-commit
 
       # This is the whole gate, and it was already the whole gate --
@@ -67,12 +69,12 @@ jobs:
       # it other than whoever remembers to.
       - name: Run pre-commit hooks
         run: |
-          /tmp/venv-lint/bin/pre-commit run --all-files \
+          "${RUNNER_TEMP}/venv-lint/bin/pre-commit" run --all-files \
               --show-diff-on-failure
 
       - name: Clean up
         if: always()
-        run: rm -rf /tmp/venv-lint
+        run: rm -rf "${RUNNER_TEMP}/venv-lint"
 
   audit-smoke:
     name: Audit smoke run
@@ -93,12 +95,12 @@ jobs:
       # comment is the thing that goes stale without anything noticing.
       - name: Install skillsaw
         run: |
-          python3 -m venv /tmp/audit-venv
-          /tmp/audit-venv/bin/pip install --disable-pip-version-check \
+          python3 -m venv --clear "${RUNNER_TEMP}/audit-venv"
+          "${RUNNER_TEMP}/audit-venv/bin/pip" install --disable-pip-version-check \
               skillsaw==0.18.0
 
       - name: Put skillsaw on PATH
-        run: echo "/tmp/audit-venv/bin" >> "${GITHUB_PATH}"
+        run: echo "${RUNNER_TEMP}/audit-venv/bin" >> "${GITHUB_PATH}"
 
       # Audits this repository against itself. The verdicts are not the
       # point and are not asserted here. development is audited for
@@ -117,7 +119,7 @@ jobs:
             --repo-path . \
             --repo-name development \
             --github-org shakenfist \
-            > /tmp/audit-smoke.json
+            > "${RUNNER_TEMP}/audit-smoke.json"
 
       # The load-bearing assertion. skillsaw_errors() returns None when
       # skillsaw cannot run, and check_llm_context_lint turns that into
@@ -127,11 +129,11 @@ jobs:
       # reached a verdict is what makes this job a detector rather than
       # a smoke test that happens to pass.
       - name: Check the audit actually measured
-        run: python3 scripts/check-audit-smoke.py /tmp/audit-smoke.json
+        run: python3 scripts/check-audit-smoke.py "${RUNNER_TEMP}/audit-smoke.json"
 
       - name: Clean up
         if: always()
-        run: rm -rf /tmp/audit-venv /tmp/audit-smoke.json
+        run: rm -rf "${RUNNER_TEMP}/audit-venv" "${RUNNER_TEMP}/audit-smoke.json"
 
   # The automatic review, gated on both jobs above passing: a job that
   # is skipped because a dependency failed never starts the reusable
