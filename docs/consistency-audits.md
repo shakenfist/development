@@ -83,10 +83,15 @@ virtualenv, asserts that skillsaw answers at that pinned version, then
 runs `scripts/audit-check.py` and uploads the result as an
 `audit-result-<repo>.json` artifact.
 
-Most checks read files out of the clone. A few (default branch,
-security settings, repository visibility) query the GitHub API through
-`gh`, and the git-hygiene checks shell out to `git` inside the clone.
-Visibility is queried live rather than hardcoded because it changes.
+Most checks read files out of the clone, several of them by asking
+`git` inside it what the index holds. A few reach the network instead:
+they query the GitHub API through `gh`, or clone another repository to
+compare against. That set is `NETWORK_CHECKS` in
+`scripts/audit_snapshot.py`, which a test keeps in step with the code
+(see [Before and after a change to a
+check](#before-and-after-a-change-to-a-check)). Repository visibility
+is among what they query, live rather than hardcoded, because it
+changes.
 
 The skillsaw pin is deliberate, and so is the assertion next to it.
 `llm-context-lint` reports what skillsaw calls an error, and skillsaw's
@@ -421,14 +426,23 @@ the `timestamp` field so that two runs of an unchanged tree compare
 equal. `--diff` exits non-zero if anything differs and prints the
 status and details on both sides.
 
-Six checks reach the network -- `default-branch-naming`,
-`github-security`, `delete-branch-on-merge`, `merge-queue-config`,
-`merge-group-cancellation` and `sfui-vendor` -- so they can differ
-between two runs because a repository setting changed rather than
-because the code did. They are reported under their own heading and do
-not affect the exit code. `scripts/tests/test_audit_snapshot.py`
-re-derives that list from `audit-check.py` and fails if a check grows
-a `gh` call without joining it.
+The checks in `NETWORK_CHECKS` in `scripts/audit_snapshot.py` reach
+the network, so they can differ between two runs because something
+outside the tree moved -- a repository setting, a workflow run, a new
+repository in the organisation -- rather than because the code did.
+They are reported under their own heading and do not affect the exit
+code. Read the list there rather than from a copy on this page, which
+is how this paragraph once fell two checks behind.
+
+`NetworkCheckListTest` in `scripts/tests/test_audit_snapshot.py`
+keeps the list honest. It takes the schedule from `CHECKS` in
+`scripts/audit/registry.py`, and for each check follows its class
+body, its base classes and the helpers it calls under
+`scripts/audit/`, looking for the GitHub client (`_github()`,
+`repo.github`, `GhCli(`) or a `git clone`. It fails if the set it
+derives differs from `NETWORK_CHECKS` in either direction, so a check
+that grows a GitHub call has to join the list, and one that loses its
+last call has to leave it.
 
 The snapshots are not committed. Generated JSON under `scripts/` or
 `docs/` would land in review scope and sit permanently stale in the
