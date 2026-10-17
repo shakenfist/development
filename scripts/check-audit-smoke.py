@@ -13,7 +13,12 @@ here". The compliance page then reports a considered exemption where
 what actually happened is that the tool was not installed.
 
 So the smoke job asserts the audit reached verdicts, not that the
-verdicts are any particular value. Which checks fail against this
+verdicts are any particular value. A check that raised has not reached
+one: `registry.run_check()` reports it as `error` so that the other
+checks still run, and the scheduled workflow fails the leg on it with
+audit-raised.py. Accepting it here would let a pull request that
+introduces a raising check pass CI and fail the next scheduled run
+instead, which is the failure this job exists to move earlier. Which checks fail against this
 repository is not this script's business: development is exempt from
 the audits and several checks fail here by design.
 
@@ -58,6 +63,10 @@ def main(argv):
             problems.append(
                 '%s returned no status, so it neither passed nor failed'
                 % check['id'])
+        elif check['status'] == 'error':
+            problems.append(
+                '%s raised rather than reaching a verdict: %s'
+                % (check['id'], check.get('details', 'no details')))
 
     by_id = {c.get('id'): c for c in checks}
     for check_id in MUST_BE_MEASURED:

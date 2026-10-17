@@ -639,7 +639,9 @@ workflow's runtime assumptions -- the 2026-08-20 outage was a bare
 `pip install` meeting a runner that enforces PEP 668 -- so the smoke job
 asserts the audit *measured* rather than that it approved. Which checks
 fail against this repository is not its business; several fail here by
-design.
+design. A check reporting `error` has not measured anything -- it
+raised -- so the smoke job fails on one, as the scheduled run's
+`audit-raised.py` step would.
 
 ## Related
 
