@@ -365,6 +365,10 @@ so a step added to it reaches both.
    and `repo.workflows()` lists only workflows `repo.workflow()` will
    read. A tree walk hands what it finds to `repo.read()` through
    `repo.relative()` rather than opening it.
+   `scripts/tests/test_containment.py` runs every scheduled check with
+   the files it read replaced by links out of the checkout, dangling
+   links and directories, and fails on any `open()` of the checkout
+   that did not come through that one guard.
 
 2. **`scripts/audit/registry.py`** -- register the instance in
    `CHECKS`, beside the rest of its family. That list is the order the
