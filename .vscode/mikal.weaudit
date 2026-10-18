@@ -701,19 +701,7 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/consistency-audit.yml",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
       "author": "mikal"
     },
     {
@@ -802,10 +790,6 @@
     },
     {
       "path": "scripts/tests/test_audit_update_docs.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_audit_workflow.py",
       "author": "mikal"
     },
     {

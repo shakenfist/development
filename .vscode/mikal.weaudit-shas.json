@@ -41,10 +41,6 @@
       "sha": "975f656d8135aefe12ba2f2094d8671460ef1a8a",
       "date": "2026-10-01"
     },
-    ".github/workflows/consistency-audit.yml": {
-      "sha": "88e5b7a7fb34f20bca5cb1e0054cfc08c9774e94",
-      "date": "2026-10-18"
-    },
     ".github/workflows/export-repo-config.yml": {
       "sha": "b9b3936053b8685ef0ae47f656b2f35aa62ba637",
       "date": "2026-09-27"
@@ -455,10 +451,6 @@
     },
     "scripts/tests/test_audit_update_docs.py": {
       "sha": "0419d4a8d18b67b54dc834a7387eccbb956489eb",
-      "date": "2026-10-18"
-    },
-    "scripts/tests/test_audit_workflow.py": {
-      "sha": "55c90d12d0d8b76756195e10d2ab156a7c361362",
       "date": "2026-10-18"
     },
     "scripts/tests/test_check_audit_smoke.py": {
