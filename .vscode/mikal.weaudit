@@ -695,6 +695,182 @@
     {
       "path": "docs/code-review-tracking.md",
       "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/consistency-audit.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/ci-review-automation.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/llm-context-lint-ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/llm-context-lint.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/llm-tooling.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/renovate.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/review-coverage.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/sfui-vendor.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/workflow-standards.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ci-review-automation.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consistency-audits.md",
+      "author": "mikal"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "author": "mikal"
+    },
+    {
+      "path": "AGENTS.md",
+      "author": "mikal"
+    },
+    {
+      "path": "PUSH-AUDIT.md",
+      "author": "mikal"
+    },
+    {
+      "path": "renovate.json",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate/renovate.json",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/fake_issues.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_audit_clis.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_audit_common.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_audit_update_docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_audit_workflow.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_check_audit_smoke.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_llm_docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_manage_issues.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_metadata.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_registry.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit_common.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit-manage-issues.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit-update-docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/check-audit-smoke.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/llm_docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/github.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/report-audit-failure.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
