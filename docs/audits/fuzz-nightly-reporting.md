@@ -249,7 +249,10 @@ a reason; where the queue reaches the lane through a caller, the
 caller may carry it instead. Anywhere in the file works; its own comment line above the
 trigger is where it belongs, and is where a reader will look for it.
 
-Repositories with no fuzz targets are not applicable.
+Repositories with no fuzz targets are not applicable. A repository
+with fuzz targets and no `.github/workflows/` directory is not: it
+fails, as one with an empty directory does, since nothing runs the
+targets in either.
 
 ## Template
 

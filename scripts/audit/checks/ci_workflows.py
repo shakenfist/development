@@ -1967,9 +1967,11 @@ class FuzzNightlyReporting(Check):
         100ms on ryll. Asking it first means the repositories that do
         fuzz never walk at all: they are recognised by the lane that
         runs the targets, which `run()` needs anyway.
+
+        A missing workflows directory is not a reason to skip: fuzz
+        targets nothing runs are the finding, whether the directory is
+        absent or empty, and `repo.workflows()` is empty either way.
         """
-        if not repo.props['has_workflows_dir']:
-            return 'No .github/workflows/ directory'
         if fuzz_workflows(repo) or repo_fuzz_target_dirs(repo.path):
             return None
         return 'No fuzz targets'

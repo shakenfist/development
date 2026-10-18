@@ -1758,8 +1758,16 @@ class FuzzNightlyReportingTest(CheckTestCase):
         return GOOD_NIGHTLY.replace(
             '  schedule:', marker + '  merge_group:\n  schedule:')
 
-    def test_without_workflows_it_does_not_apply(self):
-        self.assert_skip(self.check(), containing='No .github/workflows/')
+    def test_without_workflows_or_targets_it_does_not_apply(self):
+        self.assert_skip(self.check(), containing='No fuzz targets')
+
+    def test_targets_and_no_workflows_directory_fail(self):
+        """An absent directory runs the targets no more than an empty one."""
+        self._targets()
+        self.assert_fail(self.check(), containing='no workflow runs them')
+        self.fixture.workflows({})
+        self.assert_fail(self.check(has_workflows_dir=True),
+                         containing='no workflow runs them')
 
     def test_a_repository_with_no_fuzz_targets_does_not_apply(self):
         self.fixture.workflow('ci.yml', 'on: push\njobs:\n  a:\n    steps: []\n')
