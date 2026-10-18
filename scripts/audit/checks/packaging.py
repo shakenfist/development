@@ -168,25 +168,11 @@ def pins_direct_dependencies(repo):
     return ratio >= PIN_INTENT_THRESHOLD, exact, len(dependencies)
 
 
-# A pinned dependency entry in a pyproject.toml array, e.g.
-# '    "typing-extensions==4.16.0",' or
-# '    "gunicorn[gevent]==25.3.0",  # mit'. Captures the distribution
-# name, optional [extras], and the leading version specifier.
-DEP_PIN_RE = re.compile(
-    r'''^\s*["']
-        (?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)
-        (?P<extras>\[[^\]]*\])?
-        \s*(?P<spec>(?:[<>=!~]=|===)\s*[^"',;]+)
-    ''',
-    re.VERBOSE,
-)
-
-
 # A PEP 508 requirement string as it appears once TOML parsing has
 # already stripped the quoting, e.g. 'click>=8.0.0' or
-# 'gunicorn[gevent]==26.0.0'. Unlike DEP_PIN_RE this matches the value
-# rather than the source line, so it does not need to tolerate quotes,
-# indentation or trailing comments.
+# 'gunicorn[gevent]==26.0.0'. It matches the value rather than the
+# source line, so it does not need to tolerate quotes, indentation or
+# trailing comments.
 DEP_SPEC_RE = re.compile(
     r'''^\s*
         (?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)
@@ -202,14 +188,6 @@ DEP_SPEC_RE = re.compile(
 # declared as ">=X" that also carries an exact "==Y" pin (appended by
 # the indirect-dependency workflow) is intentional and resolves fine.
 EXACT_PIN_RE = re.compile(r'^={2,3}\s*(\S+)')
-
-
-# The start of a TOML array (e.g. 'dependencies = [') or a table
-# header (e.g. '[project.optional-dependencies]'). Either boundary
-# starts a fresh dependency grouping, so a name pinned once in the main
-# dependencies array and once in an optional-dependencies group is not
-# treated as a conflict.
-DEP_ARRAY_OPEN_RE = re.compile(r'=\s*\[')
 
 
 TOML_SECTION_RE = re.compile(r'^\s*\[[A-Za-z_]')
@@ -995,6 +973,37 @@ def workflow_tools_scripts(repo, workflow):
     return sorted(scripts)
 
 
+def requirement_arrays(data):
+    """Every array of requirement strings in a parsed pyproject.toml.
+
+    One list per array, since a name pinned in two arrays is pinned in
+    two install-time scopes rather than twice in one: the build
+    requirements, the runtime dependencies, each extra, and each PEP 735
+    dependency group. tomllib reads every spelling of a TOML array --
+    a one-line `["a==1", "a==2"]` as much as one entry per line -- and
+    an entry that is not a string, such as a group's
+    `{include-group = ...}`, is not a requirement.
+    """
+    def strings(value):
+        if not isinstance(value, list):
+            return []
+        return [entry for entry in value if isinstance(entry, str)]
+
+    def tables(value):
+        return value.values() if isinstance(value, dict) else []
+
+    build = data.get('build-system')
+    project = data.get('project')
+    arrays = [
+        strings(build.get('requires')) if isinstance(build, dict) else [],
+        strings(project.get('dependencies')) if isinstance(project, dict) else [],
+    ]
+    if isinstance(project, dict):
+        arrays.extend(strings(group) for group in tables(project.get('optional-dependencies')))
+    arrays.extend(strings(group) for group in tables(data.get('dependency-groups')))
+    return [array for array in arrays if array]
+
+
 class DependencyNameNormalization(Check):
     id = 'dependency-name-normalization'
     spec = 'docs/audits/dependency-name-normalization.md'
@@ -1020,7 +1029,10 @@ class DependencyNameNormalization(Check):
         content = repo.read('pyproject.toml')
         if content is None:
             return self.skip('No pyproject.toml (not a Python package)')
-        lines = content.splitlines()
+        try:
+            data = tomllib.loads(content)
+        except tomllib.TOMLDecodeError as e:
+            return self.fail(f'Could not parse pyproject.toml: {e}')
 
         conflicts = []
 
@@ -1042,23 +1054,21 @@ class DependencyNameNormalization(Check):
                     spellings = sorted({e['raw'] for e in entries})
                     conflicts.append(f'{canonical} ({", ".join(spellings)})')
 
-        group = {}
-        for line in lines:
-            if TOML_SECTION_RE.match(line) or DEP_ARRAY_OPEN_RE.search(line):
-                evaluate(group)
-                group = {}
-            match = DEP_PIN_RE.match(line)
-            if not match:
-                continue
-            exact = EXACT_PIN_RE.match(match.group('spec').strip())
-            group.setdefault(
-                canonical_dependency_name(match.group('name')), []
-            ).append({
-                'raw': match.group('name') + (match.group('extras') or ''),
-                'version': exact.group(1) if exact else None,
-                'has_extras': bool(match.group('extras')),
-            })
-        evaluate(group)
+        for array in requirement_arrays(data):
+            group = {}
+            for requirement in array:
+                match = DEP_SPEC_RE.match(requirement)
+                if not match or not match.group('spec'):
+                    continue
+                exact = EXACT_PIN_RE.match(match.group('spec').strip())
+                group.setdefault(
+                    canonical_dependency_name(match.group('name')), []
+                ).append({
+                    'raw': match.group('name') + (match.group('extras') or ''),
+                    'version': exact.group(1) if exact else None,
+                    'has_extras': bool(match.group('extras')),
+                })
+            evaluate(group)
 
         if conflicts:
             return self.fail(

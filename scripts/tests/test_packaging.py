@@ -28,6 +28,7 @@ class DependencyNameNormalizationTest(CheckTestCase):
 
     def test_clean_dependencies_pass(self):
         body = (
+            '[project]\n'
             'dependencies = [\n'
             '    "typing-extensions==4.16.0",\n'
             '    "requests==2.34.2",\n'
@@ -37,6 +38,7 @@ class DependencyNameNormalizationTest(CheckTestCase):
 
     def test_hyphen_underscore_duplicate_fails(self):
         body = (
+            '[project]\n'
             'dependencies = [\n'
             '    "typing-extensions==4.15.0",\n'
             '    "typing_extensions==4.15.0",\n'
@@ -46,6 +48,7 @@ class DependencyNameNormalizationTest(CheckTestCase):
 
     def test_diverged_exact_versions_fail(self):
         body = (
+            '[project]\n'
             'dependencies = [\n'
             '    "typing-extensions==4.15.0",\n'
             '    "typing_extensions==4.16.0",\n'
@@ -57,6 +60,7 @@ class DependencyNameNormalizationTest(CheckTestCase):
         # A direct floor constraint plus the exact pin appended by the
         # indirect-dependency workflow is intentional.
         body = (
+            '[project]\n'
             'dependencies = [\n'
             '    "psutil>=5.9.4",\n'
             '    "psutil==7.2.2",\n'
@@ -66,6 +70,7 @@ class DependencyNameNormalizationTest(CheckTestCase):
 
     def test_base_plus_extras_same_version_passes(self):
         body = (
+            '[project]\n'
             'dependencies = [\n'
             '    "gunicorn[gevent]==25.3.0",\n'
             '    "gunicorn==25.3.0",\n'
@@ -75,6 +80,7 @@ class DependencyNameNormalizationTest(CheckTestCase):
 
     def test_base_plus_extras_conflicting_version_fails(self):
         body = (
+            '[project]\n'
             'dependencies = [\n'
             '    "gunicorn[gevent]==25.3.0",\n'
             '    "gunicorn==26.0.0",\n'
@@ -96,6 +102,34 @@ class DependencyNameNormalizationTest(CheckTestCase):
             ']\n'
         )
         self.assert_pass(self._check(body))
+
+    def test_a_one_line_array_is_read(self):
+        # The line scan this replaced only saw one entry per line.
+        body = ('[project]\n'
+                'dependencies = ["typing-extensions==4.1", "typing_extensions==4.2"]\n')
+        self.assert_fail(self._check(body), containing='typing-extensions')
+
+    def test_each_requirement_array_is_its_own_scope(self):
+        for header, key in (('[build-system]', 'requires'),
+                            ('[project.optional-dependencies]', 'test'),
+                            ('[dependency-groups]', 'dev')):
+            with self.subTest(header=header):
+                self.fresh_fixture()
+                body = (f'{header}\n{key} = [\n'
+                        '    "typing-extensions==4.1",\n'
+                        '    "typing_extensions==4.1",\n'
+                        ']\n')
+                self.assert_fail(self._check(body), containing='typing-extensions')
+
+    def test_a_dependency_group_include_is_not_a_requirement(self):
+        body = ('[dependency-groups]\n'
+                'test = ["pytest==8.0"]\n'
+                'dev = [{include-group = "test"}, "pytest==8.0"]\n')
+        self.assert_pass(self._check(body))
+
+    def test_a_malformed_pyproject_fails(self):
+        self.assert_fail(self._check('[project\n'),
+                         containing='Could not parse pyproject.toml')
 
     def test_non_dependency_quoted_strings_ignored(self):
         # URLs, script entry points and classifiers must not be parsed
