@@ -28,6 +28,7 @@ import re
 
 from audit.check import Check
 from audit.files import WALK_SKIP, require_tracked_paths
+from audit.text.workflows import BLOCK_INDICATOR_RE
 
 
 #: Modules node provides itself. An import of one of these is not a
@@ -134,10 +135,6 @@ CALL_IMPORT_RE = re.compile(
 #: plain one. What follows on the line is either the command itself or
 #: a block scalar indicator introducing several.
 RUN_KEY_RE = re.compile(r'^(?P<lead>[ \t]*(?:-[ \t]+)?)run:(?P<rest>.*)$')
-
-#: The block scalar indicators, with their optional chomping and
-#: explicit indentation: `|`, `>-`, `|2` and the rest.
-BLOCK_SCALAR_RE = re.compile(r'^[|>](?:\d+[-+]?|[-+]?\d*)$')
 
 #: `npm install`, at a position where a shell would run it: the start
 #: of a command, or just after a pipe, `&&` or `;`. Anchored, because
@@ -729,7 +726,7 @@ def run_commands(content):
         if not match:
             continue
         rest = match.group('rest').strip()
-        if BLOCK_SCALAR_RE.match(rest):
+        if BLOCK_INDICATOR_RE.match(rest):
             key_column = len(match.group('lead'))
         elif rest and not rest.startswith('#'):
             commands.append(rest)

@@ -293,6 +293,19 @@ class NpmPinIndirectDependenciesTest(NpmFixtureMixin, CheckTestCase):
             '          CI: "true"\n')
         self.assert_fail(self.check(), containing='npm install')
 
+    def test_an_install_under_an_indented_block_header_still_fails(self):
+        """`run: |2-` opens a block as surely as `run: |` does."""
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'])
+        for header in ('|2-', '>-2'):
+            with self.subTest(header=header):
+                self.fixture.workflow(
+                    'ci.yml',
+                    'jobs:\n  b:\n    steps:\n'
+                    f'      - run: {header}\n'
+                    '          npm install\n')
+                self.assert_fail(self.check(), containing='npm install')
+
     def test_an_install_after_a_shell_operator_still_fails(self):
         """`cd x && npm install` runs it as surely as a bare line."""
         self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
