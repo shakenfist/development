@@ -563,6 +563,19 @@ class PrReReviewTriggerTest(CheckTestCase):
     def test_the_docs_only_path_passes_when_the_action_is_used(self):
         self.assert_pass(self._check(self.USES_ACTION, docs_only=True))
 
+    def test_the_docs_only_path_fails_a_missing_workflow(self):
+        # The one requirement that branch exists to enforce.
+        result = self._check(None, docs_only=True)
+        self.assert_fail(result, containing='Missing workflows: pr-re-review.yml')
+        self.assertEqual(result['missing'], ['pr-re-review.yml'])
+
+    def test_the_docs_only_path_reports_every_finding(self):
+        # One per run would take a repository a week per finding.
+        self.fixture.write('tools/address-comments-with-claude.sh', 'x\n')
+        result = self._check(self.INLINE, docs_only=True)
+        self.assert_fail(result, containing='pr-bot-trigger@main')
+        self.assertIn('address-comments-with-claude.sh', result['details'])
+
 
 class AutomatedReviewerTest(CheckTestCase):
     """Some workflow besides the developer ones reviews through the action.

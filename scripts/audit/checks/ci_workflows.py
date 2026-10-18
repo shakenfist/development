@@ -972,28 +972,28 @@ class CiReviewAutomation(Check):
     def run(self, repo):
         """Check for automated review and developer automation workflows."""
         if repo.props['is_docs_only']:
-            # cloudgood: only pr-re-review is expected.
+            # cloudgood: only pr-re-review is expected. Every finding is
+            # reported, in the order the main branch below reports them,
+            # so that a repository is not told about one per run.
             missing = []
             if not repo.isfile('.github/workflows/pr-re-review.yml'):
                 missing.append('pr-re-review.yml')
+            issues = []
+            if missing:
+                issues.append(f'Missing workflows: {", ".join(missing)}')
+            if pr_re_review_open_codes_the_trigger(repo):
+                issues.append(
+                    f'pr-re-review.yml does not use {CI_REVIEW_TRIGGER_ACTION}, '
+                    f'so it hand-rolls the trigger handling and does not '
+                    f"inherit the action's fork pull request guard")
+            issues.extend(secrets_inherit_issues(repo))
+            issues.extend(fork_gate_and_confirm_issues(repo))
             deployed = carries_retired_comment_addresser(repo.path)
             if deployed:
-                return self.fail(addresser_retired_detail(deployed))
-            if pr_re_review_open_codes_the_trigger(repo):
-                return self.fail(
-                    'pr-re-review.yml does not use '
-                    'shakenfist/actions/pr-bot-trigger@main, so it '
-                    'hand-rolls the trigger handling and does not inherit '
-                    "the action's fork pull request guard")
-            inheriting = secrets_inherit_issues(repo)
-            if inheriting:
-                return self.fail('; '.join(inheriting))
-            unguarded = fork_gate_and_confirm_issues(repo)
-            if unguarded:
-                return self.fail('; '.join(unguarded))
-            if missing:
-                return self.fail(
-                    f'Missing workflows: {", ".join(missing)}', missing=missing)
+                issues.append(addresser_retired_detail(deployed))
+            if issues:
+                extra = {'missing': missing} if missing else {}
+                return self.fail('; '.join(issues), **extra)
             return self.ok('Developer automation workflows exist')
 
         issues = []
