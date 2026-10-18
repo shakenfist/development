@@ -13,6 +13,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import packaging  # noqa: E402
+from audit.files import WALK_SKIP  # noqa: E402
 from tests.base import REPO_ROOT, CheckTestCase  # noqa: E402
 
 
@@ -3369,6 +3370,23 @@ class UnusedDeclaredDependencyTest(CheckTestCase):
         self.source('import os\n')
         self.source('import click\n', path='.tox/py311/lib/click/__init__.py')
         self.assert_fail(self.check(), containing='click')
+
+    def test_every_tree_walk_skip_is_skipped_here_too(self):
+        """NON_SOURCE_DIRS is WALK_SKIP and more, not a copy of it.
+
+        A vendored tree's imports are its own dependencies' business,
+        so every directory the audit's other walks skip is skipped by
+        this one too. .git is left out only because a fixture with one
+        reads as a checkout, which is not what is being asked.
+        """
+        for skipped in sorted(WALK_SKIP - {'.git'}):
+            with self.subTest(directory=skipped):
+                self.fresh_fixture()
+                self.pyproject(['"click==8.4.2",'])
+                self.source('import os\n')
+                self.source('import click\n',
+                            path=f'{skipped}/click/__init__.py')
+                self.assert_fail(self.check(), containing='click')
 
     def test_a_py_prefix_is_derived_away(self):
         self.pyproject(['"PyYAML==6.0.3",'])
