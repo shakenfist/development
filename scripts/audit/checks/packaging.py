@@ -2448,12 +2448,14 @@ class HeaderSanitization(Check):
             content = repo.read(relative)
             if content is None:
                 continue
-            if not any(
-                base in mask_comments_and_strings(content)
-                for base in HTTP_HANDLER_BASES
-            ):
+            # Masked once per file rather than once per base or class:
+            # most files hold no handler, and this is the whole cost of
+            # deciding so.
+            code = mask_comments_and_strings(content)
+            if not any(base in code for base in HTTP_HANDLER_BASES):
                 continue
             aliases = handler_base_names(content)
+            commented = mask_strings(content)
 
             # Indented definitions count. http.server gives no way to
             # pass arguments to a handler, so defining one inside a
@@ -2488,7 +2490,6 @@ class HeaderSanitization(Check):
                 # so a string constant holding the marker no longer
                 # exempts the class below it. Masking preserves offsets,
                 # so start and stop still address the same characters.
-                commented = mask_strings(content)
                 end = commented.find('\n', stop)
                 statement = commented[
                     start:end if end != -1 else len(commented)]
