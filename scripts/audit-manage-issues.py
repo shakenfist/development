@@ -181,7 +181,7 @@ def defuse_item(item):
     `@org/team` mention that notifies. The body is authored by
     shakenfist-bot, so injected content arrives with the bot's
     authority. Whitespace is collapsed the way defuse() does it in
-    audit-update-docs.py, which is the same problem on the page path.
+    audit_common.py, which is the same problem on the page path.
 
     A backtick closes the code span early and lets the tail render as
     markdown. It cannot be escaped inside a span, so the span is

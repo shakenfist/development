@@ -39,6 +39,10 @@ READ_MAX_BYTES = 2 * 1024 * 1024
 # Minimal hardcoded overrides for properties that cannot be detected
 # from a clone alone.
 REPO_OVERRIDES = {
+    # cloudgood is a book. Its examples/ directory holds the Python, C
+    # and shell the chapters walk through, so from a clone it looks like
+    # a code project, but it ships no software: the examples are there
+    # to be read and run by hand, and nothing is packaged or released.
     'cloudgood': {'is_docs_only': True},
     # kerbside-patches carries Python helper scripts but is a patch
     # archive, not a Python project.

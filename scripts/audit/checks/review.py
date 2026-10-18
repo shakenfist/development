@@ -138,8 +138,8 @@ class ReviewMarksPreCommit(Check):
         """Check review marks are exempt from file-rewriting pre-commit hooks.
 
         Applies only to repositories with review tracking deployed,
-        detected the same way check_review_coverage does, and then only
-        where a rewriting hook is actually configured. The weAudit state
+        detected the same way ReviewCoverage does, and then only where a
+        rewriting hook is actually configured. The weAudit state
         files are generated, and the generator emits no trailing newline,
         so end-of-file-fixer rewrites them on every `pre-commit run
         --all-files`. That reports a failure nobody can fix: committing
@@ -339,9 +339,8 @@ class SfuiVendor(Check):
         """Where the canonical sfui lives.
 
         A parameter so the tests can point the check at a fixture
-        repository instead of cloning over the network. It was a
-        keyword argument on the old function; a Check is built once and
-        run many times, so it belongs to the instance.
+        repository instead of cloning over the network. A Check is built
+        once and run many times, so it belongs to the instance.
         """
         self.canonical_url = canonical_url
 

@@ -149,8 +149,8 @@ def carries_retired_comment_addresser(repo_path):
     return sorted(found)
 
 
-# The four things check_ci_review_automation() can name in a finding
-# beyond a missing file. A maintainer following an audit issue has to
+# The four things CiReviewAutomation can name in a finding beyond a
+# missing file. A maintainer following an audit issue has to
 # land on a spec page that states the thing they are being measured
 # against, and a rewrite of that page dropped the shared action while
 # the check went on filing it -- so the names live here and
@@ -244,15 +244,9 @@ def pr_auto_review_callers_inheriting_secrets(repo):
     The shared workflow's own header tells callers not to do this. An
     earlier version of templates/ci-review-automation/README.md told
     them to, which is how nine repositories came to, so this is checked
-    rather than left to the template being right from here on. Run
-    against fresh clones of the whole matrix on 2026-08-22 it reported
-    two of them rather than zero, so it is a guard which has seen real
-    repositories and not only fixtures. Which repositories are
-    outstanding today is the ci-review-automation section of
-    docs/audits/compliance.md, which regenerates weekly. That is
-    deliberately not restated here: one of the two the survey named had
-    merged its own removal within the day, and this change is the
-    other.
+    rather than left to the template being right from here on. Which
+    repositories still do is the ci-review-automation section of
+    docs/audits/compliance.md, which regenerates weekly.
 
     Returns the workflow files whose reviewer job still inherits.
     """
@@ -731,8 +725,11 @@ def cancels_superseded_merge_groups(block):
 
     Two requirements: cancel-in-progress must be on, and the group
     must not be keyed on anything the queue mints afresh per rebuild
-    unless the expression branches on the event name and uses
-    something stable there.
+    unless the expression compares the event name with 'merge_group'.
+    What the merge_group branch then keys on is not read: a branch
+    that picks github.sha there still passes, so this catches the
+    common mistake of no branch at all rather than proving the key
+    stable.
     """
     if block is None:
         return False, 'no concurrency block'
@@ -1045,15 +1042,15 @@ SECRET_SCANNERS = ['gitleaks', 'trufflehog', 'detect-secrets']
 
 # Tools whose job is reading the repository's own human-written
 # content for something dangerous, used by the path-filter exemption
-# in check_expensive_lane_path_filter(). A superset of
-# SECRET_SCANNERS, because the exemption's argument is not specific to
-# credentials: skillsaw lints the agent context for instructions
-# smuggled into text an agent will load, and a prompt aimed at an
-# agent lands in a document at least as readily as a key does.
+# in ExpensiveLanePathFilter. A superset of SECRET_SCANNERS, because
+# the exemption's argument is not specific to credentials: skillsaw
+# lints the agent context for instructions smuggled into text an agent
+# will load, and a prompt aimed at an agent lands in a document at
+# least as readily as a key does.
 #
 # Kept separate from SECRET_SCANNERS so the two questions stay
-# separate. check_secret_scanning_ci() asks whether this repository
-# scans for credentials at all, and skillsaw is not an answer to that.
+# separate. SecretScanningCi asks whether this repository scans for
+# credentials at all, and skillsaw is not an answer to that.
 CONTENT_SCANNERS = SECRET_SCANNERS + ['skillsaw']
 
 

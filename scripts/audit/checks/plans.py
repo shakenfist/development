@@ -194,17 +194,11 @@ def plan_quote(text, limit=60):
 def plan_path_is_contained(root, candidate):
     """True when candidate resolves inside root, symlinks included.
 
-    os.path.normpath is textual. It stops a `../../` link target and
-    it does not stop a symlink committed inside docs/plans/, because
-    os.path.isfile() follows the link: the file is then read, and this
-    criterion quotes what it read into an issue it files on sixteen
-    repositories. Repo.contains() makes the same comparison against
-    the clone, and says in its own docstring why one implementation
-    called from everywhere beats a second realpath comparison that
-    drifts. This is the narrower form of it -- a plan has to sit under
-    docs/plans/, not merely somewhere in the repository -- so it
-    passes a narrower root to the same primitive rather than writing
-    the comparison out a second time.
+    os.path.normpath is textual, and does not stop a symlink committed
+    inside docs/plans/: the linked file would be read and quoted into
+    an issue. This is Repo.contains() with a narrower root -- a plan
+    has to sit under docs/plans/, not merely in the repository -- so it
+    shares that primitive rather than writing the comparison again.
     """
     return path_is_within(root, candidate)
 
@@ -657,8 +651,8 @@ def plan_file_paths(plans_dir):
     repository root rather than from beside itself, and walking the
     tree once per link is a walk per plan for no answer that changes.
 
-    First one wins, in os.walk order, which is the file the fallback
-    used to return when it walked the tree itself.
+    First one wins: a basename that appears twice resolves to whichever
+    copy os.walk reaches first.
     """
     paths = {}
     for dirpath, _dirnames, filenames in os.walk(plans_dir):
@@ -1607,9 +1601,8 @@ class PushAudit(Check):
         """The canonical blocks to compare against.
 
         A parameter rather than a constant so the tests can point the
-        check at a fixture directory. It was a keyword argument on the
-        old function; it is constructor state now, because a Check is
-        instantiated once and asked to run many times.
+        check at a fixture directory. Constructor state because a Check
+        is instantiated once and asked to run many times.
         """
         self.blocks_dir = blocks_dir
 
@@ -1686,9 +1679,8 @@ class PlanTemplate(Check):
         """The canonical blocks to compare against.
 
         A parameter rather than a constant so the tests can point the
-        check at a fixture directory. It was a keyword argument on the
-        old function; it is constructor state now, because a Check is
-        instantiated once and asked to run many times.
+        check at a fixture directory. Constructor state because a Check
+        is instantiated once and asked to run many times.
         """
         self.blocks_dir = blocks_dir
 

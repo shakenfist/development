@@ -1,12 +1,11 @@
 """The seam between the checks and the GitHub CLI.
 
-Six criteria read what is not in a clone -- the default branch, the
-security features, the merge queue rules, and now the membership of
-the organisation itself -- by shelling out to `gh`. Before this
-existed each of the five that predate it built its own
-`subprocess.run`, with its own copy of the timeout and the
-`FileNotFoundError` handling, and none of them had a test, because
-there was nothing to substitute for the network.
+Some criteria read what is not in a clone -- the default branch, the
+security features, the merge queue rules, run history, and the
+membership of the organisation itself -- by shelling out to `gh`.
+They go through one seam so that the timeout and the
+`FileNotFoundError` handling live in one place, and so that a test has
+something to substitute for the network.
 
 The issue scripts go through it too: audit-manage-issues.py, which
 files and closes issues across the fleet, and audit-update-docs.py,

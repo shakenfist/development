@@ -332,9 +332,9 @@ def marker_line(lines, marker):
     """Index of the line that is exactly `marker`, or -1.
 
     Whole-line matching, for the same reason blank_generated_blocks in
-    audit-check.py uses it: a substring search finds a marker quoted
-    inside prose, or one carried in a harvested detail string, and
-    splices the page at the wrong offset. defuse() takes the marker out
+    audit/text/markdown.py uses it: a substring search finds a marker
+    quoted inside prose, or one carried in a harvested detail string,
+    and splices the page at the wrong offset. defuse() takes the marker out
     of detail strings, and this makes the splice not depend on that
     having worked.
     """

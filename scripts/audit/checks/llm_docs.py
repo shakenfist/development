@@ -329,8 +329,8 @@ class LlmDocStructure(Check):
         The llm-tooling check covers whether these files exist; this one
         covers their shape. "Is this a good summary" is a judgment call
         enforced at push time by the llm-doc-discipline shared block (see
-        check_push_audit); this check enforces the measurable proxies: a
-        length cap per file, a pointer to a docs/ page when docs/ holds
+        PushAudit); this check enforces the measurable proxies: a length
+        cap per file, a pointer to a docs/ page when docs/ holds
         any, and two duplication signals -- a heading shared between the
         two files, and a heading naming a page that docs/ already has.
         """

@@ -37,7 +37,7 @@ class RunnerLabelParsingTest(unittest.TestCase):
         # The comment is stripped before the expression test, so a
         # perfectly literal runs-on stays judgeable no matter what its
         # comment mentions. Testing the raw value here would skip the
-        # line, and a skip in check_static_runner_tags() reports pass.
+        # line, and a skip in StaticRunnerTags reports pass.
         value = '[self-hosted, static, s]  # was ${{ matrix.runner }}'
         self.assertEqual(
             ['self-hosted', 'static', 's'],
@@ -329,7 +329,7 @@ class VmRunnerSizeTest(CheckTestCase):
         self.assertIn('ci.yml:9', result['details'])
 
     def test_the_offender_names_the_labels_it_found(self):
-        # Matching check_static_runner_tags(): the issue body is what
+        # Matching StaticRunnerTags: the issue body is what
         # somebody fixing this reads, and the labels say which job.
         result = self._check({'ci.yml': self._job(
             '[self-hosted, vm, debian-12]')})
