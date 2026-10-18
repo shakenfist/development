@@ -149,10 +149,6 @@
       "sha": "24ed42c20d9aa54987ff54c0c47764ce5980658a",
       "date": "2026-10-05"
     },
-    "docs/audits/mermaid-lint-ci.md": {
-      "sha": "71269737637b14d1f80fcc811ae61d1f02500d54",
-      "date": "2026-10-05"
-    },
     "docs/audits/npm-pin-indirect-dependencies.md": {
       "sha": "33ce6a82ede2e64352d6a9718d6bdf380fb9cc8c",
       "date": "2026-10-05"
@@ -249,10 +245,6 @@
       "sha": "42997f16a50394d4263554775d72fd348fa4ee7c",
       "date": "2026-10-05"
     },
-    "docs/audits/unused-declared-dependency.md": {
-      "sha": "152eac53b711661ff363d416d4b7ee593d408939",
-      "date": "2026-10-05"
-    },
     "docs/audits/version-file-gitignore.md": {
       "sha": "179afb0f85bc331ee7c78e5e8c20c8b497b242c3",
       "date": "2026-10-05"
@@ -305,10 +297,6 @@
       "sha": "dc2515cc9e2cdd5083c39a803bfdbcafb37dbe0d",
       "date": "2026-09-02"
     },
-    "scripts/audit/text/markdown.py": {
-      "sha": "1f7c1ecedcb47f2f1843dc9593cc2c68af2d9323",
-      "date": "2026-10-12"
-    },
     "scripts/audit/text/shared_blocks.py": {
       "sha": "100a6bcd559df58c9dc57a27814d3bb846f59aef",
       "date": "2026-09-02"
@@ -353,10 +341,6 @@
       "sha": "6b651ae5d0f23436f91ccfb243802bbe854c538f",
       "date": "2026-10-14"
     },
-    "scripts/tests/test_docs_content.py": {
-      "sha": "f2f1490100c7f144e6a41feaae9c65c5e30f9c54",
-      "date": "2026-10-07"
-    },
     "scripts/tests/test_hooks.py": {
       "sha": "f87b63fadcf25dccf18d7350d57863e2a7e1f6c7",
       "date": "2026-09-22"
@@ -364,10 +348,6 @@
     "scripts/tests/test_issue_fix_extraction.py": {
       "sha": "84d34be6471d4e4765aeebf8197cab5849053b36",
       "date": "2026-09-22"
-    },
-    "scripts/tests/test_markdown.py": {
-      "sha": "0711e45d61ef3c789ef196402a7ed2a9117d347a",
-      "date": "2026-10-12"
     },
     "scripts/tests/test_python_source.py": {
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",

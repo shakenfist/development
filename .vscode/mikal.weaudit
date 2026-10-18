@@ -389,15 +389,7 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/mermaid-lint-ci.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/python-version.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/unused-declared-dependency.md",
       "author": "mikal"
     },
     {
@@ -493,10 +485,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_docs_content.py",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/eol-producers.md",
       "author": "mikal"
     },
@@ -510,14 +498,6 @@
     },
     {
       "path": "scripts/tests/test_audit_snapshot.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_markdown.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/text/markdown.py",
       "author": "mikal"
     },
     {
