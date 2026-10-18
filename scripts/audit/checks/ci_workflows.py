@@ -439,6 +439,26 @@ PR_TRIGGER_FLOW_RE = re.compile(
 PATH_FILTER_EXCEPTION_RE = re.compile(r'audit-ok:\s*no-path-filter')
 
 
+def pull_request_path_filters(code):
+    """The pull_request trigger's `paths-ignore` and `paths` blocks.
+
+    Returns a pair, each the block's text or None where the trigger
+    has no such key -- including where there is no block-form
+    pull_request trigger at all, as with `on: [pull_request]`, which
+    cannot carry a filter. `code` has had its comments stripped.
+    """
+    on = indented_block(workflow_header(code), 'on')
+    trigger = indented_block(on, 'pull_request') if on is not None else None
+    if trigger is None:
+        return None, None
+    # A list is written inline (`paths-ignore: ['docs/**']`) as often as
+    # below its key, and the inline value is all there is of the first.
+    keys = job_level_keys(trigger)
+    return tuple(
+        (keys[key] or indented_block(trigger, key) or '') if key in keys else None
+        for key in ('paths-ignore', 'paths'))
+
+
 def is_dedicated_scanner_workflow(content):
     """Does this workflow do nothing but scan content?
 
@@ -972,28 +992,29 @@ class CiReviewAutomation(Check):
     def run(self, repo):
         """Check for automated review and developer automation workflows."""
         if repo.props['is_docs_only']:
-            # cloudgood: only pr-re-review is expected.
+            # cloudgood: only pr-re-review is expected. Every finding is
+            # reported, in the order the main branch below reports them,
+            # so that a repository is not told about one per run.
             missing = []
             if not repo.isfile('.github/workflows/pr-re-review.yml'):
                 missing.append('pr-re-review.yml')
+            issues = []
+            if missing:
+                issues.append(f'Missing workflows: {", ".join(missing)}')
+            if pr_re_review_open_codes_the_trigger(repo):
+                issues.append(
+                    f'pr-re-review.yml does not use {CI_REVIEW_TRIGGER_ACTION}, '
+                    f'so it hand-rolls the trigger handling and does not '
+                    f"inherit the action's fork pull request guard")
+            issues.extend(secrets_inherit_issues(repo))
+            issues.extend(fork_gate_and_confirm_issues(repo))
             deployed = carries_retired_comment_addresser(repo.path)
             if deployed:
-                return self.fail(addresser_retired_detail(deployed))
-            if pr_re_review_open_codes_the_trigger(repo):
-                return self.fail(
-                    'pr-re-review.yml does not use '
-                    'shakenfist/actions/pr-bot-trigger@main, so it '
-                    'hand-rolls the trigger handling and does not inherit '
-                    "the action's fork pull request guard")
-            inheriting = secrets_inherit_issues(repo)
-            if inheriting:
-                return self.fail('; '.join(inheriting))
-            unguarded = fork_gate_and_confirm_issues(repo)
-            if unguarded:
-                return self.fail('; '.join(unguarded))
-            if missing:
-                return self.fail(
-                    f'Missing workflows: {", ".join(missing)}', missing=missing)
+                issues.append(addresser_retired_detail(deployed))
+            if issues and missing:
+                return self.fail('; '.join(issues), missing=missing)
+            if issues:
+                return self.fail('; '.join(issues))
             return self.ok('Developer automation workflows exist')
 
         issues = []
@@ -1268,13 +1289,16 @@ class ExpensiveLanePathFilter(Check):
             if PATH_FILTER_EXCEPTION_RE.search(content):
                 continue
 
-            has_ignore = bool(
-                re.search(r'^\s*paths-ignore:', content, re.MULTILINE)
-            )
-            has_include = bool(
-                re.search(r'^\s*paths:', content, re.MULTILINE)
-            )
-            has_filter_job = 'paths-filter' in content
+            # Comments are dropped before anything below is matched: a
+            # "# TODO: also ignore docs/**" is not an exclusion. And the
+            # trigger-level filters are read from the pull_request
+            # trigger alone, since a push trigger's paths: does nothing
+            # for a pull request (merge_group takes no path filters).
+            code = strip_yaml_comments(content, trailing=True)
+            pr_ignore, pr_include = pull_request_path_filters(code)
+            has_ignore = pr_ignore is not None
+            has_include = pr_include is not None
+            has_filter_job = 'paths-filter' in code
 
             if not (has_ignore or has_include or has_filter_job):
                 # A workflow that is nothing but content scanning is
@@ -1306,9 +1330,13 @@ class ExpensiveLanePathFilter(Check):
                 # by construction.
                 continue
 
+            # Trigger-level exclusion is judged by the paths-ignore list
+            # itself; a filter job's patterns live in its own config,
+            # which is somewhere in the file.
+            searched = code if has_filter_job else pr_ignore
             missing = [
                 name for name, pattern in excludables
-                if pattern not in content
+                if pattern not in searched
             ]
             if missing:
                 offenders.append(
@@ -1413,16 +1441,22 @@ class MergeGroupCancellation(Check):
         for wf in sorted(workflows):
             content = repo.workflow(wf)
 
+            # Triggers are read from the header alone, and in both
+            # spellings: `on: [workflow_call]` is as reusable as the
+            # block form, and a key below jobs: is never a trigger.
+            header = workflow_header(content)
             triggered = bool(
-                MERGE_GROUP_TRIGGER_RE.search(content)
-                or MERGE_GROUP_FLOW_RE.search(content)
+                MERGE_GROUP_TRIGGER_RE.search(header)
+                or MERGE_GROUP_FLOW_RE.search(header)
             )
-            reusable = bool(WORKFLOW_CALL_TRIGGER_RE.search(content))
+            reusable = bool(
+                WORKFLOW_CALL_TRIGGER_RE.search(header)
+                or WORKFLOW_CALL_FLOW_RE.search(header)
+            )
             if not (triggered or reusable):
                 continue
             saw_merge_group = True
 
-            header = workflow_header(content)
             if MERGE_GROUP_CANCEL_EXCEPTION_RE.search(header):
                 continue
 
@@ -1705,12 +1739,37 @@ def scheduling_caller(repo, name, content):
     boolean because a called workflow takes its permissions from the
     calling job, so `issues: write` can legitimately sit on either
     side of the call.
+    """
+    return triggering_caller(
+        repo, name, content,
+        lambda header: SCHEDULE_TRIGGER_RE.search(header))
+
+
+def queue_caller(repo, name, content):
+    """The merge_group workflow that runs this reusable one, if any.
+
+    The queue side of scheduling_caller(): a callee inherits its
+    caller's event, so fuzz targets in a `workflow_call` callee are on
+    the merge queue's clock whenever a `merge_group` workflow invokes
+    it, though the callee's own header names no such trigger.
+    """
+    return triggering_caller(
+        repo, name, content,
+        lambda header: (MERGE_GROUP_TRIGGER_RE.search(header)
+                        or MERGE_GROUP_FLOW_RE.search(header)))
+
+
+def triggering_caller(repo, name, content, triggered):
+    """Another workflow whose header satisfies `triggered` and calls this.
+
+    Returns that caller's text, or None if this workflow is not
+    reusable or nothing so triggered invokes it.
 
     The invocation has to name this repository's own copy. `uses:`
     takes `./.github/workflows/x.yml` for a local callee and
     `owner/repo/.github/workflows/x.yml@ref` for somebody else's, and
     a pattern loose enough to accept both would credit a caller that
-    schedules a *different* project's workflow of the same name.
+    runs a *different* project's workflow of the same name.
     """
     header = workflow_header(content)
     if not (WORKFLOW_CALL_TRIGGER_RE.search(header)
@@ -1726,7 +1785,7 @@ def scheduling_caller(repo, name, content):
         text = repo.workflow(other)
         if not text:
             continue
-        if (SCHEDULE_TRIGGER_RE.search(workflow_header(text))
+        if (triggered(workflow_header(text))
                 and invocation.search(
                     strip_yaml_comments(text, trailing=True))):
             return text
@@ -1936,9 +1995,11 @@ class FuzzNightlyReporting(Check):
         100ms on ryll. Asking it first means the repositories that do
         fuzz never walk at all: they are recognised by the lane that
         runs the targets, which `run()` needs anyway.
+
+        A missing workflows directory is not a reason to skip: fuzz
+        targets nothing runs are the finding, whether the directory is
+        absent or empty, and `repo.workflows()` is empty either way.
         """
-        if not repo.props['has_workflows_dir']:
-            return 'No .github/workflows/ directory'
         if fuzz_workflows(repo) or repo_fuzz_target_dirs(repo.path):
             return None
         return 'No fuzz targets'
@@ -1973,12 +2034,21 @@ class FuzzNightlyReporting(Check):
                 'fuzz targets in %s, but no workflow runs them'
                 % ', '.join(repo_fuzz_target_dirs(repo.path)))
 
-        queue_gated = [
-            name for name, content in workflows
-            if (MERGE_GROUP_TRIGGER_RE.search(workflow_header(content))
-                or MERGE_GROUP_FLOW_RE.search(content))
-            and not FUZZ_MERGE_QUEUE_EXCEPTION_RE.search(content)
-        ]
+        # A callee is gated by the queue its caller is triggered from,
+        # so either file may carry the marked exception.
+        queue_gated = []
+        for name, content in workflows:
+            if FUZZ_MERGE_QUEUE_EXCEPTION_RE.search(content):
+                continue
+            header = workflow_header(content)
+            if (MERGE_GROUP_TRIGGER_RE.search(header)
+                    or MERGE_GROUP_FLOW_RE.search(header)):
+                queue_gated.append(name)
+                continue
+            caller = queue_caller(repo, name, content)
+            if (caller is not None
+                    and not FUZZ_MERGE_QUEUE_EXCEPTION_RE.search(caller)):
+                queue_gated.append(f'{name} (called from a merge_group workflow)')
 
         # The caller's text rides along: where the schedule is on a
         # caller, the permission to file may be there too.

@@ -450,6 +450,13 @@ class LlmContextLint(Check):
         not_applicable would close every issue this criterion has open,
         fleet-wide, at once. The consistency-audit workflow installs a
         pinned skillsaw, so this state should not arise.
+
+        The orphans are the exception. They are found without skillsaw,
+        so they are a verdict whether or not it ran, and a local run
+        without the binary still reports them -- saying that skillsaw
+        did not run, so the details do not read as its whole answer.
+        With no orphans there is no verdict to give, and the error
+        stands.
         """
         if not has_agent_context(repo):
             return self.skip('No agent context files to lint')
@@ -463,7 +470,13 @@ class LlmContextLint(Check):
                 f'{", ".join(orphans)}'
             )
 
-        errors = skillsaw_errors(repo.path)
+        try:
+            errors = skillsaw_errors(repo.path)
+        except ToolFailure as e:
+            if not orphans:
+                raise
+            problems.append(f'skillsaw was not run ({e})')
+            return self.fail('; '.join(problems))
         if errors:
             described = ', '.join(
                 sorted({

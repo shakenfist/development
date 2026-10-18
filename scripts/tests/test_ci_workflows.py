@@ -122,6 +122,11 @@ class ExpensiveLanePathFilterTest(CheckTestCase):
       - run: pre-commit run skillsaw --all-files
 """
 
+    def test_an_empty_workflows_directory_does_not_apply(self):
+        self.fixture.workflows({})
+        self.assert_skip(self.check(has_workflows_dir=True),
+                         containing='No workflow files found')
+
     def _check(self, workflows):
         """The check over a repository made of these workflows.
 
@@ -253,6 +258,104 @@ class ExpensiveLanePathFilterTest(CheckTestCase):
         )})
         self.assert_pass(result)
 
+    # The exclusions themselves, and where they are read from.
+
+    IGNORING = ('on:\n  pull_request:\n    paths-ignore:\n'
+                "      - 'docs/**'\n      - 'REVIEWS.md'\njobs:\n")
+
+    def test_a_filter_not_excluding_docs_fails(self):
+        result = self._check({'ci.yml': (
+            'on:\n  pull_request:\n    paths-ignore:\n'
+            "      - 'README.md'\njobs:\n" + self.LINT_JOB)})
+        self.assert_fail(result, containing='does not exclude docs/')
+
+    def test_a_filter_not_excluding_review_marks_fails(self):
+        self.fixture.write('.vscode/review-scope.toml', '')
+        result = self._check({'ci.yml': (
+            'on:\n  pull_request:\n    paths-ignore:\n'
+            "      - 'docs/**'\njobs:\n" + self.LINT_JOB)})
+        self.assert_fail(result, containing='does not exclude review marks')
+
+    def test_a_filter_excluding_both_passes(self):
+        self.fixture.write('.vscode/review-scope.toml', '')
+        self.assert_pass(self._check({'ci.yml': self.IGNORING + self.LINT_JOB}))
+
+    def test_an_inline_paths_ignore_list_is_read(self):
+        result = self._check({'ci.yml': (
+            "on:\n  pull_request:\n    paths-ignore: ['docs/**']\njobs:\n"
+            + self.LINT_JOB)})
+        self.assert_pass(result)
+
+    def test_an_inclusion_list_passes(self):
+        result = self._check({'ci.yml': (
+            'on:\n  pull_request:\n    paths:\n'
+            "      - 'src/**'\njobs:\n" + self.LINT_JOB)})
+        self.assert_pass(result)
+
+    def test_a_push_trigger_filter_does_not_filter_pull_requests(self):
+        # The inclusion list applies to pushes only, so every pull
+        # request still runs the lane unfiltered.
+        for key in ('paths', 'paths-ignore'):
+            with self.subTest(key=key):
+                self.fresh_fixture()
+                result = self._check({'ci.yml': (
+                    f'on:\n  push:\n    branches: [main]\n    {key}:\n'
+                    "      - 'docs/**'\n  pull_request:\njobs:\n"
+                    + self.LINT_JOB)})
+                self.assert_fail(result, containing='ci.yml (no path filtering)')
+
+    def test_an_exclusion_named_only_in_a_comment_does_not_count(self):
+        result = self._check({'ci.yml': (
+            'on:\n  pull_request:\n    paths-ignore:\n'
+            "      - 'README.md'  # TODO: also ignore docs/**\njobs:\n"
+            + self.LINT_JOB)})
+        self.assert_fail(result, containing='does not exclude docs/')
+
+    def test_an_exclusion_on_the_push_trigger_does_not_count(self):
+        result = self._check({'ci.yml': (
+            "on:\n  push:\n    paths-ignore:\n      - 'docs/**'\n"
+            "  pull_request:\n    paths-ignore:\n      - 'README.md'\n"
+            'jobs:\n' + self.LINT_JOB)})
+        self.assert_fail(result, containing='does not exclude docs/')
+
+    def test_a_filter_job_named_only_in_a_comment_does_not_count(self):
+        result = self._check({'ci.yml': (
+            'on:\n  pull_request:\n'
+            '# TODO: dorny/paths-filter, excluding docs/**\njobs:\n'
+            + self.LINT_JOB)})
+        self.assert_fail(result, containing='ci.yml (no path filtering)')
+
+    def test_a_filter_job_is_judged_by_the_whole_file(self):
+        result = self._check({'ci.yml': (
+            'on:\n  pull_request:\njobs:\n'
+            '  check_paths:\n    runs-on: [self-hosted, static]\n'
+            '    steps:\n      - uses: dorny/paths-filter@v3\n'
+            '        with:\n          filters: |\n            code:\n'
+            "              - '!docs/**'\n" + self.LINT_JOB)})
+        self.assert_pass(result)
+
+    def test_the_marked_exception_passes(self):
+        result = self._check({'ci.yml': (
+            'on:\n  pull_request:\n'
+            '# audit-ok: no-path-filter -- docs are the product here\n'
+            'jobs:\n' + self.LINT_JOB)})
+        self.assert_pass(result)
+
+    def test_a_workflow_not_triggered_by_pull_requests_is_not_judged(self):
+        result = self._check({'nightly.yml': (
+            "on:\n  schedule:\n    - cron: '0 4 * * *'\njobs:\n"
+            + self.LINT_JOB)})
+        self.assert_pass(result)
+        self.assertIn('No pull_request or merge_group workflow', result['details'])
+
+    def test_nothing_to_exclude_does_not_apply(self):
+        self.fixture.workflow('ci.yml', 'on:\n  pull_request:\njobs:\n' + self.LINT_JOB)
+        self.assert_skip(self.check(has_workflows_dir=True),
+                         containing='no non-code content')
+
+    def test_without_workflows_it_does_not_apply(self):
+        self.assert_skip(self.check(), containing='No .github/workflows/')
+
 
 class WorkflowJobBlocksTest(unittest.TestCase):
     def test_jobs_are_split_at_top_level_keys(self):
@@ -281,6 +384,42 @@ class WorkflowJobBlocksTest(unittest.TestCase):
         self.assertFalse(
             is_dedicated_scanner_workflow('on:\n  push:\n')
         )
+
+    # Each spelling GitHub Actions accepts for a job key. A job this
+    # misses has no block, so every guard built on it passes the job.
+
+    INHERITING = ('    uses: shakenfist/actions/.github/workflows/'
+                  'pr-auto-review.yml@main\n'
+                  '    secrets: inherit\n')
+
+    def assert_one_job_seen(self, jobs):
+        content = 'on:\n  pull_request:\njobs:\n' + jobs
+        self.assertEqual(['review'], [name for name, _ in workflow_job_blocks(content)])
+        self.assertTrue(workflows.calls_with_inherited_secrets(content, 'pr-auto-review.yml'))
+
+    def test_a_job_key_carrying_a_comment_is_a_job(self):
+        self.assert_one_job_seen('  review:  # automated review\n' + self.INHERITING)
+
+    def test_a_quoted_job_key_is_a_job(self):
+        for quote in ('"', "'"):
+            with self.subTest(quote=quote):
+                self.assert_one_job_seen(f'  {quote}review{quote}:\n' + self.INHERITING)
+
+    def test_jobs_at_a_deeper_indentation_are_jobs(self):
+        # The depth is the first job's; keys inside a job sit deeper.
+        jobs = ('    review:\n'
+                '      uses: shakenfist/actions/.github/workflows/'
+                'pr-auto-review.yml@main\n'
+                '      secrets: inherit\n'
+                '    lint:\n      runs-on: a\n')
+        content = 'jobs:\n' + jobs
+        self.assertEqual(['review', 'lint'], [name for name, _ in workflow_job_blocks(content)])
+        self.assertTrue(workflows.calls_with_inherited_secrets(content, 'pr-auto-review.yml'))
+
+    def test_keys_inside_a_job_are_not_jobs(self):
+        blocks = workflow_job_blocks(
+            'jobs:\n  lint:\n    runs-on: a  # small\n    "env":\n      X: 1\n')
+        self.assertEqual(['lint'], [name for name, _ in blocks])
 
 
 class RetiredCommentAddresserTest(CheckTestCase):
@@ -562,6 +701,19 @@ class PrReReviewTriggerTest(CheckTestCase):
 
     def test_the_docs_only_path_passes_when_the_action_is_used(self):
         self.assert_pass(self._check(self.USES_ACTION, docs_only=True))
+
+    def test_the_docs_only_path_fails_a_missing_workflow(self):
+        # The one requirement that branch exists to enforce.
+        result = self._check(None, docs_only=True)
+        self.assert_fail(result, containing='Missing workflows: pr-re-review.yml')
+        self.assertEqual(result['missing'], ['pr-re-review.yml'])
+
+    def test_the_docs_only_path_reports_every_finding(self):
+        # One per run would take a repository a week per finding.
+        self.fixture.write('tools/address-comments-with-claude.sh', 'x\n')
+        result = self._check(self.INLINE, docs_only=True)
+        self.assert_fail(result, containing='pr-bot-trigger@main')
+        self.assertIn('address-comments-with-claude.sh', result['details'])
 
 
 class AutomatedReviewerTest(CheckTestCase):
@@ -1110,6 +1262,11 @@ class MergeGroupCancellationTest(CheckTestCase):
       cancel-in-progress: true
 """
 
+    def test_an_empty_workflows_directory_does_not_apply(self):
+        self.fixture.workflows({})
+        self.assert_skip(self.check(has_workflows_dir=True),
+                         containing='No workflow files found')
+
     def _job(self, concurrency='', runs_on='[self-hosted, vm, debian-12, l]',
              condition=''):
         return (
@@ -1255,6 +1412,25 @@ class MergeGroupCancellationTest(CheckTestCase):
             + self._job(self.QUEUE_REF_KEY)
         )})
         self.assert_fail(result)
+
+    def test_a_flow_style_reusable_workflow_is_audited(self):
+        # `on: [workflow_call]` is as reusable as the block form, and
+        # was read as no trigger at all.
+        result = self._check({'smoke-cluster.yml': (
+            'on: [workflow_call]\njobs:\n'
+            + self._job(self.QUEUE_REF_KEY)
+        )})
+        self.assert_fail(result, containing='smoke-cluster.yml:cluster')
+
+    def test_a_trigger_name_below_jobs_is_not_a_trigger(self):
+        # A job id that happens to be a trigger's name sits at a
+        # trigger's indentation; only the header holds triggers.
+        result = self._check({'ci.yml': (
+            'on:\n  push:\njobs:\n'
+            + self._job(self.QUEUE_REF_KEY).replace(
+                '  cluster:', '  merge_group:')
+        )})
+        self.assert_skip(result, containing='No merge_group or reusable')
 
     def test_a_reusable_workflow_is_audited_despite_an_in_repo_caller(self):
         # Inferring reachability from in-repo callers exempted
@@ -1661,6 +1837,11 @@ class DevpiStaleIpTest(CheckTestCase):
 class SecretScanningCiTest(CheckTestCase):
     check_class = ci_workflows.SecretScanningCi
 
+    def test_an_empty_workflows_directory_does_not_apply(self):
+        self.fixture.workflows({})
+        self.assert_skip(self.check(has_workflows_dir=True),
+                         containing='No workflow files found')
+
     def test_a_docs_only_repository_does_not_apply(self):
         self.assert_skip(self.check(is_docs_only=True),
                          containing='Documentation-only')
@@ -1739,8 +1920,16 @@ class FuzzNightlyReportingTest(CheckTestCase):
         return GOOD_NIGHTLY.replace(
             '  schedule:', marker + '  merge_group:\n  schedule:')
 
-    def test_without_workflows_it_does_not_apply(self):
-        self.assert_skip(self.check(), containing='No .github/workflows/')
+    def test_without_workflows_or_targets_it_does_not_apply(self):
+        self.assert_skip(self.check(), containing='No fuzz targets')
+
+    def test_targets_and_no_workflows_directory_fail(self):
+        """An absent directory runs the targets no more than an empty one."""
+        self._targets()
+        self.assert_fail(self.check(), containing='no workflow runs them')
+        self.fixture.workflows({})
+        self.assert_fail(self.check(has_workflows_dir=True),
+                         containing='no workflow runs them')
 
     def test_a_repository_with_no_fuzz_targets_does_not_apply(self):
         self.fixture.workflow('ci.yml', 'on: push\njobs:\n  a:\n    steps: []\n')
@@ -1788,6 +1977,37 @@ class FuzzNightlyReportingTest(CheckTestCase):
             GOOD_NIGHTLY.replace('  schedule:', '  merge_group:\n  schedule:'))
         self.assert_fail(self.check(has_workflows_dir=True),
                          containing='merge_group')
+
+    QUEUE_CALLER = (
+        'on:\n  pull_request:\n  merge_group:\njobs:\n'
+        '  fuzz:\n    uses: ./.github/workflows/fuzz-run.yml\n')
+
+    def test_a_callee_invoked_from_a_merge_group_workflow_fails(self):
+        """The callee inherits its caller's event, and so its queue.
+
+        The schedule side of the criterion follows a callee to its
+        caller; the queue side has to as well, or splitting the lane
+        across two files hides it from the merge queue rule.
+        """
+        self._targets()
+        self._reporter()
+        self.fixture.workflow('fuzz-nightly.yml', SCHEDULING_CALLER)
+        self.fixture.workflow('ci.yml', self.QUEUE_CALLER)
+        self.fixture.workflow('fuzz-run.yml', self._callee('  workflow_call:'))
+        self.assert_fail(
+            self.check(has_workflows_dir=True),
+            containing='fuzz-run.yml (called from a merge_group workflow)')
+
+    def test_a_marked_queue_caller_is_honoured(self):
+        self._targets()
+        self._reporter()
+        self.fixture.workflow('fuzz-nightly.yml', SCHEDULING_CALLER)
+        self.fixture.workflow(
+            'ci.yml',
+            '# audit-ok: fuzz-in-merge-queue -- required check\n'
+            + self.QUEUE_CALLER)
+        self.fixture.workflow('fuzz-run.yml', self._callee('  workflow_call:'))
+        self.assert_pass(self.check(has_workflows_dir=True))
 
     def test_the_merge_queue_exception_marker_is_honoured(self):
         self._targets()

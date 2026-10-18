@@ -242,7 +242,10 @@ scheduled run of `main`.
 repository the work has to happen in, labelled `consistency` (the label
 is created if missing). The body names the failing check, quotes the
 detail the check produced, and links the spec file and template so
-whoever picks it up has the implementation to hand.
+whoever picks it up has the implementation to hand. The detail and
+every listed item are quoted as code spans: they are text out of the
+audited repository, and as prose an `@org/team` in them would notify,
+and their markdown would render, under the bot's identity.
 
 A check whose fix is per item can carry the items as well. Returning a
 `missing` list renders them as bullets under **Missing items**, and a

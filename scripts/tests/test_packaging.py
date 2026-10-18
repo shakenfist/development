@@ -28,6 +28,7 @@ class DependencyNameNormalizationTest(CheckTestCase):
 
     def test_clean_dependencies_pass(self):
         body = (
+            '[project]\n'
             'dependencies = [\n'
             '    "typing-extensions==4.16.0",\n'
             '    "requests==2.34.2",\n'
@@ -37,6 +38,7 @@ class DependencyNameNormalizationTest(CheckTestCase):
 
     def test_hyphen_underscore_duplicate_fails(self):
         body = (
+            '[project]\n'
             'dependencies = [\n'
             '    "typing-extensions==4.15.0",\n'
             '    "typing_extensions==4.15.0",\n'
@@ -46,6 +48,7 @@ class DependencyNameNormalizationTest(CheckTestCase):
 
     def test_diverged_exact_versions_fail(self):
         body = (
+            '[project]\n'
             'dependencies = [\n'
             '    "typing-extensions==4.15.0",\n'
             '    "typing_extensions==4.16.0",\n'
@@ -57,6 +60,7 @@ class DependencyNameNormalizationTest(CheckTestCase):
         # A direct floor constraint plus the exact pin appended by the
         # indirect-dependency workflow is intentional.
         body = (
+            '[project]\n'
             'dependencies = [\n'
             '    "psutil>=5.9.4",\n'
             '    "psutil==7.2.2",\n'
@@ -66,6 +70,7 @@ class DependencyNameNormalizationTest(CheckTestCase):
 
     def test_base_plus_extras_same_version_passes(self):
         body = (
+            '[project]\n'
             'dependencies = [\n'
             '    "gunicorn[gevent]==25.3.0",\n'
             '    "gunicorn==25.3.0",\n'
@@ -75,6 +80,7 @@ class DependencyNameNormalizationTest(CheckTestCase):
 
     def test_base_plus_extras_conflicting_version_fails(self):
         body = (
+            '[project]\n'
             'dependencies = [\n'
             '    "gunicorn[gevent]==25.3.0",\n'
             '    "gunicorn==26.0.0",\n'
@@ -96,6 +102,34 @@ class DependencyNameNormalizationTest(CheckTestCase):
             ']\n'
         )
         self.assert_pass(self._check(body))
+
+    def test_a_one_line_array_is_read(self):
+        # The line scan this replaced only saw one entry per line.
+        body = ('[project]\n'
+                'dependencies = ["typing-extensions==4.1", "typing_extensions==4.2"]\n')
+        self.assert_fail(self._check(body), containing='typing-extensions')
+
+    def test_each_requirement_array_is_its_own_scope(self):
+        for header, key in (('[build-system]', 'requires'),
+                            ('[project.optional-dependencies]', 'test'),
+                            ('[dependency-groups]', 'dev')):
+            with self.subTest(header=header):
+                self.fresh_fixture()
+                body = (f'{header}\n{key} = [\n'
+                        '    "typing-extensions==4.1",\n'
+                        '    "typing_extensions==4.1",\n'
+                        ']\n')
+                self.assert_fail(self._check(body), containing='typing-extensions')
+
+    def test_a_dependency_group_include_is_not_a_requirement(self):
+        body = ('[dependency-groups]\n'
+                'test = ["pytest==8.0"]\n'
+                'dev = [{include-group = "test"}, "pytest==8.0"]\n')
+        self.assert_pass(self._check(body))
+
+    def test_a_malformed_pyproject_fails(self):
+        self.assert_fail(self._check('[project\n'),
+                         containing='Could not parse pyproject.toml')
 
     def test_non_dependency_quoted_strings_ignored(self):
         # URLs, script entry points and classifiers must not be parsed
@@ -1485,6 +1519,17 @@ class ReleaseProcessTest(CheckTestCase):
             self.GUARDED_FILES)
         self.assert_pass(self.check(has_pyproject_toml=True))
 
+    def test_a_quoted_true_is_true(self):
+        """An action receives "true" and true as the same string."""
+        for quote in ('"', "'"):
+            self.release_workflow(
+                '        with:\n'
+                f'          merge-multiple: {quote}true{quote}\n'
+                '          path: ${{ runner.temp }}/dist/\n',
+                '          files: ${{ runner.temp }}/dist/*\n'
+                f'          fail_on_unmatched_files: {quote}true{quote}\n')
+            self.assert_pass(self.check(has_pyproject_toml=True))
+
     def test_a_release_attaching_no_files_is_not_asked_about_globs(self):
         """No "files:" means no assets by choice, not a broken glob."""
         self.release_workflow(
@@ -1901,6 +1946,44 @@ class ReleaseProcessTest(CheckTestCase):
                                  checkout=self.CHECKOUT)
         self.assert_pass(self.check(has_pyproject_toml=True))
 
+    def test_a_glob_is_compared_by_its_directory(self):
+        """dist/*.tar.gz reads dist/, which is where the download went."""
+        for subject in ('dist/*.tar.gz', 'dist/*.whl', 'dist/**/*.whl'):
+            self.publishing_workflow(path='dist/', subject=subject,
+                                     checkout=self.CHECKOUT)
+            self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_a_glob_in_another_directory_still_disagrees(self):
+        self.publishing_workflow(path='dist/', subject='build/*.whl',
+                                 checkout=self.CHECKOUT)
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing="\"subject-path: 'build/*.whl'\" reads somewhere else")
+
+    def test_a_block_scalar_is_not_read_as_a_path(self):
+        """'files: |' introduces the paths; it is not one itself."""
+        self.compliant()
+        self.fixture.workflow(
+            'release.yml',
+            'name: Release\n'
+            'on:\n'
+            '  push:\n'
+            "    tags: ['v*']\n"
+            'jobs:\n'
+            '  github-release:\n'
+            '    runs-on: [self-hosted, static]\n'
+            '    steps:\n'
+            '      - uses: actions/download-artifact@v8\n'
+            '        with:\n'
+            '          name: dist\n'
+            f'          path: {self.TEMP}\n'
+            '      - uses: softprops/action-gh-release@v3\n'
+            '        with:\n'
+            '          files: |\n'
+            f'            {self.TEMP}*.tar.gz\n'
+            f'            {self.TEMP}*.whl\n'
+            '          fail_on_unmatched_files: true\n')
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
     def test_a_files_input_on_an_unrelated_step_is_not_judged(self):
         """"files:" only means the distribution on the release action."""
         self.compliant()
@@ -2066,6 +2149,32 @@ class RustUnwrapLintTest(CheckTestCase):
         self.assert_fail(self.check(has_cargo_toml=True),
                          containing='unwrap_used')
 
+    def _root_lint(self, line):
+        """The check over a workspace whose lint line is this."""
+        self.fresh_fixture()
+        self.fixture.init_git()
+        self.fixture.write('Cargo.toml', '[workspace.lints.clippy]\n' + line + '\n')
+        self.fixture.write('clippy.toml', 'allow-unwrap-in-tests = true\n')
+        self.fixture.commit()
+        return self.check(has_cargo_toml=True)
+
+    def test_every_enabling_spelling_passes(self):
+        for line in ('unwrap_used = "warn"',
+                     'unwrap_used = "deny"  # no unwraps outside tests',
+                     'unwrap_used = { level = "deny", priority = -1 }',
+                     'unwrap_used = { priority = -1, level = "warn" }  # x'):
+            with self.subTest(line=line):
+                self.assert_pass(self._root_lint(line))
+
+    def test_a_level_named_only_in_a_comment_fails(self):
+        # The first quoted warn or deny on the line used to be taken,
+        # comment or not.
+        for line in ('unwrap_used = "allow"  # was "deny"',
+                     'unwrap_used = { level = "allow" }  # level = "warn" later'):
+            with self.subTest(line=line):
+                self.assert_fail(self._root_lint(line),
+                                 containing='not set to warn or deny')
+
     def test_a_missing_test_exemption_fails(self):
         """Without it the lint fires on every test assertion."""
         self.fixture.init_git()
@@ -2218,13 +2327,32 @@ class VersionFileGitignoreTest(CheckTestCase):
         self.assert_tool_failure(lambda: self.check(has_pyproject_toml=True),
                                  containing='Could not check .gitignore coverage')
 
+    def test_a_configured_path_spelt_like_an_option_is_a_path(self):
+        # Without the --, git reads it as --verbose, which conflicts
+        # with -q, and cannot answer.
+        self.fixture.init_git()
+        self.fixture.write('pyproject.toml', self.PYPROJECT.replace(
+            'thing/_version.py', '--verbose'))
+        self.fixture.write('.gitignore', 'build/\n')
+        self.fixture.commit()
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='--verbose is not covered by .gitignore')
+
     def test_a_project_not_generating_a_version_file_does_not_apply(self):
         self.fixture.init_git()
         self.fixture.write('pyproject.toml', '[project]\nname = "x"\n')
         self.fixture.commit()
-        result = self.check(has_pyproject_toml=True)
-        self.assertIn(result['status'], ('not_applicable', 'pass'),
-                      result['details'])
+        self.assert_skip(self.check(has_pyproject_toml=True),
+                         containing='No generated version file configured')
+
+    def test_a_tracked_version_file_with_no_configured_path_fails(self):
+        """Tracked is always wrong, whether or not a path is configured."""
+        self.fixture.init_git()
+        self.fixture.write('pyproject.toml', '[project]\nname = "x"\n')
+        self.fixture.write('thing/_version.py', "__version__ = '1.0'\n")
+        self.fixture.commit()
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='tracked in git (use git rm --cached): thing/_version.py')
 
 
 class ReleaseArtifactsExcludePlansTest(CheckTestCase):

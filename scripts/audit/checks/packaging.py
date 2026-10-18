@@ -17,10 +17,11 @@ from audit.files import (
     check_file_contains, require_tracked_paths, toml_section_has_key,
 )
 from audit.text.workflows import (
-    has_workflow_dispatch, job_is_push_guarded, job_is_tag_guarded,
+    BLOCK_INDICATOR_RE, has_workflow_dispatch, job_is_push_guarded, job_is_tag_guarded,
     job_level_keys, step_action, step_with_inputs, workflow_job_blocks,
     workflow_step_blocks,
 )
+from audit.text.patterns import bounded_search
 from audit.text.python_source import (
     HTTP_HANDLER_BASES, console_entry_point_files, handler_base_names,
     imported_top_level_modules, mask_comments_and_strings, mask_strings,
@@ -168,25 +169,11 @@ def pins_direct_dependencies(repo):
     return ratio >= PIN_INTENT_THRESHOLD, exact, len(dependencies)
 
 
-# A pinned dependency entry in a pyproject.toml array, e.g.
-# '    "typing-extensions==4.16.0",' or
-# '    "gunicorn[gevent]==25.3.0",  # mit'. Captures the distribution
-# name, optional [extras], and the leading version specifier.
-DEP_PIN_RE = re.compile(
-    r'''^\s*["']
-        (?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)
-        (?P<extras>\[[^\]]*\])?
-        \s*(?P<spec>(?:[<>=!~]=|===)\s*[^"',;]+)
-    ''',
-    re.VERBOSE,
-)
-
-
 # A PEP 508 requirement string as it appears once TOML parsing has
 # already stripped the quoting, e.g. 'click>=8.0.0' or
-# 'gunicorn[gevent]==26.0.0'. Unlike DEP_PIN_RE this matches the value
-# rather than the source line, so it does not need to tolerate quotes,
-# indentation or trailing comments.
+# 'gunicorn[gevent]==26.0.0'. It matches the value rather than the
+# source line, so it does not need to tolerate quotes, indentation or
+# trailing comments.
 DEP_SPEC_RE = re.compile(
     r'''^\s*
         (?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)
@@ -202,14 +189,6 @@ DEP_SPEC_RE = re.compile(
 # declared as ">=X" that also carries an exact "==Y" pin (appended by
 # the indirect-dependency workflow) is intentional and resolves fine.
 EXACT_PIN_RE = re.compile(r'^={2,3}\s*(\S+)')
-
-
-# The start of a TOML array (e.g. 'dependencies = [') or a table
-# header (e.g. '[project.optional-dependencies]'). Either boundary
-# starts a fresh dependency grouping, so a name pinned once in the main
-# dependencies array and once in an optional-dependencies group is not
-# treated as a conflict.
-DEP_ARRAY_OPEN_RE = re.compile(r'=\s*\[')
 
 
 TOML_SECTION_RE = re.compile(r'^\s*\[[A-Za-z_]')
@@ -439,6 +418,18 @@ CONTAINER_PATH_ACTIONS = {
 }
 
 
+def input_is(inputs, key, expected):
+    """Does a step input hold this boolean, however it is quoted?
+
+    step_with_inputs() returns raw values, quotes intact, but an action
+    receives every input as a string, so `true` and `"true"` arrive as
+    the same thing. Comparing the raw value reported a correctly set
+    `fail_on_unmatched_files: "true"` as missing. Case is folded too.
+    """
+    value = inputs.get(key, '')
+    return value.strip().strip('"').strip("'").lower() == expected
+
+
 def release_asset_issues(repo):
     """Findings for a release.yml which can publish an empty release.
 
@@ -490,7 +481,7 @@ def release_asset_issues(repo):
             if step_action(step) != DOWNLOAD_ARTIFACT_ACTION:
                 continue
             inputs = step_with_inputs(step)
-            if inputs.get('name') or inputs.get('merge-multiple') == 'true':
+            if inputs.get('name') or input_is(inputs, 'merge-multiple', 'true'):
                 continue
             issues.append(
                 f'the {name} job downloads artifacts without "name:" or '
@@ -500,8 +491,7 @@ def release_asset_issues(repo):
                 'publish job does')
 
         for step in attaching:
-            inputs = step_with_inputs(step)
-            if inputs.get('fail_on_unmatched_files') == 'true':
+            if input_is(step_with_inputs(step), 'fail_on_unmatched_files', 'true'):
                 continue
             issues.append(
                 f'the {name} job attaches release assets without '
@@ -528,8 +518,7 @@ def job_checks_out(body):
     for step in workflow_step_blocks(body):
         if step_action(step) != CHECKOUT_ACTION:
             continue
-        clean = step_with_inputs(step).get('clean', '')
-        if clean.strip().strip('"').strip("'").lower() == 'false':
+        if input_is(step_with_inputs(step), 'clean', 'false'):
             continue
         return True
     return False
@@ -538,13 +527,19 @@ def job_checks_out(body):
 def dist_directory(value):
     """The directory part of a path or glob naming the distribution.
 
-    Quoting and a trailing glob are spelling; what two of these have
-    to agree about is the directory. Returns '' for an empty value.
+    Quoting and the glob are spelling; what two of these have to agree
+    about is the directory. A glob's directory is everything before its
+    first wildcard component, so `dist/*`, `dist/*.tar.gz` and
+    `dist/**/*.whl` all read `dist`, while a plain path is a directory
+    in its own right. Returns '' for an empty value.
     """
     value = value.strip().strip('"').strip("'").strip()
-    if value.endswith('*'):
-        value = value[:-1]
-    return value.rstrip('/')
+    parts = value.split('/')
+    for index, part in enumerate(parts):
+        if any(c in part for c in '*?['):
+            parts = parts[:index]
+            break
+    return '/'.join(parts).rstrip('/')
 
 
 def release_workspace_issues(repo):
@@ -732,7 +727,10 @@ def dist_agreement_issues(repo):
             if key is None:
                 continue
             value = step_with_inputs(step).get(key)
-            if value is None:
+            # A block scalar's header is not the value: the paths are
+            # on the lines below it, one per line, and reading the
+            # header as a path reports '|' as somewhere else.
+            if value is None or BLOCK_INDICATOR_RE.match(value):
                 continue
             if dist_directory(value) in targets:
                 continue
@@ -976,6 +974,37 @@ def workflow_tools_scripts(repo, workflow):
     return sorted(scripts)
 
 
+def requirement_arrays(data):
+    """Every array of requirement strings in a parsed pyproject.toml.
+
+    One list per array, since a name pinned in two arrays is pinned in
+    two install-time scopes rather than twice in one: the build
+    requirements, the runtime dependencies, each extra, and each PEP 735
+    dependency group. tomllib reads every spelling of a TOML array --
+    a one-line `["a==1", "a==2"]` as much as one entry per line -- and
+    an entry that is not a string, such as a group's
+    `{include-group = ...}`, is not a requirement.
+    """
+    def strings(value):
+        if not isinstance(value, list):
+            return []
+        return [entry for entry in value if isinstance(entry, str)]
+
+    def tables(value):
+        return value.values() if isinstance(value, dict) else []
+
+    build = data.get('build-system')
+    project = data.get('project')
+    arrays = [
+        strings(build.get('requires')) if isinstance(build, dict) else [],
+        strings(project.get('dependencies')) if isinstance(project, dict) else [],
+    ]
+    if isinstance(project, dict):
+        arrays.extend(strings(group) for group in tables(project.get('optional-dependencies')))
+    arrays.extend(strings(group) for group in tables(data.get('dependency-groups')))
+    return [array for array in arrays if array]
+
+
 class DependencyNameNormalization(Check):
     id = 'dependency-name-normalization'
     spec = 'docs/audits/dependency-name-normalization.md'
@@ -1001,7 +1030,10 @@ class DependencyNameNormalization(Check):
         content = repo.read('pyproject.toml')
         if content is None:
             return self.skip('No pyproject.toml (not a Python package)')
-        lines = content.splitlines()
+        try:
+            data = tomllib.loads(content)
+        except tomllib.TOMLDecodeError as e:
+            return self.fail(f'Could not parse pyproject.toml: {e}')
 
         conflicts = []
 
@@ -1023,23 +1055,21 @@ class DependencyNameNormalization(Check):
                     spellings = sorted({e['raw'] for e in entries})
                     conflicts.append(f'{canonical} ({", ".join(spellings)})')
 
-        group = {}
-        for line in lines:
-            if TOML_SECTION_RE.match(line) or DEP_ARRAY_OPEN_RE.search(line):
-                evaluate(group)
-                group = {}
-            match = DEP_PIN_RE.match(line)
-            if not match:
-                continue
-            exact = EXACT_PIN_RE.match(match.group('spec').strip())
-            group.setdefault(
-                canonical_dependency_name(match.group('name')), []
-            ).append({
-                'raw': match.group('name') + (match.group('extras') or ''),
-                'version': exact.group(1) if exact else None,
-                'has_extras': bool(match.group('extras')),
-            })
-        evaluate(group)
+        for array in requirement_arrays(data):
+            group = {}
+            for requirement in array:
+                match = DEP_SPEC_RE.match(requirement)
+                if not match or not match.group('spec'):
+                    continue
+                exact = EXACT_PIN_RE.match(match.group('spec').strip())
+                group.setdefault(
+                    canonical_dependency_name(match.group('name')), []
+                ).append({
+                    'raw': match.group('name') + (match.group('extras') or ''),
+                    'version': exact.group(1) if exact else None,
+                    'has_extras': bool(match.group('extras')),
+                })
+            evaluate(group)
 
         if conflicts:
             return self.fail(
@@ -1103,11 +1133,12 @@ def _match_pattern(entry, spellings):
         body, _, flags = entry[1:].rpartition('/')
         if not body:
             return False
-        try:
-            pattern = re.compile(body, re.IGNORECASE if 'i' in flags else 0)
-        except re.error:
-            return False
-        return any(pattern.search(s) for s in spellings)
+        # The repository wrote the pattern, so it is searched under a
+        # time limit: see bounded_search(). One that does not compile
+        # or does not finish selects nothing.
+        found = bounded_search(
+            body, spellings, re.IGNORECASE if 'i' in flags else 0)
+        return bool(found) and any(found)
     if '*' in entry or '?' in entry:
         return any(fnmatch.fnmatchcase(s.lower(), entry.lower())
                    for s in spellings)
@@ -1583,8 +1614,10 @@ class VersionFileGitignore(Check):
             [
                 'git', '-C', repo.path,
                 # --no-index so a tracked copy doesn't mask the
-                # .gitignore coverage answer.
-                'check-ignore', '-q', '--no-index', version_file,
+                # .gitignore coverage answer. The path comes from the
+                # audited repository's pyproject.toml, so -- keeps it
+                # a path however it is spelt.
+                'check-ignore', '-q', '--no-index', '--', version_file,
             ],
             'git check-ignore', timeout=30,
         )
@@ -2419,12 +2452,14 @@ class HeaderSanitization(Check):
             content = repo.read(relative)
             if content is None:
                 continue
-            if not any(
-                base in mask_comments_and_strings(content)
-                for base in HTTP_HANDLER_BASES
-            ):
+            # Masked once per file rather than once per base or class:
+            # most files hold no handler, and this is the whole cost of
+            # deciding so.
+            code = mask_comments_and_strings(content)
+            if not any(base in code for base in HTTP_HANDLER_BASES):
                 continue
             aliases = handler_base_names(content)
+            commented = mask_strings(content)
 
             # Indented definitions count. http.server gives no way to
             # pass arguments to a handler, so defining one inside a
@@ -2459,7 +2494,6 @@ class HeaderSanitization(Check):
                 # so a string constant holding the marker no longer
                 # exempts the class below it. Masking preserves offsets,
                 # so start and stop still address the same characters.
-                commented = mask_strings(content)
                 end = commented.find('\n', stop)
                 statement = commented[
                     start:end if end != -1 else len(commented)]
@@ -2630,8 +2664,13 @@ class RustUnwrapLint(Check):
         root_dir = os.path.dirname(root_manifest)
 
         # Accepts unwrap_used = "warn", "deny", or the table form
-        # { level = "warn", priority = -1 }.
-        lint_pattern = r'unwrap_used\s*=\s*.*"(warn|deny)"'
+        # { level = "warn", priority = -1 }. The level has to be the
+        # value itself, or the table's level key inside its braces: a
+        # pattern taking the first quoted warn or deny anywhere on the
+        # line reads `unwrap_used = "allow"  # was "deny"` as enabled.
+        lint_pattern = (
+            r'unwrap_used\s*=\s*'
+            r'(?:"(?:warn|deny)"|\{[^}#]*\blevel\s*=\s*"(?:warn|deny)")')
 
         issues = []
 

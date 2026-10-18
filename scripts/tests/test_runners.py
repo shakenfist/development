@@ -77,6 +77,11 @@ class VmRunnerSizeTest(CheckTestCase):
     SIZE_SENTENCE_START = '* Sizes are '
     SIZE_SENTENCE_END = 'variants.'
 
+    def test_an_empty_workflows_directory_does_not_apply(self):
+        self.fixture.workflows({})
+        self.assert_skip(self.check(has_workflows_dir=True),
+                         containing='No workflow files found')
+
     def _check(self, workflows):
         """The check over a repository made of these workflows."""
         self.fixture.workflows(workflows)
@@ -394,6 +399,11 @@ class SelfHostedRunnerLabelPositionTest(CheckTestCase):
 
     check_class = runners.SelfHostedRunners
 
+    def test_an_empty_workflows_directory_does_not_apply(self):
+        self.fixture.workflows({})
+        self.assert_skip(self.check(has_workflows_dir=True),
+                         containing='No workflow files found')
+
     def _check(self, workflow):
         """The check over a repository whose one workflow is this."""
         self.fixture.workflow('ci.yml', workflow)
@@ -486,6 +496,11 @@ class StaticRunnerTagsTest(CheckTestCase):
     """A 'static' runner request must not also ask for anything else."""
 
     check_class = runners.StaticRunnerTags
+
+    def test_an_empty_workflows_directory_does_not_apply(self):
+        self.fixture.workflows({})
+        self.assert_skip(self.check(has_workflows_dir=True),
+                         containing='No workflow files found')
 
     def test_without_workflows_it_does_not_apply(self):
         self.assert_skip(self.check(), containing='No .github/workflows/')

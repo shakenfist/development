@@ -18,6 +18,7 @@ import tempfile
 
 from audit.check import Check, ToolFailure, run_tool
 from audit.github import environment_without_credentials
+from audit.text.patterns import bounded_search
 
 
 # Paths a review session rewrites, used to test candidate pre-commit
@@ -68,19 +69,17 @@ def pre_commit_excludes_review_marks(repo):
     tried as the regex pre-commit would apply, and the check passes if
     any one of them matches both sample paths -- so a top-level
     exclude and a per-hook exclude both count. A value we cannot
-    compile is skipped rather than raising: an unrelated malformed
-    pattern is pre-commit's problem to report, not this audit's.
+    compile, or whose search does not finish (see bounded_search()),
+    is skipped rather than raising: an unrelated malformed pattern is
+    pre-commit's problem to report, not this audit's.
     """
     for line in (repo.read('.pre-commit-config.yaml') or '').splitlines():
         match = re.match(r'\s*exclude:\s*(\S.*?)\s*$', line)
         if not match:
             continue
         pattern = match.group(1).strip('\'"')
-        try:
-            compiled = re.compile(pattern)
-        except re.error:
-            continue
-        if all(compiled.search(p) for p in REVIEW_MARK_SAMPLE_PATHS):
+        found = bounded_search(pattern, REVIEW_MARK_SAMPLE_PATHS)
+        if found is not None and all(found):
             return True
     return False
 
