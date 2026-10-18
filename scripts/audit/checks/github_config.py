@@ -25,7 +25,7 @@ from audit import scope
 from audit.check import Check, ToolFailure
 from audit.files import workflows_inheriting_secrets_into
 from audit.text.workflows import (
-    EXPRESSION_RE, indented_block, job_level_keys, mapping_entries, workflow_job_blocks,
+    indented_block, job_level_keys, mapping_entries, workflow_job_blocks,
 )
 
 
@@ -347,6 +347,9 @@ class ReleaseEnvironmentProtection(Check):
     #: that may have been cut, and an unread policy could be a branch.
     POLICY_PAGE = 100
 
+    #: Tag patterns that match every tag, so restrict nothing.
+    ANY_TAG = frozenset({'*', '**'})
+
     def applies(self, repo):
         """Only a repository that releases through release.yml has a gate to check."""
         if repo.workflow(self.WORKFLOW) is None:
@@ -373,7 +376,7 @@ class ReleaseEnvironmentProtection(Check):
             if not name:
                 problems.append(
                     f'the {job} job has an environment with no name, so it cannot be checked')
-            elif EXPRESSION_RE.search(name):
+            elif '${{' in name:
                 # Resolved at run time, so the audit cannot say which
                 # environment the job deploys to. It could be one that
                 # does not exist yet, which GitHub would create
@@ -453,6 +456,12 @@ class ReleaseEnvironmentProtection(Check):
             problems.append(
                 f'the "{name}" environment can be deployed from branches as well as tags '
                 f'({", ".join(branches)})')
+        everything = sorted(str(p.get('name')) for p in policies
+                            if p.get('type') == 'tag' and p.get('name') in self.ANY_TAG)
+        if everything:
+            problems.append(
+                f'the "{name}" environment deploys from any tag at all ({", ".join(everything)}), '
+                'not only release tags')
         return problems
 
 

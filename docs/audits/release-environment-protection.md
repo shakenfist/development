@@ -16,7 +16,8 @@ job in `release.yml` names must:
   `required_reviewers` rule naming at least one reviewer.
 * **deploy only from tags.** Its `deployment_branch_policy` is set,
   with `custom_branch_policies` true, and every one of its deployment
-  policies is of type `tag`. Without a policy any branch's workflow
+  policies is of type `tag`, with a pattern narrower than `*` or
+  `**`, which match every tag. Without a policy any branch's workflow
   can name the environment and read its secrets; with
   `protected_branches` instead, a branch rather than a tag can
   deploy; and a `branch` policy beside the tag one reopens the same
@@ -43,8 +44,17 @@ knows.
 
 ### Required, but confirmed by a reviewer
 
-Two further settings on the environment are deliberately not
+Three further properties of the environment are deliberately not
 measured.
+
+* **The reviewers can actually approve.** The check counts the
+  entries in the `required_reviewers` rule, not the people behind
+  them. A team with no members, or a user who has since lost access,
+  satisfies the check, but leaves nobody who can approve a release,
+  or leaves only an administrator through `can_admins_bypass`.
+  Telling those cases apart needs team membership, which is more
+  calls and wider permissions than the read token has. A reviewer
+  confirms the list names people who can approve.
 
 * **`prevent_self_review` stays off.** The fleet has one maintainer
   with the right to approve a release. Turning self-review prevention

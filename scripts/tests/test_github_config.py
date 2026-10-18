@@ -557,6 +557,41 @@ jobs:
         self.assert_pass(result)
         self.assertEqual([self.environment(), self.policies()], github.calls)
 
+    def test_an_unterminated_expression_fails_without_asking(self):
+        """A malformed expression is still an expression, not a name to look up."""
+        self.fixture.workflow('release.yml', """jobs:
+  publish:
+    environment: ${{ inputs.target
+    steps:
+      - run: true
+""")
+        github = FakeGitHub()
+        result = run_check(self.check_class(), self.fixture.path, github=github)
+        self.assert_fail(result, containing='name it literally')
+        self.assertEqual([], github.calls)
+
+    def test_quoted_and_commented_scalars_are_read_as_the_name(self):
+        self.fixture.workflow('release.yml', """jobs:
+  sign:
+    environment: 'release'
+    steps:
+      - run: true
+  publish:
+    environment: "release"  # the reviewer gate
+    steps:
+      - run: true
+""")
+        github = FakeGitHub(self.answers())
+        self.assert_pass(run_check(self.check_class(), self.fixture.path, github=github))
+        self.assertEqual([self.environment(), self.policies()], github.calls)
+
+    def test_a_tag_policy_matching_every_tag_fails(self):
+        for pattern in ('*', '**'):
+            with self.subTest(pattern=pattern):
+                result = self.run_with(self.answers(policies={'total_count': 1, 'branch_policies': [
+                    {'name': pattern, 'type': 'tag'}]}))
+                self.assert_fail(result, containing=f'any tag at all ({pattern})')
+
     def test_a_release_workflow_naming_no_environment_fails(self):
         self.fixture.workflow('release.yml', """jobs:
   build:
