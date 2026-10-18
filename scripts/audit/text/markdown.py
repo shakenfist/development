@@ -244,10 +244,10 @@ def blank_generated_blocks(markdown):
 
     A marker is recognised only as a whole line, and only in the exact
     spelling audit-update-docs.py emits -- which is why both scripts
-    read it from audit_common. A substring test instead matched prose
-    that merely names the markers, and documents that write the pair
-    as one token (`<!-- consistency-audit:begin/end -->`) matched the
-    begin without ever matching the end: that exempted 148 of 309
+    read it from audit/markers.py. A substring test instead matched
+    prose that merely names the markers, and documents that write the
+    pair as one token (`<!-- consistency-audit:begin/end -->`) matched
+    the begin without ever matching the end: that exempted 148 of 309
     lines of one plan file and 96 of 159 of another from
     docs-external-links, invisibly.
 

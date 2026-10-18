@@ -175,11 +175,11 @@ class NetworkCheckListTest(unittest.TestCase):
     GitHub call later would otherwise silently become a source of
     spurious diffs. Take the schedule from `registry.CHECKS`, then
     re-derive from the source which of those checks reaches the
-    network -- through the `_github()` client accessor, or by cloning
-    -- directly, through a helper it calls, or through a base class it
+    network -- through the `repo.github` client, or by cloning --
+    directly, through a helper it calls, or through a base class it
     inherits, and compare.
 
-    Matching on `_github(` rather than on a literal `gh` is what makes
+    Matching on the client rather than on a literal `gh` is what makes
     this survive the client seam: no check spawns `gh` itself, they
     all go through audit/github.py.
     """

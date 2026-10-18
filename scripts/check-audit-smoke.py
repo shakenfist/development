@@ -25,8 +25,9 @@ else is this runner's git or skillsaw not answering, which the
 scheduled run would meet too.
 
 Which checks fail against this repository is not this script's
-business: development is exempt from the audits and several checks
-fail here by design.
+business: the scheduled audit measures development like any other
+repository and files issues for what fails, so this job asks only
+that the audit ran.
 
 Usage: check-audit-smoke.py RESULTS.json
 """

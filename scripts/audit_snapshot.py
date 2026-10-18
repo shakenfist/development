@@ -10,7 +10,8 @@ pass -- it is that the checker says exactly what it said before about
 the same repositories, byte for byte.
 
 Snapshots are captured by `tools/audit-snapshot.sh` and are not
-committed; see the plan in docs/plans/ for why.
+committed: generated JSON under scripts/ or docs/ would land in review
+scope and sit permanently stale in the review queue.
 """
 
 import argparse
@@ -25,10 +26,11 @@ import sys
 # reported separately rather than ignored -- a difference here is not
 # evidence of a regression, but it is not nothing either.
 #
-# Derived by hand from the enclosing function of every 'gh' and 'git
-# clone' invocation in scripts/audit-check.py. test_audit_snapshot.py
-# re-derives it from the source and fails if the two disagree, so this
-# list cannot quietly go stale as checks are added.
+# Written by hand. NetworkCheckListTest in test_audit_snapshot.py
+# re-derives it from the checks under audit/ -- every check that
+# reaches the GitHub client (repo.github) or runs a git clone, directly
+# or through a helper or base class -- and fails if the two disagree,
+# so this list cannot quietly go stale as checks are added.
 NETWORK_CHECKS = frozenset({
     'default-branch-naming',
     'github-security',
