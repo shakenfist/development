@@ -141,11 +141,12 @@ def read(root, relative):
     `Repo.read()` does it and for the same reason one level up: a
     `UnicodeDecodeError` is a `ValueError` rather than an `OSError`, so
     it escapes the handler the `scope-coverage` check wraps this parse
-    in, and `registry.run_all()` has no handler at all. One undecodable
-    byte in either document would abort the whole `development` leg of
-    the scheduled run, taking issue filing and the compliance page with
-    it. Replacing the byte lets the parse proceed and either succeed or
-    raise `ScopeParseError`, which is a `fail()` a reader can act on.
+    in. `registry.run_check()` would then report the check as `error`,
+    which leaves its issue alone and fails the `development` leg of the
+    scheduled run on a traceback, over one undecodable byte in either
+    document. Replacing the byte lets the parse proceed and either
+    succeed or raise `ScopeParseError`, which is a `fail()` a reader can
+    act on.
 
     Read through read_within(), the guarded open `Repo.read()` uses,
     because `scope-coverage` passes the checkout under audit as root:
