@@ -68,16 +68,59 @@ class CheckAuditSmokeTest(unittest.TestCase):
         self.assertEqual(code, 0, output)
 
     def test_llm_context_lint_going_not_applicable_fails(self):
-        # This is the failure the job exists for: skillsaw missing means
-        # skillsaw_errors() returns None and the check renders as
-        # not_applicable, which is indistinguishable from a decision.
+        # This repository has agent context, so a not_applicable here is
+        # the check not running, whatever it says.
         code, output = self.run_on(report([
             {'id': 'llm-context-lint', 'status': 'not_applicable',
-             'details': 'skillsaw is not available in the audit environment'},
+             'details': 'No agent context files to lint'},
         ]))
         self.assertEqual(code, 1)
         self.assertIn('llm-context-lint', output)
-        self.assertIn('skillsaw is not available', output)
+        self.assertIn('No agent context files to lint', output)
+
+    def test_llm_context_lint_missing_its_tool_fails(self):
+        # This is the failure the job exists for: a skillsaw that is
+        # not installed. It is a tool failure, and it is not excused.
+        code, output = self.run_on(report([
+            {'id': 'llm-context-lint', 'status': 'error', 'tool_failure': True,
+             'details': 'skillsaw could not run'},
+        ]))
+        self.assertEqual(code, 1)
+        self.assertIn('skillsaw could not run', output)
+
+    def test_a_network_check_that_could_not_ask_is_listed_not_failed(self):
+        # This job has no GitHub token, so the checks that ask GitHub
+        # cannot, and say so.
+        code, output = self.run_on(report([
+            MEASURED,
+            {'id': 'github-security', 'status': 'error', 'tool_failure': True,
+             'details': 'Could not query GitHub for the security settings'},
+        ]))
+        self.assertEqual(code, 0, output)
+        self.assertIn('Not measured without a GitHub token, as expected: '
+                      'github-security.', output)
+        self.assertIn('measured 1 checks', output)
+
+    def test_a_network_check_that_broke_still_fails(self):
+        # Unmarked, the error is a bug in the check, not GitHub.
+        code, output = self.run_on(report([
+            MEASURED,
+            {'id': 'github-security', 'status': 'error',
+             'details': 'The check raised KeyError'},
+        ]))
+        self.assertEqual(code, 1)
+        self.assertIn('github-security raised', output)
+
+    def test_a_tool_failure_outside_the_network_checks_still_fails(self):
+        # git or skillsaw not answering on this runner would not answer
+        # on the scheduled run either.
+        code, output = self.run_on(report([
+            MEASURED,
+            {'id': 'pyproject-usage', 'status': 'error', 'tool_failure': True,
+             'details': 'Could not list the tracked files'},
+        ]))
+        self.assertEqual(code, 1)
+        self.assertIn('pyproject-usage raised', output)
 
     def test_llm_context_lint_absent_entirely_fails(self):
         code, output = self.run_on(report([

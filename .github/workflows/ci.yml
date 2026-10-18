@@ -117,9 +117,9 @@ jobs:
       # that the machinery ran: it exits zero, it emits parseable JSON,
       # and every check returned a status.
       #
-      # No GH_TOKEN. The checks that would use one degrade to
-      # not_applicable, which is fine here and keeps this job off the
-      # audit credentials.
+      # No GH_TOKEN, which keeps this job off the audit credentials.
+      # The checks that would use one cannot ask GitHub, and report a
+      # tool failure that check-audit-smoke.py expects and lists.
       - name: Run the audit against this repository
         run: |
           python3 scripts/audit-check.py \

@@ -4,13 +4,9 @@
 
 The consistency audit's failure modes are not all loud. A bare
 `pip install` meeting PEP 668 fails the job outright, which is how the
-fleet-wide breakage of August 2026 announced itself -- but a skillsaw
-that goes missing more quietly does not fail anything at all.
-`skillsaw_errors()` catches `FileNotFoundError` and returns `None`, and
-`check_llm_context_lint()` renders that as `not_applicable`, which is
-the same word the audit uses for "we decided this check does not apply
-here". The compliance page then reports a considered exemption where
-what actually happened is that the tool was not installed.
+fleet-wide breakage of August 2026 announced itself. A skillsaw that
+goes missing is quieter: `llm-context-lint` reports `error`, which
+fails nothing until the next scheduled run fails every leg at once.
 
 So the smoke job asserts the audit reached verdicts, not that the
 verdicts are any particular value. A check that raised has not reached
@@ -19,6 +15,14 @@ checks still run, and the scheduled workflow fails the leg on it with
 audit-raised.py. Accepting it here would let a pull request that
 introduces a raising check pass CI and fail the next scheduled run
 instead, which is the failure this job exists to move earlier.
+
+With one exception. This job runs without a GitHub token, so the
+checks that ask GitHub cannot, and say so: an `error` marked
+`tool_failure` from a check in NETWORK_CHECKS is expected here and is
+listed rather than failed. Only that combination is excused -- an
+unmarked error is a check that broke, and a tool failure anywhere
+else is this runner's git or skillsaw not answering, which the
+scheduled run would meet too.
 
 Which checks fail against this repository is not this script's
 business: development is exempt from the audits and several checks
@@ -30,11 +34,14 @@ Usage: check-audit-smoke.py RESULTS.json
 import json
 import sys
 
+from audit_snapshot import NETWORK_CHECKS
+
 
 # Checks which must reach a real verdict for the run to count as having
 # measured anything. llm-context-lint is here because it is the one that
-# degrades silently when its external tool is missing; the others report
-# not_applicable only for reasons visible in the repository itself.
+# depends on a tool installed for the audit rather than one every runner
+# has; it reports not_applicable only for want of agent context, which
+# this repository has.
 MUST_BE_MEASURED = ('llm-context-lint',)
 
 
@@ -57,6 +64,7 @@ def main(argv):
         return 1
 
     problems = []
+    unasked = []
 
     for check in checks:
         if not check.get('id'):
@@ -65,6 +73,9 @@ def main(argv):
             problems.append(
                 '%s returned no status, so it neither passed nor failed'
                 % check['id'])
+        elif (check['status'] == 'error' and check.get('tool_failure')
+                and check['id'] in NETWORK_CHECKS):
+            unasked.append(check['id'])
         elif check['status'] == 'error':
             problems.append(
                 '%s raised rather than reaching a verdict: %s'
@@ -79,10 +90,9 @@ def main(argv):
                 'every audit' % check_id)
         elif check.get('status') == 'not_applicable':
             problems.append(
-                '%s reported not_applicable (%s). In this smoke run that '
-                'means its tooling is missing rather than that the check '
-                'does not apply, and a missing tool reads as a deliberate '
-                'exemption in the compliance page.'
+                '%s reported not_applicable (%s). This repository has '
+                'the agent context it lints, so the check should have '
+                'run.'
                 % (check_id, check.get('details', 'no details')))
 
     if problems:
@@ -93,7 +103,10 @@ def main(argv):
         return 1
 
     print('Audit smoke run measured %d checks, %s among them.'
-          % (len(checks), ', '.join(MUST_BE_MEASURED)))
+          % (len(checks) - len(unasked), ', '.join(MUST_BE_MEASURED)))
+    if unasked:
+        print('Not measured without a GitHub token, as expected: %s.'
+              % ', '.join(sorted(unasked)))
     return 0
 
 

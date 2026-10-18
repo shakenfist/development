@@ -325,9 +325,24 @@ once. The line is whether the tool answered: an answer is evidence a
 verdict can rest on, including an answer that the thing asked about
 does not exist, while a failure to answer is not.
 
+The exception a check raises for this is `audit.check.ToolFailure`,
+whose message becomes the `details` of the `error` result -- so it
+says what could not be asked and why, without the traceback a bug
+gets, and the result carries `tool_failure: true`. Three helpers raise
+it so a check does not have to: `require_tracked_paths()` in
+`audit/files.py` for the index, `answer()` and `api_answer()` on the
+GitHub client for a call whose every failure is GitHub not answering,
+and `run_tool()` in `audit/check.py` for any other subprocess, which
+raises for a timeout or a tool that cannot start and leaves the exit
+status to the caller, since only the caller knows which statuses are
+answers. `check-audit-smoke.py`, which runs in CI without a token,
+excuses a `tool_failure` from the checks that ask GitHub and nothing
+else.
+
 The tests call `run()` directly and assert a verdict, so a check that
 raises unexpectedly still fails them. A test of a tool-failure path
-asserts that `run()` raises instead.
+asserts that `run()` raises ToolFailure instead, with
+`CheckTestCase.assert_tool_failure()`.
 
 ## Adding a criterion
 

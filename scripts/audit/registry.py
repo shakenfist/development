@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 import sys
 import traceback
 
-from audit.check import ERROR, NOT_APPLICABLE
+from audit.check import ERROR, NOT_APPLICABLE, ToolFailure
 from audit.checks import (
     ci_workflows, distros, docs_content, github_config, llm_docs, npm_dependencies, packaging, plans, review,
     runners,
@@ -127,6 +127,14 @@ def run_check(check, repo):
     results are uploaded, so the bug stays loud without costing the
     other criteria their issue management.
 
+    A ToolFailure is the same status with a different sentence. The
+    check did what it should -- its tooling did not answer -- so the
+    details say what could not be asked rather than calling it a bug,
+    and the traceback is not printed: the message is the whole story.
+    It is marked `tool_failure` as well, which is how
+    check-audit-smoke.py, running without a token, tells a network
+    check that could not ask from one that is broken.
+
     Exception rather than BaseException: an interrupt or a
     SystemExit is a request to stop, not a broken check.
     """
@@ -135,6 +143,15 @@ def run_check(check, repo):
         if reason is not None:
             return check.skip(reason)
         return check.run(repo)
+    except ToolFailure as e:
+        print(f'audit: {check.id} could not measure {repo.name}: {e}',
+              file=sys.stderr)
+        return check.result(
+            ERROR,
+            f'{e}. The audit could not measure this criterion, so this '
+            f'is not a finding about {repo.name}.',
+            tool_failure=True,
+        )
     except Exception as e:
         print(f'audit: {check.id} raised against {repo.name}:',
               file=sys.stderr)

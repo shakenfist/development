@@ -5,6 +5,8 @@
 Run with: python3 scripts/tests/test_audit_seams.py
 """
 
+import contextlib
+import io
 import os
 import subprocess
 import sys
@@ -13,7 +15,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from audit.check import Check, FAIL, NOT_APPLICABLE, PASS  # noqa: E402
+from audit.check import Check, ERROR, FAIL, NOT_APPLICABLE, PASS, ToolFailure, run_tool  # noqa: E402
 from audit.github import (  # noqa: E402
     CompletedCommand, FakeGitHub, GhCli, RecordingGitHubClient,
 )
@@ -38,6 +40,8 @@ class Sample(Check):
 
     def run(self, repo):
         self.ran = True
+        if isinstance(self.outcome, Exception):
+            raise self.outcome
         if self.outcome == 'ok':
             return self.ok('all good')
         return self.fail('not good', missing=['a thing'])
@@ -226,6 +230,71 @@ class GitHubClientTest(unittest.TestCase):
         self.assertIn('not recorded', result.stderr)
 
 
+class AnswerTest(unittest.TestCase):
+    """GitHubClient.answer(): a call whose every failure is GitHub not answering."""
+
+    def test_an_answer_comes_back(self):
+        client = FakeGitHub({'api repos/x --jq .y': CompletedCommand(stdout='z\n')})
+        self.assertEqual(client.api_answer('repos/x', 'y', jq='.y').stdout, 'z\n')
+
+    def test_a_non_zero_exit_raises_naming_what_was_asked(self):
+        client = FakeGitHub({'api repos/x': CompletedCommand(
+            returncode=1, stderr='gh: Bad credentials (HTTP 401)\n')})
+        with self.assertRaises(ToolFailure) as caught:
+            client.api_answer('repos/x', 'the thing')
+        self.assertEqual(str(caught.exception),
+                         'Could not query GitHub for the thing: gh: Bad credentials (HTTP 401)')
+
+    def test_a_multi_line_reason_is_folded_onto_one_line(self):
+        # The message is a details string, which renders in a table
+        # cell, and gh's advice on a missing login runs to two lines.
+        client = FakeGitHub({'api repos/x': CompletedCommand(
+            returncode=4, stderr='To get started, run:  gh auth login\nOr set GH_TOKEN.\n')})
+        with self.assertRaises(ToolFailure) as caught:
+            client.api_answer('repos/x', 'the thing')
+        self.assertEqual(str(caught.exception), 'Could not query GitHub for the thing: '
+                         'To get started, run: gh auth login Or set GH_TOKEN.')
+
+    def test_a_silent_failure_still_says_something(self):
+        client = FakeGitHub({'api repos/x': CompletedCommand(returncode=1, stderr='  \n')})
+        with self.assertRaises(ToolFailure) as caught:
+            client.api_answer('repos/x', 'the thing')
+        self.assertIn('no error reported', str(caught.exception))
+
+    def test_a_timeout_and_a_missing_gh_raise(self):
+        for raised, said in ((subprocess.TimeoutExpired('gh', 30), 'timed out after 30 seconds'),
+                             (FileNotFoundError('gh'), 'gh')):
+            with self.subTest(raised=type(raised).__name__):
+                client = FakeGitHub({'repo list x': raised})
+                with self.assertRaises(ToolFailure) as caught:
+                    client.answer(['repo', 'list', 'x'], 'the listing')
+                self.assertIn(said, str(caught.exception))
+                self.assertIs(caught.exception.__cause__, raised)
+
+
+class RunToolTest(unittest.TestCase):
+    """run_tool(): a subprocess that never answered raises; one that did returns."""
+
+    def test_a_non_zero_exit_is_returned_not_raised(self):
+        # Only the caller knows which statuses are answers.
+        result = run_tool([sys.executable, '-c', 'import sys; sys.exit(1)'], 'the tool', timeout=30)
+        self.assertEqual(result.returncode, 1)
+
+    def test_a_timeout_raises(self):
+        with self.assertRaises(ToolFailure) as caught:
+            run_tool([sys.executable, '-c', 'import time; time.sleep(5)'], 'the tool', timeout=0.1)
+        self.assertEqual(str(caught.exception), 'the tool timed out after 0.1 seconds')
+
+    def test_a_missing_binary_raises(self):
+        with self.assertRaises(ToolFailure) as caught:
+            run_tool(['/nonexistent/binary'], 'the tool', timeout=30)
+        self.assertIn('the tool could not run', str(caught.exception))
+
+    def test_an_unusable_working_directory_raises(self):
+        with self.assertRaises(ToolFailure):
+            run_tool([sys.executable, '-c', 'pass'], 'the tool', timeout=30, cwd='/nonexistent/dir')
+
+
 class RegistryTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -248,6 +317,24 @@ class RegistryTest(unittest.TestCase):
         self.assertEqual(result['status'], NOT_APPLICABLE)
         self.assertEqual(result['details'], 'No pyproject.toml')
         self.assertEqual(result['id'], 'sample')
+
+    def test_a_tool_failure_is_an_error_saying_what_could_not_be_asked(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            result = run_check(Sample(outcome=ToolFailure('Could not query GitHub for x: HTTP 502')),
+                               self.repo)
+        self.assertEqual(result['status'], ERROR)
+        self.assertTrue(result['tool_failure'])
+        self.assertEqual(
+            result['details'],
+            'Could not query GitHub for x: HTTP 502. The audit could not measure this '
+            'criterion, so this is not a finding about testrepo.')
+
+    def test_any_other_exception_is_an_error_blaming_the_audit(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            result = run_check(Sample(outcome=KeyError('k')), self.repo)
+        self.assertEqual(result['status'], ERROR)
+        self.assertNotIn('tool_failure', result)
+        self.assertIn('This is a bug in the audit', result['details'])
 
     def test_run_all_summarises(self):
         document = run_all(

@@ -25,7 +25,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from audit.check import STATUSES  # noqa: E402
+from audit.check import STATUSES, ToolFailure  # noqa: E402
 from audit.github import FakeGitHub  # noqa: E402
 from audit.registry import CHECKS  # noqa: E402
 from audit.repo import Repo  # noqa: E402
@@ -506,11 +506,36 @@ class ContractTest(unittest.TestCase):
         return Repo(self.tmp.name, 'testrepo', 'shakenfist',
                     github=FakeGitHub(), props=detected)
 
+    #: What results() reports for a check that raised ToolFailure. Not
+    #: a status: it stands in for the `error` run_check() would report,
+    #: and is accepted only from a ToolFailure, so any other exception
+    #: still escapes and fails the test.
+    TOOL_FAILURE = 'tool failure'
+
     def results(self, repo):
         for check in CHECKS:
             reason = check.applies(repo)
-            yield check, (check.skip(reason) if reason is not None
-                          else check.run(repo))
+            if reason is not None:
+                yield check, check.skip(reason)
+                continue
+            try:
+                yield check, check.run(repo)
+            except ToolFailure as e:
+                yield check, {'id': check.id, 'status': self.TOOL_FAILURE,
+                              'details': str(e)}
+
+    def assert_valid(self, check, result):
+        """A verdict, or the tooling failing and saying so.
+
+        A fixture with no git and a FakeGitHub with nothing scripted is
+        a run in which the tools cannot answer, so ToolFailure is the
+        correct outcome for the checks that ask them. Anything else
+        raising is the bug these tests exist for.
+        """
+        self.assertEqual(result['id'], check.id)
+        self.assertIn(result['status'], STATUSES + (self.TOOL_FAILURE,))
+        self.assertTrue(result['details'],
+                        f'{check.id} returned an empty details')
 
     def test_every_check_is_registered_exactly_once(self):
         ids = [check.id for check in CHECKS]
@@ -549,26 +574,23 @@ class ContractTest(unittest.TestCase):
         """The audit meets repositories it was not designed against.
 
         An empty directory is the cheapest stand-in for one: no git, no
-        workflows, no pyproject. A criterion that raises here reports
-        nothing about any of the others.
+        workflows, no pyproject. A criterion may report its tooling
+        failing here, but it may not raise anything else.
         """
         for check, result in self.results(self.repo()):
             with self.subTest(check=check.id):
-                self.assertEqual(result['id'], check.id)
-                self.assertIn(result['status'], STATUSES)
-                self.assertTrue(result['details'],
-                                f'{check.id} returned an empty details')
+                self.assert_valid(check, result)
 
     def test_a_docs_only_repository_produces_a_valid_result(self):
         for check, result in self.results(self.repo(is_docs_only=True)):
             with self.subTest(check=check.id):
-                self.assertIn(result['status'], STATUSES)
+                self.assert_valid(check, result)
 
     def test_a_directory_that_is_not_a_checkout_produces_a_valid_result(self):
-        """Several criteria shell out to git. None may raise when it fails."""
+        """Several criteria shell out to git; only ToolFailure may escape."""
         for check, result in self.results(self.repo(not_python=True)):
             with self.subTest(check=check.id):
-                self.assertIn(result['status'], STATUSES)
+                self.assert_valid(check, result)
 
     def test_every_check_is_reachable_from_a_test_module(self):
         """The guard that stops the next criterion arriving untested.

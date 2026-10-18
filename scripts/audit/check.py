@@ -16,6 +16,7 @@ first. The scheduler asks the cheap question before the expensive one.
 """
 
 import abc
+import subprocess
 
 
 PASS = 'pass'
@@ -31,6 +32,45 @@ STATUSES = (PASS, FAIL, NOT_APPLICABLE)
 #: `registry.run_check()` does -- and the tests that call `run()`
 #: directly assert a verdict, so a check that raises still fails them.
 ERROR = 'error'
+
+
+class ToolFailure(Exception):
+    """The check's own tooling failed, so it has no verdict to give.
+
+    Raised for a GitHub API error, a `git ls-files` that could not
+    answer, a clone that failed and a subprocess that timed out:
+    whatever the check asked could not reply, so it learned nothing
+    about the repository. `registry.run_check()` reports it as `error`,
+    which touches no issue. Returning `fail()` instead would file one
+    on the repository for an outage on our side, and `skip()` would
+    close the one it has. docs/consistency-audits.md, "What each status
+    means", is the policy.
+
+    The line is whether the tool answered. An answer that the thing
+    asked about does not exist -- an exit status that means "no", an
+    empty list -- is evidence, and a verdict may rest on it.
+
+    The message is the `details` of the error result, so it says what
+    could not be asked and why, in the terms a reader of the
+    compliance page needs.
+    """
+
+
+def run_tool(args, what, timeout, **kwargs):
+    """subprocess.run() for a check, with a failure to run raised.
+
+    A timeout, a missing binary and an unusable working directory all
+    mean the tool never answered, so each becomes a ToolFailure naming
+    `what` was being run. The exit status is the caller's to read:
+    only it knows which statuses are answers.
+    """
+    try:
+        return subprocess.run(
+            args, capture_output=True, text=True, timeout=timeout, **kwargs)
+    except subprocess.TimeoutExpired as e:
+        raise ToolFailure(f'{what} timed out after {timeout} seconds') from e
+    except OSError as e:
+        raise ToolFailure(f'{what} could not run: {e}') from e
 
 
 class Check(abc.ABC):

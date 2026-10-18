@@ -13,6 +13,7 @@ import subprocess
 import tempfile
 import unittest
 
+from audit.check import ToolFailure
 from audit.github import FakeGitHub
 from audit.repo import Repo
 
@@ -271,3 +272,18 @@ class CheckTestCase(unittest.TestCase):
         if containing is not None:
             self.assertIn(containing, result['details'])
         return result
+
+    def assert_tool_failure(self, run, containing=None):
+        """Assert that calling run() raises ToolFailure, and return it.
+
+        How a test asserts that a check's tooling failed: the check
+        raises, and registry.run_check() turns that into `error`, so
+        there is no result to assert a status on. `run` is a callable
+        -- usually a lambda around self.check() -- so that anything
+        else it raises still fails the test as an error.
+        """
+        with self.assertRaises(ToolFailure) as caught:
+            run()
+        if containing is not None:
+            self.assertIn(containing, str(caught.exception))
+        return caught.exception
