@@ -24,6 +24,7 @@ CI_REVIEW_DEVELOPER_WORKFLOWS = ci_workflows.CI_REVIEW_DEVELOPER_WORKFLOWS
 CI_REVIEW_SHARED_ACTION = ci_workflows.CI_REVIEW_SHARED_ACTION
 CI_REVIEW_REUSABLE_WORKFLOW = ci_workflows.CI_REVIEW_REUSABLE_WORKFLOW
 CI_REVIEW_TRIGGER_ACTION = ci_workflows.CI_REVIEW_TRIGGER_ACTION
+CI_REVIEW_REF_ACTION = ci_workflows.CI_REVIEW_REF_ACTION
 RETIRED_ADDRESSER_SCRIPTS = ci_workflows.RETIRED_ADDRESSER_SCRIPTS
 RETIRED_ADDRESSER_WORKFLOW = ci_workflows.RETIRED_ADDRESSER_WORKFLOW
 is_dedicated_scanner_workflow = ci_workflows.is_dedicated_scanner_workflow
@@ -56,7 +57,6 @@ REVIEWER_WORKFLOW = (
     '    permissions:\n'
     '      contents: read\n'
     '      pull-requests: write\n'
-    '      issues: write\n'
     '    uses: shakenfist/actions/.github/workflows/pr-auto-review.yml@main\n'
 )
 
@@ -95,7 +95,8 @@ class CiReviewAutomationSpecTest(unittest.TestCase):
             CI_REVIEW_DEVELOPER_WORKFLOWS
             + (CI_REVIEW_SHARED_ACTION,
                CI_REVIEW_REUSABLE_WORKFLOW,
-               CI_REVIEW_TRIGGER_ACTION)
+               CI_REVIEW_TRIGGER_ACTION,
+               CI_REVIEW_REF_ACTION)
         ):
             with self.subTest(requirement=requirement):
                 self.assertIn(requirement, spec)
@@ -968,13 +969,182 @@ class ForkGateAndConfirmStepTest(CheckTestCase):
             'pr-retest.yml: the shakenfist/actions/pr-bot-trigger@main '
             'step in job trigger-retest has no id:'))
 
-    def test_a_confirm_step_without_the_head_comparison_fails(self):
+    # The confirm step as copies made before pr-review-ref carry it:
+    # inline shell, which the criterion still accepts so that a working
+    # copy is not filed against. Trimmed to the lines the criterion
+    # reads; the fleet's copies also carry the messages.
+    INLINE_CONFIRM_STEP = (
+        '      - name: Confirm the checkout is the validated commit\n'
+        '        id: confirm\n'
+        '        env:\n'
+        '          HEAD_SHA: ${{ steps.ref.outputs.head_sha }}\n'
+        '          MERGED: ${{ steps.ref.outputs.merged }}\n'
+        '        run: |\n'
+        '          case "${MERGED}" in\n'
+        '            true)\n'
+        '              if ! reviewed=$(git rev-parse HEAD^2 2>/dev/null); then\n'
+        '                exit 1\n'
+        '              fi\n'
+        '              ;;\n'
+        '            false)\n'
+        '              if ! reviewed=$(git rev-parse HEAD 2>/dev/null); then\n'
+        '                exit 1\n'
+        '              fi\n'
+        '              ;;\n'
+        '            *)\n'
+        '              exit 1\n'
+        '              ;;\n'
+        '          esac\n'
+        '          if [ "${reviewed}" != "${HEAD_SHA}" ]; then\n'
+        '            echo "cause=moved" >> "${GITHUB_OUTPUT}"\n'
+        '            exit 1\n'
+        '          fi\n'
+        '\n')
+    SHARED_CONFIRM = (
+        '        uses: shakenfist/actions/pr-review-ref@main\n'
+        '        with:\n'
+        '          mode: confirm\n')
+
+    # The template's resolve call. Moving it out of resolve mode stands
+    # in for the inline resolve step of an old copy: what the criterion
+    # needs to know is only that the action is not resolving.
+    SHARED_RESOLVE_MODE = '          mode: resolve\n'
+
+    def _inline(self, old=None, new=None, resolve_inline=True):
+        """The template with its confirm step written out as inline shell.
+
+        With resolve_inline, the resolve step is not the action either,
+        as in a copy made before the action existed. Without it, the
+        copy is half re-synced: the action resolves and the old inline
+        step confirms.
+        """
+        body = template_workflow('pr-re-review.yml')
+        start = body.index(self.CONFIRM_STEP)
+        end = body.index('      # Which ref was reviewed', start)
+        step = self.INLINE_CONFIRM_STEP
+        if old is not None:
+            self.assertIn(old, step)
+            step = step.replace(old, new)
+        body = body[:start] + step + body[end:]
+        if resolve_inline:
+            self.assertEqual(1, body.count(self.SHARED_RESOLVE_MODE))
+            body = body.replace(self.SHARED_RESOLVE_MODE, '          mode: inline\n')
+        return body
+
+    def test_an_inline_confirm_step_passes(self):
+        self.assert_pass(self._check(re_review=self._inline()))
+
+    def test_an_inline_confirm_step_after_a_shared_resolve_fails(self):
+        # Half re-synced the other way round: the action resolves and
+        # sets head-sha, and the inline step reads head_sha, which is
+        # empty, so every run reports that the pull request moved.
+        result = self._check(re_review=self._inline(resolve_inline=False))
+        self.assert_fail(result, containing=(
+            'reads steps.ref.outputs.head_sha, which '
+            'shakenfist/actions/pr-review-ref@main does not set in resolve mode'))
+
+    def test_an_inline_confirm_step_reading_the_action_outputs_passes(self):
+        # A half re-sync done with care: the inline step reads the
+        # action's own output names, and so confirms what it resolved.
+        re_review = self._inline(
+            'steps.ref.outputs.head_sha', 'steps.ref.outputs.head-sha',
+            resolve_inline=False)
+        self.assert_pass(self._check(re_review=re_review))
+
+    def test_any_step_reading_an_undeclared_resolve_output_fails(self):
+        # The fallback notice, not the confirm step: an undeclared
+        # output reads as empty, and the notice has a generic arm.
         re_review = self._mutate(
-            'pr-re-review.yml',
+            'pr-re-review.yml', 'steps.ref.outputs.reason }}',
+            'steps.ref.outputs.fallback_reason }}')
+        self.assert_fail(self._check(re_review=re_review),
+                         containing='reads steps.ref.outputs.fallback_reason')
+
+    def test_a_conditional_inline_confirm_step_fails(self):
+        re_review = self._inline(
+            self.CONFIRM_STEP,
+            self.CONFIRM_STEP + "        if: steps.ref.outputs.merged == 'true'\n")
+        self.assert_fail(self._check(re_review=re_review),
+                         containing='confirm step is conditional')
+
+    def test_a_confirm_step_without_the_head_comparison_fails(self):
+        re_review = self._inline(
             'if ! reviewed=$(git rev-parse HEAD 2>/dev/null); then',
             'if ! reviewed=$(echo "${HEAD_SHA}"); then')
         self.assert_fail(self._check(re_review=re_review),
                          containing='merge path only')
+
+    def test_a_quoted_confirm_mode_passes(self):
+        re_review = self._mutate(
+            'pr-re-review.yml', self.SHARED_CONFIRM,
+            self.SHARED_CONFIRM.replace('mode: confirm', "mode: 'confirm'"))
+        self.assert_pass(self._check(re_review=re_review))
+
+    def test_the_shared_action_resolving_is_not_a_confirm_step(self):
+        # The template calls pr-review-ref twice, and only the second
+        # call confirms anything.
+        re_review = self._mutate(
+            'pr-re-review.yml', self.SHARED_CONFIRM,
+            self.SHARED_CONFIRM.replace('mode: confirm', 'mode: resolve'))
+        self.assert_fail(self._check(re_review=re_review),
+                         containing='does not confirm that the tree')
+
+    def test_an_action_of_the_same_name_elsewhere_is_not_a_confirm_step(self):
+        re_review = self._mutate(
+            'pr-re-review.yml', self.SHARED_CONFIRM,
+            self.SHARED_CONFIRM.replace('shakenfist/actions/', 'someone/actions/'))
+        self.assert_fail(self._check(re_review=re_review),
+                         containing='does not confirm that the tree')
+
+    CONFIRM_INPUTS = (
+        '          head-sha: ${{ steps.ref.outputs.head-sha }}\n'
+        '          merged: ${{ steps.ref.outputs.merged }}\n')
+
+    def test_quoted_shared_confirm_inputs_pass(self):
+        re_review = self._mutate(
+            'pr-re-review.yml', self.CONFIRM_INPUTS,
+            "          head-sha: '${{ steps.ref.outputs.head-sha }}'\n"
+            '          merged: "${{ steps.ref.outputs.merged }}"\n')
+        self.assert_pass(self._check(re_review=re_review))
+
+    def test_a_shared_confirm_step_without_its_inputs_fails(self):
+        re_review = self._mutate(
+            'pr-re-review.yml', self.SHARED_CONFIRM + self.CONFIRM_INPUTS,
+            self.SHARED_CONFIRM)
+        self.assert_fail(self._check(re_review=re_review),
+                         containing="head-sha input is not set")
+
+    def test_a_shared_confirm_step_fed_the_inline_output_name_fails(self):
+        # The hand re-sync from the inline shape: its resolve step wrote
+        # head_sha, which the action does not set.
+        re_review = self._mutate(
+            'pr-re-review.yml', 'steps.ref.outputs.head-sha }}',
+            'steps.ref.outputs.head_sha }}')
+        self.assert_fail(self._check(re_review=re_review),
+                         containing='reads steps.ref.outputs.head_sha, which')
+
+    def test_a_shared_confirm_step_without_merged_fails(self):
+        re_review = self._mutate(
+            'pr-re-review.yml', self.CONFIRM_INPUTS,
+            self.CONFIRM_INPUTS.splitlines(keepends=True)[0])
+        self.assert_fail(self._check(re_review=re_review),
+                         containing='merged input is not set')
+
+    def test_a_shared_confirm_step_fed_by_another_step_fails(self):
+        # Fed by a step that is not the action resolving: an inline
+        # resolve step left in place, say.
+        re_review = self._mutate(
+            'pr-re-review.yml', self.CONFIRM_INPUTS,
+            self.CONFIRM_INPUTS.replace('steps.ref.', 'steps.other.'))
+        self.assert_fail(self._check(re_review=re_review),
+                         containing='head-sha input is')
+
+    def test_a_shared_confirm_step_with_an_inline_resolve_fails(self):
+        re_review = self._mutate(
+            'pr-re-review.yml',
+            '          mode: resolve\n', '          mode: inline\n')
+        self.assert_fail(self._check(re_review=re_review),
+                         containing='head-sha input is')
 
     def test_no_confirm_step_fails(self):
         body = template_workflow('pr-re-review.yml')

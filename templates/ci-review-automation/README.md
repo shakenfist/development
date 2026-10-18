@@ -330,6 +330,45 @@ notice keys on that rather than on the step's outcome; every other
 failure points at the run log. `MergeRefResolutionTest` holds both
 halves. Like the notice itself, this is not measured by the criterion.
 
+### The resolve and confirm logic lives in shakenfist/actions (2026-10-17)
+
+Found by the consistency audits v2 push audit. About 115 lines of
+`pr-re-review.yml` were the shell that resolves the merge ref and
+confirms the checkout, and nothing ran them: every test of them read
+their text. They also broke the fleet's limit of about five lines of
+inline shell per step, and they could not simply move to `tools/`,
+because the copies in other repositories do not check out
+shakenfist/actions. Both steps now call
+`shakenfist/actions/pr-review-ref@main`, once with `mode: resolve`
+before the checkout and once with `mode: confirm` after it. The
+action runs `tools/pr-review-ref.sh` from its own ref, and that
+repository's `tests/test_pr_review_ref.py` runs it against a stub `gh`
+and real git repositories: a current merge ref, a stale one retried
+until it catches up, one that never does, an absent or unreadable one,
+the head and merge paths of the confirm step, and a head that moved.
+The behaviour is unchanged, with two additions: a confirm step handed
+no validated sha fails as a defect rather than blaming a moved head,
+and a pull request number that is not a number is refused before it
+reaches an API path.
+
+The `ci-review-automation` criterion accepts both shapes, the call to
+the action and the inline shell, so a copy that predates this is not
+filed against: it works, and re-syncing it is a convenience rather
+than a fix. `MergeRefResolutionTest` now pins the wiring instead of the
+shell: that each step calls the action in the right mode, that the
+checkout takes the resolved ref, and that the confirm step is
+unconditional and follows the hooks step.
+
+The same audit found that the trigger's bot-comment guard,
+`github.event.comment.user.type != 'Bot'`, does not exclude
+`shakenfist-bot`. That account is a User-type admin collaborator, so a
+comment it posts through a token -- review text quoting the phrase,
+say -- passes both the type test and `pr-bot-trigger`'s permission
+check. The trigger job now also requires
+`github.event.comment.user.login != 'shakenfist-bot'`.
+`ReviewWorkflowGuardTest` in shakenfist/actions pins it on that
+repository's copy, and `MergeRefResolutionTest` on the two here.
+
 ### The fork guard
 
 `pr-bot-trigger`'s `pr-ref` output is `.head.ref`: the branch name in the
@@ -369,7 +408,6 @@ names:
     permissions:
       contents: read
       pull-requests: write
-      issues: write
     uses: shakenfist/actions/.github/workflows/pr-auto-review.yml@main
 ```
 
@@ -384,7 +422,13 @@ Three details specific to reusable workflows:
 * The `permissions:` block goes on the **calling** job. A
   cross-repository reusable workflow cannot grant itself more token
   scope than its caller has, so omitting this leaves the reviewer
-  unable to post.
+  unable to post. It does not need `issues: write`: the reviewer files
+  no issues, and it posts its review and its explanatory comments
+  through the pull request, which `pull-requests: write` covers. A
+  caller still granting `issues: write` is unaffected, since the
+  reusable workflow narrows what it is given. The two developer
+  workflows in this directory keep it, because `pr-bot-trigger`
+  reacts to the triggering comment, and that is an Issues write.
 * The calling job cannot set `runs-on:` or `timeout-minutes:`; both
   are defined inside the reusable workflow.
 * Do **not** add `secrets: inherit`. Nothing in the reviewer chain
@@ -442,12 +486,14 @@ Three independent gates, in order:
 ### Fork pull requests are not reviewed
 
 The reusable workflow requires the PR to come from a branch in the
-same repository. The reviewer runs Claude Code with
-`--dangerously-skip-permissions` on a runner holding a token with
-`pull-requests: write` and `issues: write`, and it is fed the PR diff,
-which is untrusted input. Reviewing a fork PR would put an attacker's
-text in front of a write-capable token. Lifting this restriction means
-sandboxing the reviewer or giving it a read-only token first.
+same repository. The reviewer runs Claude Code with read-only tools,
+confined to the checkout and without the job's token in its
+environment (shakenfist/actions#168), but the job around it holds
+`pull-requests: write`, runs on a shared, long-lived runner pool, and
+feeds the reviewer the PR diff, which is untrusted input. Reviewing a
+fork PR would put text nobody has read in front of that job. Lifting
+this restriction means moving the reviewer into a job that holds no
+write token, on a runner nobody else shares, first.
 
 The restriction lives in the reusable workflow rather than in each
 caller, so it cannot be lost when a project edits its CI workflow.

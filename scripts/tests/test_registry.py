@@ -25,8 +25,8 @@ from audit.repo import REPO_OVERRIDES, detect_repo_properties  # noqa: E402
 from audit_common import AUDIT_METADATA, ISSUE_TITLES  # noqa: E402
 from audit.checks import ci_workflows  # noqa: E402
 from audit.text.workflows import (  # noqa: E402
-    indented_block, job_level_keys, step_keys, workflow_job_blocks,
-    workflow_step_blocks,
+    indented_block, job_level_keys, mapping_entries, step_action, step_keys,
+    step_with_inputs, workflow_job_blocks, workflow_step_blocks,
 )
 from tests.base import REPO_ROOT  # noqa: E402
 
@@ -802,12 +802,22 @@ class MergeRefResolutionTest(unittest.TestCase):
     # because the shell is the part expected to change. A rename is a
     # decision somebody makes; a deletion should not be.
     RESOLVE_STEP = '- name: Resolve the ref to review'
-    CHECKOUT_REF = 'ref: ${{ steps.ref.outputs.ref }}'
+    CHECKOUT_STEP = '- name: Checkout the pull request'
 
     # A checkout naming the merge ref directly is the shape this
     # replaced, and re-introducing it would pass every other check in
     # the tree.
     NAMED_MERGE_REF = re.compile(r'ref:\s*refs/pull/.*/merge')
+
+    def _re_review_steps(self, name):
+        with open(os.path.join(REPO_ROOT, name)) as f:
+            jobs = dict(workflow_job_blocks(f.read()))
+        return workflow_step_blocks(jobs['re-review'])
+
+    def _step(self, steps, step_name):
+        found = [step for step in steps if step_name in step.splitlines()[0]]
+        self.assertEqual(len(found), 1, f'expected one "{step_name}" step')
+        return found[0]
 
     def test_the_merge_ref_is_resolved_rather_than_named(self):
         for name in [self.DEPLOYED_RE_REVIEW, self.TEMPLATE_RE_REVIEW]:
@@ -819,37 +829,83 @@ class MergeRefResolutionTest(unittest.TestCase):
                     f'{name} must carry a "{self.RESOLVE_STEP}" step: '
                     f'without it a re-review can check out a merge '
                     f'commit for a superseded head')
-                self.assertIn(
-                    self.CHECKOUT_REF, body,
-                    f'{name} must check out the ref that step '
-                    f'resolved, or resolving it changes nothing')
                 self.assertIsNone(
                     self.NAMED_MERGE_REF.search(body),
                     f'{name} names a merge ref in a checkout rather '
                     f'than resolving one')
+                # The resolution is shakenfist/actions' pr-review-ref,
+                # whose tests run it against a stub gh: a stale merge
+                # ref retried, then accepted or fallen back from.
+                resolve = self._step(
+                    self._re_review_steps(name), self.RESOLVE_STEP)
+                self.assertEqual(step_keys(resolve).get('id'), 'ref')
+                self.assertEqual(
+                    step_action(resolve),
+                    ci_workflows.CI_REVIEW_REF_ACTION.split('@')[0])
+                self.assertEqual(
+                    step_with_inputs(resolve).get('mode'), 'resolve')
+                # Read from the checkout step's own inputs: a search of
+                # the whole file would be satisfied by the same text in
+                # a comment, or in some other step.
+                checkout = self._step(
+                    self._re_review_steps(name), self.CHECKOUT_STEP)
+                self.assertEqual(
+                    step_with_inputs(checkout).get('ref'),
+                    '${{ steps.ref.outputs.ref }}',
+                    f'{name} must check out the ref that step '
+                    f'resolved, or resolving it changes nothing')
+
+    FALLBACK_NOTICE = (
+        '- name: Say that the head was reviewed, not the merge result')
+
+    def test_the_fallback_notice_reads_the_resolved_reason(self):
+        # An output the action does not declare reads as empty rather
+        # than failing, and the notice's case statement has a generic
+        # arm for that, so a rename of reason would go on posting a
+        # plausible notice with the cause left out. The outputs'
+        # values are pr-review-ref's, and are tested in
+        # shakenfist/actions; the wiring is only testable here.
+        for name in [self.DEPLOYED_RE_REVIEW, self.TEMPLATE_RE_REVIEW]:
+            with self.subTest(workflow=name):
+                notice = self._step(
+                    self._re_review_steps(name), self.FALLBACK_NOTICE)
+                self.assertEqual(
+                    step_keys(notice).get('if'),
+                    "steps.ref.outputs.merged == 'false'")
+                env = mapping_entries(indented_block(notice, 'env'))
+                self.assertEqual(
+                    env.get('REASON'), '${{ steps.ref.outputs.reason }}')
 
     CONFIRM_STEP = '- name: Confirm the checkout is the validated commit'
 
     def test_the_checkout_is_confirmed_on_both_paths(self):
         # The head fallback checks out refs/pull/N/head, a name with the
-        # same race as the merge ref. An earlier version gated this step
-        # on merged == 'true', so the fallback path reviewed whatever
-        # the name reached with no warning (shakenfist/development#172).
+        # same race as the merge ref, so the step carries no if: and is
+        # handed what the resolve step validated on either path
+        # (shakenfist/development#172). The comparison is
+        # pr-review-ref's, and is tested in shakenfist/actions.
         for name in [self.DEPLOYED_RE_REVIEW, self.TEMPLATE_RE_REVIEW]:
             with self.subTest(workflow=name):
-                with open(os.path.join(REPO_ROOT, name)) as f:
-                    body = f.read()
-                self.assertIn(
-                    self.CONFIRM_STEP, body,
-                    f'{name} must confirm the checkout is the commit the '
-                    f'resolve step validated')
-                step = body.split(self.CONFIRM_STEP, 1)[1]
-                step = step.split('\n      - name:', 1)[0]
-                self.assertNotRegex(
-                    step, r'(?m)^\s*if:', f'{name} makes the confirm step '
-                    f'conditional, so one checkout path goes unconfirmed')
-                self.assertIn('HEAD^2', step)
-                self.assertRegex(step, ci_workflows.REV_PARSE_HEAD_RE)
+                steps = self._re_review_steps(name)
+                confirm = self._step(steps, self.CONFIRM_STEP)
+                self.assertNotIn(
+                    'if', step_keys(confirm), f'{name} makes the confirm '
+                    f'step conditional, so one checkout path goes '
+                    f'unconfirmed')
+                self.assertTrue(ci_workflows.calls_shared_confirm(confirm))
+                inputs = step_with_inputs(confirm)
+                self.assertEqual(
+                    inputs.get('head-sha'),
+                    '${{ steps.ref.outputs.head-sha }}')
+                self.assertEqual(
+                    inputs.get('merged'), '${{ steps.ref.outputs.merged }}')
+                # After the checkout it confirms, and after the hooks are
+                # disabled, so nothing runs over the tree before them.
+                hooks = self._step(steps, '- name: Disable git hooks')
+                self.assertEqual(
+                    steps.index(confirm), steps.index(hooks) + 1,
+                    f'{name}: the confirm step must follow the step that '
+                    f'disables git hooks')
 
     DEPLOYED_RETEST = os.path.join('.github', 'workflows', 'pr-retest.yml')
     TEMPLATE_RETEST = os.path.join(
@@ -907,6 +963,28 @@ class MergeRefResolutionTest(unittest.TestCase):
                     findings += ci_workflows.confirm_step_findings(
                         wf, content)
                 self.assertEqual([], findings)
+
+    BOT_GUARDS = [
+        "github.event.comment.user.type != 'Bot'",
+        "github.event.comment.user.login != 'shakenfist-bot'",
+    ]
+
+    def test_the_re_review_trigger_ignores_the_bot_and_its_account(self):
+        # The type test catches github-actions[bot], but shakenfist-bot
+        # is a User-type admin account: a comment it posts through a
+        # token passes the type test and pr-bot-trigger's permission
+        # check, so review text quoting the phrase would fire a forced
+        # review. Read from the job's own if:, since the comment above
+        # it quotes both.
+        for name in [self.DEPLOYED_RE_REVIEW, self.TEMPLATE_RE_REVIEW]:
+            with self.subTest(workflow=name):
+                with open(os.path.join(REPO_ROOT, name)) as f:
+                    jobs = dict(workflow_job_blocks(f.read()))
+                condition = job_level_keys(jobs['trigger-re-review'])['if']
+                self.assertNotIn('||', condition)
+                terms = [term.strip() for term in condition.split('&&')]
+                for guard in self.BOT_GUARDS:
+                    self.assertIn(guard, terms)
 
     ORIGIN_STEP = "- name: Confirm pr-bot-trigger reported the pull request's origin"
 
@@ -980,8 +1058,6 @@ class MergeRefResolutionTest(unittest.TestCase):
                         f'{name}: no step in {job} has id {gate_id}, so '
                         f'the notice gated on it never fires')
 
-    MOVED = 'echo "cause=moved" >> "${GITHUB_OUTPUT}"'
-
     def test_only_a_moved_head_is_blamed_on_a_moved_head(self):
         # The confirm step also fails when the checkout is not a merge
         # commit, has no HEAD, or merged is neither true nor false.
@@ -989,24 +1065,12 @@ class MergeRefResolutionTest(unittest.TestCase):
         # the requester round the same failure, so the notice names the
         # moved head only when the confirm step says that is the cause
         # (shakenfist/development#206). A notice keyed on the outcome
-        # would compile, run and read well, and be wrong.
+        # would compile, run and read well, and be wrong. That
+        # pr-review-ref sets cause only for a moved head is pinned by
+        # its own tests in shakenfist/actions.
         for name in [self.DEPLOYED_RE_REVIEW, self.TEMPLATE_RE_REVIEW]:
             with self.subTest(workflow=name):
-                with open(os.path.join(REPO_ROOT, name)) as f:
-                    body = f.read()
-                step = body.split(self.CONFIRM_STEP, 1)[1]
-                step = step.split('\n      - name:', 1)[0]
-                self.assertEqual(
-                    step.count(self.MOVED), 1,
-                    f'{name}: the confirm step must record cause=moved '
-                    f'exactly once')
-                comparison = step.index('if [ "${reviewed}" != "${HEAD_SHA}" ]')
-                self.assertGreater(
-                    step.index(self.MOVED), comparison,
-                    f'{name}: cause=moved must be recorded only once the '
-                    f'head comparison has failed')
-                jobs = dict(workflow_job_blocks(body))
-                notice = workflow_step_blocks(jobs['re-review'])[-1]
+                notice = self._re_review_steps(name)[-1]
                 self.assertIn('steps.confirm.outputs.cause', notice)
                 self.assertNotIn('steps.confirm.outcome', notice)
 

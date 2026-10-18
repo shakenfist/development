@@ -24,7 +24,8 @@ from audit.text.workflows import (
     RUNS_ON_RE, STATIC_ALLOWED_LABELS, indented_block,
     is_bound_runner_value, job_level_keys, job_needs, job_outputs, job_with_inputs,
     jobs_inheriting_secrets, parse_runner_labels, step_action, step_keys,
-    strip_yaml_comments, workflow_job_blocks, workflow_step_blocks,
+    step_with_inputs, strip_yaml_comments, workflow_job_blocks,
+    workflow_step_blocks,
 )
 
 
@@ -340,6 +341,90 @@ def fork_gate_findings(wf, content):
 REV_PARSE_HEAD_RE = re.compile(r'rev-parse\s+HEAD(?![\^~\w])')
 
 
+# The shared action the template resolves and confirms its checkout
+# through, and the mode that confirms. Its logic lives in
+# shakenfist/actions as tools/pr-review-ref.sh, whose tests run every
+# path against a stub gh and real git repositories, so a step calling
+# it is a confirm step without this check reading any shell.
+CI_REVIEW_REF_ACTION = 'shakenfist/actions/pr-review-ref@main'
+
+
+def calls_shared_ref_action(step, mode):
+    """True when a step calls pr-review-ref in the given mode."""
+    if step_action(step) != CI_REVIEW_REF_ACTION.split('@')[0]:
+        return False
+    return step_with_inputs(step).get('mode', '').strip('\'"') == mode
+
+
+def calls_shared_confirm(step):
+    """True when a step confirms its checkout through pr-review-ref."""
+    return calls_shared_ref_action(step, 'confirm')
+
+
+# What a confirm step's inputs must be: an expression reading the named
+# output of one step, and nothing else.
+SHARED_CONFIRM_INPUT_RE = r'^\$\{\{\s*steps\.([\w-]+)\.outputs\.%s\s*\}\}$'
+
+
+def shared_confirm_input_findings(wf, steps, confirm):
+    """Findings for a shared confirm step not fed by a shared resolve.
+
+    The confirm call compares the checkout against its head-sha and
+    merged inputs, so it is only as good as what it is handed. Each must
+    read the output of that name from a step in the same job calling
+    pr-review-ref with `mode: resolve`. The case that matters is a copy
+    re-synced by hand from the inline shape, whose resolve step wrote
+    head_sha: against the action that output is empty, and the confirm
+    step then fails every run.
+    """
+    resolvers = {step_keys(step).get('id') for step in steps
+                 if calls_shared_ref_action(step, 'resolve')}
+    inputs = step_with_inputs(confirm)
+    for name in ('head-sha', 'merged'):
+        value = inputs.get(name, '').strip('\'"')
+        match = re.match(SHARED_CONFIRM_INPUT_RE % re.escape(name), value)
+        if not match or match.group(1) not in resolvers:
+            return [
+                f'{wf}: the confirm step\'s {name} input is '
+                f'{value or "not set"}, not the {name} output of a '
+                f'{CI_REVIEW_REF_ACTION} step with mode: resolve, so it '
+                f'has nothing valid to confirm against']
+    return []
+
+
+# The outputs pr-review-ref declares in resolve mode, as its action.yml
+# in shakenfist/actions names them. They are hyphenated where the
+# inline resolve step's were not (head_sha), which is the misname a
+# hand re-sync makes.
+CI_REVIEW_RESOLVE_OUTPUTS = ('ref', 'head-sha', 'merged', 'reason')
+
+STEP_OUTPUT_RE = re.compile(r'steps\.([\w-]+)\.outputs\.([\w-]+)')
+
+
+def shared_resolve_output_findings(wf, steps):
+    """Findings for a step reading an output pr-review-ref never sets.
+
+    An undeclared output reads as empty rather than failing, so a copy
+    half re-synced from the inline shape, in either direction, runs
+    with nothing in it: a confirm step fed an empty head sha fails
+    every run, and an inline one compares the checkout against the
+    empty string and reports every push as having moved. Reading every
+    step, rather than the confirm step's inputs alone, also covers the
+    checkout's ref and the fallback notice's reason.
+    """
+    resolvers = {step_keys(step).get('id') for step in steps
+                 if calls_shared_ref_action(step, 'resolve')}
+    for step in steps:
+        for match in STEP_OUTPUT_RE.finditer(strip_yaml_comments(step)):
+            step_id, output = match.groups()
+            if step_id in resolvers and output not in CI_REVIEW_RESOLVE_OUTPUTS:
+                return [
+                    f'{wf} reads steps.{step_id}.outputs.{output}, which '
+                    f'{CI_REVIEW_REF_ACTION} does not set in resolve mode, '
+                    f'so the step reading it is handed an empty value']
+    return []
+
+
 def confirm_step_findings(wf, content):
     """Findings for a re-review that does not confirm what it checked out.
 
@@ -351,20 +436,31 @@ def confirm_step_findings(wf, content):
     fallback review could be of a commit nobody validated
     (shakenfist/development#172).
 
-    Read from the step's shell rather than its name, since the shell is
-    what does the confirming: a step which compares HEAD^2 is the
-    confirm step, whatever it is called.
+    Two shapes are confirm steps. The template calls
+    CI_REVIEW_REF_ACTION with `mode: confirm`, and that is accepted
+    when it is unconditional and fed by the action's resolve mode: the
+    comparison is the action's, and is tested there. Copies made before
+    the logic moved into the action carry it as inline shell, and those
+    are read from the step's shell rather than its name, since the shell
+    is what does the confirming: a step which compares HEAD^2 is the
+    confirm step, whatever it is called. Both pass, so a repository that
+    has not re-synced is not filed against for a copy that works. A mix
+    of the two, half re-synced, passes only if no step reads an output
+    the action does not set.
 
-    This measures the step's shape, not its semantics: a step which
-    names both revisions but no longer compares them, or no longer
-    fails when they differ, still passes. The failure it is built to
-    catch is a stale verbatim copy of the earlier template, which it
-    does; a pass is not evidence that a rewritten step still works.
+    For the inline shape this measures the step's shape, not its
+    semantics: a step which names both revisions but no longer compares
+    them, or no longer fails when they differ, still passes. The failure
+    it is built to catch is a stale verbatim copy of the earlier
+    template, which it does; a pass is not evidence that a rewritten
+    step still works.
     """
     for _, body in workflow_job_blocks(content):
-        for step in workflow_step_blocks(body):
+        steps = workflow_step_blocks(body)
+        for step in steps:
+            shared = calls_shared_confirm(step)
             script = strip_yaml_comments(step)
-            if 'rev-parse HEAD^2' not in script:
+            if not shared and 'rev-parse HEAD^2' not in script:
                 continue
             condition = step_keys(step).get('if')
             if condition:
@@ -372,11 +468,16 @@ def confirm_step_findings(wf, content):
                     f'{wf}: the confirm step is conditional (if: '
                     f'{condition}), so at least one checkout path goes '
                     f'unconfirmed']
-            if not REV_PARSE_HEAD_RE.search(script):
+            if not shared and not REV_PARSE_HEAD_RE.search(script):
                 return [
                     f'{wf} confirms the checkout on the merge path only, '
                     f'so a review of the head fallback can be of a '
                     f'commit the resolve step never validated']
+            misread = shared_resolve_output_findings(wf, steps)
+            if misread:
+                return misread
+            if shared:
+                return shared_confirm_input_findings(wf, steps, step)
             return []
     return [f'{wf} does not confirm that the tree it checked out is the '
             f'commit it resolved, so a push between the two is reviewed '
