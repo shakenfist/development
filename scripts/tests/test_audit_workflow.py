@@ -41,6 +41,10 @@ PUSHING_JOBS = ('update-docs',)
 
 MAIN_ONLY = "github.ref == 'refs/heads/main'"
 
+# The environment holding AUDIT_TOKEN. Its deployment branch policy
+# allows only main, which is a repository setting and not visible here.
+AUDIT_TOKEN_ENVIRONMENT = 'audit-write'
+
 
 class AuditWorkflowGuardsTest(unittest.TestCase):
 
@@ -55,6 +59,17 @@ class AuditWorkflowGuardsTest(unittest.TestCase):
         holders = sorted(
             name for name, body in self.jobs.items()
             if re.search(r'secrets\.AUDIT_TOKEN\b', self.code(body))
+        )
+        self.assertEqual(holders, sorted(AUDIT_TOKEN_JOBS))
+
+    def test_the_writing_token_jobs_run_in_its_environment(self):
+        # AUDIT_TOKEN is an environment secret. Outside the environment
+        # it is an empty string, and gh with an empty GH_TOKEN falls
+        # back to the runner's own login. And only these jobs: every
+        # other job in the environment could name the token too.
+        holders = sorted(
+            name for name, body in self.jobs.items()
+            if job_level_keys(body).get('environment') == AUDIT_TOKEN_ENVIRONMENT
         )
         self.assertEqual(holders, sorted(AUDIT_TOKEN_JOBS))
 
