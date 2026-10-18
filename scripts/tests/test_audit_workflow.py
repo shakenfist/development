@@ -22,8 +22,8 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.text.workflows import (  # noqa: E402
-    job_level_keys, step_action, step_with_inputs, strip_yaml_comments,
-    workflow_job_blocks, workflow_step_blocks,
+    job_level_keys, parse_runner_labels, step_action, step_with_inputs,
+    strip_yaml_comments, workflow_job_blocks, workflow_step_blocks,
 )
 from tests.base import repo_text  # noqa: E402
 
@@ -44,6 +44,11 @@ MAIN_ONLY = "github.ref == 'refs/heads/main'"
 # The environment holding AUDIT_TOKEN. Its deployment branch policy
 # allows only main, which is a repository setting and not visible here.
 AUDIT_TOKEN_ENVIRONMENT = 'audit-write'
+
+# The ephemeral runners the AUDIT_TOKEN jobs use, and the persistent
+# ones they must not: those share a home directory between jobs.
+EPHEMERAL_RUNNER = 'vm'
+SHARED_RUNNER = 'static'
 
 
 class AuditWorkflowGuardsTest(unittest.TestCase):
@@ -72,6 +77,19 @@ class AuditWorkflowGuardsTest(unittest.TestCase):
             if job_level_keys(body).get('environment') == AUDIT_TOKEN_ENVIRONMENT
         )
         self.assertEqual(holders, sorted(AUDIT_TOKEN_JOBS))
+
+    def test_the_writing_token_jobs_run_on_ephemeral_runners(self):
+        # On a static runner, something an audit leg left in the shared
+        # home directory runs with AUDIT_TOKEN.
+        for name in AUDIT_TOKEN_JOBS:
+            with self.subTest(job=name):
+                runs_on = job_level_keys(self.jobs[name]).get('runs-on', '')
+                # None is an expression this cannot resolve, which is a
+                # runner nobody can check.
+                labels = parse_runner_labels(runs_on)
+                self.assertIsNotNone(labels, runs_on)
+                self.assertIn(EPHEMERAL_RUNNER, labels)
+                self.assertNotIn(SHARED_RUNNER, labels)
 
     def test_the_audit_legs_hold_the_read_token(self):
         audit = self.code(self.jobs['audit'])

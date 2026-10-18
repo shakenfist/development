@@ -165,19 +165,25 @@ exist and the workflow works whichever one it reads. Dispatch a run of
 the writing jobs as skipped. Leave out required reviewers and wait
 timers: the scheduled run has nobody to approve it.
 
-The split is between jobs, not between hosts, and that bounds what it
-buys. Every job runs on the persistent `[self-hosted, static]`
-runners, as the same user, and only `runner.temp` is emptied between
-jobs. Code an audit leg runs -- skillsaw's unpinned dependencies, or
-anything an audited repository can steer -- could leave something in
-that user's home directory (a `.pth` file in the user site-packages,
-a `~/.gitconfig` hook) that `manage-issues` or `update-docs` then runs
-with `AUDIT_TOKEN`. Likewise skillsaw runs as the same user as
-`audit-check.py`, so taking the token out of its environment is
+The split between jobs is also a split between hosts. The audit legs
+run on the persistent `[self-hosted, static]` runners, as one user,
+and only `runner.temp` is emptied between jobs. Code an audit leg runs
+-- skillsaw's unpinned dependencies, or anything an audited repository
+can steer -- could leave something in that user's home directory (a
+`.pth` file in the user site-packages, a `~/.gitconfig` hook) for a
+later job there to run. So `manage-issues` and `update-docs` run on
+ephemeral `[self-hosted, vm, debian-13, s]` runners instead: each
+starts from the image and is thrown away after one job, so nothing a
+leg wrote reaches a job holding `AUDIT_TOKEN`. The image has no `gh`,
+so both jobs install it from Debian first.
+`scripts/tests/test_audit_workflow.py` fails if either job moves back
+to `static`.
+
+Within a leg, the isolation is weaker. skillsaw runs as the same user
+as `audit-check.py`, so taking the token out of its environment is
 defence in depth, not isolation: it could still read its parent's.
-What the split does do is keep `AUDIT_TOKEN` out of every process
-the legs start. Isolating the writing jobs properly needs runners
-nothing else uses, which is a runner change rather than a workflow one.
+That token is `AUDIT_READ_TOKEN`, though, and the split keeps
+`AUDIT_TOKEN` out of every process the legs start.
 
 **2. `manage-issues`** -- downloads every artifact and runs
 `scripts/audit-manage-issues.py`, which files, updates and closes issues. See

@@ -101,10 +101,11 @@ jobs:
       # in the organisation and write to none of them. AUDIT_TOKEN, which
       # files issues and pushes, appears only in manage-issues and
       # update-docs: the checks here read files the audited repositories
-      # control, and run programs over them. That split is per job, not
-      # per host: every job runs on the same persistent runners as the
-      # same user, so see docs/consistency-audits.md for what it does
-      # not cover.
+      # control, and run programs over them. That split is per host as
+      # well as per job: manage-issues and update-docs run on ephemeral
+      # VMs, so nothing a leg leaves in the static runners' shared home
+      # directory reaches AUDIT_TOKEN. Within a leg, see
+      # docs/consistency-audits.md for what it does not cover.
       #
       # An unset secret expands to an empty string, and gh given an
       # empty GH_TOKEN falls back to whatever login the runner's user
@@ -247,7 +248,17 @@ jobs:
     # a branch run shows these jobs as skipped rather than failed.
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
     environment: audit-write
-    runs-on: [self-hosted, static]
+    # An ephemeral VM, as for update-docs, rather than the static
+    # runners the audit legs use. Those share one user and one home
+    # directory between jobs, so code a leg runs could leave a .pth
+    # file or a ~/.gitconfig hook there for this job to run with
+    # AUDIT_TOKEN. A VM starts from the image and is thrown away after
+    # one job. The image has git and python3 but not gh.
+    runs-on: [self-hosted, vm, debian-13, s]
+    # Bounded so a hung gh call or apt mirror cannot hold a VM, which
+    # CI also needs, to the 360-minute default. This normally takes
+    # about fifteen minutes across the fleet.
+    timeout-minutes: 60
     permissions:
       contents: read
     steps:
@@ -257,6 +268,9 @@ jobs:
         uses: actions/checkout@v7
         with:
           persist-credentials: false
+
+      - name: Install gh
+        run: sudo apt-get update && sudo apt-get install -y gh
 
       - name: Download all audit results
         uses: actions/download-artifact@v8
@@ -305,12 +319,18 @@ jobs:
     if: ${{ !cancelled() && needs.audit.result == 'success' && github.ref == 'refs/heads/main' }}
     environment: audit-write
     needs: [audit, manage-issues]
-    runs-on: [self-hosted, static]
+    # An ephemeral VM, and a timeout, for the reasons given on
+    # manage-issues.
+    runs-on: [self-hosted, vm, debian-13, s]
+    timeout-minutes: 60
     permissions:
       contents: write
     steps:
       - name: Checkout development repo
         uses: actions/checkout@v7
+
+      - name: Install gh
+        run: sudo apt-get update && sudo apt-get install -y gh
 
       - name: Download all audit results
         uses: actions/download-artifact@v8
@@ -328,10 +348,6 @@ jobs:
 
       - name: Commit and push the updated page
         run: scripts/commit-audit-docs.sh
-
-      - name: Clean up
-        if: always()
-        run: rm -rf "${RUNNER_TEMP}/consistency-audit-results"
 
   # A scheduled workflow that fails emails whoever last pushed, which
   # is nobody's inbox in particular and is easy to miss for a workflow
