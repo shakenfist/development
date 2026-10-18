@@ -30,7 +30,9 @@
 * The steps reading the distribution (`subject-path` on the attestation,
   `files` on the release) name the directory the download actually
   filled. Moving one and not the other leaves a step globbing an empty
-  directory.
+  directory. A glob is compared by the directory it reads, so
+  `dist/*.tar.gz` agrees with a download to `dist/`. A block scalar
+  (`files: |`, one path per line) is not read, and so is not judged.
 * A job running a known container action (`pypa/gh-action-pypi-publish`)
   takes its paths relative to the workspace, and therefore checks out.
   The runner does mount its directories into the container, but not

@@ -17,7 +17,7 @@ from audit.files import (
     check_file_contains, require_tracked_paths, toml_section_has_key,
 )
 from audit.text.workflows import (
-    has_workflow_dispatch, job_is_push_guarded, job_is_tag_guarded,
+    BLOCK_INDICATOR_RE, has_workflow_dispatch, job_is_push_guarded, job_is_tag_guarded,
     job_level_keys, step_action, step_with_inputs, workflow_job_blocks,
     workflow_step_blocks,
 )
@@ -538,13 +538,19 @@ def job_checks_out(body):
 def dist_directory(value):
     """The directory part of a path or glob naming the distribution.
 
-    Quoting and a trailing glob are spelling; what two of these have
-    to agree about is the directory. Returns '' for an empty value.
+    Quoting and the glob are spelling; what two of these have to agree
+    about is the directory. A glob's directory is everything before its
+    first wildcard component, so `dist/*`, `dist/*.tar.gz` and
+    `dist/**/*.whl` all read `dist`, while a plain path is a directory
+    in its own right. Returns '' for an empty value.
     """
     value = value.strip().strip('"').strip("'").strip()
-    if value.endswith('*'):
-        value = value[:-1]
-    return value.rstrip('/')
+    parts = value.split('/')
+    for index, part in enumerate(parts):
+        if any(c in part for c in '*?['):
+            parts = parts[:index]
+            break
+    return '/'.join(parts).rstrip('/')
 
 
 def release_workspace_issues(repo):
@@ -732,7 +738,10 @@ def dist_agreement_issues(repo):
             if key is None:
                 continue
             value = step_with_inputs(step).get(key)
-            if value is None:
+            # A block scalar's header is not the value: the paths are
+            # on the lines below it, one per line, and reading the
+            # header as a path reports '|' as somewhere else.
+            if value is None or BLOCK_INDICATOR_RE.match(value):
                 continue
             if dist_directory(value) in targets:
                 continue

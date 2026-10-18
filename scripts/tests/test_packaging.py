@@ -1901,6 +1901,44 @@ class ReleaseProcessTest(CheckTestCase):
                                  checkout=self.CHECKOUT)
         self.assert_pass(self.check(has_pyproject_toml=True))
 
+    def test_a_glob_is_compared_by_its_directory(self):
+        """dist/*.tar.gz reads dist/, which is where the download went."""
+        for subject in ('dist/*.tar.gz', 'dist/*.whl', 'dist/**/*.whl'):
+            self.publishing_workflow(path='dist/', subject=subject,
+                                     checkout=self.CHECKOUT)
+            self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_a_glob_in_another_directory_still_disagrees(self):
+        self.publishing_workflow(path='dist/', subject='build/*.whl',
+                                 checkout=self.CHECKOUT)
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing="\"subject-path: 'build/*.whl'\" reads somewhere else")
+
+    def test_a_block_scalar_is_not_read_as_a_path(self):
+        """'files: |' introduces the paths; it is not one itself."""
+        self.compliant()
+        self.fixture.workflow(
+            'release.yml',
+            'name: Release\n'
+            'on:\n'
+            '  push:\n'
+            "    tags: ['v*']\n"
+            'jobs:\n'
+            '  github-release:\n'
+            '    runs-on: [self-hosted, static]\n'
+            '    steps:\n'
+            '      - uses: actions/download-artifact@v8\n'
+            '        with:\n'
+            '          name: dist\n'
+            f'          path: {self.TEMP}\n'
+            '      - uses: softprops/action-gh-release@v3\n'
+            '        with:\n'
+            '          files: |\n'
+            f'            {self.TEMP}*.tar.gz\n'
+            f'            {self.TEMP}*.whl\n'
+            '          fail_on_unmatched_files: true\n')
+        self.assert_pass(self.check(has_pyproject_toml=True))
+
     def test_a_files_input_on_an_unrelated_step_is_not_judged(self):
         """"files:" only means the distribution on the release action."""
         self.compliant()
