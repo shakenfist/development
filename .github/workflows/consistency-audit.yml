@@ -166,15 +166,13 @@ jobs:
           "${RUNNER_TEMP}/skillsaw-venv/bin/pip" install --disable-pip-version-check \
               skillsaw==0.18.0
 
-      # A skillsaw that cannot run does not fail the audit:
-      # skillsaw_errors() catches FileNotFoundError and returns None,
-      # and check_llm_context_lint turns that into not_applicable -- so a
-      # broken install quietly stops measuring one check across every
-      # repository in the matrix, and the table says so in a way that
-      # looks deliberate. Assert it here instead, where the failure is
-      # unambiguous, and assert the pinned version rather than just that
-      # something answers: the whole point of the pin above is that the
-      # rule set does not move underneath the compliance page.
+      # A skillsaw that cannot run makes llm-context-lint report error
+      # in every repository in the matrix, and each leg fails only after
+      # its whole audit has run. Assert it here instead, where the
+      # failure is immediate and unambiguous, and assert the pinned
+      # version rather than just that something answers: the whole
+      # point of the pin above is that the rule set does not move
+      # underneath the compliance page.
       - name: Check skillsaw runs, at the pinned version
         run: |
           set -e
@@ -207,6 +205,10 @@ jobs:
       # report-failure fires and update-docs does not publish a page
       # with a hole in it -- while manage-issues still gets this
       # repository's artifact and manages every other criterion.
+      # A network check that could not ask GitHub is a warning rather
+      # than a failure: one transient 502 must not hold back the page
+      # for the whole fleet, and an expired token has already failed
+      # the leg at "Check the read token".
       - name: Fail if any check raised
         run: python3 scripts/audit-raised.py "${RUNNER_TEMP}/audit-result-${{ matrix.repo }}.json"
 

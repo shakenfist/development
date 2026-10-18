@@ -44,6 +44,25 @@ NETWORK_CHECKS = frozenset({
     'scope-coverage',
 })
 
+
+def github_did_not_answer(check):
+    """Is this result a network check whose tooling could not ask?
+
+    An `error` marked `tool_failure` from a check in NETWORK_CHECKS is
+    GitHub, or a clone from it, not answering: an outage, a rate limit,
+    or no token at all. It is not a bug in the audit. Both
+    check-audit-smoke.py, which runs without a token, and
+    audit-raised.py, which must not let one transient 502 hold back the
+    compliance page, excuse exactly this and nothing else. A tool
+    failure from any other check is the runner's own git, skillsaw or
+    review-tracking.py not answering, which the next run would meet
+    too, and an unmarked error is a check that broke.
+    """
+    return (check.get('status') == 'error'
+            and bool(check.get('tool_failure'))
+            and check.get('id') in NETWORK_CHECKS)
+
+
 # Fields that move on every run regardless of what the checker does.
 VOLATILE_FIELDS = ('timestamp',)
 

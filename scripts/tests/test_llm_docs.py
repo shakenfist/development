@@ -245,18 +245,14 @@ class OrphanSkillMarkdownTest(CheckTestCase):
             llm_docs.skillsaw_errors = original
         self.assert_fail(result, containing='debug-ci.md')
 
-    def test_missing_skillsaw_is_not_applicable(self):
+    def test_missing_skillsaw_is_a_tool_failure(self):
         # A missing binary is the harness's problem. Failing would file
         # an issue against every repository for something none of them
-        # can fix.
+        # can fix, and not_applicable would close every one open.
         self.fixture.write('CLAUDE.md', '# Context\n')
-        original = llm_docs.skillsaw_errors
-        llm_docs.skillsaw_errors = lambda path: None
-        try:
-            result = self.check()
-        finally:
-            llm_docs.skillsaw_errors = original
-        self.assert_skip(result)
+        missing = os.path.join(self.tempdir(), 'no-such-skillsaw')
+        with unittest.mock.patch.dict(os.environ, {llm_docs.SKILLSAW_ENV: missing}):
+            self.assert_tool_failure(self.check, containing='skillsaw could not run')
 
 
 class SkillsawInvocationTest(CheckTestCase):
@@ -303,6 +299,38 @@ class SkillsawInvocationTest(CheckTestCase):
             result = self.check()
         self.assert_fail(result, containing='stand-in-ran')
         self.assertNotIn('credential-seen', result['details'])
+
+    def stand_in_printing(self, output):
+        """Replace the stand-in with one that prints `output` and exits 1."""
+        with open(self.stand_in, 'w') as f:
+            f.write(f'#!{sys.executable}\nimport sys\nprint({output!r})\n'
+                    f'sys.stderr.write("stand-in stderr\\n")\nsys.exit(1)\n')
+
+    def test_output_that_is_not_a_report_is_a_tool_failure(self):
+        # A skillsaw that crashed prints a traceback rather than a
+        # report, and an empty violation list read from nothing would
+        # pass. stderr is carried so the error says what happened.
+        self.stand_in_printing('Traceback (most recent call last):')
+        with unittest.mock.patch.dict(os.environ, {llm_docs.SKILLSAW_ENV: self.stand_in}):
+            self.assert_tool_failure(self.check, containing='stand-in stderr')
+
+    def test_a_report_that_is_not_an_object_is_a_tool_failure(self):
+        self.stand_in_printing('[]')
+        with unittest.mock.patch.dict(os.environ, {llm_docs.SKILLSAW_ENV: self.stand_in}):
+            self.assert_tool_failure(self.check, containing='expected an object')
+
+    def test_violations_that_are_not_a_list_of_objects_are_a_tool_failure(self):
+        for output in ('{"violations": {}}', '{"violations": ["error"]}'):
+            with self.subTest(output=output):
+                self.stand_in_printing(output)
+                with unittest.mock.patch.dict(os.environ, {llm_docs.SKILLSAW_ENV: self.stand_in}):
+                    self.assert_tool_failure(self.check, containing='listing violations')
+
+    def test_a_clean_report_passes_whatever_the_exit_status(self):
+        # The exit status is not read: the report is the answer.
+        self.stand_in_printing('{"violations": []}')
+        with unittest.mock.patch.dict(os.environ, {llm_docs.SKILLSAW_ENV: self.stand_in}):
+            self.assert_pass(self.check())
 
 
 class LlmContextLintCiTest(CheckTestCase):
@@ -783,7 +811,7 @@ class LlmDocNamingTest(CheckTestCase):
         self.assertNotIn('merge', result['details'])
         self.assertNotIn('git rm CLAUDE.md', result['details'])
 
-    def test_a_directory_inside_a_checkout_is_not_applicable(self):
+    def test_a_directory_inside_a_checkout_is_a_tool_failure(self):
         # `git -C <dir> ls-files` exits 0 anywhere inside a work tree,
         # listing whatever the enclosing index holds below it -- so a
         # tree copied into a subdirectory of an unrelated repository
@@ -795,9 +823,9 @@ class LlmDocNamingTest(CheckTestCase):
         inner = os.path.join(self.fixture.path, 'inner')
         os.mkdir(inner)
         self.fixture = FixtureRepo(inner)
-        self.assert_skip(self.check(), containing='Not the root')
+        self.assert_tool_failure(self.check, containing='not the root of a checkout')
 
-    def test_an_unreadable_index_is_not_applicable(self):
+    def test_an_unreadable_index_is_a_tool_failure(self):
         # The branch where a silent pass would be indistinguishable
         # from compliance: rev-parse still answers, so only ls-files'
         # exit code separates this from an empty repository.
@@ -807,14 +835,14 @@ class LlmDocNamingTest(CheckTestCase):
         self.fixture.commit()
         with open(os.path.join(self.fixture.path, '.git', 'index'), 'w') as f:
             f.write('GARBAGE')
-        self.assert_skip(self.check(), containing='list its index')
+        self.assert_tool_failure(self.check, containing='git ls-files failed')
 
-    def test_a_directory_that_is_not_a_checkout_is_not_applicable(self):
+    def test_a_directory_that_is_not_a_checkout_is_a_tool_failure(self):
         # Without an index the check cannot say anything either way,
         # and the missing piece is the harness's git rather than the
-        # audited repository -- so N/A, the reading LlmContextLint
-        # takes of a missing skillsaw, rather than a clean pass.
-        self.assert_skip(self.check(), containing='Not the root')
+        # audited repository -- so an error rather than a clean pass,
+        # a fail or an N/A that would close the issue it has.
+        self.assert_tool_failure(self.check, containing='not the root of a checkout')
 
 
 class VendorAgentDocsSpecTest(unittest.TestCase):

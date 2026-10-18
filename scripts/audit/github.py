@@ -21,14 +21,16 @@ can replay identical responses instead of asking GitHub twice and
 comparing two different afternoons.
 
 The contract is deliberately thin: `run()` returns whatever
-`subprocess.run` returns and raises what it raises. The callers
-already handle `returncode`, `stdout`, `stderr`, `TimeoutExpired` and
-`FileNotFoundError`, and a richer interface would have meant
-rewriting them at the same time as moving them.
+`subprocess.run` returns and raises what it raises. `answer()` sits on
+top of it for the common case, a call whose every failure is GitHub
+not answering rather than answering "no": it raises ToolFailure, so the
+check reports `error` instead of a verdict.
 """
 
 import os
 import subprocess
+
+from audit.check import ToolFailure
 
 
 DEFAULT_TIMEOUT = 30
@@ -75,6 +77,44 @@ class GitHubClient:
         if jq is not None:
             args += ['--jq', jq]
         return self.run(args, timeout=timeout)
+
+    def answer(self, args, what, timeout=DEFAULT_TIMEOUT):
+        """Run an invocation that must succeed, and return its result.
+
+        For the calls where any non-zero exit means GitHub did not
+        answer -- an expired token, rate limiting, an outage -- rather
+        than answering "no". A timeout and a missing `gh` are the same
+        failure reached another way. Each raises ToolFailure naming
+        `what` was being asked, so the check reports `error` rather than
+        a verdict built on nothing (docs/consistency-audits.md, "What
+        each status means"). A caller to whom some failing status is an
+        answer -- a 404 meaning "no such repository" -- uses run()
+        instead and decides for itself.
+        """
+        try:
+            result = self.run(args, timeout=timeout)
+        except subprocess.TimeoutExpired as e:
+            raise ToolFailure(
+                f'Could not query GitHub for {what}: timed out after '
+                f'{timeout} seconds') from e
+        except OSError as e:
+            raise ToolFailure(
+                f'Could not query GitHub for {what}: {e}') from e
+        if result.returncode != 0:
+            # One line: the message is a details string, which renders
+            # into a table cell, and gh's advice runs to several.
+            reason = ' '.join((result.stderr or '').split())
+            raise ToolFailure(
+                f'Could not query GitHub for {what}: '
+                f'{reason or "no error reported"}')
+        return result
+
+    def api_answer(self, path, what, jq=None, timeout=DEFAULT_TIMEOUT):
+        """answer() for the `gh api <path> [--jq <expr>]` shape."""
+        args = ['api', path]
+        if jq is not None:
+            args += ['--jq', jq]
+        return self.answer(args, what, timeout=timeout)
 
 
 class GhCli(GitHubClient):

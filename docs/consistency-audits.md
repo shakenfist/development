@@ -360,9 +360,38 @@ once. The line is whether the tool answered: an answer is evidence a
 verdict can rest on, including an answer that the thing asked about
 does not exist, while a failure to answer is not.
 
+The exception a check raises for this is `audit.check.ToolFailure`,
+whose message becomes the `details` of the `error` result -- so it
+says what could not be asked and why, without the traceback a bug
+gets, and the result carries `tool_failure: true`. Three helpers raise
+it so a check does not have to: `require_tracked_paths()` in
+`audit/files.py` for the index, `answer()` and `api_answer()` on the
+GitHub client for a call whose every failure is GitHub not answering,
+and `run_tool()` in `audit/check.py` for any other subprocess, which
+raises for a timeout or a tool that cannot start and leaves the exit
+status to the caller, since only the caller knows which statuses are
+answers. `check-audit-smoke.py`, which runs in CI without a token,
+excuses a `tool_failure` from the checks that ask GitHub and nothing
+else.
+
+The scheduled run excuses the same results, and only those
+(`github_did_not_answer()` in `scripts/audit_snapshot.py` is the one
+rule both scripts use). For a network check whose tooling could not
+ask GitHub, *Fail if any check raised* prints a workflow warning and
+does not fail the leg. A failed leg holds back the compliance page for
+the whole fleet, which one transient 502 or rate limit in one
+repository is not worth. The page shows that cell as a check error
+saying what could not be asked, and the criterion's issue is left as it
+was. An outage that lasts is not hidden by this. A token that has
+expired or lost access fails every leg at *Check the read token*,
+before anything is measured. A tool failure from any other check is
+the runner's own git, skillsaw or `review-tracking.py` not answering,
+which the next run would meet too, so it still fails the leg.
+
 The tests call `run()` directly and assert a verdict, so a check that
 raises unexpectedly still fails them. A test of a tool-failure path
-asserts that `run()` raises instead.
+asserts that `run()` raises ToolFailure instead, with
+`CheckTestCase.assert_tool_failure()`.
 
 ## Adding a criterion
 

@@ -438,10 +438,10 @@ class PlanSourceReferenceTest(CheckTestCase):
         })
         self.assert_skip(result)
 
-    def test_a_directory_that_is_not_a_checkout_fails(self):
+    def test_a_directory_that_is_not_a_checkout_is_a_tool_failure(self):
         """A failed listing is not a repository with nothing in it."""
         self.fixture.write('src/frob.py', '# See PLAN-gone.md.\n')
-        self.assert_fail(self.check(), containing='not the root of a checkout')
+        self.assert_tool_failure(self.check, containing='not the root of a checkout')
 
     def test_a_rotted_reference_in_a_test_still_fails(self):
         # Test files carry prose pointers like any other source, and
@@ -586,10 +586,10 @@ class PlanHistoryInSourceTest(CheckTestCase):
         })
         self.assert_skip(result, containing='No source or configuration files')
 
-    def test_a_directory_that_is_not_a_checkout_fails(self):
+    def test_a_directory_that_is_not_a_checkout_is_a_tool_failure(self):
         """A failed listing is not a repository with nothing in it."""
         self.fixture.write('src/frob.py', '# Added in phase 3.\n')
-        self.assert_fail(self.check(), containing='not the root of a checkout')
+        self.assert_tool_failure(self.check, containing='not the root of a checkout')
 
     def test_each_shape_fails(self):
         shapes = {

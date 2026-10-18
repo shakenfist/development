@@ -14,6 +14,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from audit.check import ToolFailure  # noqa: E402
 from audit.checks import ci_workflows  # noqa: E402
 from audit.github import CompletedCommand, FakeGitHub  # noqa: E402
 from audit.text import workflows  # noqa: E402
@@ -1036,6 +1037,60 @@ class PrAutoReviewSecretsInheritTest(CheckTestCase):
         self.assertNotIn('dependabot-notes.yml', result['details'])
 
 
+class MergeQueueIsSerialTest(unittest.TestCase):
+    """The GitHub half of merge-group-cancellation's queue question.
+
+    MergeGroupCancellationTest answers for it, to stay offline; this is
+    where its own answers are held, and in particular where GitHub not
+    answering is kept apart from a branch that has no queue.
+    """
+
+    BRANCH = 'api repos/shakenfist/testrepo --jq .default_branch'
+    RULES = 'api repos/shakenfist/testrepo/rules/branches/develop'
+
+    def ask(self, responses):
+        return ci_workflows.merge_queue_is_serial(
+            'testrepo', 'shakenfist', FakeGitHub(responses))
+
+    def rules(self, *builds):
+        return CompletedCommand(stdout=json.dumps([
+            {'type': 'merge_queue', 'parameters': {'max_entries_to_build': b}}
+            for b in builds]))
+
+    def test_a_serial_queue_is_true(self):
+        self.assertIs(self.ask({
+            self.BRANCH: CompletedCommand(stdout='develop\n'),
+            self.RULES: self.rules(1)}), True)
+
+    def test_a_stacking_queue_is_false(self):
+        self.assertIs(self.ask({
+            self.BRANCH: CompletedCommand(stdout='develop\n'),
+            self.RULES: self.rules(1, 3)}), False)
+
+    def test_no_queue_is_none(self):
+        self.assertIsNone(self.ask({
+            self.BRANCH: CompletedCommand(stdout='develop\n'),
+            self.RULES: CompletedCommand(stdout='[]')}))
+
+    def test_github_not_answering_is_a_tool_failure_not_no_queue(self):
+        cases = {
+            'branch error': {self.BRANCH: CompletedCommand(returncode=1, stderr='HTTP 401')},
+            'branch timeout': {self.BRANCH: subprocess.TimeoutExpired('gh', 30)},
+            'rules error': {self.BRANCH: CompletedCommand(stdout='develop\n'),
+                            self.RULES: CompletedCommand(returncode=1, stderr='HTTP 403')},
+            'rules unparseable': {self.BRANCH: CompletedCommand(stdout='develop\n'),
+                                  self.RULES: CompletedCommand(stdout='not json')},
+            'rules not a list': {self.BRANCH: CompletedCommand(stdout='develop\n'),
+                                 self.RULES: CompletedCommand(stdout='{"message": "x"}')},
+            'rules not objects': {self.BRANCH: CompletedCommand(stdout='develop\n'),
+                                  self.RULES: CompletedCommand(stdout='["merge_queue"]')},
+        }
+        for name, responses in cases.items():
+            with self.subTest(case=name):
+                with self.assertRaises(ToolFailure):
+                    self.ask(responses)
+
+
 class MergeGroupCancellationTest(CheckTestCase):
     """Which merge group jobs must be able to cancel each other."""
 
@@ -1471,6 +1526,29 @@ class MergeGroupCancellationTest(CheckTestCase):
             + self._job(self.QUEUE_REF_KEY)
         )})
         self.assert_skip(result)
+
+    def github_not_answering(self):
+        def ask(repo_name, org, github=None):
+            raise ToolFailure('Could not query GitHub for branch rules: HTTP 502')
+        ci_workflows.merge_queue_is_serial = ask
+
+    def test_github_not_answering_keeps_a_fail_the_files_already_give(self):
+        # A finding resting on what is on disk is one whatever the queue
+        # is set to, and merge-queue-config reports the outage itself.
+        self.github_not_answering()
+        result = self._check({
+            'ci.yml': self._merge_group_workflow(self._job(self.STABLE_KEY)),
+            'other.yml': self._merge_group_workflow(self._job(self.QUEUE_REF_KEY)),
+        })
+        self.assert_fail(result, containing='per-attempt queue ref')
+        self.assertNotIn('aliases live entries', result['details'])
+
+    def test_github_not_answering_is_a_tool_failure_when_the_files_pass(self):
+        # Here the queue is the only thing left to decide the verdict.
+        self.github_not_answering()
+        self.assert_tool_failure(
+            lambda: self._check({'ci.yml': self._merge_group_workflow(self._job(self.STABLE_KEY))}),
+            containing='HTTP 502')
 
 
 class WorkflowPermissionsTest(CheckTestCase):
@@ -2677,17 +2755,54 @@ class ScheduledWorkflowHealthTest(CheckTestCase):
         result = self.assert_fail(self.run_check(), containing='2 workflow(s)')
         self.assertEqual([f.split(':')[0] for f in result['findings']], ['a.yml', 'c.yml'])
 
-    def test_an_api_error_fails_with_the_reason(self):
+    def test_an_api_error_is_a_tool_failure_naming_the_reason(self):
         self.register(1, 'ci.yml', successes=0)
         self.responses[f'api {self.BASE}/actions/workflows/1/runs?branch=develop'
                        f'&status=success&per_page=1 --jq .total_count'] = CompletedCommand(
             returncode=1, stderr='HTTP 403: Resource not accessible\n')
-        self.assert_fail(self.run_check(), containing='HTTP 403')
+        self.assert_tool_failure(self.run_check, containing='the runs of ci.yml: HTTP 403')
 
-    def test_a_timeout_fails(self):
+    def test_a_timeout_is_a_tool_failure(self):
         self.register(1, 'ci.yml', successes=1)
         self.responses[f'api {self.BASE} --jq .default_branch'] = subprocess.TimeoutExpired('gh', 30)
-        self.assert_fail(self.run_check(), containing='Error checking workflow runs')
+        self.assert_tool_failure(self.run_check, containing='the default branch: timed out')
+
+    def test_a_failed_default_branch_lookup_is_a_tool_failure(self):
+        self.register(1, 'ci.yml', successes=1)
+        self.responses[f'api {self.BASE} --jq .default_branch'] = CompletedCommand(
+            returncode=1, stderr='HTTP 401\n')
+        self.assert_tool_failure(self.run_check, containing='the default branch: HTTP 401')
+
+    def test_a_failed_workflow_listing_is_a_tool_failure(self):
+        self.fixture.workflows({'ci.yml': 'on: push\n'})
+        self.responses[f'api {self.BASE}/actions/workflows?per_page=100'] = CompletedCommand(
+            returncode=1, stderr='HTTP 502\n')
+        self.assert_tool_failure(
+            lambda: self.check(github=FakeGitHub(self.responses), has_workflows_dir=True),
+            containing='workflows: HTTP 502')
+
+    def test_an_unparseable_workflow_listing_is_a_tool_failure(self):
+        self.fixture.workflows({'ci.yml': 'on: push\n'})
+        for body in ('not json', '[]', '{}', '{"workflows": {}}', '{"workflows": [{"path": "x"}]}'):
+            with self.subTest(body=body):
+                self.responses[f'api {self.BASE}/actions/workflows?per_page=100'] = (
+                    CompletedCommand(stdout=body))
+                self.assert_tool_failure(
+                    lambda: self.check(github=FakeGitHub(self.responses), has_workflows_dir=True),
+                    containing='Could not parse the workflows response')
+
+    def test_a_failed_history_query_is_a_tool_failure(self):
+        self.register(1, 'ci.yml', successes=0)
+        self.assert_tool_failure(self.run_check, containing='the runs of ci.yml')
+
+    def test_an_unparseable_history_is_a_tool_failure(self):
+        self.register(1, 'ci.yml', successes=0)
+        runs_path = f'{self.BASE}/actions/workflows/1/runs?branch=develop'
+        for body in ('not json', '{}', '["schedule"]'):
+            with self.subTest(body=body):
+                self.responses[f'api {runs_path}&per_page=100 --jq {self.RUNS_JQ}'] = (
+                    CompletedCommand(stdout=body))
+                self.assert_tool_failure(self.run_check, containing='Could not parse the runs of ci.yml')
 
     def test_the_threshold_matches_the_specification(self):
         spec = repo_text('docs', 'audits', 'scheduled-workflow-health.md')

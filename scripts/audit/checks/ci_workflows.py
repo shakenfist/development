@@ -13,9 +13,8 @@ keyed on, whether a lane that costs a VM is filtered.
 import json
 import os
 import re
-import subprocess
 
-from audit.check import Check
+from audit.check import Check, ToolFailure
 from audit.github import GhCli
 from audit.files import (
     WALK_SKIP, check_file_contains, file_mentions, workflow_has_permissions,
@@ -842,31 +841,33 @@ def reusable_invocation_offenders(wf, invocations):
 def merge_queue_is_serial(repo_name, org, github=None):
     """Is the default branch's merge queue building one entry at a time?
 
-    Returns True, False, or None when GitHub could not be asked. The
-    base_ref key this audit requires aliases every live entry in a
+    Returns True, False, or None when the branch has no merge queue.
+    The base_ref key this audit requires aliases every live entry in a
     queue, which is safe only while the queue builds one at a time --
     with speculative stacking, entry N+1's run would be cancelled by
     entry N's, and a cancelled required check ejects it. The
     merge-queue-config audit is what holds the fleet to
-    max_entries_to_build: 1, and it is also what reports an
-    unreachable API, so a None here is left to that check to explain
-    rather than failing this one twice.
+    max_entries_to_build: 1.
+
+    GitHub not answering raises ToolFailure rather than returning
+    None, which would read as "no queue" and pass a group this audit
+    could not judge.
     """
+    client = github if github is not None else GhCli()
+    branch = client.api_answer(
+        f'repos/{org}/{repo_name}', 'the default branch',
+        jq='.default_branch')
+    rules = client.api_answer(
+        f'repos/{org}/{repo_name}/rules/branches/'
+        f'{branch.stdout.strip()}', 'branch rules')
     try:
-        client = github if github is not None else GhCli()
-        branch = client.api(
-            f'repos/{org}/{repo_name}', jq='.default_branch')
-        if branch.returncode != 0:
-            return None
-        rules = client.api(
-            f'repos/{org}/{repo_name}/rules/branches/'
-            f'{branch.stdout.strip()}')
-        if rules.returncode != 0:
-            return None
         parsed = json.loads(rules.stdout)
-    except (subprocess.TimeoutExpired, FileNotFoundError,
-            json.JSONDecodeError):
-        return None
+    except json.JSONDecodeError as e:
+        raise ToolFailure(
+            f'Could not parse the branch rules response: {e}') from e
+    if not isinstance(parsed, list) or not all(isinstance(r, dict) for r in parsed):
+        raise ToolFailure(
+            'Could not parse the branch rules response: expected a list of rules')
 
     entries = [
         (r.get('parameters') or {}).get('max_entries_to_build')
@@ -1481,14 +1482,25 @@ class MergeGroupCancellation(Check):
                 f'No merge_group or reusable workflow among '
                 f'{len(workflows)} workflow(s)')
 
-        if (keyed_on_base_ref
-                and merge_queue_is_serial(repo.name, repo.org, repo.github) is False):
-            offenders.append(
-                'the merge queue on the default branch builds more than '
-                'one entry at a time, so a group keyed on '
-                'merge_group.base_ref aliases live entries and would '
-                'cancel one of them (see docs/audits/merge-queue-config.md)'
-            )
+        if keyed_on_base_ref:
+            # GitHub not answering costs this check its verdict only
+            # when the workflow files have not already given one. A
+            # fail resting on what is on disk is a finding whatever the
+            # queue is set to, and merge-queue-config reports the same
+            # API failure for itself, so it is not lost.
+            try:
+                serial = merge_queue_is_serial(repo.name, repo.org, repo.github)
+            except ToolFailure:
+                if not offenders:
+                    raise
+                serial = None
+            if serial is False:
+                offenders.append(
+                    'the merge queue on the default branch builds more than '
+                    'one entry at a time, so a group keyed on '
+                    'merge_group.base_ref aliases live entries and would '
+                    'cancel one of them (see docs/audits/merge-queue-config.md)'
+                )
 
         if offenders:
             return self.fail(
@@ -2080,77 +2092,64 @@ class ScheduledWorkflowHealth(Check):
         """
         client = repo.github
         base = f'repos/{repo.org}/{repo.name}'
+        result = client.api_answer(base, 'the default branch', jq='.default_branch')
+        branch = result.stdout.strip()
+
+        result = client.api_answer(f'{base}/actions/workflows?per_page=100', 'workflows')
         try:
-            result = client.api(base, jq='.default_branch')
-            if result.returncode != 0:
-                return self.fail(
-                    f'Could not query GitHub API for the default '
-                    f'branch: {result.stderr.strip()}')
-            branch = result.stdout.strip()
+            registered = json.loads(result.stdout)['workflows']
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            raise ToolFailure(f'Could not parse the workflows response: {e!r}') from e
+        if not isinstance(registered, list) or not all(
+                isinstance(w, dict) and 'id' in w for w in registered):
+            raise ToolFailure('Could not parse the workflows response: expected a list of workflows')
 
-            result = client.api(f'{base}/actions/workflows?per_page=100')
-            if result.returncode != 0:
-                return self.fail(
-                    f'Could not query GitHub API for workflows: '
-                    f'{result.stderr.strip()}')
+        # GitHub keeps a workflow registered after its file is
+        # deleted, and lists dynamic ones (Pages, Dependabot) that
+        # have no file at all. Only the files in the checkout are
+        # this repository's to fix.
+        present = set(repo.workflows())
+        examined = 0
+        findings = []
+        for workflow in sorted(registered, key=lambda w: w.get('path', '')):
+            path = workflow.get('path', '')
+            name = os.path.basename(path)
+            if path != f'.github/workflows/{name}' or name not in present:
+                continue
+            if workflow.get('state') != 'active':
+                continue
+            examined += 1
+
+            runs = f'{base}/actions/workflows/{workflow["id"]}/runs?branch={branch}'
+            result = client.api_answer(
+                f'{runs}&status=success&per_page=1', f'the runs of {name}', jq='.total_count')
+            if result.stdout.strip() != '0':
+                continue
+
+            result = client.api_answer(
+                f'{runs}&per_page=100', f'the runs of {name}',
+                jq='[.workflow_runs[] | {event, conclusion, created_at, html_url}]')
             try:
-                registered = json.loads(result.stdout)['workflows']
-            except (json.JSONDecodeError, KeyError, TypeError):
-                return self.fail('Could not parse the workflows response')
+                history = json.loads(result.stdout)
+            except json.JSONDecodeError as e:
+                raise ToolFailure(f'Could not parse the runs of {name}: {e}') from e
+            if not isinstance(history, list) or not all(isinstance(run, dict) for run in history):
+                raise ToolFailure(f'Could not parse the runs of {name}: expected a list of runs')
 
-            # GitHub keeps a workflow registered after its file is
-            # deleted, and lists dynamic ones (Pages, Dependabot) that
-            # have no file at all. Only the files in the checkout are
-            # this repository's to fix.
-            present = set(repo.workflows())
-            examined = 0
-            findings = []
-            for workflow in sorted(registered, key=lambda w: w.get('path', '')):
-                path = workflow.get('path', '')
-                name = os.path.basename(path)
-                if path != f'.github/workflows/{name}' or name not in present:
-                    continue
-                if workflow.get('state') != 'active':
-                    continue
-                examined += 1
-
-                runs = f'{base}/actions/workflows/{workflow["id"]}/runs?branch={branch}'
-                result = client.api(f'{runs}&status=success&per_page=1', jq='.total_count')
-                if result.returncode != 0:
-                    return self.fail(
-                        f'Could not query GitHub API for the runs of '
-                        f'{name}: {result.stderr.strip()}')
-                if result.stdout.strip() != '0':
-                    continue
-
-                result = client.api(
-                    f'{runs}&per_page=100',
-                    jq='[.workflow_runs[] | {event, conclusion, created_at, html_url}]')
-                if result.returncode != 0:
-                    return self.fail(
-                        f'Could not query GitHub API for the runs of '
-                        f'{name}: {result.stderr.strip()}')
-                try:
-                    history = json.loads(result.stdout)
-                except json.JSONDecodeError:
-                    return self.fail(f'Could not parse the runs of {name}')
-
-                failed = [
-                    run for run in history
-                    if run.get('event') in UNWATCHED_EVENTS
-                    and run.get('conclusion') in FAILED_CONCLUSIONS
-                ]
-                if len(failed) < NEVER_SUCCEEDED_MIN_FAILURES:
-                    continue
-                latest = failed[0]
-                events = '/'.join(sorted({run['event'] for run in failed}))
-                findings.append(
-                    f'{name}: {len(failed)} {events} run(s) on {branch} '
-                    f'failed and none has ever succeeded; most recent '
-                    f'{latest.get("created_at", "")[:10]} '
-                    f'{latest.get("html_url", "")}'.rstrip())
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            return self.fail(f'Error checking workflow runs: {e}')
+            failed = [
+                run for run in history
+                if run.get('event') in UNWATCHED_EVENTS
+                and run.get('conclusion') in FAILED_CONCLUSIONS
+            ]
+            if len(failed) < NEVER_SUCCEEDED_MIN_FAILURES:
+                continue
+            latest = failed[0]
+            events = '/'.join(sorted({run['event'] for run in failed}))
+            findings.append(
+                f'{name}: {len(failed)} {events} run(s) on {branch} '
+                f'failed and none has ever succeeded; most recent '
+                f'{latest.get("created_at", "")[:10]} '
+                f'{latest.get("html_url", "")}'.rstrip())
 
         if findings:
             return self.fail(

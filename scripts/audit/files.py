@@ -11,6 +11,7 @@ import os
 import re
 import subprocess
 
+from audit.check import ToolFailure
 from audit.text.workflows import calls_with_inherited_secrets
 
 
@@ -180,8 +181,9 @@ def iter_doc_content_files(repo):
                 yield rel
 
 
-#: The finding a criterion reports when tracked_paths() returns None.
-#: One wording, because the four callers used to carry four.
+#: What a criterion raises when tracked_paths() returns None, through
+#: require_tracked_paths(). One wording, because the four callers used
+#: to carry four.
 LS_FILES_FAILED = (
     'Could not list the tracked files: git ls-files failed, or the '
     'audited directory is not the root of a checkout'
@@ -254,3 +256,18 @@ def tracked_paths(repo_path, *pathspec):
         return None
 
     return [path for path in result.stdout.split('\0') if path]
+
+
+def require_tracked_paths(repo_path, *pathspec):
+    """tracked_paths(), with a listing git could not give raised.
+
+    A criterion that cannot list the index has learned nothing about
+    the repository, so it has no verdict: ToolFailure makes it `error`
+    (docs/consistency-audits.md, "What each status means"). A fail, a
+    not_applicable or a silent "nothing tracked" would each be a claim
+    about the repository resting on a broken git.
+    """
+    tracked = tracked_paths(repo_path, *pathspec)
+    if tracked is None:
+        raise ToolFailure(LS_FILES_FAILED)
+    return tracked

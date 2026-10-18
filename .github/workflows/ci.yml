@@ -117,9 +117,9 @@ jobs:
       # that the machinery ran: it exits zero, it emits parseable JSON,
       # and every check returned a status.
       #
-      # No GH_TOKEN. The checks that would use one degrade to
-      # not_applicable, which is fine here and keeps this job off the
-      # audit credentials.
+      # No GH_TOKEN, which keeps this job off the audit credentials.
+      # The checks that would use one cannot ask GitHub, and report a
+      # tool failure that check-audit-smoke.py expects and lists.
       - name: Run the audit against this repository
         run: |
           python3 scripts/audit-check.py \
@@ -130,13 +130,12 @@ jobs:
         env:
           AUDIT_SKILLSAW: ${{ runner.temp }}/skillsaw-venv/bin/skillsaw
 
-      # The load-bearing assertion. skillsaw_errors() returns None when
-      # skillsaw cannot run, and check_llm_context_lint turns that into
-      # not_applicable -- a result that looks like a decision rather
-      # than a broken tool. So a skillsaw that silently went missing
-      # would leave every other step here green. Asserting the check
-      # reached a verdict is what makes this job a detector rather than
-      # a smoke test that happens to pass.
+      # The load-bearing assertion. A skillsaw that cannot run makes
+      # llm-context-lint report error, and the audit step above still
+      # exits zero, so a skillsaw that silently went missing would
+      # leave every other step here green. Asserting the check reached
+      # a verdict is what makes this job a detector rather than a smoke
+      # test that happens to pass.
       - name: Check the audit actually measured
         run: python3 scripts/check-audit-smoke.py "${RUNNER_TEMP}/audit-smoke.json"
 
