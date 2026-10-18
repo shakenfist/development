@@ -15,6 +15,7 @@ import urllib.parse
 from audit.check import Check
 from audit.files import (
     file_mentions, iter_doc_content_files, iter_docs_markdown_files,
+    require_tracked_paths,
 )
 from audit.text.markdown import (
     MD_LINK_RE, MD_REFDEF_RE, blank_generated_blocks, iter_fenced_blocks,
@@ -183,38 +184,33 @@ MERMAID_FENCE_RE = re.compile(r'^\s*```mermaid\b')
 
 
 def repo_has_mermaid(repo):
-    """Does any markdown file here carry a mermaid diagram?
+    """Does any tracked markdown file here carry a mermaid diagram?
 
-    Walks the whole repository rather than the documentation scope:
-    the linter renders every tracked markdown file, so a diagram in a
-    plan or a template counts for whether the linter is needed even
-    though it is out of scope for diagram-format.
+    Reads the whole index rather than the documentation scope: the
+    linter renders every tracked markdown file, so a diagram in a plan
+    or a template counts for whether the linter is needed even though
+    it is out of scope for diagram-format. The index rather than a
+    walk for the same reason tools/mermaid-lint.sh gives -- a
+    vendored or ignored tree is excluded for free, and the answer is
+    about the files the linter will actually be handed. A listing git
+    cannot give is a ToolFailure, so the check reports `error` rather
+    than calling the repository diagram-free.
 
-    A name the walk lists is read through `Repo.read`, so one that is
-    not a file inside the checkout reads as None. A committed `*.md`
-    symlink whose target does not exist used to raise here, and before
-    the scheduler contained exceptions that took every criterion for
-    the repository down with it (shakenfist/development#152). It is
-    skipped rather than reported: it holds no diagram, and a symlink
-    that does resolve inside the checkout is read through its target
-    anyway.
+    Each path is read through `Repo.read`, so one that is not a file
+    inside the checkout reads as None. A committed `*.md` symlink whose
+    target does not exist used to raise here, and before the scheduler
+    contained exceptions that took every criterion for the repository
+    down with it (shakenfist/development#152). It is skipped rather
+    than reported: it holds no diagram, and a symlink that does resolve
+    inside the checkout is read through its target anyway.
     """
-    for dirpath, dirnames, filenames in os.walk(repo.path):
-        dirnames[:] = [
-            d for d in dirnames
-            if d not in ('.git', 'node_modules', 'target', 'vendor')
-            and not d.startswith('.cargo')
-        ]
-        for filename in filenames:
-            if not filename.endswith('.md'):
-                continue
-            content = repo.read(
-                repo.relative(os.path.join(dirpath, filename)))
-            if content is None:
-                continue
-            for line in content.split('\n'):
-                if MERMAID_FENCE_RE.match(line):
-                    return True
+    for rel in require_tracked_paths(repo.path, '*.md'):
+        content = repo.read(rel)
+        if content is None:
+            continue
+        for line in content.split('\n'):
+            if MERMAID_FENCE_RE.match(line):
+                return True
     return False
 
 

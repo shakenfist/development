@@ -596,8 +596,9 @@ class ContractTest(unittest.TestCase):
         self.assertEqual([
             'default-branch-naming', 'delete-branch-on-merge',
             'github-security', 'header-sanitization', 'llm-doc-naming',
-            'merge-queue-config', 'plan-history-in-source',
-            'plan-source-references', 'pyproject-usage',
+            'merge-queue-config', 'mermaid-lint-ci',
+            'plan-history-in-source', 'plan-source-references',
+            'pyproject-usage',
         ], failed)
 
     def test_a_docs_only_repository_produces_a_valid_result(self):
