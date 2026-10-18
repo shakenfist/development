@@ -22,8 +22,8 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.text.workflows import (  # noqa: E402
-    job_level_keys, step_action, step_with_inputs, strip_yaml_comments,
-    workflow_job_blocks, workflow_step_blocks,
+    job_level_keys, parse_runner_labels, step_action, step_with_inputs,
+    strip_yaml_comments, workflow_job_blocks, workflow_step_blocks,
 )
 from tests.base import repo_text  # noqa: E402
 
@@ -84,7 +84,10 @@ class AuditWorkflowGuardsTest(unittest.TestCase):
         for name in AUDIT_TOKEN_JOBS:
             with self.subTest(job=name):
                 runs_on = job_level_keys(self.jobs[name]).get('runs-on', '')
-                labels = [label.strip() for label in runs_on.strip('[]').split(',')]
+                # None is an expression this cannot resolve, which is a
+                # runner nobody can check.
+                labels = parse_runner_labels(runs_on)
+                self.assertIsNotNone(labels, runs_on)
                 self.assertIn(EPHEMERAL_RUNNER, labels)
                 self.assertNotIn(SHARED_RUNNER, labels)
 
