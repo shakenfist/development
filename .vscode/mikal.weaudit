@@ -189,14 +189,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/base.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_npm_dependencies.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_hooks.py",
       "author": "mikal"
     },
@@ -233,27 +225,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/check.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit-raised.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_audit_seams.py",
-      "author": "mikal"
-    },
-    {
       "path": "templates/shared-blocks/plan-references-in-code.md",
       "author": "mikal"
     },
     {
       "path": ".github/workflows/export-repo-config.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_github_config.py",
       "author": "mikal"
     },
     {
@@ -274,10 +250,6 @@
     },
     {
       "path": "tools/review-tracking.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit_snapshot.py",
       "author": "mikal"
     },
     {
@@ -373,23 +345,11 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/llm-doc-naming.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/review-scope-completeness.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/readme-structure.md",
       "author": "mikal"
     },
     {
       "path": "docs/audits/docs-external-links.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/github-security.md",
       "author": "mikal"
     },
     {
@@ -422,10 +382,6 @@
     },
     {
       "path": ".claude/skills/standards-alignment",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/delete-branch-on-merge.md",
       "author": "mikal"
     },
     {
@@ -529,10 +485,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/scope-coverage.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/plan-index.md",
       "author": "mikal"
     },
@@ -585,10 +537,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/registry.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/text/markdown.py",
       "author": "mikal"
     },
@@ -621,15 +569,7 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_ci_workflows.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_runners.py",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/merge-group-cancellation.md",
       "author": "mikal"
     },
     {
@@ -697,10 +637,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/ci.yml",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/renovate.yml",
       "author": "mikal"
     },
@@ -713,19 +649,11 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/llm-context-lint.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/llm-tooling.md",
       "author": "mikal"
     },
     {
       "path": "docs/audits/renovate.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/review-coverage.md",
       "author": "mikal"
     },
     {
@@ -781,10 +709,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_audit_clis.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_audit_common.py",
       "author": "mikal"
     },
@@ -793,19 +717,7 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_check_audit_smoke.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_llm_docs.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_manage_issues.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_metadata.py",
       "author": "mikal"
     },
     {
@@ -822,14 +734,6 @@
     },
     {
       "path": "scripts/audit-update-docs.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/check-audit-smoke.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/github.py",
       "author": "mikal"
     },
     {
