@@ -380,6 +380,42 @@ class WorkflowJobBlocksTest(unittest.TestCase):
             is_dedicated_scanner_workflow('on:\n  push:\n')
         )
 
+    # Each spelling GitHub Actions accepts for a job key. A job this
+    # misses has no block, so every guard built on it passes the job.
+
+    INHERITING = ('    uses: shakenfist/actions/.github/workflows/'
+                  'pr-auto-review.yml@main\n'
+                  '    secrets: inherit\n')
+
+    def assert_one_job_seen(self, jobs):
+        content = 'on:\n  pull_request:\njobs:\n' + jobs
+        self.assertEqual(['review'], [name for name, _ in workflow_job_blocks(content)])
+        self.assertTrue(workflows.calls_with_inherited_secrets(content, 'pr-auto-review.yml'))
+
+    def test_a_job_key_carrying_a_comment_is_a_job(self):
+        self.assert_one_job_seen('  review:  # automated review\n' + self.INHERITING)
+
+    def test_a_quoted_job_key_is_a_job(self):
+        for quote in ('"', "'"):
+            with self.subTest(quote=quote):
+                self.assert_one_job_seen(f'  {quote}review{quote}:\n' + self.INHERITING)
+
+    def test_jobs_at_a_deeper_indentation_are_jobs(self):
+        # The depth is the first job's; keys inside a job sit deeper.
+        jobs = ('    review:\n'
+                '      uses: shakenfist/actions/.github/workflows/'
+                'pr-auto-review.yml@main\n'
+                '      secrets: inherit\n'
+                '    lint:\n      runs-on: a\n')
+        content = 'jobs:\n' + jobs
+        self.assertEqual(['review', 'lint'], [name for name, _ in workflow_job_blocks(content)])
+        self.assertTrue(workflows.calls_with_inherited_secrets(content, 'pr-auto-review.yml'))
+
+    def test_keys_inside_a_job_are_not_jobs(self):
+        blocks = workflow_job_blocks(
+            'jobs:\n  lint:\n    runs-on: a  # small\n    "env":\n      X: 1\n')
+        self.assertEqual(['lint'], [name for name, _ in blocks])
+
 
 class RetiredCommentAddresserTest(CheckTestCase):
     """The comment addresser is retired and must not still be deployed.

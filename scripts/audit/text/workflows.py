@@ -195,7 +195,11 @@ def is_runner_label_value(line, start, end):
     return True
 
 
-WORKFLOW_JOB_RE = re.compile(r'^  ([A-Za-z_][A-Za-z0-9_-]*):\s*$')
+# A job key: indented, optionally quoted, and optionally followed by a
+# comment. Which indentation makes it a job rather than a key inside
+# one is decided by workflow_job_blocks().
+WORKFLOW_JOB_RE = re.compile(
+    r"""^([ \t]+)(["']?)([A-Za-z_][A-Za-z0-9_-]*)\2:[ \t]*(?:#.*)?$""")
 
 
 def workflow_job_blocks(content):
@@ -203,22 +207,33 @@ def workflow_job_blocks(content):
 
     Line-based rather than YAML-parsed, to avoid a PyYAML
     dependency, and matching how the rest of this module reads
-    workflows. A job is a two-space-indented key under a top-level
-    "jobs:"; the block runs to the next such key or to the end of
-    the file.
+    workflows. A job is a key under a top-level "jobs:", at the
+    indentation of the first key there -- two spaces in the fleet, but
+    YAML allows any depth -- whether quoted or not and whether or not
+    a comment follows it. The block runs to the next such key or to
+    the end of the file.
+
+    Every spelling matters because the readers built on this are
+    guards: a job this cannot see has no block at all, so a
+    `secrets: inherit` in it reports a pass, for the reason
+    SECRETS_INHERIT_RE gives.
     """
     lines = content.splitlines()
     in_jobs = False
+    indent = None
     blocks = []
     for line in lines:
         if line and not line[0].isspace():
             in_jobs = line.startswith('jobs:')
+            indent = None
             continue
         if not in_jobs:
             continue
         match = WORKFLOW_JOB_RE.match(line)
-        if match:
-            blocks.append([match.group(1), []])
+        if match and indent is None:
+            indent = match.group(1)
+        if match and match.group(1) == indent:
+            blocks.append([match.group(3), []])
         elif blocks:
             blocks[-1][1].append(line)
     return [(name, '\n'.join(body)) for name, body in blocks]
