@@ -630,8 +630,11 @@ def cancels_superseded_merge_groups(block):
 
     Two requirements: cancel-in-progress must be on, and the group
     must not be keyed on anything the queue mints afresh per rebuild
-    unless the expression branches on the event name and uses
-    something stable there.
+    unless the expression compares the event name with 'merge_group'.
+    What the merge_group branch then keys on is not read: a branch
+    that picks github.sha there still passes, so this catches the
+    common mistake of no branch at all rather than proving the key
+    stable.
     """
     if block is None:
         return False, 'no concurrency block'
