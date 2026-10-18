@@ -2331,9 +2331,17 @@ class VersionFileGitignoreTest(CheckTestCase):
         self.fixture.init_git()
         self.fixture.write('pyproject.toml', '[project]\nname = "x"\n')
         self.fixture.commit()
-        result = self.check(has_pyproject_toml=True)
-        self.assertIn(result['status'], ('not_applicable', 'pass'),
-                      result['details'])
+        self.assert_skip(self.check(has_pyproject_toml=True),
+                         containing='No generated version file configured')
+
+    def test_a_tracked_version_file_with_no_configured_path_fails(self):
+        """Tracked is always wrong, whether or not a path is configured."""
+        self.fixture.init_git()
+        self.fixture.write('pyproject.toml', '[project]\nname = "x"\n')
+        self.fixture.write('thing/_version.py', "__version__ = '1.0'\n")
+        self.fixture.commit()
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='tracked in git (use git rm --cached): thing/_version.py')
 
 
 class ReleaseArtifactsExcludePlansTest(CheckTestCase):
