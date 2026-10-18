@@ -388,7 +388,7 @@ Out of scope, each for a stated reason:
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. Release environment criterion | Not started | |
+| 1. Release environment criterion | In progress | |
 | 2. Shared `require-ci-success` and `check-dist` actions | Not started | |
 | 3. Template and fleet adoption | Not started | |
 | 4. `release-process` helpers | Not started | |
@@ -629,8 +629,44 @@ instar, kerbside and ryll.
 |------|--------|-------|-----------|---------------------|
 | 1a | low | operator | none | **Operator, not a sub-agent.** With `AUDIT_READ_TOKEN` exported as `GH_TOKEN`, run `gh api repos/shakenfist/client-python/environments/release --jq .protection_rules` and `gh api repos/shakenfist/client-python/environments/release/deployment-branch-policies --jq .branch_policies`. Both must return data. If either returns 403, add Environments: read to the token and repeat. Record the outcome in this section and in `docs/consistency-audits.md:107-125`'s permission list. |
 | 1b | low | operator | none | **Operator, with approval at execution time.** For divergulent, instar, kerbside and ryll, `PUT repos/shakenfist/<r>/environments/release` with `{"reviewers":[{"type":"User","id":1530643}],"prevent_self_review":false,"wait_timer":0,"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}`, then `POST .../deployment-branch-policies` with `name=v*`, `type=tag`, and read both back. Before that, check that each repository's release really tags `v*`: instar's and ryll's `check-version` jobs read the tag, so confirm the prefix in their `release.yml` `on.push.tags`. kerbside also publishes proxy wheels from the same environment, so confirm it names no second environment. |
-| 1c | medium | opus | none | Add a `ReleaseEnvironmentProtection` class to `scripts/audit/checks/github_config.py` beside `MergeQueueConfig` (:245-280), with `id='release-environment-protection'`, `spec='docs/audits/release-environment-protection.md'`, `template=None` and `issue_title='Release environment protection'`. `applies(repo)` returns a skip reason when `repo.workflow('release.yml')` is None (see `packaging.py:784-786` for the call). `run(repo)` collects every `environment:` value from the jobs of the parsed workflow (a string, or a mapping with `name`), then for each one GETs `repos/{org}/{name}/environments/{env}` using raw `repo.github.api()` and `http_status()` as `ScopeCoverage` does (:283-291, :447-467). A 404 fails, saying GitHub would create the environment unprotected on first use. Any other non-zero status is `ToolFailure`. On success, fail unless there is a `protection_rules` entry of type `required_reviewers` with a non-empty `reviewers` list, and unless `deployment_branch_policy` is non-null with `custom_branch_policies` true. Then GET `.../deployment-branch-policies` and fail unless `branch_policies` is non-empty and every entry has `type == 'tag'`. Each failure names the environment and the missing property, and points at `RELEASE-SETUP.md`. Register it in `CHECKS` in `scripts/audit/registry.py` beside the other `github_config` entries (:90-95). Add the id to `NETWORK_CHECKS` in `scripts/audit_snapshot.py:34` and to the empty-directory tool-failure list in `scripts/tests/test_metadata.py:633-637`. Write `docs/audits/release-environment-protection.md` following `docs/audits/README.md`, with a "Required, but confirmed by a reviewer" half covering `prevent_self_review` and `can_admins_bypass`, and why neither is measured. Add its row to the README table (:180-), and its lines to `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`. In `scripts/tests/test_github_config.py`, using `GithubConfigTestCase` (:65-81) and `FakeGitHub`, test: a pass; no `release.yml` (`not_applicable`); a 404 environment; no reviewers rule; a reviewers rule with an empty list; a null deployment policy; `protected_branches` instead of custom; an empty policy list; a `branch`-type policy beside a tag one; two environments with one failing; a 403 (`ToolFailure`); and a timeout. Follow the six-file list in `docs/consistency-audits.md:403-`. |
+| 1c | medium | opus | none | Add a `ReleaseEnvironmentProtection` class to `scripts/audit/checks/github_config.py` beside `MergeQueueConfig` (:245-280), with `id='release-environment-protection'`, `spec='docs/audits/release-environment-protection.md'`, `template=None` and `issue_title='Release environment protection'`. `applies(repo)` returns a skip reason when `repo.workflow('release.yml')` is None (see `packaging.py:784-786` for the call). `run(repo)` collects every `environment:` value from the jobs of the parsed workflow (a string, or a mapping with `name`), then for each one GETs `repos/{org}/{name}/environments/{env}` using raw `repo.github.api()` and `http_status()` as `ScopeCoverage` does (:283-291, :447-467). A 404 fails, saying GitHub would create the environment unprotected on first use. Any other non-zero status is `ToolFailure`. On success, fail unless there is a `protection_rules` entry of type `required_reviewers` with a non-empty `reviewers` list, and unless `deployment_branch_policy` is non-null with `custom_branch_policies` true. Then GET `.../deployment-branch-policies` and fail unless `branch_policies` is non-empty and every entry has `type == 'tag'`. Each failure names the environment and the missing property, and points at `RELEASE-SETUP.md`. Register it in `CHECKS` in `scripts/audit/registry.py` beside the other `github_config` entries (:90-95). Add the id to `NETWORK_CHECKS` in `scripts/audit_snapshot.py:34`. It does not join the empty-directory tool-failure list in `scripts/tests/test_metadata.py:633-637`, because `applies()` skips an empty directory before any API call. Write `docs/audits/release-environment-protection.md` following `docs/audits/README.md`, with a "Required, but confirmed by a reviewer" half covering `prevent_self_review` and `can_admins_bypass`, and why neither is measured. Add its row to the README table (:180-), and its lines to `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`. In `scripts/tests/test_github_config.py`, using `GithubConfigTestCase` (:65-81) and `FakeGitHub`, test: a pass; no `release.yml` (`not_applicable`); a 404 environment; no reviewers rule; a reviewers rule with an empty list; a null deployment policy; `protected_branches` instead of custom; an empty policy list; a `branch`-type policy beside a tag one; two environments with one failing; a 403 (`ToolFailure`); and a timeout. Follow the six-file list in `docs/consistency-audits.md:403-`. |
 | 1d | low | sonnet | none | Run `pre-commit run --all-files`, then `python3 scripts/audit-check.py --repo-path . --repo-name development` and confirm `release-environment-protection` is `not_applicable` and nothing else moved. Then run the single check against fresh clones of the thirteen release repositories, all listed in Situation, and confirm all thirteen pass. Report any that do not, with the failure text. Do not run `audit-manage-issues.py` except with `--dry-run`. |
+
+#### Phase 1 execution notes
+
+Run on 2026-10-19 (AEDT).
+
+* **1a.** The operator probed `AUDIT_READ_TOKEN` against
+  client-python's `release` environment. Both endpoints returned data,
+  so the token's existing permissions are enough, and open question 1
+  is settled without widening it. `docs/consistency-audits.md` records
+  this beside the token's permission list.
+* **1b.** The operator approved the change, and the management session
+  made it. divergulent, instar, kerbside and ryll each now have a
+  single `tag: v*` deployment policy and `mikalstill` as required
+  reviewer, and all four were read back. Each `release.yml` was first
+  confirmed to tag `v*` and to name only `release`. None of the four
+  environments holds a secret. The `PUT` replaced each reviewer list
+  without reading it first, and the organisation audit log is not
+  available on this plan, so the previous lists cannot be confirmed.
+  Every other release environment in the fleet lists only
+  `mikalstill`.
+* **1c.** opus at medium effort. Departures from the brief:
+  * The empty-directory tool-failure list was left alone, because
+    `applies()` skips before any call. The brief has been corrected
+    above.
+  * The agent made two choices beyond the brief, and both were kept
+    because they fail closed. A job whose `environment:` is an
+    expression fails, asking for a literal name. A `release.yml` that
+    names no environment fails.
+
+  It added 21 tests. A mutation script flipped the tag-type test and
+  the 404 branch, and the tests caught each. The full suite passes.
+* **1d.** sonnet at low effort, against fresh shallow clones. All
+  thirteen release repositories pass, sfui (no `release.yml`) reports
+  `not_applicable`, and so does this repository. The management
+  session reproduced the shakenfist and sfui verdicts. The predicted
+  blast radius of zero newly failing repositories holds.
 
 ### Phase 2: shared `require-ci-success` and `check-dist` actions
 
