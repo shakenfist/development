@@ -109,8 +109,8 @@ class AuditWorkflowGuardsTest(unittest.TestCase):
         # On PATH, skillsaw's venv supplies the python3 the audit runs
         # under. The audit step names the binary in AUDIT_SKILLSAW.
         # Named by the venv's own path: anything else is looked up on a
-        # PATH that does not hold it, and skillsaw_errors() reports a
-        # missing skillsaw as not_applicable rather than failing.
+        # PATH that does not hold it, and llm-context-lint reports
+        # error in every repository.
         audit = self.code(self.jobs['audit'])
         self.assertNotIn('GITHUB_PATH', audit)
         self.assertIn('AUDIT_SKILLSAW: ${{ runner.temp }}/skillsaw-venv/bin/skillsaw', audit)

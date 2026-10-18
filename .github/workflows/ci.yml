@@ -130,13 +130,12 @@ jobs:
         env:
           AUDIT_SKILLSAW: ${{ runner.temp }}/skillsaw-venv/bin/skillsaw
 
-      # The load-bearing assertion. skillsaw_errors() returns None when
-      # skillsaw cannot run, and check_llm_context_lint turns that into
-      # not_applicable -- a result that looks like a decision rather
-      # than a broken tool. So a skillsaw that silently went missing
-      # would leave every other step here green. Asserting the check
-      # reached a verdict is what makes this job a detector rather than
-      # a smoke test that happens to pass.
+      # The load-bearing assertion. A skillsaw that cannot run makes
+      # llm-context-lint report error, and the audit step above still
+      # exits zero, so a skillsaw that silently went missing would
+      # leave every other step here green. Asserting the check reached
+      # a verdict is what makes this job a detector rather than a smoke
+      # test that happens to pass.
       - name: Check the audit actually measured
         run: python3 scripts/check-audit-smoke.py "${RUNNER_TEMP}/audit-smoke.json"
 

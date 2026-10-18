@@ -245,18 +245,14 @@ class OrphanSkillMarkdownTest(CheckTestCase):
             llm_docs.skillsaw_errors = original
         self.assert_fail(result, containing='debug-ci.md')
 
-    def test_missing_skillsaw_is_not_applicable(self):
+    def test_missing_skillsaw_is_a_tool_failure(self):
         # A missing binary is the harness's problem. Failing would file
         # an issue against every repository for something none of them
-        # can fix.
+        # can fix, and not_applicable would close every one open.
         self.fixture.write('CLAUDE.md', '# Context\n')
-        original = llm_docs.skillsaw_errors
-        llm_docs.skillsaw_errors = lambda path: None
-        try:
-            result = self.check()
-        finally:
-            llm_docs.skillsaw_errors = original
-        self.assert_skip(result)
+        missing = os.path.join(self.tempdir(), 'no-such-skillsaw')
+        with unittest.mock.patch.dict(os.environ, {llm_docs.SKILLSAW_ENV: missing}):
+            self.assert_tool_failure(self.check, containing='skillsaw could not run')
 
 
 class SkillsawInvocationTest(CheckTestCase):
@@ -303,6 +299,31 @@ class SkillsawInvocationTest(CheckTestCase):
             result = self.check()
         self.assert_fail(result, containing='stand-in-ran')
         self.assertNotIn('credential-seen', result['details'])
+
+    def stand_in_printing(self, output):
+        """Replace the stand-in with one that prints `output` and exits 1."""
+        with open(self.stand_in, 'w') as f:
+            f.write(f'#!{sys.executable}\nimport sys\nprint({output!r})\n'
+                    f'sys.stderr.write("stand-in stderr\\n")\nsys.exit(1)\n')
+
+    def test_output_that_is_not_a_report_is_a_tool_failure(self):
+        # A skillsaw that crashed prints a traceback rather than a
+        # report, and an empty violation list read from nothing would
+        # pass. stderr is carried so the error says what happened.
+        self.stand_in_printing('Traceback (most recent call last):')
+        with unittest.mock.patch.dict(os.environ, {llm_docs.SKILLSAW_ENV: self.stand_in}):
+            self.assert_tool_failure(self.check, containing='stand-in stderr')
+
+    def test_a_report_that_is_not_an_object_is_a_tool_failure(self):
+        self.stand_in_printing('[]')
+        with unittest.mock.patch.dict(os.environ, {llm_docs.SKILLSAW_ENV: self.stand_in}):
+            self.assert_tool_failure(self.check, containing='expected an object')
+
+    def test_a_clean_report_passes_whatever_the_exit_status(self):
+        # The exit status is not read: the report is the answer.
+        self.stand_in_printing('{"violations": []}')
+        with unittest.mock.patch.dict(os.environ, {llm_docs.SKILLSAW_ENV: self.stand_in}):
+            self.assert_pass(self.check())
 
 
 class LlmContextLintCiTest(CheckTestCase):

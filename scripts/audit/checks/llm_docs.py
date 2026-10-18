@@ -11,9 +11,8 @@ repository, and whether anything keeps it honest.
 import json
 import os
 import re
-import subprocess
 
-from audit.check import Check
+from audit.check import Check, ToolFailure, run_tool
 from audit.files import file_mentions, require_tracked_paths
 from audit.github import environment_without_credentials
 from audit.repo import path_is_within
@@ -256,7 +255,7 @@ SKILLSAW_ENV = 'AUDIT_SKILLSAW'
 
 
 def skillsaw_errors(repo_path):
-    """Error-severity skillsaw violations, or None if it cannot run.
+    """Error-severity skillsaw violations.
 
     Only error severity is collected. skillsaw's warning and info
     tiers carry style opinions -- unlinked path references alone run
@@ -267,25 +266,30 @@ def skillsaw_errors(repo_path):
 
     skillsaw reads the audited repository and needs no GitHub access,
     so it runs without the credential variables in its environment.
+
+    A skillsaw that will not run, or whose output is not its report,
+    raises ToolFailure. The exit status is not read: skillsaw exits
+    non-zero when it finds something, and the report is the answer.
     """
-    try:
-        result = subprocess.run(
-            [
-                os.environ.get(SKILLSAW_ENV) or 'skillsaw', 'lint',
-                '--no-progress', '--no-custom-rules',
-                '--format', 'json',
-                repo_path,
-            ],
-            capture_output=True, text=True, timeout=120,
-            env=environment_without_credentials(),
-        )
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return None
+    result = run_tool(
+        [
+            os.environ.get(SKILLSAW_ENV) or 'skillsaw', 'lint',
+            '--no-progress', '--no-custom-rules',
+            '--format', 'json',
+            repo_path,
+        ],
+        'skillsaw', timeout=120,
+        env=environment_without_credentials(),
+    )
 
     try:
         report = json.loads(result.stdout)
-    except (json.JSONDecodeError, ValueError):
-        return None
+    except (json.JSONDecodeError, ValueError) as e:
+        raise ToolFailure(
+            f'skillsaw did not emit a JSON report: '
+            f'{result.stderr.strip() or e}') from e
+    if not isinstance(report, dict):
+        raise ToolFailure('skillsaw did not emit a JSON report: expected an object')
 
     return [
         violation for violation in report.get('violations', [])
@@ -438,13 +442,13 @@ class LlmContextLint(Check):
         from opposite ends: skillsaw validates the context it can see, and
         orphan_skill_markdown() finds the context it cannot.
 
-        A missing skillsaw reports not_applicable rather than fail. The
-        binary is the audit harness's responsibility, not the audited
-        repository's, and failing would file an issue against every
-        project in the fleet for a problem none of them can fix. The
-        consistency-audit workflow installs a pinned skillsaw, so this
-        state should not arise; when it does, every row flipping to N/A at
-        once is the signal that it has.
+        A missing skillsaw is an error, neither fail nor not_applicable.
+        The binary is the audit harness's responsibility, not the audited
+        repository's: failing would file an issue against every project
+        in the fleet for a problem none of them can fix, and
+        not_applicable would close every issue this criterion has open,
+        fleet-wide, at once. The consistency-audit workflow installs a
+        pinned skillsaw, so this state should not arise.
         """
         if not has_agent_context(repo):
             return self.skip('No agent context files to lint')
@@ -459,9 +463,6 @@ class LlmContextLint(Check):
             )
 
         errors = skillsaw_errors(repo.path)
-        if errors is None:
-            return self.skip('skillsaw is not available in the audit environment')
-
         if errors:
             described = ', '.join(
                 sorted({
