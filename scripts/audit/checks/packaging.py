@@ -21,6 +21,7 @@ from audit.text.workflows import (
     job_level_keys, step_action, step_with_inputs, workflow_job_blocks,
     workflow_step_blocks,
 )
+from audit.text.patterns import bounded_search
 from audit.text.python_source import (
     HTTP_HANDLER_BASES, console_entry_point_files, handler_base_names,
     imported_top_level_modules, mask_comments_and_strings, mask_strings,
@@ -1132,11 +1133,12 @@ def _match_pattern(entry, spellings):
         body, _, flags = entry[1:].rpartition('/')
         if not body:
             return False
-        try:
-            pattern = re.compile(body, re.IGNORECASE if 'i' in flags else 0)
-        except re.error:
-            return False
-        return any(pattern.search(s) for s in spellings)
+        # The repository wrote the pattern, so it is searched under a
+        # time limit: see bounded_search(). One that does not compile
+        # or does not finish selects nothing.
+        found = bounded_search(
+            body, spellings, re.IGNORECASE if 'i' in flags else 0)
+        return bool(found) and any(found)
     if '*' in entry or '?' in entry:
         return any(fnmatch.fnmatchcase(s.lower(), entry.lower())
                    for s in spellings)

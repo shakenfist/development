@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit import check as check_module  # noqa: E402
 from audit.checks import review  # noqa: E402
+from audit.text import patterns  # noqa: E402
 from tests.base import CheckTestCase, FixtureRepo  # noqa: E402
 
 
@@ -140,6 +141,17 @@ class ReviewMarksPreCommitTest(CheckTestCase):
         self.adopt()
         self.config('exclude: ^[unclosed\n\n')
         self.assert_fail(self.check())
+
+    def test_a_pathological_exclude_is_skipped_not_waited_on(self):
+        # The repository wrote it, and against the sample paths it would
+        # run past the job limit: one committer could hold back the
+        # compliance page for the fleet.
+        self.addCleanup(patterns._bounded_search.cache_clear)
+        self.addCleanup(setattr, patterns, 'SEARCH_TIMEOUT', patterns.SEARCH_TIMEOUT)
+        patterns.SEARCH_TIMEOUT = 0.5
+        self.adopt()
+        self.config('exclude: ^(.|.)*Z\n\n')
+        self.assert_fail(self.check(), containing='weaudit')
 
 
 class ReviewCoverageTest(StandInScriptMixin, CheckTestCase):
