@@ -49,10 +49,6 @@
       "sha": "d5b8377f8a98d3f68fd14469ed4d5be8fece1c6a",
       "date": "2026-09-14"
     },
-    ".github/workflows/pr-re-review.yml": {
-      "sha": "68425cd384443ae15a909832693af1df01414c38",
-      "date": "2026-10-05"
-    },
     ".github/workflows/pr-retest.yml": {
       "sha": "dab99349ea1867e984ae0e5fc73f70ec00cb519b",
       "date": "2026-10-02"
@@ -96,10 +92,6 @@
     "README.md": {
       "sha": "2269add37483bd29c54af121efee0aeeb1939a53",
       "date": "2026-10-05"
-    },
-    "docs/audits/ci-review-automation.md": {
-      "sha": "3c169983520a800f1d65f2929bdb3f47d1a74db7",
-      "date": "2026-10-18"
     },
     "docs/audits/console-logging.md": {
       "sha": "7cb20bd303d81010d8f49ce64bf4c7a0e84263e7",
@@ -249,14 +241,6 @@
       "sha": "179afb0f85bc331ee7c78e5e8c20c8b497b242c3",
       "date": "2026-10-05"
     },
-    "docs/automated-pr-review.md": {
-      "sha": "d60479307223048db30a9651ee8492b89c8b4049",
-      "date": "2026-08-30"
-    },
-    "docs/ci-review-automation.md": {
-      "sha": "f6b4172ded2843c7764d89522b6766d2ddb2ffc7",
-      "date": "2026-10-18"
-    },
     "docs/code-review-tracking.md": {
       "sha": "b8778a9bcbbd432ea2c13e2551f40134ae75ff44",
       "date": "2026-10-16"
@@ -353,21 +337,9 @@
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",
       "date": "2026-09-04"
     },
-    "scripts/tests/test_registry.py": {
-      "sha": "b69f96afd3c1fe77372bc072afb2f2e6e1d6aff1",
-      "date": "2026-10-18"
-    },
     "scripts/tests/test_review_tracking.py": {
       "sha": "13228a480cc5f25af118188794c77314fa354576",
       "date": "2026-10-16"
-    },
-    "templates/ci-review-automation/README.md": {
-      "sha": "086d654adc49954ae423fae08757c4d49843e01b",
-      "date": "2026-10-05"
-    },
-    "templates/ci-review-automation/pr-re-review.yml": {
-      "sha": "68425cd384443ae15a909832693af1df01414c38",
-      "date": "2026-10-05"
     },
     "templates/ci-review-automation/pr-retest.yml": {
       "sha": "dab99349ea1867e984ae0e5fc73f70ec00cb519b",

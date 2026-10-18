@@ -13,10 +13,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/automated-pr-review.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/issue-fix/claude-model-fallback.sh",
       "author": "mikal"
     },
@@ -365,10 +361,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/pr-re-review.yml",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/npm-pin-indirect-dependencies.md",
       "author": "mikal"
     },
@@ -401,10 +393,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/ci-review-automation/pr-re-review.yml",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/console-logging.md",
       "author": "mikal"
     },
@@ -418,14 +406,6 @@
     },
     {
       "path": "docs/audits/plan-template.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/ci-review-automation/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/ci-review-automation",
       "author": "mikal"
     },
     {
@@ -589,10 +569,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/ci-review-automation.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/llm-context-lint-ci.md",
       "author": "mikal"
     },
@@ -606,10 +582,6 @@
     },
     {
       "path": "docs/audits/sfui-vendor.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/ci-review-automation.md",
       "author": "mikal"
     },
     {
@@ -645,10 +617,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/fake_issues.py",
       "author": "mikal"
     },
@@ -658,10 +626,6 @@
     },
     {
       "path": "scripts/tests/test_audit_update_docs.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_registry.py",
       "author": "mikal"
     },
     {
