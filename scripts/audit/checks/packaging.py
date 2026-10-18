@@ -1612,8 +1612,10 @@ class VersionFileGitignore(Check):
             [
                 'git', '-C', repo.path,
                 # --no-index so a tracked copy doesn't mask the
-                # .gitignore coverage answer.
-                'check-ignore', '-q', '--no-index', version_file,
+                # .gitignore coverage answer. The path comes from the
+                # audited repository's pyproject.toml, so -- keeps it
+                # a path however it is spelt.
+                'check-ignore', '-q', '--no-index', '--', version_file,
             ],
             'git check-ignore', timeout=30,
         )

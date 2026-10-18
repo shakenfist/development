@@ -2327,6 +2327,17 @@ class VersionFileGitignoreTest(CheckTestCase):
         self.assert_tool_failure(lambda: self.check(has_pyproject_toml=True),
                                  containing='Could not check .gitignore coverage')
 
+    def test_a_configured_path_spelt_like_an_option_is_a_path(self):
+        # Without the --, git reads it as --verbose, which conflicts
+        # with -q, and cannot answer.
+        self.fixture.init_git()
+        self.fixture.write('pyproject.toml', self.PYPROJECT.replace(
+            'thing/_version.py', '--verbose'))
+        self.fixture.write('.gitignore', 'build/\n')
+        self.fixture.commit()
+        self.assert_fail(self.check(has_pyproject_toml=True),
+                         containing='--verbose is not covered by .gitignore')
+
     def test_a_project_not_generating_a_version_file_does_not_apply(self):
         self.fixture.init_git()
         self.fixture.write('pyproject.toml', '[project]\nname = "x"\n')
