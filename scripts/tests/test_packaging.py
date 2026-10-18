@@ -2115,6 +2115,32 @@ class RustUnwrapLintTest(CheckTestCase):
         self.assert_fail(self.check(has_cargo_toml=True),
                          containing='unwrap_used')
 
+    def _root_lint(self, line):
+        """The check over a workspace whose lint line is this."""
+        self.fresh_fixture()
+        self.fixture.init_git()
+        self.fixture.write('Cargo.toml', '[workspace.lints.clippy]\n' + line + '\n')
+        self.fixture.write('clippy.toml', 'allow-unwrap-in-tests = true\n')
+        self.fixture.commit()
+        return self.check(has_cargo_toml=True)
+
+    def test_every_enabling_spelling_passes(self):
+        for line in ('unwrap_used = "warn"',
+                     'unwrap_used = "deny"  # no unwraps outside tests',
+                     'unwrap_used = { level = "deny", priority = -1 }',
+                     'unwrap_used = { priority = -1, level = "warn" }  # x'):
+            with self.subTest(line=line):
+                self.assert_pass(self._root_lint(line))
+
+    def test_a_level_named_only_in_a_comment_fails(self):
+        # The first quoted warn or deny on the line used to be taken,
+        # comment or not.
+        for line in ('unwrap_used = "allow"  # was "deny"',
+                     'unwrap_used = { level = "allow" }  # level = "warn" later'):
+            with self.subTest(line=line):
+                self.assert_fail(self._root_lint(line),
+                                 containing='not set to warn or deny')
+
     def test_a_missing_test_exemption_fails(self):
         """Without it the lint fires on every test assertion."""
         self.fixture.init_git()

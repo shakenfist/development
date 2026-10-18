@@ -2649,8 +2649,13 @@ class RustUnwrapLint(Check):
         root_dir = os.path.dirname(root_manifest)
 
         # Accepts unwrap_used = "warn", "deny", or the table form
-        # { level = "warn", priority = -1 }.
-        lint_pattern = r'unwrap_used\s*=\s*.*"(warn|deny)"'
+        # { level = "warn", priority = -1 }. The level has to be the
+        # value itself, or the table's level key inside its braces: a
+        # pattern taking the first quoted warn or deny anywhere on the
+        # line reads `unwrap_used = "allow"  # was "deny"` as enabled.
+        lint_pattern = (
+            r'unwrap_used\s*=\s*'
+            r'(?:"(?:warn|deny)"|\{[^}#]*\blevel\s*=\s*"(?:warn|deny)")')
 
         issues = []
 
