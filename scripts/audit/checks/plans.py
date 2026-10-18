@@ -1124,27 +1124,12 @@ class PlanPhaseReferences(Check):
         for rel in files:
             content = blank_generated_blocks(repo.read(rel))
 
-            fence = None
-            for lineno, line in enumerate(content.splitlines(), 1):
-                stripped = line.lstrip()
-                marker = None
-                if stripped.startswith('```'):
-                    marker = '```'
-                elif stripped.startswith('~~~'):
-                    marker = '~~~'
-
-                if fence is not None:
-                    if marker == fence:
-                        fence = None
-                    continue
-                if marker is not None:
-                    fence = marker
-                    continue
+            for offset, line in iter_lines_outside_fences(content.splitlines()):
                 if PHASE_REFERENCE_OK in line:
                     continue
                 scannable = CODE_SPAN_RE.sub('', line)
                 if PHASE_REFERENCE_RE.search(scannable):
-                    hits.append(f'{rel}:{lineno}')
+                    hits.append(f'{rel}:{offset + 1}')
 
         if hits:
             shown = ', '.join(hits[:10])
