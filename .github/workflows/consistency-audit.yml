@@ -247,7 +247,13 @@ jobs:
     # a branch run shows these jobs as skipped rather than failed.
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
     environment: audit-write
-    runs-on: [self-hosted, static]
+    # An ephemeral VM, as for update-docs, rather than the static
+    # runners the audit legs use. Those share one user and one home
+    # directory between jobs, so code a leg runs could leave a .pth
+    # file or a ~/.gitconfig hook there for this job to run with
+    # AUDIT_TOKEN. A VM starts from the image and is thrown away after
+    # one job. The image has git and python3 but not gh.
+    runs-on: [self-hosted, vm, debian-13, s]
     permissions:
       contents: read
     steps:
@@ -257,6 +263,9 @@ jobs:
         uses: actions/checkout@v7
         with:
           persist-credentials: false
+
+      - name: Install gh
+        run: sudo apt-get update && sudo apt-get install -y gh
 
       - name: Download all audit results
         uses: actions/download-artifact@v8
@@ -305,12 +314,16 @@ jobs:
     if: ${{ !cancelled() && needs.audit.result == 'success' && github.ref == 'refs/heads/main' }}
     environment: audit-write
     needs: [audit, manage-issues]
-    runs-on: [self-hosted, static]
+    # An ephemeral VM, for the reason given on manage-issues.
+    runs-on: [self-hosted, vm, debian-13, s]
     permissions:
       contents: write
     steps:
       - name: Checkout development repo
         uses: actions/checkout@v7
+
+      - name: Install gh
+        run: sudo apt-get update && sudo apt-get install -y gh
 
       - name: Download all audit results
         uses: actions/download-artifact@v8
