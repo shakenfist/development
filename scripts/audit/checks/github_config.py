@@ -21,7 +21,7 @@ import re
 import subprocess
 
 from audit import scope
-from audit.check import Check
+from audit.check import Check, ToolFailure
 from audit.files import workflows_inheriting_secrets_into
 
 
@@ -116,36 +116,31 @@ class DefaultBranchNaming(Check):
     template = None
     issue_title = 'Default branch naming'
 
+    def applies(self, repo):
+        """Exempt docs-only repositories and documented exceptions.
+
+        Both may use main: a documented exception is a reason in
+        REPO_OVERRIDES. Decided here rather than after the API call, because neither
+        exemption depends on the answer: asking first would make an
+        exempt repository's verdict hostage to GitHub being reachable.
+        """
+        if repo.props['is_docs_only']:
+            return 'Docs-only repo (exception allowed)'
+        if repo.props['default_branch_exception']:
+            return f'Exempt: {repo.props["default_branch_exception"]}'
+        return None
+
     def run(self, repo):
         """Check default branch is 'develop' via GitHub API."""
-        try:
-            result = repo.github.api(
-                f'repos/{repo.org}/{repo.name}', jq='.default_branch')
-            if result.returncode != 0:
-                return self.fail(
-                    f'Could not query GitHub API: '
-                    f'{result.stderr.strip()}')
-            branch = result.stdout.strip()
-
-            # Exceptions: docs-only repos, and repositories carrying a
-            # documented reason in REPO_OVERRIDES, may use main
-            if repo.props['is_docs_only']:
-                return self.skip(
-                    f'Docs-only repo (current: {branch}, '
-                    f'exception allowed)')
-
-            if repo.props['default_branch_exception']:
-                return self.skip(
-                    f'Exempt: {repo.props["default_branch_exception"]} '
-                    f'(current: {branch})')
-
-            if branch != 'develop':
-                return self.fail(
-                    f'Default branch is "{branch}", '
-                    f'expected "develop"')
-            return self.ok('Default branch is "develop"')
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            return self.fail(f'Error checking default branch: {e}')
+        result = repo.github.api_answer(
+            f'repos/{repo.org}/{repo.name}', 'the default branch',
+            jq='.default_branch')
+        branch = result.stdout.strip()
+        if branch != 'develop':
+            return self.fail(
+                f'Default branch is "{branch}", '
+                f'expected "develop"')
+        return self.ok('Default branch is "develop"')
 
 
 class GithubSecurity(Check):
@@ -155,30 +150,44 @@ class GithubSecurity(Check):
     issue_title = 'GitHub security settings'
 
     def run(self, repo):
-        """Check GitHub security settings and CodeQL workflow."""
+        """Check GitHub security settings and CodeQL workflow.
+
+        A query that fails, or answers without the settings, is an
+        error rather than a verdict. Read as "no settings", either
+        would pass wherever the CodeQL workflow is present -- there
+        would be nothing to find wrong with settings nobody saw -- so a
+        token that cannot see them would report secret scanning as
+        compliant everywhere at once. GitHub returns
+        security_and_analysis as null to a token without admin access,
+        which is the realistic way to arrive there.
+        """
         issues = []
 
         # Fetch visibility and security settings in one API call.
         # Visibility is queried live rather than hardcoded because repos
         # change visibility over time and a stale override would silently
         # skip the CodeQL check.
-        is_private = repo.props['is_private']
-        security = None
+        result = repo.github.api_answer(
+            f'repos/{repo.org}/{repo.name}', 'the security settings',
+            jq='{private: .private, security: .security_and_analysis}')
         try:
-            result = repo.github.api(
-                f'repos/{repo.org}/{repo.name}',
-                jq='{private: .private, security: .security_and_analysis}')
-            if result.returncode == 0 and result.stdout.strip():
-                try:
-                    repo_info = json.loads(result.stdout.strip())
-                    is_private = repo_info.get('private', is_private)
-                    security = repo_info.get('security')
-                except json.JSONDecodeError:
-                    issues.append(
-                        'Could not parse security settings response'
-                    )
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            issues.append('Could not query GitHub API for security settings')
+            repo_info = json.loads(result.stdout)
+        except json.JSONDecodeError as e:
+            raise ToolFailure(
+                f'Could not parse the security settings response: {e}') from e
+        if not isinstance(repo_info, dict):
+            raise ToolFailure(
+                'Could not parse the security settings response: '
+                'expected an object')
+        is_private = repo_info.get('private')
+        security = repo_info.get('security')
+        if not isinstance(is_private, bool):
+            raise ToolFailure(
+                'GitHub did not say whether the repository is private')
+        if not isinstance(security, dict):
+            raise ToolFailure(
+                'GitHub returned no security_and_analysis settings; the '
+                'token may lack admin access to the repository')
 
         # Check CodeQL workflow (file-based, not API)
         if is_private:
@@ -188,18 +197,17 @@ class GithubSecurity(Check):
         elif not repo.isfile('.github/workflows/codeql-analysis.yml'):
             issues.append('Missing .github/workflows/codeql-analysis.yml')
 
-        if security:
-            secret_scanning = security.get('secret_scanning', {})
-            if secret_scanning.get('status') != 'enabled':
-                issues.append('Secret scanning not enabled')
+        secret_scanning = security.get('secret_scanning', {})
+        if secret_scanning.get('status') != 'enabled':
+            issues.append('Secret scanning not enabled')
 
-            push_protection = security.get(
-                'secret_scanning_push_protection', {}
+        push_protection = security.get(
+            'secret_scanning_push_protection', {}
+        )
+        if push_protection.get('status') != 'enabled':
+            issues.append(
+                'Secret scanning push protection not enabled'
             )
-            if push_protection.get('status') != 'enabled':
-                issues.append(
-                    'Secret scanning push protection not enabled'
-                )
 
         if issues:
             return self.fail('; '.join(issues))
@@ -213,28 +221,25 @@ class DeleteBranchOnMerge(Check):
     issue_title = 'Delete branch on merge'
 
     def run(self, repo):
-        """Check head branches are deleted automatically when a PR merges."""
-        try:
-            result = repo.github.api(
-                f'repos/{repo.org}/{repo.name}', jq='.delete_branch_on_merge')
-            if result.returncode != 0:
-                return self.fail(
-                    f'Could not query GitHub API: '
-                    f'{result.stderr.strip()}')
-            setting = result.stdout.strip()
+        """Check head branches are deleted automatically when a PR merges.
 
-            if setting == 'true':
-                return self.ok('Delete branch on merge is enabled')
-            if setting == 'false':
-                return self.fail('Delete branch on merge is not enabled')
-            # The API omits this field (returns null) when the token
-            # lacks push access to the repository.
-            return self.fail(
-                f'Could not determine delete branch on merge setting '
-                f'(API returned "{setting or "null"}"; the token may '
-                f'lack push access)')
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            return self.fail(f'Error checking delete branch on merge: {e}')
+        A null answer is an error, not a fail: the API omits the field
+        for a token without push access, which says nothing about the
+        setting.
+        """
+        result = repo.github.api_answer(
+            f'repos/{repo.org}/{repo.name}', 'the delete branch on merge setting',
+            jq='.delete_branch_on_merge')
+        setting = result.stdout.strip()
+
+        if setting == 'true':
+            return self.ok('Delete branch on merge is enabled')
+        if setting == 'false':
+            return self.fail('Delete branch on merge is not enabled')
+        raise ToolFailure(
+            f'Could not determine delete branch on merge setting '
+            f'(API returned "{setting or "null"}"; the token may '
+            f'lack push access)')
 
 
 class MergeQueueConfig(Check):
@@ -246,36 +251,30 @@ class MergeQueueConfig(Check):
     def run(self, repo):
         """Check any merge queue on the default branch is serialized."""
         client = repo.github
+        result = client.api_answer(
+            f'repos/{repo.org}/{repo.name}', 'the default branch',
+            jq='.default_branch')
+        branch = result.stdout.strip()
+
+        # A branch with no rules answers an empty list rather than an
+        # error, so every failure here is GitHub not answering.
+        result = client.api_answer(
+            f'repos/{repo.org}/{repo.name}/rules/branches/{branch}',
+            'branch rules')
         try:
-            result = client.api(
-                f'repos/{repo.org}/{repo.name}', jq='.default_branch')
-            if result.returncode != 0:
-                return self.fail(
-                    f'Could not query GitHub API for the default '
-                    f'branch: {result.stderr.strip()}')
-            branch = result.stdout.strip()
+            rules = json.loads(result.stdout)
+        except json.JSONDecodeError as e:
+            raise ToolFailure(
+                f'Could not parse the branch rules response: {e}') from e
 
-            result = client.api(
-                f'repos/{repo.org}/{repo.name}/rules/branches/{branch}')
-            if result.returncode != 0:
-                return self.fail(
-                    f'Could not query GitHub API for branch rules: '
-                    f'{result.stderr.strip()}')
-            try:
-                rules = json.loads(result.stdout)
-            except json.JSONDecodeError:
-                return self.fail('Could not parse branch rules response')
-
-            problems = evaluate_merge_queue_rules(rules)
-            if problems is None:
-                return self.skip(f'No merge queue on default branch "{branch}"')
-            if problems:
-                return self.fail('; '.join(problems))
-            return self.ok(
-                f'Merge queue on "{branch}" is serialized '
-                f'(max_entries_to_build 1, min_entries_to_merge 1)')
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            return self.fail(f'Error checking merge queue config: {e}')
+        problems = evaluate_merge_queue_rules(rules)
+        if problems is None:
+            return self.skip(f'No merge queue on default branch "{branch}"')
+        if problems:
+            return self.fail('; '.join(problems))
+        return self.ok(
+            f'Merge queue on "{branch}" is serialized '
+            f'(max_entries_to_build 1, min_entries_to_merge 1)')
 
 
 def http_status(stderr):
@@ -363,31 +362,26 @@ class ScopeCoverage(Check):
         except OSError as e:
             return self.fail(f'Could not read the audit scope: {e}')
 
-        try:
-            result = repo.github.run(
-                ['repo', 'list', repo.org, '--limit',
-                 str(ORG_LISTING_LIMIT), '--json', 'name,isPrivate'],
-                timeout=60)
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            return self.fail(f'Could not list the {repo.org} organisation: {e}')
-        if result.returncode != 0:
-            return self.fail(
-                f'Could not list the {repo.org} organisation: '
-                f'{result.stderr.strip()}')
+        # Everything from here to the classification is the listing
+        # failing to answer -- an error, a malformed reply, a page that
+        # may have been cut, an empty organisation -- and each is
+        # raised rather than failed: none of them is a fact about the
+        # scope, and a fail would file an issue on development for a
+        # token problem.
+        result = repo.github.answer(
+            ['repo', 'list', repo.org, '--limit',
+             str(ORG_LISTING_LIMIT), '--json', 'name,isPrivate'],
+            f'the {repo.org} organisation listing', timeout=60)
         try:
             listing = json.loads(result.stdout)
-        except json.JSONDecodeError:
-            return self.fail(
-                f'Could not parse the {repo.org} organisation listing')
-        # Valid JSON of the wrong shape would raise out of the check,
-        # and registry.run_all() has no per-check exception handling:
-        # an exception here aborts the development leg, which
-        # manage-issues and update-docs are needs-gated on, and stops
-        # issue filing and the compliance page for the whole fleet.
+        except json.JSONDecodeError as e:
+            raise ToolFailure(
+                f'Could not parse the {repo.org} organisation listing: '
+                f'{e}') from e
         if not isinstance(listing, list) or not all(
                 isinstance(entry, dict) and 'name' in entry
                 for entry in listing):
-            return self.fail(
+            raise ToolFailure(
                 f'Could not parse the {repo.org} organisation listing: '
                 f'expected a list of repositories')
 
@@ -395,14 +389,14 @@ class ScopeCoverage(Check):
         # set one short of the limit, and a genuinely truncated listing
         # would sail through the guard it exists to trip.
         if len(listing) >= ORG_LISTING_LIMIT:
-            return self.fail(
+            raise ToolFailure(
                 f'The {repo.org} listing returned {len(listing)} '
                 f'repositories, which is the limit asked for: it may '
                 f'have been truncated, and a truncated listing reports '
                 f'repositories as undecided that are merely unlisted')
 
         if not listing:
-            return self.fail(
+            raise ToolFailure(
                 f'The {repo.org} listing returned no repositories at '
                 f'all, so nothing here can be reconciled: check the '
                 f'token')
@@ -422,9 +416,10 @@ class ScopeCoverage(Check):
         # is gone, and "gone" is the one conclusion whose suggested fix
         # -- delete the entry -- is destructive. So each one is asked
         # about directly, and a resolution that fails for any reason
-        # other than a 404 is reported as a failure to resolve rather
-        # than as a deletion. gh_canonical_repo() falls back rather than
-        # concluding anything from a failed call, for the same reason.
+        # other than a 404 is raised as GitHub not answering rather
+        # than read as a deletion. gh_canonical_repo() falls back rather
+        # than concluding anything from a failed call, for the same
+        # reason.
         #
         # Where the listing saw no private repositories at all, a 404
         # carries no information: this token answers 404 for every
@@ -439,20 +434,28 @@ class ScopeCoverage(Check):
         # reads as a repository still in the organisation.
         prefix = f'{repo.org}/'.lower()
         for name in unlisted:
-            # Per name rather than around the loop: the undecided set is
-            # already computed and needs no API access, and one slow
-            # call must not discard the finding this criterion exists
-            # for.
+            # A failure on one name raises, and so costs the undecided
+            # finding computed above for this run. That is the policy
+            # rather than an oversight: an error leaves the open issue
+            # as it is, so a finding already filed survives an outage,
+            # while a fail made of unresolved names would file one on
+            # development for GitHub being unreachable.
+            what = f'the repository {repo.org}/{name}'
             try:
                 result = repo.github.api(
                     f'repos/{repo.org}/{name}', jq='.full_name')
-            except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-                unresolvable.append((name, f'{type(e).__name__}'))
-                continue
+            except subprocess.TimeoutExpired as e:
+                raise ToolFailure(
+                    f'Could not query GitHub for {what}: timed out') from e
+            except OSError as e:
+                raise ToolFailure(
+                    f'Could not query GitHub for {what}: {e}') from e
             if result.returncode != 0:
                 status = http_status(result.stderr)
                 if status != 404:
-                    unresolvable.append((name, describe_failure(result)))
+                    raise ToolFailure(
+                        f'Could not query GitHub for {what}: '
+                        f'{describe_failure(result)}')
                 elif sees_private:
                     gone.append(name)
                 else:
@@ -465,8 +468,10 @@ class ScopeCoverage(Check):
                 # Exit zero and no answer. gh_canonical_repo() guards
                 # the same case; without this the finding reads
                 # "renamed to " and names no destination.
-                unresolvable.append((name, 'the API returned no name'))
-            elif canonical.lower() == prefix + name.lower():
+                raise ToolFailure(
+                    f'Could not query GitHub for {what}: the API '
+                    f'returned no name')
+            if canonical.lower() == prefix + name.lower():
                 invisible.append(name)
             elif canonical.lower().startswith(prefix):
                 renamed.append((name, canonical))
@@ -536,13 +541,15 @@ class ScopeCoverage(Check):
             missing.extend(f'{name} (exists, but not in the listing)'
                            for name in invisible)
         if unresolvable:
-            blind = '' if sees_private else (
-                ', and the listing returned no private repositories at '
-                'all, so this token cannot answer the question: grant '
-                'it private-repository read')
+            # Only the blind token's 404 arrives here: every other
+            # failure to resolve a name has raised. It stays a finding
+            # because GitHub did answer, and the answer is about how
+            # this repository's audit is configured.
             problems.append(
                 f'{len(unresolvable)} name(s) in the audit scope could '
-                f'not be resolved either way{blind}')
+                f'not be resolved either way, and the listing returned '
+                f'no private repositories at all, so this token cannot '
+                f'answer the question: grant it private-repository read')
             missing.extend(f'{name} (unresolved: {reason})'
                            for name, reason in unresolvable)
         if problems:

@@ -166,26 +166,35 @@ class DefaultBranchNamingTest(GithubConfigTestCase):
             default_branch_exception='every consumer pins to @main')
         self.assert_skip(result, containing='every consumer pins to @main')
 
-    def test_an_api_error_fails_rather_than_passing(self):
-        """A repository we cannot ask about is not a compliant one."""
-        result = self.run_with({
+    def test_an_exempt_repository_is_not_asked_about(self):
+        """The exemptions are decided in applies(), before any call.
+
+        Nothing is scripted, so a call would answer non-zero and raise:
+        an exempt repository's verdict must not depend on GitHub.
+        """
+        self.assert_skip(self.run_with({}, is_docs_only=True),
+                         containing='Docs-only')
+        self.assert_skip(
+            self.run_with({}, default_branch_exception='a reason'),
+            containing='Exempt: a reason')
+
+    def test_an_api_error_is_a_tool_failure(self):
+        """A repository we cannot ask about is neither compliant nor not."""
+        self.assert_tool_failure(lambda: self.run_with({
             self.api('.default_branch'): CompletedCommand(
                 returncode=1, stderr='HTTP 404: Not Found'),
-        })
-        self.assert_fail(result, containing='Not Found')
+        }), containing='Not Found')
 
-    def test_a_timeout_fails(self):
-        result = self.run_with({
+    def test_a_timeout_is_a_tool_failure(self):
+        self.assert_tool_failure(lambda: self.run_with({
             self.api('.default_branch'): subprocess.TimeoutExpired(
                 cmd='gh', timeout=30),
-        })
-        self.assert_fail(result, containing='Error checking default branch')
+        }), containing='timed out')
 
-    def test_gh_not_installed_fails(self):
-        result = self.run_with({
+    def test_gh_not_installed_is_a_tool_failure(self):
+        self.assert_tool_failure(lambda: self.run_with({
             self.api('.default_branch'): FileNotFoundError('gh'),
-        })
-        self.assert_fail(result, containing='Error checking default branch')
+        }), containing='the default branch')
 
 
 class GithubSecurityTest(GithubConfigTestCase):
@@ -248,20 +257,51 @@ class GithubSecurityTest(GithubConfigTestCase):
         })
         self.assert_fail(result, containing='push protection not enabled')
 
-    def test_unparseable_response_is_reported(self):
+    def test_an_unparseable_response_is_a_tool_failure(self):
         self.fixture.workflow('codeql-analysis.yml', 'on: push\n')
-        result = self.run_with({
+        self.assert_tool_failure(lambda: self.run_with({
             self.api(self.SETTINGS_JQ): CompletedCommand(stdout='not json'),
-        })
-        self.assert_fail(result, containing='Could not parse')
+        }), containing='Could not parse')
 
-    def test_a_timeout_is_reported_rather_than_raised(self):
+    def test_a_response_that_is_not_an_object_is_a_tool_failure(self):
         self.fixture.workflow('codeql-analysis.yml', 'on: push\n')
-        result = self.run_with({
+        self.assert_tool_failure(lambda: self.run_with({
+            self.api(self.SETTINGS_JQ): CompletedCommand(stdout='[]'),
+        }), containing='expected an object')
+
+    def test_a_timeout_is_a_tool_failure(self):
+        self.fixture.workflow('codeql-analysis.yml', 'on: push\n')
+        self.assert_tool_failure(lambda: self.run_with({
             self.api(self.SETTINGS_JQ): subprocess.TimeoutExpired(
                 cmd='gh', timeout=30),
-        })
-        self.assert_fail(result, containing='Could not query GitHub API')
+        }), containing='timed out')
+
+    def test_an_api_error_is_a_tool_failure_not_a_pass(self):
+        """With CodeQL present, a failed query has nothing else to fail on.
+
+        Read as "no settings", it would pass: nothing wrong could be
+        found with settings nobody saw.
+        """
+        self.fixture.workflow('codeql-analysis.yml', 'on: push\n')
+        self.assert_tool_failure(lambda: self.run_with({
+            self.api(self.SETTINGS_JQ): CompletedCommand(
+                returncode=1, stderr='gh: Bad credentials (HTTP 401)'),
+        }), containing='HTTP 401')
+
+    def test_null_security_settings_are_a_tool_failure_not_a_pass(self):
+        """GitHub returns null to a token without admin access."""
+        self.fixture.workflow('codeql-analysis.yml', 'on: push\n')
+        self.assert_tool_failure(lambda: self.run_with({
+            self.api(self.SETTINGS_JQ): CompletedCommand(
+                stdout=json.dumps({'private': False, 'security': None})),
+        }), containing='no security_and_analysis')
+
+    def test_an_unknown_visibility_is_a_tool_failure(self):
+        """Read as public or as private, it would decide the CodeQL rule."""
+        self.assert_tool_failure(lambda: self.run_with({
+            self.api(self.SETTINGS_JQ): CompletedCommand(
+                stdout=json.dumps({'private': None, 'security': {}})),
+        }), containing='private')
 
 
 class DeleteBranchOnMergeTest(GithubConfigTestCase):
@@ -279,19 +319,23 @@ class DeleteBranchOnMergeTest(GithubConfigTestCase):
             {self.api(self.JQ): CompletedCommand(stdout='false\n')})
         self.assert_fail(result)
 
-    def test_an_api_error_fails(self):
-        result = self.run_with({
+    def test_an_api_error_is_a_tool_failure(self):
+        self.assert_tool_failure(lambda: self.run_with({
             self.api(self.JQ): CompletedCommand(
                 returncode=1, stderr='HTTP 403'),
-        })
-        self.assert_fail(result)
+        }), containing='HTTP 403')
 
-    def test_a_timeout_fails(self):
-        result = self.run_with({
+    def test_a_timeout_is_a_tool_failure(self):
+        self.assert_tool_failure(lambda: self.run_with({
             self.api(self.JQ): subprocess.TimeoutExpired(
                 cmd='gh', timeout=30),
-        })
-        self.assert_fail(result, containing='Error checking')
+        }), containing='timed out')
+
+    def test_a_null_answer_is_a_tool_failure(self):
+        """The API omits the field for a token without push access."""
+        self.assert_tool_failure(lambda: self.run_with({
+            self.api(self.JQ): CompletedCommand(stdout='null\n'),
+        }), containing='lack push access')
 
 
 class MergeQueueConfigApiTest(GithubConfigTestCase):
@@ -329,34 +373,30 @@ class MergeQueueConfigApiTest(GithubConfigTestCase):
         })
         self.assert_fail(result, containing='max_entries_to_build is 3')
 
-    def test_the_branch_lookup_failing_fails(self):
-        result = self.run_with({
+    def test_the_branch_lookup_failing_is_a_tool_failure(self):
+        self.assert_tool_failure(lambda: self.run_with({
             self.api('.default_branch'): CompletedCommand(
                 returncode=1, stderr='HTTP 404'),
-        })
-        self.assert_fail(result, containing='Could not query GitHub API')
+        }), containing='the default branch')
 
-    def test_the_rules_lookup_failing_fails(self):
-        result = self.run_with({
+    def test_the_rules_lookup_failing_is_a_tool_failure(self):
+        self.assert_tool_failure(lambda: self.run_with({
             self.api('.default_branch'): CompletedCommand(stdout='develop\n'),
             self.rules('develop'): CompletedCommand(
                 returncode=1, stderr='HTTP 403'),
-        })
-        self.assert_fail(result, containing='branch rules')
+        }), containing='branch rules')
 
-    def test_an_unparseable_ruleset_fails(self):
-        result = self.run_with({
+    def test_an_unparseable_ruleset_is_a_tool_failure(self):
+        self.assert_tool_failure(lambda: self.run_with({
             self.api('.default_branch'): CompletedCommand(stdout='develop\n'),
             self.rules('develop'): CompletedCommand(stdout='not json'),
-        })
-        self.assert_fail(result, containing='Could not parse')
+        }), containing='Could not parse')
 
-    def test_a_timeout_fails(self):
-        result = self.run_with({
+    def test_a_timeout_is_a_tool_failure(self):
+        self.assert_tool_failure(lambda: self.run_with({
             self.api('.default_branch'): subprocess.TimeoutExpired(
                 cmd='gh', timeout=30),
-        })
-        self.assert_fail(result, containing='Error checking merge queue')
+        }), containing='timed out')
 
 
 class ScopeCoverageTest(CheckTestCase):
@@ -511,35 +551,34 @@ class ScopeCoverageTest(CheckTestCase):
         # merely unlisted.
         self.scope(['development'], ['old-thing'])
         names = [f'repo-{n}' for n in range(github_config.ORG_LISTING_LIMIT)]
-        result, _ = self.run_with(self.listing(*names))
-        self.assert_fail(result, 'may have been truncated')
+        self.assert_tool_failure(lambda: self.run_with(self.listing(*names)),
+                                 'may have been truncated')
 
-    def test_a_failed_listing_is_reported_as_such(self):
+    def test_a_failed_listing_is_a_tool_failure(self):
         self.scope(['development'], ['old-thing'])
-        result, _ = self.run_with(
-            CompletedCommand(returncode=1, stderr='gh: HTTP 401'))
-        self.assert_fail(result, 'Could not list the shakenfist '
-                                 'organisation')
+        self.assert_tool_failure(lambda: self.run_with(
+            CompletedCommand(returncode=1, stderr='gh: HTTP 401')),
+            'the shakenfist organisation listing: gh: HTTP 401')
 
-    def test_an_unparseable_listing_is_reported_as_such(self):
+    def test_an_unparseable_listing_is_a_tool_failure(self):
         self.scope(['development'], ['old-thing'])
-        result, _ = self.run_with(CompletedCommand(stdout='not json'))
-        self.assert_fail(result, 'Could not parse')
+        self.assert_tool_failure(
+            lambda: self.run_with(CompletedCommand(stdout='not json')),
+            'Could not parse')
 
     def test_a_failure_that_is_not_a_404_is_not_called_a_deletion(self):
         # GitHub answers 404 for a private repository the token cannot
         # see, so the status is the only thing separating "gone" from
         # "cannot look". Everything else -- an expired token, rate
-        # limiting, a network blip -- must not arrive at a finding
-        # whose suggested fix is to delete the entry.
+        # limiting, a network blip -- is GitHub not answering, and must
+        # not arrive at a finding at all, least of all one whose
+        # suggested fix is to delete the entry.
         self.scope(['development'], ['maybe-here'])
-        result, _ = self.run_with(
+        self.assert_tool_failure(lambda: self.run_with(
             self.listing('development'),
             **{'maybe-here': CompletedCommand(
-                returncode=1, stderr='gh: Bad credentials (HTTP 401)')})
-        self.assert_fail(result, 'could not be resolved either way')
-        self.assertEqual(result['missing'],
-                         ['maybe-here (unresolved: HTTP 401)'])
+                returncode=1, stderr='gh: Bad credentials (HTTP 401)')}),
+            'shakenfist/maybe-here: HTTP 401')
 
     def test_a_404_without_private_repositories_in_sight_is_not_a_deletion(
             self):
@@ -570,12 +609,10 @@ class ScopeCoverageTest(CheckTestCase):
         # Exit zero and empty stdout would compare unequal to the name
         # asked about, and report a rename to nowhere.
         self.scope(['development'], ['quiet'])
-        result, _ = self.run_with(
+        self.assert_tool_failure(lambda: self.run_with(
             self.listing('development'),
-            quiet=CompletedCommand(stdout='\n'))
-        self.assert_fail(result, 'could not be resolved either way')
-        self.assertEqual(result['missing'],
-                         ['quiet (unresolved: the API returned no name)'])
+            quiet=CompletedCommand(stdout='\n')),
+            'the API returned no name')
 
     def test_a_rename_is_reported_once_not_twice(self):
         # The new name is also in the organisation and in neither list.
@@ -623,22 +660,21 @@ class ScopeCoverageTest(CheckTestCase):
             ['departed -> otherowner/departed (moved out of shakenfist: '
              'remove the entry)'])
 
-    def test_a_blank_stderr_does_not_raise_out_of_the_check(self):
+    def test_a_blank_stderr_is_described_rather_than_raised_on(self):
         # describe_failure() indexed the first line of a stderr that
-        # had one only if it was not whitespace. An IndexError here
-        # aborts the whole development audit leg.
+        # had one only if it was not whitespace. An IndexError would be
+        # an `error` too, but one blaming a bug rather than naming the
+        # failure.
         self.scope(['development'], ['odd', 'hidden'])
-        result, _ = self.run_with(
+        self.assert_tool_failure(lambda: self.run_with(
             self.listing('development', 'hidden', private=('hidden',)),
-            odd=CompletedCommand(returncode=1, stderr='   \n'))
-        self.assert_fail(result, 'could not be resolved either way')
-        self.assertEqual(result['missing'],
-                         ['odd (unresolved: no error reported)'])
+            odd=CompletedCommand(returncode=1, stderr='   \n')),
+            'shakenfist/odd: no error reported')
 
-    def test_an_empty_listing_answers_nothing(self):
+    def test_an_empty_listing_is_a_tool_failure(self):
         self.scope(['development'], ['old-thing'])
-        result, _ = self.run_with(self.listing())
-        self.assert_fail(result, 'returned no repositories at all')
+        self.assert_tool_failure(lambda: self.run_with(self.listing()),
+                                 'returned no repositories at all')
 
     def test_the_truncation_guard_counts_entries_not_unique_names(self):
         # A duplicated name would leave the deduplicated set one short
@@ -647,19 +683,21 @@ class ScopeCoverageTest(CheckTestCase):
         self.scope(['development'], ['old-thing'])
         names = [f'repo-{n}'
                  for n in range(github_config.ORG_LISTING_LIMIT - 1)]
-        result, _ = self.run_with(self.listing(*(names + [names[0]])))
-        self.assert_fail(result, 'may have been truncated')
+        self.assert_tool_failure(
+            lambda: self.run_with(self.listing(*(names + [names[0]]))),
+            'may have been truncated')
 
-    def test_a_listing_of_the_wrong_shape_fails_rather_than_raising(self):
-        # registry.run_all() has no per-check exception handling, and
-        # manage-issues and update-docs are needs-gated on the audit
-        # job: an exception here would stop issue filing and the
-        # compliance page for the whole fleet for the day.
+    def test_a_listing_of_the_wrong_shape_is_a_tool_failure(self):
+        # Valid JSON that is not a listing would otherwise raise a
+        # TypeError or KeyError deeper in, which is `error` too but
+        # reads as a bug in the audit rather than GitHub answering
+        # something unexpected.
         self.scope(['development'], ['old-thing'])
         for body in ['null', '{"repositories": []}', '[{"nom": "x"}]']:
             with self.subTest(body=body):
-                result, _ = self.run_with(CompletedCommand(stdout=body))
-                self.assert_fail(result, 'expected a list of repositories')
+                self.assert_tool_failure(
+                    lambda: self.run_with(CompletedCommand(stdout=body)),
+                    'expected a list of repositories')
 
     def test_a_matrix_that_cannot_be_parsed_fails_the_check(self):
         # The README rewording route is covered above; this is the same
@@ -670,30 +708,32 @@ class ScopeCoverageTest(CheckTestCase):
         result, _ = self.run_with(self.listing('development', 'old-thing'))
         self.assert_fail(result, 'Could not read the audit scope')
 
-    def test_a_timeout_on_one_name_keeps_the_rest_of_the_finding(self):
-        # The undecided set needs no API access at all, and it is the
-        # half of the check that matters. One slow call must not throw
-        # it away.
+    def test_a_timeout_on_one_name_is_a_tool_failure(self):
+        # Even beside a real undecided finding. The error leaves an
+        # issue already filed for it open, so an outage costs a new
+        # finding a day rather than filing one made of unresolved names.
         self.scope(['development'], ['gone', 'hidden'])
-        result, _ = self.run_with(
+        self.assert_tool_failure(lambda: self.run_with(
             self.listing('development', 'hidden', 'undecided',
                          private=('hidden',)),
-            gone=subprocess.TimeoutExpired('gh', 30))
-        self.assert_fail(
-            result, 'in neither the audit matrix nor the excluded list')
-        self.assertEqual(
-            result['missing'],
-            ['undecided (in the organisation, decided nowhere)',
-             'gone (unresolved: TimeoutExpired)'])
+            gone=subprocess.TimeoutExpired('gh', 30)),
+            'shakenfist/gone: timed out')
 
-    def test_a_timeout_is_reported_rather_than_raised(self):
+    def test_gh_missing_on_one_name_is_a_tool_failure(self):
+        self.scope(['development'], ['gone', 'hidden'])
+        self.assert_tool_failure(lambda: self.run_with(
+            self.listing('development', 'hidden', private=('hidden',)),
+            gone=FileNotFoundError('gh')),
+            'shakenfist/gone')
+
+    def test_a_timeout_listing_is_a_tool_failure(self):
         github = FakeGitHub({
             self.LISTING: subprocess.TimeoutExpired('gh', 60)})
         self.scope(['development'], ['old-thing'])
-        result = run_check(self.check_class(), self.fixture.path,
-                           name='development', github=github)
-        self.assert_fail(result, 'Could not list the shakenfist '
-                                 'organisation')
+        self.assert_tool_failure(
+            lambda: run_check(self.check_class(), self.fixture.path,
+                              name='development', github=github),
+            'the shakenfist organisation listing: timed out')
 
     def test_a_reworded_anchor_fails_naming_the_phrase(self):
         # The parse is anchored to phrases in documents that get
