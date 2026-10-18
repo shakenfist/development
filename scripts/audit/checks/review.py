@@ -13,11 +13,10 @@ attested from.
 import json
 import os
 import re
-import subprocess
 import sys
 import tempfile
 
-from audit.check import Check
+from audit.check import Check, ToolFailure, run_tool
 from audit.github import environment_without_credentials
 
 
@@ -193,32 +192,25 @@ class ReviewCoverage(Check):
                 'Human review tracking not deployed '
                 '(no .vscode/review-scope.toml)')
 
-        try:
-            result = subprocess.run(
-                [sys.executable, REVIEW_TRACKING_SCRIPT, 'status', '--json'],
-                cwd=repo.path, capture_output=True, text=True, timeout=60,
-            )
-        except subprocess.TimeoutExpired:
-            return self.fail('review-tracking.py status timed out')
-        except OSError as e:
-            # Reported rather than raised: run_check() has no handler,
-            # so an exception here costs the repository every other
-            # criterion too, the way an AttributeError once did in
-            # checks/packaging.py and text/python_source.py. The
-            # trigger is cwd, not the script path -- a missing
-            # review-tracking.py makes the interpreter exit non-zero
-            # and lands in the returncode branch below, whereas a
-            # repo.path that failed to clone or was cleaned up
-            # mid-run raises here before anything runs.
-            return self.fail(f'review-tracking.py status could not run: {e}')
+        # Every way this can go wrong is the tooling failing rather than
+        # the repository, so each raises and the result is `error`. A
+        # missing review-tracking.py makes the interpreter exit non-zero
+        # and lands in the returncode branch; a repo.path that failed to
+        # clone or was cleaned up mid-run fails as cwd, inside
+        # run_tool(), before anything runs.
+        result = run_tool(
+            [sys.executable, REVIEW_TRACKING_SCRIPT, 'status', '--json'],
+            'review-tracking.py status', timeout=60, cwd=repo.path,
+        )
         if result.returncode != 0:
-            return self.fail(
+            raise ToolFailure(
                 f'review-tracking.py status failed: '
                 f'{result.stderr.strip()}')
         try:
             status = json.loads(result.stdout)
-        except json.JSONDecodeError:
-            return self.fail('review-tracking.py status emitted unparseable JSON')
+        except json.JSONDecodeError as e:
+            raise ToolFailure(
+                'review-tracking.py status emitted unparseable JSON') from e
 
         # Imported reviews count: they attest to the same bytes, and
         # import verified the attestation when it recorded them. Named
@@ -284,34 +276,28 @@ class ReviewScopeCompleteness(Check):
                 'Human review tracking not deployed '
                 '(no .vscode/review-scope.toml)')
 
-        try:
-            result = subprocess.run(
-                [sys.executable, REVIEW_TRACKING_SCRIPT, 'scope-orphans',
-                 '--json'],
-                cwd=repo.path, capture_output=True, text=True, timeout=60,
-            )
-        except subprocess.TimeoutExpired:
-            return self.fail('review-tracking.py scope-orphans timed out')
-        except OSError as e:
-            return self.fail(
-                f'review-tracking.py scope-orphans could not run: {e}')
+        result = run_tool(
+            [sys.executable, REVIEW_TRACKING_SCRIPT, 'scope-orphans',
+             '--json'],
+            'review-tracking.py scope-orphans', timeout=60, cwd=repo.path,
+        )
         # Exit status 1 is the reportable outcome, not an error: the
         # subcommand exits non-zero precisely when there are orphans, so
         # only a status outside {0, 1} means the run itself broke.
         if result.returncode not in (0, 1):
-            return self.fail(
+            raise ToolFailure(
                 f'review-tracking.py scope-orphans failed: '
                 f'{result.stderr.strip()}')
         try:
             report = json.loads(result.stdout)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             # A crash in the script also exits 1, which is the status
             # orphans use, so this is where a broken run lands. Carry
-            # stderr through or the report says the output was malformed
+            # stderr through or the error says the output was malformed
             # when what actually happened was a traceback.
-            return self.fail(
+            raise ToolFailure(
                 f'review-tracking.py scope-orphans emitted unparseable '
-                f'JSON: {result.stderr.strip()}')
+                f'JSON: {result.stderr.strip()}') from e
 
         orphans = report.get('orphans', [])
         if not orphans:
@@ -371,112 +357,99 @@ class SfuiVendor(Check):
         if not vendored:
             return self.skip('No vendored sfui copy (no .sfui-commit file)')
 
+        # A clone, a checkout or a history query that fails is the
+        # audit's tooling failing, and raises. The statuses that are
+        # answers -- a commit that is not there, not merged, or a copy
+        # vendor.sh says differs -- are findings.
         problems = []
-        try:
-            with tempfile.TemporaryDirectory() as tmp:
-                canonical = os.path.join(tmp, 'sfui')
-                clone = subprocess.run(
+        with tempfile.TemporaryDirectory() as tmp:
+            canonical = os.path.join(tmp, 'sfui')
+            clone = run_tool(
+                [
+                    'git', 'clone', '--quiet',
+                    self.canonical_url or SFUI_CANONICAL_URL, canonical,
+                ],
+                'git clone of canonical sfui', timeout=120, env=env,
+            )
+            if clone.returncode != 0:
+                raise ToolFailure(
+                    f'Could not clone canonical sfui: '
+                    f'{clone.stderr.strip()}')
+
+            def git(*args, what):
+                return run_tool(
+                    ['git', '-C', canonical] + list(args),
+                    f'git {what} in canonical sfui', timeout=30, env=env)
+
+            for rel in vendored:
+                directory = os.path.join(repo.path, rel)
+                sha = (repo.read(os.path.join(rel, '.sfui-commit'))
+                       or '').strip()
+                if not re.fullmatch(r'[0-9a-f]{40}', sha):
+                    problems.append(
+                        f'{rel}: .sfui-commit does not contain a '
+                        f'commit sha'
+                    )
+                    continue
+
+                exists = git('cat-file', '-e', f'{sha}^{{commit}}',
+                             what='cat-file')
+                if exists.returncode != 0:
+                    problems.append(
+                        f'{rel}: recorded commit {sha[:9]} is not in '
+                        f'the canonical repository (vendored from a '
+                        f'dirty or unpushed tree?)'
+                    )
+                    continue
+
+                merged = git('merge-base', '--is-ancestor', sha,
+                             'origin/HEAD', what='merge-base')
+                if merged.returncode == 1:
+                    problems.append(
+                        f'{rel}: recorded commit {sha[:9]} is not on '
+                        f'the canonical default branch; vendor from a '
+                        f'merged commit'
+                    )
+                    continue
+                if merged.returncode != 0:
+                    raise ToolFailure(
+                        f'git merge-base in canonical sfui failed: '
+                        f'{merged.stderr.strip()}')
+
+                checkout = git('checkout', '--quiet', sha, what='checkout')
+                if checkout.returncode != 0:
+                    raise ToolFailure(
+                        f'git checkout in canonical sfui failed: '
+                        f'{checkout.stderr.strip()}')
+                verbatim = run_tool(
                     [
-                        'git', 'clone', '--quiet',
-                        self.canonical_url or SFUI_CANONICAL_URL, canonical,
+                        'bash',
+                        os.path.join(canonical, 'tools', 'vendor.sh'),
+                        '--check', os.path.abspath(directory),
                     ],
-                    capture_output=True, text=True, timeout=120,
-                    env=env,
+                    'tools/vendor.sh --check', timeout=60, env=env,
                 )
-                if clone.returncode != 0:
-                    return self.fail(
-                        f'Could not clone canonical sfui: '
-                        f'{clone.stderr.strip()}')
-
-                for rel in vendored:
-                    directory = os.path.join(repo.path, rel)
-                    sha = (repo.read(os.path.join(rel, '.sfui-commit'))
-                           or '').strip()
-                    if not re.fullmatch(r'[0-9a-f]{40}', sha):
-                        problems.append(
-                            f'{rel}: .sfui-commit does not contain a '
-                            f'commit sha'
-                        )
-                        continue
-
-                    exists = subprocess.run(
-                        [
-                            'git', '-C', canonical, 'cat-file', '-e',
-                            f'{sha}^{{commit}}',
-                        ],
-                        capture_output=True, text=True, timeout=30,
-                        env=env,
+                if verbatim.returncode != 0:
+                    problems.append(
+                        f'{rel}: differs from recorded commit '
+                        f'{sha[:9]} -- a vendored copy was edited in '
+                        f'place; move the change to the canonical '
+                        f'repository and re-vendor'
                     )
-                    if exists.returncode != 0:
-                        problems.append(
-                            f'{rel}: recorded commit {sha[:9]} is not in '
-                            f'the canonical repository (vendored from a '
-                            f'dirty or unpushed tree?)'
-                        )
-                        continue
 
-                    merged = subprocess.run(
-                        [
-                            'git', '-C', canonical, 'merge-base',
-                            '--is-ancestor', sha, 'origin/HEAD',
-                        ],
-                        capture_output=True, text=True, timeout=30,
-                        env=env,
+                behind = git('rev-list', '--count', f'{sha}..origin/HEAD',
+                             what='rev-list')
+                if behind.returncode != 0:
+                    raise ToolFailure(
+                        f'git rev-list in canonical sfui failed: '
+                        f'{behind.stderr.strip()}')
+                count = int(behind.stdout.strip())
+                if count > 0:
+                    problems.append(
+                        f'{rel}: {count} commit(s) behind canonical; '
+                        f're-run tools/vendor.sh from an up to date '
+                        f'sfui checkout'
                     )
-                    if merged.returncode == 1:
-                        problems.append(
-                            f'{rel}: recorded commit {sha[:9]} is not on '
-                            f'the canonical default branch; vendor from a '
-                            f'merged commit'
-                        )
-                        continue
-                    merged.check_returncode()
-
-                    subprocess.run(
-                        [
-                            'git', '-C', canonical, 'checkout', '--quiet',
-                            sha,
-                        ],
-                        capture_output=True, text=True, timeout=30,
-                        env=env,
-                        check=True,
-                    )
-                    verbatim = subprocess.run(
-                        [
-                            'bash',
-                            os.path.join(canonical, 'tools', 'vendor.sh'),
-                            '--check', os.path.abspath(directory),
-                        ],
-                        capture_output=True, text=True, timeout=60,
-                        env=env,
-                    )
-                    if verbatim.returncode != 0:
-                        problems.append(
-                            f'{rel}: differs from recorded commit '
-                            f'{sha[:9]} -- a vendored copy was edited in '
-                            f'place; move the change to the canonical '
-                            f'repository and re-vendor'
-                        )
-
-                    behind = subprocess.run(
-                        [
-                            'git', '-C', canonical, 'rev-list', '--count',
-                            f'{sha}..origin/HEAD',
-                        ],
-                        capture_output=True, text=True, timeout=30,
-                        env=env,
-                    )
-                    if (behind.returncode == 0
-                            and int(behind.stdout.strip()) > 0):
-                        count = int(behind.stdout.strip())
-                        problems.append(
-                            f'{rel}: {count} commit(s) behind canonical; '
-                            f're-run tools/vendor.sh from an up to date '
-                            f'sfui checkout'
-                        )
-        except (subprocess.TimeoutExpired, FileNotFoundError,
-                subprocess.CalledProcessError) as e:
-            return self.fail(f'Error checking vendored sfui: {e}')
 
         if problems:
             return self.fail('; '.join(problems))

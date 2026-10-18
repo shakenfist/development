@@ -14,8 +14,10 @@ import unittest.mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from audit import check as check_module  # noqa: E402
 from audit.checks import review  # noqa: E402
 from tests.base import CheckTestCase, FixtureRepo  # noqa: E402
+
 
 # review-coverage and review-scope-completeness shell out to
 # review-tracking.py, which needs a real checkout; the suite drives it
@@ -23,6 +25,35 @@ from tests.base import CheckTestCase, FixtureRepo  # noqa: E402
 SCRIPT = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     'audit-check.py')
+
+
+class StandInScriptMixin:
+    """Swapping review-tracking.py for a script that misbehaves.
+
+    The two review checks run review-tracking.py and read its JSON.
+    What they do when it does not answer -- cannot start, times out,
+    exits with a status that is not an answer, or prints something
+    that is not its report -- is the tool failing rather than the
+    repository, so each is a ToolFailure. These are the levers.
+    """
+
+    def use_script(self, stdout='', stderr='', returncode=0):
+        path = os.path.join(self.tempdir(), 'review-tracking.py')
+        with open(path, 'w') as f:
+            f.write('import sys\n'
+                    f'sys.stdout.write({stdout!r})\n'
+                    f'sys.stderr.write({stderr!r})\n'
+                    f'sys.exit({returncode})\n')
+        patcher = unittest.mock.patch.object(review, 'REVIEW_TRACKING_SCRIPT', path)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def run_raising(self, exception, **kwargs):
+        """self.check() with every subprocess.run raising `exception`."""
+        def boom(*args, **kwargs):
+            raise exception
+        with unittest.mock.patch.object(check_module.subprocess, 'run', boom):
+            return self.check(**kwargs)
 
 
 class ReviewMarksPreCommitTest(CheckTestCase):
@@ -111,7 +142,7 @@ class ReviewMarksPreCommitTest(CheckTestCase):
         self.assert_fail(self.check())
 
 
-class ReviewCoverageTest(CheckTestCase):
+class ReviewCoverageTest(StandInScriptMixin, CheckTestCase):
     """Tests ReviewCoverage against fixture git repositories.
 
     The check shells out to review-tracking.py status, which needs a
@@ -217,50 +248,42 @@ class ReviewCoverageTest(CheckTestCase):
             '2 of 2 in-scope files reviewed at HEAD; 0 need review '
             '(threshold 5)')
 
-    def test_oserror_is_reported_rather_than_raised(self):
-        # run_check() has no exception handler, so anything raised out
-        # of a check costs the repository all of its other criteria as
-        # well -- the failure mode recorded in checks/packaging.py and
-        # text/python_source.py. The window here is narrow: the scope
-        # file is checked before the exec, so reaching this needs the
-        # checkout to become unusable between the two. The guard is
-        # the same one every other shelling-out check already carries.
+    def test_an_unusable_checkout_is_a_tool_failure(self):
+        # The window is narrow: the scope file is checked before the
+        # exec, so reaching this needs the checkout to become unusable
+        # between the two. It is the tooling failing either way.
         files = [f'f{i}.py' for i in range(5)]
         self.make_reviewed_repo(files, reviewed=[])
+        self.assert_tool_failure(
+            lambda: self.run_raising(PermissionError(13, 'Permission denied')),
+            containing='review-tracking.py status could not run')
 
-        def boom(*args, **kwargs):
-            raise PermissionError(13, 'Permission denied')
+    def test_a_timeout_is_a_tool_failure(self):
+        self.make_reviewed_repo(['a.py'], reviewed=[])
+        self.assert_tool_failure(
+            lambda: self.run_raising(subprocess.TimeoutExpired('python3', 60)),
+            containing='review-tracking.py status timed out')
 
-        original = review.subprocess.run
-        review.subprocess.run = boom
-        try:
-            result = self.check()
-        finally:
-            review.subprocess.run = original
-        self.assertEqual(result['status'], 'fail', result['details'])
-        self.assertIn('could not run', result['details'])
-
-    def test_missing_script_is_reported_not_raised(self):
+    def test_a_missing_script_is_a_tool_failure(self):
         # The neighbouring failure mode, asserted so the two do not get
-        # conflated: a missing review-tracking.py does not raise,
-        # because sys.executable is what subprocess looks for. The
-        # interpreter exits non-zero and the returncode branch reports
-        # it. This is why the guard above is hardening rather than a
-        # fix for a live defect.
+        # conflated: a missing review-tracking.py does not fail to
+        # start, because sys.executable is what subprocess looks for.
+        # The interpreter exits non-zero and the returncode branch
+        # raises.
         files = [f'f{i}.py' for i in range(5)]
         self.make_reviewed_repo(files, reviewed=[])
-        original = review.REVIEW_TRACKING_SCRIPT
-        review.REVIEW_TRACKING_SCRIPT = os.path.join(
-            self.fixture.path, 'moved-away.py')
-        try:
-            result = self.check()
-        finally:
-            review.REVIEW_TRACKING_SCRIPT = original
-        self.assertEqual(result['status'], 'fail', result['details'])
-        self.assertIn('failed', result['details'])
+        with unittest.mock.patch.object(
+                review, 'REVIEW_TRACKING_SCRIPT',
+                os.path.join(self.fixture.path, 'moved-away.py')):
+            self.assert_tool_failure(self.check, containing='review-tracking.py status failed')
+
+    def test_unparseable_output_is_a_tool_failure(self):
+        self.make_reviewed_repo(['a.py'], reviewed=[])
+        self.use_script(stdout='not json')
+        self.assert_tool_failure(self.check, containing='unparseable JSON')
 
 
-class ReviewScopeCompletenessTest(CheckTestCase):
+class ReviewScopeCompletenessTest(StandInScriptMixin, CheckTestCase):
     """Tests ReviewScopeCompleteness against fixture repos.
 
     The check shells out to review-tracking.py scope-orphans, which
@@ -326,30 +349,42 @@ class ReviewScopeCompletenessTest(CheckTestCase):
         self.assert_fail(result)
         self.assertEqual(result['missing'], ['b.py', 'c.py'])
 
-    def test_oserror_is_reported_rather_than_raised(self):
-        # The mirror of ReviewCoverageTest's test of the same name.
-        # Both checks shell out and both grew the same handler, but
-        # only the coverage half was exercised, so the scope-orphans
-        # message -- a different string, reached by a different call
-        # -- was the untested one. Same reasoning as there: run_check()
-        # has no handler, so anything raised out of a check costs the
-        # repository all of its other criteria too.
+    def test_an_unusable_checkout_is_a_tool_failure(self):
+        # The mirror of ReviewCoverageTest's test of the same name: a
+        # different message, reached by a different call.
         self.commit('include = ["*.py"]\n', ['a.py', 'config.json'])
+        self.assert_tool_failure(
+            lambda: self.run_raising(PermissionError(13, 'Permission denied')),
+            containing='review-tracking.py scope-orphans could not run')
 
-        def boom(*args, **kwargs):
-            raise PermissionError(13, 'Permission denied')
+    def test_a_timeout_is_a_tool_failure(self):
+        self.commit('include = ["*.py"]\n', ['a.py'])
+        self.assert_tool_failure(
+            lambda: self.run_raising(subprocess.TimeoutExpired('python3', 60)),
+            containing='review-tracking.py scope-orphans timed out')
 
-        original = review.subprocess.run
-        review.subprocess.run = boom
-        try:
-            result = self.check()
-        finally:
-            review.subprocess.run = original
-        self.assertEqual(result['status'], 'fail', result['details'])
-        self.assertIn('scope-orphans could not run', result['details'])
+    def test_an_exit_status_that_is_not_an_answer_is_a_tool_failure(self):
+        # 0 and 1 are answers -- no orphans, and some -- so only a
+        # status outside them is the run breaking.
+        self.commit('include = ["*.py"]\n', ['a.py'])
+        self.use_script(stdout='{"orphans": []}', stderr='usage: ...', returncode=2)
+        self.assert_tool_failure(self.check, containing='scope-orphans failed: usage')
+
+    def test_a_crash_is_a_tool_failure_carrying_its_stderr(self):
+        # A traceback also exits 1, the status orphans use, so the
+        # unparseable output is where a crash is caught, and stderr is
+        # what says it was one.
+        self.commit('include = ["*.py"]\n', ['a.py'])
+        self.use_script(stdout='', stderr='Traceback: boom', returncode=1)
+        self.assert_tool_failure(self.check, containing='Traceback: boom')
+
+    def test_orphans_reported_with_status_one_are_a_finding(self):
+        self.commit('include = ["*.py"]\n', ['a.py'])
+        self.use_script(stdout='{"orphans": ["x.json"]}', returncode=1)
+        self.assertEqual(self.assert_fail(self.check())['missing'], ['x.json'])
 
 
-class SfuiVendorTest(CheckTestCase):
+class SfuiVendorTest(StandInScriptMixin, CheckTestCase):
     """Exercise SfuiVendor against fixture repositories.
 
     The canonical fixture is a tiny git repo carrying a stand-in
@@ -519,6 +554,48 @@ class SfuiVendorTest(CheckTestCase):
         result = self.check(check_args={'canonical_url': canonical})
         self.assert_fail(result,
                          containing='does not contain a commit sha')
+
+    def test_a_failed_clone_is_a_tool_failure(self):
+        # Whatever the vendored copy holds, the audit has nothing to
+        # compare it with: a fail would blame the consumer for an
+        # outage, and closes nothing it should.
+        tmp = self.tempdir()
+        self._make_consumer(tmp, '0' * 40)
+        self.assert_tool_failure(
+            lambda: self.check(check_args={'canonical_url': os.path.join(tmp, 'nowhere')}),
+            containing='Could not clone canonical sfui')
+
+    def test_a_clone_timeout_is_a_tool_failure(self):
+        tmp = self.tempdir()
+        self._make_consumer(tmp, '0' * 40)
+        self.assert_tool_failure(
+            lambda: self.run_raising(subprocess.TimeoutExpired('git', 120),
+                                     check_args={'canonical_url': tmp}),
+            containing='git clone of canonical sfui timed out')
+
+    def failing_git(self, subcommand):
+        """subprocess.run, except that `git <subcommand>` exits 128."""
+        real = subprocess.run
+
+        def run(args, *a, **kw):
+            if args[0] == 'git' and subcommand in args:
+                return subprocess.CompletedProcess(args, 128, '', f'fatal: {subcommand} broke')
+            return real(args, *a, **kw)
+        return unittest.mock.patch.object(check_module.subprocess, 'run', run)
+
+    def test_git_failing_after_the_clone_is_a_tool_failure(self):
+        # Each of these exits 128 for git failing, as opposed to the
+        # statuses that are answers: merge-base's 1 is "not merged",
+        # and is a finding.
+        for subcommand in ('merge-base', 'checkout', 'rev-list'):
+            with self.subTest(subcommand=subcommand):
+                tmp = self.tempdir()
+                canonical = self._make_canonical(tmp)
+                self._make_consumer(tmp, self._head(canonical))
+                with self.failing_git(subcommand):
+                    self.assert_tool_failure(
+                        lambda: self.check(check_args={'canonical_url': canonical}),
+                        containing=f'fatal: {subcommand} broke')
 
 
 if __name__ == '__main__':
