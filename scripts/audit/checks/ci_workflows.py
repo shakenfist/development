@@ -1011,9 +1011,10 @@ class CiReviewAutomation(Check):
             deployed = carries_retired_comment_addresser(repo.path)
             if deployed:
                 issues.append(addresser_retired_detail(deployed))
+            if issues and missing:
+                return self.fail('; '.join(issues), missing=missing)
             if issues:
-                extra = {'missing': missing} if missing else {}
-                return self.fail('; '.join(issues), **extra)
+                return self.fail('; '.join(issues))
             return self.ok('Developer automation workflows exist')
 
         issues = []
