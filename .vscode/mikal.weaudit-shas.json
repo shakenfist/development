@@ -313,10 +313,6 @@
       "sha": "e04ecd07e83e35f4534ab8d2af83c54b499a6035",
       "date": "2026-10-19"
     },
-    "docs/automated-pr-review.md": {
-      "sha": "c403aca61770909cbcad5a39cdb070e3621fea03",
-      "date": "2026-10-19"
-    },
     "docs/ci-review-automation.md": {
       "sha": "2e1d83cb3523df735fb92e24200923afab65ad4f",
       "date": "2026-10-19"
@@ -324,10 +320,6 @@
     "docs/code-review-tracking.md": {
       "sha": "b8778a9bcbbd432ea2c13e2551f40134ae75ff44",
       "date": "2026-10-16"
-    },
-    "docs/consistency-audits.md": {
-      "sha": "aef44f0f5db112f860887160c7cbf1e041dfbbc7",
-      "date": "2026-10-19"
     },
     "docs/release-automation.md": {
       "sha": "9807720ead26729e88b627892fbb73cb81edef91",
@@ -349,9 +341,41 @@
       "sha": "d54faddeed246c3b084571825d542bf04c1bb930",
       "date": "2026-09-02"
     },
+    "scripts/audit/checks/ci_workflows.py": {
+      "sha": "c2b444ee50aed766365c571974e99f48f5592f77",
+      "date": "2026-10-19"
+    },
     "scripts/audit/checks/distros.py": {
       "sha": "4f0f4391251374a00b66c7ad711b00e32dc2ad3d",
       "date": "2026-10-14"
+    },
+    "scripts/audit/checks/docs_content.py": {
+      "sha": "d23aace6aa4bf6e1db54ade3bd446fb2995ac32e",
+      "date": "2026-10-19"
+    },
+    "scripts/audit/checks/llm_docs.py": {
+      "sha": "833e40cc0de6afb4aa4fbe580cec3b545c513b51",
+      "date": "2026-10-19"
+    },
+    "scripts/audit/checks/npm_dependencies.py": {
+      "sha": "943ce339c00aa725090b244fb7037cc55791a388",
+      "date": "2026-10-19"
+    },
+    "scripts/audit/checks/packaging.py": {
+      "sha": "141782bb8f1ccd73eea1a55e31cb555833d34f2e",
+      "date": "2026-10-19"
+    },
+    "scripts/audit/checks/plans.py": {
+      "sha": "5ab880e15c8bae4eb2f7a12aac1192d5afb64e17",
+      "date": "2026-10-19"
+    },
+    "scripts/audit/checks/review.py": {
+      "sha": "f788d3519144769d532aa1091b826dcd1e87df62",
+      "date": "2026-10-19"
+    },
+    "scripts/audit/checks/runners.py": {
+      "sha": "aab016083a54431e0a6a93e30411dc975b061b45",
+      "date": "2026-10-19"
     },
     "scripts/audit/markers.py": {
       "sha": "ef1d4a20156613830ec787fde806cbf955e9501e",
