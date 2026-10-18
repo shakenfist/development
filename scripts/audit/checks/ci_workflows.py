@@ -395,6 +395,39 @@ def shared_confirm_input_findings(wf, steps, confirm):
     return []
 
 
+# The outputs pr-review-ref declares in resolve mode, as its action.yml
+# in shakenfist/actions names them. They are hyphenated where the
+# inline resolve step's were not (head_sha), which is the misname a
+# hand re-sync makes.
+CI_REVIEW_RESOLVE_OUTPUTS = ('ref', 'head-sha', 'merged', 'reason')
+
+STEP_OUTPUT_RE = re.compile(r'steps\.([\w-]+)\.outputs\.([\w-]+)')
+
+
+def shared_resolve_output_findings(wf, steps):
+    """Findings for a step reading an output pr-review-ref never sets.
+
+    An undeclared output reads as empty rather than failing, so a copy
+    half re-synced from the inline shape, in either direction, runs
+    with nothing in it: a confirm step fed an empty head sha fails
+    every run, and an inline one compares the checkout against the
+    empty string and reports every push as having moved. Reading every
+    step, rather than the confirm step's inputs alone, also covers the
+    checkout's ref and the fallback notice's reason.
+    """
+    resolvers = {step_keys(step).get('id') for step in steps
+                 if calls_shared_ref_action(step, 'resolve')}
+    for step in steps:
+        for match in STEP_OUTPUT_RE.finditer(strip_yaml_comments(step)):
+            step_id, output = match.groups()
+            if step_id in resolvers and output not in CI_REVIEW_RESOLVE_OUTPUTS:
+                return [
+                    f'{wf} reads steps.{step_id}.outputs.{output}, which '
+                    f'{CI_REVIEW_REF_ACTION} does not set in resolve mode, '
+                    f'so the step reading it is handed an empty value']
+    return []
+
+
 def confirm_step_findings(wf, content):
     """Findings for a re-review that does not confirm what it checked out.
 
@@ -409,12 +442,14 @@ def confirm_step_findings(wf, content):
     Two shapes are confirm steps. The template calls
     CI_REVIEW_REF_ACTION with `mode: confirm`, and that is accepted
     when it is unconditional and fed by the action's resolve mode: the
-    comparison is the action's, and is tested there. Copies made before the logic moved into the action
-    carry it as inline shell, and those are read from the step's shell
-    rather than its name, since the shell is what does the confirming:
-    a step which compares HEAD^2 is the confirm step, whatever it is
-    called. Both pass, so a repository that has not re-synced is not
-    filed against for a copy that works.
+    comparison is the action's, and is tested there. Copies made before
+    the logic moved into the action carry it as inline shell, and those
+    are read from the step's shell rather than its name, since the shell
+    is what does the confirming: a step which compares HEAD^2 is the
+    confirm step, whatever it is called. Both pass, so a repository that
+    has not re-synced is not filed against for a copy that works. A mix
+    of the two, half re-synced, passes only if no step reads an output
+    the action does not set.
 
     For the inline shape this measures the step's shape, not its
     semantics: a step which names both revisions but no longer compares
@@ -441,6 +476,9 @@ def confirm_step_findings(wf, content):
                     f'{wf} confirms the checkout on the merge path only, '
                     f'so a review of the head fallback can be of a '
                     f'commit the resolve step never validated']
+            misread = shared_resolve_output_findings(wf, steps)
+            if misread:
+                return misread
             if shared:
                 return shared_confirm_input_findings(wf, steps, step)
             return []

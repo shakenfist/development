@@ -105,10 +105,16 @@ The comparison itself lives in `pr-review-ref`, where its tests run
 every path against a stub `gh` and real git repositories, so a call to
 it is all that is measured, with what it is fed: a copy re-synced by
 hand from the inline shape keeps that shape's `head_sha` output name,
-which the action does not set, and confirms against nothing. The
-inline shape still passes because it works, and a repository should
-not be filed against for a copy that is correct; it is a re-sync to
-make when convenient, not a defect.
+which the action does not set, so the confirm step has no sha to
+confirm against and fails every run. The reverse half re-sync, an
+inline confirm step reading the action's resolve outputs by the old
+name, is worse: it compares the checkout against an empty sha and
+tells the requester the pull request moved, every run. So in a job
+that resolves through the action, any step reading an output the
+action does not set in resolve mode is a finding. The inline shape
+still passes because it works, and a repository should not be filed
+against for a copy that is correct; it is a re-sync to make when
+convenient, not a defect.
 
 **Same-repository pull requests only.** The diff is untrusted input,
 and the reviewer reads it on a shared, long-lived runner pool in a job

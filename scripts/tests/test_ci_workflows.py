@@ -852,8 +852,19 @@ class ForkGateAndConfirmStepTest(CheckTestCase):
         '        with:\n'
         '          mode: confirm\n')
 
-    def _inline(self, old=None, new=None):
-        """The template with its confirm step written out as inline shell."""
+    # The template's resolve call. Moving it out of resolve mode stands
+    # in for the inline resolve step of an old copy: what the criterion
+    # needs to know is only that the action is not resolving.
+    SHARED_RESOLVE_MODE = '          mode: resolve\n'
+
+    def _inline(self, old=None, new=None, resolve_inline=True):
+        """The template with its confirm step written out as inline shell.
+
+        With resolve_inline, the resolve step is not the action either,
+        as in a copy made before the action existed. Without it, the
+        copy is half re-synced: the action resolves and the old inline
+        step confirms.
+        """
         body = template_workflow('pr-re-review.yml')
         start = body.index(self.CONFIRM_STEP)
         end = body.index('      # Which ref was reviewed', start)
@@ -861,10 +872,40 @@ class ForkGateAndConfirmStepTest(CheckTestCase):
         if old is not None:
             self.assertIn(old, step)
             step = step.replace(old, new)
-        return body[:start] + step + body[end:]
+        body = body[:start] + step + body[end:]
+        if resolve_inline:
+            self.assertEqual(1, body.count(self.SHARED_RESOLVE_MODE))
+            body = body.replace(self.SHARED_RESOLVE_MODE, '          mode: inline\n')
+        return body
 
     def test_an_inline_confirm_step_passes(self):
         self.assert_pass(self._check(re_review=self._inline()))
+
+    def test_an_inline_confirm_step_after_a_shared_resolve_fails(self):
+        # Half re-synced the other way round: the action resolves and
+        # sets head-sha, and the inline step reads head_sha, which is
+        # empty, so every run reports that the pull request moved.
+        result = self._check(re_review=self._inline(resolve_inline=False))
+        self.assert_fail(result, containing=(
+            'reads steps.ref.outputs.head_sha, which '
+            'shakenfist/actions/pr-review-ref@main does not set in resolve mode'))
+
+    def test_an_inline_confirm_step_reading_the_action_outputs_passes(self):
+        # A half re-sync done with care: the inline step reads the
+        # action's own output names, and so confirms what it resolved.
+        re_review = self._inline(
+            'steps.ref.outputs.head_sha', 'steps.ref.outputs.head-sha',
+            resolve_inline=False)
+        self.assert_pass(self._check(re_review=re_review))
+
+    def test_any_step_reading_an_undeclared_resolve_output_fails(self):
+        # The fallback notice, not the confirm step: an undeclared
+        # output reads as empty, and the notice has a generic arm.
+        re_review = self._mutate(
+            'pr-re-review.yml', 'steps.ref.outputs.reason }}',
+            'steps.ref.outputs.fallback_reason }}')
+        self.assert_fail(self._check(re_review=re_review),
+                         containing='reads steps.ref.outputs.fallback_reason')
 
     def test_a_conditional_inline_confirm_step_fails(self):
         re_review = self._inline(
@@ -927,7 +968,7 @@ class ForkGateAndConfirmStepTest(CheckTestCase):
             'pr-re-review.yml', 'steps.ref.outputs.head-sha }}',
             'steps.ref.outputs.head_sha }}')
         self.assert_fail(self._check(re_review=re_review),
-                         containing='head-sha input is')
+                         containing='reads steps.ref.outputs.head_sha, which')
 
     def test_a_shared_confirm_step_without_merged_fails(self):
         re_review = self._mutate(
