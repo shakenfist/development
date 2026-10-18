@@ -439,6 +439,18 @@ CONTAINER_PATH_ACTIONS = {
 }
 
 
+def input_is(inputs, key, expected):
+    """Does a step input hold this boolean, however it is quoted?
+
+    step_with_inputs() returns raw values, quotes intact, but an action
+    receives every input as a string, so `true` and `"true"` arrive as
+    the same thing. Comparing the raw value reported a correctly set
+    `fail_on_unmatched_files: "true"` as missing. Case is folded too.
+    """
+    value = inputs.get(key, '')
+    return value.strip().strip('"').strip("'").lower() == expected
+
+
 def release_asset_issues(repo):
     """Findings for a release.yml which can publish an empty release.
 
@@ -490,7 +502,7 @@ def release_asset_issues(repo):
             if step_action(step) != DOWNLOAD_ARTIFACT_ACTION:
                 continue
             inputs = step_with_inputs(step)
-            if inputs.get('name') or inputs.get('merge-multiple') == 'true':
+            if inputs.get('name') or input_is(inputs, 'merge-multiple', 'true'):
                 continue
             issues.append(
                 f'the {name} job downloads artifacts without "name:" or '
@@ -500,8 +512,7 @@ def release_asset_issues(repo):
                 'publish job does')
 
         for step in attaching:
-            inputs = step_with_inputs(step)
-            if inputs.get('fail_on_unmatched_files') == 'true':
+            if input_is(step_with_inputs(step), 'fail_on_unmatched_files', 'true'):
                 continue
             issues.append(
                 f'the {name} job attaches release assets without '
@@ -528,8 +539,7 @@ def job_checks_out(body):
     for step in workflow_step_blocks(body):
         if step_action(step) != CHECKOUT_ACTION:
             continue
-        clean = step_with_inputs(step).get('clean', '')
-        if clean.strip().strip('"').strip("'").lower() == 'false':
+        if input_is(step_with_inputs(step), 'clean', 'false'):
             continue
         return True
     return False

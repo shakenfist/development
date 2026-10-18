@@ -11,7 +11,9 @@
 * A release job which attaches assets downloads them to a named
   destination (`name:` or `merge-multiple: true`) and sets
   `fail_on_unmatched_files: true`, so that a glob matching nothing
-  fails the job instead of publishing an empty release.
+  fails the job instead of publishing an empty release. A quoted
+  `"true"` is the same value: an action receives every input as a
+  string.
 * Where `release.yml` offers `workflow_dispatch`, its publishing jobs
   are confined to a pushed tag with
   `if: github.event_name == 'push' && startsWith(github.ref,

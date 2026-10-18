@@ -1485,6 +1485,17 @@ class ReleaseProcessTest(CheckTestCase):
             self.GUARDED_FILES)
         self.assert_pass(self.check(has_pyproject_toml=True))
 
+    def test_a_quoted_true_is_true(self):
+        """An action receives "true" and true as the same string."""
+        for quote in ('"', "'"):
+            self.release_workflow(
+                '        with:\n'
+                f'          merge-multiple: {quote}true{quote}\n'
+                '          path: ${{ runner.temp }}/dist/\n',
+                '          files: ${{ runner.temp }}/dist/*\n'
+                f'          fail_on_unmatched_files: {quote}true{quote}\n')
+            self.assert_pass(self.check(has_pyproject_toml=True))
+
     def test_a_release_attaching_no_files_is_not_asked_about_globs(self):
         """No "files:" means no assets by choice, not a broken glob."""
         self.release_workflow(
