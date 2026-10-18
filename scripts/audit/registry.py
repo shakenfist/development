@@ -92,6 +92,7 @@ CHECKS = [
     github_config.GithubSecurity(),
     github_config.DeleteBranchOnMerge(),
     github_config.MergeQueueConfig(),
+    github_config.ReleaseEnvironmentProtection(),
     github_config.ScopeCoverage(),
 ]
 

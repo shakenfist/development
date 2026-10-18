@@ -338,6 +338,294 @@ class DeleteBranchOnMergeTest(GithubConfigTestCase):
         }), containing='lack push access')
 
 
+class ReleaseEnvironmentProtectionTest(GithubConfigTestCase):
+    check_class = github_config.ReleaseEnvironmentProtection
+
+    RELEASE = """name: Release
+on:
+  push:
+    tags: ['v*']
+jobs:
+  build:
+    runs-on: [self-hosted, static]
+    steps:
+      - run: python -m build
+  sign-tag:
+    needs: build
+    environment: release
+    steps:
+      - run: true
+  publish-pypi:
+    needs: sign-tag
+    environment: release
+    steps:
+      - run: true
+"""
+
+    PROTECTED = {
+        'name': 'release',
+        'protection_rules': [
+            {'type': 'required_reviewers', 'prevent_self_review': False,
+             'reviewers': [{'type': 'User', 'reviewer': {'login': 'mikalstill'}}]},
+            {'type': 'branch_policy'},
+        ],
+        'deployment_branch_policy': {'protected_branches': False, 'custom_branch_policies': True},
+    }
+
+    TAG_ONLY = {'total_count': 1, 'branch_policies': [{'name': 'v*', 'type': 'tag'}]}
+
+    def setUp(self):
+        super().setUp()
+        self.fixture.workflow('release.yml', self.RELEASE)
+
+    def environment(self, name='release'):
+        return f'api {self.REPO_PATH}/environments/{name}'
+
+    def policies(self, name='release'):
+        return f'api {self.REPO_PATH}/environments/{name}/deployment-branch-policies?per_page=100'
+
+    def answers(self, name='release', environment=None, policies=None):
+        """The two answers for one environment, defaulting to a protected one."""
+        return {
+            self.environment(name): CompletedCommand(
+                stdout=json.dumps(self.PROTECTED if environment is None else environment)),
+            self.policies(name): CompletedCommand(
+                stdout=json.dumps(self.TAG_ONLY if policies is None else policies)),
+        }
+
+    def protected_except(self, **changes):
+        environment = dict(self.PROTECTED)
+        environment.update(changes)
+        return environment
+
+    def test_a_protected_environment_passes(self):
+        result = self.assert_pass(self.run_with(self.answers()))
+        self.assertIn('"release"', result['details'])
+
+    def test_each_environment_is_asked_about_once(self):
+        github = FakeGitHub(self.answers())
+        run_check(self.check_class(), self.fixture.path, github=github)
+        self.assertEqual([self.environment(), self.policies()], github.calls)
+
+    def test_no_release_workflow_is_not_applicable(self):
+        os.remove(os.path.join(self.fixture.path, '.github', 'workflows', 'release.yml'))
+        github = FakeGitHub()
+        result = run_check(self.check_class(), self.fixture.path, github=github)
+        self.assert_skip(result, containing='release.yml')
+        self.assertEqual([], github.calls)
+
+    def test_a_missing_environment_fails(self):
+        result = self.run_with({
+            self.environment(): CompletedCommand(returncode=1, stderr='gh: Not Found (HTTP 404)'),
+        })
+        self.assert_fail(result, containing='would create it unprotected')
+        self.assertIn('RELEASE-SETUP.md', result['details'])
+
+    def test_no_reviewers_rule_fails(self):
+        result = self.run_with(self.answers(environment=self.protected_except(
+            protection_rules=[{'type': 'branch_policy'}])))
+        self.assert_fail(result, containing='"release" environment has no required reviewer')
+
+    def test_a_reviewers_rule_with_no_reviewers_fails(self):
+        result = self.run_with(self.answers(environment=self.protected_except(
+            protection_rules=[{'type': 'required_reviewers', 'reviewers': []}])))
+        self.assert_fail(result, containing='no required reviewer')
+
+    def test_a_null_deployment_policy_fails(self):
+        result = self.run_with(self.answers(environment=self.protected_except(
+            deployment_branch_policy=None)))
+        self.assert_fail(result, containing='from any branch or tag')
+
+    def test_protected_branches_instead_of_custom_policies_fails(self):
+        result = self.run_with(self.answers(environment=self.protected_except(
+            deployment_branch_policy={'protected_branches': True, 'custom_branch_policies': False})))
+        self.assert_fail(result, containing='protected branches rather than to tags')
+
+    def test_an_empty_policy_list_fails(self):
+        result = self.run_with(self.answers(policies={'total_count': 0, 'branch_policies': []}))
+        self.assert_fail(result, containing='has none')
+
+    def test_a_branch_policy_beside_a_tag_policy_fails(self):
+        result = self.run_with(self.answers(policies={'total_count': 2, 'branch_policies': [
+            {'name': 'v*', 'type': 'tag'}, {'name': 'develop', 'type': 'branch'}]}))
+        self.assert_fail(result, containing='from branches as well as tags (develop)')
+
+    def test_a_policy_without_a_type_fails(self):
+        """A policy that does not say it is a tag is not read as one."""
+        result = self.run_with(self.answers(policies={'total_count': 1, 'branch_policies': [
+            {'name': 'v*'}]}))
+        self.assert_fail(result, containing='branches as well as tags')
+
+    def test_one_of_two_environments_failing_fails_naming_it(self):
+        self.fixture.workflow('release.yml', self.RELEASE + """  publish-proxy:
+    needs: sign-tag
+    environment: proxy
+    steps:
+      - run: true
+""")
+        responses = self.answers()
+        responses.update(self.answers('proxy', environment=self.protected_except(protection_rules=[])))
+        result = self.assert_fail(self.run_with(responses), containing='"proxy" environment')
+        self.assertNotIn('"release" environment', result['details'])
+
+    def test_a_mapping_environment_is_read_by_its_name(self):
+        self.fixture.workflow('release.yml', """jobs:
+  publish:
+    environment:
+      name: 'release'
+      url: https://pypi.org/p/thing
+    steps:
+      - run: true
+  sign:
+    environment: {name: "release", url: https://example.com}
+    steps:
+      - run: true
+""")
+        self.assert_pass(self.run_with(self.answers()))
+
+    def test_an_expression_environment_fails_without_asking(self):
+        self.fixture.workflow('release.yml', """jobs:
+  publish:
+    environment: ${{ inputs.target }}
+    steps:
+      - run: true
+""")
+        github = FakeGitHub()
+        result = run_check(self.check_class(), self.fixture.path, github=github)
+        self.assert_fail(result, containing='name it literally')
+        self.assertEqual([], github.calls)
+
+    def test_an_expression_inside_a_flow_mapping_fails_without_asking(self):
+        """The name is not cut out of the expression at its first brace."""
+        self.fixture.workflow('release.yml', """jobs:
+  publish:
+    environment: {name: ${{ inputs.target }}, url: https://example.com}
+    steps:
+      - run: true
+""")
+        github = FakeGitHub()
+        result = run_check(self.check_class(), self.fixture.path, github=github)
+        self.assert_fail(result, containing='name it literally')
+        self.assertIn('${{ inputs.target }}', result['details'])
+        self.assertEqual([], github.calls)
+
+    def test_an_expression_inside_a_block_mapping_fails_without_asking(self):
+        self.fixture.workflow('release.yml', """jobs:
+  publish:
+    environment:
+      name: ${{ inputs.target }}
+    steps:
+      - run: true
+""")
+        github = FakeGitHub()
+        result = run_check(self.check_class(), self.fixture.path, github=github)
+        self.assert_fail(result, containing='name it literally')
+        self.assertEqual([], github.calls)
+
+    def test_a_block_mapping_without_a_name_fails_without_asking(self):
+        self.fixture.workflow('release.yml', """jobs:
+  publish:
+    environment:
+      url: https://example.com
+    steps:
+      - run: true
+""")
+        github = FakeGitHub()
+        result = run_check(self.check_class(), self.fixture.path, github=github)
+        self.assert_fail(result, containing='the publish job has an environment with no name')
+        self.assertEqual([], github.calls)
+
+    def test_a_flow_mapping_without_a_name_fails_without_asking(self):
+        self.fixture.workflow('release.yml', """jobs:
+  publish:
+    environment: {url: https://example.com}
+    steps:
+      - run: true
+""")
+        github = FakeGitHub()
+        result = run_check(self.check_class(), self.fixture.path, github=github)
+        self.assert_fail(result, containing='the publish job has an environment with no name')
+        self.assertEqual([], github.calls)
+
+    def test_names_differing_only_in_case_are_asked_about_once(self):
+        workflow = self.RELEASE.replace(
+            'needs: sign-tag\n    environment: release', 'needs: sign-tag\n    environment: Release')
+        self.assertIn('environment: Release', workflow)
+        self.fixture.workflow('release.yml', workflow)
+        github = FakeGitHub(self.answers())
+        result = run_check(self.check_class(), self.fixture.path, github=github)
+        self.assert_pass(result)
+        self.assertEqual([self.environment(), self.policies()], github.calls)
+
+    def test_an_unterminated_expression_fails_without_asking(self):
+        """A malformed expression is still an expression, not a name to look up."""
+        self.fixture.workflow('release.yml', """jobs:
+  publish:
+    environment: ${{ inputs.target
+    steps:
+      - run: true
+""")
+        github = FakeGitHub()
+        result = run_check(self.check_class(), self.fixture.path, github=github)
+        self.assert_fail(result, containing='name it literally')
+        self.assertEqual([], github.calls)
+
+    def test_quoted_and_commented_scalars_are_read_as_the_name(self):
+        self.fixture.workflow('release.yml', """jobs:
+  sign:
+    environment: 'release'
+    steps:
+      - run: true
+  publish:
+    environment: "release"  # the reviewer gate
+    steps:
+      - run: true
+""")
+        github = FakeGitHub(self.answers())
+        self.assert_pass(run_check(self.check_class(), self.fixture.path, github=github))
+        self.assertEqual([self.environment(), self.policies()], github.calls)
+
+    def test_a_tag_policy_matching_every_tag_fails(self):
+        for pattern in ('*', '**'):
+            with self.subTest(pattern=pattern):
+                result = self.run_with(self.answers(policies={'total_count': 1, 'branch_policies': [
+                    {'name': pattern, 'type': 'tag'}]}))
+                self.assert_fail(result, containing=f'any tag at all ({pattern})')
+
+    def test_a_release_workflow_naming_no_environment_fails(self):
+        self.fixture.workflow('release.yml', """jobs:
+  build:
+    steps:
+      - run: true
+""")
+        self.assert_fail(self.run_with({}), containing='names no environment')
+
+    def test_a_403_is_a_tool_failure(self):
+        self.assert_tool_failure(lambda: self.run_with({
+            self.environment(): CompletedCommand(returncode=1, stderr='gh: Forbidden (HTTP 403)'),
+        }), containing='HTTP 403')
+
+    def test_a_timeout_is_a_tool_failure(self):
+        self.assert_tool_failure(lambda: self.run_with({
+            self.environment(): subprocess.TimeoutExpired(cmd='gh', timeout=30),
+        }), containing='timed out')
+
+    def test_a_policy_listing_error_is_a_tool_failure(self):
+        responses = self.answers()
+        responses[self.policies()] = CompletedCommand(returncode=1, stderr='gh: Forbidden (HTTP 403)')
+        self.assert_tool_failure(lambda: self.run_with(responses), containing='deployment policies')
+
+    def test_a_cut_policy_page_is_a_tool_failure(self):
+        responses = self.answers(policies={'total_count': 101, 'branch_policies': [
+            {'name': 'v*', 'type': 'tag'}]})
+        self.assert_tool_failure(lambda: self.run_with(responses), containing='101 policies')
+
+    def test_an_unparseable_environment_is_a_tool_failure(self):
+        self.assert_tool_failure(lambda: self.run_with({
+            self.environment(): CompletedCommand(stdout='not json'),
+        }), containing='Could not parse')
+
+
 class MergeQueueConfigApiTest(GithubConfigTestCase):
     """The API half; evaluate_merge_queue_rules is covered separately."""
 
