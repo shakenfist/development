@@ -109,10 +109,6 @@
       "sha": "e22c5606cf27d1a34c2af05cd7468c5f251dda64",
       "date": "2026-10-05"
     },
-    "docs/audits/dependency-name-normalization.md": {
-      "sha": "35fbd14b500e4b084143e48af2347dac29da7158",
-      "date": "2026-10-05"
-    },
     "docs/audits/diagram-format.md": {
       "sha": "633379faa29678fdaa8fd7890eab23b11a9bbfec",
       "date": "2026-10-05"
@@ -133,16 +129,8 @@
       "sha": "9812d895b4cb6fcf71431d1b27e51746960f5ea4",
       "date": "2026-10-07"
     },
-    "docs/audits/expensive-lane-path-filter.md": {
-      "sha": "589025a8d8ad1d95ac641ae00440fcbd44e18baa",
-      "date": "2026-10-14"
-    },
     "docs/audits/export-repo-config.md": {
       "sha": "28fad8b136775dd9a12a5a1ae2d74e0668a039fd",
-      "date": "2026-10-05"
-    },
-    "docs/audits/fuzz-nightly-reporting.md": {
-      "sha": "0ec4d94a3b989a3dded786fef7ec0a48d306914e",
       "date": "2026-10-05"
     },
     "docs/audits/llm-context-lint-ci.md": {
@@ -229,24 +217,12 @@
       "sha": "6e621917aa19f71bf65987b990becf9fa0f9d53e",
       "date": "2026-10-12"
     },
-    "docs/audits/release-process.md": {
-      "sha": "92a84b3ea9f590b75dcb36cf505cb1b94cdc1d07",
-      "date": "2026-10-05"
-    },
-    "docs/audits/renovate-lockstep-groups.md": {
-      "sha": "d026bd14334862ab010cc95a7da17de9a5351d6f",
-      "date": "2026-10-05"
-    },
     "docs/audits/renovate.md": {
       "sha": "654574616b93ebe228fb96e2dde3067b500b644f",
       "date": "2026-10-18"
     },
     "docs/audits/reusable-workflow-secrets.md": {
       "sha": "2ebc5177a729dd8b6025ea36afdd1b305f7b536f",
-      "date": "2026-10-05"
-    },
-    "docs/audits/rust-unwrap-lint.md": {
-      "sha": "38a4a91a1fbedecb2732061a8168c896bf7d60f3",
       "date": "2026-10-05"
     },
     "docs/audits/scheduled-workflow-health.md": {
@@ -281,10 +257,6 @@
       "sha": "179afb0f85bc331ee7c78e5e8c20c8b497b242c3",
       "date": "2026-10-05"
     },
-    "docs/audits/workflow-standards.md": {
-      "sha": "ab9a1e70ed5e0371828ef6351cc8a8073b94491a",
-      "date": "2026-10-18"
-    },
     "docs/automated-pr-review.md": {
       "sha": "d60479307223048db30a9651ee8492b89c8b4049",
       "date": "2026-08-30"
@@ -308,10 +280,6 @@
     "scripts/audit-check.py": {
       "sha": "97673b9e35622a6049cab81725d8554754e715b5",
       "date": "2026-09-04"
-    },
-    "scripts/audit-manage-issues.py": {
-      "sha": "90ebe0c28d8f42a61d95f6ce5b90cbef44fe167c",
-      "date": "2026-10-18"
     },
     "scripts/audit-update-docs.py": {
       "sha": "0414f862c1a529dd1445021bb1c812d80cde924b",
@@ -344,10 +312,6 @@
     "scripts/audit/text/shared_blocks.py": {
       "sha": "100a6bcd559df58c9dc57a27814d3bb846f59aef",
       "date": "2026-09-02"
-    },
-    "scripts/audit/text/workflows.py": {
-      "sha": "083939ee0bb94fe7744dfc5a9ede028cef205538",
-      "date": "2026-10-14"
     },
     "scripts/audit_common.py": {
       "sha": "46e35a9bc799f7b392ca9394edcc266a4bdb5b35",
@@ -401,10 +365,6 @@
       "sha": "84d34be6471d4e4765aeebf8197cab5849053b36",
       "date": "2026-09-22"
     },
-    "scripts/tests/test_manage_issues.py": {
-      "sha": "c440019fb5a3859c6094f15035098cc5173144db",
-      "date": "2026-10-18"
-    },
     "scripts/tests/test_markdown.py": {
       "sha": "0711e45d61ef3c789ef196402a7ed2a9117d347a",
       "date": "2026-10-12"
@@ -420,10 +380,6 @@
     "scripts/tests/test_review_tracking.py": {
       "sha": "13228a480cc5f25af118188794c77314fa354576",
       "date": "2026-10-16"
-    },
-    "scripts/tests/test_runners.py": {
-      "sha": "2357231af290771ef1e17891dac8d0c6bc42bfbc",
-      "date": "2026-10-14"
     },
     "templates/ci-review-automation/README.md": {
       "sha": "086d654adc49954ae423fae08757c4d49843e01b",

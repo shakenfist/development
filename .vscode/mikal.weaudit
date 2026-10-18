@@ -365,10 +365,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/rust-unwrap-lint.md",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/pr-re-review.yml",
       "author": "mikal"
     },
@@ -421,10 +417,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/fuzz-nightly-reporting.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/plan-audit-phase.md",
       "author": "mikal"
     },
@@ -433,15 +425,7 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/renovate-lockstep-groups.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/plan-template.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/dependency-name-normalization.md",
       "author": "mikal"
     },
     {
@@ -454,10 +438,6 @@
     },
     {
       "path": "docs/audits/plan-phase-references.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/release-process.md",
       "author": "mikal"
     },
     {
@@ -569,19 +549,7 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_runners.py",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/eol-distro.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/expensive-lane-path-filter.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/text/workflows.py",
       "author": "mikal"
     },
     {
@@ -661,10 +629,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/workflow-standards.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/ci-review-automation.md",
       "author": "mikal"
     },
@@ -717,19 +681,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_manage_issues.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_registry.py",
       "author": "mikal"
     },
     {
       "path": "scripts/audit_common.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit-manage-issues.py",
       "author": "mikal"
     },
     {
