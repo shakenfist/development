@@ -291,6 +291,10 @@ FROZEN_METADATA = {
         'spec': 'docs/audits/merge-queue-config.md',
         'template': None,
     },
+    'release-environment-protection': {
+        'spec': 'docs/audits/release-environment-protection.md',
+        'template': None,
+    },
     'eol-distro': {
         'spec': 'docs/audits/eol-distro.md',
         'template': None,
@@ -327,6 +331,7 @@ FROZEN_ISSUE_TITLES = {
     'github-security': 'GitHub security settings',
     'delete-branch-on-merge': 'Delete branch on merge',
     'merge-queue-config': 'Merge queue reasonability',
+    'release-environment-protection': 'Release environment protection',
     'workflow-permissions': 'Workflow standards',
     'pre-commit-config': 'Workflow standards (linting)',
     'review-marks-pre-commit': 'Workflow standards (review marks)',

@@ -1,11 +1,11 @@
 """The criteria about a repository's settings on GitHub.
 
 The default branch, the security features, whether merged branches are
-deleted, whether the merge queue is serialised, and whether the
-settings are exported into the repository where a diff can show them
-moving.
+deleted, whether the merge queue is serialised, whether the environment
+a release waits in is protected, and whether the settings are exported
+into the repository where a diff can show them moving.
 
-Four of the five ask the GitHub API rather than the checkout, which is
+All but one ask the GitHub API rather than the checkout, which is
 why they were the last family to move and why none of them had a test
 before the client seam existed. export-repo-config is here for what it
 is about rather than how it works: it reads the filesystem.
@@ -19,10 +19,14 @@ to.
 import json
 import re
 import subprocess
+import urllib.parse
 
 from audit import scope
 from audit.check import Check, ToolFailure
 from audit.files import workflows_inheriting_secrets_into
+from audit.text.workflows import (
+    EXPRESSION_RE, indented_block, job_level_keys, mapping_entries, workflow_job_blocks,
+)
 
 
 def evaluate_merge_queue_rules(rules):
@@ -278,6 +282,170 @@ class MergeQueueConfig(Check):
         return self.ok(
             f'Merge queue on "{branch}" is serialized '
             f'(max_entries_to_build 1, min_entries_to_merge 1)')
+
+
+# The flow-mapping spelling of a job's environment,
+# `environment: {name: release, url: ...}`, reduced to its name.
+FLOW_ENVIRONMENT_NAME_RE = re.compile(r'^\{.*?\bname\s*:\s*([^,}]+)')
+
+
+def unquote(value):
+    """A YAML scalar without the quotes around it."""
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in '\'"':
+        return value[1:-1]
+    return value
+
+
+def job_environment(body):
+    """The environment a job names, as written, or None.
+
+    `environment:` takes a name, or a mapping whose `name:` is the
+    name, in either block or flow form. A mapping without a name is
+    returned as the empty string rather than None: the job has the key,
+    and a caller that read it as absent would stop asking about it.
+    """
+    keys = job_level_keys(body)
+    if 'environment' not in keys:
+        return None
+    value = keys['environment']
+    if not value:
+        return unquote(mapping_entries(indented_block(body, 'environment')).get('name', ''))
+    match = FLOW_ENVIRONMENT_NAME_RE.match(value)
+    if match:
+        return unquote(match.group(1))
+    if value.startswith('{'):
+        return ''
+    return unquote(value)
+
+
+def parse_json_answer(result, what):
+    """The JSON object GitHub answered with, or ToolFailure."""
+    try:
+        answer = json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        raise ToolFailure(f'Could not parse {what}: {e}') from e
+    if not isinstance(answer, dict):
+        raise ToolFailure(f'Could not parse {what}: expected an object')
+    return answer
+
+
+class ReleaseEnvironmentProtection(Check):
+    id = 'release-environment-protection'
+    spec = 'docs/audits/release-environment-protection.md'
+    template = None
+    issue_title = 'Release environment protection'
+
+    WORKFLOW = 'release.yml'
+    SETUP = 'RELEASE-SETUP.md'
+
+    #: More deployment policies than this on one environment is a page
+    #: that may have been cut, and an unread policy could be a branch.
+    POLICY_PAGE = 100
+
+    def applies(self, repo):
+        """Only a repository that releases through release.yml has a gate to check."""
+        if repo.workflow(self.WORKFLOW) is None:
+            return f'No .github/workflows/{self.WORKFLOW}, so nothing is released through an environment'
+        return None
+
+    def run(self, repo):
+        """Check every environment release.yml names waits for a reviewer and a tag.
+
+        The environment is the only thing between a tag push and a
+        published release, and nothing in the checkout shows whether it
+        is configured: GitHub creates a referenced environment that
+        does not exist, with no protection at all, the first time a job
+        names it.
+        """
+        content = repo.workflow(self.WORKFLOW)
+        environments = []
+        problems = []
+        for job, body in workflow_job_blocks(content):
+            name = job_environment(body)
+            if name is None:
+                continue
+            if not name:
+                problems.append(
+                    f'the {job} job has an environment with no name, so it cannot be checked')
+            elif EXPRESSION_RE.search(name):
+                # Resolved at run time, so the audit cannot say which
+                # environment the job deploys to. It could be one that
+                # does not exist yet, which GitHub would create
+                # unprotected, so it is reported rather than passed.
+                problems.append(
+                    f'the {job} job names its environment with an expression ({name}), so the audit '
+                    'cannot confirm it is protected; name it literally')
+            elif name not in environments:
+                environments.append(name)
+
+        if not environments and not problems:
+            return self.fail(
+                f'{self.WORKFLOW} names no environment, so nothing in a release waits for a '
+                f'reviewer; gate the publishing jobs behind one as {self.SETUP} describes')
+
+        for name in environments:
+            problems.extend(self.environment_problems(repo, name))
+
+        if problems:
+            return self.fail('; '.join(problems) + f' (see {self.SETUP})')
+        listed = ', '.join(f'"{name}"' for name in environments)
+        return self.ok(
+            f'Every environment {self.WORKFLOW} names ({listed}) has a required reviewer and deploys '
+            'only from tags')
+
+    def environment_problems(self, repo, name):
+        """The ways one environment falls short, as a list of strings."""
+        path = f'repos/{repo.org}/{repo.name}/environments/{urllib.parse.quote(name, safe="")}'
+        what = f'the {name} environment'
+        try:
+            result = repo.github.api(path)
+        except subprocess.TimeoutExpired as e:
+            raise ToolFailure(f'Could not query GitHub for {what}: timed out') from e
+        except OSError as e:
+            raise ToolFailure(f'Could not query GitHub for {what}: {e}') from e
+        if result.returncode != 0:
+            if http_status(result.stderr) == 404:
+                return [f'the "{name}" environment does not exist, so GitHub would create it '
+                        'unprotected the first time a release job ran']
+            raise ToolFailure(f'Could not query GitHub for {what}: {describe_failure(result)}')
+        environment = parse_json_answer(result, what)
+
+        problems = []
+        rules = environment.get('protection_rules') or []
+        if not any(isinstance(rule, dict) and rule.get('type') == 'required_reviewers'
+                   and rule.get('reviewers') for rule in rules):
+            problems.append(f'the "{name}" environment has no required reviewer')
+
+        policy = environment.get('deployment_branch_policy')
+        if not isinstance(policy, dict):
+            problems.append(f'the "{name}" environment can be deployed from any branch or tag')
+            return problems
+        if policy.get('custom_branch_policies') is not True:
+            problems.append(
+                f'the "{name}" environment is limited to protected branches rather than to tags')
+            return problems
+
+        what = f'the deployment policies of the {name} environment'
+        result = repo.github.api_answer(
+            f'{path}/deployment-branch-policies?per_page={self.POLICY_PAGE}', what)
+        answer = parse_json_answer(result, what)
+        policies = answer.get('branch_policies')
+        if not isinstance(policies, list) or not all(isinstance(p, dict) for p in policies):
+            raise ToolFailure(f'Could not parse {what}: expected a list of policies')
+        if answer.get('total_count', len(policies)) != len(policies):
+            raise ToolFailure(
+                f'Could not read {what}: {answer.get("total_count")} policies, but '
+                f'{len(policies)} on the page')
+        if not policies:
+            problems.append(
+                f'the "{name}" environment allows custom deployment policies but has none, so no tag can release')
+        branches = sorted(str(p.get('name')) for p in policies if p.get('type') != 'tag')
+        if branches:
+            problems.append(
+                f'the "{name}" environment can be deployed from branches as well as tags '
+                f'({", ".join(branches)})')
+        return problems
 
 
 def http_status(stderr):

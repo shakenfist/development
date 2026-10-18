@@ -124,6 +124,11 @@ permissions, each read-only:
   `security_and_analysis`, which GitHub leaves out of the repository
   for a caller without admin access.
 
+These are enough for `release-environment-protection` too: the token
+was confirmed on 2026-10-19 to read both
+`environments/<name>` and its `deployment-branch-policies` without a
+separate Environments permission.
+
 Each leg checks first that the read token is set -- an unset secret
 is an empty string, and `gh` with an empty `GH_TOKEN` falls back to
 whatever login the runner's user holds -- and that it can see those
