@@ -22,10 +22,55 @@ MD_HEADING_RE = re.compile(r'^(#{1,6})\s+(.*)$')
 MD_TABLE_SEPARATOR_RE = re.compile(r'^[\s|:-]+$')
 
 
+#: What iter_fence_roles() says a line is: prose, or the opening
+#: marker, body or closing marker of a fenced block.
+OUTSIDE = 'outside'
+FENCE_OPENER = 'opener'
+FENCE_BODY = 'body'
+FENCE_CLOSER = 'closer'
+
+
+def iter_fence_roles(lines):
+    """Yield (offset, line, role) for each line, role one of the above.
+
+    The one fence loop in this package. Every reader here that has to
+    tell fenced code from prose -- the structure readers, the
+    generated-block blanker, the link scanner's code stripper and the
+    diagram finder -- asks it, so they cannot disagree about where a
+    fence ends. They had a loop each, and four copies of a state
+    machine are four chances for one of them to learn a fence rule the
+    others do not.
+
+    Both fence characters are recognised, and a block is closed only
+    by its own marker, so a ``` shown inside a ~~~ block does not end
+    it. A fence left open runs to the end of the document: its lines
+    are all FENCE_BODY and no FENCE_CLOSER follows, which is how a
+    caller that wants only complete blocks tells.
+    """
+    fence = None
+    for offset, line in enumerate(lines):
+        stripped = line.lstrip()
+        marker = stripped[:3] if stripped[:3] in ('```', '~~~') else None
+
+        if fence is not None:
+            if marker == fence:
+                fence = None
+                yield offset, line, FENCE_CLOSER
+            else:
+                yield offset, line, FENCE_BODY
+            continue
+        if marker is not None:
+            fence = marker
+            yield offset, line, FENCE_OPENER
+            continue
+
+        yield offset, line, OUTSIDE
+
+
 def iter_lines_outside_fences(lines):
     """Yield (offset, line) for each line, blanking fenced code.
 
-    The one fence loop the markdown-structure readers in this package
+    The fence pass the markdown-structure readers in this package
     share. A `## foo` or a `| Phase |` row inside a fenced block is
     sample text rather than document structure, and every caller that
     reads structure has to skip it.
@@ -39,33 +84,14 @@ def iter_lines_outside_fences(lines):
     second. It is the same choice blank_generated_blocks makes, for
     the same reason.
 
-    Both fence characters are recognised, and a block is closed only
-    by its own marker, so a ``` shown inside a ~~~ block does not end
-    it. An unterminated fence blanks the rest of the document, which
-    is what the heading scan has always done: a malformed file reads
-    as having no structure after the stray marker rather than as
-    having structure invented from its code.
+    Fences are read by iter_fence_roles(). An unterminated fence blanks
+    the rest of the document, which is what the heading scan has
+    always done: a malformed file reads as having no structure after
+    the stray marker rather than as having structure invented from its
+    code.
     """
-    fence = None
-    for offset, line in enumerate(lines):
-        stripped = line.lstrip()
-        marker = None
-        if stripped.startswith('```'):
-            marker = '```'
-        elif stripped.startswith('~~~'):
-            marker = '~~~'
-
-        if fence is not None:
-            if marker == fence:
-                fence = None
-            yield offset, ''
-            continue
-        if marker is not None:
-            fence = marker
-            yield offset, ''
-            continue
-
-        yield offset, line
+    for offset, line, role in iter_fence_roles(lines):
+        yield offset, line if role == OUTSIDE else ''
 
 
 # An ATX heading's optional closing sequence of hashes, which
@@ -250,18 +276,11 @@ def blank_generated_blocks(markdown):
     """
     lines = markdown.splitlines()
     blanked = list(lines)
-    fence = None
     start = None
-    for index, line in enumerate(lines):
+    for index, line, role in iter_fence_roles(lines):
+        if role != OUTSIDE:
+            continue
         stripped = line.strip()
-        opener = stripped[:3] if stripped[:3] in ('```', '~~~') else None
-        if fence is not None:
-            if opener == fence:
-                fence = None
-            continue
-        if opener is not None:
-            fence = opener
-            continue
         if start is None:
             if stripped == BEGIN_MARKER:
                 start = index
@@ -286,23 +305,8 @@ def strip_markdown_code(markdown):
     text). Markdown does not render links inside code, so we must not
     audit them either.
     """
-    out = []
-    fence = None
-    for line in markdown.splitlines():
-        stripped = line.lstrip()
-        marker = None
-        if stripped.startswith('```'):
-            marker = '```'
-        elif stripped.startswith('~~~'):
-            marker = '~~~'
-
-        if fence is None:
-            if marker is not None:
-                fence = marker
-                continue
-            out.append(line)
-        elif marker == fence:
-            fence = None
+    out = [line for _, line, role in iter_fence_roles(markdown.splitlines())
+           if role == OUTSIDE]
 
     # Inline code spans. A span may wrap across lines -- prose wrapped
     # at 65 columns does it constantly -- but it cannot contain a
@@ -355,33 +359,19 @@ def link_target_is_relative(raw):
 def iter_fenced_blocks(content):
     """Yield (language, start line, body lines) for each code fence.
 
-    Both fence characters are recognised, and a block is closed only
-    by its own marker, so a ``` inside a ~~~ block does not end it.
-    An unterminated fence yields nothing, which is the safe direction:
-    a malformed document is not evidence of a diagram.
+    Fences are read by iter_fence_roles(), so a ``` inside a ~~~ block
+    does not end it. An unterminated fence yields nothing, which is the
+    safe direction: a malformed document is not evidence of a diagram.
     """
-    fence = None
     lang = ''
     start = 0
     body = []
-    for lineno, line in enumerate(content.splitlines(), 1):
-        stripped = line.lstrip()
-        if stripped.startswith('```'):
-            marker = '```'
-        elif stripped.startswith('~~~'):
-            marker = '~~~'
-        else:
-            marker = None
-
-        if fence is not None:
-            if marker == fence:
-                yield lang, start, body
-                fence = None
-                body = []
-            else:
-                body.append(line)
-        elif marker is not None:
-            fence = marker
-            lang = stripped[3:].strip()
-            start = lineno
+    for offset, line, role in iter_fence_roles(content.splitlines()):
+        if role == FENCE_OPENER:
+            lang = line.lstrip()[3:].strip()
+            start = offset + 1
             body = []
+        elif role == FENCE_BODY:
+            body.append(line)
+        elif role == FENCE_CLOSER:
+            yield lang, start, body
