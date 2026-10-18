@@ -262,9 +262,9 @@ class VmRunnerSize(Check):
     def run(self, repo):
         """Check that every 'vm' runner job names a size.
 
-        This is the complement of check_static_runner_tags(): a static job
-        must name *no* size because the static pool advertises none, and a
-        vm job must name *one* because the conductor otherwise picks for
+        This is the complement of StaticRunnerTags: a static job must
+        name *no* size because the static pool advertises none, and a vm
+        job must name *one* because the conductor otherwise picks for
         it. The two failures look nothing alike -- an over-labelled static
         job is never scheduled and is noticed within one run, whereas an
         under-labelled vm job runs perfectly well on a machine nobody

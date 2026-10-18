@@ -224,7 +224,7 @@ class ReadmeStructure(Check):
         """Check that the top-level README.md reads as a pitch.
 
         "Is this a good pitch" is a judgment call enforced at push time by
-        the readme-discipline shared block (see check_push_audit); this
+        the readme-discipline shared block (see PushAudit); this
         check enforces the measurable proxies: a length cap, and a link
         into docs/ when a docs/ directory exists.
         """

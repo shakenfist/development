@@ -138,8 +138,8 @@ class ReviewMarksPreCommit(Check):
         """Check review marks are exempt from file-rewriting pre-commit hooks.
 
         Applies only to repositories with review tracking deployed,
-        detected the same way check_review_coverage does, and then only
-        where a rewriting hook is actually configured. The weAudit state
+        detected the same way ReviewCoverage does, and then only where a
+        rewriting hook is actually configured. The weAudit state
         files are generated, and the generator emits no trailing newline,
         so end-of-file-fixer rewrites them on every `pre-commit run
         --all-files`. That reports a failure nobody can fix: committing
