@@ -254,6 +254,16 @@ class OrphanSkillMarkdownTest(CheckTestCase):
         with unittest.mock.patch.dict(os.environ, {llm_docs.SKILLSAW_ENV: missing}):
             self.assert_tool_failure(self.check, containing='skillsaw could not run')
 
+    def test_orphans_are_reported_without_skillsaw(self):
+        # They are found without it, so they are a verdict whether or
+        # not it ran; the details say that it did not.
+        self.fixture.write('.claude/skills/debug-ci.md', '# Debug\n')
+        missing = os.path.join(self.tempdir(), 'no-such-skillsaw')
+        with unittest.mock.patch.dict(os.environ, {llm_docs.SKILLSAW_ENV: missing}):
+            result = self.check()
+        self.assert_fail(result, containing='debug-ci.md')
+        self.assertIn('skillsaw was not run (skillsaw could not run', result['details'])
+
 
 class SkillsawInvocationTest(CheckTestCase):
     """Which skillsaw the check runs, and what reaches its environment."""
@@ -325,6 +335,27 @@ class SkillsawInvocationTest(CheckTestCase):
                 self.stand_in_printing(output)
                 with unittest.mock.patch.dict(os.environ, {llm_docs.SKILLSAW_ENV: self.stand_in}):
                     self.assert_tool_failure(self.check, containing='listing violations')
+
+    MIXED = ('{"violations": ['
+             '{"severity": "warning", "rule_id": "style-opinion", "file_path": "CLAUDE.md"}, '
+             '{"severity": "info", "rule_id": "a-note", "file_path": "CLAUDE.md"}, '
+             '{"severity": "error", "rule_id": "bad-frontmatter", "file_path": "x/SKILL.md"}]}')
+
+    def test_only_error_severity_is_reported(self):
+        # The warning and info tiers are style opinions; counting them
+        # would file this criterion on every repository with context.
+        self.stand_in_printing(self.MIXED)
+        with unittest.mock.patch.dict(os.environ, {llm_docs.SKILLSAW_ENV: self.stand_in}):
+            result = self.check()
+        self.assert_fail(result, containing='bad-frontmatter (x/SKILL.md)')
+        self.assertNotIn('style-opinion', result['details'])
+        self.assertNotIn('a-note', result['details'])
+
+    def test_warnings_alone_pass(self):
+        self.stand_in_printing(
+            '{"violations": [{"severity": "warning", "rule_id": "style-opinion"}]}')
+        with unittest.mock.patch.dict(os.environ, {llm_docs.SKILLSAW_ENV: self.stand_in}):
+            self.assert_pass(self.check())
 
     def test_a_clean_report_passes_whatever_the_exit_status(self):
         # The exit status is not read: the report is the answer.
