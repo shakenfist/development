@@ -457,6 +457,19 @@ def job_outputs(body):
     return mapping_entries(indented_block(body, 'outputs'))
 
 
+def job_with_inputs(body):
+    """The `with:` inputs a job passes to a reusable workflow.
+
+    Read as step_with_inputs() reads a step's: the top level of the
+    mapping only, with a trailing comment dropped, so two values that
+    differ only in what a comment says about them are the same value
+    -- which is what GitHub passes. A block scalar is recorded as its
+    indicator: it is present, which is what merge-group-cancellation's
+    collision check asks about.
+    """
+    return mapping_entries(indented_block(body, 'with'))
+
+
 def mapping_entries(block):
     """The top-level `key: value` pairs of a mapping block, as a dict.
 

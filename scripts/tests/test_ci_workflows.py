@@ -1455,6 +1455,19 @@ class MergeGroupCancellationTest(CheckTestCase):
         )})
         self.assert_fail(result, containing='passes the same concurrency_key')
 
+    def test_a_key_differing_only_in_its_comment_is_the_same_key(self):
+        # The comment is not part of the value GitHub passes, so the
+        # two invocations land in one group and cancel each other.
+        result = self._check({'ci.yml': (
+            'on:\n  merge_group:\njobs:\n'
+            + self._caller(
+                'merge_tier', '      concurrency_key: full  # merge tier\n')
+            + self._caller(
+                'ansible_modules',
+                '      concurrency_key: full  # ansible modules\n')
+        )})
+        self.assert_fail(result, containing='passes the same concurrency_key')
+
     def test_a_matrix_caller_must_vary_its_key(self):
         # shakenfist runs four nested clusters through one callee from
         # a single matrix job. Varying topology and base image is not
