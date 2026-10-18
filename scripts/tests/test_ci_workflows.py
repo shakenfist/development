@@ -1256,6 +1256,25 @@ class MergeGroupCancellationTest(CheckTestCase):
         )})
         self.assert_fail(result)
 
+    def test_a_flow_style_reusable_workflow_is_audited(self):
+        # `on: [workflow_call]` is as reusable as the block form, and
+        # was read as no trigger at all.
+        result = self._check({'smoke-cluster.yml': (
+            'on: [workflow_call]\njobs:\n'
+            + self._job(self.QUEUE_REF_KEY)
+        )})
+        self.assert_fail(result, containing='smoke-cluster.yml:cluster')
+
+    def test_a_trigger_name_below_jobs_is_not_a_trigger(self):
+        # A job id that happens to be a trigger's name sits at a
+        # trigger's indentation; only the header holds triggers.
+        result = self._check({'ci.yml': (
+            'on:\n  push:\njobs:\n'
+            + self._job(self.QUEUE_REF_KEY).replace(
+                '  cluster:', '  merge_group:')
+        )})
+        self.assert_skip(result, containing='No merge_group or reusable')
+
     def test_a_reusable_workflow_is_audited_despite_an_in_repo_caller(self):
         # Inferring reachability from in-repo callers exempted
         # smoke-cluster.yml on the strength of a scheduled canary

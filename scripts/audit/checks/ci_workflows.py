@@ -1413,16 +1413,22 @@ class MergeGroupCancellation(Check):
         for wf in sorted(workflows):
             content = repo.workflow(wf)
 
+            # Triggers are read from the header alone, and in both
+            # spellings: `on: [workflow_call]` is as reusable as the
+            # block form, and a key below jobs: is never a trigger.
+            header = workflow_header(content)
             triggered = bool(
-                MERGE_GROUP_TRIGGER_RE.search(content)
-                or MERGE_GROUP_FLOW_RE.search(content)
+                MERGE_GROUP_TRIGGER_RE.search(header)
+                or MERGE_GROUP_FLOW_RE.search(header)
             )
-            reusable = bool(WORKFLOW_CALL_TRIGGER_RE.search(content))
+            reusable = bool(
+                WORKFLOW_CALL_TRIGGER_RE.search(header)
+                or WORKFLOW_CALL_FLOW_RE.search(header)
+            )
             if not (triggered or reusable):
                 continue
             saw_merge_group = True
 
-            header = workflow_header(content)
             if MERGE_GROUP_CANCEL_EXCEPTION_RE.search(header):
                 continue
 
