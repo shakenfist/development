@@ -122,6 +122,11 @@ class ExpensiveLanePathFilterTest(CheckTestCase):
       - run: pre-commit run skillsaw --all-files
 """
 
+    def test_an_empty_workflows_directory_does_not_apply(self):
+        self.fixture.workflows({})
+        self.assert_skip(self.check(has_workflows_dir=True),
+                         containing='No workflow files found')
+
     def _check(self, workflows):
         """The check over a repository made of these workflows.
 
@@ -1257,6 +1262,11 @@ class MergeGroupCancellationTest(CheckTestCase):
       cancel-in-progress: true
 """
 
+    def test_an_empty_workflows_directory_does_not_apply(self):
+        self.fixture.workflows({})
+        self.assert_skip(self.check(has_workflows_dir=True),
+                         containing='No workflow files found')
+
     def _job(self, concurrency='', runs_on='[self-hosted, vm, debian-12, l]',
              condition=''):
         return (
@@ -1826,6 +1836,11 @@ class DevpiStaleIpTest(CheckTestCase):
 
 class SecretScanningCiTest(CheckTestCase):
     check_class = ci_workflows.SecretScanningCi
+
+    def test_an_empty_workflows_directory_does_not_apply(self):
+        self.fixture.workflows({})
+        self.assert_skip(self.check(has_workflows_dir=True),
+                         containing='No workflow files found')
 
     def test_a_docs_only_repository_does_not_apply(self):
         self.assert_skip(self.check(is_docs_only=True),
