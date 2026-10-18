@@ -753,10 +753,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/consistency-audits.md",
-      "author": "mikal"
-    },
-    {
       "path": "ARCHITECTURE.md",
       "author": "mikal"
     },
@@ -833,10 +829,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_review.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit_common.py",
       "author": "mikal"
     },
@@ -850,14 +842,6 @@
     },
     {
       "path": "scripts/check-audit-smoke.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/review.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/llm_docs.py",
       "author": "mikal"
     },
     {
