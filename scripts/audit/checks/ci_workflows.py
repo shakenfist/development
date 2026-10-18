@@ -243,15 +243,9 @@ def pr_auto_review_callers_inheriting_secrets(repo):
     The shared workflow's own header tells callers not to do this. An
     earlier version of templates/ci-review-automation/README.md told
     them to, which is how nine repositories came to, so this is checked
-    rather than left to the template being right from here on. Run
-    against fresh clones of the whole matrix on 2026-08-22 it reported
-    two of them rather than zero, so it is a guard which has seen real
-    repositories and not only fixtures. Which repositories are
-    outstanding today is the ci-review-automation section of
-    docs/audits/compliance.md, which regenerates weekly. That is
-    deliberately not restated here: one of the two the survey named had
-    merged its own removal within the day, and this change is the
-    other.
+    rather than left to the template being right from here on. Which
+    repositories still do is the ci-review-automation section of
+    docs/audits/compliance.md, which regenerates weekly.
 
     Returns the workflow files whose reviewer job still inherits.
     """
