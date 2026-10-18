@@ -253,6 +253,104 @@ class ExpensiveLanePathFilterTest(CheckTestCase):
         )})
         self.assert_pass(result)
 
+    # The exclusions themselves, and where they are read from.
+
+    IGNORING = ('on:\n  pull_request:\n    paths-ignore:\n'
+                "      - 'docs/**'\n      - 'REVIEWS.md'\njobs:\n")
+
+    def test_a_filter_not_excluding_docs_fails(self):
+        result = self._check({'ci.yml': (
+            'on:\n  pull_request:\n    paths-ignore:\n'
+            "      - 'README.md'\njobs:\n" + self.LINT_JOB)})
+        self.assert_fail(result, containing='does not exclude docs/')
+
+    def test_a_filter_not_excluding_review_marks_fails(self):
+        self.fixture.write('.vscode/review-scope.toml', '')
+        result = self._check({'ci.yml': (
+            'on:\n  pull_request:\n    paths-ignore:\n'
+            "      - 'docs/**'\njobs:\n" + self.LINT_JOB)})
+        self.assert_fail(result, containing='does not exclude review marks')
+
+    def test_a_filter_excluding_both_passes(self):
+        self.fixture.write('.vscode/review-scope.toml', '')
+        self.assert_pass(self._check({'ci.yml': self.IGNORING + self.LINT_JOB}))
+
+    def test_an_inline_paths_ignore_list_is_read(self):
+        result = self._check({'ci.yml': (
+            "on:\n  pull_request:\n    paths-ignore: ['docs/**']\njobs:\n"
+            + self.LINT_JOB)})
+        self.assert_pass(result)
+
+    def test_an_inclusion_list_passes(self):
+        result = self._check({'ci.yml': (
+            'on:\n  pull_request:\n    paths:\n'
+            "      - 'src/**'\njobs:\n" + self.LINT_JOB)})
+        self.assert_pass(result)
+
+    def test_a_push_trigger_filter_does_not_filter_pull_requests(self):
+        # The inclusion list applies to pushes only, so every pull
+        # request still runs the lane unfiltered.
+        for key in ('paths', 'paths-ignore'):
+            with self.subTest(key=key):
+                self.fresh_fixture()
+                result = self._check({'ci.yml': (
+                    f'on:\n  push:\n    branches: [main]\n    {key}:\n'
+                    "      - 'docs/**'\n  pull_request:\njobs:\n"
+                    + self.LINT_JOB)})
+                self.assert_fail(result, containing='ci.yml (no path filtering)')
+
+    def test_an_exclusion_named_only_in_a_comment_does_not_count(self):
+        result = self._check({'ci.yml': (
+            'on:\n  pull_request:\n    paths-ignore:\n'
+            "      - 'README.md'  # TODO: also ignore docs/**\njobs:\n"
+            + self.LINT_JOB)})
+        self.assert_fail(result, containing='does not exclude docs/')
+
+    def test_an_exclusion_on_the_push_trigger_does_not_count(self):
+        result = self._check({'ci.yml': (
+            "on:\n  push:\n    paths-ignore:\n      - 'docs/**'\n"
+            "  pull_request:\n    paths-ignore:\n      - 'README.md'\n"
+            'jobs:\n' + self.LINT_JOB)})
+        self.assert_fail(result, containing='does not exclude docs/')
+
+    def test_a_filter_job_named_only_in_a_comment_does_not_count(self):
+        result = self._check({'ci.yml': (
+            'on:\n  pull_request:\n'
+            '# TODO: dorny/paths-filter, excluding docs/**\njobs:\n'
+            + self.LINT_JOB)})
+        self.assert_fail(result, containing='ci.yml (no path filtering)')
+
+    def test_a_filter_job_is_judged_by_the_whole_file(self):
+        result = self._check({'ci.yml': (
+            'on:\n  pull_request:\njobs:\n'
+            '  check_paths:\n    runs-on: [self-hosted, static]\n'
+            '    steps:\n      - uses: dorny/paths-filter@v3\n'
+            '        with:\n          filters: |\n            code:\n'
+            "              - '!docs/**'\n" + self.LINT_JOB)})
+        self.assert_pass(result)
+
+    def test_the_marked_exception_passes(self):
+        result = self._check({'ci.yml': (
+            'on:\n  pull_request:\n'
+            '# audit-ok: no-path-filter -- docs are the product here\n'
+            'jobs:\n' + self.LINT_JOB)})
+        self.assert_pass(result)
+
+    def test_a_workflow_not_triggered_by_pull_requests_is_not_judged(self):
+        result = self._check({'nightly.yml': (
+            "on:\n  schedule:\n    - cron: '0 4 * * *'\njobs:\n"
+            + self.LINT_JOB)})
+        self.assert_pass(result)
+        self.assertIn('No pull_request or merge_group workflow', result['details'])
+
+    def test_nothing_to_exclude_does_not_apply(self):
+        self.fixture.workflow('ci.yml', 'on:\n  pull_request:\njobs:\n' + self.LINT_JOB)
+        self.assert_skip(self.check(has_workflows_dir=True),
+                         containing='no non-code content')
+
+    def test_without_workflows_it_does_not_apply(self):
+        self.assert_skip(self.check(), containing='No .github/workflows/')
+
 
 class WorkflowJobBlocksTest(unittest.TestCase):
     def test_jobs_are_split_at_top_level_keys(self):

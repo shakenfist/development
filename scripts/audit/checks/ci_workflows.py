@@ -439,6 +439,26 @@ PR_TRIGGER_FLOW_RE = re.compile(
 PATH_FILTER_EXCEPTION_RE = re.compile(r'audit-ok:\s*no-path-filter')
 
 
+def pull_request_path_filters(code):
+    """The pull_request trigger's `paths-ignore` and `paths` blocks.
+
+    Returns a pair, each the block's text or None where the trigger
+    has no such key -- including where there is no block-form
+    pull_request trigger at all, as with `on: [pull_request]`, which
+    cannot carry a filter. `code` has had its comments stripped.
+    """
+    on = indented_block(workflow_header(code), 'on')
+    trigger = indented_block(on, 'pull_request') if on is not None else None
+    if trigger is None:
+        return None, None
+    # A list is written inline (`paths-ignore: ['docs/**']`) as often as
+    # below its key, and the inline value is all there is of the first.
+    keys = job_level_keys(trigger)
+    return tuple(
+        (keys[key] or indented_block(trigger, key) or '') if key in keys else None
+        for key in ('paths-ignore', 'paths'))
+
+
 def is_dedicated_scanner_workflow(content):
     """Does this workflow do nothing but scan content?
 
@@ -1268,13 +1288,16 @@ class ExpensiveLanePathFilter(Check):
             if PATH_FILTER_EXCEPTION_RE.search(content):
                 continue
 
-            has_ignore = bool(
-                re.search(r'^\s*paths-ignore:', content, re.MULTILINE)
-            )
-            has_include = bool(
-                re.search(r'^\s*paths:', content, re.MULTILINE)
-            )
-            has_filter_job = 'paths-filter' in content
+            # Comments are dropped before anything below is matched: a
+            # "# TODO: also ignore docs/**" is not an exclusion. And the
+            # trigger-level filters are read from the pull_request
+            # trigger alone, since a push trigger's paths: does nothing
+            # for a pull request (merge_group takes no path filters).
+            code = strip_yaml_comments(content, trailing=True)
+            pr_ignore, pr_include = pull_request_path_filters(code)
+            has_ignore = pr_ignore is not None
+            has_include = pr_include is not None
+            has_filter_job = 'paths-filter' in code
 
             if not (has_ignore or has_include or has_filter_job):
                 # A workflow that is nothing but content scanning is
@@ -1306,9 +1329,13 @@ class ExpensiveLanePathFilter(Check):
                 # by construction.
                 continue
 
+            # Trigger-level exclusion is judged by the paths-ignore list
+            # itself; a filter job's patterns live in its own config,
+            # which is somewhere in the file.
+            searched = code if has_filter_job else pr_ignore
             missing = [
                 name for name, pattern in excludables
-                if pattern not in content
+                if pattern not in searched
             ]
             if missing:
                 offenders.append(
