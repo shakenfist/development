@@ -642,7 +642,7 @@ class GitHooksDisabledTest(unittest.TestCase):
 
     Layer 4 of the security model in docs/ci-review-automation.md
     names these three files and asserts the control is set in them.
-    Nothing in check_ci_review_automation inspects checkout steps, so
+    Nothing in CiReviewAutomation inspects checkout steps, so
     without this a template edit could drop the step and leave the
     document claiming a control that is not there -- which is the
     defect this test's own pull request existed to fix. The assertion

@@ -148,8 +148,8 @@ def carries_retired_comment_addresser(repo_path):
     return sorted(found)
 
 
-# The four things check_ci_review_automation() can name in a finding
-# beyond a missing file. A maintainer following an audit issue has to
+# The four things CiReviewAutomation can name in a finding beyond a
+# missing file. A maintainer following an audit issue has to
 # land on a spec page that states the thing they are being measured
 # against, and a rewrite of that page dropped the shared action while
 # the check went on filing it -- so the names live here and
@@ -947,15 +947,15 @@ SECRET_SCANNERS = ['gitleaks', 'trufflehog', 'detect-secrets']
 
 # Tools whose job is reading the repository's own human-written
 # content for something dangerous, used by the path-filter exemption
-# in check_expensive_lane_path_filter(). A superset of
-# SECRET_SCANNERS, because the exemption's argument is not specific to
-# credentials: skillsaw lints the agent context for instructions
-# smuggled into text an agent will load, and a prompt aimed at an
-# agent lands in a document at least as readily as a key does.
+# in ExpensiveLanePathFilter. A superset of SECRET_SCANNERS, because
+# the exemption's argument is not specific to credentials: skillsaw
+# lints the agent context for instructions smuggled into text an agent
+# will load, and a prompt aimed at an agent lands in a document at
+# least as readily as a key does.
 #
 # Kept separate from SECRET_SCANNERS so the two questions stay
-# separate. check_secret_scanning_ci() asks whether this repository
-# scans for credentials at all, and skillsaw is not an answer to that.
+# separate. SecretScanningCi asks whether this repository scans for
+# credentials at all, and skillsaw is not an answer to that.
 CONTENT_SCANNERS = SECRET_SCANNERS + ['skillsaw']
 
 
