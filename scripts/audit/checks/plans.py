@@ -14,7 +14,7 @@ import re
 
 from audit.check import Check
 from audit.repo import path_is_within
-from audit.files import LS_FILES_FAILED, check_file_contains, iter_doc_content_files, tracked_paths
+from audit.files import check_file_contains, iter_doc_content_files, require_tracked_paths
 from audit.text.markdown import (
     blank_generated_blocks, iter_lines_outside_fences,
     iter_markdown_table_rows, markdown_heading,
@@ -1181,9 +1181,7 @@ class PlanSourceReferences(Check):
         paths marks itself with PLAN_SOURCE_FILE_OK rather than being
         skipped by its name.
         """
-        tracked = tracked_paths(repo.path)
-        if tracked is None:
-            return self.fail(LS_FILES_FAILED)
+        tracked = require_tracked_paths(repo.path)
 
         names = plan_file_names(repo.path)
         hits = []
@@ -1238,9 +1236,7 @@ class PlanHistoryInSource(Check):
         repeating a citation copied it from its source, which is where
         the fix belongs.
         """
-        tracked = tracked_paths(repo.path)
-        if tracked is None:
-            return self.fail(LS_FILES_FAILED)
+        tracked = require_tracked_paths(repo.path)
 
         hits = []
         files = set()

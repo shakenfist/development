@@ -73,6 +73,21 @@ class NpmFixtureMixin:
 class NpmPinIndirectDependenciesTest(NpmFixtureMixin, CheckTestCase):
     check_class = npm_dependencies.NpmPinIndirectDependencies
 
+    def check(self, **kwargs):
+        """The check over the fixture, committed.
+
+        Whether the lockfile is tracked is asked of git, and a git that
+        cannot answer is a tool failure, so a case about anything else
+        needs a real checkout under it. What the case wrote is committed
+        except what its own .gitignore keeps out, which is how the
+        uncommitted-lockfile case says so.
+        """
+        if not os.path.isdir(os.path.join(self.fixture.path, '.git')):
+            self.fixture.init_git()
+        self.fixture.git('add', '-A')
+        self.fixture.git('commit', '--allow-empty', '-q', '-m', 'fixture')
+        return super().check(**kwargs)
+
     def test_without_a_package_json_it_does_not_apply(self):
         """Every repository in the fleet but one, today."""
         self.assert_skip(self.check(), containing='No package.json')
@@ -126,11 +141,16 @@ class NpmPinIndirectDependenciesTest(NpmFixtureMixin, CheckTestCase):
         self.fixture.commit()
         self.assert_pass(self.check())
 
-    def test_a_directory_that_is_not_a_checkout_is_not_reported(self):
-        """git saying nothing is not git saying the lockfile is absent."""
+    def test_a_directory_that_is_not_a_checkout_is_a_tool_failure(self):
+        """git saying nothing is not git saying the lockfile is absent.
+
+        Nor that it is present: a pass here would vouch for a lockfile
+        nobody asked git about.
+        """
         self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
         self.lockfile(['left-pad'])
-        self.assert_pass(self.check())
+        self.assert_tool_failure(lambda: super(NpmPinIndirectDependenciesTest, self).check(),
+                                 containing='git ls-files failed')
 
     def test_a_workflow_running_npm_install_fails(self):
         self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})

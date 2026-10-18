@@ -10,13 +10,11 @@ import fnmatch
 import json
 import os
 import re
-import subprocess
 import tomllib
 
-from audit.check import Check
+from audit.check import Check, ToolFailure, run_tool
 from audit.files import (
-    LS_FILES_FAILED, check_file_contains, toml_section_has_key,
-    tracked_paths,
+    check_file_contains, require_tracked_paths, toml_section_has_key,
 )
 from audit.text.workflows import (
     has_workflow_dispatch, job_is_push_guarded, job_is_tag_guarded,
@@ -1524,17 +1522,10 @@ class PyprojectUsage(Check):
                 'packaging files')
 
         # No pyproject.toml: only a problem if there is Python code.
-        try:
-            result = subprocess.run(
-                ['git', '-C', repo.path, 'ls-files', '--', '*.py'],
-                capture_output=True, text=True, timeout=30,
-            )
-            python_files = [
-                line for line in result.stdout.splitlines()
-                if line.strip()
-            ]
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            return self.fail(f'Could not run git ls-files: {e}')
+        # A listing git could not give raises: read as empty it would
+        # be "No Python code", a confident exemption for a repository
+        # nobody looked at.
+        python_files = require_tracked_paths(repo.path, '*.py')
 
         if python_files:
             return self.fail(
@@ -1573,10 +1564,8 @@ class VersionFileGitignore(Check):
 
         # A tracked generated version file is always wrong, whether or
         # not we can work out the configured path.
-        tracked = tracked_paths(repo.path, '*_version.py')
-        if tracked is None:
-            issues.append(LS_FILES_FAILED)
-        elif tracked:
+        tracked = require_tracked_paths(repo.path, '*_version.py')
+        if tracked:
             issues.append(
                 f'Generated version file tracked in git '
                 f'(use git rm --cached): {", ".join(sorted(tracked))}'
@@ -1590,27 +1579,25 @@ class VersionFileGitignore(Check):
                 'pyproject.toml')
 
         version_file = match.group(1)
-        try:
-            result = subprocess.run(
-                [
-                    'git', '-C', repo.path,
-                    # --no-index so a tracked copy doesn't mask the
-                    # .gitignore coverage answer.
-                    'check-ignore', '-q', '--no-index', version_file,
-                ],
-                capture_output=True, text=True, timeout=30,
+        result = run_tool(
+            [
+                'git', '-C', repo.path,
+                # --no-index so a tracked copy doesn't mask the
+                # .gitignore coverage answer.
+                'check-ignore', '-q', '--no-index', version_file,
+            ],
+            'git check-ignore', timeout=30,
+        )
+        # 1 is git's "not ignored", which is the answer this asks for;
+        # anything else but 0 is git failing to give one.
+        if result.returncode == 1:
+            issues.append(
+                f'{version_file} is not covered by .gitignore'
             )
-            if result.returncode == 1:
-                issues.append(
-                    f'{version_file} is not covered by .gitignore'
-                )
-            elif result.returncode != 0:
-                issues.append(
-                    f'Could not check .gitignore coverage: '
-                    f'{result.stderr.strip()}'
-                )
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            issues.append(f'Could not run git check-ignore: {e}')
+        elif result.returncode != 0:
+            raise ToolFailure(
+                f'Could not check .gitignore coverage: '
+                f'{result.stderr.strip()}')
 
         if issues:
             return self.fail('; '.join(issues))
@@ -2016,9 +2003,7 @@ class ReleaseArtifactsExcludePlans(Check):
         reads the artifact's own exclusion mechanism and reports the
         ones that would ship docs/plans.
         """
-        tracked = tracked_paths(repo.path, PLANS_DIR)
-        if tracked is None:
-            return self.fail(LS_FILES_FAILED)
+        tracked = require_tracked_paths(repo.path, PLANS_DIR)
         if not tracked:
             return self.skip(f'{PLANS_DIR}/ tracks no files')
 
@@ -2424,10 +2409,8 @@ class HeaderSanitization(Check):
         """
         # A failed listing is indistinguishable from a repository holding
         # no Python at all unless it is kept apart. On a security check a
-        # silent clean bill is the worse default, so say so instead.
-        sources = tracked_paths(repo.path, '*.py')
-        if sources is None:
-            return self.fail(LS_FILES_FAILED)
+        # silent clean bill is the worse default, so it raises instead.
+        sources = require_tracked_paths(repo.path, '*.py')
 
         handlers = []
         unreadable = []
@@ -2679,9 +2662,7 @@ class RustUnwrapLint(Check):
 
         # Every other first-party crate manifest must inherit the
         # workspace lints or define the lint itself.
-        manifests = tracked_paths(repo.path, '*Cargo.toml')
-        if manifests is None:
-            return self.fail(LS_FILES_FAILED)
+        manifests = require_tracked_paths(repo.path, '*Cargo.toml')
 
         for manifest in manifests:
             if manifest == root_manifest:

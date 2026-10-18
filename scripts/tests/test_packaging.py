@@ -1202,14 +1202,14 @@ class HeaderSanitizationTest(CheckTestCase):
         )})
         self.assert_skip(result)
 
-    def test_a_failing_git_ls_files_is_a_finding(self):
+    def test_a_failing_git_ls_files_is_a_tool_failure(self):
         # Not a repository: stdout is empty, which is otherwise
         # indistinguishable from a clean bill of health.
         self.fixture.write(
             'a.py',
             'class H(http.server.BaseHTTPRequestHandler):\n'
             '    pass\n')
-        self.assert_fail(self.check(), containing='git ls-files failed')
+        self.assert_tool_failure(self.check, containing='git ls-files failed')
 
     def test_the_finding_names_a_line(self):
         result = self._check({'pkg/srv.py': (
@@ -2049,6 +2049,15 @@ class RustUnwrapLintTest(CheckTestCase):
         self.fixture.commit()
         self.assert_pass(self.check(has_cargo_toml=True))
 
+    def test_a_directory_that_is_not_a_checkout_is_a_tool_failure(self):
+        # The member manifests come from the index, so without one a
+        # crate with no lint configuration would go unread.
+        self.fixture.write('Cargo.toml', self.WORKSPACE)
+        self.fixture.write('clippy.toml', 'allow-unwrap-in-tests = true\n')
+        self.fixture.write('crates/thing/Cargo.toml', '[package]\nname = "thing"\n')
+        self.assert_tool_failure(lambda: self.check(has_cargo_toml=True),
+                                 containing='git ls-files failed')
+
     def test_an_unset_lint_fails(self):
         self.fixture.init_git()
         self.fixture.write('Cargo.toml', '[workspace]\nmembers = []\n')
@@ -2137,6 +2146,12 @@ class PyprojectUsageTest(CheckTestCase):
         self.fixture.commit()
         self.assert_fail(self.check())
 
+    def test_a_directory_that_is_not_a_checkout_is_a_tool_failure(self):
+        # Read as an empty listing, this is "No Python code": an
+        # exemption for a repository git was never able to list.
+        self.fixture.write('thing.py', 'x = 1\n')
+        self.assert_tool_failure(self.check, containing='git ls-files failed')
+
 
 class VersionFileGitignoreTest(CheckTestCase):
     check_class = packaging.VersionFileGitignore
@@ -2186,6 +2201,23 @@ class VersionFileGitignoreTest(CheckTestCase):
         self.fixture.commit()
         self.assert_fail(self.check(has_pyproject_toml=True))
 
+    def test_a_directory_that_is_not_a_checkout_is_a_tool_failure(self):
+        self.fixture.write('pyproject.toml', self.PYPROJECT)
+        self.fixture.write('.gitignore', 'thing/_version.py\n')
+        self.assert_tool_failure(lambda: self.check(has_pyproject_toml=True),
+                                 containing='git ls-files failed')
+
+    def test_a_check_ignore_that_cannot_answer_is_a_tool_failure(self):
+        # check-ignore exits 1 for "not ignored", which is a finding,
+        # and 128 when it cannot answer at all -- here because the
+        # configured path is outside the repository.
+        self.fixture.init_git()
+        self.fixture.write('pyproject.toml', self.PYPROJECT.replace(
+            'thing/_version.py', '../elsewhere/_version.py'))
+        self.fixture.commit()
+        self.assert_tool_failure(lambda: self.check(has_pyproject_toml=True),
+                                 containing='Could not check .gitignore coverage')
+
     def test_a_project_not_generating_a_version_file_does_not_apply(self):
         self.fixture.init_git()
         self.fixture.write('pyproject.toml', '[project]\nname = "x"\n')
@@ -2224,6 +2256,13 @@ class ReleaseArtifactsExcludePlansTest(CheckTestCase):
     def test_a_repository_that_builds_nothing_does_not_apply(self):
         self.assert_skip(self._check({'README.md': '# Thing\n'}),
                          containing='No release artifact')
+
+    def test_a_directory_that_is_not_a_checkout_is_a_tool_failure(self):
+        # Read as an empty listing, the plans would track no files and
+        # the criterion would not apply, whatever the sdist carries.
+        self.fixture.write('docs/plans/PLAN-thing.md', '# Plan\n')  # audit-ok: plan-reference
+        self.fixture.write('pyproject.toml', self.SCM_PYPROJECT)
+        self.assert_tool_failure(self.check, containing='git ls-files failed')
 
     def test_an_scm_sdist_without_a_prune_fails(self):
         """client-python-k3s, before it pruned docs/plans."""

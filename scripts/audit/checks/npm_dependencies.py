@@ -25,10 +25,9 @@ documented beside the code that has them.
 import json
 import os
 import re
-import subprocess
 
 from audit.check import Check
-from audit.files import WALK_SKIP
+from audit.files import WALK_SKIP, require_tracked_paths
 
 
 #: Modules node provides itself. An import of one of these is not a
@@ -849,22 +848,14 @@ class NpmPinIndirectDependencies(NpmPackageCheck):
                        f'{len(packages)} resolved {noun}')
 
     def _is_untracked(self, repo, name):
-        """True when git is sure the lockfile is not tracked.
+        """True when the index does not hold the lockfile.
 
-        Only when it is sure. A directory that is not a checkout, or a
-        git that will not run, says nothing about compliance, and a
-        criterion that failed on it would fail on every tarball.
+        A directory that is not a checkout, or a git that will not
+        run, says nothing about compliance either way, so it raises
+        rather than answering: false would pass a lockfile nobody
+        committed, and true would fail one that is.
         """
-        try:
-            result = subprocess.run(
-                ['git', '-C', repo.path, 'ls-files', '--', name],
-                capture_output=True, text=True, timeout=30,
-            )
-        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-            return False
-        if result.returncode != 0:
-            return False
-        return not result.stdout.strip()
+        return not require_tracked_paths(repo.path, name)
 
     def _resolving_workflows(self, repo):
         """Workflows that install by resolving rather than by the lock."""

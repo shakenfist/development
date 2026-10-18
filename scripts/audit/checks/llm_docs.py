@@ -14,7 +14,7 @@ import re
 import subprocess
 
 from audit.check import Check
-from audit.files import file_mentions, tracked_paths
+from audit.files import file_mentions, require_tracked_paths
 from audit.github import environment_without_credentials
 from audit.repo import path_is_within
 from audit.text.markdown import iter_markdown_headings, normalise_heading
@@ -578,21 +578,13 @@ class LlmDocNaming(Check):
         no AGENTS.md either, and llm-tooling is the criterion that has an
         opinion about that.
 
-        A directory git cannot list reports not_applicable. Unlike
-        PyprojectUsage, which fails on a broken ls-files, this check
-        cannot say anything either way without the index -- and the
-        missing piece is the audit harness's git, not the audited
-        repository, so failing would file an issue nobody on that
-        repository can fix. That is the reading LlmContextLint takes
-        of a missing skillsaw, a few classes up, and the same signal
-        applies: every row flipping to N/A at once is how a broken
-        runner announces itself.
+        A directory git cannot list is an error. This check cannot say
+        anything either way without the index, and the missing piece is
+        the audit harness's git, not the audited repository: failing
+        would file an issue nobody on that repository can fix, and
+        not_applicable would close the one it has.
         """
-        tracked = tracked_paths(repo.path)
-        if tracked is None:
-            return self.skip(
-                'Not the root of a git checkout, or git could not '
-                'list its index')
+        tracked = require_tracked_paths(repo.path)
 
         found = vendor_agent_docs(tracked)
         if not found:

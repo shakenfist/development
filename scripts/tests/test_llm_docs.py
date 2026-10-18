@@ -783,7 +783,7 @@ class LlmDocNamingTest(CheckTestCase):
         self.assertNotIn('merge', result['details'])
         self.assertNotIn('git rm CLAUDE.md', result['details'])
 
-    def test_a_directory_inside_a_checkout_is_not_applicable(self):
+    def test_a_directory_inside_a_checkout_is_a_tool_failure(self):
         # `git -C <dir> ls-files` exits 0 anywhere inside a work tree,
         # listing whatever the enclosing index holds below it -- so a
         # tree copied into a subdirectory of an unrelated repository
@@ -795,9 +795,9 @@ class LlmDocNamingTest(CheckTestCase):
         inner = os.path.join(self.fixture.path, 'inner')
         os.mkdir(inner)
         self.fixture = FixtureRepo(inner)
-        self.assert_skip(self.check(), containing='Not the root')
+        self.assert_tool_failure(self.check, containing='not the root of a checkout')
 
-    def test_an_unreadable_index_is_not_applicable(self):
+    def test_an_unreadable_index_is_a_tool_failure(self):
         # The branch where a silent pass would be indistinguishable
         # from compliance: rev-parse still answers, so only ls-files'
         # exit code separates this from an empty repository.
@@ -807,14 +807,14 @@ class LlmDocNamingTest(CheckTestCase):
         self.fixture.commit()
         with open(os.path.join(self.fixture.path, '.git', 'index'), 'w') as f:
             f.write('GARBAGE')
-        self.assert_skip(self.check(), containing='list its index')
+        self.assert_tool_failure(self.check, containing='git ls-files failed')
 
-    def test_a_directory_that_is_not_a_checkout_is_not_applicable(self):
+    def test_a_directory_that_is_not_a_checkout_is_a_tool_failure(self):
         # Without an index the check cannot say anything either way,
         # and the missing piece is the harness's git rather than the
-        # audited repository -- so N/A, the reading LlmContextLint
-        # takes of a missing skillsaw, rather than a clean pass.
-        self.assert_skip(self.check(), containing='Not the root')
+        # audited repository -- so an error rather than a clean pass,
+        # a fail or an N/A that would close the issue it has.
+        self.assert_tool_failure(self.check, containing='not the root of a checkout')
 
 
 class VendorAgentDocsSpecTest(unittest.TestCase):
