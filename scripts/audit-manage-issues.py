@@ -23,7 +23,6 @@ from audit_common import (
     AUDIT_METADATA,
     ISSUE_TITLES,
     IssueListingError,
-    defuse,
     gh_canonical_repo,
     gh_open_issues,
     issue_title_for,
@@ -248,17 +247,24 @@ def render_issue_items(heading, items, used):
     return rendered
 
 
+#: The narrowest code span defuse_item() wraps a string in: one
+#: backtick either side, for a string holding none.
+SPAN_OVERHEAD = 2
+
+
 def details_room(used):
     """How many characters of `details` fit, given a body of `used`.
 
-    Can go negative where the rest of the body has already spent the
-    budget; the caller clamps. Kept separate from the rendering so the
-    boundary is a value a test can ask for rather than one it has to
-    find by bisection.
+    Counted for a string holding no backtick, whose code span costs
+    SPAN_OVERHEAD; a wider span costs its own width out of the same
+    room. Can go negative where the rest of the body has already spent
+    the budget; the caller clamps. Kept separate from the rendering so
+    the boundary is a value a test can ask for rather than one it has
+    to find by bisection.
     """
     return (
         min(ISSUE_BODY_BUDGET - used, DETAILS_BUDGET)
-        - len(DETAILS_HEADING) - len(DETAILS_TRAILER)
+        - len(DETAILS_HEADING) - len(DETAILS_TRAILER) - SPAN_OVERHEAD
     )
 
 
@@ -277,12 +283,24 @@ def render_details(details, used):
     Capped at `DETAILS_BUDGET` rather than at whatever is left, so
     that a pathological `details` cannot spend the room the per-item
     lists need.
+
+    Rendered as a code span by defuse_item(), for the reason it gives:
+    the string is written out of what a check found in another
+    repository -- filenames, heading text, a tool's output -- and in
+    prose its `@org/team` would notify and its markdown would render,
+    under the bot's identity. Truncated before it is wrapped rather
+    than after, so that the cut can never fall inside the span's
+    closing fence and let the tail render after all.
     """
-    room = details_room(used)
-    if len(details) + 1 <= room:
-        return f'{DETAILS_HEADING}{details}\n'
+    flat = ' '.join(details.split())
+    wrapped = defuse_item(flat)
+    room = details_room(used) + SPAN_OVERHEAD
+    if len(wrapped) + 1 <= room:
+        return f'{DETAILS_HEADING}{wrapped}\n'
+    kept = flat[:max(room - (len(wrapped) - len(flat)), 0)]
     return (
-        f'{DETAILS_HEADING}{details[:max(room, 0)]}{DETAILS_TRAILER}')
+        f'{DETAILS_HEADING}{defuse_item(kept) if kept else ""}'
+        f'{DETAILS_TRAILER}')
 
 
 def build_issue_body(check_id, check_result):
@@ -310,13 +328,10 @@ def build_issue_body(check_id, check_result):
             f'({DEV_REPO_URL}/{template_dir}README.md)\n'
         )
 
-    # Defused before it is measured, not spliced raw. The string is
-    # written by a check out of what it found in another repository --
-    # filenames and heading text read from that repository's markdown
-    # -- and an issue body renders a mention to a real notification,
-    # under this workflow's own identity. Defusing first also means the
-    # budget measures the string that actually lands.
-    body += render_details(defuse(check_result['details']), len(body))
+    # render_details() puts the string in a code span, and measures
+    # the span rather than the raw string, so the budget counts what
+    # actually lands.
+    body += render_details(check_result['details'], len(body))
 
     if 'missing' in check_result:
         body += render_issue_items(

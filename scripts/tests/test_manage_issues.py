@@ -61,16 +61,29 @@ class IssueBodyTest(unittest.TestCase):
         """A detail string is another repository's text, published.
 
         It must be defused here as well as on the compliance page. A
-        newline in a detail renders a heading in an issue body, and
-        the comment opener terminates the next compliance splice
-        early; both are reachable by committing a plan file with the
-        right name to any audited repository.
+        newline in a detail renders a heading in an issue body, and is
+        reachable by committing a plan file with the right name to any
+        audited repository. In a code span the comment opener is text.
         """
         body = self.build('eol-distro', self.result(
             details='a plan named "x\n## Not a real heading" <!-- end -->'))
         self.assertNotIn('\n## Not a real heading', body)
-        self.assertIn('&lt;!-- end -->', body)
-        self.assertNotIn('<!-- end -->', body)
+        self.assertIn('\n`a plan named "x ## Not a real heading" <!-- end -->`\n', body)
+
+    def test_mentions_and_markdown_in_the_details_do_not_render(self):
+        """The body is filed as the bot: a mention in prose notifies.
+
+        A README link target is enough to put either into a detail
+        string, through readme-absolute-links.
+        """
+        details = ('links not absolute: @shakenfist/maintainers, '
+                   '**URGENT**_rotate_your_token_at_evil.example, [x](y)')
+        body = self.build('eol-distro', self.result(details=details))
+        self.assertIn(f'\n`{details}`\n', body)
+
+    def test_a_backtick_in_the_details_cannot_close_the_span(self):
+        body = self.build('eol-distro', self.result(details='a`b @team'))
+        self.assertIn('\n`` a`b @team ``\n', body)
 
     def test_a_result_with_neither_list_renders_neither_heading(self):
         body = self.build('eol-distro', self.result())
@@ -229,6 +242,18 @@ class DetailsLimitTest(unittest.TestCase):
             self.module.details_room(0), self.module.DETAILS_BUDGET)
         self.assertLess(
             self.module.details_room(0), self.module.ISSUE_BODY_BUDGET // 2)
+
+    def test_a_truncated_span_is_closed(self):
+        """The cut is made before the span is wrapped, never inside it.
+
+        Cut afterwards, the closing fence goes with the tail, and the
+        rest of the string renders as markdown after all.
+        """
+        rendered = self.module.render_details('`x' * 10 ** 5, 0)
+        self.assertIn('truncated', rendered)
+        span = rendered[len(self.module.DETAILS_HEADING):-len(self.module.DETAILS_TRAILER)]
+        self.assertTrue(span.startswith('`` ') and span.endswith(' ``'), span[-20:])
+        self.assertLessEqual(len(rendered), self.module.DETAILS_BUDGET)
 
     def test_details_with_the_budget_already_spent_renders_none_of_it(self):
         """Negative room is clamped, not sliced from the end."""
