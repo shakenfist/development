@@ -77,10 +77,6 @@
       "sha": "dd4e9bcf06e4ee7957cc38b980b9ca11ef8c240e",
       "date": "2026-10-18"
     },
-    "ARCHITECTURE.md": {
-      "sha": "14b095d3e14c0182017b4196655805dbaca91fc0",
-      "date": "2026-10-18"
-    },
     "PLAN-TEMPLATE.md": {
       "sha": "121bfae4d5735b0ab0c72ebca68532e94ea29d6b",
       "date": "2026-10-16"
@@ -257,10 +253,6 @@
       "sha": "97673b9e35622a6049cab81725d8554754e715b5",
       "date": "2026-09-04"
     },
-    "scripts/audit-update-docs.py": {
-      "sha": "0414f862c1a529dd1445021bb1c812d80cde924b",
-      "date": "2026-10-18"
-    },
     "scripts/audit/__init__.py": {
       "sha": "86ffeb2a5deffaa05b04df768a1e43d2448435a0",
       "date": "2026-09-02"
@@ -308,10 +300,6 @@
     "scripts/tests/test_audit_common.py": {
       "sha": "cdae27ad94220840281832f75e1545e7880b438b",
       "date": "2026-10-18"
-    },
-    "scripts/tests/test_audit_snapshot.py": {
-      "sha": "66c329cc4b8746859483bd2b6a089d380d85c996",
-      "date": "2026-10-12"
     },
     "scripts/tests/test_audit_update_docs.py": {
       "sha": "0419d4a8d18b67b54dc834a7387eccbb956489eb",
