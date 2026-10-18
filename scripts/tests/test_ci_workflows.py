@@ -1808,6 +1808,37 @@ class FuzzNightlyReportingTest(CheckTestCase):
         self.assert_fail(self.check(has_workflows_dir=True),
                          containing='merge_group')
 
+    QUEUE_CALLER = (
+        'on:\n  pull_request:\n  merge_group:\njobs:\n'
+        '  fuzz:\n    uses: ./.github/workflows/fuzz-run.yml\n')
+
+    def test_a_callee_invoked_from_a_merge_group_workflow_fails(self):
+        """The callee inherits its caller's event, and so its queue.
+
+        The schedule side of the criterion follows a callee to its
+        caller; the queue side has to as well, or splitting the lane
+        across two files hides it from the merge queue rule.
+        """
+        self._targets()
+        self._reporter()
+        self.fixture.workflow('fuzz-nightly.yml', SCHEDULING_CALLER)
+        self.fixture.workflow('ci.yml', self.QUEUE_CALLER)
+        self.fixture.workflow('fuzz-run.yml', self._callee('  workflow_call:'))
+        self.assert_fail(
+            self.check(has_workflows_dir=True),
+            containing='fuzz-run.yml (called from a merge_group workflow)')
+
+    def test_a_marked_queue_caller_is_honoured(self):
+        self._targets()
+        self._reporter()
+        self.fixture.workflow('fuzz-nightly.yml', SCHEDULING_CALLER)
+        self.fixture.workflow(
+            'ci.yml',
+            '# audit-ok: fuzz-in-merge-queue -- required check\n'
+            + self.QUEUE_CALLER)
+        self.fixture.workflow('fuzz-run.yml', self._callee('  workflow_call:'))
+        self.assert_pass(self.check(has_workflows_dir=True))
+
     def test_the_merge_queue_exception_marker_is_honoured(self):
         self._targets()
         self._reporter()

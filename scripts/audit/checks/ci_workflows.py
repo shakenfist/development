@@ -1711,12 +1711,37 @@ def scheduling_caller(repo, name, content):
     boolean because a called workflow takes its permissions from the
     calling job, so `issues: write` can legitimately sit on either
     side of the call.
+    """
+    return triggering_caller(
+        repo, name, content,
+        lambda header: SCHEDULE_TRIGGER_RE.search(header))
+
+
+def queue_caller(repo, name, content):
+    """The merge_group workflow that runs this reusable one, if any.
+
+    The queue side of scheduling_caller(): a callee inherits its
+    caller's event, so fuzz targets in a `workflow_call` callee are on
+    the merge queue's clock whenever a `merge_group` workflow invokes
+    it, though the callee's own header names no such trigger.
+    """
+    return triggering_caller(
+        repo, name, content,
+        lambda header: (MERGE_GROUP_TRIGGER_RE.search(header)
+                        or MERGE_GROUP_FLOW_RE.search(header)))
+
+
+def triggering_caller(repo, name, content, triggered):
+    """Another workflow whose header satisfies `triggered` and calls this.
+
+    Returns that caller's text, or None if this workflow is not
+    reusable or nothing so triggered invokes it.
 
     The invocation has to name this repository's own copy. `uses:`
     takes `./.github/workflows/x.yml` for a local callee and
     `owner/repo/.github/workflows/x.yml@ref` for somebody else's, and
     a pattern loose enough to accept both would credit a caller that
-    schedules a *different* project's workflow of the same name.
+    runs a *different* project's workflow of the same name.
     """
     header = workflow_header(content)
     if not (WORKFLOW_CALL_TRIGGER_RE.search(header)
@@ -1732,7 +1757,7 @@ def scheduling_caller(repo, name, content):
         text = repo.workflow(other)
         if not text:
             continue
-        if (SCHEDULE_TRIGGER_RE.search(workflow_header(text))
+        if (triggered(workflow_header(text))
                 and invocation.search(
                     strip_yaml_comments(text, trailing=True))):
             return text
@@ -1979,12 +2004,21 @@ class FuzzNightlyReporting(Check):
                 'fuzz targets in %s, but no workflow runs them'
                 % ', '.join(repo_fuzz_target_dirs(repo.path)))
 
-        queue_gated = [
-            name for name, content in workflows
-            if (MERGE_GROUP_TRIGGER_RE.search(workflow_header(content))
-                or MERGE_GROUP_FLOW_RE.search(content))
-            and not FUZZ_MERGE_QUEUE_EXCEPTION_RE.search(content)
-        ]
+        # A callee is gated by the queue its caller is triggered from,
+        # so either file may carry the marked exception.
+        queue_gated = []
+        for name, content in workflows:
+            if FUZZ_MERGE_QUEUE_EXCEPTION_RE.search(content):
+                continue
+            header = workflow_header(content)
+            if (MERGE_GROUP_TRIGGER_RE.search(header)
+                    or MERGE_GROUP_FLOW_RE.search(header)):
+                queue_gated.append(name)
+                continue
+            caller = queue_caller(repo, name, content)
+            if (caller is not None
+                    and not FUZZ_MERGE_QUEUE_EXCEPTION_RE.search(caller)):
+                queue_gated.append(f'{name} (called from a merge_group workflow)')
 
         # The caller's text rides along: where the schedule is on a
         # caller, the permission to file may be there too.
