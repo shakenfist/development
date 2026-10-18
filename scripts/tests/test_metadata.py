@@ -581,6 +581,25 @@ class ContractTest(unittest.TestCase):
             with self.subTest(check=check.id):
                 self.assert_valid(check, result)
 
+    def test_an_empty_directory_is_a_tool_failure_exactly_where_expected(self):
+        """Pins which criteria cannot measure without git or GitHub.
+
+        Every other check reaches a verdict about an empty directory
+        from what is, or is not, on disk. These ask git for the index
+        or GitHub for a setting, neither of which can answer here. A
+        check joining the set has started asking a tool something; one
+        leaving it has stopped saying when the tool did not answer, and
+        is reporting a verdict built on nothing.
+        """
+        failed = sorted(check.id for check, result in self.results(self.repo())
+                        if result['status'] == self.TOOL_FAILURE)
+        self.assertEqual([
+            'default-branch-naming', 'delete-branch-on-merge',
+            'github-security', 'header-sanitization', 'llm-doc-naming',
+            'merge-queue-config', 'plan-history-in-source',
+            'plan-source-references', 'pyproject-usage',
+        ], failed)
+
     def test_a_docs_only_repository_produces_a_valid_result(self):
         for check, result in self.results(self.repo(is_docs_only=True)):
             with self.subTest(check=check.id):
