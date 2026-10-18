@@ -495,6 +495,68 @@ jobs:
         self.assert_fail(result, containing='name it literally')
         self.assertEqual([], github.calls)
 
+    def test_an_expression_inside_a_flow_mapping_fails_without_asking(self):
+        """The name is not cut out of the expression at its first brace."""
+        self.fixture.workflow('release.yml', """jobs:
+  publish:
+    environment: {name: ${{ inputs.target }}, url: https://example.com}
+    steps:
+      - run: true
+""")
+        github = FakeGitHub()
+        result = run_check(self.check_class(), self.fixture.path, github=github)
+        self.assert_fail(result, containing='name it literally')
+        self.assertIn('${{ inputs.target }}', result['details'])
+        self.assertEqual([], github.calls)
+
+    def test_an_expression_inside_a_block_mapping_fails_without_asking(self):
+        self.fixture.workflow('release.yml', """jobs:
+  publish:
+    environment:
+      name: ${{ inputs.target }}
+    steps:
+      - run: true
+""")
+        github = FakeGitHub()
+        result = run_check(self.check_class(), self.fixture.path, github=github)
+        self.assert_fail(result, containing='name it literally')
+        self.assertEqual([], github.calls)
+
+    def test_a_block_mapping_without_a_name_fails_without_asking(self):
+        self.fixture.workflow('release.yml', """jobs:
+  publish:
+    environment:
+      url: https://example.com
+    steps:
+      - run: true
+""")
+        github = FakeGitHub()
+        result = run_check(self.check_class(), self.fixture.path, github=github)
+        self.assert_fail(result, containing='the publish job has an environment with no name')
+        self.assertEqual([], github.calls)
+
+    def test_a_flow_mapping_without_a_name_fails_without_asking(self):
+        self.fixture.workflow('release.yml', """jobs:
+  publish:
+    environment: {url: https://example.com}
+    steps:
+      - run: true
+""")
+        github = FakeGitHub()
+        result = run_check(self.check_class(), self.fixture.path, github=github)
+        self.assert_fail(result, containing='the publish job has an environment with no name')
+        self.assertEqual([], github.calls)
+
+    def test_names_differing_only_in_case_are_asked_about_once(self):
+        workflow = self.RELEASE.replace(
+            'needs: sign-tag\n    environment: release', 'needs: sign-tag\n    environment: Release')
+        self.assertIn('environment: Release', workflow)
+        self.fixture.workflow('release.yml', workflow)
+        github = FakeGitHub(self.answers())
+        result = run_check(self.check_class(), self.fixture.path, github=github)
+        self.assert_pass(result)
+        self.assertEqual([self.environment(), self.policies()], github.calls)
+
     def test_a_release_workflow_naming_no_environment_fails(self):
         self.fixture.workflow('release.yml', """jobs:
   build:

@@ -303,7 +303,9 @@ def job_environment(body):
     `environment:` takes a name, or a mapping whose `name:` is the
     name, in either block or flow form. A mapping without a name is
     returned as the empty string rather than None: the job has the key,
-    and a caller that read it as absent would stop asking about it.
+    and a caller that read it as absent would stop asking about it. A
+    value holding an expression is returned whole, because cutting a
+    name out of it would stop at the expression's own braces.
     """
     keys = job_level_keys(body)
     if 'environment' not in keys:
@@ -311,6 +313,8 @@ def job_environment(body):
     value = keys['environment']
     if not value:
         return unquote(mapping_entries(indented_block(body, 'environment')).get('name', ''))
+    if '${{' in value:
+        return value
     match = FLOW_ENVIRONMENT_NAME_RE.match(value)
     if match:
         return unquote(match.group(1))
@@ -360,6 +364,7 @@ class ReleaseEnvironmentProtection(Check):
         """
         content = repo.workflow(self.WORKFLOW)
         environments = []
+        seen = set()
         problems = []
         for job, body in workflow_job_blocks(content):
             name = job_environment(body)
@@ -376,7 +381,10 @@ class ReleaseEnvironmentProtection(Check):
                 problems.append(
                     f'the {job} job names its environment with an expression ({name}), so the audit '
                     'cannot confirm it is protected; name it literally')
-            elif name not in environments:
+            elif name.casefold() not in seen:
+                # GitHub matches environment names without regard to
+                # case, so release and Release are one environment.
+                seen.add(name.casefold())
                 environments.append(name)
 
         if not environments and not problems:
