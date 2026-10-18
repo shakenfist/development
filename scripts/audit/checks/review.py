@@ -339,9 +339,8 @@ class SfuiVendor(Check):
         """Where the canonical sfui lives.
 
         A parameter so the tests can point the check at a fixture
-        repository instead of cloning over the network. It was a
-        keyword argument on the old function; a Check is built once and
-        run many times, so it belongs to the instance.
+        repository instead of cloning over the network. A Check is built
+        once and run many times, so it belongs to the instance.
         """
         self.canonical_url = canonical_url
 
