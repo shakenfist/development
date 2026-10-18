@@ -472,6 +472,19 @@ def job_outputs(body):
     return mapping_entries(indented_block(body, 'outputs'))
 
 
+def job_with_inputs(body):
+    """The `with:` inputs a job passes to a reusable workflow.
+
+    Read as step_with_inputs() reads a step's: the top level of the
+    mapping only, with a trailing comment dropped, so two values that
+    differ only in what a comment says about them are the same value
+    -- which is what GitHub passes. A block scalar is recorded as its
+    indicator: it is present, which is what merge-group-cancellation's
+    collision check asks about.
+    """
+    return mapping_entries(indented_block(body, 'with'))
+
+
 def mapping_entries(block):
     """The top-level `key: value` pairs of a mapping block, as a dict.
 
@@ -541,10 +554,13 @@ def has_workflow_dispatch(content):
 
 JOB_KEY_RE = re.compile(r'^(\s*)([A-Za-z_][A-Za-z0-9_-]*):\s*(.*?)\s*$')
 
-# A YAML block scalar header: '|', '>', with an optional chomping
-# or indentation indicator. It introduces the value rather than
-# being part of it.
-BLOCK_INDICATOR_RE = re.compile(r'^[|>][+-]?\d*$')
+# A YAML block scalar header: '|' or '>', with an optional chomping
+# indicator and an optional indentation indicator, which YAML takes in
+# either order -- '|2-' as well as '|-2'. It introduces the value
+# rather than being part of it. The one copy: npm_dependencies.py reads
+# `run:` blocks with it too, and the two had drifted apart over which
+# order they accepted.
+BLOCK_INDICATOR_RE = re.compile(r'^[|>](?:\d+[-+]?|[-+]?\d*)$')
 
 
 def job_level_keys(body):

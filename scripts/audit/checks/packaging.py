@@ -1370,7 +1370,7 @@ class UnusedDeclaredDependency(Check):
                 f'Remove each, or record why it is installed with a '
                 f'"# not-imported: <name> -- <reason>" comment in the '
                 f'dependencies array',
-                unused=unused)
+                findings=unused)
 
         noun = 'dependency is' if len(direct) == 1 else 'dependencies are'
         detail = f'All {len(direct)} declared {noun} imported'
@@ -1450,7 +1450,7 @@ class UndeclaredDirectDependency(Check):
                 f'{", ".join(undeclared)}. Declare each above the '
                 f'# START_OF_INDIRECT_DEPS marker; the reconciler drops '
                 f'the generated copy on its next run',
-                undeclared=undeclared)
+                findings=undeclared)
         return self.ok(
             f'Nothing in the {len(generated)} generated pins is imported '
             f'directly')
@@ -1513,7 +1513,7 @@ class RenovateLockstepGroups(Check):
                 f'Not grouped for Renovate: {"; ".join(problems)}. '
                 f'Add a packageRules entry with a groupName covering '
                 f'every member, unrestricted by matchUpdateTypes',
-                ungrouped=sorted(problems))
+                findings=sorted(problems))
         return self.ok(
             f'Every lockstep family declared here is grouped: '
             f'{", ".join(sorted(applicable))}')

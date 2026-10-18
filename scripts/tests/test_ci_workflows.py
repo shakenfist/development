@@ -1066,6 +1066,17 @@ class StepKeysTest(unittest.TestCase):
                 '          if: not a key\n')
         self.assertNotIn('if', workflows.step_keys(step))
 
+    def test_a_block_header_is_not_part_of_the_value_in_either_order(self):
+        # YAML takes the indentation and chomping indicators in either
+        # order, and BLOCK_INDICATOR_RE is the one reading of them.
+        for header in ('|', '>-', '|2', '|2-', '>-2', '|+'):
+            with self.subTest(header=header):
+                step = ('      - name: Confirm\n'
+                        f'        if: {header}\n'
+                        "          github.event_name == 'push'\n")
+                self.assertEqual("github.event_name == 'push'",
+                                 workflows.step_keys(step)['if'])
+
 
 class PrAutoReviewSecretsInheritTest(CheckTestCase):
     """The reviewer job must not pass "secrets: inherit".
@@ -1628,6 +1639,19 @@ class MergeGroupCancellationTest(CheckTestCase):
             + self._caller('merge_tier', '      concurrency_key: full\n')
             + self._caller(
                 'ansible_modules', '      concurrency_key: full\n')
+        )})
+        self.assert_fail(result, containing='passes the same concurrency_key')
+
+    def test_a_key_differing_only_in_its_comment_is_the_same_key(self):
+        # The comment is not part of the value GitHub passes, so the
+        # two invocations land in one group and cancel each other.
+        result = self._check({'ci.yml': (
+            'on:\n  merge_group:\njobs:\n'
+            + self._caller(
+                'merge_tier', '      concurrency_key: full  # merge tier\n')
+            + self._caller(
+                'ansible_modules',
+                '      concurrency_key: full  # ansible modules\n')
         )})
         self.assert_fail(result, containing='passes the same concurrency_key')
 

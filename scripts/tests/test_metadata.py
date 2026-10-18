@@ -15,6 +15,7 @@ a changed line is supposed to be hard.
 Run with: python3 -m unittest tests.test_metadata
 """
 
+import ast
 import importlib.util
 import inspect
 import os
@@ -537,6 +538,41 @@ class ContractTest(unittest.TestCase):
         self.assertTrue(result['details'],
                         f'{check.id} returned an empty details')
 
+    #: The per-item lists audit-manage-issues.py renders into an issue
+    #: body. A list under any other key reaches the result JSON and
+    #: nothing else, so the issue says "remove each" without listing
+    #: them -- which is how three criteria's lists went unrendered.
+    RENDERED_ITEM_KEYS = {'missing', 'findings'}
+
+    def test_every_extra_result_key_is_one_the_issue_renders(self):
+        """A criterion's per-item list goes under a key the body shows.
+
+        Read from the source rather than from results, because most of
+        these lists are only built on a fail path no fixture here
+        reaches. A `**` expansion is refused too: it would carry keys
+        this test cannot see.
+        """
+        checks_dir = os.path.join(REPO_ROOT, 'scripts', 'audit', 'checks')
+        unrendered = []
+        for filename in sorted(os.listdir(checks_dir)):
+            if not filename.endswith('.py'):
+                continue
+            path = os.path.join(checks_dir, filename)
+            with open(path, encoding='utf-8') as f:
+                tree = ast.parse(f.read(), filename=path)
+            for node in ast.walk(tree):
+                if not (isinstance(node, ast.Call)
+                        and isinstance(node.func, ast.Attribute)
+                        and isinstance(node.func.value, ast.Name)
+                        and node.func.value.id == 'self'
+                        and node.func.attr in ('ok', 'fail', 'skip', 'result')):
+                    continue
+                for keyword in node.keywords:
+                    if keyword.arg not in self.RENDERED_ITEM_KEYS:
+                        unrendered.append(
+                            f'{filename}:{node.lineno} {keyword.arg or "**"}')
+        self.assertEqual([], unrendered)
+
     def test_every_check_is_registered_exactly_once(self):
         ids = [check.id for check in CHECKS]
         self.assertEqual(sorted(ids), sorted(set(ids)))
@@ -596,8 +632,9 @@ class ContractTest(unittest.TestCase):
         self.assertEqual([
             'default-branch-naming', 'delete-branch-on-merge',
             'github-security', 'header-sanitization', 'llm-doc-naming',
-            'merge-queue-config', 'plan-history-in-source',
-            'plan-source-references', 'pyproject-usage',
+            'merge-queue-config', 'mermaid-lint-ci',
+            'plan-history-in-source', 'plan-source-references',
+            'pyproject-usage',
         ], failed)
 
     def test_a_docs_only_repository_produces_a_valid_result(self):

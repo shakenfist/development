@@ -124,7 +124,9 @@ class NpmPinIndirectDependenciesTest(NpmFixtureMixin, CheckTestCase):
         """npm 7 rewrites it on contact, so its pins are a snapshot."""
         self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
         self.lockfile(version=1)
-        self.assert_fail(self.check(), containing='lockfileVersion 1')
+        result = self.assert_fail(self.check(), containing='lockfileVersion 1')
+        self.assertEqual(1, len(result['findings']))
+        self.assertIn('lockfileVersion 1', result['findings'][0])
 
     def test_an_uncommitted_lockfile_fails(self):
         self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
@@ -291,6 +293,19 @@ class NpmPinIndirectDependenciesTest(NpmFixtureMixin, CheckTestCase):
             '          CI: "true"\n')
         self.assert_fail(self.check(), containing='npm install')
 
+    def test_an_install_under_an_indented_block_header_still_fails(self):
+        """`run: |2-` opens a block as surely as `run: |` does."""
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'])
+        for header in ('|2-', '>-2'):
+            with self.subTest(header=header):
+                self.fixture.workflow(
+                    'ci.yml',
+                    'jobs:\n  b:\n    steps:\n'
+                    f'      - run: {header}\n'
+                    '          npm install\n')
+                self.assert_fail(self.check(), containing='npm install')
+
     def test_an_install_after_a_shell_operator_still_fails(self):
         """`cd x && npm install` runs it as surely as a bare line."""
         self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
@@ -408,6 +423,9 @@ class NpmUnusedDeclaredDependencyTest(NpmFixtureMixin, CheckTestCase):
         self.assertIn('semver (package.json:%d)' % self.manifest_line('semver'),
                       result['details'])
         self.assertNotIn('left-pad', result['details'])
+        self.assertEqual(
+            ['semver (package.json:%d)' % self.manifest_line('semver')],
+            result['findings'])
 
     def test_a_dependency_on_a_one_line_manifest_is_still_reported(self):
         """No citation is available; the verdict must not depend on one."""
@@ -699,7 +717,8 @@ class NpmUndeclaredDirectDependencyTest(NpmFixtureMixin, CheckTestCase):
         self.lockfile(['left-pad', 'undici-types'])
         self.source("import leftPad from 'left-pad';\n"
                     "import types from 'undici-types';\n")
-        self.assert_fail(self.check(), containing='undici-types')
+        result = self.assert_fail(self.check(), containing='undici-types')
+        self.assertEqual(['undici-types'], result['findings'])
 
     def test_a_type_only_import_of_a_transitive_package_fails(self):
         """The build resolves it, so the build breaks when it goes."""

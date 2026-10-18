@@ -5,6 +5,7 @@
 Run with: python3 scripts/tests/test_markdown.py
 """
 
+import ast
 import os
 import sys
 import unittest
@@ -12,10 +13,12 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.text.markdown import (  # noqa: E402
-    iter_lines_outside_fences, iter_markdown_headings,
+    FENCE_BODY, FENCE_CLOSER, FENCE_OPENER, OUTSIDE, iter_fence_roles,
+    iter_fenced_blocks, iter_lines_outside_fences, iter_markdown_headings,
     iter_markdown_table_rows, markdown_heading, markdown_table_cells,
     strip_markdown_code,
 )
+from tests.base import REPO_ROOT  # noqa: E402
 
 
 class StripMarkdownCodeTest(unittest.TestCase):
@@ -48,8 +51,69 @@ class StripMarkdownCodeTest(unittest.TestCase):
         self.assertIn('[real](../README.md)', stripped)
 
 
+class IterFenceRolesTest(unittest.TestCase):
+    """The one fence loop in the package, and that it stays the one."""
+
+    def test_roles_through_a_nested_marker_and_an_open_fence(self):
+        lines = ['a', '  ~~~ text', '```', '~~~', 'b', '```python', 'c']
+        self.assertEqual(
+            [role for _, _, role in iter_fence_roles(lines)],
+            [OUTSIDE, FENCE_OPENER, FENCE_BODY, FENCE_CLOSER, OUTSIDE,
+             FENCE_OPENER, FENCE_BODY],
+        )
+
+    def test_no_other_reader_tracks_fences_itself(self):
+        """A fence marker literal anywhere else is another fence loop.
+
+        Each copy was correct when written and then had to be kept
+        correct separately; iter_fence_roles() is the one place a fence
+        rule is learned. Read from the source, because a second loop
+        that agrees today passes every behavioural test.
+        """
+        audit_dir = os.path.join(REPO_ROOT, 'scripts', 'audit')
+        offenders = []
+        for dirpath, _, filenames in os.walk(audit_dir):
+            for filename in sorted(filenames):
+                if not filename.endswith('.py'):
+                    continue
+                path = os.path.join(dirpath, filename)
+                with open(path, encoding='utf-8') as f:
+                    tree = ast.parse(f.read(), filename=path)
+                allowed = set()
+                for node in ast.walk(tree):
+                    if (isinstance(node, ast.FunctionDef)
+                            and node.name == 'iter_fence_roles'):
+                        allowed |= {id(n) for n in ast.walk(node)}
+                for node in ast.walk(tree):
+                    if (isinstance(node, ast.Constant)
+                            and isinstance(node.value, str)
+                            and node.value.strip() in ('```', '~~~')
+                            and id(node) not in allowed):
+                        offenders.append(
+                            f'{os.path.relpath(path, REPO_ROOT)}:'
+                            f'{node.lineno}')
+        self.assertEqual([], offenders)
+
+
+class IterFencedBlocksTest(unittest.TestCase):
+    def test_language_start_line_and_body(self):
+        content = 'prose\n```mermaid\nflowchart TB\n  a --> b\n```\n'
+        self.assertEqual(
+            [('mermaid', 2, ['flowchart TB', '  a --> b'])],
+            list(iter_fenced_blocks(content)),
+        )
+
+    def test_a_marker_of_the_other_kind_is_body(self):
+        content = '~~~\n```\n~~~\n'
+        self.assertEqual([('', 1, ['```'])], list(iter_fenced_blocks(content)))
+
+    def test_an_unterminated_fence_yields_nothing(self):
+        content = '```mermaid\nflowchart TB\n'
+        self.assertEqual([], list(iter_fenced_blocks(content)))
+
+
 class IterLinesOutsideFencesTest(unittest.TestCase):
-    """The one fence loop the structure readers share."""
+    """The fence pass the structure readers share."""
 
     def test_offsets_survive_a_fence(self):
         # Blanked rather than dropped, so an offset is still an index

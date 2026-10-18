@@ -642,10 +642,22 @@ class DocsLineReferencesTest(CheckTestCase):
 
 
 class MermaidLintCiTest(CheckTestCase):
+    """Applicability is read from the index, as the linter reads it.
+
+    So the fixture is a checkout, and a case commits what it wrote
+    before running the check: a file that is on disk but not tracked
+    is not one tools/mermaid-lint.sh would render.
+    """
+
     check_class = docs_content.MermaidLintCi
+
+    def setUp(self):
+        super().setUp()
+        self.fixture.init_git()
 
     def _check(self, files):
         self.fixture.write_all(files)
+        self.fixture.commit()
         return self.check()
 
     DIAGRAM = (
@@ -667,20 +679,24 @@ class MermaidLintCiTest(CheckTestCase):
         self.fixture.write('README.md', '# Project\n\nNo pictures.\n')
         os.symlink('does-not-exist.md',
                    os.path.join(self.fixture.path, 'CLAUDE.md'))
+        self.fixture.commit()
         self.assert_skip(self.check())
 
     def test_a_symlink_out_of_the_checkout_is_not_read(self):
         outside = self.tempdir()
         with open(os.path.join(outside, 'elsewhere.md'), 'w') as f:
             f.write(self.DIAGRAM)
+        self.fixture.write('README.md', '# Project\n')
         os.symlink(os.path.join(outside, 'elsewhere.md'),
                    os.path.join(self.fixture.path, 'ARCHITECTURE.md'))
+        self.fixture.commit()
         self.assert_skip(self.check())
 
     def test_a_symlink_inside_the_checkout_is_read_through(self):
         self.fixture.write('docs/shape.md', self.DIAGRAM)
         os.symlink('docs/shape.md',
                    os.path.join(self.fixture.path, 'ARCHITECTURE.md'))
+        self.fixture.commit()
         self.assert_fail(self.check(), containing='tools/mermaid-lint.sh')
 
     def test_fails_without_the_script(self):
@@ -747,12 +763,39 @@ class MermaidLintCiTest(CheckTestCase):
         self.assert_skip(result)
 
     def test_vendored_trees_do_not_make_it_applicable(self):
-        """A Rust registry cache holds other people's diagrams."""
+        """A Rust registry cache holds other people's diagrams.
+
+        It is ignored rather than committed, which is what keeps it
+        out: the same answer the linter's own `git ls-files` gives.
+        """
         result = self._check({
+            '.gitignore': '.cargo-cache/\n',
             'README.md': '# Project\n',
             '.cargo-cache/registry/src/x/README.md': self.DIAGRAM,
         })
         self.assert_skip(result)
+
+    def test_an_untracked_diagram_does_not_make_it_applicable(self):
+        """CI only ever has tracked content, so the linter never sees it."""
+        self._check({'README.md': '# Project\n'})
+        self.fixture.write('docs/draft.md', self.DIAGRAM)
+        self.assert_skip(self.check())
+
+    def test_a_tracked_diagram_under_a_vendor_directory_counts(self):
+        """The linter renders it, so a broken one fails that lane.
+
+        A directory name is no reason to skip a file the index holds:
+        tools/mermaid-lint.sh lists by `git ls-files`, not by a list of
+        names, and the audit has to agree with it about what it renders.
+        """
+        result = self._check({'vendor/notes.md': self.DIAGRAM})
+        self.assert_fail(result, containing='tools/mermaid-lint.sh')
+
+    def test_a_directory_that_is_not_a_checkout_is_a_tool_failure(self):
+        """No listing is no verdict: not "no diagrams here"."""
+        self.fresh_fixture()
+        self.fixture.write('docs/shape.md', self.DIAGRAM)
+        self.assert_tool_failure(self.check, containing='git ls-files')
 
 
 class IssueLinkCheckDeploymentTest(unittest.TestCase):

@@ -14,6 +14,8 @@ import os
 import re
 import tomllib
 
+from audit.files import WALK_SKIP
+
 
 def mask_source(content, comments=True, strings=True):
     """Blank out comment and/or string-literal bodies, keeping offsets.
@@ -380,17 +382,22 @@ def python_specifier_clauses(specifier):
     return clauses
 
 
-#: Directories whose Python is not this project's source. build/ and
-#: dist/ hold copies of it, and a copy is what makes a dead import look
-#: alive: an import deleted from the tree survives in the last build
-#: until somebody runs `git clean`. .tox, .venv and node_modules hold
-#: everybody else's source, by a factor of forty-odd more files than
-#: the project wrote -- docs/audits/unused-declared-dependency.md
-#: counts shakenfist's -- and cover/ holds annotated listings that read
-#: as source but are output.
-NON_SOURCE_DIRS = frozenset((
-    '.git', '.tox', '.venv', 'venv', '.eggs', 'build', 'dist', 'cover',
-    'node_modules', '__pycache__',
+#: Directories whose Python is not this project's source: every tree
+#: walk's WALK_SKIP, plus what only a Python walk meets. build/ and
+#: dist/ hold copies of the source, and a copy is what makes a dead
+#: import look alive: an import deleted from the tree survives in the
+#: last build until somebody runs `git clean`. .tox, .venv and
+#: node_modules hold everybody else's source, by a factor of forty-odd
+#: more files than the project wrote --
+#: docs/audits/unused-declared-dependency.md counts shakenfist's -- and
+#: cover/ holds annotated listings that read as source but are output.
+#:
+#: Built on WALK_SKIP rather than beside it, so a directory added there
+#: is skipped here without a second edit. A separate copy drifts, and
+#: each name it misses -- vendor/, say -- is a tree of somebody else's
+#: code whose imports count as this project's.
+NON_SOURCE_DIRS = WALK_SKIP | frozenset((
+    '.eggs', 'cover', '__pycache__',
 ))
 
 

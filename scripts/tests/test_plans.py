@@ -309,6 +309,23 @@ class PlanPhaseReferencesTest(CheckTestCase):
         })
         self.assert_pass(result)
 
+    def test_a_fence_is_closed_only_by_its_own_marker(self):
+        # Read through iter_lines_outside_fences, as every other
+        # structure reader is: a ``` shown inside a ~~~ block leaves it
+        # open, and the line numbers reported after it still count the
+        # fenced lines.
+        result = self._check({
+            'docs/usage.md': (
+                '~~~\n'
+                '```\n'
+                'entering phase 3\n'
+                '~~~\n'
+                'This shipped in phase 4.\n'
+            ),
+        })
+        self.assert_fail(result, containing='docs/usage.md:5')
+        self.assertIn('1 plan phase reference(s)', result['details'])
+
     def test_audit_ok_marker_suppresses_the_line(self):
         result = self._check({
             'docs/electrics.md': (

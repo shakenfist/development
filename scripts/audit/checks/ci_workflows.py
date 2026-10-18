@@ -22,7 +22,7 @@ from audit.files import (
 )
 from audit.text.workflows import (
     RUNS_ON_RE, STATIC_ALLOWED_LABELS, indented_block,
-    is_bound_runner_value, job_level_keys, job_needs, job_outputs,
+    is_bound_runner_value, job_level_keys, job_needs, job_outputs, job_with_inputs,
     jobs_inheriting_secrets, parse_runner_labels, step_action, step_keys,
     strip_yaml_comments, workflow_job_blocks, workflow_step_blocks,
 )
@@ -697,33 +697,6 @@ def job_matrix_block(body):
     if strategy is None:
         return None
     return indented_block(strategy, 'matrix')
-
-
-def job_with_inputs(body):
-    """The `with:` inputs a job passes, as a name -> value mapping.
-
-    Only the scalar `name: value` form is read, which is every input
-    the fleet passes. A folded or block scalar is recorded as the
-    empty string: it is present, which is what the collision checks
-    below ask about.
-    """
-    block = indented_block(body, 'with')
-    if block is None:
-        return {}
-    inputs = {}
-    base = None
-    for line in block.splitlines():
-        if not line.strip():
-            continue
-        indent = len(line) - len(line.lstrip())
-        if base is None:
-            base = indent
-        if indent != base:
-            continue
-        match = re.match(r'^\s*([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$', line)
-        if match:
-            inputs[match.group(1)] = match.group(2).strip()
-    return inputs
 
 
 def job_runs_on_scarce_runner(body):
