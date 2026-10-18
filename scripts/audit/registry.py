@@ -107,6 +107,19 @@ def scheduled(checks=None):
             for check in (checks if checks is not None else CHECKS)]
 
 
+def sentence(e):
+    """An exception's message, ending in exactly one full stop.
+
+    Messages are written both ways -- gh's stderr usually ends in one,
+    most of ours do not -- and the details are a table cell on the
+    compliance page, where a doubled stop is the first thing seen. A
+    message already ending in one, an ellipsis included, is left alone
+    rather than stripped and stopped again.
+    """
+    message = str(e)
+    return message if message.endswith('.') else f'{message}.'
+
+
 def run_check(check, repo):
     """Run one scheduled check against a repository.
 
@@ -123,9 +136,10 @@ def run_check(check, repo):
     bot's identity, for what is a bug in the audit; `not_applicable`
     would close one it already has. `error` does neither, and the
     traceback goes to stderr so the bug is still in the workflow log.
-    The workflow then fails the leg on any `error` result, after its
+    The workflow then fails the leg on an `error` result, after its
     results are uploaded, so the bug stays loud without costing the
-    other criteria their issue management.
+    other criteria their issue management. audit-raised.py has the one
+    exception, a network check GitHub did not answer.
 
     A ToolFailure is the same status with a different sentence. The
     check did what it should -- its tooling did not answer -- so the
@@ -148,8 +162,8 @@ def run_check(check, repo):
               file=sys.stderr)
         return check.result(
             ERROR,
-            f'{e}. The audit could not measure this criterion, so this '
-            f'is not a finding about {repo.name}.',
+            f'{sentence(e)} The audit could not measure this criterion, '
+            f'so this is not a finding about {repo.name}.',
             tool_failure=True,
         )
     except Exception as e:
@@ -158,8 +172,8 @@ def run_check(check, repo):
         traceback.print_exc(file=sys.stderr)
         return check.result(
             ERROR,
-            f'The check raised {type(e).__name__}: {e}. This is a bug in '
-            f'the audit rather than a finding about {repo.name}; the '
+            f'The check raised {type(e).__name__}: {sentence(e)} This is a '
+            f'bug in the audit rather than a finding about {repo.name}; the '
             f'traceback is in the audit log.',
         )
 

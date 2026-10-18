@@ -34,7 +34,7 @@ Usage: check-audit-smoke.py RESULTS.json
 import json
 import sys
 
-from audit_snapshot import NETWORK_CHECKS
+from audit_snapshot import github_did_not_answer
 
 
 # Checks which must reach a real verdict for the run to count as having
@@ -73,8 +73,7 @@ def main(argv):
             problems.append(
                 '%s returned no status, so it neither passed nor failed'
                 % check['id'])
-        elif (check['status'] == 'error' and check.get('tool_failure')
-                and check['id'] in NETWORK_CHECKS):
+        elif github_did_not_answer(check):
             unasked.append(check['id'])
         elif check['status'] == 'error':
             problems.append(

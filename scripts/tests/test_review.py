@@ -282,6 +282,17 @@ class ReviewCoverageTest(StandInScriptMixin, CheckTestCase):
         self.use_script(stdout='not json')
         self.assert_tool_failure(self.check, containing='unparseable JSON')
 
+    def test_json_without_the_counts_is_a_tool_failure(self):
+        # Read with subscripts, any of these would raise as a bug.
+        self.make_reviewed_repo(['a.py'], reviewed=[])
+        complete = {'reviewed': 1, 'in_scope': 1, 'needing_review': 0,
+                    'stale': [], 'never_reviewed': []}
+        for body in ([], {'reviewed': 1}, dict(complete, needing_review='0'),
+                     dict(complete, stale=None)):
+            with self.subTest(body=body):
+                self.use_script(stdout=json.dumps(body))
+                self.assert_tool_failure(self.check, containing='without the counts')
+
 
 class ReviewScopeCompletenessTest(StandInScriptMixin, CheckTestCase):
     """Tests ReviewScopeCompleteness against fixture repos.
@@ -377,6 +388,13 @@ class ReviewScopeCompletenessTest(StandInScriptMixin, CheckTestCase):
         self.commit('include = ["*.py"]\n', ['a.py'])
         self.use_script(stdout='', stderr='Traceback: boom', returncode=1)
         self.assert_tool_failure(self.check, containing='Traceback: boom')
+
+    def test_json_without_an_orphans_list_is_a_tool_failure(self):
+        self.commit('include = ["*.py"]\n', ['a.py'])
+        for body in ('[]', '{}', '{"orphans": "x.json"}'):
+            with self.subTest(body=body):
+                self.use_script(stdout=body, returncode=1)
+                self.assert_tool_failure(self.check, containing='without an orphans list')
 
     def test_orphans_reported_with_status_one_are_a_finding(self):
         self.commit('include = ["*.py"]\n', ['a.py'])
@@ -582,6 +600,22 @@ class SfuiVendorTest(StandInScriptMixin, CheckTestCase):
                 return subprocess.CompletedProcess(args, 128, '', f'fatal: {subcommand} broke')
             return real(args, *a, **kw)
         return unittest.mock.patch.object(check_module.subprocess, 'run', run)
+
+    def test_rev_list_answering_with_something_other_than_a_count_is_a_tool_failure(self):
+        real = subprocess.run
+
+        def run(args, *a, **kw):
+            if args[0] == 'git' and 'rev-list' in args:
+                return subprocess.CompletedProcess(args, 0, 'warning: odd\n', '')
+            return real(args, *a, **kw)
+
+        tmp = self.tempdir()
+        canonical = self._make_canonical(tmp)
+        self._make_consumer(tmp, self._head(canonical))
+        with unittest.mock.patch.object(check_module.subprocess, 'run', run):
+            self.assert_tool_failure(
+                lambda: self.check(check_args={'canonical_url': canonical}),
+                containing="returned 'warning: odd', not a count")
 
     def test_git_failing_after_the_clone_is_a_tool_failure(self):
         # Each of these exits 128 for git failing, as opposed to the

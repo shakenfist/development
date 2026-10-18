@@ -211,6 +211,13 @@ class ReviewCoverage(Check):
         except json.JSONDecodeError as e:
             raise ToolFailure(
                 'review-tracking.py status emitted unparseable JSON') from e
+        shape = {'reviewed': int, 'in_scope': int, 'needing_review': int,
+                 'stale': list, 'never_reviewed': list}
+        if not isinstance(status, dict) or not all(
+                isinstance(status.get(key), kind) for key, kind in shape.items()):
+            raise ToolFailure(
+                'review-tracking.py status emitted JSON without the counts '
+                'and lists it reports')
 
         # Imported reviews count: they attest to the same bytes, and
         # import verified the attestation when it recorded them. Named
@@ -299,7 +306,14 @@ class ReviewScopeCompleteness(Check):
                 f'review-tracking.py scope-orphans emitted unparseable '
                 f'JSON: {result.stderr.strip()}') from e
 
-        orphans = report.get('orphans', [])
+        # The script always writes the key, so a report without it is
+        # not "no orphans": read that way, it would pass.
+        if not isinstance(report, dict) or not isinstance(
+                report.get('orphans'), list):
+            raise ToolFailure(
+                'review-tracking.py scope-orphans emitted JSON without an '
+                'orphans list')
+        orphans = report['orphans']
         if not orphans:
             return self.ok(
                 'Every tracked file is either in review scope or '
@@ -443,7 +457,12 @@ class SfuiVendor(Check):
                     raise ToolFailure(
                         f'git rev-list in canonical sfui failed: '
                         f'{behind.stderr.strip()}')
-                count = int(behind.stdout.strip())
+                try:
+                    count = int(behind.stdout.strip())
+                except ValueError as e:
+                    raise ToolFailure(
+                        f'git rev-list in canonical sfui returned '
+                        f'{behind.stdout.strip()!r}, not a count') from e
                 if count > 0:
                     problems.append(
                         f'{rel}: {count} commit(s) behind canonical; '

@@ -1080,6 +1080,10 @@ class MergeQueueIsSerialTest(unittest.TestCase):
                             self.RULES: CompletedCommand(returncode=1, stderr='HTTP 403')},
             'rules unparseable': {self.BRANCH: CompletedCommand(stdout='develop\n'),
                                   self.RULES: CompletedCommand(stdout='not json')},
+            'rules not a list': {self.BRANCH: CompletedCommand(stdout='develop\n'),
+                                 self.RULES: CompletedCommand(stdout='{"message": "x"}')},
+            'rules not objects': {self.BRANCH: CompletedCommand(stdout='develop\n'),
+                                  self.RULES: CompletedCommand(stdout='["merge_queue"]')},
         }
         for name, responses in cases.items():
             with self.subTest(case=name):
@@ -1522,6 +1526,29 @@ class MergeGroupCancellationTest(CheckTestCase):
             + self._job(self.QUEUE_REF_KEY)
         )})
         self.assert_skip(result)
+
+    def github_not_answering(self):
+        def ask(repo_name, org, github=None):
+            raise ToolFailure('Could not query GitHub for branch rules: HTTP 502')
+        ci_workflows.merge_queue_is_serial = ask
+
+    def test_github_not_answering_keeps_a_fail_the_files_already_give(self):
+        # A finding resting on what is on disk is one whatever the queue
+        # is set to, and merge-queue-config reports the outage itself.
+        self.github_not_answering()
+        result = self._check({
+            'ci.yml': self._merge_group_workflow(self._job(self.STABLE_KEY)),
+            'other.yml': self._merge_group_workflow(self._job(self.QUEUE_REF_KEY)),
+        })
+        self.assert_fail(result, containing='per-attempt queue ref')
+        self.assertNotIn('aliases live entries', result['details'])
+
+    def test_github_not_answering_is_a_tool_failure_when_the_files_pass(self):
+        # Here the queue is the only thing left to decide the verdict.
+        self.github_not_answering()
+        self.assert_tool_failure(
+            lambda: self._check({'ci.yml': self._merge_group_workflow(self._job(self.STABLE_KEY))}),
+            containing='HTTP 502')
 
 
 class WorkflowPermissionsTest(CheckTestCase):
@@ -2756,7 +2783,7 @@ class ScheduledWorkflowHealthTest(CheckTestCase):
 
     def test_an_unparseable_workflow_listing_is_a_tool_failure(self):
         self.fixture.workflows({'ci.yml': 'on: push\n'})
-        for body in ('not json', '[]', '{}'):
+        for body in ('not json', '[]', '{}', '{"workflows": {}}', '{"workflows": [{"path": "x"}]}'):
             with self.subTest(body=body):
                 self.responses[f'api {self.BASE}/actions/workflows?per_page=100'] = (
                     CompletedCommand(stdout=body))
@@ -2771,9 +2798,11 @@ class ScheduledWorkflowHealthTest(CheckTestCase):
     def test_an_unparseable_history_is_a_tool_failure(self):
         self.register(1, 'ci.yml', successes=0)
         runs_path = f'{self.BASE}/actions/workflows/1/runs?branch=develop'
-        self.responses[f'api {runs_path}&per_page=100 --jq {self.RUNS_JQ}'] = (
-            CompletedCommand(stdout='not json'))
-        self.assert_tool_failure(self.run_check, containing='Could not parse the runs of ci.yml')
+        for body in ('not json', '{}', '["schedule"]'):
+            with self.subTest(body=body):
+                self.responses[f'api {runs_path}&per_page=100 --jq {self.RUNS_JQ}'] = (
+                    CompletedCommand(stdout=body))
+                self.assert_tool_failure(self.run_check, containing='Could not parse the runs of ci.yml')
 
     def test_the_threshold_matches_the_specification(self):
         spec = repo_text('docs', 'audits', 'scheduled-workflow-health.md')

@@ -288,11 +288,12 @@ def skillsaw_errors(repo_path):
         raise ToolFailure(
             f'skillsaw did not emit a JSON report: '
             f'{result.stderr.strip() or e}') from e
-    if not isinstance(report, dict):
-        raise ToolFailure('skillsaw did not emit a JSON report: expected an object')
+    violations = report.get('violations', []) if isinstance(report, dict) else None
+    if not isinstance(violations, list) or not all(isinstance(v, dict) for v in violations):
+        raise ToolFailure('skillsaw did not emit a JSON report: expected an object listing violations')
 
     return [
-        violation for violation in report.get('violations', [])
+        violation for violation in violations
         if violation.get('severity') == 'error'
     ]
 

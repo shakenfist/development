@@ -266,6 +266,9 @@ class MergeQueueConfig(Check):
         except json.JSONDecodeError as e:
             raise ToolFailure(
                 f'Could not parse the branch rules response: {e}') from e
+        if not isinstance(rules, list) or not all(isinstance(r, dict) for r in rules):
+            raise ToolFailure(
+                'Could not parse the branch rules response: expected a list of rules')
 
         problems = evaluate_merge_queue_rules(rules)
         if problems is None:

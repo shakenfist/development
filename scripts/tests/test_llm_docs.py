@@ -319,6 +319,13 @@ class SkillsawInvocationTest(CheckTestCase):
         with unittest.mock.patch.dict(os.environ, {llm_docs.SKILLSAW_ENV: self.stand_in}):
             self.assert_tool_failure(self.check, containing='expected an object')
 
+    def test_violations_that_are_not_a_list_of_objects_are_a_tool_failure(self):
+        for output in ('{"violations": {}}', '{"violations": ["error"]}'):
+            with self.subTest(output=output):
+                self.stand_in_printing(output)
+                with unittest.mock.patch.dict(os.environ, {llm_docs.SKILLSAW_ENV: self.stand_in}):
+                    self.assert_tool_failure(self.check, containing='listing violations')
+
     def test_a_clean_report_passes_whatever_the_exit_status(self):
         # The exit status is not read: the report is the answer.
         self.stand_in_printing('{"violations": []}')

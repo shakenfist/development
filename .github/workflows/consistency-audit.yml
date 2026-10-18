@@ -204,6 +204,10 @@ jobs:
       # report-failure fires and update-docs does not publish a page
       # with a hole in it -- while manage-issues still gets this
       # repository's artifact and manages every other criterion.
+      # A network check that could not ask GitHub is a warning rather
+      # than a failure: one transient 502 must not hold back the page
+      # for the whole fleet, and an expired token has already failed
+      # the leg at "Check the read token".
       - name: Fail if any check raised
         run: python3 scripts/audit-raised.py "${RUNNER_TEMP}/audit-result-${{ matrix.repo }}.json"
 

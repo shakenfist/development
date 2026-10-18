@@ -392,6 +392,14 @@ class MergeQueueConfigApiTest(GithubConfigTestCase):
             self.rules('develop'): CompletedCommand(stdout='not json'),
         }), containing='Could not parse')
 
+    def test_a_ruleset_that_is_not_a_list_of_rules_is_a_tool_failure(self):
+        for body in ('{"message": "Not Found"}', '["merge_queue"]'):
+            with self.subTest(body=body):
+                self.assert_tool_failure(lambda: self.run_with({
+                    self.api('.default_branch'): CompletedCommand(stdout='develop\n'),
+                    self.rules('develop'): CompletedCommand(stdout=body),
+                }), containing='expected a list of rules')
+
     def test_a_timeout_is_a_tool_failure(self):
         self.assert_tool_failure(lambda: self.run_with({
             self.api('.default_branch'): subprocess.TimeoutExpired(

@@ -865,6 +865,9 @@ def merge_queue_is_serial(repo_name, org, github=None):
     except json.JSONDecodeError as e:
         raise ToolFailure(
             f'Could not parse the branch rules response: {e}') from e
+    if not isinstance(parsed, list) or not all(isinstance(r, dict) for r in parsed):
+        raise ToolFailure(
+            'Could not parse the branch rules response: expected a list of rules')
 
     entries = [
         (r.get('parameters') or {}).get('max_entries_to_build')
@@ -1479,14 +1482,25 @@ class MergeGroupCancellation(Check):
                 f'No merge_group or reusable workflow among '
                 f'{len(workflows)} workflow(s)')
 
-        if (keyed_on_base_ref
-                and merge_queue_is_serial(repo.name, repo.org, repo.github) is False):
-            offenders.append(
-                'the merge queue on the default branch builds more than '
-                'one entry at a time, so a group keyed on '
-                'merge_group.base_ref aliases live entries and would '
-                'cancel one of them (see docs/audits/merge-queue-config.md)'
-            )
+        if keyed_on_base_ref:
+            # GitHub not answering costs this check its verdict only
+            # when the workflow files have not already given one. A
+            # fail resting on what is on disk is a finding whatever the
+            # queue is set to, and merge-queue-config reports the same
+            # API failure for itself, so it is not lost.
+            try:
+                serial = merge_queue_is_serial(repo.name, repo.org, repo.github)
+            except ToolFailure:
+                if not offenders:
+                    raise
+                serial = None
+            if serial is False:
+                offenders.append(
+                    'the merge queue on the default branch builds more than '
+                    'one entry at a time, so a group keyed on '
+                    'merge_group.base_ref aliases live entries and would '
+                    'cancel one of them (see docs/audits/merge-queue-config.md)'
+                )
 
         if offenders:
             return self.fail(
@@ -2086,6 +2100,9 @@ class ScheduledWorkflowHealth(Check):
             registered = json.loads(result.stdout)['workflows']
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             raise ToolFailure(f'Could not parse the workflows response: {e!r}') from e
+        if not isinstance(registered, list) or not all(
+                isinstance(w, dict) and 'id' in w for w in registered):
+            raise ToolFailure('Could not parse the workflows response: expected a list of workflows')
 
         # GitHub keeps a workflow registered after its file is
         # deleted, and lists dynamic ones (Pages, Dependabot) that
@@ -2116,6 +2133,8 @@ class ScheduledWorkflowHealth(Check):
                 history = json.loads(result.stdout)
             except json.JSONDecodeError as e:
                 raise ToolFailure(f'Could not parse the runs of {name}: {e}') from e
+            if not isinstance(history, list) or not all(isinstance(run, dict) for run in history):
+                raise ToolFailure(f'Could not parse the runs of {name}: expected a list of runs')
 
             failed = [
                 run for run in history

@@ -339,6 +339,20 @@ answers. `check-audit-smoke.py`, which runs in CI without a token,
 excuses a `tool_failure` from the checks that ask GitHub and nothing
 else.
 
+The scheduled run excuses the same results, and only those
+(`github_did_not_answer()` in `scripts/audit_snapshot.py` is the one
+rule both scripts use). For a network check whose tooling could not
+ask GitHub, *Fail if any check raised* prints a workflow warning and
+does not fail the leg. A failed leg holds back the compliance page for
+the whole fleet, which one transient 502 or rate limit in one
+repository is not worth. The page shows that cell as a check error
+saying what could not be asked, and the criterion's issue is left as it
+was. An outage that lasts is not hidden by this. A token that has
+expired or lost access fails every leg at *Check the read token*,
+before anything is measured. A tool failure from any other check is
+the runner's own git, skillsaw or `review-tracking.py` not answering,
+which the next run would meet too, so it still fails the leg.
+
 The tests call `run()` directly and assert a verdict, so a check that
 raises unexpectedly still fails them. A test of a tool-failure path
 asserts that `run()` raises ToolFailure instead, with

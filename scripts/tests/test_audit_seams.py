@@ -329,6 +329,24 @@ class RegistryTest(unittest.TestCase):
             'Could not query GitHub for x: HTTP 502. The audit could not measure this '
             'criterion, so this is not a finding about testrepo.')
 
+    def test_a_message_that_ends_in_a_stop_gets_no_second_one(self):
+        # gh's stderr usually ends in one, and the details are a table
+        # cell on the compliance page. An ellipsis is left alone rather
+        # than trimmed and stopped again.
+        for message, expected in (
+                ('Could not query GitHub for x: Or set GH_TOKEN.', 'Or set GH_TOKEN. The audit'),
+                ('scope-orphans failed: usage: ...', 'usage: ... The audit')):
+            with self.subTest(message=message):
+                with contextlib.redirect_stderr(io.StringIO()):
+                    result = run_check(Sample(outcome=ToolFailure(message)), self.repo)
+                self.assertIn(expected, result['details'])
+                self.assertNotIn('..', result['details'].replace('...', ''))
+
+    def test_a_bug_whose_message_ends_in_a_stop_gets_no_second_one(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            result = run_check(Sample(outcome=ValueError('No such file.')), self.repo)
+        self.assertIn('ValueError: No such file. This is a bug', result['details'])
+
     def test_any_other_exception_is_an_error_blaming_the_audit(self):
         with contextlib.redirect_stderr(io.StringIO()):
             result = run_check(Sample(outcome=KeyError('k')), self.repo)
