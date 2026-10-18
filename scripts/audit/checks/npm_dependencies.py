@@ -840,7 +840,7 @@ class NpmPinIndirectDependencies(NpmPackageCheck):
         issues.extend(self._resolving_workflows(repo))
 
         if issues:
-            return self.fail('; '.join(issues), issues=issues)
+            return self.fail('; '.join(issues), findings=issues)
 
         packages = lockfile_packages(lock) if lock else set()
         noun = 'package' if len(packages) == 1 else 'packages'
@@ -982,7 +982,7 @@ class NpmUnusedDeclaredDependency(NpmPackageCheck):
                 f'record why it is installed under '
                 f'"shakenfistAudit": {{"notImported": {{...}}}} in '
                 f'package.json',
-                unused=unused)
+                findings=unused)
 
         noun = 'dependency is' if len(declared) == 1 else 'dependencies are'
         detail = f'All {len(declared)} declared {noun} used'
@@ -1071,7 +1071,7 @@ class NpmUndeclaredDirectDependency(NpmPackageCheck):
                 f'Imported but resolved only as a transitive dependency: '
                 f'{", ".join(undeclared)}. Declare each in package.json, '
                 f'at the version the lockfile already resolves',
-                undeclared=undeclared)
+                findings=undeclared)
 
         if len(transitive) == 1:
             return self.ok(f'The one package {name} resolves transitively '

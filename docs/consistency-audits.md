@@ -251,7 +251,11 @@ check that reports things present which should not be rather than
 things absent. `details` still has to stand alone, because that is what
 the compliance page prints into a table cell, so it carries the count
 and the guidance while the list carries the locations. The worked
-examples are `review-scope-completeness` and `eol-distro`.
+examples are `review-scope-completeness` and `eol-distro`. Those two
+keys are the only ones the body renders, so a list under any other
+name reaches the result JSON and nobody else;
+`test_every_extra_result_key_is_one_the_issue_renders` in
+`scripts/tests/test_metadata.py` refuses one.
 
 Aggregate across the fleet with:
 

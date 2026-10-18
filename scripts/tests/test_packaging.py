@@ -3324,6 +3324,7 @@ class UnusedDeclaredDependencyTest(CheckTestCase):
         result = self.assert_fail(self.check(), containing='schedule')
         self.assertIn('pyproject.toml:5', result['details'])
         self.assertNotIn('click', result['details'])
+        self.assertEqual(['schedule (pyproject.toml:5)'], result['findings'])
 
     def test_a_from_import_counts_as_a_use(self):
         self.pyproject(['"click==8.4.2",'])
@@ -3537,6 +3538,7 @@ class UndeclaredDirectDependencyTest(CheckTestCase):
         self.source('import click\nimport wrapt\n')
         result = self.assert_fail(self.check(), containing='wrapt')
         self.assertIn('pyproject.toml:6', result['details'])
+        self.assertEqual(['wrapt (pyproject.toml:6)'], result['findings'])
 
     def test_the_finding_names_the_declared_spelling(self):
         self.pyproject(direct=['"click==8.4.2",'],
@@ -3651,6 +3653,8 @@ class RenovateLockstepGroupsTest(CheckTestCase):
         result = self.assert_fail(self.check(), containing='oslo')
         self.assertIn('oslo.concurrency', result['details'])
         self.assertIn('oslo.config', result['details'])
+        self.assertEqual(1, len(result['findings']))
+        self.assertIn('oslo.config', result['findings'][0])
 
     def test_a_regex_group_passes(self):
         self.pyproject(self.OSLO)
