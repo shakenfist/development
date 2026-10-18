@@ -79,12 +79,14 @@ beside it:
   applicability in `applies()`, and measures in `run()`.
 - `audit/repo.py` -- `Repo`, the checkout under audit: its path,
   identity and detected properties, with the workflow listing cached.
-  `read()` caches file contents too, but the checks still open files
-  directly; adopting it is future work. Also `REPO_OVERRIDES`, the
-  properties that cannot be detected from a clone, which is also
-  where a repository is narrowed to a subset of checks. Scope is
-  otherwise all-or-nothing: in the matrix means every criterion
-  applies.
+  Every read of the checkout goes through `read()`, which caches and
+  refuses a link out of the clone, a directory or an oversize file,
+  so a check cannot be pointed outside the repository it audits;
+  `scripts/tests/test_containment.py` fails on any other way of
+  opening a file. Also `REPO_OVERRIDES`, the properties that cannot
+  be detected from a clone, which is also where a repository is
+  narrowed to a subset of checks. Scope is otherwise all-or-nothing:
+  in the matrix means every criterion applies.
 - `audit/github.py` -- the seam in front of `gh`, with a fake for the
   tests and a recorder for before-and-after comparisons.
 - `audit/registry.py` -- `CHECKS`: what runs, in the sequence the
