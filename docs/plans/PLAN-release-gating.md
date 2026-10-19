@@ -303,7 +303,15 @@ Out of scope, each for a stated reason:
    a pass, and the message names it. So is a partial set: if some of
    the named workflows qualify on a commit and others have no run
    there, the gate fails naming the missing ones, rather than walking
-   past a commit that CI half-tested.
+   past a commit that CI half-tested. Every qualifying run is judged
+   at its latest attempt, so a failed `merge_group` run is not
+   outranked by a later successful `push` run on the same commit.
+   Runs from a fork do not count. And before any run is judged, the
+   tagged commit must be on the default branch's first-parent
+   history, because a run's metadata cannot tell a tag from a branch:
+   a tag named `develop` produces `push` runs whose `head_branch` is
+   `develop`. Phase 2 added these three rules in review; its
+   execution notes say why.
 4. **No override input.** A CI run that failed for infrastructure
    reasons is re-run in CI, and then the gate job is re-run through
    "Re-run jobs", which keeps the original `push` event, the same
@@ -396,8 +404,8 @@ Out of scope, each for a stated reason:
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. Release environment criterion | In progress | |
-| 2. Shared `require-ci-success` and `check-dist` actions | Not started | |
+| 1. Release environment criterion | Complete | b87012d (#288) |
+| 2. Shared `require-ci-success` and `check-dist` actions | Complete | actions 69d4589 (#182) |
 | 3. Template and fleet adoption | Not started | |
 | 4. `release-process` helpers | Not started | |
 | 5. Push audit | Not started | |
@@ -691,6 +699,68 @@ under its `tests/`, following that repository's own conventions and
 | 2a | high | opus | worktree | Add `require-ci-success/action.yml` and its script, in Python, standard library only, and run with `python3 -I`. Inputs: `workflows` (required, a newline-separated list of workflow file names, empty is an error), `sha` (default `github.sha`), and `token` (default `github.token`; the caller grants `actions: read` and `contents: read`). Behaviour: starting at `sha`, for each candidate commit, query `repos/{repo}/actions/workflows/{file}/runs?head_sha={c}` for each named workflow. Keep only runs whose `event` is `push` with `head_branch` equal to the repository's default branch (read it from `repos/{repo}`), or `merge_group` with `head_branch` starting `gh-readonly-queue/<default>/`. Take the one with the highest `run_attempt` of the newest `run_number`, and require `status == completed` and `conclusion == success`. If every named workflow qualifies, pass, and print which commit and which run URLs did. If some named workflows qualify on the commit and others have no qualifying run there, fail without walking, naming the missing ones. If no named workflow has any qualifying-event run for the commit, step to its first parent, but only if the commit's diff against that parent touches nothing outside the fixed allowlist `REVIEWS.md` and `.vscode/*.weaudit*` (read via `repos/{repo}/commits/{c}`). Otherwise fail. Stop and fail after 20 steps. Any run that exists and did not succeed (failed, cancelled, still in progress) fails immediately, without walking. Each failure message names the commit, the workflow and the observed state, and for the walk case says to tag the last commit CI ran on. Write the allowlist as a module constant with a comment saying why it is not an input: a per-repository list grows. Tests in `tests/test_require_ci_success.py` with a stubbed HTTP layer, covering: success on the exact commit; a scheduled success ignored, then a fail; a `pull_request` success ignored; a `push` success on a feature branch ignored, then a fail; a `merge_group` success on another branch's queue ignored; a failed latest attempt after an earlier success; success after a re-run attempt; one of two workflows passing and the other with no run on the commit (fails without walking, naming the missing one); a walk across one and across two review-mark commits; a walk refused because a crossed commit touched `README.md`; the 20-step cap; an in-progress run; empty `workflows`. Document the action in `docs/` following the repository's pattern for its other actions. |
 | 2b | medium | sonnet | none | Add `check-dist/action.yml` and a standard-library Python script generalising `shakenfist/client-python-k3s/tools/check-dist.sh` (read it first; keep its reasoning about using `zipfile` names rather than parsing `-l` output). Inputs: `path` (default `dist/`), and `forbid` (optional newline-separated globs). For every `*.whl` under `path`, fail if any member path has a directory component equal to `tests` or ending in `_tests`, or matches a `forbid` glob. Print every offending member, and a one-line hint that `include-package-data = false` in `pyproject.toml` is the usual fix, citing the setuptools_scm file-finder mechanism. Having no wheel under `path` is an error. Tests in `tests/test_check_dist.py` build small zip files in a temp directory: clean; `pkg/tests/test_x.py`; `pkg/corpus_tests/x`; a `forbid` hit; a member named `contests.py` (must pass, since only directory components count); no wheels; a non-zip `.whl`. Document it beside 2a. |
 | 2c | low | sonnet | none | In `shakenfist/actions`, run its full check (`pre-commit run --all-files`, plus the test command its `AGENTS.md` names) and confirm both new test files run in CI, not just locally. |
+
+#### Phase 2 execution notes
+
+Run on 2026-10-19 (AEDT), in a worktree of `shakenfist/actions`, and
+merged as actions#182 at 69d4589.
+
+* **2a.** opus at high effort, as briefed; commit 6b47526. It shipped
+  with 46 tests, and thirteen mutations each failed the suite.
+  Departures from the brief, all kept because they fail closed:
+  * The allowlist is the three exact patterns `REVIEWS.md`,
+    `.vscode/*.weaudit` and `.vscode/*.weaudit-shas.json`, matched
+    within one directory, rather than the looser `.vscode/*.weaudit*`.
+    A renamed file is judged by its old name as well as its new one.
+  * The walk refuses a merge commit, a commit with no files listed,
+    and a commit whose file list may be truncated at the commits API's
+    300-file cap.
+  * Only runs whose `head_repository` is this repository count, so a
+    fork's run does not.
+  * Every qualifying run is judged at its latest attempt, not only the
+    newest `run_number`, so a failed `merge_group` run is not
+    outranked by a later successful `push` run. Decision 3 has been
+    corrected above to say so.
+* **2b.** sonnet at medium effort; commit b111e0d, with 21 tests. Two
+  extras were kept. It fails on a backslash in a member name, which no
+  correct wheel has. It also fails on an unreadable `.whl`, rather
+  than skipping it.
+* **2c.** The full check passed, and both test files run under the
+  repository's CI test step.
+* **A run still in progress fails the gate immediately.** The
+  operator chose this over waiting. The recovery is to wait for the
+  run, then re-run the gate job.
+* **The push audit ran before the pull request opened.** The operator
+  chose this order. Wave 1 used gitleaks v8.28.0, downloaded for the
+  run because the runner had none, with a planted secret as the
+  positive control. Wave 2's security reader found that a tag named
+  like the default branch spoofs a run's `head_branch`. This was
+  confirmed against kerbside's `v0.7.0` tag run, whose `head_branch`
+  is `v0.7.0`. Commit 43b6850 fixed it by requiring the tagged commit
+  to be reachable from the default branch.
+* **Review round 1** found that reachability still admits a commit
+  from a feature branch that was merged with a merge commit. Commit
+  5b11e51 requires the default branch's first-parent history instead.
+  It reads that history from the tip's sha, not the branch name,
+  which a branch-named tag would make ambiguous. It reads at most 500
+  listed commits, and fails closed beyond that.
+* **Review round 2** raised no `fix` items. Commit f53cd9b took two
+  `consider` items, both defects in code this phase added:
+  * `check-dist` now escapes workflow-command characters in member
+    names;
+  * a merge queue `head_branch` must match
+    `gh-readonly-queue/<default>/pr-<n>-<sha>` whole.
+* **The final tree** has 758 tests, and all 42 mutants are caught. It
+  gave these verdicts when run read-only against live repositories:
+  * kerbside `v0.7.0` (2d9ee91) fails: it is a merge commit with no CI
+    run, and the gate exists to stop exactly this release;
+  * client-python-k3s `v0.3.0` passes on the exact commit;
+  * ryll `v0.3.0` passes, after stepping across one review-mark commit;
+  * kerbside 664068f, a second-parent commit, is refused.
+* **The docs recommend `on: push: branches:` for gated CI.** Gated CI
+  workflows should restrict pushes to branches, so that a tag push
+  starts no CI at all. The `actions` docs say so, and phase 3 applies
+  it where a repository's CI triggers on every push.
 
 ### Phase 3: template and fleet adoption
 
@@ -1061,6 +1131,16 @@ chosen to defer to here, so that we do not forget them.
   `PLAN-workflow-ref-trust.md` phase 5 converts the template into that
   shape, the criterion must follow the `uses:` reference, in the same
   change that carries the `ci-gate` job.
+* **`check-dist` is tested only by its unit tests** in
+  `shakenfist/actions`. Running the action itself in that
+  repository's `ci.yml`, against a small fixture wheel, would catch a
+  broken `action.yml` before the fleet does. The same goes for
+  `require-ci-success`, though that needs a real repository's runs to
+  read.
+* **A tag ruleset that refuses branch-named tags** would close the
+  `head_branch` spoof at its source. The gate already refuses such a
+  tag unless it sits on the default branch's first-parent history, so
+  this is defence in depth, alongside the tag rulesets above.
 * **Re-publishing the affected packages** without their tests is not
   worth a version bump on its own. The next ordinary release of each
   carries the fix.
