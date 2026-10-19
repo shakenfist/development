@@ -73,10 +73,6 @@
       "sha": "26a19958e61609c60e1b721594ab8151ddf1634f",
       "date": "2026-09-04"
     },
-    ".pre-commit-config.yaml": {
-      "sha": "805b262c50f6e356892f3bec35d4f42daeb9420f",
-      "date": "2026-10-12"
-    },
     "AGENTS.md": {
       "sha": "dd4e9bcf06e4ee7957cc38b980b9ca11ef8c240e",
       "date": "2026-10-18"
@@ -88,10 +84,6 @@
     "PUSH-AUDIT.md": {
       "sha": "32c3231274122ed8249d061e393cc09430c771e4",
       "date": "2026-10-18"
-    },
-    "README.md": {
-      "sha": "2269add37483bd29c54af121efee0aeeb1939a53",
-      "date": "2026-10-05"
     },
     "docs/audits/ci-review-automation.md": {
       "sha": "ceb7b6ba2ae57439dc519581f22e8e98530816a8",

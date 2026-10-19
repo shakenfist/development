@@ -313,10 +313,6 @@
       "author": "mikal"
     },
     {
-      "path": "README.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/security-sanitization.md",
       "author": "mikal"
     },
@@ -458,10 +454,6 @@
     },
     {
       "path": "docs/audits/release-artifacts-exclude-plans.md",
-      "author": "mikal"
-    },
-    {
-      "path": ".pre-commit-config.yaml",
       "author": "mikal"
     },
     {
