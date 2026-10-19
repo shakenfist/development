@@ -57,9 +57,21 @@
       "sha": "d5b8377f8a98d3f68fd14469ed4d5be8fece1c6a",
       "date": "2026-09-14"
     },
+    ".github/workflows/pr-re-review.yml": {
+      "sha": "501583b681bc88c12846372364aa302b1b05aec3",
+      "date": "2026-10-20"
+    },
+    ".github/workflows/pr-retest.yml": {
+      "sha": "189610eb241bbecbf11c6459f874c97ff80c0359",
+      "date": "2026-10-20"
+    },
     ".github/workflows/prune-reviews.yml": {
       "sha": "91ff1783e6589e198ce5d14aab473112761b7ce2",
       "date": "2026-10-16"
+    },
+    ".github/workflows/renovate.yml": {
+      "sha": "54cdd8d6ae3e66feb0f7cffecfb576c02e9d4e87",
+      "date": "2026-10-20"
     },
     ".github/workflows/secret-scan.yml": {
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
