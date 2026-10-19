@@ -49,10 +49,6 @@
       "sha": "d5b8377f8a98d3f68fd14469ed4d5be8fece1c6a",
       "date": "2026-09-14"
     },
-    ".github/workflows/pr-retest.yml": {
-      "sha": "dab99349ea1867e984ae0e5fc73f70ec00cb519b",
-      "date": "2026-10-02"
-    },
     ".github/workflows/prune-reviews.yml": {
       "sha": "91ff1783e6589e198ce5d14aab473112761b7ce2",
       "date": "2026-10-16"
@@ -328,10 +324,6 @@
     "scripts/tests/test_review_tracking.py": {
       "sha": "13228a480cc5f25af118188794c77314fa354576",
       "date": "2026-10-16"
-    },
-    "templates/ci-review-automation/pr-retest.yml": {
-      "sha": "dab99349ea1867e984ae0e5fc73f70ec00cb519b",
-      "date": "2026-10-02"
     },
     "templates/codeql/README.md": {
       "sha": "d70d68e44cfe1b1d4c6908b7e8b1d206be933224",

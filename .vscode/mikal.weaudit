@@ -317,14 +317,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/pr-retest.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/ci-review-automation/pr-retest.yml",
-      "author": "mikal"
-    },
-    {
       "path": "templates/shared-blocks/README.md",
       "author": "mikal"
     },
