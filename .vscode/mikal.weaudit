@@ -719,6 +719,94 @@
     {
       "path": ".github",
       "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/release-environment-protection.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/automated-pr-review.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consistency-audits.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/release-automation.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/github_config.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/workflows.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/github.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/repo.py",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation/RELEASE-SETUP.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation/release.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation-rust/propose-release.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation-rust/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation-rust/release-version.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation-rust/release.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation-rust/sign-release-tag.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation-rust/tag-release.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation-rust",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
