@@ -86,7 +86,11 @@ Thirteen repositories carry a `.github/workflows/release.yml`:
 agent-python, client-python, client-python-k3s, client-python-ova,
 clingwrap, divergulent, hunkydory, instar, kerbside,
 library-utilities, occystrap, ryll and shakenfist. All thirteen use
-`develop` as the default branch and cut their tags from it.
+`develop` as the default branch and cut their tags from it. A
+fourteenth, andris, was missed when this plan was written, and phase
+3's survey found it. It is a Rust project that publishes
+maturin-built wheels to PyPI. It already has a merge queue, and its
+`release` environment already has a reviewer and a tag-only policy.
 
 **1. Nothing checks that a release waits for a human.** The template
 puts `sign-tag` and `publish-pypi` behind `environment: release`,
@@ -236,6 +240,11 @@ stop depending on someone remembering `RELEASE-SETUP.md`:
 3. **A wheel contains what was meant.** No test package or fixture
    reaches a published wheel, checked in CI on every pull request and
    again in the release.
+4. **A release flow has one shape per language.** Every release
+   repository merges through a serialized merge queue. A Python
+   release follows `templates/release-automation/`, and a Rust release
+   follows a Rust template that this plan adds. The audit measures
+   both.
 
 Out of scope, each for a stated reason:
 
@@ -376,6 +385,20 @@ Out of scope, each for a stated reason:
     any CI trigger the gate needs, and the packaging fix. One review
     per repository is cheaper than three, and the changes test each
     other: the packaging fix is exactly what makes `check-dist` pass.
+    The merge queue and the Rust template's convergence join that
+    pull request too (decision 11).
+11. **Every release repository gets a merge queue, and the Rust
+    releases converge on a template; phase 4 measures both.** The
+    operator added this during phase 3's back brief.
+    - The queue requirement covers repositories with a `release.yml`
+      only. That is where the gate needs a merged commit to carry a
+      run, and requiring it fleet-wide would newly fail about eleven
+      repositories that release nothing.
+    - Phase 3 gives the queue to the eight release repositories that
+      lack one, so the criterion fails nobody when it lands.
+    - The Rust template is written from ryll's release, which already
+      tags through the queue. ryll, instar and andris converge on it in
+      their phase 3 pull requests.
 
 ## Open questions
 
@@ -415,7 +438,7 @@ Out of scope, each for a stated reason:
 | 1. Release environment criterion | Complete | b87012d (#288) |
 | 2. Shared `require-ci-success` and `check-dist` actions | Complete | actions 69d4589 (#182) |
 | 3. Template and fleet adoption | In progress | |
-| 4. `release-process` helpers | Not started | |
+| 4. Release-flow and merge-queue criteria | Not started | |
 | 5. Push audit | Not started | |
 
 Phases run in order. Phase 2 lands in `shakenfist/actions` and
@@ -776,10 +799,11 @@ Planning effort: high, for the per-repository packaging judgement and
 for what the survey found about how the fleet actually merges. The
 workflow edits themselves are mechanical.
 
-This phase spans fifteen pull requests:
-* this repository's (the plan and the template);
+This phase spans eighteen pull requests:
+* two in this repository: the plan and the Python template, then the
+  Rust template;
 * one in `shakenfist/actions`;
-* one in each of the thirteen release repositories (decision 10).
+* one in each of the fourteen release repositories (decision 10).
 
 Its `Merged` cell takes one `<repo> <sha> (#pr)` entry per
 repository.
@@ -899,6 +923,14 @@ section has been rewritten rather than patched:
     `reviews` merges get no `ci.yml` run, because of its `paths-ignore`,
     and so cannot be tagged. Future work records each; none of them
     stops the gate working.
+13. **andris is a fourteenth release repository**, added to this
+    phase after the back brief. It is Rust.
+    - Its `ci.yml` backs "Can see status", "Can enqueue" and "Can
+      merge" behind a serial queue.
+    - Its `release.yml` runs `check-version`, then `build-wheels` (a
+      maturin matrix), then `sign-tag` on `ubuntu-latest`, then
+      `github-release` and `publish-pypi`. The publishing jobs already
+      carry the push and tag guard.
 
 #### Decisions
 
@@ -913,29 +945,38 @@ section has been rewritten rather than patched:
 
   This is what makes a tag on any merged commit releasable, rather
   than only a tag on the tip.
-* **3.2. The three repositories without a queue get one.**
-  - Those are agent-python, client-python and clingwrap, whose
-    `functional-tests.yml` runs only on pull requests, so no merged
-    commit ever has a run the gate counts.
-  - The planned alternative was a `push` trigger. The operator chose
-    a merge queue instead, in the back brief, which makes these three
-    merge the way the rest of the fleet does.
-  - Each `functional-tests.yml` gains a `merge_group` trigger, and
-    "Can enqueue" and "Can merge" aggregator jobs in the shape of
-    client-python-k3s's (`functional-tests.yml:266-310`).
-  - Once that pull request has merged, the default branch gets a
-    ruleset copied from client-python-k3s's "Develop branch" ruleset
-    (20595671): a serial queue that `merge-queue-config` accepts,
-    with "Can enqueue" and "Can merge" required. The ruleset comes
-    second because, before the jobs exist, a queue would wait for
-    checks that never report.
-  - The cost is one more full run per merge, the same as a `push`
-    trigger would have cost. For client-python that is a smoke cluster
-    on the shared under-cloud.
-  - Copying the ruleset copies its bypass team too, so these
-    repositories gain the bypass that `PLAN-bot-bypass-identity.md`
-    owns. That keeps them consistent with the fleet. A bypass merge
-    here fails the gate as it does everywhere else.
+* **3.2. Every release repository gets a merge queue.**
+  - Eight lack one:
+    - agent-python, client-python and clingwrap, whose
+      `functional-tests.yml` runs only on pull requests, so no merged
+      commit has a run the gate counts;
+    - client-python-ova, divergulent, hunkydory, library-utilities
+      and occystrap, whose CI runs on push.
+  - The planned alternative for the first three was a `push` trigger.
+    The operator chose a queue instead, then required one on every
+    release repository (decision 11). Phase 3 therefore gives all
+    eight a queue, so that phase 4's criterion fails nobody.
+  - Each gated workflow gains a `merge_group` trigger, plus "Can
+    enqueue" and "Can merge" aggregator jobs in the shape of
+    client-python-k3s's (`functional-tests.yml:266-310`). Each
+    aggregator's `needs:` lists that repository's own jobs, and the
+    automated reviewer stays out of it.
+  - Once that pull request has merged, step 3h gives the default
+    branch a ruleset copied from client-python-k3s's "Develop branch"
+    ruleset (20595671): a serial queue that `merge-queue-config`
+    accepts, with "Can enqueue" and "Can merge" required.
+    - The ruleset comes second because, before the jobs exist, a
+      queue would wait for checks that never report.
+    - hunkydory already has a ruleset (23805020), so 3h edits that
+      one instead. Its four required checks must then report on a
+      merge group, or move into its aggregators.
+    - Copying the ruleset copies its bypass team too.
+      `PLAN-bot-bypass-identity.md` owns that bypass. A bypass merge
+      here fails the gate as it does everywhere else.
+  - A push trigger that already exists stays, and decision 3.1 still
+    applies to it. The gate counts both events.
+  - The cost is one more full run per merge. For client-python that
+    run includes a smoke cluster on the shared under-cloud.
 * **3.3. The packaging fix is `include-package-data = false` plus an
   explicit exclude of the test packages**, with explicit
   `package-data` for everything the code loads at runtime.
@@ -1001,6 +1042,21 @@ section has been rewritten rather than patched:
     pull requests.
   - Its pull request closes client-python-ova#19.
 
+* **3.9. The Rust template is ryll's release, generalised.**
+  - The new `templates/release-automation-rust/` holds:
+    - a `release.yml` whose fixed jobs are `ci-gate`, `check-version`,
+      `sign-tag` on a throwaway runner, and `github-release`, with the
+      template's guards;
+    - a marked section for the repository's own build and publish
+      jobs, because ryll, instar and andris build very different
+      things;
+    - the queued release scripts, `propose-release.sh` and
+      `tag-release.sh`, with a README that lists the invariants.
+  - The invariants are what phase 4 measures. The build section is
+    not measured.
+  - Its README says how a repository that publishes wheels adds
+    `check-dist`.
+
 #### Common edits
 
 Each repository's pull request makes these changes, adapted by hand
@@ -1037,19 +1093,20 @@ Per-repository facts. `workflows` is what `ci-gate` names.
 
 | Repository | `workflows` | CI change | `release.yml` | Packaging | `check-dist` calls |
 |---|---|---|---|---|---|
-| client-python-ova | `ci.yml` | re-key the three groups (:47, :108, :186) | the template's | none; 18 members, clean | `build`; CI `lint-and-build` |
-| library-utilities | `ci.yml` | re-key `lint-and-test` (:51) | template-shaped | the decision 3.3 pattern for `shakenfist_utilities`; removes 2 | `build` |
-| divergulent | `unit-tests.yml` | none | template-shaped | add the exclude to its existing `packages.find` (:71-77); removes 61, three of them fixtures | `build` |
-| occystrap | `python-unit-tests.yml`, `functional-tests.yml` | none; their identical `paths-ignore` stays, so a docs-only tag fails closed | template-shaped | remove `occystrap.tests` from `packages` (:63), and turn off `include-package-data`; removes 17 | `build`; CI `functional`, after its build (:91-96) |
+| client-python-ova | `ci.yml` | add `merge_group` and the aggregator jobs, then the ruleset (3h); re-key the three groups (:47, :108, :186) | the template's | none; 18 members, clean | `build`; CI `lint-and-build` |
+| library-utilities | `ci.yml` | add `merge_group` and the aggregator jobs, then the ruleset (3h); re-key `lint-and-test` (:51) | template-shaped | the decision 3.3 pattern for `shakenfist_utilities`; removes 2 | `build` |
+| divergulent | `unit-tests.yml` | add `merge_group` and the aggregator jobs, then the ruleset (3h) | template-shaped | add the exclude to its existing `packages.find` (:71-77); removes 61, three of them fixtures | `build` |
+| occystrap | `python-unit-tests.yml`, `functional-tests.yml` | add `merge_group` to both, and the aggregator jobs to one of them, then the ruleset (3h); a merge group has no paths filter, so docs-only merges become releasable | template-shaped | remove `occystrap.tests` from `packages` (:63), and turn off `include-package-data`; removes 17 | `build`; CI `functional`, after its build (:91-96) |
 | clingwrap | `functional-tests.yml` | add `merge_group` and the aggregator jobs; then the ruleset (3h) | template-shaped | the decision 3.3 pattern; keep `examples/*.cwd`, which `main.py:213` loads; removes 1 | `build` |
 | agent-python | `functional-tests.yml` | add `merge_group` and the aggregator jobs, with `check_paths` working on a merge group as k3s's does; then the ruleset (3h) | template-shaped | the decision 3.3 pattern; removes 3 tests, plus `protos/*.proto` and `protos/_copy_stubs.sh`, which nothing loads | `build` |
 | client-python | `functional-tests.yml` | add `merge_group`, both to the workflow and to `functional_matrix`'s `smoke-cluster` call, and the aggregator jobs; then the ruleset (3h) | template-shaped | the decision 3.3 pattern; removes 6 | `build` |
 | shakenfist | `functional-tests.yml` | none (`merge_group`) | adds `build-collection` and `publish-collection`; `ci-gate` goes above both `build` and `build-collection` | decision 3.4; keep `data/*.yaml`, which `schema/database_load_budget.py:204` loads; removes 489 | `build` |
 | client-python-k3s | `functional-tests.yml` | none (`merge_group`) | adds `build-collection` and `publish-collection`; `ci-gate` goes above both | none; 12 members, clean | `build`, beside the `check-dist.sh` call, which stays |
 | kerbside | `functional-tests.yml` | none (`merge_group`) | adds `build-collection`, `build-proxy-wheels` and `publish-proxy-pypi`; `ci-gate` goes above all three build jobs | add `kerbside.tests*` to its `packages.find` exclude, and turn off `include-package-data`; removes 31; keep the templates, static files and migrations; `tools/check-wheel.py` must still pass | `build` on `dist/`; `build-proxy-wheels` on `dist/proxy-wheels/`; CI `sanity_checks` |
-| ryll | `ci.yml` | none (`merge_group`) | no dispatch; `check-version` is the root | none; clean on PyPI | `build-ryll-wheels`, on `target/wheels/` |
-| hunkydory | `ci.yml` | re-key the three groups (:156, :200, :269) | builds a `.vsix`; publishes to the Marketplace | no wheel | none |
-| instar | `functional-tests.yml` | none (`merge_group`); the release process changes (decision 3.5) | `build` uses `always()`; `sign-tag` and `github-release` are unguarded | no wheel | none |
+| ryll | `ci.yml` | none (`merge_group`) | no dispatch; `check-version` is the root; converge on the Rust template (3i) | none; clean on PyPI | `build-ryll-wheels`, on `target/wheels/` |
+| hunkydory | `ci.yml` | add `merge_group` and the aggregator jobs, then edit its existing ruleset (3h); re-key the three groups (:156, :200, :269) | builds a `.vsix`; publishes to the Marketplace | no wheel | none |
+| instar | `functional-tests.yml` | none (`merge_group`); the release process changes (decision 3.5) | `build` uses `always()`; `sign-tag` and `github-release` are unguarded; converge on the Rust template (3i) | no wheel | none |
+| andris | `ci.yml` | none (`merge_group`) | `check-version` is the root; maturin `build-wheels`; converge on the Rust template (3i) | its wheels are maturin-built; `check-dist` decides | `build-wheels`, on its wheel output directory |
 
 #### Steps
 
@@ -1057,12 +1114,20 @@ Per-repository facts. `workflows` is what `ci-gate` names.
 |------|--------|-------|-----------|---------------------|
 | 3a | medium | sonnet | none | In this repository, on this phase's branch. In `templates/release-automation/release.yml`, add the `ci-gate` job from Common edits above, with `workflows:` set to a `{{CI_WORKFLOWS}}` placeholder. Make `build` need it under the guard given there, with a comment explaining the guard: a skipped gate may only accompany a run that publishes nothing. The `${{ }}` wrapper is required, because YAML reads a bare value starting with `!` as a tag. Add a `check-dist` step after `twine check`. In `templates/release-automation/README.md`: add the placeholder row; add a section on the gate covering what counts as CI, the review-mark walk and why there is no override (link `shakenfist/actions`' `docs/actions.md`, do not restate it); add the recovery table from decision 3.6; and add prerequisites for gated CI. Those prerequisites are: CI runs on `push` to the default branch with a `branches:` filter, or on `merge_group`; a concurrency group never cancels a push run, keyed as decision 3.1 says; no named workflow may conclude `skipped` on the event that counts; and `paths-ignore` means a tag on a skipped commit fails. Note that `PLAN-workflow-ref-trust.md` phase 5 must carry `ci-gate` if it converts the template. Update `templates/release-automation/RELEASE-SETUP.md` to say the reviewer approves a release whose CI the gate has already checked, and to name the `release-environment-protection` criterion. Do not cite plan phases or decision numbers in the template or its docs. Run `pre-commit run --all-files`, which runs actionlint over the template. |
 | 3b | medium | sonnet | own worktree of `shakenfist/actions` | In `tools/check-dist.py`, fail a wheel that holds nothing outside its `*.dist-info/` directory, the way client-python-k3s's `tools/check-dist.sh:88-92` rejects an empty wheel. A wheel whose only payload is under `*.data/` passes: ryll's wheels have just `<name>.data/scripts/ryll` and their dist-info. Add tests in `tests/test_check_dist.py` for an empty wheel, a dist-info-only wheel and a `.data`-only wheel, and update the `check-dist` section of `docs/actions.md`. Run the repository's pre-commit and `python3 -m unittest discover -s tests -t .`, and mutate the new branch on a copy to show that the tests catch it. Leave the work uncommitted. This lands as its own pull request in `shakenfist/actions`, before 3d. |
-| 3c | high | opus | own clone of the repository | The pilot: client-python-ova, with the Common edits and its table row. Its `release.yml` is the template's, so the diff should be the template's 3a diff, with `ci.yml` as `workflows`, plus the CI re-keying and the CI `check-dist` step. Build the wheel with the release's path (sdist, then the wheel from it) and run `check-dist` on it. Run the repository's pre-commit. Leave the change uncommitted on a branch named `release-gating`; the management session reviews, commits and pushes, and the commit body says it closes client-python-ova#19. After it merges, the management session asks the operator before dispatching `release.yml` on `develop`. The dry run must show `ci-gate` and the publishing jobs skipped, and `build` and `check-dist` succeeded. |
-| 3d | high | sonnet | own clone per repository | Wave 1: library-utilities, divergulent and occystrap. One sub-agent each, run in parallel. Each takes its table row, the Common edits, and the merged pilot as its pattern. Each applies the packaging fix from its row, then confirms four things: `check-dist` passes on a wheel built through the sdist; the member diff matches the row and is stated whole; a build from a copy with no `.git` gives the same members; and the repository's own tests pass. Run pre-commit, and leave the change uncommitted on a `release-gating` branch. Any difference from the table row is reported, not worked around. |
-| 3e | high | opus | own clone per repository | Wave 2: shakenfist, client-python-k3s, kerbside, ryll, hunkydory, clingwrap, agent-python and client-python. One sub-agent each, run in parallel. The same checks as 3d, and also these. clingwrap, agent-python and client-python: decision 3.2's CI change, copying client-python-k3s's `merge_group` trigger, its `check_paths` handling of a merge group, and its "Can enqueue" and "Can merge" jobs (`functional-tests.yml:266-310`), with each aggregator's `needs:` listing that repository's own jobs; the automated reviewer stays out of `needs:`. shakenfist: decision 3.4, unless the operator chose the narrower option in the back brief; all 188 runtime modules must be in the fixed wheel, and the test in `shakenfist/tests/test_database_load_budget.py` that asserts the data file is declared must pass. kerbside: `tools/check-wheel.py` must pass on the fixed tree. ryll: do not install Rust; put `check-dist` in `build-ryll-wheels` and check it by reading. Any job graph with more than one root needs `ci-gate` above every root that leads to an environment job. Run pre-commit, and leave the change uncommitted on a `release-gating` branch. |
-| 3f | high | opus | own clone | instar, following decision 3.5 as the back brief settled it. Read ryll's `tools/propose-release.sh` and `tools/tag-release.sh`, and its release section in `docs/`, and adapt them. Change `make release` and `docs/development.md:478-480` to match. Then make the `release.yml` guard changes, and add `ci-gate` with `workflows: functional-tests.yml`. Run instar's pre-commit through its Docker wrapper, never a native Rust toolchain. Leave the change uncommitted on a `release-gating` branch. |
-| 3h | low | operator | none | **Operator, with approval at execution time.** After the clingwrap, agent-python and client-python pull requests have each merged, and a run on `develop` shows the new jobs reporting, `POST repos/shakenfist/<r>/rulesets` with client-python-k3s's "Develop branch" ruleset (20595671) as the body, minus its `id`, `source` and timestamps, and read it back. Then run `merge-queue-config` against the repository, and watch the next pull request through the queue. |
+| 3c | high | opus | own clone of the repository | The pilot: client-python-ova, with the Common edits and its table row, including decision 3.2's merge-queue CI change, which the later steps copy. Its `release.yml` is the template's, so the diff should be the template's 3a diff, with `ci.yml` as `workflows`, plus the CI re-keying and the CI `check-dist` step. Build the wheel with the release's path (sdist, then the wheel from it) and run `check-dist` on it. Run the repository's pre-commit. Leave the change uncommitted on a branch named `release-gating`; the management session reviews, commits and pushes, and the commit body says it closes client-python-ova#19. After it merges, the management session asks the operator before dispatching `release.yml` on `develop`. The dry run must show `ci-gate` and the publishing jobs skipped, and `build` and `check-dist` succeeded. |
+| 3d | high | sonnet | own clone per repository | Wave 1: library-utilities, divergulent and occystrap, each also making decision 3.2's CI change after the pilot's pattern. One sub-agent each, run in parallel. Each takes its table row, the Common edits, and the merged pilot as its pattern. Each applies the packaging fix from its row, then confirms four things: `check-dist` passes on a wheel built through the sdist; the member diff matches the row and is stated whole; a build from a copy with no `.git` gives the same members; and the repository's own tests pass. Run pre-commit, and leave the change uncommitted on a `release-gating` branch. Any difference from the table row is reported, not worked around. |
+| 3e | high | opus | own clone per repository | Wave 2: shakenfist, client-python-k3s, kerbside, hunkydory, clingwrap, agent-python and client-python. One sub-agent each, run in parallel. The same checks as 3d, and also these. hunkydory, clingwrap, agent-python and client-python: decision 3.2's CI change, copying client-python-k3s's `merge_group` trigger, its `check_paths` handling of a merge group, and its "Can enqueue" and "Can merge" jobs (`functional-tests.yml:266-310`), with each aggregator's `needs:` listing that repository's own jobs; the automated reviewer stays out of `needs:`. shakenfist: decision 3.4, unless the operator chose the narrower option in the back brief; all 188 runtime modules must be in the fixed wheel, and the test in `shakenfist/tests/test_database_load_budget.py` that asserts the data file is declared must pass. kerbside: `tools/check-wheel.py` must pass on the fixed tree. Any job graph with more than one root needs `ci-gate` above every root that leads to an environment job. Run pre-commit, and leave the change uncommitted on a `release-gating` branch. |
+| 3f | high | opus | own clone per repository | The Rust wave: ryll, instar and andris, after 3i has merged. One sub-agent each, in parallel. Each converges its `release.yml` on `templates/release-automation-rust/`, keeping its own build and publish jobs in the marked section and never copying the template over the file, and adds `ci-gate` with its table row's `workflows`. ryll and andris put `check-dist` on their wheel output, checked by reading. instar also takes decision 3.5: adapt the template's `propose-release.sh` and `tag-release.sh`, change `make release` and `docs/development.md:478-480` to match, and make the `release.yml` guard changes. Never install a native Rust toolchain; run each repository's pre-commit through its Docker wrapper where it has one. Leave each change uncommitted on a `release-gating` branch. |
+| 3i | high | opus | none | In this repository, as its own pull request. Write `templates/release-automation-rust/` from ryll's `release.yml`, `tools/propose-release.sh` and `tools/tag-release.sh`, following decision 3.9. Read instar's and andris's `release.yml` too, so that the fixed jobs suit all three, and say in the README where each of the three differs inside the build section. The README lists the invariants as a checklist, which phase 4's helpers turn into rules. Run pre-commit, which lints the template. |
+| 3h | low | operator | none | **Operator, with approval at execution time.** After each of the eight repositories in decision 3.2 has merged its pull request, and a run on `develop` shows the new jobs reporting, `POST repos/shakenfist/<r>/rulesets` with client-python-k3s's "Develop branch" ruleset (20595671) as the body, minus its `id`, `source` and timestamps, and read it back. For hunkydory, `PUT` its existing ruleset 23805020 with the queue added instead. Then run `merge-queue-config` against the repository, and watch the next pull request through the queue. |
 | 3g | low | sonnet | none | After each repository's pull request merges, run the merged gate read-only against that repository's `develop` tip, using the command in Definition of done. A failure is reported with its first line, not fixed: a bypass merge at the tip is expected, per the survey. Ask the operator before any `workflow_dispatch`. |
+
+The order is:
+1. 3a and 3b run first;
+2. 3c, the pilot, runs alongside 3i, the Rust template;
+3. 3d and 3e wait for the pilot's dry run and for 3b;
+4. 3f waits for 3i;
+5. 3h and 3g follow each merge.
 
 The management session pushes each branch and opens each pull
 request after reviewing it, with the operator's approval at execution
@@ -1085,13 +1150,14 @@ verdicts.
   management session reads that list against the table before
   committing. kerbside's `check-wheel.py` and shakenfist's
   declared-data test fail if the known ones go.
-* **A new queue blocks merging** in agent-python, client-python or
-  clingwrap, if a required check never reports. The ruleset is applied
+* **A new queue blocks merging** in one of the eight repositories that
+  gain one, if a required check never reports. The ruleset is applied
   only after the aggregator jobs have merged and run, and step 3h reads
   the next pull request through the queue. Deleting the ruleset undoes
   it in one call.
-* **The merge queue doubles CI load** in those three, and
-  client-python's merge group includes a smoke cluster. The operator
+* **The merge queue doubles CI load** in the three that ran CI only on
+  pull requests, and client-python's merge group includes a smoke
+  cluster. The operator
   accepted that in the back brief.
 * **An agent copies the template over a `release.yml`** that differs
   from it, and loses kerbside's proxy wheels or shakenfist's
@@ -1106,7 +1172,7 @@ verdicts.
 
 #### Definition of done
 
-* Every one of the thirteen `release.yml` files on `develop` has a
+* Every one of the fourteen `release.yml` files on `develop` has a
   `ci-gate` job that uses `shakenfist/actions/require-ci-success@main`,
   and every job naming an environment is downstream of it.
   `!cancelled()` appears only in the guard for a job that needs
@@ -1133,9 +1199,12 @@ verdicts.
     WORKFLOWS=$'<files>' COMMIT_SHA=$(gh api repos/shakenfist/<r>/commits/develop --jq .sha) \
     python3 -I require-ci-success.py
   ```
-* `merge-queue-config` passes for clingwrap, agent-python and
-  client-python, and each has merged at least one pull request
-  through its queue.
+* `merge-queue-config` passes for all fourteen release repositories,
+  and each of the eight that gained a queue has merged at least one
+  pull request through it.
+* ryll's, instar's and andris's `release.yml` each satisfy every item
+  on the Rust template README's invariants checklist, read item by
+  item.
 * The pilot's `workflow_dispatch` dry run shows `ci-gate` and the
   publishing jobs skipped, and `build` and `check-dist` succeeded.
 * client-python-ova#19 is closed by the pilot's pull request.
@@ -1153,7 +1222,7 @@ Before 3a starts, the operator confirms:
    pull request through the queue, or hold instar out of this phase.
 3. **The CI change for agent-python, client-python and clingwrap**
    (decision 3.2): a push trigger, or a merge queue.
-4. **Pushing and opening the fifteen pull requests.** Each is asked
+4. **Pushing and opening the pull requests.** Each is asked
    at the point it is ready, or granted once for the phase.
 
 #### Phase 3 execution notes
@@ -1170,11 +1239,47 @@ Started on 2026-10-19 (AEDT).
     it has reviewed it, without asking each time. Merging stays with
     the operator, and every `workflow_dispatch` or ruleset change
     still needs an explicit yes at the time.
+* **Scope added after the back brief.** The operator asked for an
+  audit of the standardized Python and Rust release flows, and for a
+  merge queue wherever there is CI. In a second round the operator
+  chose:
+  - a queue on release repositories only;
+  - a Rust release template, rather than invariants alone;
+  - widening phase 4, rather than a separate plan.
 
-### Phase 4: `release-process` helpers
+  That added decision 11 and decisions 3.2 (widened) and 3.9, step
+  3i, andris, and phase 4's new scope. The option the operator picked
+  had said that after phase 3 all but one or two release repositories
+  would pass. In fact five would have failed: client-python-ova,
+  divergulent, hunkydory, library-utilities and occystrap. Each was
+  already getting a phase 3 pull request, so decision 3.2 gives them a
+  queue in it, matching the operator's earlier choice of queues for
+  the other three.
+* **3a** sonnet at medium effort, commit 87f2023. The management
+  session tightened the `build` guard's comment and rewrapped two
+  paragraphs.
+* **3b** sonnet at medium effort, as actions#184. Directory-only
+  entries do not count as payload. That is stricter than
+  client-python-k3s's script, and was kept.
 
-Planning effort: medium. These are three more helpers in the shape of
-the five already in `ReleaseProcess`.
+### Phase 4: release-flow and merge-queue criteria
+
+Planning effort: high, because this phase now includes a new
+criterion and the Rust release-flow rules, which decide what fourteen
+repositories are held to. The phase was widened after phase 3's back
+brief (decision 11) and will be re-surveyed when it is planned in
+detail.
+
+Its scope is:
+* the three `release-process` helpers below, in the shape of the five
+  already in `ReleaseProcess`;
+* Rust release-flow rules taken from the Rust template README's
+  invariants checklist, applied to the repositories with `Cargo.toml`
+  and a `release.yml`;
+* a new criterion, `release-merge-queue`. It fails a repository that
+  has a `release.yml` but no merge queue on its default branch, and
+  leaves judging the queue's settings to `merge-queue-config`. Its
+  six files follow `docs/consistency-audits.md`.
 
 Blast radius: newly fails **zero** repositories once phase 3 has
 merged everywhere. Step 4b measures that before merge, and a
@@ -1184,7 +1289,9 @@ rather than taking a failure.
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
 | 4a | medium | opus | none | In `scripts/audit/checks/packaging.py`, add three helpers called from `ReleaseProcess.run` (:831-858), each returning a list of issue strings like `release_dispatch_guard_issues` (:771). (1) `release_ci_gate_issues`: some job has a step that `uses: shakenfist/actions/require-ci-success@...`, and every job that names an `environment:` is downstream of it through `needs:` (walk the needs graph; a cycle or unknown job name is an issue, not a crash). Being downstream is not enough on its own. A job whose `if:` contains `always()` or `!cancelled()` runs even when an upstream job failed, so every job on the path from the gate to an environment job must either have no such guard, or require `needs.<job>.result == 'success'` for the job it depends on. `build`'s own guard in the template passes this test only because the `workflow_dispatch` branch of it leads to no environment job, since the publishing jobs require a `push` event. The helper checks that the publishing jobs' guards exclude `workflow_dispatch`, rather than taking it on trust. (2) `release_ci_trigger_issues`: every file in that step's `workflows` input exists under `.github/workflows/` and has `push` with the default branch in `branches` (or no branch filter), or `merge_group`. It is also an issue if any `concurrency` group in that file is keyed on `github.ref` with `cancel-in-progress` and is not keyed by sha on a push, since a cancelled run fails the gate. The helper cannot see that a workflow's runs conclude `skipped` (kerbside's `direct-qemu-functional.yml` does on every merge group); the gate fails that case closed, and the spec says so. (3) `release_check_dist_issues`: wherever a job runs `python -m build` or uploads a `*.whl`, a `check-dist` step follows in that job. Since `ReleaseProcess.applies` skips repositories without `pyproject.toml`, also add the first two to the path for hunkydory, instar and ryll (ryll's `pyproject.toml` is under `ryll/`, not at the root), the language-neutral case `PLAN-typescript-onboarding.md:637-665` describes, without changing what the skip means for the existing helpers. Update `docs/audits/release-process.md` to describe each rule and its reason. Tests in `scripts/tests/test_packaging.py` beside the existing `ReleaseProcess` tests: each helper's pass, fail, and the edge cases named here. No new criterion, so no metadata tables change; confirm `test_metadata.py` still passes. |
-| 4b | low | sonnet | none | `pre-commit run --all-files`; `audit-check.py` against this repository, unchanged; and `release-process` against fresh clones of the thirteen, reporting any failure with its text. |
+| 4b | high | opus | none | Add the Rust release-flow rules to `ReleaseProcess` (or a sibling helper set that it calls), one rule per invariant on the Rust template README's checklist, applied where `Cargo.toml` and `release.yml` both exist. Update `docs/audits/release-process.md`, and add tests beside 4a's. |
+| 4c | medium | opus | none | Add `release-merge-queue` as a new criterion in `scripts/audit/checks/github_config.py`, beside `MergeQueueConfig`, reusing its rules read. It does not apply without a `release.yml`; it fails when the default branch has no `merge_queue` rule. Write all six of its files. |
+| 4d | low | sonnet | none | `pre-commit run --all-files`; `audit-check.py` against this repository, unchanged; and `release-process` and `release-merge-queue` against fresh clones of the fourteen, reporting any failure with its text. |
 
 ### Phase 5: push audit
 
