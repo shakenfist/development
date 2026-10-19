@@ -811,10 +811,10 @@ class ForkGateAndConfirmStepTest(CheckTestCase):
 
     SAME_REPO_OUTPUT = '      same_repo: ${{ steps.trigger.outputs.same-repo }}\n'
     RETEST_FORK_GATE = (
-        "needs.trigger-retest.outputs.authorized == 'true' &&\n"
+        "needs.trigger-retest.outputs.confirmed == 'true' &&\n"
         "      needs.trigger-retest.outputs.same_repo == 'true'")
     RE_REVIEW_FORK_GATE = (
-        "needs.trigger-re-review.outputs.authorized == 'true' &&\n"
+        "needs.trigger-re-review.outputs.confirmed == 'true' &&\n"
         "      needs.trigger-re-review.outputs.same_repo == 'true'")
     CONFIRM_STEP = '      - name: Confirm the checkout is the validated commit\n'
     TRIGGER_STEP = '      - name: Handle trigger\n        id: trigger\n'
@@ -849,18 +849,18 @@ class ForkGateAndConfirmStepTest(CheckTestCase):
         self.assert_fail(self._check(re_review=re_review), containing=(
             'pr-re-review.yml: job trigger-re-review does not export'))
 
-    def test_retest_gated_on_authorized_alone_fails(self):
+    def test_retest_gated_on_confirmed_alone_fails(self):
         retest = self._mutate(
             'pr-retest.yml', self.RETEST_FORK_GATE,
-            "needs.trigger-retest.outputs.authorized == 'true'")
+            "needs.trigger-retest.outputs.confirmed == 'true'")
         self.assert_fail(self._check(retest=retest), containing=(
             'pr-retest.yml: job retest does not require '
             'needs.trigger-retest.outputs.same_repo'))
 
-    def test_re_review_gated_on_authorized_alone_fails(self):
+    def test_re_review_gated_on_confirmed_alone_fails(self):
         re_review = self._mutate(
             'pr-re-review.yml', self.RE_REVIEW_FORK_GATE,
-            "needs.trigger-re-review.outputs.authorized == 'true'")
+            "needs.trigger-re-review.outputs.confirmed == 'true'")
         self.assert_fail(self._check(re_review=re_review), containing=(
             'pr-re-review.yml: job re-review does not require'))
 
@@ -869,7 +869,7 @@ class ForkGateAndConfirmStepTest(CheckTestCase):
         # explain, so the gate has to be read from the key itself.
         retest = self._mutate(
             'pr-retest.yml', self.RETEST_FORK_GATE,
-            "needs.trigger-retest.outputs.authorized == 'true'\n"
+            "needs.trigger-retest.outputs.confirmed == 'true'\n"
             "    # needs.trigger-retest.outputs.same_repo == 'true'")
         self.assert_fail(self._check(retest=retest),
                          containing='job retest does not require')
@@ -911,7 +911,7 @@ class ForkGateAndConfirmStepTest(CheckTestCase):
             '    needs:\n      - trigger-retest\n')
         retest = retest.replace(
             self.RETEST_FORK_GATE,
-            "needs.trigger-retest.outputs.authorized == 'true'")
+            "needs.trigger-retest.outputs.confirmed == 'true'")
         self.assert_fail(self._check(retest=retest), containing=(
             'pr-retest.yml: job retest does not require '
             'needs.trigger-retest.outputs.same_repo'))

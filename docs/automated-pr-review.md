@@ -206,6 +206,9 @@ This composite action handles the common pattern of:
 - Adding a reaction to the comment
 - Posting unauthorized/starting messages
 - Outputting PR details for downstream use
+- Vouching for those outputs: `confirmed` is `true` only when the request was
+  triggered, authorized, from this repository and has a `pr-ref`, and when the
+  action cannot tell, it fails and says so on the pull request
 
 **Usage in workflows:**
 
@@ -219,11 +222,14 @@ This composite action handles the common pattern of:
       Starting tests on branch `{pr_ref}`...
       [View workflow run]({run_url})
 
-- name: Do something if authorized
-  if: steps.trigger.outputs.authorized == 'true'
+- name: Do something once the request is confirmed
+  if: steps.trigger.outputs.confirmed == 'true'
   run: |
     echo "PR branch: ${{ steps.trigger.outputs.pr-ref }}"
 ```
+
+Gate on `confirmed` rather than re-reading the other outputs to check them:
+that check lives in the action so callers do not each carry a copy of it.
 
 This reduces duplication across projects and ensures consistent security checks
 and user experience.

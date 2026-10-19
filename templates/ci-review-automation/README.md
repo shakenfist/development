@@ -369,6 +369,32 @@ check. The trigger job now also requires
 `ReviewWorkflowGuardTest` in shakenfist/actions pins it on that
 repository's copy, and `MergeRefResolutionTest` on the two here.
 
+### pr-bot-trigger vouches for its own outputs (2026-10-19)
+
+Filed as shakenfist/actions#126 from the automated review of
+shakenfist/visual-digest-rust#30. Both trigger jobs carried a near
+identical step that re-read `pr-bot-trigger`'s `triggered`, `authorized`
+and `same-repo` outputs, failed when one was neither `true` nor `false`,
+and a second step that then said so on the pull request -- the output
+assertion and notice described above. The property they checked belongs
+to the action, and a copy in every adopter's workflow is the drift
+this file's header warns about.
+
+`pr-bot-trigger` now runs that check itself and exports the verdict as
+`confirmed`: `true` only when the request was triggered, authorized,
+from this repository and has a `pr-ref`; `false` when it was not a
+request or was refused; and otherwise the action fails and posts the
+notice itself. Both trigger jobs are now that one step, export
+`confirmed` in place of `authorized`, and the work jobs gate on
+`confirmed` and `same_repo`. The fork guard is still stated twice, for
+the reason below. `MergeRefResolutionTest` holds the wiring, and the
+action's own tests in shakenfist/actions run its check over the truth
+table and hold it to the outputs callers receive.
+
+The criterion measures neither shape, so a copy that still carries the
+old steps is not filed against: they are redundant beside the action's
+check rather than wrong, and re-syncing is a convenience.
+
 ### The fork guard
 
 `pr-bot-trigger`'s `pr-ref` output is `.head.ref`: the branch name in the
