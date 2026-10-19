@@ -1,0 +1,248 @@
+# Release workflow for {{PROJECT_DISPLAY_NAME}}
+#
+# Triggers on version tags (v*), which tools/tag-release.sh pushes once
+# the version bump from tools/propose-release.sh has merged through the
+# merge queue. Nothing is signed or published unless CI passed on the
+# tagged commit and a reviewer approves the 'release' environment.
+#
+# Every job outside the marked build section is the same in every Rust
+# repository. The build section holds the repository's own build and
+# publish jobs, which differ too much between repositories to template.
+# See README.md for the invariants the fixed jobs keep, and for how to
+# fill the build section without breaking them.
+#
+# Template source: shakenfist/development/templates/release-automation-rust/
+
+name: Release
+
+permissions: {}
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+  # A dry run of the build, on any ref: it runs check-version and the
+  # build jobs, and every job with an effect outside the run is skipped.
+  workflow_dispatch:
+
+# One run per ref at a time, never cancelled part way: a release that has
+# signed its tag or begun publishing must finish.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Fails the release unless the named CI workflows succeeded on the
+  # tagged commit, so that nothing is signed or published from code CI
+  # did not pass. It carries the same push and tag guard as the
+  # publishing jobs, so a workflow_dispatch dry run skips it and still
+  # exercises the build. See README.md for what counts as CI, and
+  # https://github.com/shakenfist/actions/blob/main/docs/actions.md
+  # (the require-ci-success section) for how the gate works.
+  ci-gate:
+    name: Require CI success on the tagged commit
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: [self-hosted, static]
+
+    permissions:
+      actions: read
+      contents: read
+
+    steps:
+      - name: Require CI success
+        uses: shakenfist/actions/require-ci-success@main
+        # A few API calls per commit, at most 21 commits, and up to
+        # five pages of the default branch's history.
+        timeout-minutes: 5
+        with:
+          workflows: |
+            {{CI_WORKFLOWS}}
+
+  # The root of the build graph: every other job needs this one, directly
+  # or through a job that does, so the gate sits upstream of all of them.
+  # A skipped ci-gate would otherwise skip this job too, so the guard lets
+  # a skipped gate through, but only on a run that publishes nothing. A
+  # tag push always runs the gate, and this job then needs its success. A
+  # workflow_dispatch skips the gate by design, and never reaches a
+  # publishing job. The ${{ }} wrapper is required: YAML reads a bare
+  # value starting with "!" as a tag.
+  #
+  # The tag must name the version the tree carries, and Cargo.lock must
+  # agree with it, because the release builds from the lockfile. On a
+  # dry run with no tag there is nothing to compare with, and the script
+  # checks only that the two files agree.
+  check-version:
+    name: Check the version matches the tag
+    needs: ci-gate
+    if: >-
+      ${{ !cancelled() && (needs.ci-gate.result == 'success' ||
+      (github.event_name != 'push' && needs.ci-gate.result == 'skipped')) }}
+    runs-on: [self-hosted, static]
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Check the version
+        run: tools/release-version.sh check "${GITHUB_REF}"
+
+  # ---------------------------------------------------------------------
+  # BEGIN repository build and publish jobs.
+  #
+  # Replace the example below with the repository's own jobs. They may
+  # take any shape, provided that:
+  #
+  # - every build job needs check-version, directly or through another
+  #   build job, and carries no if: of its own that uses always() or
+  #   !cancelled();
+  # - every build job is listed in sign-tag's needs, so the tag is never
+  #   signed while a build is running or after one has failed;
+  # - an artifact whose name starts with release- is one github-release
+  #   attaches to the GitHub release, and no other artifact is;
+  # - a job that builds a Python wheel runs check-dist on it before
+  #   uploading it, as shown below;
+  # - every publishing job needs sign-tag, carries the push and tag
+  #   guard, and holds only the permissions its registry needs.
+  #
+  # README.md says how ryll, instar and andris each fill this section.
+  # ---------------------------------------------------------------------
+
+  build:
+    name: Build release artefacts
+    needs: check-version
+    # A release builds on a runner that is thrown away afterwards, so that
+    # nothing an earlier job left behind goes into what is published.
+    runs-on: [self-hosted, vm, debian-13-docker, m]
+    timeout-minutes: 120
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # The repository's own build, usually a Makefile target that runs
+      # cargo inside the build container.
+      - name: Build
+        run: make release
+
+      # A repository that publishes Python wheels checks them here, on
+      # the directory it uploads, so that a wheel carrying its tests
+      # stops the release before anything is signed:
+      #
+      # - name: Check the wheel contents
+      #   timeout-minutes: 2
+      #   uses: shakenfist/actions/check-dist@main
+      #   with:
+      #     path: target/wheels/
+
+      - name: Upload release artefacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-linux-x86_64
+          path: target/release-assets/
+          if-no-files-found: error
+
+  # A publishing job takes this shape. It names the release environment
+  # where its registry's trusted publisher matches on it, which makes a
+  # release ask for approval a second time:
+  #
+  # publish-pypi:
+  #   name: Publish to PyPI
+  #   needs: [build, sign-tag]
+  #   if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+  #   runs-on: [self-hosted, vm, debian-13-docker, s]
+  #   timeout-minutes: 15
+  #   environment: release
+  #   permissions:
+  #     contents: read
+  #     id-token: write
+  #     attestations: write
+  #   steps: ...
+
+  # ---------------------------------------------------------------------
+  # END repository build and publish jobs.
+  # ---------------------------------------------------------------------
+
+  # Keyless Sigstore signing of the tag, gated on approval of the release
+  # environment. Every publishing job needs this one, so nothing is
+  # published until a reviewer approves, and it needs every build job, so
+  # the tag is never re-pushed while a build is running or after one has
+  # failed.
+  #
+  # The event is tested as well as the ref because a dispatch can be
+  # aimed at a tag: the ref test alone passes there, and the run re-signs
+  # and force-pushes a tag that already exists, rewriting a signed object
+  # someone may already have verified. Nothing is lost by requiring push:
+  # re-running a failed release goes through "Re-run jobs", which keeps
+  # the original push event.
+  sign-tag:
+    name: Sign release tag with Sigstore
+    needs: [build]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    # The script installs gitsign with sudo and writes global git config,
+    # so this job needs a throwaway runner rather than the shared static
+    # pool, which grants no passwordless sudo and would carry the global
+    # git config into whatever lands on it next. vm is what insists on a
+    # throwaway runner; s because the job is small.
+    runs-on: [self-hosted, vm, debian-13, s]
+    timeout-minutes: 15
+    environment: release
+
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Sign and push the release tag
+        run: tools/sign-release-tag.sh "${GITHUB_REF_NAME}" "${GITHUB_SHA}"
+
+  # This job does not check out, and does not need to:
+  # action-gh-release is a JavaScript action running on the host, so it
+  # reads an absolute path happily. The static pool persists between jobs
+  # and download-artifact extracts into its target rather than replacing
+  # it, so the artefacts go to the per-job runner.temp, where nothing an
+  # earlier job left can join the release.
+  #
+  # fail_on_unmatched_files is the other half: action-gh-release treats a
+  # glob that matches nothing as a warning, so without it a release that
+  # attached no files at all still reported success.
+  github-release:
+    name: Create GitHub Release
+    needs: [build, sign-tag]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: [self-hosted, static]
+    timeout-minutes: 15
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download release artefacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          path: ${{ runner.temp }}/dist/
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          generate_release_notes: true
+          files: ${{ runner.temp }}/dist/*
+          fail_on_unmatched_files: true
