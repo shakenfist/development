@@ -973,8 +973,16 @@ section has been rewritten rather than patched:
     - Copying the ruleset copies its bypass team too.
       `PLAN-bot-bypass-identity.md` owns that bypass. A bypass merge
       here fails the gate as it does everywhere else.
-  - A push trigger that already exists stays, and decision 3.1 still
-    applies to it. The gate counts both events.
+  - The gated workflow's push trigger, where it has one, is removed in
+    the same pull request.
+    - With a queue, every commit that lands on `develop` is one a
+      `merge_group` run tested, so a push run would only test it a
+      third time, after the pull request and the merge group.
+    - Decision 3.1's re-keying then has nothing left to protect in
+      these repositories, and is not made.
+    - The cost is a short window between the merge and step 3h's
+      ruleset, in which a merge gets no run and cannot be released.
+    - The pilot settled this; see the execution notes.
   - The cost is one more full run per merge. For client-python that
     run includes a smoke cluster on the shared under-cloud.
 * **3.3. The packaging fix is `include-package-data = false` plus an
@@ -1093,10 +1101,10 @@ Per-repository facts. `workflows` is what `ci-gate` names.
 
 | Repository | `workflows` | CI change | `release.yml` | Packaging | `check-dist` calls |
 |---|---|---|---|---|---|
-| client-python-ova | `ci.yml` | add `merge_group` and the aggregator jobs, then the ruleset (3h); re-key the three groups (:47, :108, :186) | the template's | none; 18 members, clean | `build`; CI `lint-and-build` |
-| library-utilities | `ci.yml` | add `merge_group` and the aggregator jobs, then the ruleset (3h); re-key `lint-and-test` (:51) | template-shaped | the decision 3.3 pattern for `shakenfist_utilities`; removes 2 | `build` |
-| divergulent | `unit-tests.yml` | add `merge_group` and the aggregator jobs, then the ruleset (3h) | template-shaped | add the exclude to its existing `packages.find` (:71-77); removes 61, three of them fixtures | `build` |
-| occystrap | `python-unit-tests.yml`, `functional-tests.yml` | add `merge_group` to both, and the aggregator jobs to one of them, then the ruleset (3h); a merge group has no paths filter, so docs-only merges become releasable | template-shaped | remove `occystrap.tests` from `packages` (:63), and turn off `include-package-data`; removes 17 | `build`; CI `functional`, after its build (:91-96) |
+| client-python-ova | `ci.yml` | add `merge_group` and the aggregator jobs, and drop the push trigger; then the ruleset (3h) | the template's | none; 18 members, clean | `build`; CI `lint-and-build` |
+| library-utilities | `ci.yml` | add `merge_group` and the aggregator jobs, and drop the push trigger; then the ruleset (3h) | template-shaped | the decision 3.3 pattern for `shakenfist_utilities`; removes 2 | `build` |
+| divergulent | `unit-tests.yml` | add `merge_group` and the aggregator jobs, and drop the push trigger; then the ruleset (3h) | template-shaped | add the exclude to its existing `packages.find` (:71-77); removes 61, three of them fixtures | `build` |
+| occystrap | `python-unit-tests.yml`, `functional-tests.yml` | add `merge_group` to both, the aggregator jobs to one of them, and drop both push triggers; then the ruleset (3h). A merge group has no paths filter, so docs-only merges become releasable | template-shaped | remove `occystrap.tests` from `packages` (:63), and turn off `include-package-data`; removes 17 | `build`; CI `functional`, after its build (:91-96) |
 | clingwrap | `functional-tests.yml` | add `merge_group` and the aggregator jobs; then the ruleset (3h) | template-shaped | the decision 3.3 pattern; keep `examples/*.cwd`, which `main.py:213` loads; removes 1 | `build` |
 | agent-python | `functional-tests.yml` | add `merge_group` and the aggregator jobs, with `check_paths` working on a merge group as k3s's does; then the ruleset (3h) | template-shaped | the decision 3.3 pattern; removes 3 tests, plus `protos/*.proto` and `protos/_copy_stubs.sh`, which nothing loads | `build` |
 | client-python | `functional-tests.yml` | add `merge_group`, both to the workflow and to `functional_matrix`'s `smoke-cluster` call, and the aggregator jobs; then the ruleset (3h) | template-shaped | the decision 3.3 pattern; removes 6 | `build` |
@@ -1104,7 +1112,7 @@ Per-repository facts. `workflows` is what `ci-gate` names.
 | client-python-k3s | `functional-tests.yml` | none (`merge_group`) | adds `build-collection` and `publish-collection`; `ci-gate` goes above both | none; 12 members, clean | `build`, beside the `check-dist.sh` call, which stays |
 | kerbside | `functional-tests.yml` | none (`merge_group`) | adds `build-collection`, `build-proxy-wheels` and `publish-proxy-pypi`; `ci-gate` goes above all three build jobs | add `kerbside.tests*` to its `packages.find` exclude, and turn off `include-package-data`; removes 31; keep the templates, static files and migrations; `tools/check-wheel.py` must still pass | `build` on `dist/`; `build-proxy-wheels` on `dist/proxy-wheels/`; CI `sanity_checks` |
 | ryll | `ci.yml` | none (`merge_group`) | no dispatch; `check-version` is the root; converge on the Rust template (3i) | none; clean on PyPI | `build-ryll-wheels`, on `target/wheels/` |
-| hunkydory | `ci.yml` | add `merge_group` and the aggregator jobs, then edit its existing ruleset (3h); re-key the three groups (:156, :200, :269) | builds a `.vsix`; publishes to the Marketplace | no wheel | none |
+| hunkydory | `ci.yml` | add `merge_group` and the aggregator jobs, and drop the push trigger; then edit its existing ruleset (3h) | builds a `.vsix`; publishes to the Marketplace | no wheel | none |
 | instar | `functional-tests.yml` | none (`merge_group`); the release process changes (decision 3.5) | `build` uses `always()`; `sign-tag` and `github-release` are unguarded; converge on the Rust template (3i) | no wheel | none |
 | andris | `ci.yml` | none (`merge_group`) | `check-version` is the root; maturin `build-wheels`; converge on the Rust template (3i) | its wheels are maturin-built; `check-dist` decides | `build-wheels`, on its wheel output directory |
 
@@ -1255,6 +1263,18 @@ Started on 2026-10-19 (AEDT).
   already getting a phase 3 pull request, so decision 3.2 gives them a
   queue in it, matching the operator's earlier choice of queues for
   the other three.
+* **3c** opus at high effort, as client-python-ova#29 (ca8d9a5). The
+  management session removed `ci.yml`'s push trigger, which the queue
+  makes redundant, and reverted the re-keying with it. Decision 3.2
+  was amended to match. The agent's extras were kept:
+  - `RELEASE-SETUP.md` takes the template's changes, because it is
+    the repository's copy of the template;
+  - an `AGENTS.md` line says to merge through the queue.
+
+  `appliance-corpus` now sees its read-only test-data token on a
+  merge queue entry, which may carry a fork's change once someone
+  with write access has enqueued it. The job's comment says so, and
+  the pull request asks the reviewer to look.
 * **3a** sonnet at medium effort, commit 87f2023. The management
   session tightened the `build` guard's comment and rewrapped two
   paragraphs.
