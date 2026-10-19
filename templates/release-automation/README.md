@@ -94,7 +94,7 @@ recoverable. Which fix applies depends on why the gate failed:
 | Why the gate failed | What to do |
 |---------------------|------------|
 | The commit was merged by bypassing the merge queue, so it is a merge commit with no queue run | Delete the tag and tag a later commit that went through the queue |
-| The tag is not on the default branch's first-parent history | Delete the tag and tag a commit that is: the merge commit that brought the change in, or a later one |
+| The tag is not on the default branch's first-parent history | Delete the tag and tag a commit that is: the commit the merge queue landed on the default branch for that change, or a later one |
 | The commit changed only files that `paths-ignore` skips, such as docs, so CI never ran | Delete the tag and move it to the last commit CI did run on |
 | A CI run failed for a reason unrelated to the change, such as a flaky test | Re-run the failed CI runs until they succeed, then use "Re-run jobs" on the release's `ci-gate` job |
 | A CI run is still going | Wait for it, then re-run the `ci-gate` job |

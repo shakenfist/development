@@ -147,7 +147,31 @@ opened to every workflow along the way. Until the bypass can be
 narrowed to the release workflow alone, the fleet accepts the gap
 rather than trade it for that.
 
-### 4. Verify Sigstore/Rekor Access
+### 4. Configure the Merge Queue
+
+The release gate counts a CI run only from the merge queue, or from a
+push to the default branch, so `develop` needs a queue. Add it only
+once the CI workflow's aggregator jobs are on `develop`, or the queue
+waits for checks that never report.
+
+1. Go to **Settings** > **Rules** > **Rulesets** > **New ruleset** >
+   **New branch ruleset**
+2. Name it `Develop branch`, set **Enforcement status** to
+   **Active**, and target the default branch
+3. Enable **Restrict deletions**, **Block force pushes**, and
+   **Require a pull request before merging**
+4. Enable **Require merge queue**, with merge method **Merge**,
+   **Build concurrency** 1 and **Minimum group size** 1. A serial
+   queue is what the consistency audit's `merge-queue-config`
+   criterion accepts
+5. Enable **Require status checks to pass**, and add the checks your CI workflow reports for the queue (across the fleet,
+   "Can enqueue" and "Can merge"), with
+   **GitHub Actions** as the source
+6. Keep the bypass list short. A merge that bypasses the queue gets
+   no CI run, so it cannot be released until a later commit has gone
+   through the queue
+
+### 5. Verify Sigstore/Rekor Access
 
 No configuration needed. Sigstore is a public service that:
 

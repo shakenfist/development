@@ -1722,6 +1722,14 @@ class ReleaseProcessTest(CheckTestCase):
                       ' '.join(build.split()))
         self.assertIn('uses: shakenfist/actions/check-dist@', build)
 
+        # The gate is skipped on a dispatch, which is what keeps the
+        # dry run working; it reads runs and nothing else.
+        start = text.index('\n  ci-gate:\n')
+        gate = text[start:text.index('\n  build:\n', start)]
+        self.assertIn("if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')", gate)
+        self.assertIn('actions: read', gate)
+        self.assertNotIn('write', gate)
+
     # The workspace half of the criterion. A job which skips checkout
     # inherits whatever the previous job left on that runner, and
     # download-artifact adds to a directory rather than replacing it,
