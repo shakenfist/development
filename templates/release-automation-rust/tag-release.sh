@@ -82,9 +82,12 @@ else
     # awk reads all of git log's output rather than exiting at the match:
     # under pipefail, an early exit kills git log with SIGPIPE, and the
     # whole pipeline then fails with status 141.
+    # A squash merge appends " (#N)" to the subject, so that suffix is
+    # accepted too, and nothing else.
     RELEASE_SHA="$(git log "${UPSTREAM}" --format='%H%x09%s' \
         | awk -F '\t' -v want="Release ${VERSION}." \
-            '$2 == want && found == "" { found = $1 } END { if (found != "") print found }')"
+            'found == "" && ($2 == want || (index($2, want " (#") == 1 && $2 ~ /\(#[0-9]+\)$/)) { found = $1 }
+             END { if (found != "") print found }')"
     [[ -n "${RELEASE_SHA}" ]] \
         || err "no commit 'Release ${VERSION}.' on ${UPSTREAM}. Has the release-${VERSION} pull request merged?"
     TARGET_SHA=''
@@ -142,12 +145,17 @@ info "Creating annotated tag ${TAG}"
 git tag -a "${TAG}" -m "Release ${VERSION}" "${TARGET_SHA}"
 
 info "Pushing ${TAG} (this starts the release workflow)"
-git push origin "refs/tags/${TAG}"
+PUSHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+git push origin "refs/tags/${TAG}" || {
+    git tag -d "${TAG}" >/dev/null
+    err "pushing ${TAG} failed; the local tag was removed, so this can be re-run"
+}
 
 # --- watch ---
 #
 # The run for this tag is the one whose head is the tag and whose event
-# is the push. GitHub can take a few seconds to create it. Failing to
+# is the push, on the tagged commit and created after this push: during
+# a recovery, an earlier run for the same tag name may still be listed. GitHub can take a few seconds to create it. Failing to
 # find or watch it is not a failure of the release, which is already
 # under way, so it only says where to look.
 
@@ -156,7 +164,9 @@ RUN_ID=''
 for _ in 1 2 3 4 5 6; do
     sleep 5
     RUN_ID="$(gh run list --workflow=release.yml --branch "${TAG}" --event push \
-        --limit 1 --json databaseId --jq '.[0].databaseId // empty' 2>/dev/null || true)"
+        --limit 10 --json databaseId,headSha,createdAt \
+        --jq "[.[] | select(.headSha == \"${TARGET_SHA}\" and .createdAt >= \"${PUSHED_AT}\")][0].databaseId // empty" \
+        2>/dev/null || true)"
     [[ -z "${RUN_ID}" ]] || break
 done
 

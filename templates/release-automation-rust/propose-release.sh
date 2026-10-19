@@ -154,13 +154,21 @@ cleanup() {
 }
 trap cleanup EXIT
 
-info "Running pre-commit"
-pre-commit run --all-files
-
 # --- bump ---
 
 info "Bumping the version from ${CURRENT} to ${VERSION}"
 bump_version "${VERSION}"
+
+# A bump that creates a file would be left out of the commit, which
+# stages tracked files only, and left behind by the cleanup.
+UNTRACKED="$(git status --porcelain --untracked-files=all | awk '$1 == "??" { print $2 }')"
+[[ -z "${UNTRACKED}" ]] \
+    || err "the version bump left untracked files, which the release commit would leave out: ${UNTRACKED//$'\n'/ }"
+
+# Linted after the bump, so that the files it changed are checked
+# before the pull request opens.
+info "Running pre-commit"
+pre-commit run --all-files
 
 # The release workflow's own check, run against the tag this release
 # will have, so that a bump check-version would refuse never reaches
@@ -182,8 +190,9 @@ read -rp "Commit, push ${RELEASE_BRANCH} and open a pull request? [y/N] " REPLY
     exit 1
 }
 
-# tag-release.sh finds the release by this exact subject, so it must not
-# change, and the queue's merge commit keeps it in the history.
+# tag-release.sh finds the release by this subject, so it must not
+# change. A merge or rebase queue keeps it as written; a squash queue
+# appends " (#N)", which tag-release.sh also accepts.
 info "Committing"
 git add -u
 git commit -m "Release ${VERSION}."

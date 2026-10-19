@@ -77,13 +77,16 @@ per-repository section:
 
 1. **Propose.** From a clean checkout of the default branch, in step
    with `origin`, run `tools/propose-release.sh X.Y.Z`. It creates a
-   `release-X.Y.Z` branch, bumps the version, runs pre-commit, the
-   workflow's own version check and the tests, and asks before it
+   `release-X.Y.Z` branch, bumps the version, refuses to go on if the
+   bump left an untracked file, runs pre-commit over the bumped tree,
+   the workflow's own version check and the tests, and asks before it
    commits `Release X.Y.Z.`, pushes the branch and opens a pull
    request. It never tags. On `N`, or on any failure before the push,
    it deletes the branch and leaves the checkout as it was.
 2. **Merge through the queue.** Get the pull request reviewed and land
-   it through the merge queue like any other change. The queue's run
+   it through the merge queue like any other change. The queue may
+   merge, rebase or squash: the next step finds `Release X.Y.Z.` as
+   written, or with the ` (#N)` a squash merge appends. The queue's run
    on the merged commit is the CI result the release gate requires. A
    merge that bypasses the queue leaves a commit with no such run, and
    the gate refuses to release it.
@@ -93,8 +96,10 @@ per-repository section:
    is on the default branch's first-parent history and carries the
    version, and lists what merged after it, which is not in the
    release. Then it asks, creates an annotated tag `vX.Y.Z`, pushes it
-   and watches the workflow run. `tools/tag-release.sh X.Y.Z COMMIT`
-   tags a later commit instead, for recovery.
+   and watches the workflow run for that commit. If the push fails it
+   deletes the local tag, so the script can be run again.
+   `tools/tag-release.sh X.Y.Z COMMIT` tags a later commit instead,
+   for recovery.
 4. **Approve.** The workflow checks CI on the tagged commit, checks the
    version and builds. It then waits at `sign-tag` for a reviewer to
    approve the `release` environment. A publishing job that names the
@@ -213,6 +218,14 @@ is how a repository keeps its wheels or its intermediate files off the
 release page. `github-release` may gain steps before its release step
 that check or add to what it downloaded, as long as it keeps the shape
 invariant 12 requires.
+
+`github-release` needs only `build` and `sign-tag`, so the release page
+can appear while a registry publish is still running, or after one has
+failed. That suits a repository whose GitHub release is its primary
+artefact, as instar's is. A repository whose registry is primary adds
+its publishing jobs to `github-release`'s `needs`; a repository whose
+publishing job reads the GitHub release, as andris's `publish-pypi`
+does, keeps it the other way round.
 
 The three repositories fill it like this:
 
