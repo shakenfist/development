@@ -31,12 +31,16 @@ repos:
       # one thing about a template actionlint cannot judge from where it
       # is stored; everything else it checks is checked.
       #
-      # Three templates carry {{PLACEHOLDER}} substitutions that are not
+      # Four templates carry {{PLACEHOLDER}} substitutions that are not
       # valid YAML until an adopting project fills them in -- a bare
       # {{PROJECT_NAME}} parses as a mapping, not a string -- so they
       # cannot be linted where they are stored. They are excluded by
-      # name rather than by a pattern, so adding a fourth is a decision
-      # somebody makes rather than one that happens quietly.
+      # name rather than by a pattern, so adding a fifth is a decision
+      # somebody makes rather than one that happens quietly. The two
+      # release templates keep their placeholders to comments and block
+      # scalars, so both do lint cleanly by hand; they are excluded
+      # because ConvergedTemplatesTest holds this list to exactly the
+      # templates that carry a placeholder.
       # renovate.yml and pin-indirect-dependencies.yml read what would
       # have been placeholders from the runtime instead
       # (${{ github.repository }}, and a checkout into the workspace
@@ -52,6 +56,7 @@ repos:
           (?x)^templates/(
             issue-fix/issue-fix\.yml|
             release-automation/release\.yml|
+            release-automation-rust/release\.yml|
             test-drift-fix/test-drift-fix\.yml
           )$
         args:
