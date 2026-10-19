@@ -179,9 +179,8 @@ commit that is tagged. For each workflow named in `{{CI_WORKFLOWS}}`:
 ## Note for converting the template
 
 If this template is converted to a reusable workflow, or otherwise
-changed in how it is called, `PLAN-workflow-ref-trust.md` phase 5
-must carry `ci-gate` with it, or the converted release will no
-longer be gated.
+changed in how it is called, the converted workflow must still run
+`ci-gate` upstream of `build`, or releases will no longer be gated.
 
 ## Quick Start
 
