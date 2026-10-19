@@ -1718,6 +1718,10 @@ class ReleaseProcessTest(CheckTestCase):
         build = text[start:end]
         self.assertIn('needs: ci-gate', build)
         self.assertIn("needs.ci-gate.result == 'success'", build)
+        # always() would run build after a cancelled gate, and a bare
+        # leading ! is a YAML tag rather than an expression.
+        self.assertIn('${{ !cancelled() &&', build)
+        self.assertNotIn('always()', build)
         self.assertIn("github.event_name != 'push' && needs.ci-gate.result == 'skipped'",
                       ' '.join(build.split()))
         self.assertIn('uses: shakenfist/actions/check-dist@', build)
@@ -1727,8 +1731,9 @@ class ReleaseProcessTest(CheckTestCase):
         start = text.index('\n  ci-gate:\n')
         gate = text[start:text.index('\n  build:\n', start)]
         self.assertIn("if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')", gate)
-        self.assertIn('actions: read', gate)
-        self.assertNotIn('write', gate)
+        permissions = gate[gate.index('    permissions:\n'):gate.index('    steps:\n')]
+        self.assertEqual(['actions: read', 'contents: read'],
+                         sorted(line.strip() for line in permissions.splitlines()[1:] if line.strip()))
 
     # The workspace half of the criterion. A job which skips checkout
     # inherits whatever the previous job left on that runner, and

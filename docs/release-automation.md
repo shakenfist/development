@@ -32,10 +32,9 @@ glob, an empty release is indistinguishable from a good one.
 
 The workflow can also be started by hand, which skips `ci-gate`, runs
 the build, the `twine check` and the wheel check as a smoke test, and
-stops there. Everything from the tag
-signing down is confined to a pushed tag with
-`if: github.event_name == 'push' && startsWith(github.ref,
-'refs/tags/v')`. Both clauses are needed: aimed at a branch, an
+stops there. Everything from the tag signing down is confined to a
+pushed tag with `if: github.event_name == 'push' &&
+startsWith(github.ref, 'refs/tags/v')`. Both clauses are needed: aimed at a branch, an
 unguarded `sign-tag` would take `refs/heads/<branch>` for a tag name and
 force-push `refs/tags/refs/heads/<branch>`; aimed at an existing tag, a
 ref-only guard would let the run re-sign and force-push that tag,

@@ -1296,6 +1296,20 @@ Started on 2026-10-19 (AEDT).
   merge queue entry, which may carry a fork's change once someone
   with write access has enqueued it. The job's comment says so, and
   the pull request asks the reviewer to look.
+* **3i** opus at high effort, as development#295. Departures from the
+  brief, all kept:
+  - a fifth script, `release-version.sh`, keeps `check-version`'s
+    logic out of the workflow step;
+  - `check-version` no longer files an issue on a mismatch, so ryll
+    and instar lose `issues: write`;
+  - `tag-release.sh` tags the merge commit the queue made for the
+    version bump, rather than the branch tip;
+  - the template joins the actionlint exclusion list, as
+    `ConvergedTemplatesTest` requires of any template that carries a
+    placeholder.
+
+  Its README's invariants checklist has fifteen items, which phase 4
+  turns into rules.
 * **3a** sonnet at medium effort, commit 87f2023. The management
   session tightened the `build` guard's comment and rewrapped two
   paragraphs.
