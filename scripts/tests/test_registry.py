@@ -25,8 +25,8 @@ from audit.repo import REPO_OVERRIDES, detect_repo_properties  # noqa: E402
 from audit_common import AUDIT_METADATA, ISSUE_TITLES  # noqa: E402
 from audit.checks import ci_workflows  # noqa: E402
 from audit.text.workflows import (  # noqa: E402
-    indented_block, job_level_keys, mapping_entries, step_action, step_keys,
-    step_with_inputs, workflow_job_blocks, workflow_step_blocks,
+    indented_block, job_level_keys, job_outputs, mapping_entries, step_action,
+    step_keys, step_with_inputs, workflow_job_blocks, workflow_step_blocks,
 )
 from tests.base import REPO_ROOT  # noqa: E402
 
@@ -912,7 +912,7 @@ class MergeRefResolutionTest(unittest.TestCase):
         'templates', 'ci-review-automation', 'pr-retest.yml')
 
     GROUP = 'group: pr-retest-${{ github.event.issue.number }}'
-    GATE = "needs.trigger-retest.outputs.authorized == 'true'"
+    GATE = "needs.trigger-retest.outputs.confirmed == 'true'"
 
     def test_retest_dispatch_is_grouped_and_gated(self):
         # The group has to sit on a job that unauthorised comments
@@ -942,7 +942,7 @@ class MergeRefResolutionTest(unittest.TestCase):
                 self.assertIn(
                     self.GATE, job_level_keys(retest).get('if', ''),
                     f'{name} must gate the grouped job on '
-                    f'pr-bot-trigger having authorised the request')
+                    f'pr-bot-trigger having confirmed the request')
 
     def test_the_fork_gate_is_wired_end_to_end(self):
         # Two halves, either of which alone is no gate: the trigger job
@@ -986,46 +986,55 @@ class MergeRefResolutionTest(unittest.TestCase):
                 for guard in self.BOT_GUARDS:
                     self.assertIn(guard, terms)
 
-    ORIGIN_STEP = "- name: Confirm pr-bot-trigger reported the pull request's origin"
+    # (workflow, trigger job, work job) for each lane.
+    LANES = [
+        ('pr-re-review.yml', 'trigger-re-review', 're-review'),
+        ('pr-retest.yml', 'trigger-retest', 'retest'),
+    ]
 
-    def test_trigger_outputs_are_confirmed(self):
-        # The work jobs gate on outputs of a shared action pinned at
-        # @main, so a renamed output reads empty and the job skips after
-        # the rocket reaction. The step that catches that must not be
-        # conditional on one of those outputs, or it skips itself in the
-        # very case it exists for (shakenfist/development#180).
-        for name in [self.DEPLOYED_RE_REVIEW, self.TEMPLATE_RE_REVIEW,
-                     self.DEPLOYED_RETEST, self.TEMPLATE_RETEST]:
-            with self.subTest(workflow=name):
-                with open(os.path.join(REPO_ROOT, name)) as f:
-                    body = f.read()
-                self.assertIn(
-                    self.ORIGIN_STEP, body,
-                    f'{name} must confirm pr-bot-trigger reported the '
-                    f'outputs its work job depends on')
-                step = body.split(self.ORIGIN_STEP, 1)[1]
-                step = re.split(r'\n  \S|\n      - name:', step, maxsplit=1)[0]
-                self.assertNotRegex(
-                    step, r'(?m)^\s*if:', f'{name} makes the output check '
-                    f'conditional, so it skips when an output goes missing')
-                for output in ['triggered', 'authorized', 'same-repo']:
-                    self.assertIn(f'steps.trigger.outputs.{output} }}}}', step)
+    def test_the_work_job_gates_on_pr_bot_trigger_vouching(self):
+        # pr-bot-trigger checks its own outputs and exports the verdict
+        # as `confirmed`, failing and saying so on the pull request when
+        # it cannot vouch (shakenfist/actions#126). These files used to
+        # carry their own copy of that check, and the copies drifted, so
+        # the work job gates on the verdict and the trigger job carries
+        # no step but the action. The export has to be the action's own
+        # output, not a value the job made up.
+        paths = {
+            'pr-re-review.yml': [self.DEPLOYED_RE_REVIEW,
+                                 self.TEMPLATE_RE_REVIEW],
+            'pr-retest.yml': [self.DEPLOYED_RETEST, self.TEMPLATE_RETEST],
+        }
+        for wf, trigger, work in self.LANES:
+            for name in paths[wf]:
+                with self.subTest(workflow=name):
+                    with open(os.path.join(REPO_ROOT, name)) as f:
+                        jobs = dict(workflow_job_blocks(f.read()))
+                    steps = workflow_step_blocks(jobs[trigger])
+                    self.assertEqual(
+                        [ci_workflows.CI_REVIEW_TRIGGER_ACTION.split('@')[0]],
+                        [step_action(step) for step in steps],
+                        f'{name}: {trigger} should be pr-bot-trigger alone')
+                    step_id = step_keys(steps[0]).get('id')
+                    self.assertEqual(
+                        '${{ steps.%s.outputs.confirmed }}' % step_id,
+                        job_outputs(jobs[trigger]).get('confirmed', '').strip())
+                    terms = [term.strip() for term in
+                             job_level_keys(jobs[work])['if'].split('&&')]
+                    self.assertIn(
+                        f"needs.{trigger}.outputs.confirmed == 'true'", terms)
 
     # (job, step name, the step id its gate reads) for each notice.
     FAILURE_NOTICES = {
         'pr-re-review.yml': [
-            ('trigger-re-review',
-             '- name: Tell the requester the re-review will not run',
-             'origin'),
             ('re-review',
              '- name: Tell the requester the re-review did not run',
              'review'),
         ],
-        'pr-retest.yml': [
-            ('trigger-retest',
-             '- name: Tell the requester the retest will not run',
-             'origin'),
-        ],
+        # The trigger jobs need none: pr-bot-trigger reports its own
+        # failures on the pull request. The retest job's confirmation
+        # step reports a failed dispatch itself.
+        'pr-retest.yml': [],
     }
 
     def test_a_failure_after_the_reaction_is_said_on_the_pull_request(self):
