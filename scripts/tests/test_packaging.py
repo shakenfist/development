@@ -1700,6 +1700,28 @@ class ReleaseProcessTest(CheckTestCase):
             self.fixture.workflow('release.yml', f.read())
         self.assert_pass(self.check(has_pyproject_toml=True))
 
+    def test_the_shipped_template_gates_its_build(self):
+        """The template's build must wait for ci-gate on a tag push.
+
+        A dispatch dry run skips the gate, so build's guard lets a
+        skipped gate through, but only when the event is not a push.
+        Dropping the needs, or the event clause, would let an ungated
+        build reach the publishing jobs.
+        """
+        with open(os.path.join(
+                REPO_ROOT, 'templates', 'release-automation',
+                'release.yml')) as f:
+            text = f.read()
+        self.assertIn('uses: shakenfist/actions/require-ci-success@', text)
+        start = text.index('\n  build:\n')
+        end = text.index('\n  sign-tag:\n', start)
+        build = text[start:end]
+        self.assertIn('needs: ci-gate', build)
+        self.assertIn("needs.ci-gate.result == 'success'", build)
+        self.assertIn("github.event_name != 'push' && needs.ci-gate.result == 'skipped'",
+                      ' '.join(build.split()))
+        self.assertIn('uses: shakenfist/actions/check-dist@', build)
+
     # The workspace half of the criterion. A job which skips checkout
     # inherits whatever the previous job left on that runner, and
     # download-artifact adds to a directory rather than replacing it,

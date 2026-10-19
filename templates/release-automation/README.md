@@ -99,6 +99,12 @@ recoverable. Which fix applies depends on why the gate failed:
 | A CI run failed for a reason unrelated to the change, such as a flaky test | Re-run the failed CI runs until they succeed, then use "Re-run jobs" on the release's `ci-gate` job |
 | A CI run is still going | Wait for it, then re-run the `ci-gate` job |
 
+Deleting and re-creating a `v*` tag needs a maintainer on the tag
+ruleset's bypass list (see `RELEASE-SETUP.md`, "Configure Protected
+Tags"). Because `sign-tag` never ran, the tag being deleted is still
+the unsigned one the maintainer pushed, so nothing anyone verified is
+rewritten.
+
 "Re-run jobs" replays the original tag push event, so the guards
 still pass, and the gate reads each run's newest attempt. Every
 failed run on the commit needs re-running, not only the newest.
