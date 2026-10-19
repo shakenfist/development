@@ -393,12 +393,20 @@ Out of scope, each for a stated reason:
    does. If there is a consumer of the installed tests that this plan
    cannot see, the operator says so in step 3b and occystrap carries a
    `forbid`-free `check-dist` call with an `audit-ok` reason instead.
+   **Settled by phase 3's survey.** The entry was copied from pbr's
+   layout in occystrap 8a5fa01, with no reason recorded. Its functional
+   tests install the wheel but run `deploy/occystrap_ci/tests` from the
+   checkout, and no repository imports `occystrap.tests`. The default
+   stands.
 3. **shakenfist's `v*-releases` branches.** Its last tag came from
    one, and its CI triggers on `merge_group` for `develop` only.
    **Default:** none exist today, so the gate is adopted against
-   `develop`, and the step brief records that cutting a release
-   branch again means adding that branch to the CI triggers in the
-   same change.
+   `develop`. **Corrected by phase 3's survey:** the default's second
+   half, adding a release branch to the CI triggers, would not make
+   that branch releasable. The gate counts only runs on the default
+   branch, and only commits on its first-parent history. No repository
+   has a release branch today. Releasing from one again needs a change
+   to the gate, which Future work records.
 
 ## Execution
 
@@ -406,7 +414,7 @@ Out of scope, each for a stated reason:
 |-------|--------|--------|
 | 1. Release environment criterion | Complete | b87012d (#288) |
 | 2. Shared `require-ci-success` and `check-dist` actions | Complete | actions 69d4589 (#182) |
-| 3. Template and fleet adoption | Not started | |
+| 3. Template and fleet adoption | In progress | |
 | 4. `release-process` helpers | Not started | |
 | 5. Push audit | Not started | |
 
@@ -764,43 +772,374 @@ merged as actions#182 at 69d4589.
 
 ### Phase 3: template and fleet adoption
 
-Planning effort: high, for the per-repository packaging judgement.
-The workflow edits are mechanical.
+Planning effort: high, for the per-repository packaging judgement and
+for what the survey found about how the fleet actually merges. The
+workflow edits themselves are mechanical.
 
-Each repository gets one pull request (decision 10). The step for
-each must:
+This phase spans fifteen pull requests:
+* this repository's (the plan and the template);
+* one in `shakenfist/actions`;
+* one in each of the thirteen release repositories (decision 10).
 
-* add the `ci-gate` job (decision 6) and make `build` need it;
-* call `check-dist` in `build` after `twine check`, and in the CI
-  job that already builds a wheel where there is one;
-* add whatever CI trigger the gate needs;
-* fix packaging until `check-dist` passes, by diffing the wheel's
-  member list before and after and stating every removed member.
+Its `Merged` cell takes one `<repo> <sha> (#pr)` entry per
+repository.
+
+#### What the survey found
+
+Two read-only surveys ran on 2026-10-19 against fresh clones of each
+default branch. The first read every `release.yml`, the CI workflows,
+and the branch rules. It ran the merged `require-ci-success` against
+each repository's newest `v*` tag, its default-branch tip, and its
+newest fifteen first-parent commits. The second built every Python
+wheel, ran the merged `check-dist` on it, and tested a packaging fix
+in a scratch copy. Every PyPI test-member count in the table below
+matches the one this plan's Situation section gave. The rest of the
+old phase 3 section was wrong or incomplete in these places, and the
+section has been rewritten rather than patched:
+
+1. **Every default branch is `develop`**, including client-python-ova's,
+   so every gate reads `develop`.
+2. **Merges that go around the queue cannot be released.**
+   - The queue rulesets give one team `bypass_mode: always`. A merge
+     made that way is a merge commit with no `merge_group` run.
+   - The gate does not walk across a merge commit (decision 2), so it
+     fails such a commit, and it fails the review-mark commits that
+     `prune-reviews` adds above it.
+   - Of the newest fifteen commits, that took out:
+     - 4 in shakenfist;
+     - 5 in kerbside;
+     - 2 in client-python-k3s;
+     - 1 in instar.
+   - kerbside's `v0.7.0` and client-python-k3s's current tip are both
+     bypass merges.
+   - The gate is right to refuse them. A tag on one has to move to a
+     later commit that went through the queue. Decision 3.6 covers
+     the documentation, and `PLAN-bot-bypass-identity.md` owns the
+     bypass itself.
+3. **A `cancel-in-progress` group keyed on `github.ref` cancels push
+   runs on `develop`.**
+   - On a push, the ref is the same for every commit, and a cancelled
+     run fails the gate.
+   - Measured on `develop`: 12 of 74 `ci.yml` push runs in hunkydory,
+     and 3 of 23 in library-utilities.
+   - client-python-ova's `ci.yml` has the same groups (:47, :108,
+     :186), and so do the three workflows that are about to gain a
+     push trigger.
+   - Even `cancel-in-progress: false` would not be enough. A group
+     holds one running and one pending run, and a third arrival
+     cancels the pending one. So the key has to be unique per commit
+     on a push, which is the special-cased key that client-python-k3s,
+     instar and kerbside already use.
+4. **A `skipped` run is not a success.** kerbside's ruleset requires
+   checks from `direct-qemu-functional.yml` and `sf-e2e-functional.yml`,
+   but every one of their `merge_group` runs concludes `skipped`.
+   Naming them in `workflows` would fail every release, so kerbside
+   names `functional-tests.yml` alone. hunkydory, for a different
+   reason, names `ci.yml` alone:
+   - its `secret-scan.yml` has no `paths-ignore`, so it runs on every
+     prune commit;
+   - `ci.yml` does not, and a commit with one named workflow but not
+     the other fails as part-tested, without walking;
+   - its `codeql-analysis.yml` would make every docs-only commit
+     part-tested.
+5. **instar cannot pass the gate as it releases today.**
+   - `make release` (`docs/development.md:478-480`) commits the
+     version bump and pushes it straight to `develop` through the
+     bypass. That leaves a commit with no `functional-tests.yml` run.
+   - Its `release.yml` also has the dispatch hole the template was
+     written to close:
+     - `build` uses `always()` (:86);
+     - neither `sign-tag` (:175) nor `github-release` (:218) has an
+       `if:`;
+     - so a `workflow_dispatch` reaches the `release` environment
+       with only the reviewer in the way.
+6. **ryll's `release.yml` has no `workflow_dispatch`**, and no job in
+   it has an `if:`. Its root job is `check-version` (:11), so
+   `ci-gate` goes above that, and the template's dispatch-aware
+   `build` guard does not apply. Its release already runs `make test`
+   and `cargo test`, and those stay. Its Python wheels come from
+   maturin with `bindings = "bin"`, and on PyPI they are clean.
+7. **shakenfist's runtime code reaches its wheel only by accident.**
+   - `packages = ["shakenfist"]` (`pyproject.toml:207-208`) names only
+     the top-level package. 158 of its 188 runtime modules ship as
+     data, through the setuptools_scm file finder.
+   - Setting `include-package-data = false` alone would leave 30
+     modules. A build without `.git` gives that broken wheel today.
+   - `deploy/**` package-data ships another 165 members:
+     - the Ansible collection;
+     - the `*_ci_tests` suites;
+     - CI scripts and configuration.
+   - Nothing reads any of `deploy/**` from an installed wheel. The
+     collection installs from the checkout. Shipping `galaxy.yml` has
+     already caused one daemon-restart bug
+     (`tools/build-collection.py:12-17`).
+   - The current wheel from `develop` has 371 test members, against
+     29 in 0.7.2 on PyPI.
+8. **`include-package-data = false` is never enough on its own.**
+   Wherever `tests/` has an `__init__.py`, discovery still ships it as
+   a package. So every fix pairs the setting with a `packages.find`
+   exclude (or, for occystrap, removes the entry from its explicit
+   list).
+9. **The default `check-dist` rule has no false positives.** Every
+   directory named `tests` or `*_tests` across the eleven wheel
+   repositories is a real test directory, and no repository needs a
+   `forbid` glob. But the action passes a wheel with no members, which
+   client-python-k3s's `tools/check-dist.sh` (:88-92) rejects. That is
+   a gap in phase 2's code, and step 3b closes it.
+10. **client-python-k3s's `check-dist.sh` runs in both places.** The
+    release calls it at `release.yml:52-54`, and CI calls it through
+    `tools/check-wheel-build.sh`. The release-side call also enforces
+    the 12-member ceiling on the exact artefact that is uploaded, so it
+    stays, beside the action.
+11. **Open questions 2 and 3** are answered above, under Open
+    questions. occystrap's tests go. A release branch would need a
+    change to the gate.
+12. **Drift that is not this plan's.** Eight copies run `sign-tag`
+    without the `vm` label. shakenfist's `release.yml` sets workflow
+    permissions to `contents: read` rather than `{}`. hunkydory's
+    `reviews` merges get no `ci.yml` run, because of its `paths-ignore`,
+    and so cannot be tagged. Future work records each; none of them
+    stops the gate working.
+
+#### Decisions
+
+* **3.1. Every gated workflow must give each commit a run that cannot be
+  cancelled by the next one.**
+  - Where a gated workflow has a `concurrency` group keyed on
+    `github.ref` with `cancel-in-progress`, key it by sha on a
+    push: for example `${{ github.workflow }}-${{ github.event_name
+    == 'push' && github.sha || github.ref }}-<job>`.
+  - Keep cancelling on pull requests and merge groups, where a
+    newer run really does supersede the older one.
+  - client-python calls `smoke-cluster.yml`, whose group is keyed
+    on `github.ref`. It passes `concurrency_key: ${{
+    github.event_name == 'push' && github.sha || '' }}` rather
+    than changing the shared workflow.
+
+  This is what makes a tag on any merged commit releasable, rather
+  than only a tag on the tip.
+* **3.2. The three repositories without a queue get a `push` trigger,
+  not a merge queue.**
+  - Those are agent-python, client-python and clingwrap. Each adds
+    `push: branches: [develop]` to `functional-tests.yml`, with no
+    `paths-ignore`, because a docs-only merge with no run could
+    never be released.
+  - The cost is one more full run per merge, and for client-python
+    that is a smoke cluster on the shared under-cloud. A queue
+    would cost the same, since queue repositories run on both the
+    pull request and the merge group, but it needs a ruleset these
+    repositories do not have, and rulesets are out of scope.
+* **3.3. The packaging fix is `include-package-data = false` plus an
+  explicit exclude of the test packages**, with explicit
+  `package-data` for everything the code loads at runtime.
+  - Each pull request states every member it removes.
+  - Each pull request also shows that a build without `.git`
+    gives the same members as one with it, which is the check that
+    would have caught kerbside#326 and shakenfist's latent copy of
+    it.
+* **3.4. shakenfist moves to `packages.find` and stops shipping
+  `deploy/**`.**
+  - This is the decision a reviewer is most likely to argue with.
+    It removes 489 members, including the Ansible collection and
+    the CI suites, where the narrower option would remove 398 and
+    keep `deploy/**`.
+  - Nothing installed reads any of it. Keeping it ships CI scripts
+    and a `galaxy.yml` that has already caused one bug.
+  - It also makes the restart-on-change signature
+    (`bootstrap.yml:228-238`) stop restarting every daemon on a
+    commit that only touched tests.
+  - The back brief asks the operator to confirm it, because the
+    narrower option is a legitimate choice and the change is hard
+    to observe until someone misses a file.
+* **3.5. instar's release goes through the queue, as ryll's does.**
+  - Its `make release` becomes the pair of
+    `tools/propose-release.sh`, which opens a version-bump pull
+    request, and `tools/tag-release.sh`, which tags the merged
+    commit, after ryll's.
+  - Its `release.yml` gains the template's guards: `sign-tag` and
+    `github-release` take the push and tag guard, and `build` takes
+    the tighter `ci-gate` guard in place of `always()`.
+  - Adding a push trigger to its functional tests instead would run
+    100 minutes of CI on a bump commit that is still pushed around
+    review.
+  - This is a process change for whoever releases instar, so the
+    back brief confirms it.
+* **3.6. The template's README carries the recovery table, including the
+  bypass case.** A gate failure means nothing was published.
+  - A bypass merge, or a tag off the first-parent history: move the
+    tag to a commit that went through the queue.
+  - A docs-only commit that `paths-ignore` skipped: move the tag.
+  - A flaky run: re-run CI, then re-run the gate job.
+
+  The gate does not change.
+* **3.7. check-dist runs wherever a wheel is built for publishing, and
+  in CI only where a CI job already builds one.**
+  - The CI jobs are:
+    - client-python-ova's `lint-and-build`, on `${RUNNER_TEMP}/dist`;
+    - occystrap's `functional`;
+    - client-python-k3s's `sanity_checks`, through its existing
+      script;
+    - kerbside's `sanity_checks`.
+  - Elsewhere the template recommends it, and phase 4 does not
+    measure it (decision 9).
+  - kerbside calls it twice in its release: on `dist/` in `build`,
+    and on the proxy wheels in `build-proxy-wheels`.
+  - ryll calls it on `target/wheels/` in `build-ryll-wheels`.
+* **3.8. client-python-ova goes first, as a pilot**, and the other
+  twelve start only after it has merged and passed a
+  `workflow_dispatch` dry run of its `release.yml`.
+  - It is the repository the issue came from, it needs no
+    packaging change, and its `release.yml` is the template's.
+  - A defect in the job shape is then found once, not in twelve
+    pull requests.
+  - Its pull request closes client-python-ova#19.
+
+#### Common edits
+
+Each repository's pull request makes these changes, adapted by hand
+to its `release.yml`, never by copying the template over it:
+
+* A `ci-gate` job in the shape of `docs/actions.md`'s
+  `require-ci-success` example in `shakenfist/actions`:
+  - on `[self-hosted, static]`, with `permissions: {actions: read,
+    contents: read}`;
+  - with the publishing jobs' push and tag guard;
+  - with a single `uses: shakenfist/actions/require-ci-success@main`
+    step, given `timeout-minutes: 5` and the repository's
+    `workflows`.
+* The job (or jobs) at the root of the build graph `needs: ci-gate`,
+  with the guard `${{ !cancelled() && (needs.ci-gate.result ==
+  'success' || (github.event_name != 'push' && needs.ci-gate.result ==
+  'skipped')) }}`. Where the root job has a guard of its own, the
+  two are combined. ryll has no dispatch trigger, so its
+  `check-version` just needs `ci-gate`.
+* Every job that names an environment carries `if:
+  github.event_name == 'push' && startsWith(github.ref,
+  'refs/tags/v')`, and no job in `release.yml` uses `always()`.
+* A `uses: shakenfist/actions/check-dist@main` step:
+  - in every release job that builds a wheel, after `twine check`
+    where there is one;
+  - in the CI job named under decision 3.7, where there is one.
+* The CI change the table below names, following decisions 3.1 and
+  3.2.
+* The packaging fix the table names, following decision 3.3. The
+  pull request body lists the before-and-after member diff, and
+  says that a build without `.git` matches.
+
+Per-repository facts. `workflows` is what `ci-gate` names.
+
+| Repository | `workflows` | CI change | `release.yml` | Packaging | `check-dist` calls |
+|---|---|---|---|---|---|
+| client-python-ova | `ci.yml` | re-key the three groups (:47, :108, :186) | the template's | none; 18 members, clean | `build`; CI `lint-and-build` |
+| library-utilities | `ci.yml` | re-key `lint-and-test` (:51) | template-shaped | the decision 3.3 pattern for `shakenfist_utilities`; removes 2 | `build` |
+| divergulent | `unit-tests.yml` | none | template-shaped | add the exclude to its existing `packages.find` (:71-77); removes 61, three of them fixtures | `build` |
+| occystrap | `python-unit-tests.yml`, `functional-tests.yml` | none; their identical `paths-ignore` stays, so a docs-only tag fails closed | template-shaped | remove `occystrap.tests` from `packages` (:63), and turn off `include-package-data`; removes 17 | `build`; CI `functional`, after its build (:91-96) |
+| clingwrap | `functional-tests.yml` | add `push: [develop]`; re-key (:23-25) | template-shaped | the decision 3.3 pattern; keep `examples/*.cwd`, which `main.py:213` loads; removes 1 | `build` |
+| agent-python | `functional-tests.yml` | add `push: [develop]`; re-key `sanity_checks` (:70-72) | template-shaped | the decision 3.3 pattern; removes 3 tests, plus `protos/*.proto` and `protos/_copy_stubs.sh`, which nothing loads | `build` |
+| client-python | `functional-tests.yml` | add `push: [develop]` with no `paths-ignore`; re-key (:24-26); pass `concurrency_key` to `smoke-cluster` | template-shaped | the decision 3.3 pattern; removes 6 | `build` |
+| shakenfist | `functional-tests.yml` | none (`merge_group`) | adds `build-collection` and `publish-collection`; `ci-gate` goes above both `build` and `build-collection` | decision 3.4; keep `data/*.yaml`, which `schema/database_load_budget.py:204` loads; removes 489 | `build` |
+| client-python-k3s | `functional-tests.yml` | none (`merge_group`) | adds `build-collection` and `publish-collection`; `ci-gate` goes above both | none; 12 members, clean | `build`, beside the `check-dist.sh` call, which stays |
+| kerbside | `functional-tests.yml` | none (`merge_group`) | adds `build-collection`, `build-proxy-wheels` and `publish-proxy-pypi`; `ci-gate` goes above all three build jobs | add `kerbside.tests*` to its `packages.find` exclude, and turn off `include-package-data`; removes 31; keep the templates, static files and migrations; `tools/check-wheel.py` must still pass | `build` on `dist/`; `build-proxy-wheels` on `dist/proxy-wheels/`; CI `sanity_checks` |
+| ryll | `ci.yml` | none (`merge_group`) | no dispatch; `check-version` is the root | none; clean on PyPI | `build-ryll-wheels`, on `target/wheels/` |
+| hunkydory | `ci.yml` | re-key the three groups (:156, :200, :269) | builds a `.vsix`; publishes to the Marketplace | no wheel | none |
+| instar | `functional-tests.yml` | none (`merge_group`); the release process changes (decision 3.5) | `build` uses `always()`; `sign-tag` and `github-release` are unguarded | no wheel | none |
+
+#### Steps
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 3a | medium | sonnet | none | In `templates/release-automation/release.yml`, add a `ci-gate` job on `[self-hosted, static]` with `permissions: {actions: read, contents: read}`, the same `if:` guard as `sign-tag` (:71-72), and one step: `uses: shakenfist/actions/require-ci-success@main` with `workflows:` set to a `{{CI_WORKFLOWS}}` placeholder. Make `build` `needs: ci-gate`. Because of that `if:`, a `workflow_dispatch` run would skip `build`, so give `build` `if: ${{ !cancelled() && (needs.ci-gate.result == 'success' \|\| github.event_name == 'workflow_dispatch') }}` and explain the expression in a comment. The `${{ }}` wrapper is required, because YAML reads a bare value starting with `!` as a tag. Add a `check-dist` step after `twine check`. Update `templates/release-automation/README.md`: add the placeholder row; add a section explaining the gate, the review-mark allowlist, the recovery path (re-run CI, then "Re-run jobs" on the gate), and why there is no override; and add a prerequisite that CI must run on `push` to the default branch or on `merge_group`. Update `RELEASE-SETUP.md` to say the reviewer approves a release whose CI has already been checked, and to point at the `release-environment-protection` criterion. Note in the README that `PLAN-workflow-ref-trust.md` phase 5 must carry the `ci-gate` job if it converts this template. |
-| 3b | high | opus | worktree | One sub-agent per repository, in its own clone, with the template from 3a as the pattern. Each `release.yml` is a per-repository adaptation, so apply the change by hand; never copy the template over the file. The per-repository facts are below this table. For each repository: make the edits listed above this table; build the wheel before and after and report the member diff; run the repository's own pre-commit; and push a branch, but do not open a pull request. The management session opens them after review. The occystrap step waits for open question 2's answer before removing `occystrap.tests`. |
+| 3a | medium | sonnet | none | In this repository, on this phase's branch. In `templates/release-automation/release.yml`, add the `ci-gate` job from Common edits above, with `workflows:` set to a `{{CI_WORKFLOWS}}` placeholder. Make `build` need it under the guard given there, with a comment explaining the guard: a skipped gate may only accompany a run that publishes nothing. The `${{ }}` wrapper is required, because YAML reads a bare value starting with `!` as a tag. Add a `check-dist` step after `twine check`. In `templates/release-automation/README.md`: add the placeholder row; add a section on the gate covering what counts as CI, the review-mark walk and why there is no override (link `shakenfist/actions`' `docs/actions.md`, do not restate it); add the recovery table from decision 3.6; and add prerequisites for gated CI. Those prerequisites are: CI runs on `push` to the default branch with a `branches:` filter, or on `merge_group`; a concurrency group never cancels a push run, keyed as decision 3.1 says; no named workflow may conclude `skipped` on the event that counts; and `paths-ignore` means a tag on a skipped commit fails. Note that `PLAN-workflow-ref-trust.md` phase 5 must carry `ci-gate` if it converts the template. Update `templates/release-automation/RELEASE-SETUP.md` to say the reviewer approves a release whose CI the gate has already checked, and to name the `release-environment-protection` criterion. Do not cite plan phases or decision numbers in the template or its docs. Run `pre-commit run --all-files`, which runs actionlint over the template. |
+| 3b | medium | sonnet | own worktree of `shakenfist/actions` | In `tools/check-dist.py`, fail a wheel that holds nothing outside its `*.dist-info/` directory, the way client-python-k3s's `tools/check-dist.sh:88-92` rejects an empty wheel. A wheel whose only payload is under `*.data/` passes: ryll's wheels have just `<name>.data/scripts/ryll` and their dist-info. Add tests in `tests/test_check_dist.py` for an empty wheel, a dist-info-only wheel and a `.data`-only wheel, and update the `check-dist` section of `docs/actions.md`. Run the repository's pre-commit and `python3 -m unittest discover -s tests -t .`, and mutate the new branch on a copy to show that the tests catch it. Leave the work uncommitted. This lands as its own pull request in `shakenfist/actions`, before 3d. |
+| 3c | high | opus | own clone of the repository | The pilot: client-python-ova, with the Common edits and its table row. Its `release.yml` is the template's, so the diff should be the template's 3a diff, with `ci.yml` as `workflows`, plus the CI re-keying and the CI `check-dist` step. Build the wheel with the release's path (sdist, then the wheel from it) and run `check-dist` on it. Run the repository's pre-commit. Leave the change uncommitted on a branch named `release-gating`; the management session reviews, commits and pushes, and the commit body says it closes client-python-ova#19. After it merges, the management session asks the operator before dispatching `release.yml` on `develop`. The dry run must show `ci-gate` and the publishing jobs skipped, and `build` and `check-dist` succeeded. |
+| 3d | high | sonnet | own clone per repository | Wave 1: library-utilities, divergulent, occystrap, clingwrap, agent-python and client-python. One sub-agent each, run in parallel. Each takes its table row, the Common edits, and the merged pilot as its pattern. Each applies the packaging fix from its row, then confirms four things: `check-dist` passes on a wheel built through the sdist; the member diff matches the row and is stated whole; a build from a copy with no `.git` gives the same members; and the repository's own tests pass. Run pre-commit, and leave the change uncommitted on a `release-gating` branch. Any difference from the table row is reported, not worked around. |
+| 3e | high | opus | own clone per repository | Wave 2: shakenfist, client-python-k3s, kerbside, ryll and hunkydory. One sub-agent each, run in parallel. The same checks as 3d, and also these. shakenfist: decision 3.4, unless the operator chose the narrower option in the back brief; all 188 runtime modules must be in the fixed wheel, and the test in `shakenfist/tests/test_database_load_budget.py` that asserts the data file is declared must pass. kerbside: `tools/check-wheel.py` must pass on the fixed tree. ryll: do not install Rust; put `check-dist` in `build-ryll-wheels` and check it by reading. Any job graph with more than one root needs `ci-gate` above every root that leads to an environment job. Run pre-commit, and leave the change uncommitted on a `release-gating` branch. |
+| 3f | high | opus | own clone | instar, following decision 3.5 as the back brief settled it. Read ryll's `tools/propose-release.sh` and `tools/tag-release.sh`, and its release section in `docs/`, and adapt them. Change `make release` and `docs/development.md:478-480` to match. Then make the `release.yml` guard changes, and add `ci-gate` with `workflows: functional-tests.yml`. Run instar's pre-commit through its Docker wrapper, never a native Rust toolchain. Leave the change uncommitted on a `release-gating` branch. |
+| 3g | low | sonnet | none | After each repository's pull request merges, run the merged gate read-only against that repository's `develop` tip, using the command in Definition of done. A failure is reported with its first line, not fixed: a bypass merge at the tip is expected, per the survey. Ask the operator before any `workflow_dispatch`. |
 
-Per-repository facts for 3b. `workflows` is what `ci-gate` names.
-The trigger column is the change the gate needs. The wheel column
-counts the test members found on PyPI.
+The management session pushes each branch and opens each pull
+request after reviewing it, with the operator's approval at execution
+time. Each pull request's body lists its member diff and its gate
+verdicts.
 
-| Repository | `workflows` | Trigger change | Wheel |
-|---|---|---|---|
-| agent-python | `functional-tests.yml` | add `push: branches: [develop]` | 2 test members |
-| client-python | `functional-tests.yml` | add `push: branches: [develop]`; it also has a `v*-releases` PR trigger, apply open question 3's rule | 4 |
-| clingwrap | `functional-tests.yml` | add `push: branches: [develop]` | 1 |
-| shakenfist | `functional-tests.yml` | none (`merge_group`) | 29; check what package data it genuinely ships before turning `include-package-data` off |
-| client-python-k3s | its functional tests workflow | none | 0; replace its release-side `check-dist.sh` call with the action and keep the CI-side count check |
-| divergulent | `unit-tests.yml` | none | 57 |
-| library-utilities | `ci.yml` | none | 2 |
-| occystrap | `python-unit-tests.yml` and `functional-tests.yml` | none; `paths-ignore` stays, and decision 2's failure message covers a docs-only tag | 17; open question 2 |
-| client-python-ova | `ci.yml` | none | 0 expected, so `check-dist` should pass unchanged; the PR closes client-python-ova#19 |
-| hunkydory | `ci.yml` | none | no wheel; gate only |
-| ryll | `ci.yml` | none | its Python wheels from `build-ryll-wheels`; its release already runs tests, which stay |
-| instar | `functional-tests.yml` | none | no wheel; gate only |
-| kerbside | `functional-tests.yml` (and others its queue requires; confirm against its ruleset's required checks) | none | 30, in the main wheel and possibly the proxy wheels; `tools/check-wheel.py` stays |
+#### Risks and mitigations
+
+* **The first release after adoption fails at the gate.** Most likely
+  this is a bypass merge, or a tag on a commit that `paths-ignore`
+  skipped. Nothing has been published at that point, and the
+  README's recovery table says what to do. Step 3g runs the gate
+  against each tip after merge, so the operator learns which
+  repositories would fail before a release finds out. The management
+  session reports those.
+* **A packaging fix drops a file the code loads at runtime.** The
+  survey found three such sets: clingwrap's examples, shakenfist's
+  load budget, and kerbside's templates, static files and migrations.
+  Each 3d and 3e agent states every removed member, and the
+  management session reads that list against the table before
+  committing. kerbside's `check-wheel.py` and shakenfist's
+  declared-data test fail if the known ones go.
+* **A push trigger doubles CI load** in agent-python, client-python
+  and clingwrap, and client-python's run includes a smoke cluster. The
+  operator sees this in the back brief. If it hurts, those
+  repositories get a merge queue under a separate plan.
+* **An agent copies the template over a `release.yml`** that differs
+  from it, and loses kerbside's proxy wheels or shakenfist's
+  collection. The brief forbids it. The management session also diffs
+  each job list before and after: no job may disappear.
+* **The pilot's job shape is wrong.** 3c runs alone, and the dry run
+  must pass before 3d starts.
+* **A merge to `actions@main` breaks every release at once**, because
+  everything calls it at `@main`. 3b is a strict tightening, it lands
+  before the fleet calls `check-dist`, and its tests include ryll's
+  `.data`-only shape.
+
+#### Definition of done
+
+* Every one of the thirteen `release.yml` files on `develop` has a
+  `ci-gate` job that uses `shakenfist/actions/require-ci-success@main`,
+  and every job naming an environment is downstream of it.
+  `!cancelled()` appears only in the guard for a job that needs
+  `ci-gate`, and `always()` appears nowhere. Run this from a
+  directory of fresh clones; it prints nothing when the item holds:
+
+  ```bash
+  for r in */; do f="$r.github/workflows/release.yml"; [ -f "$f" ] || continue
+    grep -q 'require-ci-success@main' "$f" || echo "$r: no ci-gate"
+    grep -n 'always()' "$f" | sed "s|^|$r: |"; done
+  ```
+* Every repository that publishes a wheel calls `check-dist` in each
+  release job that builds one. A wheel built through the sdist from
+  each merged `develop` passes it.
+* The member diffs in the shakenfist, kerbside and clingwrap pull
+  requests still list their runtime data as shipped.
+* Every gated workflow that has a `concurrency` group keys it by
+  sha on a push.
+* The merged gate passes against each repository's `develop` tip, or
+  the plan's execution notes name the failing tip and why:
+
+  ```bash
+  GH_TOKEN=$(gh auth token) GITHUB_REPOSITORY=shakenfist/<r> \
+    WORKFLOWS=$'<files>' COMMIT_SHA=$(gh api repos/shakenfist/<r>/commits/develop --jq .sha) \
+    python3 -I require-ci-success.py
+  ```
+* The pilot's `workflow_dispatch` dry run shows `ci-gate` and the
+  publishing jobs skipped, and `build` and `check-dist` succeeded.
+* client-python-ova#19 is closed by the pilot's pull request.
+* `pre-commit run --all-files` passes here, and
+  `scripts/audit-check.py` against this repository reports what it
+  did before.
+
+#### Back brief
+
+Before 3a starts, the operator confirms:
+
+1. **shakenfist's `deploy/**`** (decision 3.4). Drop it, or keep it
+   and exclude only `deploy/shakenfist_ci/*`.
+2. **instar's release process** (decision 3.5). Move it to a version
+   pull request through the queue, or hold instar out of this phase.
+3. **The push triggers' CI cost** in agent-python, client-python and
+   clingwrap (decision 3.2).
+4. **Pushing and opening the fifteen pull requests.** Each is asked
+   at the point it is ready, or granted once for the phase.
 
 ### Phase 4: `release-process` helpers
 
@@ -814,7 +1153,7 @@ rather than taking a failure.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 4a | medium | opus | none | In `scripts/audit/checks/packaging.py`, add three helpers called from `ReleaseProcess.run` (:831-858), each returning a list of issue strings like `release_dispatch_guard_issues` (:771). (1) `release_ci_gate_issues`: some job has a step that `uses: shakenfist/actions/require-ci-success@...`, and every job that names an `environment:` is downstream of it through `needs:` (walk the needs graph; a cycle or unknown job name is an issue, not a crash). Being downstream is not enough on its own. A job whose `if:` contains `always()` or `!cancelled()` runs even when an upstream job failed, so every job on the path from the gate to an environment job must either have no such guard, or require `needs.<job>.result == 'success'` for the job it depends on. `build`'s own guard in the template passes this test only because the `workflow_dispatch` branch of it leads to no environment job, since the publishing jobs require a `push` event. The helper checks that the publishing jobs' guards exclude `workflow_dispatch`, rather than taking it on trust. (2) `release_ci_trigger_issues`: every file in that step's `workflows` input exists under `.github/workflows/` and has `push` with the default branch in `branches` (or no branch filter), or `merge_group`. (3) `release_check_dist_issues`: wherever a job runs `python -m build` or uploads a `*.whl`, a `check-dist` step follows in that job. Since `ReleaseProcess.applies` skips repositories without `pyproject.toml`, also add the first two to hunkydory's path, the language-neutral case `PLAN-typescript-onboarding.md:637-665` describes, without changing what the skip means for the existing helpers. Update `docs/audits/release-process.md` to describe each rule and its reason. Tests in `scripts/tests/test_packaging.py` beside the existing `ReleaseProcess` tests: each helper's pass, fail, and the edge cases named here. No new criterion, so no metadata tables change; confirm `test_metadata.py` still passes. |
+| 4a | medium | opus | none | In `scripts/audit/checks/packaging.py`, add three helpers called from `ReleaseProcess.run` (:831-858), each returning a list of issue strings like `release_dispatch_guard_issues` (:771). (1) `release_ci_gate_issues`: some job has a step that `uses: shakenfist/actions/require-ci-success@...`, and every job that names an `environment:` is downstream of it through `needs:` (walk the needs graph; a cycle or unknown job name is an issue, not a crash). Being downstream is not enough on its own. A job whose `if:` contains `always()` or `!cancelled()` runs even when an upstream job failed, so every job on the path from the gate to an environment job must either have no such guard, or require `needs.<job>.result == 'success'` for the job it depends on. `build`'s own guard in the template passes this test only because the `workflow_dispatch` branch of it leads to no environment job, since the publishing jobs require a `push` event. The helper checks that the publishing jobs' guards exclude `workflow_dispatch`, rather than taking it on trust. (2) `release_ci_trigger_issues`: every file in that step's `workflows` input exists under `.github/workflows/` and has `push` with the default branch in `branches` (or no branch filter), or `merge_group`. It is also an issue if any `concurrency` group in that file is keyed on `github.ref` with `cancel-in-progress` and is not keyed by sha on a push, since a cancelled run fails the gate. The helper cannot see that a workflow's runs conclude `skipped` (kerbside's `direct-qemu-functional.yml` does on every merge group); the gate fails that case closed, and the spec says so. (3) `release_check_dist_issues`: wherever a job runs `python -m build` or uploads a `*.whl`, a `check-dist` step follows in that job. Since `ReleaseProcess.applies` skips repositories without `pyproject.toml`, also add the first two to the path for hunkydory, instar and ryll (ryll's `pyproject.toml` is under `ryll/`, not at the root), the language-neutral case `PLAN-typescript-onboarding.md:637-665` describes, without changing what the skip means for the existing helpers. Update `docs/audits/release-process.md` to describe each rule and its reason. Tests in `scripts/tests/test_packaging.py` beside the existing `ReleaseProcess` tests: each helper's pass, fail, and the edge cases named here. No new criterion, so no metadata tables change; confirm `test_metadata.py` still passes. |
 | 4b | low | sonnet | none | `pre-commit run --all-files`; `audit-check.py` against this repository, unchanged; and `release-process` against fresh clones of the thirteen, reporting any failure with its text. |
 
 ### Phase 5: push audit
@@ -1141,6 +1480,27 @@ chosen to defer to here, so that we do not forget them.
   `head_branch` spoof at its source. The gate already refuses such a
   tag unless it sits on the default branch's first-parent history, so
   this is defence in depth, alongside the tag rulesets above.
+* **Releasing from a branch other than the default** needs a gate
+  change. A `branch` input would name the branch whose runs and
+  first-parent history count, and would need to say how a reviewer
+  knows that branch's CI is trustworthy. No repository has a release
+  branch today.
+* **The gate could cross a merge commit whose diff against its first
+  parent touches only review marks.** hunkydory's `reviews` merges get
+  no `ci.yml` run, because of its `paths-ignore`, so a tag on one
+  fails today. The diff against the first parent is the whole of what
+  the merge changed, so crossing it is as safe as crossing a prune
+  commit. That is a change to `require-ci-success` in
+  `shakenfist/actions`.
+* **A merge queue for agent-python, client-python and clingwrap**
+  would replace the `push` triggers phase 3 adds. It needs a ruleset,
+  so it sits with the tag rulesets above.
+* **Template drift found by phase 3's survey**:
+  - eight copies of `sign-tag` (agent-python, client-python,
+    clingwrap, divergulent, library-utilities, occystrap, shakenfist,
+    client-python-k3s) run without the `vm` label;
+  - shakenfist's `release.yml` sets workflow-level `contents: read`
+    rather than `{}`.
 * **Re-publishing the affected packages** without their tests is not
   worth a version bump on its own. The next ordinary release of each
   carries the fix.
