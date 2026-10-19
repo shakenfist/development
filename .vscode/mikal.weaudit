@@ -285,19 +285,11 @@
       "author": "mikal"
     },
     {
-      "path": "templates/release-automation/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/export-repo-config/README.md",
       "author": "mikal"
     },
     {
       "path": "templates/export-repo-config",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/release-automation/release.yml",
       "author": "mikal"
     },
     {
@@ -438,18 +430,6 @@
     },
     {
       "path": "docs/audits/readme-absolute-links.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/release-automation/RELEASE-SETUP.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/release-automation",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/release-automation.md",
       "author": "mikal"
     },
     {

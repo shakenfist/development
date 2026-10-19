@@ -321,10 +321,6 @@
       "sha": "b8778a9bcbbd432ea2c13e2551f40134ae75ff44",
       "date": "2026-10-16"
     },
-    "docs/release-automation.md": {
-      "sha": "9807720ead26729e88b627892fbb73cb81edef91",
-      "date": "2026-10-06"
-    },
     "renovate.json": {
       "sha": "9545114a3c885e9efc56da8514dffd8bcb643030",
       "date": "2026-10-18"
@@ -511,18 +507,6 @@
     },
     "templates/pin-indirect-dependencies/pin-indirect-dependencies.yml": {
       "sha": "94e1e3a47510da8436eb629a047ba1edd4979905",
-      "date": "2026-10-01"
-    },
-    "templates/release-automation/README.md": {
-      "sha": "334338b6c7badb6a12fdf9a805b1c8177d123f70",
-      "date": "2026-10-01"
-    },
-    "templates/release-automation/RELEASE-SETUP.md": {
-      "sha": "a8cc432d8a30daa167f00323f939ea77a06f1dfa",
-      "date": "2026-10-06"
-    },
-    "templates/release-automation/release.yml": {
-      "sha": "932143a87e482d3e08101a485e249f347dfee26d",
       "date": "2026-10-01"
     },
     "templates/renovate/README.md": {
