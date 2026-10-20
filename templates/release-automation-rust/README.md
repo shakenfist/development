@@ -34,11 +34,11 @@ The four scripts must be executable. Copy them with their mode, or run
 wrappers, such as `make propose-release X.Y.Z`, as ryll and andris do.
 
 The one-time GitHub setup is the same as for the Python template:
-follow steps 2 and 3 of its
+follow steps 2 to 4 of its
 [`RELEASE-SETUP.md`](https://github.com/shakenfist/development/blob/main/templates/release-automation/RELEASE-SETUP.md)
-for the `release` environment and the tag ruleset. Registry setup, such
-as a crates.io token or a PyPI trusted publisher, differs per
-repository and belongs in its own `docs/releasing.md`.
+for the `release` environment, the tag ruleset and the merge queue.
+Registry setup, such as a crates.io token or a PyPI trusted publisher,
+differs per repository and belongs in its own `docs/releasing.md`.
 
 ## Placeholders
 
