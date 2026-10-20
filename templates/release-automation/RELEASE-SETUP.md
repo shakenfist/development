@@ -170,15 +170,18 @@ branch, or the queue waits for checks that never report.
 6. Keep the bypass list short. A merge that bypasses the queue gets
    no CI run, so it cannot be released until a later commit has gone
    through the queue
-7. Re-sync every open pull request (`gh pr list --state open`). A
-   pull request run uses the workflows of the merge ref it started
-   on, so a pull request whose CI ran before the aggregator jobs
-   reached the default branch reports the old check names. The
-   ruleset then blocks it, waiting for checks that will never report.
-   Re-running that run does not help, because it reuses the same
-   merge ref: the branch needs a new commit. Use **Update branch**,
-   or for a Renovate pull request tick its rebase checkbox, so that
-   Renovate keeps managing the branch
+7. Bring every open pull request up to date with the default branch
+   (`gh pr list --state open`). A pull request run uses the workflows
+   of the merge ref it started on, so a pull request whose CI ran
+   before the aggregator jobs reached the default branch reports the
+   old check names. The ruleset then blocks it, waiting for checks
+   that will never report. Re-running that run does not help, because
+   it reuses the same merge ref: the branch needs a new commit. Use
+   **Update branch** (or `gh pr update-branch N`). For a Renovate
+   pull request tick its rebase checkbox instead, so that Renovate
+   keeps managing the branch. For a fork pull request that
+   maintainers cannot push to, ask the author to merge the default
+   branch
 
 ### 5. Verify Sigstore/Rekor Access
 
