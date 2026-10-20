@@ -109,7 +109,8 @@ per-repository section:
 Running the workflow by hand (**Actions -> Release -> Run workflow**)
 on any branch is a dry run. It runs `check-version` and the build jobs,
 and `ci-gate`, `sign-tag`, `github-release` and every publishing job
-show as skipped.
+show as skipped. The build jobs reach it only because each carries the
+build-job guard described under the invariants below.
 
 ## The CI gate
 
@@ -150,6 +151,11 @@ and tag guard" is
 `if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')`,
 exactly. "The skipped-gate guard" is
 `${{ !cancelled() && (needs.ci-gate.result == 'success' || (github.event_name != 'push' && needs.ci-gate.result == 'skipped')) }}`.
+"The build-job guard" is `!cancelled()` joined by `&&` to one
+`needs.<job>.result == 'success'` clause for each job the job lists in
+`needs:`, and nothing else, inside `${{ }}`; for a job that needs only
+`check-version` it is
+`${{ !cancelled() && needs.check-version.result == 'success' }}`.
 A job "needs" another if it lists it in `needs:`, or needs a job that
 does.
 
@@ -170,8 +176,10 @@ does.
    skipped-gate guard, and permissions of exactly `contents: read`,
    and runs `tools/release-version.sh check "${GITHUB_REF}"`. Every
    job other than those two needs `check-version`.
-6. No job-level `if:` contains `always()`, and `check-version`'s is the
-   only job-level `if:` that contains `!cancelled()`.
+6. No job-level `if:` contains `always()`. Every job other than
+   `ci-gate` and `check-version` that lacks the push and tag guard is
+   a build job, and has the build-job guard. No job-level `if:` other
+   than `check-version`'s and the build jobs' contains `!cancelled()`.
 7. Every job with an effect outside the run has the push and tag
    guard. Such a job names an `environment`, or holds
    `contents: write` or `id-token: write`, or reads a secret other than
@@ -212,12 +220,22 @@ does.
 ## Filling the build section
 
 Every job in the build section needs `check-version`, and `sign-tag`
-lists every one of them in `needs`. An artifact named `release-*` is
-attached to the GitHub release, and any other artifact is not, which
-is how a repository keeps its wheels or its intermediate files off the
-release page. `github-release` may gain steps before its release step
-that check or add to what it downloaded, as long as it keeps the shape
-invariant 12 requires.
+lists every one of them in `needs`. Every build job carries the
+build-job guard. A job with no `if:` of its own gets an implicit
+`success()`, which fails when any job upstream of it was skipped, not
+only the jobs it lists in `needs:`
+([actions/runner#491](https://github.com/actions/runner/issues/491)).
+On a dry run `ci-gate` is skipped, so a build job without the guard is
+skipped too, even though `check-version` ran. The guard tests only the
+jobs it names, so a failed, skipped or cancelled dependency still
+stops the build, and on a tag push `check-version` succeeds only after
+`ci-gate` did.
+
+An artifact named `release-*` is attached to the GitHub release, and
+any other artifact is not, which is how a repository keeps its wheels
+or its intermediate files off the release page. `github-release` may
+gain steps before its release step that check or add to what it
+downloaded, as long as it keeps the shape invariant 12 requires.
 
 `github-release` needs only `build` and `sign-tag`, so the release page
 can appear while a registry publish is still running, or after one has
@@ -243,19 +261,22 @@ not the whole of each diff:
 
 - **ryll** has no `workflow_dispatch` and no guards. It gains both, so
   that its publishing jobs and `github-release` take the push and tag
-  guard. Its `check-version` stops filing an issue on a mismatch, so
-  it drops `issues: write`: the run already fails before anything is
-  signed, and `tag-release.sh` is watching it. Its `sign-tag` stays on
+  guard, and its build jobs the build-job guard. Its `check-version`
+  stops filing an issue on a mismatch, so it drops `issues: write`:
+  the run already fails before anything is signed, and
+  `tag-release.sh` is watching it. Its `sign-tag` stays on
   `ubuntu-latest` with its `audit-ok` marker, which invariant 8
   allows.
 - **instar** releases today with `make release`, which commits the
   bump and tags it locally for a direct push to the default branch.
-  That target goes, replaced by the two scripts. Its `build` drops
-  `always()` for `needs: check-version`. Its `check-version` drops
-  its tag-only `if:` and its issue filing. Its `sign-tag` moves to a
-  `vm` runner, and its `sign-tag` and `github-release` gain the guard.
+  That target goes, replaced by the two scripts. Its `build` needs
+  `check-version` and swaps `always()` for the build-job guard. Its
+  `check-version` drops its tag-only `if:` and its issue filing. Its
+  `sign-tag` moves to a `vm` runner, and its `sign-tag` and
+  `github-release` gain the guard.
 - **andris** already has the dispatch trigger, the guards and the
-  concurrency group. Its `scripts/` release scripts become this
+  concurrency group. Its `build-wheels` gains the build-job guard once
+  `ci-gate` sits above it. Its `scripts/` release scripts become this
   template's `tools/` copies.
 
 ## Repositories that publish wheels

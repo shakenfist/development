@@ -100,8 +100,9 @@ jobs:
   # take any shape, provided that:
   #
   # - every build job needs check-version, directly or through another
-  #   build job, and carries no if: of its own that uses always() or
-  #   !cancelled();
+  #   build job, and carries an if: like the example's: !cancelled()
+  #   and a needs.<job>.result == 'success' clause for each job in its
+  #   needs, with no always() and nothing else;
   # - every build job is listed in sign-tag's needs, so the tag is never
   #   signed while a build is running or after one has failed;
   # - an artifact whose name starts with release- is one github-release
@@ -114,9 +115,17 @@ jobs:
   # README.md says how ryll, instar and andris each fill this section.
   # ---------------------------------------------------------------------
 
+  # The if: is needed for the workflow_dispatch dry run. A job with no
+  # if: of its own runs only if every job upstream of it succeeded, not
+  # just the ones it names in needs, so the skipped ci-gate would skip
+  # this job even though check-version ran. Testing check-version's
+  # result alone lets it run then, and on a tag push check-version
+  # succeeds only after the gate did. A failed, skipped or cancelled
+  # dependency still stops it.
   build:
     name: Build release artefacts
     needs: check-version
+    if: ${{ !cancelled() && needs.check-version.result == 'success' }}
     # A release builds on a runner that is thrown away afterwards, so that
     # nothing an earlier job left behind goes into what is published.
     runs-on: [self-hosted, vm, debian-13-docker, m]
