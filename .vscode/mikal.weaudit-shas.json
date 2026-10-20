@@ -557,10 +557,6 @@
       "sha": "e66dbc08e238171c36a093038e7e7000b2f94280",
       "date": "2026-10-20"
     },
-    "templates/release-automation/RELEASE-SETUP.md": {
-      "sha": "21700fda49b527a1e37b97220a5fa34fafa7feaa",
-      "date": "2026-10-20"
-    },
     "templates/release-automation/release.yml": {
       "sha": "f33f521f70ad6e8f398627a4ca8a7af2fd240084",
       "date": "2026-10-20"
