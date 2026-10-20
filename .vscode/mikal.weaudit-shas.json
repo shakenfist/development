@@ -541,10 +541,6 @@
       "sha": "94e1e3a47510da8436eb629a047ba1edd4979905",
       "date": "2026-10-01"
     },
-    "templates/release-automation-rust/README.md": {
-      "sha": "384babda86c28eafcd0c92c569eaa0fa86a11696",
-      "date": "2026-10-20"
-    },
     "templates/release-automation-rust/propose-release.sh": {
       "sha": "17276962a0f92590fafe059cac68e5d44026f388",
       "date": "2026-10-20"
@@ -553,16 +549,8 @@
       "sha": "3de931698cee8e1d242dec9a4b100b5a8fa5268d",
       "date": "2026-10-20"
     },
-    "templates/release-automation-rust/release.yml": {
-      "sha": "05eed129de9d9f4f2b0bad1a97946c604f013ec3",
-      "date": "2026-10-20"
-    },
     "templates/release-automation-rust/sign-release-tag.sh": {
       "sha": "6eea42015fc6b25bcf30d09c22c9da0b3841ed5f",
-      "date": "2026-10-20"
-    },
-    "templates/release-automation-rust/tag-release.sh": {
-      "sha": "509db0f79fa868fc2101da0a0a135600901ef790",
       "date": "2026-10-20"
     },
     "templates/release-automation/README.md": {

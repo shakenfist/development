@@ -765,27 +765,11 @@
       "author": "mikal"
     },
     {
-      "path": "templates/release-automation-rust/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/release-automation-rust/release-version.sh",
       "author": "mikal"
     },
     {
-      "path": "templates/release-automation-rust/release.yml",
-      "author": "mikal"
-    },
-    {
       "path": "templates/release-automation-rust/sign-release-tag.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/release-automation-rust/tag-release.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/release-automation-rust",
       "author": "mikal"
     }
   ],
