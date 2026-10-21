@@ -903,6 +903,82 @@
     {
       "path": "scripts/check-audit-smoke.py",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/markdown.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/patterns.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/python_source.py",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation-rust/tag-release.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation-rust/release.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation-rust/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation-rust",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation/RELEASE-SETUP.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/ci-review-automation/pr-re-review.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/ci-review-automation/pr-retest.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/ci-review-automation/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/ci-review-automation",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "author": "mikal"
+    },
+    {
+      "path": "README.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".pre-commit-config.yaml",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
