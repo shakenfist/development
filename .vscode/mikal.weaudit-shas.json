@@ -441,6 +441,18 @@
       "sha": "dc2515cc9e2cdd5083c39a803bfdbcafb37dbe0d",
       "date": "2026-09-02"
     },
+    "scripts/audit/text/markdown.py": {
+      "sha": "1b68c386cc05dcba98cf5cc3056e86623fffabd9",
+      "date": "2026-10-22"
+    },
+    "scripts/audit/text/patterns.py": {
+      "sha": "21ddbde5c6299cc54617409746712cc970e1cb61",
+      "date": "2026-10-22"
+    },
+    "scripts/audit/text/python_source.py": {
+      "sha": "3279930e796e7d42ea3a4a1382d180d4391d94a8",
+      "date": "2026-10-22"
+    },
     "scripts/audit/text/shared_blocks.py": {
       "sha": "100a6bcd559df58c9dc57a27814d3bb846f59aef",
       "date": "2026-09-02"
