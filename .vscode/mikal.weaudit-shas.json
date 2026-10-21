@@ -613,6 +613,18 @@
       "sha": "a03306f92a9741a98cd365b7822f13756aff8f62",
       "date": "2026-10-21"
     },
+    "templates/ci-review-automation/README.md": {
+      "sha": "88357350089f2356fb74240dd48461788b35dd6e",
+      "date": "2026-10-22"
+    },
+    "templates/ci-review-automation/pr-re-review.yml": {
+      "sha": "501583b681bc88c12846372364aa302b1b05aec3",
+      "date": "2026-10-22"
+    },
+    "templates/ci-review-automation/pr-retest.yml": {
+      "sha": "189610eb241bbecbf11c6459f874c97ff80c0359",
+      "date": "2026-10-22"
+    },
     "templates/codeql/README.md": {
       "sha": "d70d68e44cfe1b1d4c6908b7e8b1d206be933224",
       "date": "2026-10-01"
@@ -685,6 +697,10 @@
       "sha": "94e1e3a47510da8436eb629a047ba1edd4979905",
       "date": "2026-10-01"
     },
+    "templates/release-automation-rust/README.md": {
+      "sha": "3619daa5923d58cec1564d9730a3c53f2ccafd39",
+      "date": "2026-10-22"
+    },
     "templates/release-automation-rust/propose-release.sh": {
       "sha": "17276962a0f92590fafe059cac68e5d44026f388",
       "date": "2026-10-20"
@@ -693,13 +709,25 @@
       "sha": "3de931698cee8e1d242dec9a4b100b5a8fa5268d",
       "date": "2026-10-20"
     },
+    "templates/release-automation-rust/release.yml": {
+      "sha": "8c9a27eee3c86f2e09c3f295f6a04779afd62046",
+      "date": "2026-10-22"
+    },
     "templates/release-automation-rust/sign-release-tag.sh": {
       "sha": "6eea42015fc6b25bcf30d09c22c9da0b3841ed5f",
       "date": "2026-10-20"
     },
+    "templates/release-automation-rust/tag-release.sh": {
+      "sha": "16a49ce3cf6bfa3420093406c981401eaab19c90",
+      "date": "2026-10-22"
+    },
     "templates/release-automation/README.md": {
       "sha": "e66dbc08e238171c36a093038e7e7000b2f94280",
       "date": "2026-10-20"
+    },
+    "templates/release-automation/RELEASE-SETUP.md": {
+      "sha": "7b880ebda6d241915e8e4fd5e3283c2e0dee6a04",
+      "date": "2026-10-22"
     },
     "templates/release-automation/release.yml": {
       "sha": "f33f521f70ad6e8f398627a4ca8a7af2fd240084",
@@ -712,6 +740,10 @@
     "templates/renovate/renovate.json": {
       "sha": "0155b2e100a310454fe89e015823b3372be4777a",
       "date": "2026-10-18"
+    },
+    "templates/renovate/renovate.yml": {
+      "sha": "3f5d8f367337a11190529e6894e4d257e743e3ee",
+      "date": "2026-10-22"
     },
     "templates/review-tracking/README.md": {
       "sha": "1501500bc92a3b31381f771c66c7d2b8578f2ac8",
