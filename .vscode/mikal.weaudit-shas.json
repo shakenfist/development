@@ -81,9 +81,17 @@
       "sha": "26a19958e61609c60e1b721594ab8151ddf1634f",
       "date": "2026-09-04"
     },
+    ".pre-commit-config.yaml": {
+      "sha": "5683bc75de6afdb03262364873b2a4119b9912d1",
+      "date": "2026-10-22"
+    },
     "AGENTS.md": {
       "sha": "dd4e9bcf06e4ee7957cc38b980b9ca11ef8c240e",
       "date": "2026-10-18"
+    },
+    "ARCHITECTURE.md": {
+      "sha": "92ea1a0c5605ce77aad663e70be3e2880917584e",
+      "date": "2026-10-22"
     },
     "PLAN-TEMPLATE.md": {
       "sha": "121bfae4d5735b0ab0c72ebca68532e94ea29d6b",
@@ -92,6 +100,10 @@
     "PUSH-AUDIT.md": {
       "sha": "32c3231274122ed8249d061e393cc09430c771e4",
       "date": "2026-10-18"
+    },
+    "README.md": {
+      "sha": "d99208aebffcfe7bb0d0d0eda46419f568f7b4f9",
+      "date": "2026-10-22"
     },
     "docs/audits/README.md": {
       "sha": "11145f54ee239dbe0fa6e356d23e4c5e06f32cef",
