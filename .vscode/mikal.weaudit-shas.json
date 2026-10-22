@@ -729,10 +729,6 @@
       "sha": "16a49ce3cf6bfa3420093406c981401eaab19c90",
       "date": "2026-10-22"
     },
-    "templates/release-automation/README.md": {
-      "sha": "e66dbc08e238171c36a093038e7e7000b2f94280",
-      "date": "2026-10-20"
-    },
     "templates/release-automation/RELEASE-SETUP.md": {
       "sha": "7b880ebda6d241915e8e4fd5e3283c2e0dee6a04",
       "date": "2026-10-22"

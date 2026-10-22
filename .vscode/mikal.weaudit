@@ -745,10 +745,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/release-automation/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/release-automation/release.yml",
       "author": "mikal"
     },
@@ -922,10 +918,6 @@
     },
     {
       "path": "templates/release-automation/RELEASE-SETUP.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/release-automation",
       "author": "mikal"
     },
     {
