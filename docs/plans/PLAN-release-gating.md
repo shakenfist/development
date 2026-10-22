@@ -944,13 +944,23 @@ section has been rewritten rather than patched:
     newer run really does supersede the older one.
   - On a merge group, `github.ref` is a queue branch minted for each
     entry, so a group keyed on it never cancels a superseded queue
-    run. A group a `merge_group` event can reach keys on
-    `format('merge_group-{0}', github.event.merge_group.base_ref)`,
-    but only on a run's first attempt (`github.run_attempt == '1'`).
-    A re-run keeps its original event, so without that guard a
+    run. A group a `merge_group` event can reach keys on the base
+    branch on a run's first attempt, and on `github.ref` otherwise:
+
+    ```yaml
+    group: >-
+      ${{ github.workflow }}-<job>-${{
+      github.event_name == 'merge_group' && github.run_attempt == '1'
+      && format('merge_group-{0}', github.event.merge_group.base_ref)
+      || github.ref }}
+    ```
+
+    A re-run keeps its original event, so without the attempt guard a
     "Re-run jobs" on an old queue run would cancel the live entry or
-    be cancelled by it. client-python-ova commit 349b417 carries the
-    comment every repository copied.
+    be cancelled by it. On a re-run the fallback, `github.ref`, is
+    that old entry's own queue branch, which nothing else shares.
+    client-python-ova commit 349b417 carries the comment every
+    repository copied.
   - A path filter that filters merge groups diffs against
     `github.event.merge_group.base_sha`, never the branch name. Once
     the entry has merged the branch contains it, so a re-run would
@@ -974,10 +984,14 @@ section has been rewritten rather than patched:
     enqueue" and "Can merge" aggregator jobs in the shape of
     client-python-k3s's (`functional-tests.yml:266-310`). Each
     aggregator's `needs:` lists that repository's own jobs, and the
-    automated reviewer stays out of it. The aggregators run under
-    `always() && ...` with `permissions: {}`. Under `!cancelled()`, a
-    cancelled queue run would skip "Can merge", and a skipped
-    required check reads as a pass.
+    automated reviewer stays out of it. "Can enqueue" runs under
+    `${{ always() && github.event_name != 'merge_group' }}` and "Can
+    merge" under `${{ always() && github.event_name == 'merge_group'
+    }}`, each with `permissions: {}` (client-python-ova's
+    `ci.yml:309-350`). Under `!cancelled()`, a cancelled queue run
+    would skip "Can merge", and a skipped required check reads as a
+    pass. These are CI workflows; the Definition of done's ban on
+    `always()` covers `release.yml` only.
   - Every workflow that `ci-gate` names must be required by the queue.
     A job's `needs:` cannot reach across workflows, so a repository
     that names two workflows gives each its own suffixed pair of
