@@ -96,7 +96,7 @@ recoverable. Which fix applies depends on why the gate failed:
 | The commit was merged by bypassing the merge queue, so it is a merge commit with no queue run | Delete the tag and tag a later commit that went through the queue |
 | The tag is not on the default branch's first-parent history | Delete the tag and tag a commit that is: the commit the merge queue landed on the default branch for that change, or a later one |
 | The commit changed only files that `paths-ignore` skips, such as docs, so CI never ran | Delete the tag and move it to the last commit CI did run on |
-| A CI run failed for a reason unrelated to the change, such as a flaky test | Re-run the failed CI runs until they succeed, then use "Re-run jobs" on the release's `ci-gate` job |
+| A CI run on the commit was re-run after it merged, and that later attempt failed, for example on a flaky test | Re-run the failed runs until they succeed, then use "Re-run jobs" on the release's `ci-gate` job |
 | A CI run is still going | Wait for it, then re-run the `ci-gate` job |
 
 Deleting and re-creating a `v*` tag needs a maintainer on the tag
@@ -108,6 +108,11 @@ rewritten.
 "Re-run jobs" replays the original tag push event, so the guards
 still pass, and the gate reads each run's newest attempt. Every
 failed run on the commit needs re-running, not only the newest.
+
+A merge queue run that fails, flaky or not, ejects its entry, so the
+commit it built never reaches the default branch and no tag can be
+on it. Re-running that queue run cannot help: re-queue the pull
+request, and tag the commit that merges.
 
 Commits made after a bypass merge, including the review-mark commits
 that `prune-reviews` adds on top of it, fail for the same reason as
