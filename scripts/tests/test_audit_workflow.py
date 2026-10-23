@@ -95,8 +95,19 @@ class AuditWorkflowGuardsTest(unittest.TestCase):
         audit = self.code(self.jobs['audit'])
         self.assertIn('secrets.AUDIT_READ_TOKEN', audit)
         self.assertNotRegex(audit, r'secrets\.AUDIT_TOKEN\b')
-        # An empty GH_TOKEN makes gh fall back to the runner's own login.
-        self.assertIn('test -n "${GH_TOKEN}"', audit)
+        # An empty GH_TOKEN makes gh fall back to the runner's own login,
+        # so every leg checks the token before anything reads with it.
+        # What the check itself does is executed, not read, in
+        # test_check_audit_read_token.py.
+        steps = workflow_step_blocks(self.jobs['audit'])
+        probe = [i for i, step in enumerate(steps)
+                 if 'tools/check-audit-read-token.sh' in strip_yaml_comments(step)]
+        self.assertEqual(1, len(probe), 'no step runs tools/check-audit-read-token.sh')
+        self.assertIn('secrets.AUDIT_READ_TOKEN', steps[probe[0]])
+        readers = [i for i, step in enumerate(steps)
+                   if 'secrets.AUDIT_READ_TOKEN' in step and i != probe[0]]
+        self.assertTrue(readers)
+        self.assertLess(probe[0], min(readers))
 
     def test_the_writing_jobs_run_only_from_main(self):
         # The condition must be a conjunction with MAIN_ONLY as one of its

@@ -107,25 +107,13 @@ jobs:
       # directory reaches AUDIT_TOKEN. Within a leg, see
       # docs/consistency-audits.md for what it does not cover.
       #
-      # An unset secret expands to an empty string, and gh given an
-      # empty GH_TOKEN falls back to whatever login the runner's user
-      # holds, so test for it rather than let that decide what is
-      # measured. Then check the token can see the two repository fields
-      # GitHub hides from callers without admin access: without them
-      # delete-branch-on-merge would fail every repository, and
-      # github-security would stop checking secret scanning without
-      # saying so.
+      # The token must be set, and able to see the repository settings
+      # GitHub hides from callers without admin access; the script says
+      # why each matters.
       - name: Check the read token
         env:
           GH_TOKEN: ${{ secrets.AUDIT_READ_TOKEN }}
-        run: |
-          test -n "${GH_TOKEN}" || { echo '::error::AUDIT_READ_TOKEN is not set'; exit 1; }
-          # A fine-grained token expires, and under bash -e a refused
-          # call would end the step with gh's own error and not this one.
-          visible=$(gh api "repos/${GITHUB_REPOSITORY}" \
-              --jq '.delete_branch_on_merge != null and .security_and_analysis != null') \
-              || { echo '::error::AUDIT_READ_TOKEN was refused by the API (expired or revoked?)'; exit 1; }
-          [ "${visible}" = true ] || { echo '::error::AUDIT_READ_TOKEN cannot see repository settings'; exit 1; }
+        run: tools/check-audit-read-token.sh
 
       # Every path this job writes is under runner.temp, which belongs
       # to this runner and is emptied between jobs. The static runners

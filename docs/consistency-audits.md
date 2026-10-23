@@ -120,22 +120,33 @@ permissions, each read-only:
 * **Contents** -- cloning the private repositories.
 * **Actions** -- the workflows and their runs, which
   `scheduled-workflow-health` reads.
-* **Administration** -- `delete_branch_on_merge` and
-  `security_and_analysis`, which GitHub leaves out of the repository
-  for a caller without admin access.
+* **Administration** -- `security_and_analysis`, which GitHub leaves
+  out of the REST repository answer for a caller without admin access,
+  and `deleteBranchOnMerge`. The REST answer leaves that one, and every
+  other merge setting, out even for this token, so
+  `delete-branch-on-merge` reads it through GraphQL, which answers it.
+
+The token's resource owner must be the `shakenfist` organisation, not
+the account that creates it. Created under the account, "All
+repositories" means that account's own repositories: the token still
+reads the organisation's public ones, as any token can, but its
+Administration permission does not reach them, and the probe below
+fails with "cannot see repository settings". The organisation also
+refuses a fine-grained token whose lifetime is over 366 days.
 
 These are enough for `release-environment-protection` too: the token
 was confirmed on 2026-10-19 to read both
 `environments/<name>` and its `deployment-branch-policies` without a
 separate Environments permission.
 
-Each leg checks first that the read token is set -- an unset secret
-is an empty string, and `gh` with an empty `GH_TOKEN` falls back to
-whatever login the runner's user holds -- and that it can see those
-last two fields. Without them `delete-branch-on-merge` would fail
-every repository, and `github-security` would stop checking secret
-scanning without saying so, so a token that cannot see them fails
-every leg instead.
+Each leg checks first, with `tools/check-audit-read-token.sh`, that
+the read token is set -- an unset secret is an empty string, and `gh`
+with an empty `GH_TOKEN` falls back to whatever login the runner's
+user holds -- and that it can see those last two settings, each the
+way its check reads it. Without them `delete-branch-on-merge` would
+report `error` for every repository, and `github-security` would
+stop checking secret scanning without saying so, so a token that
+cannot see them fails every leg instead.
 
 `AUDIT_READ_TOKEN` is a repository secret on this repository, and a
 fine-grained token always has an expiry date. When it lapses, every leg

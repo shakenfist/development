@@ -307,35 +307,51 @@ class GithubSecurityTest(GithubConfigTestCase):
 class DeleteBranchOnMergeTest(GithubConfigTestCase):
     check_class = github_config.DeleteBranchOnMerge
 
-    JQ = '.delete_branch_on_merge'
+    # The GraphQL call, not the REST one: REST leaves the field out for
+    # the audit's read-only fine-grained token.
+    QUERY = ('api graphql -f query=' + github_config.DELETE_BRANCH_ON_MERGE_QUERY
+             + ' -f owner=shakenfist -f name=testrepo'
+             + ' --jq .data.repository.deleteBranchOnMerge')
 
     def test_enabled_passes(self):
         result = self.run_with(
-            {self.api(self.JQ): CompletedCommand(stdout='true\n')})
+            {self.QUERY: CompletedCommand(stdout='true\n')})
         self.assert_pass(result)
 
     def test_disabled_fails(self):
         result = self.run_with(
-            {self.api(self.JQ): CompletedCommand(stdout='false\n')})
+            {self.QUERY: CompletedCommand(stdout='false\n')})
         self.assert_fail(result)
+
+    def test_the_query_names_the_repository_being_checked(self):
+        self.assertIn('$owner: String!', github_config.DELETE_BRANCH_ON_MERGE_QUERY)
+        self.assertIn('repository(owner: $owner, name: $name)',
+                      github_config.DELETE_BRANCH_ON_MERGE_QUERY)
+
+    def test_the_rest_field_is_not_what_is_read(self):
+        # The REST answer is null for the audit's token, so a check
+        # reading it would report an error for every repository.
+        self.assert_tool_failure(lambda: self.run_with({
+            self.api('.delete_branch_on_merge'): CompletedCommand(stdout='true\n'),
+        }))
 
     def test_an_api_error_is_a_tool_failure(self):
         self.assert_tool_failure(lambda: self.run_with({
-            self.api(self.JQ): CompletedCommand(
+            self.QUERY: CompletedCommand(
                 returncode=1, stderr='HTTP 403'),
         }), containing='HTTP 403')
 
     def test_a_timeout_is_a_tool_failure(self):
         self.assert_tool_failure(lambda: self.run_with({
-            self.api(self.JQ): subprocess.TimeoutExpired(
+            self.QUERY: subprocess.TimeoutExpired(
                 cmd='gh', timeout=30),
         }), containing='timed out')
 
     def test_a_null_answer_is_a_tool_failure(self):
-        """The API omits the field for a token without push access."""
+        """GraphQL answers null for a repository the token cannot see."""
         self.assert_tool_failure(lambda: self.run_with({
-            self.api(self.JQ): CompletedCommand(stdout='null\n'),
-        }), containing='lack push access')
+            self.QUERY: CompletedCommand(stdout='null\n'),
+        }), containing='administration')
 
 
 class ReleaseEnvironmentProtectionTest(GithubConfigTestCase):
