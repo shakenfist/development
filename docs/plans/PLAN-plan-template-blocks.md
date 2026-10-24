@@ -94,7 +94,7 @@ landed; how is under *Push audit*.
 | 1. Implementation: blocks, check and spec | Complete | `2468dda`, `5918f5b` direct; `5b1fb74` (#49) and `ff92357` (#50) are recorded and audited under `PLAN-push-audit-phase` |
 | 2. Migration | Complete | shakenfist `0f21df0` (#3785), ryll `1a7b47e` (#281), kerbside `b29e01f` (#327), divergulent `70b2a8f` (#67), instar `cbcdd2a` (#500), uncalibrated-sextant `d81eb69` (#5), occystrap `b1438e9` (#115), client-python-k3s `12dbacd` (#30) |
 | 3. Verification | Complete | n/a -- confirmations against scratch copies, no commit |
-| 4. Push audit | In progress | |
+| 4. Push audit | Complete | `1fc93d7` (#312) |
 
 ## Implementation
 
@@ -227,11 +227,14 @@ review before eight copies of it exist.
 * Bumping a block version marks the embedding repository stale, and
   names the block that moved. Confirmed, and since confirmed in the
   field twice: the `plan-file-conventions` v2 bump (`d0ab9d4`,
-  2026-10-06) and the `plan-push-audit-phase` v4 bump (`d502250`,
-  2026-10-14) each produced `shared block <name> is stale (vN
+  2026-10-06) and the `plan-push-audit-phase` v4 bump (`3d35d34`,
+  2026-10-13) each produced `shared block <name> is stale (vN
   embedded, vM current)` naming that block and nothing else.
   client-python-k3s, divergulent, instar, kerbside and ryll fail on
-  2026-10-24 on exactly those lines and no others.
+  2026-10-24 on exactly those lines and no others. An earlier
+  revision of this bullet dated the v4 bump to `d502250`, which
+  reworded the block a day later and left it at v4. No repository
+  reports that block as drifted on 2026-10-24.
 * uncalibrated-sextant is the one repository missing blocks rather
   than lagging a version: `plan-status-vocabulary` and
   `plan-push-audit-phase`, both written after its migration, and
@@ -615,9 +618,23 @@ record*.
   every default branch today, so no consumer was stranded.
 * Items 2 and 5 of the floor checklist do not apply to a prose file.
 
-**To be fixed in the findings pull request, not yet opened, and
-tracked by development#313.** When it opens, it replaces this heading
-with its number and closes out row 4 as decision 7 says.
+**Fixed in development#317**, the findings pull request, which
+closes development#313. Findings 1 to 6 are `d0e26ce`, 7 to 9 are
+`a6af4a5` and 10 is `f66c59c`; the descriptions below are as the
+audit found them. Every finding is fixed, with one part of finding 7
+declined: a subdirectory link such as `completed/PLAN-a.md` still
+registers by basename, because repositories file finished plans under
+`docs/plans/completed/` and `plan_index_entries` has always read them
+that way. The fixes moved no `plan-template`, `push-audit`,
+`plan-index` or `plan-audit-phase` verdict for any of the twelve
+repositories carrying a template, measured against fresh clones. Two
+fixes went wider than the finding:
+
+* The unreadable-file fix applies to `PushAudit` as well as
+  `PlanTemplate`. The same pattern there also let an unreadable
+  `PUSH-AUDIT.md` fall through to auditing `PUSH-TEMPLATE.md`.
+* `plan_index_entries` had the same blind spot for titled and
+  angle-bracketed links, and both readers now share one helper.
 
 1. **The block extractor uses memory that grows with the square of its
    input.** This is medium severity, from 4f, reproduced here.
