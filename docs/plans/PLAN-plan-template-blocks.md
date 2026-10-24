@@ -462,6 +462,198 @@ The two direct landings touch 17 distinct paths between them.
 | 4f | high | opus | none | Wave 2d, security review, per the 2d brief in `PUSH-AUDIT.md`, over the same live subject as 4c, with the historical diffs as context. The blast radius is other repositories' issue trackers: `validate_shared_blocks` reads `PLAN-TEMPLATE.md` from repositories this one does not control, and its detail strings go into issue bodies filed and rewritten by `audit-manage-issues.py`. Establish whether any part of a detail string is taken from the scanned file rather than from `PLAN_TEMPLATE_BLOCKS` -- a block name or version read from a crafted marker -- and if so whether it can carry an `@` mention, a closing keyword, a link or markdown that changes the issue body. Establish whether `load_canonical_block` can ever be called with a name from scanned content, and if so whether `../` escapes `templates/shared-blocks/`. Consider what a very large or pathological template does to the marker regex. Apply the `path-traversal-review` shared block. Report, do not fix. No commit. |
 | 4g | high | opus | none | Management triage, in the session rather than a sub-agent. First check each report states the totals it read, and that 4a's match the *Landing record*; re-run any that do not. Decide each finding blocking, advisory or declined, and write an **Outcome** subsection here: what 4a and 4b found, what each wave 2 agent found, and for every finding where it was fixed or why it was declined. If all are clean, one sentence saying so. Work the `PUSH-AUDIT.md` management checklist. Fixes land as their own pull request against `main`. Close out per decision 7. Commit subject: "Record the plan template blocks push audit." |
 
+### Execution notes
+
+Run on 2026-10-24 between 02:20 and 02:50 UTC, from the management
+session, with the back brief agreed as written: decisions 2, 3 and 4
+stand, and this session may push and open the pull request.
+
+* 4a and 4b ran first, in parallel, both read-only. 4c to 4f ran in
+  parallel once wave 1 had passed, as `PUSH-AUDIT.md` asks. 4g is
+  this record.
+* The survey undercounted `5918f5b`. It did not only create
+  `plan-status-vocabulary`: it created the whole `plan-index`
+  criterion, with its check, `audits/plan-index.md` and 263 lines of
+  tests. 4a found this; 4c to 4f were told, and `PlanIndex` was
+  reviewed in full rather than only its vocabulary path. The 4a brief
+  above is left as it ran.
+* The GitHub core API quota ran out during 4b, so `gh pr diff`
+  failed for all eight pull requests. 4b took the diffs from
+  blobless bare clones instead (`git diff <merge>^1 <merge>`), and
+  the `gh pr view` figures it checked against had already been
+  fetched. The issues below were filed after the quota reset.
+* Every report stated its totals, and all matched the *Landing
+  record*: `628 4 14` and `696 4 9`, 17 paths in the union, and the
+  eight pull requests' figures. No report was re-run.
+
+### Outcome
+
+Nothing blocking. Wave 1 passed. The floor checklist over the eight
+migration pull requests found nothing. Wave 2 raised one
+medium-severity defect and a set of advisory ones, most of them in
+the shared-block validator that `2468dda` pointed at
+`PLAN-TEMPLATE.md`. The fixes are listed below and land as one
+findings pull request against `main`. That pull request also carries
+the close-out under decision 7. Problems that predate this plan, or
+that belong to another plan's blocks, are filed as issues rather
+than treated as findings.
+
+**4a, wave 1.** `pre-commit run --all-files` passed. Every grep was
+either empty or a hit that was looked at and accepted:
+* Seven blocks created at v1 by `2468dda`, and
+  `plan-status-vocabulary` at v1 by `5918f5b`. Neither commit edits
+  an existing block.
+* `+import re`, which is stdlib.
+* The empty `consistency-audit` anchor pair in each new spec.
+* `PLAN-TEMPLATE.md` named as a file rather than as a plan.
+
+The titles `Plan template` and `Plan index` match
+`FROZEN_ISSUE_TITLES` today. `scripts/audit-check.py` was 3,276 and
+then 3,658 lines after these commits, which is well past the size
+mark. The restructure has since split it, so that is history rather
+than a finding. One defect in the runbook itself:
+`PUSH-AUDIT.md:150` puts `--name-only` after the `--`, so git reads
+it as a path and prints the whole diff. It predates this plan, and is
+issue development#309.
+
+**4b, migration floor.** All eight pull requests match the *Landing
+record*.
+* No secret, private hostname or address was added.
+* The only removed headings are `### Future work` and `### Bugs
+  fixed during this work`, in six templates. Both are re-added in the
+  same diff below the new `### Model choice`. Both are present on
+  every default branch today, so no consumer was stranded.
+* Items 2 and 5 of the floor checklist do not apply to a prose file.
+
+**Fixed in the findings pull request:**
+
+1. **The block extractor uses memory that grows with the square of
+   its input.** This is medium severity, from 4f, reproduced here.
+   `extract_shared_blocks` (`scripts/audit/text/shared_blocks.py:54`)
+   slices from every begin marker to the next end marker and keeps
+   every slice. A file of 200 KB of begin markers and one end marker
+   took 428 MB, and the read cap allows 2 MB, on a shared
+   self-hosted runner. The extractor predates this plan (`9a74046`).
+   It is fixed here anyway: `2468dda` gave it its largest untrusted
+   input, and the same rewrite closes the next three items.
+2. **The validator's account of malformed blocks is wrong.** From
+   4c, 4d and 4e.
+   * A block missing its end marker borrows the next block's marker
+     and is reported as `drifted`. That contradicts
+     `docs/audits/plan-template.md:111`.
+   * A block nested inside another is reported the same way.
+   * A block embedded twice passes silently. Reproduced here: two
+     copies of `plan-file-conventions` return no problems.
+   * A version marker of more than 4,300 digits raises `ValueError`
+     and turns the check into an `error`, which freezes the issue
+     and skips the fleet's compliance update.
+
+   The rewrite pairs each begin marker with its own end marker,
+   reports nesting, duplicates and a missing end marker by name, and
+   bounds the version.
+3. **Smaller validator fixes.**
+   * `stale` and `drifted` should tell a maintainer in another
+     repository where to copy the block from, as `missing` already
+     does.
+   * `load_canonical_block` should open its file as UTF-8.
+   * `load_canonical_block` should say in a comment why its bare
+     `os.path.join` is safe: the name regex admits no `/` or `.`.
+     The `path-traversal-review` block asks for exactly that comment.
+4. **The roster-separation claim in *Implementation* has no test.**
+   From 4d, by mutation: a validator that marks every block stale
+   when one is stale passes the suite. Assert that a stale block is
+   the only block named, and add a case that stales
+   `subagent-model-roster` alone.
+5. **`PLAN_TEMPLATE_BLOCKS` is pinned for three of its ten names.**
+   From 4d: dropping `subagent-model-roster`,
+   `plan-closeout-sections` or `plan-file-conventions` survives,
+   because the fixtures are built from the list. Pin the list
+   literally. That change is the one that re-marks the fleet, which
+   is what the test class's docstring says it is for.
+6. **Validator behaviours are tested only through `PushAuditTest`.**
+   From 4d: a drifted body, a missing end marker and an unknown
+   block have no test through `PlanTemplate`. Duplicate and nested
+   blocks have no test at all. Add them with item 2.
+7. **`PlanIndex` registers a local plan from any link that ends in
+   its filename.** From 4c, reproduced here. `[a](sub/PLAN-a.md)`
+   and an absolute URL to another repository's `PLAN-a.md` both
+   satisfy the row for a local `PLAN-a.md` (`plans.py:1320`). A
+   titled link, `[a](PLAN-a.md "t")`, and an angle-bracketed one are
+   not recognised at all.
+8. **Two `PlanIndex` guards survive mutation.** From 4d:
+   `PLAN_INDEX_MAX_SHOWN` and the `repo.isfile` filter on master
+   plans. The second is the earlier symlink-escape fix, so a
+   surviving mutant there is worth a test. Two `assert_skip` calls
+   also lack `containing`, so they pass on either skip message.
+9. **An unreadable `PLAN-TEMPLATE.md` is reported as absent.** From
+   4c: a template over the read cap, or a symlink out of the clone,
+   gives `No PLAN-TEMPLATE.md`, and `not_applicable` then closes an
+   open issue. Report it as unreadable.
+10. **Spec corrections.**
+    * `docs/audits/plan-index.md:73` says the criterion has no
+      template, but `PlanIndex.template` names
+      `templates/shared-blocks/`, so every `plan-index` issue links
+      one. Correct the spec.
+    * `docs/audits/plan-template.md:80` should say that the
+      admonition is for repositories whose plans publish through
+      mkdocs. Elsewhere any non-heading marker will do, and the check
+      does not test for either.
+    * `docs/audits/plan-template.md:35-48` describes
+      `plan-push-audit-phase` "since v2" and is silent on v3 and v4.
+    * The module docstring of `plans.py` justifies its 1,710 lines by
+      a validator that has since moved to `shared_blocks.py`. Restate
+      the reason, or name the seam (`PushAudit`, `PlanTemplate` and
+      their block lists).
+
+**Filed as issues:**
+
+* development#309: `PUSH-AUDIT.md:150`'s `--name-only` (4a), and
+  `PLAN-TEMPLATE.md:229`, which still says every diff command is
+  written against `main...HEAD` (4e).
+* development#310: three places where the blocks leave a planner unsure
+  what to do, all in wording other plans own (4e):
+  * `plan-push-audit-phase` records `first..last` without the caret
+    warning `PUSH-AUDIT.md:37-43` gives. That needs a v5.
+  * `templates/shared-blocks/README.md:63-65` states the push-audit
+    row's missing `Merged` cell without the condition
+    `plan-phase-landing` attaches to it.
+  * `plan-file-conventions` does not say whether a phase may be a
+    prose section, which `plan-push-audit-phase` assumes.
+* development#311: `MD_HEADING_CLOSING_RE`
+  (`scripts/audit/text/markdown.py:105`) is quadratic on a line of
+  spaces: 1.35 s at 20,000 characters, reproduced here. It is called from
+  six places under `scripts/audit/checks/`, and a 2 MB line would
+  exceed the leg timeout.
+  This is outside this plan's subject (4f).
+* uncalibrated-sextant#12 already exists; see *Future work*.
+
+**Declined:**
+
+* **4f, injected links on the compliance page**
+  (`scripts/audit-update-docs.py:264`). `defuse` documents rendering
+  details as prose there as a deliberate trade. A link in a committed
+  page notifies nobody, and no newline survives to break the page's
+  structure.
+* **4e, the roster's context windows.** "The model also determines
+  the context window" describes a model's capacity, which is what a
+  planner choosing a model needs. A session configured below that
+  capacity does not make it wrong. The figures could not be confirmed
+  from anything in reach, and that is recorded here rather than
+  bumping `subagent-model-roster` across eleven repositories on a
+  guess.
+* **4c, literal markers in fenced examples.** No `PLAN-TEMPLATE.md`
+  documents the marker syntax. The mechanism is documented in
+  `templates/shared-blocks/README.md`, which no check reads as a
+  template.
+* **4c, the smaller `PlanIndex` message defects.** These are a
+  symlinked index reported as missing, decoration stripping that
+  removes `_` from inside words, an escaped `\|` shifting columns, a
+  table with no Status column passing "with statuses from the shared
+  vocabulary", `2026-99-99` passing the date check, and `has_plans`
+  being set by any link. Each is a message or an edge case, and no
+  report saw any of them give a wrong verdict on a real index. They are recorded
+  here so that a later change to the reader can pick them up.
+
 ### Risks and mitigations
 
 * **An empty diff read as a clean audit.** Already-merged work
