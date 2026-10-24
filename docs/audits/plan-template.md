@@ -64,6 +64,11 @@ should have one is a separate decision, not smuggled in here: a
 template's project-specific half has to be written with real knowledge
 of the project, and an empty one is worse than none.
 
+A `PLAN-TEMPLATE.md` that is there but cannot be read -- over the 2 MB
+read limit, or a symlink out of the repository -- fails rather than
+being treated as absent: standing down would close an open issue about
+a file nobody could check.
+
 The roster is its own block because it changes on a different cadence
 -- models ship and retire while the effort ladder sits still. That is
 also how models are *managed* fleet-wide: edit

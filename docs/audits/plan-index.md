@@ -35,6 +35,14 @@ like is documenting its own conventions rather than listing a plan, so
 the example's columns are not judged as a table and its links do not
 register the plans they name.
 
+A plan is listed when a link in the index names its filename. A link
+to a plan under a subdirectory, such as `completed/PLAN-a.md`, counts,
+because finished plans are filed there. A link carrying a URL scheme
+does not: it names a plan in another repository, whatever its
+filename. Links written with a title (`[a](PLAN-a.md "title")`) or with
+the destination in angle brackets (`[a](<PLAN-a.md>)`) are read like
+any other.
+
 ### The status vocabulary
 
 A status cell holds exactly one of `Proposed`, `Not started`,

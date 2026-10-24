@@ -39,7 +39,11 @@ Repositories that carry a pre-push audit runbook must:
 * be **referenced from `AGENTS.md`**, so a session can discover it.
 
 Repositories with no pre-push audit file are N/A: whether every project
-should have one is a separate decision, not smuggled in here.
+should have one is a separate decision, not smuggled in here. A file
+that is there but cannot be read -- over the 2 MB read limit, or a
+symlink out of the repository -- fails rather than being treated as
+absent, because standing down would close an open issue about a file
+nobody could check.
 
 ### Why the reference is checked
 

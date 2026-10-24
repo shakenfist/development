@@ -860,10 +860,10 @@ class PlanIndexTest(CheckTestCase):
         # empty one the helper builds.
         self.fixture = FixtureRepo('/nonexistent')
         result = self.check()
-        self.assert_skip(result)
+        self.assert_skip(result, containing='No docs/plans/ directory')
 
     def test_not_applicable_with_no_plans_and_no_index(self):
-        self.assert_skip(self._check())
+        self.assert_skip(self._check(), containing='No plans in docs/plans/')
 
     def test_missing_index_with_plans_fails(self):
         result = self._check(plans=['PLAN-thing.md'], index=None)
@@ -1119,6 +1119,115 @@ class PlanIndexTest(CheckTestCase):
         # And its link is not a registration.
         self.assertIn('PLAN-two.md', result['details'])
         self.assertIn('not listed in the index', result['details'])
+
+    def _plan_rows(self, *targets):
+        """An index with one row per link target, in date order."""
+        return self.HEADER + ''.join(
+            f'| 2026-01-{day:02d} | [Plan]({target}) | Do it | Complete |\n'
+            for day, target in enumerate(targets, start=1)
+        )
+
+    def test_a_link_to_another_repository_does_not_register_a_local_plan(self):
+        # The URL names a plan in another repository that happens to
+        # share the filename. Reading it as the local plan would hide
+        # a plan the index never lists.
+        result = self._check(
+            plans=['PLAN-a.md'],
+            index=self._plan_rows(
+                'https://github.com/other/repo/blob/main/docs/plans/'
+                'PLAN-a.md'),
+        )
+        self.assert_fail(result, containing='not listed in the index')
+        self.assertIn('PLAN-a.md', result['details'])
+
+    def test_a_scheme_relative_link_does_not_register_a_local_plan(self):
+        result = self._check(
+            plans=['PLAN-a.md'],
+            index=self._plan_rows('//example.com/docs/plans/PLAN-a.md'),
+        )
+        self.assert_fail(result, containing='not listed in the index')
+
+    def test_a_titled_link_registers_the_plan(self):
+        for target in ('PLAN-a.md "The title"', "PLAN-a.md 'The title'"):
+            with self.subTest(target=target):
+                self.assert_pass(self._check(
+                    plans=['PLAN-a.md'], index=self._plan_rows(target)))
+
+    def test_an_angle_bracketed_link_registers_the_plan(self):
+        for target in ('<PLAN-a.md>', '<PLAN-a.md> "The title"',
+                       '<PLAN-a.md#section>'):
+            with self.subTest(target=target):
+                self.assert_pass(self._check(
+                    plans=['PLAN-a.md'], index=self._plan_rows(target)))
+
+    def test_a_link_with_a_fragment_registers_the_plan(self):
+        self.assert_pass(self._check(
+            plans=['PLAN-a.md'],
+            index=self._plan_rows('PLAN-a.md#section')))
+
+    def test_a_link_into_a_subdirectory_registers_the_plan_by_name(self):
+        # Finished plans are filed under docs/plans/completed/, and
+        # the plan sitting beside the index is the one the row names.
+        result = self._check(
+            plans=['PLAN-a.md'],
+            index=self._plan_rows('completed/PLAN-a.md'),
+        )
+        self.assert_pass(result)
+
+    def test_link_targets_are_read_the_same_by_both_index_readers(self):
+        # plan_index_entries and this criterion read the same index,
+        # and a link one of them sees and the other does not is how
+        # they come to disagree about which plans it lists.
+        index = self._plan_rows(
+            'PLAN-plain.md', 'PLAN-titled.md "t"', '<PLAN-angle.md>',
+            '<PLAN-both.md> \'t\'', 'completed/PLAN-sub.md',
+            'https://example.com/docs/plans/PLAN-remote.md')
+        self.assertEqual(
+            [('PLAN-plain.md', 'PLAN-plain.md', 'Complete'),
+             ('PLAN-titled.md', 'PLAN-titled.md', 'Complete'),
+             ('PLAN-angle.md', 'PLAN-angle.md', 'Complete'),
+             ('PLAN-both.md', 'PLAN-both.md', 'Complete'),
+             ('PLAN-sub.md', 'completed/PLAN-sub.md', 'Complete')],
+            plans.plan_index_entries(index))
+
+    def test_more_than_the_shown_limit_is_summarised(self):
+        names = [f'PLAN-{letter}.md' for letter in 'abcdefg']
+        result = self._check(
+            plans=['PLAN-one.md'] + names,
+            index=self._plan_rows('PLAN-one.md'),
+        )
+        self.assert_fail(result, containing='7 master plan(s) not listed')
+        for name in names[:5]:
+            self.assertIn(name, result['details'])
+        for name in names[5:]:
+            self.assertNotIn(name, result['details'])
+        self.assertIn('(+2 more)', result['details'])
+
+    def test_exactly_the_shown_limit_is_not_summarised(self):
+        names = [f'PLAN-{letter}.md' for letter in 'abcde']
+        result = self._check(
+            plans=['PLAN-one.md'] + names,
+            index=self._plan_rows('PLAN-one.md'),
+        )
+        self.assert_fail(result, containing='5 master plan(s) not listed')
+        self.assertIn('PLAN-e.md', result['details'])
+        self.assertNotIn('more)', result['details'])
+
+    def test_a_master_plan_linked_out_of_the_clone_is_not_one(self):
+        # The names listed are quoted into the finding, so a
+        # docs/plans/PLAN-x.md that is a link to a file elsewhere on
+        # the runner is not a master plan to list.
+        self.fresh_fixture()
+        self.fixture.write('docs/plans/PLAN-one.md', '# A plan\n')
+        self.fixture.write('docs/plans/index.md',
+                           self._plan_rows('PLAN-one.md'))
+        outside = os.path.join(self.tempdir(), 'PLAN-x.md')
+        with open(outside, 'w') as f:
+            f.write('# Not ours\n')
+        os.symlink(outside,
+                   os.path.join(self.fixture.path, 'docs', 'plans',
+                                'PLAN-x.md'))
+        self.assert_pass(self.check())
 
 
 class PlanAuditPhaseTest(CheckTestCase):
@@ -2927,7 +3036,24 @@ class PushAuditTest(CheckTestCase):
         return self.check(check_args={'blocks_dir': self.blocks_dir})
 
     def test_not_applicable_without_file(self):
-        self.assert_skip(self._check({}))
+        self.assert_skip(self._check({}), containing='No pre-push audit file')
+
+    def test_an_oversize_runbook_fails_rather_than_being_absent(self):
+        for name in ('PUSH-AUDIT.md', 'PUSH-TEMPLATE.md'):
+            with self.subTest(name=name):
+                self.fresh_fixture()
+                result = self._check({name: oversize(self.canonical)})
+                self.assert_fail(result, containing=f'{name} could not be read')
+                self.assertIn('2 MB read limit', result['details'])
+
+    def test_a_runbook_linked_out_of_the_clone_fails_rather_than_being_absent(self):
+        for name in ('PUSH-AUDIT.md', 'PUSH-TEMPLATE.md'):
+            with self.subTest(name=name):
+                self.fresh_fixture()
+                link_outside(self, name, self.canonical)
+                result = self._check({})
+                self.assert_fail(result, containing=f'{name} could not be read')
+                self.assertIn('link out of the repository', result['details'])
 
     def test_current_block_passes(self):
         result = self._check({
@@ -3225,7 +3351,20 @@ class PlanTemplateTest(CheckTestCase):
             marker, f'<!-- shared-block: {name} v0 -->')
 
     def test_not_applicable_without_template(self):
-        self.assert_skip(self._check({}))
+        self.assert_skip(self._check({}), containing='No PLAN-TEMPLATE.md')
+
+    def test_an_oversize_template_fails_rather_than_being_absent(self):
+        # Standing down on a file nobody could read would close an
+        # open issue about it.
+        result = self._check({'PLAN-TEMPLATE.md': oversize(self._template())})
+        self.assert_fail(result, containing='PLAN-TEMPLATE.md could not be read')
+        self.assertIn('2 MB read limit', result['details'])
+
+    def test_a_template_linked_out_of_the_clone_fails_rather_than_being_absent(self):
+        link_outside(self, 'PLAN-TEMPLATE.md', self._template())
+        result = self._check({})
+        self.assert_fail(result, containing='PLAN-TEMPLATE.md could not be read')
+        self.assertIn('link out of the repository', result['details'])
 
     def test_all_blocks_passes(self):
         result = self._check({'PLAN-TEMPLATE.md': self._template()})
