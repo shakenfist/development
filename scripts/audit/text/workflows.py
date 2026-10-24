@@ -509,6 +509,41 @@ def mapping_entries(block):
     return entries
 
 
+def mapping_value_lines(block, key):
+    """The lines of one entry's value in a mapping block, stripped.
+
+    An input such as `workflows:` or `path:` takes either an inline
+    value or a block scalar (`workflows: |`) with one item per line,
+    and mapping_entries() records only the indicator of the second.
+    Reading the lines below it here, rather than in each caller, is
+    what stops a list written as a block scalar reading as one item
+    called '|'. Blank lines are dropped, and an absent key, or a block
+    of None, is an empty list. Only the top level of the mapping is
+    read, as mapping_entries() reads it.
+    """
+    if block is None:
+        return []
+    lines = block.splitlines()
+    indent = None
+    for position, line in enumerate(lines):
+        match = WITH_ENTRY_RE.match(line)
+        if not match:
+            continue
+        if indent is None:
+            indent = len(match.group(1))
+        if len(match.group(1)) != indent or match.group(2) != key:
+            continue
+        value = re.sub(r'\s+#.*$', '', match.group(3)).strip()
+        if not BLOCK_INDICATOR_RE.match(value):
+            return [value] if value else []
+        depth = len(match.group(1))
+        return [later.strip() for later in itertools.takewhile(
+                    lambda text: not text.strip() or len(text) - len(text.lstrip()) > depth,
+                    lines[position + 1:])
+                if later.strip()]
+    return []
+
+
 def step_keys(step):
     """A step's own keys, mapped to their inline value.
 
@@ -770,10 +805,26 @@ WORKFLOW_CALL_FLOW_RE = flow_trigger_re('workflow_call')
 
 SCHEDULE_TRIGGER_RE = trigger_re('schedule')
 
+PUSH_TRIGGER_RE = trigger_re('push')
+PUSH_FLOW_RE = flow_trigger_re('push')
+
+
+# An event named by equality in a condition, such as the
+# 'pull_request' of "github.event_name == 'pull_request'".
+EVENT_NAME_EQUALITY_RE = re.compile(
+    r"github\.event_name\s*==\s*'([a-z_]+)'"
+)
+
 
 def concurrency_block(body):
     """Extract a `concurrency:` mapping from a job or workflow body."""
     return indented_block(body, 'concurrency')
+
+
+# A concurrency block which cancels the run it supersedes. Only the
+# literal true: an expression here is usually a condition on the
+# event, and what it evaluates to on any one event is not read.
+CANCEL_IN_PROGRESS_RE = re.compile(r'cancel-in-progress:\s*true')
 
 
 def workflow_header(content):

@@ -1,19 +1,26 @@
 """The criteria about how a project cuts a release.
 
 What the release workflow publishes and from where, which job may
-publish, and the paths that workflow hands to actions which run in a
-container, together with the leftovers of the older process (release.sh,
-requirements.txt) and the setup notes a release depends on.
+publish, what it waits for before it does, and the paths that workflow
+hands to actions which run in a container, together with the leftovers
+of the older process (release.sh, requirements.txt) and the setup notes
+a release depends on.
 """
 
+import fnmatch
 import re
 
 from audit.check import Check
 from audit.text.workflows import (
-    BLOCK_INDICATOR_RE, has_workflow_dispatch, job_is_push_guarded, job_is_tag_guarded,
-    job_level_keys, step_action, step_with_inputs, workflow_job_blocks,
-    workflow_step_blocks,
+    BLOCK_INDICATOR_RE, EVENT_NAME_EQUALITY_RE, MERGE_GROUP_FLOW_RE,
+    MERGE_GROUP_TRIGGER_RE, PUSH_FLOW_RE, PUSH_TRIGGER_RE, concurrency_block, has_workflow_dispatch,
+    indented_block, job_environment, job_is_push_guarded, job_is_tag_guarded, job_level_keys,
+    job_needs, mapping_value_lines, step_action, step_keys, step_with_inputs, strip_yaml_comments,
+    workflow_header, workflow_job_blocks, workflow_step_blocks,
 )
+
+
+RELEASE_WORKFLOW = '.github/workflows/release.yml'
 
 
 #: The action which pulls build artifacts back into a later job, and
@@ -474,31 +481,645 @@ def release_dispatch_guard_issues(repo):
     return issues
 
 
+#: The shared actions a release is gated by: the one which refuses a
+#: commit CI did not pass, and the one which refuses a wheel carrying
+#: its tests. Both are called at @main, so the version is not read.
+CI_GATE_ACTION = 'shakenfist/actions/require-ci-success'
+CHECK_DIST_ACTION = 'shakenfist/actions/check-dist'
+UPLOAD_ARTIFACT_ACTION = 'actions/upload-artifact'
+PATHS_FILTER_ACTION = 'dorny/paths-filter'
+
+#: Compared case-folded, because GitHub resolves an action's owner and
+#: name without regard to case and this one is written both ways.
+MATURIN_ACTION = 'pyo3/maturin-action'
+
+#: Where check-dist looks when its step names no `path:`.
+CHECK_DIST_DEFAULT_PATH = 'dist/'
+
+#: The branch a push run has to be on for the gate to count it. Every
+#: repository's default branch is develop, which the default-branch
+#: criterion enforces, so it is a constant here rather than an API call
+#: from a criterion that otherwise reads only the checkout.
+DEFAULT_BRANCH = 'develop'
+
+#: A step building a distribution with the PyPA builder, however the
+#: interpreter is spelled: python, python3, or a venv's python3.11.
+PYTHON_BUILD_RE = re.compile(r'\bpython[0-9.]*\s+-m\s+build\b')
+
+#: The status functions which let a job run whatever became of the
+#: jobs it needs. Without one, GitHub's implicit success() skips a job
+#: whose needs did not all succeed, which is the property the gate
+#: relies on.
+STATUS_OVERRIDE_RE = re.compile(r'\balways\(\)|!\s*cancelled\(\)')
+
+#: The clause confining an admission of a skipped need to runs that are
+#: not a push, as the template's build guard does.
+OFF_PUSH_RE = re.compile(r"github\.event_name\s*!=\s*'push'")
+
+#: A concurrency key which branches on the push event, and so can give
+#: a push a key of its own. What that branch keys on is not read, as
+#: merge-group-cancellation does not read its merge_group branch.
+PUSH_BRANCH_RE = re.compile(r"github\.event_name\s*[=!]=\s*'push'")
+
+#: The commit a merge group's path filter must diff against.
+MERGE_GROUP_BASE_SHA = 'github.event.merge_group.base_sha'
+
+
+def need_result_re(need, comparison):
+    """A test of `needs.<need>.result`, in either spelling GitHub takes.
+
+    `needs.ci-gate.result` and `needs['ci-gate'].result` are the same
+    property, and a clause written the second way is still the clause.
+    """
+    name = re.escape(need)
+    return re.compile(
+        r"needs(?:\." + name + r"|\[\s*'" + name + r"'\s*\])"
+        r'\.result\s*' + comparison)
+
+
+def success_clause_re(need):
+    """The clause requiring that a needed job succeeded."""
+    return need_result_re(need, r"==\s*'success'")
+
+
+def admission_clause_re(need):
+    """A clause letting a job through on some other result of a need."""
+    return need_result_re(need, r"(?:==\s*'(?!success')[a-z]+'|!=)")
+
+
+def needs_cycle(needs):
+    """The first cycle in a `needs:` graph, as a list of names, or None.
+
+    The list starts and ends with the same job, so it reads as the
+    loop it is. A need naming no job is not followed: that is reported
+    on its own, and following it would only find nothing.
+    """
+    state = {}
+
+    def visit(name, trail):
+        state[name] = 'open'
+        trail.append(name)
+        for need in needs[name]:
+            if need not in needs:
+                continue
+            if state.get(need) == 'open':
+                return trail[trail.index(need):] + [need]
+            if need not in state:
+                found = visit(need, trail)
+                if found:
+                    return found
+        trail.pop()
+        state[name] = 'done'
+        return None
+
+    for name in needs:
+        if name not in state:
+            found = visit(name, [])
+            if found:
+                return found
+    return None
+
+
+def job_graph_issues(needs):
+    """Findings for a `needs:` graph that cannot be read as one.
+
+    GitHub refuses to run a workflow whose jobs need a job that does
+    not exist, or need each other in a loop, so neither is a shape a
+    working release has. They are reported rather than raised: these
+    rules read text, and a reading that crashed on a malformed file
+    would be an error on every run instead of a finding someone can
+    fix.
+    """
+    issues = []
+    for name, wanted in needs.items():
+        for need in wanted:
+            if need not in needs:
+                issues.append(
+                    f'the {name} job needs {need}, which is not a job in '
+                    'release.yml, so GitHub will not run the workflow and '
+                    'which jobs wait for CI cannot be read')
+    cycle = needs_cycle(needs)
+    if cycle:
+        issues.append(
+            f'the jobs {" -> ".join(cycle)} need each other in a cycle, so '
+            'GitHub will not run the workflow and which jobs wait for CI '
+            'cannot be read')
+    return issues
+
+
+def downstream_jobs(needs, root):
+    """Every job which needs root, directly or through other jobs."""
+    found = set()
+    frontier = [root]
+    while frontier:
+        current = frontier.pop()
+        for name, wanted in needs.items():
+            if current in wanted and name not in found:
+                found.add(name)
+                frontier.append(name)
+    return found
+
+
+def upstream_jobs(needs, job):
+    """Every job which job needs, directly or through other jobs."""
+    found = set()
+    frontier = [job]
+    while frontier:
+        for need in needs.get(frontier.pop(), []):
+            if need in needs and need not in found:
+                found.add(need)
+                frontier.append(need)
+    return found
+
+
+def gate_jobs(blocks):
+    """The jobs with a step that runs the CI gate, in file order."""
+    return [
+        name for name, body in blocks
+        if any(step_action(step) == CI_GATE_ACTION
+               for step in workflow_step_blocks(body))
+    ]
+
+
+def release_ci_gate_issues(repo):
+    """Findings for a release that can publish without CI having passed.
+
+    The gate is a job running require-ci-success, which fails unless
+    the named CI workflows succeeded on the tagged commit. It stops a
+    release only for the jobs that wait for it. A job that names an
+    environment is the one a reviewer approves and the one that signs
+    or publishes, so each of those has to be downstream of the gate
+    through `needs:`. A reviewer is a human check that the release is
+    wanted, not that it was tested, and kerbside's ungated release
+    showed the two are not the same.
+
+    Being downstream is not enough on its own. A job whose `if:` uses
+    always() or !cancelled() runs whatever became of the jobs it
+    needs, so a failed gate would not stop it -- unless the same
+    condition requires `needs.<job>.result == 'success'` for each job
+    it needs. That is asked of every job on the way from the gate to
+    an environment, because one job let through breaks the chain for
+    everything after it.
+
+    The template's build guard also lets a skipped gate through, so
+    that a workflow_dispatch dry run still exercises the build. That
+    is accepted only where it cannot reach a release: the admission
+    has to sit beside "github.event_name != 'push'", and every
+    environment job below it has to be confined to a pushed tag, which
+    is the one event on which the gate always runs. The condition's
+    boolean structure is not parsed, so the two clauses are looked for
+    rather than proved to be joined by &&.
+    """
+    content = repo.workflow('release.yml')
+    if content is None:
+        return []
+
+    blocks = workflow_job_blocks(content)
+    gates = gate_jobs(blocks)
+    if not gates:
+        return [
+            f'release.yml has no job running {CI_GATE_ACTION}, so a tag '
+            'publishes the commit it points at whether or not CI passed '
+            'there; add the ci-gate job from the template and make the '
+            'build need it']
+    if len(gates) > 1:
+        return [
+            f'release.yml runs {CI_GATE_ACTION} in {len(gates)} jobs '
+            f'({", ".join(gates)}), so which jobs wait for CI cannot be '
+            'read; keep one ci-gate job and have the others need it']
+
+    needs = {name: job_needs(body) for name, body in blocks}
+    unreadable = job_graph_issues(needs)
+    if unreadable:
+        return unreadable
+
+    jobs = dict(blocks)
+    gate = gates[0]
+    gated = downstream_jobs(needs, gate)
+    environments = [name for name, body in blocks
+                    if job_environment(body) is not None]
+
+    issues = []
+    for name in environments:
+        if name not in gated:
+            issues.append(
+                f'the {name} job names an environment but is not downstream '
+                f'of {gate} through "needs:", so its reviewer can approve a '
+                'release of a commit CI never passed; make it need '
+                f'{gate}, or a job that does')
+
+    # The jobs between the gate and an environment, gate included:
+    # anything not on such a path cannot carry a failed gate into a
+    # release, and judging it would ask a build-only job to be guarded.
+    path = {gate}
+    for name in environments:
+        if name in gated:
+            path |= {name} | (upstream_jobs(needs, name) & gated)
+
+    for name, body in blocks:
+        if name not in path:
+            continue
+        condition = job_level_keys(body).get('if', '')
+        if not STATUS_OVERRIDE_RE.search(condition):
+            continue
+        missing = [need for need in needs[name]
+                   if not success_clause_re(need).search(condition)]
+        if missing:
+            issues.append(
+                f'the {name} job runs under always() or !cancelled() '
+                'without requiring '
+                + ' and '.join(f"needs.{need}.result == 'success'" for need in missing)
+                + ', so it runs after a failed gate and carries that '
+                'commit on towards a release; add the clause')
+        admitted = [need for need in needs[name]
+                    if admission_clause_re(need).search(condition)]
+        if not admitted:
+            continue
+        if not OFF_PUSH_RE.search(condition):
+            issues.append(
+                f'the {name} job lets {", ".join(admitted)} through on a '
+                'result other than success without confining that to '
+                "\"github.event_name != 'push'\", so a tag push whose gate "
+                'did not succeed can still reach a release; admit a skipped '
+                'gate only off push, as the template does')
+        reached = [job for job in environments
+                   if job == name or job in downstream_jobs(needs, name)]
+        unguarded = [job for job in reached if not job_is_push_guarded(jobs[job])]
+        if unguarded:
+            issues.append(
+                f'the {name} job lets {", ".join(admitted)} through on a '
+                'result other than success, which is safe only while the '
+                'environment jobs below it run on a pushed tag alone, and '
+                f'{", ".join(unguarded)} '
+                f'{"is" if len(unguarded) == 1 else "are"} not confined to one; '
+                "add \"if: github.event_name == 'push' && "
+                "startsWith(github.ref, 'refs/tags/v')\"")
+    return issues
+
+
+def gate_workflow_names(content):
+    """The workflow files release.yml's gate steps name, in order.
+
+    The `workflows:` input is a block scalar in the template, one file
+    per line, and an inline value in a repository naming only one.
+    """
+    names = []
+    for _, body in workflow_job_blocks(content):
+        for step in workflow_step_blocks(body):
+            if step_action(step) != CI_GATE_ACTION:
+                continue
+            for line in mapping_value_lines(indented_block(step, 'with'), 'workflows'):
+                name = line.strip('"').strip("'").strip()
+                if name and name not in names:
+                    names.append(name)
+    return names
+
+
+def trigger_filter(trigger, key):
+    """The patterns under one filter of a trigger, or None if it has none.
+
+    A filter is written inline (`branches: [develop]`, or a bare
+    `branches: develop`) or as a block sequence below its key, and the
+    two read the same.
+    """
+    keys = job_level_keys(trigger)
+    if key not in keys:
+        return None
+    text = keys[key] or indented_block(trigger, key) or ''
+    text = text.strip()
+    if text.startswith('['):
+        text = text[1:].rstrip(']')
+    patterns = []
+    for part in re.split(r'[,\n]', text):
+        part = part.strip()
+        if part.startswith('- '):
+            part = part[2:]
+        part = part.strip().strip('"').strip("'").strip()
+        if part:
+            patterns.append(part)
+    return patterns
+
+
+def branch_matches(patterns, branch):
+    """Does a `branches:` filter admit this branch?
+
+    GitHub reads the patterns in order, and a `!` pattern excludes a
+    branch an earlier pattern admitted, so the last pattern to match
+    decides.
+    """
+    admitted = False
+    for pattern in patterns:
+        if pattern.startswith('!'):
+            if fnmatch.fnmatchcase(branch, pattern[1:]):
+                admitted = False
+        elif fnmatch.fnmatchcase(branch, pattern):
+            admitted = True
+    return admitted
+
+
+def pushes_to_default_branch(header):
+    """Does this workflow run on a push to the default branch?
+
+    The question require-ci-success asks of a push run: one counts
+    only if it ran on the default branch. A push trigger filtered to
+    other branches, or to tags alone, gives the default branch no run
+    at all, so it is not a trigger the gate can use.
+
+    A push trigger whose filters cannot be found below it is taken to
+    reach every branch. That errs towards judging the workflow's
+    concurrency rather than excusing it.
+    """
+    if PUSH_FLOW_RE.search(header):
+        return True
+    if not PUSH_TRIGGER_RE.search(header):
+        return False
+    on = indented_block(strip_yaml_comments(header, trailing=True), 'on')
+    trigger = indented_block(on, 'push') if on is not None else None
+    if trigger is None:
+        return True
+    branches = trigger_filter(trigger, 'branches')
+    if branches is not None:
+        return branch_matches(branches, DEFAULT_BRANCH)
+    ignored = trigger_filter(trigger, 'branches-ignore')
+    if ignored is not None:
+        return not branch_matches(ignored, DEFAULT_BRANCH)
+    keys = job_level_keys(trigger)
+    return 'tags' not in keys and 'tags-ignore' not in keys
+
+
+def push_concurrency_issues(wf, content):
+    """Findings for a gated workflow whose push runs cancel each other.
+
+    On a push the ref is the same for every commit on the branch, so a
+    group keyed on github.ref puts each commit in the group of the one
+    before it. With cancel-in-progress the newer run cancels the older
+    one. Without it the cancelling still happens: a group holds one
+    running and one pending run, so a third arrival cancels the
+    pending one even with cancel-in-progress: false. A cancelled run
+    is not a success, so the gate finds nothing for that commit and
+    its tag cannot be released. Measured on develop before the fleet
+    moved to merge queues, this took out 12 of 74 push runs in
+    hunkydory. Keying the group on github.sha when the event is a push
+    gives each commit a run of its own, and is the only fix: what
+    cancel-in-progress says does not matter.
+
+    The workflow's group and each job's are both read, because either
+    can cancel, in the mapping form and in the inline form that names
+    the group alone. A job's own `if:` is not, so a job kept off push
+    runs is still judged; keying it by sha on push costs nothing.
+    """
+    def group_of(body):
+        block = concurrency_block(body)
+        if block is not None:
+            return block
+        return job_level_keys(body).get('concurrency') or None
+
+    blocks = [('the workflow', group_of(workflow_header(content)))]
+    blocks.extend((f'the {name} job', group_of(body))
+                  for name, body in workflow_job_blocks(content))
+    issues = []
+    for where, block in blocks:
+        if block is None or 'github.ref' not in block or PUSH_BRANCH_RE.search(block):
+            continue
+        issues.append(
+            f'{wf}, which the gate counts on a push to {DEFAULT_BRANCH}, keys '
+            f'the concurrency group of {where} on github.ref, so successive '
+            'commits share one group and a later run cancels an earlier one '
+            '-- running or pending, whatever cancel-in-progress says -- and '
+            'the gate finds no success for that commit; key it on github.sha '
+            "when github.event_name == 'push'")
+    return issues
+
+
+def confined_to_pull_request(condition):
+    """Does an `if:` confine its step or job to pull_request events?
+
+    Read as job_excluded_from_merge_group() reads its second form: the
+    condition names events by equality and every one it names is
+    pull_request. The boolean structure is not parsed.
+    """
+    events = EVENT_NAME_EQUALITY_RE.findall(condition or '')
+    return bool(events) and set(events) == {'pull_request'}
+
+
+def merge_group_path_filter_issues(wf, content):
+    """Findings for a gated path filter that misreads a merge group.
+
+    A merge group's changes have to be diffed against the commit the
+    group was built on, github.event.merge_group.base_sha. Diffed
+    against the branch name instead, a re-run after the entry has
+    merged compares the branch with itself, finds nothing changed,
+    skips the tests and passes. The gate then counts that run as CI
+    passing on the commit. So the filter step either passes that base,
+    or does not run on a merge group at all, by its own `if:` or its
+    job's, and the merge group then runs everything.
+
+    Only dorny/paths-filter is read. A filter written in shell cannot
+    be told from any other script, and none of the gated workflows has
+    one.
+    """
+    issues = []
+    for name, body in workflow_job_blocks(content):
+        job_condition = job_level_keys(body).get('if')
+        for step in workflow_step_blocks(body):
+            if step_action(step) != PATHS_FILTER_ACTION:
+                continue
+            base = ' '.join(mapping_value_lines(indented_block(step, 'with'), 'base'))
+            if MERGE_GROUP_BASE_SHA in base:
+                continue
+            if confined_to_pull_request(step_keys(step).get('if')):
+                continue
+            if confined_to_pull_request(job_condition):
+                continue
+            issues.append(
+                f'{wf}, which the gate counts, runs {PATHS_FILTER_ACTION} in '
+                f'the {name} job on merge groups without diffing against '
+                f'{MERGE_GROUP_BASE_SHA}, so a re-run after the entry has '
+                'merged finds no changes and passes untested; pass "base: '
+                f"${{{{ {MERGE_GROUP_BASE_SHA} || '{DEFAULT_BRANCH}' }}}}\", or "
+                "confine the step to \"github.event_name == 'pull_request'\"")
+    return issues
+
+
+def release_ci_trigger_issues(repo):
+    """Findings for gated workflows that cannot give the gate a run.
+
+    require-ci-success counts a workflow's run only from a merge group
+    on the default branch's queue, or from a push to the default
+    branch. A named workflow which triggers on neither never has a run
+    the gate counts, so every release fails at the gate -- after the
+    tag is pushed, which is the expensive moment to find out. A name
+    with no file behind it fails the same way.
+
+    Each trigger brings a way to pass a commit that was not tested. On
+    a push, a concurrency group keyed on the ref cancels the previous
+    commit's run. On a merge group, a path filter diffing against the
+    branch passes a re-run untested. The cancellation of merge group
+    runs is merge-group-cancellation's to judge, and not repeated here.
+
+    The gate also refuses a run that concluded skipped, so a workflow
+    whose jobs all skip on a merge group fails every release. That is
+    decided by the jobs' conditions at run time, and is not read here.
+    """
+    content = repo.workflow('release.yml')
+    if content is None:
+        return []
+
+    issues = []
+    for wf in gate_workflow_names(content):
+        text = repo.workflow(wf)
+        if text is None:
+            issues.append(
+                f'release.yml\'s gate names {wf}, which is not a workflow in '
+                '.github/workflows/, so the gate finds no run of it and every '
+                'release fails; name each workflow by its bare file name')
+            continue
+        header = workflow_header(text)
+        merge_group = bool(MERGE_GROUP_TRIGGER_RE.search(header)
+                           or MERGE_GROUP_FLOW_RE.search(header))
+        push = pushes_to_default_branch(header)
+        if not (merge_group or push):
+            issues.append(
+                f'release.yml\'s gate names {wf}, which runs neither on '
+                f'merge_group nor on a push to {DEFAULT_BRANCH}, so no merged '
+                'commit has a run the gate counts and every release fails; '
+                'add a merge_group trigger')
+            continue
+        if push:
+            issues.extend(push_concurrency_issues(wf, text))
+        if merge_group:
+            issues.extend(merge_group_path_filter_issues(wf, text))
+    return issues
+
+
+def builds_wheels(step):
+    """Does this step build a distribution this criterion can see?"""
+    action = step_action(step)
+    if action is not None:
+        return action.lower() == MATURIN_ACTION
+    return bool(PYTHON_BUILD_RE.search(strip_yaml_comments(step, trailing=True)))
+
+
+def upload_paths(step):
+    """The paths an upload-artifact step uploads, one per entry."""
+    return [line.strip('"').strip("'").strip()
+            for line in mapping_value_lines(indented_block(step, 'with'), 'path')]
+
+
+def release_check_dist_issues(repo):
+    """Findings for a release that uploads wheels nobody checked.
+
+    check-dist fails a wheel with a member under a directory named
+    tests or *_tests. Every wheel in the table that started this was
+    built and published without anything looking inside it, and the
+    release copy of the check is the one that stops a bad wheel, since
+    it runs on the artefact that is uploaded.
+
+    A job handles wheels if it builds them with `python -m build` or
+    PyO3/maturin-action, or uploads a path naming *.whl. In such a job
+    check-dist has to run after every build and before every upload --
+    before the build it checks a stale directory, after the upload it
+    checks what has already left -- and on the directory the upload
+    reads, compared as dist_directory() compares the other paths here.
+
+    A job that builds through a script and uploads a bare directory
+    shows neither signal, and is not judged. ryll and andris build
+    through scripts but upload *.whl, so they are.
+    """
+    content = repo.workflow('release.yml')
+    if content is None:
+        return []
+
+    issues = []
+    for name, body in workflow_job_blocks(content):
+        steps = workflow_step_blocks(body)
+        builds = [index for index, step in enumerate(steps) if builds_wheels(step)]
+        uploads = [(index, upload_paths(step)) for index, step in enumerate(steps)
+                   if step_action(step) == UPLOAD_ARTIFACT_ACTION]
+        if not builds and not any('.whl' in path for _, paths in uploads for path in paths):
+            continue
+
+        checks = [(index, dist_directory(step_with_inputs(step).get('path') or CHECK_DIST_DEFAULT_PATH))
+                  for index, step in enumerate(steps)
+                  if step_action(step) == CHECK_DIST_ACTION]
+        if not checks:
+            issues.append(
+                f'the {name} job builds or uploads wheels without running '
+                f'{CHECK_DIST_ACTION}, so a wheel carrying its tests is '
+                'published unchecked; add a check-dist step between the '
+                'build and the upload')
+            continue
+        last_build = max(builds, default=-1)
+        checked = [(index, directory) for index, directory in checks if index > last_build]
+        if not checked:
+            issues.append(
+                f'the {name} job runs check-dist before it builds, so it '
+                'checks whatever was there already rather than the wheels '
+                'it publishes; move check-dist after the build')
+            continue
+        for index, paths in uploads:
+            before = {directory for position, directory in checked if position < index}
+            if not before:
+                issues.append(
+                    f'the {name} job uploads {", ".join(paths) or "its artifact"} '
+                    'before check-dist runs, so the wheels leave the job '
+                    'unchecked; move check-dist above the upload')
+                continue
+            for path in paths:
+                if dist_directory(path) in before:
+                    continue
+                issues.append(
+                    f'the {name} job runs check-dist on '
+                    f'{" and ".join(sorted(repr(d + "/") for d in before))} but '
+                    f'uploads "{path}", so the wheels it publishes are not the '
+                    'ones it checked; point check-dist\'s "path:" at '
+                    f'"{dist_directory(path)}/"')
+    return issues
+
+
 class ReleaseProcess(Check):
     id = 'release-process'
     spec = 'docs/audits/release-process.md'
     template = 'templates/release-automation/'
     issue_title = 'Release process'
 
+    def applies(self, repo):
+        """A Python package, or anything with a release workflow.
+
+        Two halves with different scopes. The packaging rules are about
+        how a Python project is laid out for release, so they need a
+        pyproject.toml. The workflow-safety rules are about what
+        release.yml does, and a Rust or TypeScript project's release.yml
+        signs and publishes exactly as a Python one does -- keying the
+        whole criterion on pyproject.toml left four release repositories
+        unmeasured.
+        """
+        if repo.props['has_pyproject_toml'] or repo.isfile(RELEASE_WORKFLOW):
+            return None
+        return f'No pyproject.toml or {RELEASE_WORKFLOW} (nothing is released from here)'
+
     def run(self, repo):
         """Check release process compliance."""
-        if not repo.props['has_pyproject_toml']:
-            return self.skip('No pyproject.toml (not a Python package)')
-
         issues = []
-        if repo.exists('release.sh'):
-            issues.append('release.sh still exists (should be removed)')
-        if repo.exists('requirements.txt'):
-            issues.append('requirements.txt still exists (use pyproject.toml)')
-        if not repo.isfile('.github/workflows/release.yml'):
-            issues.append('Missing .github/workflows/release.yml')
-        if not repo.exists('RELEASE-SETUP.md'):
-            issues.append('Missing RELEASE-SETUP.md')
-        issues.extend(release_asset_issues(repo))
-        issues.extend(release_dispatch_guard_issues(repo))
-        issues.extend(release_workspace_issues(repo))
-        issues.extend(dist_agreement_issues(repo))
-        issues.extend(release_container_path_issues(repo))
+        if repo.props['has_pyproject_toml']:
+            if repo.exists('release.sh'):
+                issues.append('release.sh still exists (should be removed)')
+            if repo.exists('requirements.txt'):
+                issues.append('requirements.txt still exists (use pyproject.toml)')
+            if not repo.isfile(RELEASE_WORKFLOW):
+                issues.append(f'Missing {RELEASE_WORKFLOW}')
+            if not repo.exists('RELEASE-SETUP.md'):
+                issues.append('Missing RELEASE-SETUP.md')
+
+        if repo.isfile(RELEASE_WORKFLOW):
+            issues.extend(release_asset_issues(repo))
+            issues.extend(release_dispatch_guard_issues(repo))
+            issues.extend(release_workspace_issues(repo))
+            issues.extend(dist_agreement_issues(repo))
+            issues.extend(release_container_path_issues(repo))
+            issues.extend(release_ci_gate_issues(repo))
+            issues.extend(release_ci_trigger_issues(repo))
+            issues.extend(release_check_dist_issues(repo))
 
         if issues:
             return self.fail('; '.join(issues))

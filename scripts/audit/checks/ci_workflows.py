@@ -21,7 +21,7 @@ from audit.files import (
     workflows_inheriting_secrets_into,
 )
 from audit.text.workflows import (
-    MERGE_GROUP_FLOW_RE, MERGE_GROUP_TRIGGER_RE, RUNS_ON_RE,
+    CANCEL_IN_PROGRESS_RE, EVENT_NAME_EQUALITY_RE, MERGE_GROUP_FLOW_RE, MERGE_GROUP_TRIGGER_RE, RUNS_ON_RE,
     SCHEDULE_TRIGGER_RE, STATIC_ALLOWED_LABELS, WORKFLOW_CALL_FLOW_RE,
     WORKFLOW_CALL_TRIGGER_RE, concurrency_block, indented_block,
     is_bound_runner_value, job_level_keys, job_needs, job_outputs, job_with_inputs,
@@ -689,18 +689,13 @@ def cancels_superseded_merge_groups(block):
     """
     if block is None:
         return False, 'no concurrency block'
-    if not re.search(r'cancel-in-progress:\s*true', block):
+    if not CANCEL_IN_PROGRESS_RE.search(block):
         return False, 'cancel-in-progress is not true'
     if not any(ctx in block for ctx in QUEUE_REF_CONTEXTS):
         return True, None
     if MERGE_GROUP_BRANCH_RE.search(block):
         return True, None
     return False, 'group is keyed on the per-attempt queue ref'
-
-
-EVENT_NAME_EQUALITY_RE = re.compile(
-    r"github\.event_name\s*==\s*'([a-z_]+)'"
-)
 
 
 def job_excluded_from_merge_group(body):
