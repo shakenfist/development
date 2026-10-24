@@ -164,7 +164,7 @@ git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- '*.py' | \
 # docs/plans/ (PushAuditPlanReferenceGrepTest). A hit is a candidate
 # for the reviewer, not a verdict.
 git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- ':!*.md' ':(exclude,glob)docs/**/plans/**' | \
-    grep -niE '^\+[^+].*(\bphases?\s+[0-9]+\b|\bphase-[0-9]+\b|\bdecisions?\s+[0-9]+\b|\bsteps?\s+[0-9]+[a-z]\b|PLAN-[A-Za-z0-9._-]+\.md)'
+    grep -niE '^\+[^+].*(\bphases?\s+[0-9]+[a-z]*\b|\bphase-[0-9]+\b|\bdecisions?\s+[0-9]+\b|\bsteps?\s+[0-9]+[a-z]+\b|PLAN-[A-Za-z0-9._-]+\.md)'
 
 # Documentation touched at all (warns if none)
 git diff "${AUDIT_RANGE:-origin/main...HEAD}" --name-only -- 'docs/*' '*.md'

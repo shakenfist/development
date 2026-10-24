@@ -84,6 +84,28 @@ class PlanPhaseReferencesTest(CheckTestCase):
         })
         self.assert_fail(result, containing='README.md:1')
 
+    def test_a_lettered_sub_phase_fails(self):
+        # The letter after the digits defeated the word boundary the
+        # pattern ends in, so `phase 3d` and `phase 6a` went unseen.
+        result = self._check({
+            'docs/usage.md': (
+                'Since phase 3d the headroom is exact.\n'
+                'Before phase 6a it deferred.\n'
+                'Phase 12ab rewrote it.\n'
+            ),
+        })
+        self.assert_fail(result, containing='3 plan phase reference(s)')
+        for line in (1, 2, 3):
+            self.assertIn(f'docs/usage.md:{line}', result['details'])
+
+    def test_a_phase_number_run_into_a_word_passes(self):
+        # The word boundary still ends the shape, so an identifier
+        # that merely starts like a sub-phase is not one.
+        result = self._check({
+            'docs/usage.md': 'The phase 3d_old value is kept.\n',
+        })
+        self.assert_pass(result)
+
     def test_generated_compliance_block_is_not_scanned(self):
         """A harvested detail must not fail this repository's own audit.
 
@@ -680,13 +702,16 @@ class PlanHistoryInSourceTest(CheckTestCase):
         assert_found(self, result, 'src/frob.js:2')
         self.assertIn('1 plan history reference(s)', result['details'])
 
-    def test_a_lettered_sub_phase_is_not_matched_yet(self):
-        # A known gap, recorded in the specification: the letter
-        # defeats the word boundary the phase and step shapes end in.
+    def test_a_lettered_sub_phase_is_matched(self):
+        # Letters after the number once defeated the word boundary the
+        # phase and step shapes end in.
         result = self._check({
-            'src/frob.py': '# Added in phase 3a, revised in step 12ab.\n',
+            'src/a.py': '# Added in phase 3a.\n',
+            'src/b.py': '# Revised in step 12ab.\n',
         })
-        self.assert_pass(result)
+        assert_found(self, result, 'src/a.py:1')
+        assert_found(self, result, 'src/b.py:1')
+        self.assertIn('2 plan history reference(s)', result['details'])
 
     def test_the_line_marker_exempts_one_line(self):
         result = self._check({
@@ -2926,6 +2951,33 @@ class PushAuditPlanReferenceGrepTest(unittest.TestCase):
         self.assertEqual(
             sorted(path for path, expected in paths.items() if expected),
             hits, result.stdout)
+
+    def test_the_grep_matches_the_shapes_the_audit_matches(self):
+        # The runbook grep is the audit's pattern rewritten for grep -E,
+        # so each shape is put to both, and a gap closed in one but not
+        # the other shows here.
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        fixture = FixtureRepo(tmp.name)
+        fixture.init_git()
+        fixture.write('README.md', 'Fixture.\n')
+        fixture.commit('base')
+        shapes = ['phase 3', 'phase 3a', 'phase 12ab', 'step 5f',
+                  'step 12ab', 'step 3', 'two-phase commit']
+        fixture.write('scripts/tool.py', ''.join(f'# {shape} here\n' for shape in shapes))
+        fixture.commit('add references')
+
+        result = subprocess.run(
+            ['bash', '-c', self._command()], cwd=tmp.name,
+            env=dict(os.environ, AUDIT_RANGE='HEAD^..HEAD'),
+            capture_output=True, text=True)
+        self.assertEqual('', result.stderr)
+        for shape in shapes:
+            expected = bool(plans.PLAN_HISTORY_RE.search(shape))
+            found = f'# {shape} here' in result.stdout
+            self.assertEqual(expected, found, shape)
+        self.assertNotIn('# step 3 here', result.stdout)
+        self.assertIn('# phase 12ab here', result.stdout)
 
 
 class PushAuditTest(CheckTestCase):
