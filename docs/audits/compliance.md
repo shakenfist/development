@@ -26,7 +26,7 @@ many manual runs came before it. See
 does.
 
 <!-- consistency-audit:begin -->
-*Generated 2026-10-24T04:05:04.730289+00:00 from `scripts/audit-check.py`; do not edit.*
+*Generated 2026-10-24T05:09:57.242550+00:00 from `scripts/audit-check.py`; do not edit.*
 
 ## ci-review-automation
 
