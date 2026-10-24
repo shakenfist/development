@@ -43,7 +43,9 @@ should have one is a separate decision, not smuggled in here. A file
 that is there but cannot be read -- over the 2 MB read limit, or a
 symlink out of the repository -- fails rather than being treated as
 absent, because standing down would close an open issue about a file
-nobody could check.
+nobody could check. Only the file that would be audited counts: a
+readable `PUSH-AUDIT.md` is audited even beside an unreadable legacy
+`PUSH-TEMPLATE.md`, which is still flagged as a legacy name.
 
 ### Why the reference is checked
 

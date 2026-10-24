@@ -136,8 +136,8 @@ def validate_shared_blocks(content, required=None, blocks_dir=None):
         if text is None:
             problems.append(
                 f'shared block {name} has no {SHARED_BLOCK_END} '
-                f'marker of its own (close it before the next block '
-                f'begins)'
+                f'marker of its own (add one after the block, before '
+                f'any other block begins)'
             )
             continue
         # Loaded once per name, so a block repeated many times does
