@@ -90,9 +90,17 @@ landed; how is under *Push audit*.
 | 1. Implementation: blocks, check and spec | Complete | `2468dda`, `5918f5b` direct; `5b1fb74` (#49), `ff92357` (#50) |
 | 2. Migration | Complete | eight repositories, one pull request each; see *Push audit* |
 | 3. Verification | Complete | n/a -- confirmations against scratch copies, no commit |
-| 4. Push audit | Not started | |
+| 4. Push audit | In progress | |
 
 ## Implementation
+
+The sections below describe the implementation as it landed, in
+August 2026. `PLAN-audit-scripts-restructure` has since moved the
+code: `check_plan_template` is now the `PlanTemplate` class in
+`scripts/audit/checks/plans.py`, registered in
+`scripts/audit/registry.py`, the spec is
+`docs/audits/plan-template.md`, and `PLAN_TEMPLATE_BLOCKS` names
+ten blocks since `plan-phase-landing` joined it on 2026-09-19.
 
 ### 1. Nine shared blocks -- `templates/shared-blocks/`
 
@@ -287,3 +295,237 @@ Findings from either land as their own pull request; the plan is not
 complete until each is resolved or declined in writing, with the
 reason recorded here. If an audit finds nothing, say so in one
 sentence.
+
+### Planning effort
+
+High effort. The work is mechanical once scoped, but
+every decision below is about what the audit reads, and the two
+previous attempts to record this plan's range (above) both went
+wrong on exactly that.
+
+### Scope
+
+In: wave 1 and wave 2 of this repository's `PUSH-AUDIT.md` over
+this plan's two direct landings and the code that succeeds them; the
+push-audit floor checklist over the eight migration pull requests;
+the triage and outcome record; and closing the plan out.
+
+Out: `5b1fb74` (#49) and `ff92357` (#50), already audited (decision
+2); `plan-phase-landing`, the v2 and v4 bumps and every
+consistency-fix re-sync since the migration, which are other plans'
+work or the steady state (decision 5); and fixing
+uncalibrated-sextant#12 (decision 6). Findings are fixed in their
+own pull request, not on this branch.
+
+### What the survey found
+
+The survey ran on 2026-10-24 against `main` at `aa8d259` and fresh
+clones of the eleven other repositories that carry a
+`PLAN-TEMPLATE.md`. The false claims it found have been corrected
+at their source -- in *Migration*, *Verification*, the new
+*Execution* table, the note at the head of *Implementation*, and
+the plan's row in `docs/plans/index.md` -- so they are not repeated
+as work below.
+
+* **The migration was complete, not outstanding.** All eight
+  repositories merged a migration pull request on 2026-08-16, each
+  touching `PLAN-TEMPLATE.md` only. occystrap's (#115) was among
+  them. shakenfist#3892 closed on 2026-09-13.
+* **None of the eight ran a push audit.** No body or comment on any
+  of them mentions one, which is expected: the per-repository
+  obligation arrived with `plan-push-audit-phase` on 2026-08-24,
+  eight days later.
+* **The implementation's code no longer exists where this plan
+  says.** `check_plan_template` in `scripts/audit-check.py` is now
+  `PlanTemplate` at `scripts/audit/checks/plans.py:1672`; the block
+  list is `PLAN_TEMPLATE_BLOCKS` at `plans.py:1081`; the validator
+  is `validate_shared_blocks` at
+  `scripts/audit/text/shared_blocks.py:84`; the spec moved from
+  `audits/` to `docs/audits/plan-template.md`; and `AUDIT_METADATA`
+  and `ISSUE_TITLES` are now derived from the registry, with the
+  titles frozen at `scripts/tests/test_metadata.py:359` and `:362`.
+  `PLAN-audit-scripts-restructure` did that move and is `Complete`.
+* **The block list is ten, not nine.** `plan-phase-landing` was
+  added on 2026-09-19 (`9bfc0e8`), by `PLAN-review-unit-size`.
+* **#49 and #50 are already audited.** They are phases 1 and 2 of
+  `PLAN-push-audit-phase`, whose own push audit read both
+  (`PLAN-push-audit-phase.md:239-240` and its decision 1).
+* **Fleet state on 2026-10-24**, from `audit-check.py` against the
+  clones: andris, development, kerbside-patches, occystrap,
+  private-ci and shakenfist pass `plan-template`; client-python-k3s,
+  instar, kerbside and ryll fail only on `plan-push-audit-phase`
+  v3-of-v4; divergulent fails on that and `plan-file-conventions`
+  v1-of-v2; uncalibrated-sextant is missing three blocks
+  (uncalibrated-sextant#12). The weekly `docs/audits/compliance.md`
+  lags this -- it still shows occystrap non-compliant over #157,
+  which closed on 2026-10-17.
+* **development's own template marks its project-specific runs
+  with a bold `**In this repository.**` paragraph**, where the
+  other eleven use the `!!! note "In this project"` admonition that
+  this plan and `docs/audits/plan-template.md:80` prescribe.
+  development publishes nothing through mkdocs, so the rendering
+  argument for the admonition does not reach it; whether the spec
+  should say so is a question for 4e.
+
+### Decisions
+
+1. **The phase lives in this section, not a phase file.** This
+   repository keeps phases inline (`docs/plans/index.md`, and the
+   note under `plan-file-conventions` in `PLAN-TEMPLATE.md`), and a
+   seven-step audit is not large enough to argue with that.
+2. **#49 and #50 are cited, not re-audited.** `PLAN-push-audit-phase`
+   ran this repository's runbook over both. Running it again would
+   spend four wave 2 agents re-reading `plan-push-audit-phase` and
+   `plan-audit-phase`, which are that plan's work rather than this
+   one's. The interaction the accumulated-diff rule exists to catch
+   -- what #49 and #50 did to the blocks and check that `2468dda`
+   created -- is covered by decision 3, because the code wave 2
+   reads is what all four landings and everything since left
+   behind.
+3. **Wave 1 reads the historical diffs; wave 2 reads the code that
+   succeeds them, at `HEAD`.** `2468dda` and `5918f5b` added code to
+   a `scripts/audit-check.py` that no longer exists in that shape,
+   and a spec under an `audits/` directory that has moved. A code
+   review of deleted functions finds nothing anyone can fix. The
+   historical diffs still matter for the questions wave 1 asks --
+   was a version marker moved with its wording, was an issue title
+   introduced that the frozen table now has to keep, did anything
+   private enter the repository -- so wave 1 runs over them as
+   recorded, and wave 2 gets them as context and the live files as
+   its subject. This is the decision a reviewer is most likely to
+   dispute, because it means no agent reviews the original
+   `check_plan_template` as written. The answer is that
+   `PLAN-audit-scripts-restructure` already reviewed its translation
+   into the class, and the class is what runs every morning.
+4. **The eight migration pull requests get the floor checklist,
+   not eight runbooks.** They predate the per-repository obligation,
+   each changed one prose file, and every one of those files has
+   since been rewritten by at least one re-sync, so a
+   retrospective `PUSH-AUDIT.md` run per repository would audit
+   text that no longer exists, through eight runbooks written for
+   other blast radii. The floor -- items 1, 3 and 4 of the list in
+   `plan-push-audit-phase` -- asks the questions that still have
+   consequences: is the record well-formed, did anything secret or
+   private enter a public repository, and did a removed heading
+   leave a consumer behind. Items 2 and 5 do not apply to a prose
+   file and 4b says so.
+5. **Scope is this plan's blocks and this plan's commits.** The
+   *Push audit* text above already learned that a range drawn by
+   directory sweeps in other plans' work. The same holds for later
+   versions of these blocks: a bump to `plan-file-conventions` v2
+   belongs to whoever made it.
+6. **uncalibrated-sextant#12 does not hold the plan open.** The
+   migration landed there (#5) with every block that then existed.
+   What is missing is two blocks written afterwards and one from
+   another plan, the issue the mechanism exists to file has been
+   filed, and fixing it is consistency-fix work in a repository
+   nobody has pushed to since September. It goes in *Future work*.
+7. **Close-out follows `plan-phase-landing`.** If the audit raises
+   findings, their pull request carries the close-out: row 4 to
+   `Complete` with this phase's merge commit, and the index row to
+   `Complete`. If it raises none, this phase's own pull request sets
+   both and row 4 records no `Merged` cell.
+
+### Landing record
+
+Reconstructed on 2026-10-24 from `gh pr view` and `git cat-file`,
+not from a path-filtered log. Each direct landing is one commit
+with one parent, read as `<sha>^..<sha>`; the two are not
+contiguous, so there is no single range.
+
+| Landing | Form | Diff | Audit |
+|---------|------|------|-------|
+| `2468dda` | direct, 2026-08-16 | +628 -4, 14 files | this phase, 4a and wave 2 |
+| `5918f5b` | direct, 2026-08-19 | +696 -4, 9 files | this phase, 4a and wave 2 |
+| `5b1fb74` (#49) | merge | | `PLAN-push-audit-phase` phase 5 |
+| `ff92357` (#50) | merge | | `PLAN-push-audit-phase` phase 5 |
+| shakenfist `0f21df0` (#3785) | merge | +230 -167, 1 file | none ran; 4b |
+| ryll `1a7b47e` (#281) | merge | +225 -168, 1 file | none ran; 4b |
+| kerbside `b29e01f` (#327) | merge | +235 -174, 1 file | none ran; 4b |
+| divergulent `70b2a8f` (#67) | merge | +236 -166, 1 file | none ran; 4b |
+| instar `cbcdd2a` (#500) | merge | +243 -181, 1 file | none ran; 4b |
+| uncalibrated-sextant `d81eb69` (#5) | merge | +223 -124, 1 file | none ran; 4b |
+| occystrap `b1438e9` (#115) | merge | +250 -29, 1 file | none ran; 4b |
+| client-python-k3s `12dbacd` (#30) | merge | +263 -34, 1 file | none ran; 4b |
+
+The two direct landings touch 17 distinct paths between them.
+
+### Step plan
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 4a | medium | sonnet | none | Wave 1 of `PUSH-AUDIT.md`, run twice: `AUDIT_RANGE=2468dda^..2468dda`, then `AUDIT_RANGE=5918f5b^..5918f5b`. `git fetch origin` first. Run `pre-commit run --all-files` once, on a clean tree (`git status --short` empty), because `review-tracking.py stamp` reads SHAs from the index. Before the greps for each range run `git diff --numstat "$AUDIT_RANGE" \| awk '{i+=$1; d+=$2} END {print i, d, NR}'`: expect `628 4 14` and `696 4 9`, and a union of 17 paths from `for r in 2468dda^..2468dda 5918f5b^..5918f5b; do git diff --numstat $r; done \| cut -f3 \| sort -u \| wc -l`. Anything else means the wrong range: stop and report rather than auditing it. These commits predate `PLAN-audit-scripts-restructure`, so several greps name paths that did not exist yet (`scripts/tests/test_metadata.py`, `docs/audits/`) and will be empty by construction. Say so per grep, and run the question the grep was asking against the paths that did exist: for the issue-title check, read what each commit added to `ISSUE_TITLES` in `scripts/audit_common.py` and confirm the titles (`Plan template`, `Plan index`) match `FROZEN_ISSUE_TITLES` at `scripts/tests/test_metadata.py:359` and `:362` today; for the shared-block check, `2468dda` creates seven blocks at v1, which is not an edit, and `5918f5b` creates `plan-status-vocabulary` and edits `templates/shared-blocks/README.md` and `audits/plan-template.md`, neither of which carries a marker -- confirm both rather than assuming. Report every hit with a verdict (looked at, accepted or blocking, and why) and name the checks that were empty in both ranges. Report, do not fix. No commit. |
+| 4b | medium | sonnet | none | Push-audit floor over the eight migration pull requests in the *Landing record* table, read with `gh pr diff <n> -R shakenfist/<repo>` -- no clone needed, and do not push or comment anywhere. For each: (1) confirm `gh pr view <n> -R shakenfist/<repo> --json mergeCommit,additions,deletions,changedFiles` matches the table row; (3) grep the added lines for anything resembling a token or key, a private hostname (`*.home.stillhq.com`, `*.local`, an internal-only name) or an RFC 1918 address, and report each with a verdict -- these are public repositories; (4) list every `#`, `##` and `###` heading the diff removed or renamed, then grep that repository's current default branch (`gh api repos/shakenfist/<repo>/contents/...` or a shallow clone into the scratchpad) for references to each, including AGENTS.md, docs/ and `.claude/skills/`, and also grep shakenfist/development's `scripts/` and `templates/` for any that the audit tooling parses by name. State the greps you ran. Items 2 (unattended jobs) and 5 (publishing) do not apply to a prose file: say so in one sentence each. Report, do not fix. No commit. |
+| 4c | high | sonnet | none | Wave 2a, code quality, per the 2a brief in `PUSH-AUDIT.md`. Subject: the live code at `HEAD`, not the historical diff -- `PlanTemplate` (`scripts/audit/checks/plans.py:1672-1710`), `PLAN_TEMPLATE_BLOCKS` (`plans.py:1081`) and its comment, `load_canonical_block` and `validate_shared_blocks` (`scripts/audit/text/shared_blocks.py:67` onward), and the status-vocabulary path of `PlanIndex` (`plans.py:1256` onward). Read `git show 2468dda` and `git show 5918f5b` (+628 -4 and +696 -4; state those totals in your report) for what the code was meant to do. Questions to answer: does the validator distinguish a stale version, an edited body at the current version, a missing end marker, a block embedded twice and a block nested inside another, and does each produce a detail string that tells a maintainer in another repository what to do; is `PLAN_TEMPLATE_BLOCKS` the only list of these names, or does a second copy exist in `docs/audits/plan-template.md`, `templates/shared-blocks/README.md` or elsewhere that could drift from it; and does the comment above it still describe the list. Apply the `source-file-size` judgement to `plans.py` (1,710 lines). Report, do not fix. No commit. |
+| 4d | high | sonnet | none | Wave 2b, test review, per the 2b brief in `PUSH-AUDIT.md`, over the same live subject as 4c. Read `PlanTemplateTest` (`scripts/tests/test_plans.py:3162` onward), the `PlanIndexTest` vocabulary cases (`test_plans.py:826` onward), and the validator tests in `scripts/tests/test_containment.py`. For each behaviour 4c's brief lists -- stale version, edited body, missing end marker, duplicate, nested, not-applicable when there is no template, and every name in `PLAN_TEMPLATE_BLOCKS` having a canonical file -- say whether a test exists and whether it would fail if the behaviour broke, naming the test. A test that asserts only that `fail` was returned, not which block the detail names, does not prove the roster-separation claim in *Implementation*. Report, do not fix. No commit. |
+| 4e | high | opus | none | Wave 2c, documentation review, per the 2c brief in `PUSH-AUDIT.md`. Read the ten canonical blocks in `templates/shared-blocks/` named in `PLAN_TEMPLATE_BLOCKS` together, in the order `PLAN-TEMPLATE.md` embeds them, as the one document a planner in another repository reads, and report any two that contradict each other -- the likeliest place is the `Merged` column, which `plan-file-conventions`, `plan-push-audit-phase` and `plan-phase-landing` all describe. Check `subagent-model-roster` against the models actually available today: report any model it omits or names wrongly and any context-window figure you cannot confirm, saying which you could not confirm rather than guessing. Then check `docs/audits/plan-template.md`, `templates/shared-blocks/README.md` and `docs/audits/README.md:229` against the code -- block count, block names, and what a maintainer is told to do -- and judge whether `docs/audits/plan-template.md:80` should acknowledge that a repository which publishes nothing through mkdocs (this one) may mark its project-specific runs another way. Do not edit any file under `templates/shared-blocks/`: a version bump files issues in eleven repositories, so a finding there is reported with the bump it would need. Report, do not fix. No commit. |
+| 4f | high | opus | none | Wave 2d, security review, per the 2d brief in `PUSH-AUDIT.md`, over the same live subject as 4c, with the historical diffs as context. The blast radius is other repositories' issue trackers: `validate_shared_blocks` reads `PLAN-TEMPLATE.md` from repositories this one does not control, and its detail strings go into issue bodies filed and rewritten by `audit-manage-issues.py`. Establish whether any part of a detail string is taken from the scanned file rather than from `PLAN_TEMPLATE_BLOCKS` -- a block name or version read from a crafted marker -- and if so whether it can carry an `@` mention, a closing keyword, a link or markdown that changes the issue body. Establish whether `load_canonical_block` can ever be called with a name from scanned content, and if so whether `../` escapes `templates/shared-blocks/`. Consider what a very large or pathological template does to the marker regex. Apply the `path-traversal-review` shared block. Report, do not fix. No commit. |
+| 4g | high | opus | none | Management triage, in the session rather than a sub-agent. First check each report states the totals it read, and that 4a's match the *Landing record*; re-run any that do not. Decide each finding blocking, advisory or declined, and write an **Outcome** subsection here: what 4a and 4b found, what each wave 2 agent found, and for every finding where it was fixed or why it was declined. If all are clean, one sentence saying so. Work the `PUSH-AUDIT.md` management checklist. Fixes land as their own pull request against `main`. Close out per decision 7. Commit subject: "Record the plan template blocks push audit." |
+
+### Risks and mitigations
+
+* **An empty diff read as a clean audit.** Already-merged work
+  under the runbook's `origin/main...HEAD` default diffs nothing.
+  Mitigation: every brief carries its concrete range, every report
+  states its totals, and 4g refuses a report whose totals do not
+  match the table.
+* **Wave 1 greps that cannot fire, reported as clean.** Several
+  greps name paths that postdate these commits. Mitigation: 4a must
+  say per grep whether it could have fired, and run the underlying
+  question against the paths that existed; 4g checks that it did.
+* **Decision 3 misses a defect that existed only in the original
+  code.** If it was translated faithfully it is in the class and
+  wave 2 sees it; if it was not, the restructure fixed it.
+  Mitigation: 4c reads both commits for intent, and a behaviour the
+  original promised that the class does not deliver is itself a
+  finding.
+* **A fix to a canonical block files issues fleet-wide.**
+  Mitigation: no step edits `templates/shared-blocks/`; 4g decides
+  any bump deliberately, in the findings pull request, and states
+  how many repositories it newly fails.
+
+### Definition of done
+
+* Every report from 4a to 4f states the totals it read, and 4a's
+  are `628 4 14` and `696 4 9` with a 17-path union. Reproducible
+  with:
+
+  ```
+  for r in 2468dda^..2468dda 5918f5b^..5918f5b; do
+      git diff --numstat $r | awk '{i+=$1; d+=$2} END {print i, d, NR}'
+  done
+  for r in 2468dda^..2468dda 5918f5b^..5918f5b; do
+      git diff --numstat $r; done | cut -f3 | sort -u | wc -l
+  ```
+
+* This section has an **Outcome** subsection giving a verdict for
+  every finding, or one sentence saying there were none.
+* Every row of the *Landing record* matches `gh pr view` or
+  `git cat-file -p`, and 4b's report covers all eight pull
+  requests.
+* Row 4 of *Execution* and the plan's row in `docs/plans/index.md`
+  are `Complete`, set as decision 7 says and not before.
+* `python3 scripts/audit-check.py --repo-path . --repo-name
+  development` reports every `plan-*` check as it did on
+  2026-10-24 (pass, or `not_applicable` for
+  `plan-source-references`).
+* `pre-commit run --all-files` passes.
+
+### Future work
+
+* uncalibrated-sextant#12: three blocks missing from its
+  `PLAN-TEMPLATE.md`, and four other consistency issues open there
+  since September. consistency-fix work, with no owner while the
+  repository is dormant.
+* `docs/audits/compliance.md` is regenerated weekly and lags the
+  daily issue state, so it showed occystrap non-compliant a week
+  after occystrap#157 closed. Worth knowing before trusting it as a
+  survey source; not this plan's to fix.
+
+### Back brief
+
+Before running 4a, back brief the operator: which ranges each step
+reads, why #49 and #50 are cited rather than re-run, and why wave 2
+reads the live code rather than the historical diff. Decisions 2, 3
+and 4 narrow the audit, and a narrowing is cheap to agree before the
+agents run and expensive to discover afterwards.
