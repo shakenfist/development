@@ -93,7 +93,7 @@ So does a state file that would put a line of its own in the
 generated `REVIEWS.md`, since `prune` commits that file. That covers
 every value which reaches one of its table cells: a state file whose
 name (the reviewer), marked path, or sidecar stamp date or sha
-contains a control character or a Unicode line or paragraph
+contains a control or format character or a Unicode line or paragraph
 separator, a weAudit mark that is not an object with a path, and a
 partial mark whose line numbers are not integers. A reviewer can
 clear it by un-marking the file in weAudit. An entry in the imports

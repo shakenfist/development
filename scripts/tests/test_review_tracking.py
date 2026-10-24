@@ -918,7 +918,7 @@ class ReviewTrackingTest(unittest.TestCase):
             with self.subTest(command=command):
                 p = self.run_tool(*command)
                 self.assert_refused(p, "'.vscode/testuser.weaudit' marks a path that is not a string, or "
-                                       'that contains a control character or a Unicode line or paragraph '
+                                       'that contains a control or format character or a Unicode line or paragraph '
                                        'separator')
                 self.assertNotIn('INJECTED', p.stdout + p.stderr)
                 self.assertFalse(os.path.exists(os.path.join(self.repo, 'REVIEWS.md')))
@@ -937,6 +937,16 @@ class ReviewTrackingTest(unittest.TestCase):
         reviews = self.read('REVIEWS.md')
         self.assertIn('| src/a.py |', reviews)
         self.assertNotIn('INJECTED', reviews)
+
+    def test_an_imported_entry_with_a_null_date_is_kept_and_undated(self):
+        entry = {'sha': self.blob('HEAD:src/a.py'), 'date': None,
+                 'imported': {'repo': 'shakenfist/development', 'reviewer': 'mikal',
+                              'path': 'src/a.py', 'commit': '0' * 40}}
+        self.write(IMPORTS, json.dumps({'version': 1, 'files': {'src/a.py': entry}}))
+        p = self.run_tool('regen')
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertNotIn('malformed', p.stderr)
+        self.assertIn('| src/a.py | mikal | - |', self.read('REVIEWS.md'))
 
     # Every other value that reaches a REVIEWS.md cell is as much a line
     # of the repository's choosing as a marked path is: the reviewer
@@ -957,6 +967,24 @@ class ReviewTrackingTest(unittest.TestCase):
                 for path in paths:
                     self.assertEqual(self.read(path), before[path])
 
+    def test_a_marked_path_with_a_bidi_override_is_refused(self):
+        # It adds no line, but U+202E makes the row read as another path.
+        self.mark_reviewed(['src/a\u202epy.b'])
+        self.refused_without_writing(
+            [['stamp'], ['prune'], ['status', '--json'], ['regen']],
+            'contains a control or format character', ['.vscode/testuser.weaudit'])
+
+    def test_a_state_file_that_is_not_valid_json_is_refused_not_a_traceback(self):
+        # A traceback exits 1, which reads as an answer to anything that
+        # gives exit status 1 a meaning; a refusal is 2.
+        for content in (b'{not json', b'\xff\xfe{}'):
+            with self.subTest(content=content):
+                with open(os.path.join(self.repo, '.vscode/testuser.weaudit'), 'wb') as f:
+                    f.write(content)
+                for command in (['status', '--json'], ['stamp'], ['prune'], ['regen']):
+                    p = self.run_tool(*command)
+                    self.assert_refused(p, "'.vscode/testuser.weaudit' is not valid")
+
     def test_a_state_file_with_a_line_break_in_its_name_is_refused(self):
         for brk in self.BREAKS:
             with self.subTest(brk=repr(brk)):
@@ -964,7 +992,8 @@ class ReviewTrackingTest(unittest.TestCase):
                 self.write(name, json.dumps(make_weaudit(['src/a.py'])))
                 self.refused_without_writing(
                     [['stamp'], ['prune'], ['status', '--json'], ['regen']],
-                    'has a name containing a control character or a Unicode line or paragraph separator', [name])
+                    'has a name containing a control or format character or a Unicode line or '
+                    'paragraph separator', [name])
                 os.remove(os.path.join(self.repo, name))
 
     def test_a_stamp_with_a_line_break_in_its_date_or_sha_is_refused(self):
@@ -1072,7 +1101,7 @@ class ReviewTrackingTest(unittest.TestCase):
         self.assertEqual(self.read('victim.md'), 'original contents\n')
 
     def two_reviewers(self):
-        """A valid first reviewer with a mark to stamp, and the path of a second to break."""
+        """Write and stage a valid first reviewer with a mark to stamp; callers write the second."""
         self.write('.vscode/alice.weaudit', json.dumps(make_weaudit(['src/a.py'], author='alice')))
         self.git('add', '-A')
 

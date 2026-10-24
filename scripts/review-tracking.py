@@ -70,7 +70,7 @@ Any of these that resolves outside the repository, is not a regular
 file or exceeds the audit's read cap stops every subcommand with exit
 status 2 and a one-line reason, as does a state file whose name, marks
 or stamps would put a line of its own in REVIEWS.md: a name, a marked
-path, a stamp date or sha carrying a control character or a Unicode
+path, a stamp date or sha carrying a control or format character or a Unicode
 line or paragraph separator, or a partial mark whose line numbers are
 not integers. None is written through a symlink.
 """
@@ -304,7 +304,7 @@ def reviewer_name(state_path):
     """
     name = os.path.basename(state_path)[:-len('.weaudit')]
     if unsafe_text(name):
-        raise RefusedState('%r has a name containing a control character or a Unicode line or paragraph '
+        raise RefusedState('%r has a name containing a control or format character or a Unicode line or paragraph '
                            'separator; rename or remove it' % state_path)
     return name
 
@@ -419,11 +419,29 @@ def write_state(path, content):
         f.write(content.encode('utf-8'))
 
 
+class MalformedState(RefusedState):
+    """A review state file that is not valid UTF-8 JSON.
+
+    Refused like any other RefusedState, so that a malformed .weaudit is
+    exit status 2 and one line rather than a traceback and exit 1, which
+    scope-orphans uses for an answer. Separate so that load_imports() can
+    keep treating a malformed imports file as empty: that file is
+    machine-written, and import rewrites it.
+    """
+
+
 def load_json(path, default):
-    raw = read_state_text(path)
+    try:
+        raw = read_state_text(path)
+    except UnicodeDecodeError:
+        raise MalformedState('%r is not valid UTF-8; not reading it' % path)
     if raw is None:
         return default, True
-    return json.loads(raw), raw.endswith('\n')
+    try:
+        return json.loads(raw), raw.endswith('\n')
+    except ValueError as e:
+        # A JSONDecodeError names a position, never the content.
+        raise MalformedState('%r is not valid JSON (%s); not reading it' % (path, e))
 
 
 def write_json(path, data, trailing_newline):
@@ -438,9 +456,12 @@ def unsafe_text(value):
     repository's choosing in a generated file that prune commits. Every
     control character is rejected, and the Unicode line and paragraph
     separators, because str.splitlines() breaks a line at those too.
+    Format characters (Cf) go as well: a right-to-left override or an
+    isolate cannot add a line, but it can make a path or a reviewer name
+    read as something else to the person reading the table.
     """
     return not isinstance(value, str) or any(
-        unicodedata.category(c) in ('Cc', 'Zl', 'Zp') for c in value)
+        unicodedata.category(c) in ('Cc', 'Cf', 'Zl', 'Zp') for c in value)
 
 
 def is_line_number(value):
@@ -473,7 +494,7 @@ def marked_paths(state, state_path):
             raise RefusedState('%r holds a mark that is not an object with a path; un-mark it in weAudit'
                                % state_path)
         if unsafe_text(e['path']):
-            raise RefusedState('%r marks a path that is not a string, or that contains a control character '
+            raise RefusedState('%r marks a path that is not a string, or that contains a control or format character '
                                'or a Unicode line or paragraph separator; un-mark it in weAudit' % state_path)
     for e in partial_entries:
         if not is_line_number(e.get('startLine')) or not is_line_number(e.get('endLine')):
@@ -500,7 +521,7 @@ def checked_stamps(sidecar, side_path):
         if not isinstance(stamp, dict) or any(
                 stamp.get(k) is not None and unsafe_text(stamp[k]) for k in ('date', 'sha')):
             raise RefusedState('%r holds a stamp that is not an object, or whose date or sha is not a string '
-                               'or contains a control character or a Unicode line or paragraph separator'
+                               'or contains a control or format character or a Unicode line or paragraph separator'
                                % side_path)
     return stamps
 
@@ -544,9 +565,8 @@ def load_imports():
     """
     try:
         imports, nl = load_json(IMPORTS_PATH, {'version': 1, 'files': {}})
-    except (ValueError, UnicodeDecodeError) as e:
-        print('review-tracking: WARNING: %s is not valid JSON (%s); ignoring it' % (IMPORTS_PATH, e),
-              file=sys.stderr)
+    except MalformedState as e:
+        print('review-tracking: WARNING: %s; ignoring it' % e, file=sys.stderr)
         imports, nl = {'version': 1, 'files': {}}, True
     if not isinstance(imports, dict):
         print('review-tracking: WARNING: %s is not a JSON object; ignoring it' % IMPORTS_PATH, file=sys.stderr)
@@ -584,11 +604,11 @@ def drop_malformed_imports(imports):
         # held to the same rule because nothing reading them needs to
         # ask. Dropped here rather than refused, because this file is
         # machine-written and dropping is how this file treats every
-        # other entry import did not write. A date may be absent, which
-        # renders as '-'.
+        # other entry import did not write. A date may be absent or
+        # null, which renders as '-', as it does for a native stamp.
         if (isinstance(entry, dict) and isinstance(imported, dict)
                 and not any(unsafe_text(v) for v in (
-                    path, entry.get('sha'), entry.get('date', '-'), imported.get('repo'),
+                    path, entry.get('sha'), entry.get('date') or '-', imported.get('repo'),
                     imported.get('reviewer'), imported.get('path'), imported.get('commit')))):
             continue
         # json.dumps for the path too, so that an unsafe one is escaped on stderr.
@@ -739,7 +759,7 @@ def render_reviews_md():
         if path in native_paths:
             continue
         reviewed_paths.add(path)
-        full_rows.append((path, entry.get('imported', {}).get('reviewer', '-'), entry.get('date', '-'),
+        full_rows.append((path, entry.get('imported', {}).get('reviewer', '-'), (entry.get('date') or '-'),
                           entry.get('sha', '-')[:SHORT_SHA], import_source_label(entry)))
 
     reviewed_in_scope = len([p for p in reviewed_paths if p in set(scoped)])
