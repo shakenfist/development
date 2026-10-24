@@ -90,8 +90,9 @@ jobs:
     # starts. This is defence in depth rather than the boundary. The
     # virtual machine is discarded after the job, and the guard lives
     # in a file the pull request can edit, so it stops a fork that
-    # changes the script, not one that also deletes the guard; the
-    # repository's approval requirement for fork workflows covers that.
+    # changes the script, not one that also deletes the guard. GitHub's
+    # fork workflow approval covers that, if the repository requires it
+    # for all external contributors rather than only first-time ones.
     if: |
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository

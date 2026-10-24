@@ -881,13 +881,15 @@ class MermaidLintDeploymentTest(unittest.TestCase):
         self.assertEqual(len(skill_refs), 1, skill_refs)
         self.assertEqual([(script_tags[0], script_digests[0])], skill_refs)
 
+    def _workflow(self):
+        return repo_file('templates', 'mermaid-lint',
+                         'mermaid-lint.yml').decode('utf-8')
+
     def _path_filters(self):
         """Every `paths:` list in the workflow, in order."""
-        workflow = repo_file('templates', 'mermaid-lint',
-                             'mermaid-lint.yml').decode('utf-8')
         return [
             re.findall(r"^\s*-\s*'([^']+)'", block, re.MULTILINE)
-            for block in re.split(r'^\s*paths:\s*$', workflow,
+            for block in re.split(r'^\s*paths:\s*$', self._workflow(),
                                   flags=re.MULTILINE)[1:]
         ]
 
@@ -917,10 +919,6 @@ class MermaidLintDeploymentTest(unittest.TestCase):
         for paths in filters:
             self.assertIn('tools/mermaid-lint-exclude', paths, paths)
 
-    def _workflow(self):
-        return repo_file('templates', 'mermaid-lint',
-                         'mermaid-lint.yml').decode('utf-8')
-
     def test_the_job_refuses_fork_pull_requests(self):
         """A fork must not get its own script run on the runner host.
 
@@ -939,13 +937,25 @@ class MermaidLintDeploymentTest(unittest.TestCase):
             'github.repository')
 
     def test_the_checkout_keeps_no_token(self):
-        """The checkout is mounted into a third-party container."""
-        checkout = re.search(
-            r'- uses: actions/checkout@\S+\n((?:\s+.*\n)*?)(?=\s*- |\Z)',
-            self._workflow())
-        self.assertIsNotNone(checkout)
-        self.assertRegex(checkout.group(1),
-                         r'with:\s*\n\s+persist-credentials: false')
+        """The checkout is mounted into a third-party container.
+
+        The step is read as lines, by indentation, so another input
+        beside persist-credentials does not change the answer.
+        """
+        lines = self._workflow().splitlines()
+        start = next((i for i, line in enumerate(lines)
+                      if line.lstrip().startswith('- uses: actions/checkout@')),
+                     None)
+        self.assertIsNotNone(start, 'no checkout step')
+        indent = len(lines[start]) - len(lines[start].lstrip())
+        step = []
+        for line in lines[start + 1:]:
+            if line.strip() and len(line) - len(line.lstrip()) <= indent:
+                break
+            step.append(line.strip())
+        self.assertIn('with:', step)
+        self.assertIn('persist-credentials: false',
+                      step[step.index('with:') + 1:])
 
     def test_the_script_excludes_what_the_workflow_excludes(self):
         """The two halves of the REVIEWS.md exclusion travel together.
