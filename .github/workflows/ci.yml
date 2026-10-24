@@ -31,12 +31,13 @@ on:
     # rather than pending: the secret scanner lives in its own
     # secret-scan.yml with no path filter, precisely so it keeps
     # reading review notes and the rest of the prose, so this list can
-    # stay as it is.
+    # stay as it is. The scope config is deliberately not listed: it
+    # decides what is reviewed at all, so a change to it is linted and
+    # reviewed like code (review-scope-ci in the audit checks this).
     paths-ignore:
       - 'REVIEWS.md'
       - '.vscode/*.weaudit'
       - '.vscode/*.weaudit-shas.json'
-      - '.vscode/review-scope.toml'
   workflow_dispatch:
 
 permissions:

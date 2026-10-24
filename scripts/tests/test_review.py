@@ -18,7 +18,7 @@ from audit import check as check_module  # noqa: E402
 from audit import github  # noqa: E402
 from audit.checks import review  # noqa: E402
 from audit.text import patterns  # noqa: E402
-from tests.base import CheckTestCase, FixtureRepo  # noqa: E402
+from tests.base import CheckTestCase, FixtureRepo, REPO_ROOT, repo_file, run_check  # noqa: E402
 
 
 # review-coverage and review-scope-completeness shell out to
@@ -592,6 +592,99 @@ class ReviewScopeCompletenessTest(StandInScriptMixin, CheckTestCase):
         self.commit('include = ["*.py"]\n', ['a.py'])
         self.use_script(stdout='{"orphans": ["x.json"]}', returncode=1)
         self.assertEqual(self.assert_fail(self.check())['missing'], ['x.json'])
+
+
+class ReviewTrackingTemplatesTest(CheckTestCase):
+    """The review tracking CI copies are byte-identical to their templates."""
+
+    check_class = review.ReviewTrackingTemplates
+
+    def write_bytes(self, relative, data):
+        full = os.path.join(self.fixture.path, relative)
+        os.makedirs(os.path.dirname(full), exist_ok=True)
+        with open(full, 'wb') as f:
+            f.write(data)
+
+    def adopt(self, skip=()):
+        """A repository that copied every template, except those named."""
+        self.fixture.write('.vscode/review-scope.toml', 'include = []\n')
+        for name, destination in review.REVIEW_TRACKING_TEMPLATE_COPIES:
+            if destination not in skip:
+                self.write_bytes(destination, repo_file('templates', 'review-tracking', name))
+
+    def test_not_applicable_without_review_tracking(self):
+        self.assert_skip(self.check(), containing='review-scope.toml')
+
+    def test_identical_copies_pass(self):
+        self.adopt()
+        result = self.assert_pass(self.check())
+        self.assertIn('3 review tracking file(s)', result['details'])
+
+    def test_each_copy_is_compared(self):
+        for name, destination in review.REVIEW_TRACKING_TEMPLATE_COPIES:
+            with self.subTest(destination=destination):
+                self.fresh_fixture()
+                self.adopt()
+                self.write_bytes(destination, repo_file('templates', 'review-tracking', name) + b'# local\n')
+                result = self.assert_fail(self.check(),
+                                          containing=f'{destination} differs from templates/review-tracking/{name}')
+                self.assertEqual(result['details'].count('differs'), 1)
+
+    def test_a_copy_with_crlf_line_endings_fails(self):
+        # The same text to anything that reads it as text, and a
+        # different blob, which is what import compares.
+        self.adopt()
+        template = repo_file('templates', 'review-tracking', 'ci-prune-reviews.sh')
+        self.write_bytes('tools/ci-prune-reviews.sh', template.replace(b'\n', b'\r\n'))
+        self.assert_fail(self.check(), containing='tools/ci-prune-reviews.sh differs')
+
+    def test_a_missing_copy_fails(self):
+        self.adopt(skip=('.github/workflows/prune-reviews.yml',))
+        self.assert_fail(self.check(), containing='.github/workflows/prune-reviews.yml is missing')
+
+    def test_a_copy_linked_out_of_the_checkout_is_not_read(self):
+        self.adopt(skip=('tools/review-tracking.sh',))
+        outside = os.path.join(self.tempdir(), 'review-tracking.sh')
+        with open(outside, 'wb') as f:
+            f.write(repo_file('templates', 'review-tracking', 'review-tracking.sh'))
+        os.symlink(outside, os.path.join(self.fixture.path, 'tools', 'review-tracking.sh'))
+        self.assert_fail(self.check(), containing='tools/review-tracking.sh is not a regular file the audit will read')
+
+    def test_a_directory_or_dangling_link_is_named_as_such(self):
+        for shape in ('directory', 'dangling link'):
+            with self.subTest(shape=shape):
+                self.fresh_fixture()
+                self.adopt(skip=('tools/review-tracking.sh',))
+                target = os.path.join(self.fixture.path, 'tools', 'review-tracking.sh')
+                if shape == 'directory':
+                    os.mkdir(target)
+                else:
+                    os.symlink('nowhere', target)
+                result = self.assert_fail(self.check(), containing='tools/review-tracking.sh is not a regular file')
+                self.assertNotIn('missing', result['details'])
+
+    def test_developments_own_wrapper_is_not_compared(self):
+        self.adopt(skip=('tools/review-tracking.sh',))
+        self.write_bytes('tools/review-tracking.sh', repo_file('tools', 'review-tracking.sh'))
+        result = self.assert_pass(self.check(name='development'))
+        self.assertIn('2 review tracking file(s)', result['details'])
+
+    def test_the_exception_is_developments_wrapper_alone(self):
+        self.adopt(skip=('tools/review-tracking.sh',))
+        self.write_bytes('tools/review-tracking.sh', repo_file('tools', 'review-tracking.sh'))
+        self.assert_fail(self.check(), containing='tools/review-tracking.sh differs')
+        self.write_bytes('tools/ci-prune-reviews.sh', b'#!/bin/bash\n')
+        self.assert_fail(self.check(name='development'), containing='tools/ci-prune-reviews.sh differs')
+
+    def test_an_unreadable_template_is_a_tool_failure(self):
+        self.adopt()
+        with unittest.mock.patch.object(review, 'DEVELOPMENT_ROOT', self.tempdir()):
+            with self.assertRaises(check_module.ToolFailure):
+                self.check()
+
+    def test_this_repository_passes(self):
+        result = run_check(review.ReviewTrackingTemplates(), REPO_ROOT, name='development')
+        self.assertEqual(result['status'], 'pass', result['details'])
 
 
 class SfuiVendorTest(StandInScriptMixin, CheckTestCase):

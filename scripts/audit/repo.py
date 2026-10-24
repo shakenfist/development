@@ -208,7 +208,7 @@ def exists_within(real_root, full):
         real_root, full, root_is_real=True)
 
 
-def read_within(real_root, full):
+def read_within(real_root, full, binary=False):
     """Read the file at full, or None if it is not one we will read.
 
     The one guarded open of an audited repository's files. `Repo.read`
@@ -238,7 +238,10 @@ def read_within(real_root, full):
     translated, as open() in text mode would: the bytes are read first
     so that the cap is in bytes, then decoded the way text mode decodes
     them. Always as UTF-8 rather than in the runner's locale, so that a
-    verdict does not depend on where the audit ran.
+    verdict does not depend on where the audit ran. With binary, the
+    bytes are returned as read, for a check that compares a file's
+    exact content rather than its text: a copy with CRLF line endings
+    reads as the same text, but is a different blob.
     """
     if not (os.path.isfile(full)
             and path_is_within(real_root, full, root_is_real=True)):
@@ -250,6 +253,8 @@ def read_within(real_root, full):
         return None
     if len(data) > READ_MAX_BYTES:
         return None
+    if binary:
+        return data
     return io.TextIOWrapper(io.BytesIO(data), encoding='utf-8',
                             errors='replace').read()
 
@@ -318,6 +323,15 @@ class Repo:
         content = read_within(self._real_path, self.join(path))
         self._reads[path] = content
         return content
+
+    def read_blob(self, path):
+        """Read a repository-relative file's exact bytes, or None.
+
+        The same guarded open as read(), and None for the same shapes,
+        for the checks that compare a copy with its template byte for
+        byte. Not cached: the few files read this way are read once.
+        """
+        return read_within(self._real_path, self.join(path), binary=True)
 
     def relative(self, full):
         """The repository-relative spelling of a path under self.path.

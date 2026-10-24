@@ -325,6 +325,18 @@ did not write.
    bidi/zero-width check: review notes are prose, and prose is a
    place secrets or Unicode smuggling could land.
 
+   Skip the review state only: `REVIEWS.md` and the two weAudit
+   files. Leave `.vscode/review-scope.toml` out of every pull
+   request filter but CodeQL's. It is policy rather than review
+   state, since it decides which files are reviewed at all, so a pull
+   request that narrows it needs lint and the automated reviewer like
+   any other change. The `review-scope-ci` audit checks this for the
+   workflow that runs the automated reviewer. A scope-only pull
+   request therefore pays for a full CI run, which happens a few
+   times a year in a repository. A workflow that runs only after a
+   merge, such as a canary on push to the default branch, may still
+   skip it: by then the change has been linted and reviewed.
+
    For a workflow whose checks are **not** required, a trigger-level
    `paths-ignore` is the simple answer:
 
@@ -336,7 +348,6 @@ did not write.
          - 'REVIEWS.md'
          - '.vscode/*.weaudit'
          - '.vscode/*.weaudit-shas.json'
-         - '.vscode/review-scope.toml'
    ```
 
    That form is unsafe once a workflow backs a **required** status
@@ -361,10 +372,10 @@ did not write.
    `Analyze` is a required check on hunkydory's default branch, so
    pull requests skip it at the job level rather than with a
    trigger-level filter, while `push` carries no required check and
-   keeps `paths-ignore` directly. Besides the review paths it skips
-   `docs/**`, and it does not analyse fork pull requests at all
-   (trimmed; the template's comments say why each condition is
-   there):
+   keeps `paths-ignore` directly. Besides the review state it skips
+   the scope config and `docs/**`, since CodeQL analyses neither, and
+   it does not analyse fork pull requests at all (trimmed; the
+   template's comments say why each condition is there):
 
    ```yaml
    on:
@@ -1096,6 +1107,18 @@ for as long as the `include` list had no JSON pattern, because JSON
 had simply never come up. No issue could have been filed about it:
 from `review-coverage`'s perspective the repository was fully
 measured.
+
+**Deployment drift.** Two more checks cover the deployment rather
+than the review. `review-tracking-templates`
+(`docs/audits/review-tracking-templates.md`) fails a repository
+whose three CI copies are not byte-identical to
+`templates/review-tracking/`. A template change therefore shows up
+as one failure per adopter until each is re-synced. Without the
+check, two adopters had fallen eleven template commits behind and
+nobody noticed. `review-scope-ci` (in
+`docs/audits/workflow-standards.md`) fails a repository where a pull
+request changing only the scope config skips the automated
+reviewer, for the reason step 8 gives.
 
 `status` and `scope-orphans` are also useful interactively: run
 `./tools/review-tracking.sh status` in any clone to see effective

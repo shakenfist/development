@@ -1213,7 +1213,9 @@ class CodeqlTemplateTest(unittest.TestCase):
         filtered = re.findall(r"^\s+- '!(.+)'$", self._jobs()['check_paths'],
                               re.M)
         self.assertEqual(ignored, filtered)
-        # The four review paths of docs/code-review-tracking.md step 8.
+        # The three review state paths of docs/code-review-tracking.md
+        # step 8, and the two CodeQL also skips because it analyses
+        # neither.
         # Written inline rather than as a class constant: this test
         # reads the patterns, not the files, and test_hooks.py takes a
         # constant naming a tracked file as a file the suite reads.

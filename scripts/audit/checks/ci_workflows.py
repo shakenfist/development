@@ -1435,6 +1435,168 @@ class ExpensiveLanePathFilter(Check):
             f'or exempt (content scanners, marked exceptions)')
 
 
+REVIEW_SCOPE_PATH = '.vscode/review-scope.toml'
+
+# A list item in a workflow: `- 'docs/**'`, quoted either way or not.
+PATH_LIST_ITEM_RE = re.compile(r"""^\s*-\s+(['"]?)(.+?)\1\s*$""")
+
+
+def path_filter_entries(block):
+    """The patterns a paths or paths-ignore value lists, in order.
+
+    `block` is what pull_request_path_filters() returns for one key:
+    the indented list below it, or the inline value, which is a flow
+    sequence (`['docs/**', 'REVIEWS.md']`).
+    """
+    block = block.strip()
+    if block.startswith('['):
+        return [item.strip().strip('\'"')
+                for item in block.strip('[]').split(',') if item.strip()]
+    return [match.group(2) for match in map(PATH_LIST_ITEM_RE.match, block.splitlines())
+            if match]
+
+
+def path_pattern_matches(pattern, path):
+    """Does a workflow path filter pattern match path?
+
+    GitHub's filter patterns and dorny/paths-filter's picomatch agree
+    on the parts the fleet writes: `**` crosses directories, `*` does
+    not, and `**/` may match nothing. Anything else, `?` and character
+    classes included, is taken literally, which only ever makes a
+    pattern match less.
+    """
+    regex, i = [], 0
+    while i < len(pattern):
+        if pattern.startswith('**/', i):
+            regex.append('(?:.*/)?')
+            i += 3
+        elif pattern.startswith('**', i):
+            regex.append('.*')
+            i += 2
+        elif pattern[i] == '*':
+            regex.append('[^/]*')
+            i += 1
+        else:
+            regex.append(re.escape(pattern[i]))
+            i += 1
+    return re.fullmatch(''.join(regex), path) is not None
+
+
+def path_filter_lists(entries, path):
+    """Does a paths or paths-ignore list, read as GitHub reads it, name path?
+
+    The last matching pattern wins, and a `!` pattern takes back what
+    an earlier one named, in either list. So `['**',
+    '!.vscode/review-scope.toml']` names everything but the scope
+    config, and a later `.vscode/**` names it again.
+    """
+    listed = False
+    for entry in entries:
+        negated = entry.startswith('!')
+        if path_pattern_matches(entry[1:] if negated else entry, path):
+            listed = not negated
+    return listed
+
+
+# A pull_request trigger, in block, flow or scalar form. Not merge_group,
+# which PR_TRIGGER_RE also matches, and not pull_request_target.
+PULL_REQUEST_TRIGGER_RE = re.compile(
+    r'^\s*pull_request:|^on:\s*(?:\[[^\]]*\bpull_request\b|pull_request\s*$)',
+    re.MULTILINE)
+
+
+def reviewer_pull_request_workflows(repo):
+    """The workflows a pull request starts to reach the automated reviewer.
+
+    A reviewer workflow that is only called (on: workflow_call) is
+    started by whatever calls it, so its own triggers say nothing. That
+    is the shape of shakenfist/actions, whose ci.yml calls its own
+    pr-auto-review.yml by a local path. The callers count instead, and
+    a workflow with no pull_request trigger is left out: one that runs
+    on merge_group alone reviews nothing before the queue.
+
+    Returns the workflow file names, sorted.
+    """
+    reviewers = automated_reviewer_workflows(repo)
+    callers = [
+        wf for wf in repo.workflows()
+        if wf not in CI_REVIEW_DEVELOPER_WORKFLOWS
+        and any(file_mentions(repo, f'.github/workflows/{wf}', f'./.github/workflows/{reviewer}')
+                for reviewer in reviewers)]
+    return sorted(
+        wf for wf in set(reviewers) | set(callers)
+        if PULL_REQUEST_TRIGGER_RE.search(
+            workflow_header(strip_yaml_comments(repo.workflow(wf) or '', trailing=True))))
+
+
+class ReviewScopeCi(Check):
+    id = 'review-scope-ci'
+    spec = 'docs/audits/workflow-standards.md'
+    template = None
+    issue_title = 'Workflow standards (review scope)'
+    column = 'Review scope'
+
+    def run(self, repo):
+        """Check a change to the review scope reaches the automated reviewer.
+
+        The scope config is policy, not review state: it decides which
+        files are subject to human review at all. So a pull request
+        that only narrows it must still be linted and reviewed, unlike
+        one that only moves review marks. Measured on the workflows
+        that run the automated reviewer, where lint runs too across the
+        fleet, by three ways a pull request can skip them (see
+        reviewer_pull_request_workflows for which workflows those are,
+        and path_filter_lists for how a list names a file):
+
+        - the pull_request trigger's paths-ignore names the file;
+        - its paths list does not;
+        - a dorny/paths-filter job in the workflow excludes it with a
+          `!` pattern, which is how a workflow backing a required check
+          skips at the job level.
+
+        The last is read from every `!` list item in the file rather
+        than from the filter's own block, so it does not see an
+        inclusion-style filter (one listing `src/**` and nothing to
+        exclude), and would read a `!` re-inclusion in the trigger's
+        paths-ignore as an exclusion. Neither shape is in the fleet.
+
+        Repositories without review tracking, or with no automated
+        reviewer, are not applicable; ci-review-automation reports the
+        second.
+        """
+        if not repo.exists(REVIEW_SCOPE_PATH):
+            return self.skip(
+                f'Human review tracking not deployed (no {REVIEW_SCOPE_PATH})')
+        reviewers = reviewer_pull_request_workflows(repo)
+        if not reviewers:
+            return self.skip('No automated reviewer workflow runs on pull_request')
+
+        offenders = []
+        for wf in reviewers:
+            code = strip_yaml_comments(repo.workflow(wf) or '', trailing=True)
+            pr_ignore, pr_include = pull_request_path_filters(code)
+            if pr_ignore is not None and path_filter_lists(path_filter_entries(pr_ignore), REVIEW_SCOPE_PATH):
+                offenders.append(f'{wf} (pull_request paths-ignore skips it)')
+            elif pr_include is not None and not path_filter_lists(path_filter_entries(pr_include),
+                                                                  REVIEW_SCOPE_PATH):
+                offenders.append(f'{wf} (pull_request paths does not include it)')
+            elif 'paths-filter' in code and any(
+                    entry.startswith('!') and path_pattern_matches(entry[1:], REVIEW_SCOPE_PATH)
+                    for entry in path_filter_entries(code)):
+                offenders.append(f'{wf} (its paths-filter excludes it)')
+
+        if offenders:
+            return self.fail(
+                f'A pull request changing only {REVIEW_SCOPE_PATH} skips '
+                f'the automated reviewer: {", ".join(offenders)}. The scope '
+                f'config decides what is reviewed at all, so it is not '
+                f'review state; filter only REVIEWS.md, .vscode/*.weaudit '
+                f'and .vscode/*.weaudit-shas.json')
+        return self.ok(
+            f'Changes to {REVIEW_SCOPE_PATH} reach the automated reviewer '
+            f'in {", ".join(reviewers)}')
+
+
 class MergeGroupCancellation(Check):
     id = 'merge-group-cancellation'
     spec = 'docs/audits/merge-group-cancellation.md'

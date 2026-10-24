@@ -18,7 +18,7 @@ from audit.check import ToolFailure  # noqa: E402
 from audit.checks import ci_workflows  # noqa: E402
 from audit.github import CompletedCommand, FakeGitHub  # noqa: E402
 from audit.text import workflows  # noqa: E402
-from tests.base import CheckTestCase, REPO_ROOT, repo_text  # noqa: E402
+from tests.base import CheckTestCase, REPO_ROOT, repo_text, run_check  # noqa: E402
 
 CI_REVIEW_DEVELOPER_WORKFLOWS = ci_workflows.CI_REVIEW_DEVELOPER_WORKFLOWS
 CI_REVIEW_SHARED_ACTION = ci_workflows.CI_REVIEW_SHARED_ACTION
@@ -356,6 +356,183 @@ class ExpensiveLanePathFilterTest(CheckTestCase):
 
     def test_without_workflows_it_does_not_apply(self):
         self.assert_skip(self.check(), containing='No .github/workflows/')
+
+
+class ReviewScopeCiTest(CheckTestCase):
+    """A pull request changing only the scope config reaches the reviewer."""
+
+    check_class = ci_workflows.ReviewScopeCi
+
+    REVIEW_STATE = ("      - 'REVIEWS.md'\n"
+                    "      - '.vscode/*.weaudit'\n"
+                    "      - '.vscode/*.weaudit-shas.json'\n")
+
+    def _check(self, trigger, scope=True, extra=''):
+        """The check over a repository whose reviewer workflow has this trigger."""
+        if scope:
+            self.fixture.write('.vscode/review-scope.toml', 'include = []\n')
+        self.fixture.workflows({
+            'ci.yml': f'on:\n  pull_request:\n{trigger}{REVIEWER_WORKFLOW}{extra}',
+            'pr-re-review.yml': template_workflow('pr-re-review.yml'),
+        })
+        return self.check()
+
+    def ignoring(self, *patterns):
+        return '    paths-ignore:\n' + ''.join(f"      - '{p}'\n" for p in patterns)
+
+    def test_not_applicable_without_review_tracking(self):
+        self.assert_skip(self._check(self.ignoring('.vscode/review-scope.toml'), scope=False),
+                         containing='review-scope.toml')
+
+    def test_not_applicable_without_an_automated_reviewer(self):
+        self.fixture.write('.vscode/review-scope.toml', 'include = []\n')
+        self.fixture.workflows({
+            'pr-re-review.yml': template_workflow('pr-re-review.yml'),
+            'ci.yml': 'on:\n  pull_request:\njobs:\n  lint:\n    steps:\n      - run: tox\n',
+        })
+        self.assert_skip(self.check(), containing='No automated reviewer')
+
+    CALLED_REVIEWER = ('on:\n  workflow_call:\njobs:\n  review:\n    steps:\n'
+                       '      - uses: shakenfist/actions/review-pr-with-claude@main\n')
+
+    def test_the_caller_of_a_local_reviewer_is_read(self):
+        # shakenfist/actions calls its own reusable reviewer by a local
+        # path, so the pull request that reaches it starts ci.yml.
+        self.fixture.write('.vscode/review-scope.toml', 'include = []\n')
+        caller = ('on:\n  pull_request:\n' + self.ignoring('.vscode/review-scope.toml')
+                  + 'jobs:\n  automated_reviewer:\n    uses: ./.github/workflows/pr-auto-review.yml\n')
+        self.fixture.workflows({'pr-auto-review.yml': self.CALLED_REVIEWER, 'ci.yml': caller})
+        result = self.assert_fail(self.check(), containing='ci.yml (pull_request paths-ignore skips it)')
+        self.assertNotIn('pr-auto-review.yml (', result['details'])
+        self.fresh_fixture()
+        self.fixture.write('.vscode/review-scope.toml', 'include = []\n')
+        self.fixture.workflows({'pr-auto-review.yml': self.CALLED_REVIEWER,
+                                'ci.yml': caller.replace("      - '.vscode/review-scope.toml'\n", '')})
+        self.assertEqual(self.check()['details'],
+                         'Changes to .vscode/review-scope.toml reach the automated reviewer in ci.yml')
+
+    def test_a_reviewer_nothing_starts_on_a_pull_request_is_not_applicable(self):
+        self.fixture.write('.vscode/review-scope.toml', 'include = []\n')
+        self.fixture.workflows({'pr-auto-review.yml': self.CALLED_REVIEWER})
+        self.assert_skip(self.check(), containing='runs on pull_request')
+
+    def test_skipping_the_review_state_only_passes(self):
+        result = self.assert_pass(self._check('    paths-ignore:\n' + self.REVIEW_STATE))
+        self.assertIn('ci.yml', result['details'])
+
+    def test_no_filter_passes(self):
+        self.assert_pass(self._check(''))
+
+    def test_paths_ignore_naming_the_scope_config_fails(self):
+        self.assert_fail(self._check(self.ignoring('REVIEWS.md', '.vscode/review-scope.toml')),
+                         containing='ci.yml (pull_request paths-ignore skips it)')
+
+    def test_paths_ignore_globbing_the_scope_config_fails(self):
+        # `**/` may match no directory at all.
+        for pattern in ('.vscode/**', '.vscode/*', '**/*.toml', '.vscode/*.toml', '**',
+                        '**/.vscode/review-scope.toml'):
+            with self.subTest(pattern=pattern):
+                self.assert_fail(self._check(self.ignoring(pattern)), containing='paths-ignore skips it')
+
+    def test_paths_ignore_globs_that_miss_the_scope_config_pass(self):
+        # `*` does not cross a directory, and the weAudit globs name
+        # other files in the same directory.
+        for pattern in ('*.toml', '.vscode/*.weaudit', 'docs/**', '.vscode/review-scope.toml.bak'):
+            with self.subTest(pattern=pattern):
+                self.assert_pass(self._check(self.ignoring(pattern)))
+
+    def test_a_later_negation_puts_the_scope_config_back(self):
+        self.assert_pass(self._check(self.ignoring('.vscode/**', '!.vscode/review-scope.toml')))
+
+    def test_a_negation_before_the_ignore_does_not(self):
+        self.assert_fail(self._check(self.ignoring('!.vscode/review-scope.toml', '.vscode/**')),
+                         containing='paths-ignore skips it')
+
+    def test_an_inline_paths_ignore_list_is_read(self):
+        self.assert_fail(self._check("    paths-ignore: ['REVIEWS.md', '.vscode/review-scope.toml']\n"),
+                         containing='paths-ignore skips it')
+
+    def test_an_inclusion_list_missing_the_scope_config_fails(self):
+        self.assert_fail(self._check("    paths:\n      - 'src/**'\n"),
+                         containing='ci.yml (pull_request paths does not include it)')
+
+    def test_a_negation_in_an_inclusion_list_is_read(self):
+        self.assert_fail(self._check("    paths:\n      - '**'\n      - '!.vscode/review-scope.toml'\n"),
+                         containing='pull_request paths does not include it')
+        self.fresh_fixture()
+        self.assert_pass(self._check("    paths:\n      - '!.vscode/review-scope.toml'\n      - '.vscode/**'\n"))
+
+    def test_a_reviewer_run_only_by_the_merge_queue_is_not_applicable(self):
+        self.fixture.write('.vscode/review-scope.toml', 'include = []\n')
+        self.fixture.workflows({'ci.yml': 'on:\n  merge_group:\n' + REVIEWER_WORKFLOW})
+        self.assert_skip(self.check(), containing='runs on pull_request')
+
+    def test_every_pull_request_trigger_form_is_read(self):
+        for on in ('on: [push, pull_request]\n', 'on: pull_request\n', 'on:\n  pull_request:\n    branches: [main]\n'):
+            with self.subTest(on=on):
+                self.fresh_fixture()
+                self.fixture.write('.vscode/review-scope.toml', 'include = []\n')
+                self.fixture.workflows({'ci.yml': on + REVIEWER_WORKFLOW})
+                self.assert_pass(self.check())
+
+    def test_pull_request_target_is_not_a_pull_request_trigger(self):
+        self.fixture.write('.vscode/review-scope.toml', 'include = []\n')
+        self.fixture.workflows({'ci.yml': 'on:\n  pull_request_target:\n' + REVIEWER_WORKFLOW})
+        self.assert_skip(self.check(), containing='runs on pull_request')
+
+    def test_an_inclusion_list_covering_the_scope_config_passes(self):
+        self.assert_pass(self._check("    paths:\n      - 'src/**'\n      - '.vscode/review-scope.toml'\n"))
+
+    FILTER_JOB = """  check_paths:
+    steps:
+      - uses: dorny/paths-filter@v4
+        with:
+          predicate-quantifier: 'every'
+          filters: |
+            code:
+              - '**'
+              - '!REVIEWS.md'
+              - '!.vscode/*.weaudit'
+              - '!.vscode/*.weaudit-shas.json'
+"""
+
+    def test_a_filter_job_excluding_the_review_state_passes(self):
+        self.assert_pass(self._check('', extra=self.FILTER_JOB))
+
+    def test_a_filter_job_excluding_the_scope_config_fails(self):
+        self.assert_fail(
+            self._check('', extra=self.FILTER_JOB + "              - '!.vscode/review-scope.toml'\n"),
+            containing='ci.yml (its paths-filter excludes it)')
+
+    def test_a_negated_pattern_without_a_filter_job_is_not_a_filter(self):
+        other = ("  other:\n    steps:\n      - run: echo\n"
+                 "        args:\n          - '!.vscode/review-scope.toml'\n")
+        self.assert_pass(self._check('', extra=other))
+
+    def test_a_comment_on_the_key_line_does_not_hide_the_list(self):
+        self.assert_fail(self._check("    paths-ignore:  # review state only\n"
+                                     "      - '.vscode/review-scope.toml'\n"),
+                         containing='paths-ignore skips it')
+
+    def test_a_comment_naming_the_scope_config_is_not_a_filter(self):
+        self.assert_pass(self._check("    paths-ignore:\n      # - '.vscode/review-scope.toml'\n"
+                                     + self.REVIEW_STATE))
+
+    def test_the_developer_workflows_are_not_read(self):
+        # pr-re-review.yml names the shared action, but runs on a
+        # maintainer's comment rather than on every pull request.
+        self.fixture.write('.vscode/review-scope.toml', 'include = []\n')
+        self.fixture.workflows({
+            'ci.yml': 'on:\n  pull_request:\n' + REVIEWER_WORKFLOW,
+            'pr-re-review.yml': (template_workflow('pr-re-review.yml')
+                                 + "# paths-ignore:\n#   - '.vscode/review-scope.toml'\n"),
+        })
+        self.assertEqual(self.check()['details'],
+                         'Changes to .vscode/review-scope.toml reach the automated reviewer in ci.yml')
+
+    def test_this_repository_passes(self):
+        result = run_check(ci_workflows.ReviewScopeCi(), REPO_ROOT, name='development')
+        self.assertEqual(result['status'], 'pass', result['details'])
 
 
 class WorkflowJobBlocksTest(unittest.TestCase):
