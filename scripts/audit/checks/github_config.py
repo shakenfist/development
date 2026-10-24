@@ -218,6 +218,12 @@ class GithubSecurity(Check):
         return self.ok('Security settings and CodeQL are compliant')
 
 
+# One line, so the argument list a test scripts is the one this sends.
+DELETE_BRANCH_ON_MERGE_QUERY = (
+    'query($owner: String!, $name: String!) '
+    '{ repository(owner: $owner, name: $name) { deleteBranchOnMerge } }')
+
+
 class DeleteBranchOnMerge(Check):
     id = 'delete-branch-on-merge'
     spec = 'docs/audits/delete-branch-on-merge.md'
@@ -227,13 +233,18 @@ class DeleteBranchOnMerge(Check):
     def run(self, repo):
         """Check head branches are deleted automatically when a PR merges.
 
-        A null answer is an error, not a fail: the API omits the field
-        for a token without push access, which says nothing about the
-        setting.
+        Read through GraphQL rather than REST: the REST repository
+        answer leaves delete_branch_on_merge out for a fine-grained
+        token with read-only Administration, which is what the audit
+        runs with, and GraphQL answers it. A null answer is still an
+        error, not a fail, because it says nothing about the setting.
         """
-        result = repo.github.api_answer(
-            f'repos/{repo.org}/{repo.name}', 'the delete branch on merge setting',
-            jq='.delete_branch_on_merge')
+        result = repo.github.answer(
+            ['api', 'graphql',
+             '-f', f'query={DELETE_BRANCH_ON_MERGE_QUERY}',
+             '-f', f'owner={repo.org}', '-f', f'name={repo.name}',
+             '--jq', '.data.repository.deleteBranchOnMerge'],
+            'the delete branch on merge setting')
         setting = result.stdout.strip()
 
         if setting == 'true':
@@ -243,7 +254,7 @@ class DeleteBranchOnMerge(Check):
         raise ToolFailure(
             f'Could not determine delete branch on merge setting '
             f'(API returned "{setting or "null"}"; the token may '
-            f'lack push access)')
+            f'lack read access to the repository\'s administration)')
 
 
 class MergeQueueConfig(Check):
