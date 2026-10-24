@@ -686,3 +686,96 @@ def job_is_push_guarded(body):
     return bool(
         TAG_GUARD_RE.search(condition) and PUSH_EVENT_RE.search(condition)
     )
+
+
+# The flow-mapping spelling of a job's environment,
+# `environment: {name: release, url: ...}`, reduced to its name.
+FLOW_ENVIRONMENT_NAME_RE = re.compile(r'^\{.*?\bname\s*:\s*([^,}]+)')
+
+
+def unquote(value):
+    """A YAML scalar without the quotes around it."""
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in '\'"':
+        return value[1:-1]
+    return value
+
+
+def job_environment(body):
+    """The environment a job names, as written, or None.
+
+    `environment:` takes a name, or a mapping whose `name:` is the
+    name, in either block or flow form. A mapping without a name is
+    returned as the empty string rather than None: the job has the key,
+    and a caller that read it as absent would stop asking about it. A
+    value holding an expression is returned whole, because cutting a
+    name out of it would stop at the expression's own braces.
+    """
+    keys = job_level_keys(body)
+    if 'environment' not in keys:
+        return None
+    value = keys['environment']
+    if not value:
+        return unquote(mapping_entries(indented_block(body, 'environment')).get('name', ''))
+    if '${{' in value:
+        return value
+    match = FLOW_ENVIRONMENT_NAME_RE.match(value)
+    if match:
+        return unquote(match.group(1))
+    if value.startswith('{'):
+        return ''
+    return unquote(value)
+
+
+def trigger_re(name):
+    r"""A block-form `on:` trigger key, as written under `on:`.
+
+    Built rather than spelled out three times because the three
+    triggers this module looks for kept drifting apart: the trailing
+    comment was allowed for on `merge_group` and not on the other two,
+    which made `schedule:  # nightly at 04:00` read as an absence of
+    any schedule. A trigger line that carries a comment is still a
+    trigger, in every direction that matters -- for `merge_group` the
+    blind spot hides a queue lane, for `schedule` and `workflow_call`
+    it fails a repository that got the nightly right.
+
+    `[ \t]` rather than `\s`, which matches a newline and would let
+    the match run off the trigger line onto a comment below it. That
+    produces no wrong answers on today's inputs, because anything it
+    matches has already matched on the trigger line alone, but the
+    regex should mean what it looks like it means.
+    """
+    return re.compile(
+        r'^[ \t]{1,4}' + re.escape(name) + r':[ \t]*(?:#.*)?$', re.MULTILINE)
+
+
+def flow_trigger_re(name):
+    """The same trigger written in flow style, `on: [a, b]`."""
+    return re.compile(
+        r'^on:[ \t]*\[[^\]]*\b' + re.escape(name) + r'\b', re.MULTILINE)
+
+
+# On a merge_group event github.ref is the per-attempt queue branch,
+# gh-readonly-queue/<base>/pr-<N>-<SHA>, and GitHub mints a fresh SHA
+# every time it rebuilds the group. A concurrency group keyed on it is
+# therefore unique per rebuild, cancel-in-progress never matches, and
+# superseded runs build whole clouds nobody is waiting on. See
+# docs/audits/merge-group-cancellation.md.
+MERGE_GROUP_TRIGGER_RE = trigger_re('merge_group')
+MERGE_GROUP_FLOW_RE = flow_trigger_re('merge_group')
+
+WORKFLOW_CALL_TRIGGER_RE = trigger_re('workflow_call')
+WORKFLOW_CALL_FLOW_RE = flow_trigger_re('workflow_call')
+
+
+SCHEDULE_TRIGGER_RE = trigger_re('schedule')
+
+
+def concurrency_block(body):
+    """Extract a `concurrency:` mapping from a job or workflow body."""
+    return indented_block(body, 'concurrency')
+
+
+def workflow_header(content):
+    """Everything in a workflow file above its `jobs:` key."""
+    return content.split('\njobs:')[0]

@@ -21,10 +21,12 @@ from audit.files import (
     workflows_inheriting_secrets_into,
 )
 from audit.text.workflows import (
-    RUNS_ON_RE, STATIC_ALLOWED_LABELS, indented_block,
+    MERGE_GROUP_FLOW_RE, MERGE_GROUP_TRIGGER_RE, RUNS_ON_RE,
+    SCHEDULE_TRIGGER_RE, STATIC_ALLOWED_LABELS, WORKFLOW_CALL_FLOW_RE,
+    WORKFLOW_CALL_TRIGGER_RE, concurrency_block, indented_block,
     is_bound_runner_value, job_level_keys, job_needs, job_outputs, job_with_inputs,
     jobs_inheriting_secrets, parse_runner_labels, step_action, step_keys,
-    step_with_inputs, strip_yaml_comments, workflow_job_blocks,
+    step_with_inputs, strip_yaml_comments, workflow_header, workflow_job_blocks,
     workflow_step_blocks,
 )
 
@@ -604,47 +606,6 @@ def job_runs_a_scanner(body):
     return False
 
 
-def trigger_re(name):
-    r"""A block-form `on:` trigger key, as written under `on:`.
-
-    Built rather than spelled out three times because the three
-    triggers this module looks for kept drifting apart: the trailing
-    comment was allowed for on `merge_group` and not on the other two,
-    which made `schedule:  # nightly at 04:00` read as an absence of
-    any schedule. A trigger line that carries a comment is still a
-    trigger, in every direction that matters -- for `merge_group` the
-    blind spot hides a queue lane, for `schedule` and `workflow_call`
-    it fails a repository that got the nightly right.
-
-    `[ \t]` rather than `\s`, which matches a newline and would let
-    the match run off the trigger line onto a comment below it. That
-    produces no wrong answers on today's inputs, because anything it
-    matches has already matched on the trigger line alone, but the
-    regex should mean what it looks like it means.
-    """
-    return re.compile(
-        r'^[ \t]{1,4}' + re.escape(name) + r':[ \t]*(?:#.*)?$', re.MULTILINE)
-
-
-def flow_trigger_re(name):
-    """The same trigger written in flow style, `on: [a, b]`."""
-    return re.compile(
-        r'^on:[ \t]*\[[^\]]*\b' + re.escape(name) + r'\b', re.MULTILINE)
-
-
-# On a merge_group event github.ref is the per-attempt queue branch,
-# gh-readonly-queue/<base>/pr-<N>-<SHA>, and GitHub mints a fresh SHA
-# every time it rebuilds the group. A concurrency group keyed on it is
-# therefore unique per rebuild, cancel-in-progress never matches, and
-# superseded runs build whole clouds nobody is waiting on. See
-# docs/audits/merge-group-cancellation.md.
-MERGE_GROUP_TRIGGER_RE = trigger_re('merge_group')
-MERGE_GROUP_FLOW_RE = flow_trigger_re('merge_group')
-
-WORKFLOW_CALL_TRIGGER_RE = trigger_re('workflow_call')
-WORKFLOW_CALL_FLOW_RE = flow_trigger_re('workflow_call')
-
-
 # A deliberate exception, ideally with a reason beside it.
 MERGE_GROUP_CANCEL_EXCEPTION_RE = re.compile(
     r'audit-ok:\s*merge-group-cancellation'
@@ -713,11 +674,6 @@ AUDITED_CALLEE_PREFIXES = ('./', 'shakenfist/')
 USES_WORKFLOW_RE = re.compile(
     r'^\s*uses:\s*(\S+\.github/workflows/\S+)\s*$'
 )
-
-
-def concurrency_block(body):
-    """Extract a `concurrency:` mapping from a job or workflow body."""
-    return indented_block(body, 'concurrency')
 
 
 def cancels_superseded_merge_groups(block):
@@ -846,11 +802,6 @@ def job_runs_on_scarce_runner(body):
         if set(labels) - STATIC_ALLOWED_LABELS:
             return True
     return False
-
-
-def workflow_header(content):
-    """Everything in a workflow file above its `jobs:` key."""
-    return content.split('\njobs:')[0]
 
 
 def workflow_declares_inputs(content):
@@ -1958,9 +1909,6 @@ MAX_SCRIPT_DEPTH = 3
 # A deliberate exception, ideally with a reason beside it.
 FUZZ_MERGE_QUEUE_EXCEPTION_RE = re.compile(
     r'audit-ok:\s*fuzz-in-merge-queue')
-
-
-SCHEDULE_TRIGGER_RE = trigger_re('schedule')
 
 
 def scheduling_caller(repo, name, content):

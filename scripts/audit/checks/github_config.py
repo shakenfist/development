@@ -24,9 +24,7 @@ import urllib.parse
 from audit import scope
 from audit.check import Check, ToolFailure
 from audit.files import workflows_inheriting_secrets_into
-from audit.text.workflows import (
-    indented_block, job_level_keys, mapping_entries, workflow_job_blocks,
-)
+from audit.text.workflows import job_environment, workflow_job_blocks
 
 
 def evaluate_merge_queue_rules(rules):
@@ -293,45 +291,6 @@ class MergeQueueConfig(Check):
         return self.ok(
             f'Merge queue on "{branch}" is serialized '
             f'(max_entries_to_build 1, min_entries_to_merge 1)')
-
-
-# The flow-mapping spelling of a job's environment,
-# `environment: {name: release, url: ...}`, reduced to its name.
-FLOW_ENVIRONMENT_NAME_RE = re.compile(r'^\{.*?\bname\s*:\s*([^,}]+)')
-
-
-def unquote(value):
-    """A YAML scalar without the quotes around it."""
-    value = value.strip()
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in '\'"':
-        return value[1:-1]
-    return value
-
-
-def job_environment(body):
-    """The environment a job names, as written, or None.
-
-    `environment:` takes a name, or a mapping whose `name:` is the
-    name, in either block or flow form. A mapping without a name is
-    returned as the empty string rather than None: the job has the key,
-    and a caller that read it as absent would stop asking about it. A
-    value holding an expression is returned whole, because cutting a
-    name out of it would stop at the expression's own braces.
-    """
-    keys = job_level_keys(body)
-    if 'environment' not in keys:
-        return None
-    value = keys['environment']
-    if not value:
-        return unquote(mapping_entries(indented_block(body, 'environment')).get('name', ''))
-    if '${{' in value:
-        return value
-    match = FLOW_ENVIRONMENT_NAME_RE.match(value)
-    if match:
-        return unquote(match.group(1))
-    if value.startswith('{'):
-        return ''
-    return unquote(value)
 
 
 def parse_json_answer(result, what):
