@@ -461,15 +461,7 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_review_tracking.py",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ci-prune-reviews.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/review-tracking.py",
       "author": "mikal"
     },
     {
@@ -490,10 +482,6 @@
     },
     {
       "path": "templates/shared-blocks/plan-push-audit-phase.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/code-review-tracking.md",
       "author": "mikal"
     },
     {
@@ -625,10 +613,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/workflow-standards.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/ci-review-automation.md",
       "author": "mikal"
     },
@@ -650,10 +634,6 @@
     },
     {
       "path": "scripts/audit/checks/packaging.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/review.py",
       "author": "mikal"
     },
     {
@@ -798,10 +778,6 @@
     },
     {
       "path": "scripts/tests/test_repo.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_review.py",
       "author": "mikal"
     },
     {

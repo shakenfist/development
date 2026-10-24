@@ -305,10 +305,6 @@
       "sha": "179afb0f85bc331ee7c78e5e8c20c8b497b242c3",
       "date": "2026-10-05"
     },
-    "docs/audits/workflow-standards.md": {
-      "sha": "e04ecd07e83e35f4534ab8d2af83c54b499a6035",
-      "date": "2026-10-19"
-    },
     "docs/automated-pr-review.md": {
       "sha": "de3e153a8c87e04156f45b9f2e70860a644cf2cb",
       "date": "2026-10-20"
@@ -316,10 +312,6 @@
     "docs/ci-review-automation.md": {
       "sha": "2e1d83cb3523df735fb92e24200923afab65ad4f",
       "date": "2026-10-19"
-    },
-    "docs/code-review-tracking.md": {
-      "sha": "b8778a9bcbbd432ea2c13e2551f40134ae75ff44",
-      "date": "2026-10-16"
     },
     "docs/release-automation.md": {
       "sha": "f1b68accf5c567d979be2004064ac2cd285f9025",
@@ -379,10 +371,6 @@
     },
     "scripts/audit/checks/packaging.py": {
       "sha": "141782bb8f1ccd73eea1a55e31cb555833d34f2e",
-      "date": "2026-10-19"
-    },
-    "scripts/audit/checks/review.py": {
-      "sha": "f788d3519144769d532aa1091b826dcd1e87df62",
       "date": "2026-10-19"
     },
     "scripts/audit/checks/runners.py": {
@@ -448,10 +436,6 @@
     "scripts/commit-audit-docs.sh": {
       "sha": "cc6bcdab6674b2c7c135fa9e59bebdb88b8576f6",
       "date": "2026-09-04"
-    },
-    "scripts/review-tracking.py": {
-      "sha": "d1bdff363b7ecb215016b80010af1c4e0ac6b892",
-      "date": "2026-10-16"
     },
     "scripts/tests/__init__.py": {
       "sha": "531d26fbe639291831bc7dff3a4959a702b09fe8",
@@ -560,14 +544,6 @@
     "scripts/tests/test_repo.py": {
       "sha": "494c41567652920ef783aa50f829a0ba045616a5",
       "date": "2026-10-21"
-    },
-    "scripts/tests/test_review.py": {
-      "sha": "f1976cf3e1e11e6d491f7c9b0a9a7d52684815dd",
-      "date": "2026-10-21"
-    },
-    "scripts/tests/test_review_tracking.py": {
-      "sha": "13228a480cc5f25af118188794c77314fa354576",
-      "date": "2026-10-16"
     },
     "scripts/tests/test_runners.py": {
       "sha": "a03306f92a9741a98cd365b7822f13756aff8f62",
