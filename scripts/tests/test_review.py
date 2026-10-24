@@ -125,6 +125,140 @@ class ReviewMarksPreCommitTest(CheckTestCase):
                            '        exclude: ^\\.vscode/.*\\.weaudit\n')
         self.assert_pass(self.check())
 
+    def hooks(self, *entries, top=''):
+        """Write a config from (hook id, exclude lines) pairs."""
+        body = ''.join(
+            f'      - id: {hook_id}\n{exclude}' for hook_id, exclude in entries)
+        self.fixture.write(
+            '.pre-commit-config.yaml',
+            f'{top}repos:\n  - repo: local\n    hooks:\n{body}')
+
+    # Spelled out rather than read from review.py, so that dropping an id
+    # from the list under test cannot also drop it from the test.
+    REWRITING_HOOKS = ('end-of-file-fixer', 'trailing-whitespace', 'mixed-line-ending',
+                       'pretty-format-json', 'file-contents-sorter')
+
+    def test_each_rewriting_hook_id_is_recognised(self):
+        """Every id in the list makes the check apply, and fail unprotected."""
+        for hook_id in self.REWRITING_HOOKS:
+            with self.subTest(hook=hook_id):
+                self.fixture.write('.vscode/review-scope.toml', 'include = ["*.py"]\n')
+                self.config('', hooks=hook_id)
+                self.assert_fail(self.check(), containing=hook_id)
+
+    def test_per_hook_exclude_passes_on_each_rewriting_hook(self):
+        for hook_id in self.REWRITING_HOOKS:
+            with self.subTest(hook=hook_id):
+                self.adopt()
+                self.hooks((hook_id, '        exclude: ^\\.vscode/.*\\.weaudit\n'))
+                self.assert_pass(self.check())
+
+    def test_exclude_on_an_unrelated_hook_fails(self):
+        """An exclude on gitleaks does nothing for end-of-file-fixer."""
+        self.adopt()
+        self.hooks(('gitleaks', '        exclude: ^\\.vscode/.*\\.weaudit\n'),
+                   ('end-of-file-fixer', ''))
+        self.assert_fail(self.check(), containing='end-of-file-fixer')
+
+    def test_exclude_on_a_hook_before_the_rewriting_hook_does_not_leak(self):
+        self.adopt()
+        self.hooks(('check-yaml', '        exclude: ^\\.vscode/.*\\.weaudit\n'),
+                   ('trailing-whitespace', ''))
+        self.assert_fail(self.check(), containing='trailing-whitespace')
+
+    def test_only_the_protected_rewriting_hook_passes(self):
+        """Two rewriting hooks, one protected: the other still rewrites the marks."""
+        self.adopt()
+        self.hooks(('end-of-file-fixer', '        exclude: ^\\.vscode/.*\\.weaudit\n'),
+                   ('trailing-whitespace', ''))
+        result = self.check()
+        self.assert_fail(result, containing='trailing-whitespace')
+        self.assertNotIn('end-of-file-fixer', result['details'])
+
+    def test_both_rewriting_hooks_protected_passes(self):
+        self.adopt()
+        exclude = '        exclude: ^\\.vscode/.*\\.weaudit\n'
+        self.hooks(('end-of-file-fixer', exclude), ('trailing-whitespace', exclude))
+        self.assert_pass(self.check())
+
+    def test_top_level_exclude_protects_every_rewriting_hook(self):
+        self.adopt()
+        self.hooks(('end-of-file-fixer', ''), ('trailing-whitespace', ''),
+                   top='exclude: ^\\.vscode/.*\\.weaudit\n')
+        self.assert_pass(self.check())
+
+    def test_block_scalar_exclude_matching_the_marks_passes(self):
+        self.adopt()
+        self.hooks(('end-of-file-fixer',
+                    '        exclude: |\n'
+                    '          (?x)^(\n'
+                    '            docs/generated/|\n'
+                    '            \\.vscode/.*\\.weaudit\n'
+                    '          )\n'))
+        self.assert_pass(self.check())
+
+    def test_block_scalar_exclude_not_matching_the_marks_fails(self):
+        """The `|` indicator is not the pattern, which as a regex matches everything."""
+        self.adopt()
+        self.hooks(('end-of-file-fixer',
+                    '        exclude: |\n'
+                    '          (?x)^(\n'
+                    '            docs/generated/|\n'
+                    '            vendor/\n'
+                    '          )$\n'))
+        self.assert_fail(self.check(), containing='end-of-file-fixer')
+
+    def test_every_block_scalar_indicator_is_read_as_text(self):
+        for indicator in ('|', '>', '|-', '>-', '|+', '>+', '| # why'):
+            with self.subTest(indicator=indicator):
+                self.adopt()
+                self.hooks(('end-of-file-fixer',
+                            f'        exclude: {indicator}\n'
+                            '          ^vendor/\n'))
+                self.assert_fail(self.check(), containing='end-of-file-fixer')
+
+    def test_literal_block_scalar_keeps_its_trailing_newline(self):
+        """`|` ends the pattern in a newline pre-commit would try to match; `|-` does not."""
+        self.adopt()
+        self.hooks(('end-of-file-fixer',
+                    '        exclude: |\n'
+                    '          ^\\.vscode/.*\\.weaudit\n'))
+        self.assert_fail(self.check(), containing='end-of-file-fixer')
+        self.hooks(('end-of-file-fixer',
+                    '        exclude: |-\n'
+                    '          ^\\.vscode/.*\\.weaudit\n'))
+        self.assert_pass(self.check())
+
+    def test_folded_block_scalar_joins_its_lines_with_a_space(self):
+        self.adopt()
+        self.hooks(('end-of-file-fixer',
+                    '        exclude: >-\n'
+                    '          ^\\.vscode/\n'
+                    '          .*\\.weaudit\n'))
+        self.assert_fail(self.check(), containing='end-of-file-fixer')
+
+    def test_exclude_nested_inside_another_key_is_not_the_hooks_own(self):
+        self.adopt()
+        self.hooks(('end-of-file-fixer',
+                    '        description:\n'
+                    '          exclude: ^\\.vscode/.*\\.weaudit\n'))
+        self.assert_fail(self.check(), containing='end-of-file-fixer')
+
+    def test_block_scalar_top_level_exclude_matching_the_marks_passes(self):
+        self.adopt()
+        self.hooks(('end-of-file-fixer', ''),
+                   top='exclude: >-\n  ^\\.vscode/.*\\.weaudit\n\n')
+        self.assert_pass(self.check())
+
+    def test_hook_lookalikes_inside_a_block_scalar_are_not_hooks(self):
+        """A script body mentioning `- id:` or `exclude:` is not configuration."""
+        self.adopt()
+        self.hooks(('local-script',
+                    '        entry: |\n'
+                    '          echo "- id: end-of-file-fixer"\n'
+                    '          exclude: ^\\.vscode/.*\\.weaudit\n'))
+        self.assert_skip(self.check(), containing='No file-rewriting')
+
     def test_quoted_exclude_passes(self):
         self.adopt()
         self.config("exclude: '^\\.vscode/.*\\.weaudit'\n\n")

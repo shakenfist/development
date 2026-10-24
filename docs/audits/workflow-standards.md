@@ -257,14 +257,18 @@ a blanket exclude is worse than none.
 
 The check applies only where a rewriting hook (`end-of-file-fixer`,
 `trailing-whitespace`, `mixed-line-ending`, `pretty-format-json`,
-`file-contents-sorter`) is configured. It tries each `exclude:` value
-as the regex pre-commit would apply and passes if any one matches both
-`.vscode/<user>.weaudit` and `.vscode/<user>.weaudit-shas.json`, so a
-top-level exclude still counts. A value that does not compile, or
-whose search does not finish within a few seconds, counts as no
-exclude: pre-commit would fail or hang on it too. Repositories without the tooling,
-without a `.pre-commit-config.yaml`, or running no rewriting hook are
-not applicable.
+`file-contents-sorter`) is configured, and requires every such hook
+to be protected: by an `exclude:` on its own entry or by the top-level
+`exclude:`, since an exclude on any other hook (gitleaks, say) does
+nothing for it. An exclude protects the hook if, tried as the regex
+pre-commit would apply, it matches both `.vscode/<user>.weaudit` and
+`.vscode/<user>.weaudit-shas.json`. A YAML block scalar
+(`exclude: |`) is read as the text it holds, not its indicator. A
+value that does not compile, or whose search does not finish within a
+few seconds, counts as no exclude: pre-commit would fail or hang on it
+too. Repositories without the tooling, without a
+`.pre-commit-config.yaml`, or running no rewriting hook are not
+applicable.
 
 ### PyPI caching
 
