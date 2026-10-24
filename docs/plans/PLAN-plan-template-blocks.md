@@ -91,7 +91,7 @@ landed; how is under *Push audit*.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. Implementation: blocks, check and spec | Complete | `2468dda`, `5918f5b` direct; `5b1fb74` (#49), `ff92357` (#50), landed and audited by `PLAN-push-audit-phase`, which also records them |
+| 1. Implementation: blocks, check and spec | Complete | `2468dda`, `5918f5b` direct; `5b1fb74` (#49) and `ff92357` (#50) are recorded and audited under `PLAN-push-audit-phase` |
 | 2. Migration | Complete | shakenfist `0f21df0` (#3785), ryll `1a7b47e` (#281), kerbside `b29e01f` (#327), divergulent `70b2a8f` (#67), instar `cbcdd2a` (#500), uncalibrated-sextant `d81eb69` (#5), occystrap `b1438e9` (#115), client-python-k3s `12dbacd` (#30) |
 | 3. Verification | Complete | n/a -- confirmations against scratch copies, no commit |
 | 4. Push audit | In progress | |
@@ -570,6 +570,10 @@ stand, and this session may push and open the pull request.
 
 ### Outcome
 
+Line references in this section, the survey and the step plan are as
+of `aa8d259`, the `main` this phase branched from; the findings pull
+request will move many of them.
+
 Nothing blocking. Wave 1 passed. The floor checklist over the eight
 migration pull requests found nothing. Wave 2 raised one
 medium-severity defect and a set of advisory ones, most of them in
@@ -700,7 +704,7 @@ with its number and closes out row 4 as decision 7 says.
 **Filed as issues:**
 
 * development#309: `PUSH-AUDIT.md:150`'s `--name-only` (4a), and
-  `PLAN-TEMPLATE.md:229`, which still says every diff command is
+  `PLAN-TEMPLATE.md:230-233`, which still says every diff command is
   written against `main...HEAD` (4e).
 * development#310: three places where the blocks leave a planner unsure
   what to do, all in wording other plans own (4e):
