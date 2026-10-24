@@ -44,7 +44,8 @@ the workflow does not work without them.
   git cannot see what the import wrote, so the script fails the run
   rather than import the same reviews every day and commit none.
 - **The `paths-ignore` block** in the code-shaped workflows (step 8),
-  so that the bot's commit does not start the expensive CI lanes.
+  so that the bot's commit does not start the expensive CI lanes. It
+  lists the review state only, never `.vscode/review-scope.toml`.
 - **Optionally, a `DEPENDENCIES_TOKEN` secret.** A repository whose
   default branch ruleset requires a pull request needs it: GitHub
   does not accept the built-in Actions app as a bypass actor, so the
@@ -184,16 +185,19 @@ run against this repository is a no-op that says so and exits zero.
 
 ## Projects using these templates
 
-The repositories adopted into review tracking. The Templates
-column says whether a repository runs these files yet, or still
-carries its earlier, per-repository copies pending the rollout
-[PLAN-review-import.md](https://github.com/shakenfist/development/blob/main/docs/plans/PLAN-review-import.md)
-describes.
+The repositories adopted into review tracking. The
+`review-tracking-templates` consistency audit
+([criterion](https://github.com/shakenfist/development/blob/main/docs/audits/review-tracking-templates.md))
+fails any of them whose copies are not byte-identical to these files,
+so a template change is not finished until every row below is
+re-synced.
 
-| Project | Default branch | Token | Templates |
-|---------|----------------|-------|-----------|
-| [actions](https://github.com/shakenfist/actions) | `main` | `GITHUB_TOKEN` | pending |
-| [development](https://github.com/shakenfist/development) | `main` | `GITHUB_TOKEN` | adopted |
-| [hunkydory](https://github.com/shakenfist/hunkydory) | `develop` | `DEPENDENCIES_TOKEN` | pending |
-| [kerbside](https://github.com/shakenfist/kerbside) | `develop` | `DEPENDENCIES_TOKEN` | pending |
-| [ryll](https://github.com/shakenfist/ryll) | `develop` | `DEPENDENCIES_TOKEN` | pending |
+| Project | Default branch | Token |
+|---------|----------------|-------|
+| [actions](https://github.com/shakenfist/actions) | `main` | `GITHUB_TOKEN` |
+| [development](https://github.com/shakenfist/development) | `main` | `GITHUB_TOKEN` |
+| [hunkydory](https://github.com/shakenfist/hunkydory) | `develop` | `DEPENDENCIES_TOKEN` |
+| [kerbside](https://github.com/shakenfist/kerbside) | `develop` | `DEPENDENCIES_TOKEN` |
+| [kerbside-client](https://github.com/shakenfist/kerbside-client) | `develop` | `GITHUB_TOKEN` |
+| [ryll](https://github.com/shakenfist/ryll) | `develop` | `DEPENDENCIES_TOKEN` |
+| [sfui](https://github.com/shakenfist/sfui) | `develop` | `GITHUB_TOKEN` |

@@ -203,7 +203,7 @@ attached rather than quietly disappearing from the table.
 | [release-environment-protection.md](release-environment-protection.md) | Every environment a release job names exists, has a required reviewer, and deploys only from tags |
 | [merge-group-cancellation.md](merge-group-cancellation.md) | Superseded merge group runs are cancelled, not left building clouds |
 | [security-sanitization.md](security-sanitization.md) | HTTP header and file path sanitization |
-| [workflow-standards.md](workflow-standards.md) | Permissions, naming, self-hosted runners, static runner tags, vm runner size, devpi cache fallback, devpi cache address, linting, PIPESTATUS, flake8wrap |
+| [workflow-standards.md](workflow-standards.md) | Permissions, naming, self-hosted runners, static runner tags, vm runner size, devpi cache fallback, devpi cache address, linting, review marks, review scope, PIPESTATUS, flake8wrap |
 | [expensive-lane-path-filter.md](expensive-lane-path-filter.md) | Expensive PR lanes skip docs-only and review-marks-only changes |
 | [fuzz-nightly-reporting.md](fuzz-nightly-reporting.md) | Fuzz targets run nightly and file issues for crashes, rather than gating the merge queue |
 | [scheduled-workflow-health.md](scheduled-workflow-health.md) | No workflow that fires unattended has failed without ever succeeding |
@@ -231,6 +231,7 @@ attached rather than quietly disappearing from the table.
 | [secret-handling.md](secret-handling.md) | Secret scanner in CI, credentials kept out of logs |
 | [review-coverage.md](review-coverage.md) | Human review backlog stays under threshold in repos with review tracking |
 | [review-scope-completeness.md](review-scope-completeness.md) | Nothing leaves the human review queue by omission from the scope config |
+| [review-tracking-templates.md](review-tracking-templates.md) | The review tracking CI files are byte-identical to their templates |
 | [sfui-vendor.md](sfui-vendor.md) | Vendored sfui copies are verbatim and current |
 | [scope-coverage.md](scope-coverage.md) | Every repository in the organisation is audited or documented as excluded |
 | [eol-distro.md](eol-distro.md) | Nothing runs on, or is built from, a distribution release that has reached end of life |

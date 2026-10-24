@@ -266,6 +266,14 @@ FROZEN_METADATA = {
         'spec': 'docs/audits/review-scope-completeness.md',
         'template': None,
     },
+    'review-tracking-templates': {
+        'spec': 'docs/audits/review-tracking-templates.md',
+        'template': 'templates/review-tracking/',
+    },
+    'review-scope-ci': {
+        'spec': 'docs/audits/workflow-standards.md',
+        'template': None,
+    },
     'sfui-vendor': {'spec': 'docs/audits/sfui-vendor.md', 'template': None},
     'scope-coverage': {
         'spec': 'docs/audits/scope-coverage.md',
@@ -335,6 +343,7 @@ FROZEN_ISSUE_TITLES = {
     'workflow-permissions': 'Workflow standards',
     'pre-commit-config': 'Workflow standards (linting)',
     'review-marks-pre-commit': 'Workflow standards (review marks)',
+    'review-scope-ci': 'Workflow standards (review scope)',
     'flake8wrap': 'Workflow standards (flake8wrap)',
     'self-hosted-runners': 'Workflow standards (self-hosted runners)',
     'static-runner-tags': 'Workflow standards (static runner tags)',
@@ -366,6 +375,7 @@ FROZEN_ISSUE_TITLES = {
     'reusable-workflow-secrets': 'Reusable workflow secrets',
     'review-coverage': 'Human review coverage',
     'review-scope-completeness': 'Human review scope completeness',
+    'review-tracking-templates': 'Review tracking templates',
     'sfui-vendor': 'sfui vendored copy',
     'scope-coverage': 'Audit scope against the organisation',
     'eol-distro': 'End-of-life distributions',
@@ -376,6 +386,7 @@ FROZEN_COLUMN_NAMES = {
     'workflow-permissions': 'Permissions',
     'pre-commit-config': 'Linting',
     'review-marks-pre-commit': 'Review marks',
+    'review-scope-ci': 'Review scope',
     'flake8wrap': 'flake8wrap',
     'self-hosted-runners': 'Runners',
     'static-runner-tags': 'Static tags',

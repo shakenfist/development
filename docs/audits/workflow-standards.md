@@ -270,6 +270,41 @@ too. Repositories without the tooling, without a
 `.pre-commit-config.yaml`, or running no rewriting hook are not
 applicable.
 
+### Review scope changes are reviewed
+
+**Measured** by `review-scope-ci`. In repositories with human review
+tracking deployed, a pull request that changes only
+`.vscode/review-scope.toml` must still reach the automated reviewer.
+The review state (`REVIEWS.md`, `.vscode/*.weaudit` and
+`.vscode/*.weaudit-shas.json`) may skip CI, as step 8 of
+[adopting a repository](../code-review-tracking.md#adopting-a-repository)
+describes. The scope config may not. It is policy: it decides which
+files are subject to review at all, so a pull request that narrows it
+needs the same lint and review as one that changes code.
+
+The check reads every workflow that runs the automated reviewer, which
+is also where the fleet runs lint. A workflow fails if a pull request
+changing only the scope config would skip it, in any of three ways:
+
+* the `pull_request` trigger's `paths-ignore` matches it, reading `!`
+  patterns as GitHub does, with the last match winning;
+* the trigger's `paths` does not match it;
+* a `dorny/paths-filter` job in the workflow excludes it with a `!`
+  pattern.
+
+Patterns are matched with `**` crossing directories and `*` not.
+Every `!` list item in a workflow that uses `dorny/paths-filter` counts
+as a filter exclusion. So an inclusion-style filter (one that lists
+`src/**` and excludes nothing) is not seen, and a `!` re-inclusion in
+that workflow's trigger `paths-ignore` is misread as an exclusion. No
+repository in the fleet has either shape. Repositories without review
+tracking, or with no automated reviewer workflow, are not applicable.
+
+**Reviewed, not measured:** the other workflows. The adoption
+procedure drops the scope config from every workflow's filter, except
+the CodeQL template's, which skips it along with `docs/**` because
+CodeQL analyses neither.
+
 ### PyPI caching
 
 **Reviewed, not measured:** self-hosted runners should use the devpi

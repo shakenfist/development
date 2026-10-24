@@ -92,11 +92,18 @@ The procedure:
      functional test lanes, CodeQL, dependency-pin reconciliation:
      anything whose result cannot change when only review state
      changes. If the workflow backs no required status check, it
-     must carry the trigger-level `paths-ignore` block with all four
-     review paths (`REVIEWS.md`, `.vscode/*.weaudit`,
-     `.vscode/*.weaudit-shas.json`, `.vscode/review-scope.toml`). If
-     it does back a required check, trigger-level `paths-ignore` is
-     the wrong tool -- see step 3.
+     must carry the trigger-level `paths-ignore` block with the
+     three review state paths (`REVIEWS.md`, `.vscode/*.weaudit`,
+     `.vscode/*.weaudit-shas.json`). If it does back a required
+     check, trigger-level `paths-ignore` is the wrong tool -- see
+     step 3.
+   - *The scope config is not review state.* No filter skips
+     `.vscode/review-scope.toml` except CodeQL's, which also skips
+     `docs/**` because CodeQL analyses neither. The scope config
+     decides what is reviewed at all, so a pull request narrowing it
+     must get lint and the automated reviewer. Remove it where an
+     older adoption added it. The `review-scope-ci` audit fails the
+     reviewer's workflow if it skips the file.
    - *Content scanners* -- gitleaks, bidi/zero-width or other
      Unicode smuggling checks, anything that reads prose: these
      must **not** skip review-only changes. Review notes are prose,
@@ -144,5 +151,9 @@ The procedure:
   for review *backlog*; it does not check CI skipping.
 - `docs/audits/review-scope-completeness.md` -- the weekly backstop for
   the review *scope*: nothing leaves the queue by omission.
+- `docs/audits/review-tracking-templates.md` -- the three CI files
+  stay byte-identical to `templates/review-tracking/`.
+- `review-scope-ci` in `docs/audits/workflow-standards.md` -- a
+  scope-only pull request still reaches the automated reviewer.
 - The `pr-re-review` user skill -- bot re-reviews on PRs, unrelated
   to review-state PRs.

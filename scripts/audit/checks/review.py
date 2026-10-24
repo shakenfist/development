@@ -2,7 +2,9 @@
 
 Whether whole-file review is keeping up, whether the scope list still
 covers everything, whether a pre-commit hook is quietly rewriting the
-files a review mark attests to -- and whether a vendored copy of sfui
+files a review mark attests to, whether a change to the scope list is
+itself reviewed, whether the review tracking CI files are still the
+templates they were copied from -- and whether a vendored copy of sfui
 still matches the commit it claims.
 
 sfui-vendor is here because it is the same question in a different
@@ -18,6 +20,7 @@ import tempfile
 
 from audit.check import Check, ToolFailure, run_tool
 from audit.github import environment_without_credentials
+from audit.repo import read_within
 from audit.text.patterns import bounded_search
 
 
@@ -212,6 +215,30 @@ REVIEW_TRACKING_SCRIPT = os.path.join(
         os.path.abspath(__file__)))),
     'review-tracking.py',
 )
+
+
+# This repository's checkout, whose templates the copies elsewhere are
+# compared with.
+DEVELOPMENT_ROOT = os.path.realpath(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+REVIEW_TRACKING_TEMPLATE_DIR = 'templates/review-tracking'
+
+# Each review tracking CI template, and where an adopting repository
+# keeps its copy. templates/review-tracking/README.md says why a copy
+# must be byte-identical: a review mark attests to a blob SHA, so only
+# an identical copy imports this repository's review of the template.
+REVIEW_TRACKING_TEMPLATE_COPIES = (
+    ('prune-reviews.yml', '.github/workflows/prune-reviews.yml'),
+    ('ci-prune-reviews.sh', 'tools/ci-prune-reviews.sh'),
+    ('review-tracking.sh', 'tools/review-tracking.sh'),
+)
+
+# The one copy that deliberately differs: development's own wrapper
+# runs the script in its own tree rather than searching for a clone of
+# itself (see the README's "This repository").
+REVIEW_TRACKING_TEMPLATE_EXCEPTIONS = {
+    ('development', 'tools/review-tracking.sh'),
+}
 
 
 # sfui (the Shaken Fist web UI design system) is vendored into
@@ -451,6 +478,56 @@ class ReviewScopeCompleteness(Check):
             f'{len(orphans)} tracked file(s) are out of review scope '
             f'only because no include pattern in '
             f'.vscode/review-scope.toml names them', missing=orphans)
+
+
+class ReviewTrackingTemplates(Check):
+    id = 'review-tracking-templates'
+    spec = 'docs/audits/review-tracking-templates.md'
+    template = 'templates/review-tracking/'
+    issue_title = 'Review tracking templates'
+
+    def run(self, repo):
+        """Check the review tracking CI files are byte-identical to the templates.
+
+        Applies to repositories with review tracking deployed, detected
+        the same way ReviewCoverage does. Bytes rather than text,
+        because what matters is the blob: a copy that differs only in
+        its line endings reads as the same text, and still cannot import
+        this repository's review of the template. A copy that is
+        missing fails too, since the adoption procedure installs all
+        three.
+        """
+        if not repo.exists('.vscode/review-scope.toml'):
+            return self.skip(
+                'Human review tracking not deployed '
+                '(no .vscode/review-scope.toml)')
+
+        problems = []
+        compared = 0
+        for name, destination in REVIEW_TRACKING_TEMPLATE_COPIES:
+            if (repo.name, destination) in REVIEW_TRACKING_TEMPLATE_EXCEPTIONS:
+                continue
+            template = f'{REVIEW_TRACKING_TEMPLATE_DIR}/{name}'
+            canonical = read_within(
+                DEVELOPMENT_ROOT, os.path.join(DEVELOPMENT_ROOT, template),
+                binary=True)
+            if canonical is None:
+                raise ToolFailure(
+                    f'Could not read {template} in the audit\'s own checkout')
+            compared += 1
+            copy = repo.read_blob(destination)
+            if copy is None:
+                problems.append(f'{destination} is missing')
+            elif copy != canonical:
+                problems.append(f'{destination} differs from {template}')
+
+        if problems:
+            return self.fail(
+                f'{"; ".join(problems)}. Copy them byte for byte from '
+                f'{REVIEW_TRACKING_TEMPLATE_DIR}/ in shakenfist/development')
+        return self.ok(
+            f'{compared} review tracking file(s) match '
+            f'{REVIEW_TRACKING_TEMPLATE_DIR}/')
 
 
 class SfuiVendor(Check):
