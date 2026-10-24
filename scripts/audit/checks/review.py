@@ -20,7 +20,7 @@ import tempfile
 
 from audit.check import Check, ToolFailure, run_tool
 from audit.github import environment_without_credentials
-from audit.repo import read_within
+from audit.repo import READ_MAX_BYTES, read_within
 from audit.text.patterns import bounded_search
 
 
@@ -516,7 +516,14 @@ class ReviewTrackingTemplates(Check):
                     f'Could not read {template} in the audit\'s own checkout')
             compared += 1
             copy = repo.read_blob(destination)
-            if copy is None:
+            # lexists rather than repo.exists(), which hides a link out
+            # of the checkout: here the name being there is the point.
+            if copy is None and os.path.lexists(repo.join(destination)):
+                problems.append(
+                    f'{destination} is not a regular file the audit will '
+                    f'read (a dangling link, a link out of the checkout, a '
+                    f'directory, or over {READ_MAX_BYTES // (1024 * 1024)} MiB)')
+            elif copy is None:
                 problems.append(f'{destination} is missing')
             elif copy != canonical:
                 problems.append(f'{destination} differs from {template}')

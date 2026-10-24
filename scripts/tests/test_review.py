@@ -648,7 +648,20 @@ class ReviewTrackingTemplatesTest(CheckTestCase):
         with open(outside, 'wb') as f:
             f.write(repo_file('templates', 'review-tracking', 'review-tracking.sh'))
         os.symlink(outside, os.path.join(self.fixture.path, 'tools', 'review-tracking.sh'))
-        self.assert_fail(self.check(), containing='tools/review-tracking.sh is missing')
+        self.assert_fail(self.check(), containing='tools/review-tracking.sh is not a regular file the audit will read')
+
+    def test_a_directory_or_dangling_link_is_named_as_such(self):
+        for shape in ('directory', 'dangling link'):
+            with self.subTest(shape=shape):
+                self.fresh_fixture()
+                self.adopt(skip=('tools/review-tracking.sh',))
+                target = os.path.join(self.fixture.path, 'tools', 'review-tracking.sh')
+                if shape == 'directory':
+                    os.mkdir(target)
+                else:
+                    os.symlink('nowhere', target)
+                result = self.assert_fail(self.check(), containing='tools/review-tracking.sh is not a regular file')
+                self.assertNotIn('missing', result['details'])
 
     def test_developments_own_wrapper_is_not_compared(self):
         self.adopt(skip=('tools/review-tracking.sh',))

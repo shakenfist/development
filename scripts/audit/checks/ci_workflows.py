@@ -1482,18 +1482,27 @@ def path_pattern_matches(pattern, path):
     return re.fullmatch(''.join(regex), path) is not None
 
 
-def paths_ignore_skips(entries, path):
-    """Would a paths-ignore list skip a pull request changing only path?
+def path_filter_lists(entries, path):
+    """Does a paths or paths-ignore list, read as GitHub reads it, name path?
 
-    The last matching pattern wins, and a `!` pattern puts back what
-    an earlier one ignored, as GitHub documents.
+    The last matching pattern wins, and a `!` pattern takes back what
+    an earlier one named, in either list. So `['**',
+    '!.vscode/review-scope.toml']` names everything but the scope
+    config, and a later `.vscode/**` names it again.
     """
-    skipped = False
+    listed = False
     for entry in entries:
         negated = entry.startswith('!')
         if path_pattern_matches(entry[1:] if negated else entry, path):
-            skipped = not negated
-    return skipped
+            listed = not negated
+    return listed
+
+
+# A pull_request trigger, in block, flow or scalar form. Not merge_group,
+# which PR_TRIGGER_RE also matches, and not pull_request_target.
+PULL_REQUEST_TRIGGER_RE = re.compile(
+    r'^\s*pull_request:|^on:\s*(?:\[[^\]]*\bpull_request\b|pull_request\s*$)',
+    re.MULTILINE)
 
 
 def reviewer_pull_request_workflows(repo):
@@ -1503,7 +1512,8 @@ def reviewer_pull_request_workflows(repo):
     started by whatever calls it, so its own triggers say nothing. That
     is the shape of shakenfist/actions, whose ci.yml calls its own
     pr-auto-review.yml by a local path. The callers count instead, and
-    a workflow with no pull_request trigger is left out.
+    a workflow with no pull_request trigger is left out: one that runs
+    on merge_group alone reviews nothing before the queue.
 
     Returns the workflow file names, sorted.
     """
@@ -1515,8 +1525,8 @@ def reviewer_pull_request_workflows(repo):
                 for reviewer in reviewers)]
     return sorted(
         wf for wf in set(reviewers) | set(callers)
-        if PR_TRIGGER_RE.search(repo.workflow(wf) or '')
-        or PR_TRIGGER_FLOW_RE.search(repo.workflow(wf) or ''))
+        if PULL_REQUEST_TRIGGER_RE.search(
+            workflow_header(strip_yaml_comments(repo.workflow(wf) or '', trailing=True))))
 
 
 class ReviewScopeCi(Check):
@@ -1535,11 +1545,11 @@ class ReviewScopeCi(Check):
         one that only moves review marks. Measured on the workflows
         that run the automated reviewer, where lint runs too across the
         fleet, by three ways a pull request can skip them (see
-        reviewer_pull_request_workflows for which workflows those are):
+        reviewer_pull_request_workflows for which workflows those are,
+        and path_filter_lists for how a list names a file):
 
-        - the pull_request trigger's paths-ignore matches the file, with
-          GitHub's last-match-wins reading of `!` patterns;
-        - its paths list does not match it;
+        - the pull_request trigger's paths-ignore names the file;
+        - its paths list does not;
         - a dorny/paths-filter job in the workflow excludes it with a
           `!` pattern, which is how a workflow backing a required check
           skips at the job level.
@@ -1565,10 +1575,10 @@ class ReviewScopeCi(Check):
         for wf in reviewers:
             code = strip_yaml_comments(repo.workflow(wf) or '', trailing=True)
             pr_ignore, pr_include = pull_request_path_filters(code)
-            if pr_ignore is not None and paths_ignore_skips(path_filter_entries(pr_ignore), REVIEW_SCOPE_PATH):
+            if pr_ignore is not None and path_filter_lists(path_filter_entries(pr_ignore), REVIEW_SCOPE_PATH):
                 offenders.append(f'{wf} (pull_request paths-ignore skips it)')
-            elif pr_include is not None and not any(
-                    path_pattern_matches(entry, REVIEW_SCOPE_PATH) for entry in path_filter_entries(pr_include)):
+            elif pr_include is not None and not path_filter_lists(path_filter_entries(pr_include),
+                                                                  REVIEW_SCOPE_PATH):
                 offenders.append(f'{wf} (pull_request paths does not include it)')
             elif 'paths-filter' in code and any(
                     entry.startswith('!') and path_pattern_matches(entry[1:], REVIEW_SCOPE_PATH)

@@ -326,13 +326,16 @@ did not write.
    place secrets or Unicode smuggling could land.
 
    Skip the review state only: `REVIEWS.md` and the two weAudit
-   files. Leave `.vscode/review-scope.toml` out of every filter but
-   CodeQL's. It is policy rather than review state, since it decides
-   which files are reviewed at all, so a pull request that narrows it
-   needs lint and the automated reviewer like any other change. The
-   `review-scope-ci` audit checks this for the workflow that runs the
-   automated reviewer. A scope-only pull request therefore pays for a
-   full CI run, which happens a few times a year in a repository.
+   files. Leave `.vscode/review-scope.toml` out of every pull
+   request filter but CodeQL's. It is policy rather than review
+   state, since it decides which files are reviewed at all, so a pull
+   request that narrows it needs lint and the automated reviewer like
+   any other change. The `review-scope-ci` audit checks this for the
+   workflow that runs the automated reviewer. A scope-only pull
+   request therefore pays for a full CI run, which happens a few
+   times a year in a repository. A workflow that runs only after a
+   merge, such as a canary on push to the default branch, may still
+   skip it: by then the change has been linted and reviewed.
 
    For a workflow whose checks are **not** required, a trigger-level
    `paths-ignore` is the simple answer:

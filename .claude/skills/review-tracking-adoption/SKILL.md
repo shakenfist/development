@@ -97,8 +97,8 @@ The procedure:
      `.vscode/*.weaudit-shas.json`). If it does back a required
      check, trigger-level `paths-ignore` is the wrong tool -- see
      step 3.
-   - *The scope config is not review state.* No filter skips
-     `.vscode/review-scope.toml` except CodeQL's, which also skips
+   - *The scope config is not review state.* No pull request filter
+     skips `.vscode/review-scope.toml` except CodeQL's, which also skips
      `docs/**` because CodeQL analyses neither. The scope config
      decides what is reviewed at all, so a pull request narrowing it
      must get lint and the automated reviewer. Remove it where an

@@ -456,6 +456,30 @@ class ReviewScopeCiTest(CheckTestCase):
         self.assert_fail(self._check("    paths:\n      - 'src/**'\n"),
                          containing='ci.yml (pull_request paths does not include it)')
 
+    def test_a_negation_in_an_inclusion_list_is_read(self):
+        self.assert_fail(self._check("    paths:\n      - '**'\n      - '!.vscode/review-scope.toml'\n"),
+                         containing='pull_request paths does not include it')
+        self.fresh_fixture()
+        self.assert_pass(self._check("    paths:\n      - '!.vscode/review-scope.toml'\n      - '.vscode/**'\n"))
+
+    def test_a_reviewer_run_only_by_the_merge_queue_is_not_applicable(self):
+        self.fixture.write('.vscode/review-scope.toml', 'include = []\n')
+        self.fixture.workflows({'ci.yml': 'on:\n  merge_group:\n' + REVIEWER_WORKFLOW})
+        self.assert_skip(self.check(), containing='runs on pull_request')
+
+    def test_every_pull_request_trigger_form_is_read(self):
+        for on in ('on: [push, pull_request]\n', 'on: pull_request\n', 'on:\n  pull_request:\n    branches: [main]\n'):
+            with self.subTest(on=on):
+                self.fresh_fixture()
+                self.fixture.write('.vscode/review-scope.toml', 'include = []\n')
+                self.fixture.workflows({'ci.yml': on + REVIEWER_WORKFLOW})
+                self.assert_pass(self.check())
+
+    def test_pull_request_target_is_not_a_pull_request_trigger(self):
+        self.fixture.write('.vscode/review-scope.toml', 'include = []\n')
+        self.fixture.workflows({'ci.yml': 'on:\n  pull_request_target:\n' + REVIEWER_WORKFLOW})
+        self.assert_skip(self.check(), containing='runs on pull_request')
+
     def test_an_inclusion_list_covering_the_scope_config_passes(self):
         self.assert_pass(self._check("    paths:\n      - 'src/**'\n      - '.vscode/review-scope.toml'\n"))
 

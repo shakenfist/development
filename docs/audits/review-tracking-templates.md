@@ -16,7 +16,9 @@ carry three CI files copied from
 Each copy must be byte-identical to its template on the audited
 repository's default branch. The check compares bytes, not text, so a
 copy that differs only in its line endings fails. A missing copy
-fails too: the adoption procedure installs all three. Repositories
+fails too, since the adoption procedure installs all three, and so
+does one the audit will not read: a link, dangling or out of the
+checkout, a directory, or a file over the 2 MiB read cap. Repositories
 without a `.vscode/review-scope.toml` do not have the tooling deployed
 and are reported as not applicable.
 
