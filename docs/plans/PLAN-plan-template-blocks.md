@@ -87,8 +87,8 @@ landed; how is under *Push audit*.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. Implementation: blocks, check and spec | Complete | `2468dda`, `5918f5b` direct; `5b1fb74` (#49), `ff92357` (#50) |
-| 2. Migration | Complete | eight repositories, one pull request each; see *Push audit* |
+| 1. Implementation: blocks, check and spec | Complete | `2468dda`, `5918f5b` direct; `5b1fb74` (#49), `ff92357` (#50), landed and audited by `PLAN-push-audit-phase`, which also records them |
+| 2. Migration | Complete | shakenfist `0f21df0` (#3785), ryll `1a7b47e` (#281), kerbside `b29e01f` (#327), divergulent `70b2a8f` (#67), instar `cbcdd2a` (#500), uncalibrated-sextant `d81eb69` (#5), occystrap `b1438e9` (#115), client-python-k3s `12dbacd` (#30) |
 | 3. Verification | Complete | n/a -- confirmations against scratch copies, no commit |
 | 4. Push audit | In progress | |
 
@@ -216,8 +216,9 @@ review before eight copies of it exist.
   added. Re-confirmed on 2026-10-24 at ten blocks, after
   `plan-phase-landing` joined `PLAN_TEMPLATE_BLOCKS`: run against
   fresh clones of all eleven other repositories carrying a
-  template, andris, kerbside-patches, occystrap, private-ci and
-  shakenfist pass, as does this repository.
+  template. Of those, andris, kerbside-patches, occystrap,
+  private-ci and shakenfist pass, as does this repository; the other
+  six are covered by the next two bullets.
 * Bumping a block version marks the embedding repository stale, and
   names the block that moved. Confirmed, and since confirmed in the
   field twice: the `plan-file-conventions` v2 bump (`d0ab9d4`,
@@ -308,7 +309,10 @@ wrong on exactly that.
 In: wave 1 and wave 2 of this repository's `PUSH-AUDIT.md` over
 this plan's two direct landings and the code that succeeds them; the
 push-audit floor checklist over the eight migration pull requests;
-the triage and outcome record; and closing the plan out.
+the triage and outcome record; and closing the plan out. The
+subject widened during execution to the whole of `PlanIndex`,
+`docs/audits/plan-index.md` and their tests, once wave 1 showed
+that `5918f5b` created that criterion; see *Execution notes*.
 
 Out: `5b1fb74` (#49) and `ff92357` (#50), already audited (decision
 2); `plan-phase-landing`, the v2 and v4 bumps and every
@@ -462,6 +466,74 @@ The two direct landings touch 17 distinct paths between them.
 | 4f | high | opus | none | Wave 2d, security review, per the 2d brief in `PUSH-AUDIT.md`, over the same live subject as 4c, with the historical diffs as context. The blast radius is other repositories' issue trackers: `validate_shared_blocks` reads `PLAN-TEMPLATE.md` from repositories this one does not control, and its detail strings go into issue bodies filed and rewritten by `audit-manage-issues.py`. Establish whether any part of a detail string is taken from the scanned file rather than from `PLAN_TEMPLATE_BLOCKS` -- a block name or version read from a crafted marker -- and if so whether it can carry an `@` mention, a closing keyword, a link or markdown that changes the issue body. Establish whether `load_canonical_block` can ever be called with a name from scanned content, and if so whether `../` escapes `templates/shared-blocks/`. Consider what a very large or pathological template does to the marker regex. Apply the `path-traversal-review` shared block. Report, do not fix. No commit. |
 | 4g | high | opus | none | Management triage, in the session rather than a sub-agent. First check each report states the totals it read, and that 4a's match the *Landing record*; re-run any that do not. Decide each finding blocking, advisory or declined, and write an **Outcome** subsection here: what 4a and 4b found, what each wave 2 agent found, and for every finding where it was fixed or why it was declined. If all are clean, one sentence saying so. Work the `PUSH-AUDIT.md` management checklist. Fixes land as their own pull request against `main`. Close out per decision 7. Commit subject: "Record the plan template blocks push audit." |
 
+### Risks and mitigations
+
+* **An empty diff read as a clean audit.** Already-merged work
+  under the runbook's `origin/main...HEAD` default diffs nothing.
+  Mitigation: every brief carries its concrete range, every report
+  states its totals, and 4g refuses a report whose totals do not
+  match the table.
+* **Wave 1 greps that cannot fire, reported as clean.** Several
+  greps name paths that postdate these commits. Mitigation: 4a must
+  say per grep whether it could have fired, and run the underlying
+  question against the paths that existed; 4g checks that it did.
+* **Decision 3 misses a defect that existed only in the original
+  code.** If it was translated faithfully it is in the class and
+  wave 2 sees it; if it was not, the restructure fixed it.
+  Mitigation: 4c reads both commits for intent, and a behaviour the
+  original promised that the class does not deliver is itself a
+  finding.
+* **A fix to a canonical block files issues fleet-wide.**
+  Mitigation: no step edits `templates/shared-blocks/`; 4g decides
+  any bump deliberately, in the findings pull request, and states
+  how many repositories it newly fails.
+
+### Definition of done
+
+* Every report from 4a to 4f states the totals it read, and 4a's
+  are `628 4 14` and `696 4 9` with a 17-path union. Reproducible
+  with:
+
+  ```
+  for r in 2468dda^..2468dda 5918f5b^..5918f5b; do
+      git diff --numstat $r | awk '{i+=$1; d+=$2} END {print i, d, NR}'
+  done
+  for r in 2468dda^..2468dda 5918f5b^..5918f5b; do
+      git diff --numstat $r; done | cut -f3 | sort -u | wc -l
+  ```
+
+* This section has an **Outcome** subsection giving a verdict for
+  every finding, or one sentence saying there were none.
+* Every row of the *Landing record* matches `gh pr view` or
+  `git cat-file -p`, and 4b's report covers all eight pull
+  requests.
+* Row 4 of *Execution* and the plan's row in `docs/plans/index.md`
+  are `Complete`, set as decision 7 says and not before.
+* `python3 scripts/audit-check.py --repo-path . --repo-name
+  development` reports every `plan-*` check as it did on
+  2026-10-24 (pass, or `not_applicable` for
+  `plan-source-references`).
+* `pre-commit run --all-files` passes.
+
+### Future work
+
+* uncalibrated-sextant#12: three blocks missing from its
+  `PLAN-TEMPLATE.md`, and four other consistency issues open there
+  since September. consistency-fix work, with no owner while the
+  repository is dormant.
+* `docs/audits/compliance.md` is regenerated weekly and lags the
+  daily issue state, so it showed occystrap non-compliant a week
+  after occystrap#157 closed. Worth knowing before trusting it as a
+  survey source; not this plan's to fix.
+
+### Back brief
+
+Before running 4a, back brief the operator: which ranges each step
+reads, why #49 and #50 are cited rather than re-run, and why wave 2
+reads the live code rather than the historical diff. Decisions 2, 3
+and 4 narrow the audit, and a narrowing is cheap to agree before the
+agents run and expensive to discover afterwards.
+
 ### Execution notes
 
 Run on 2026-10-24 between 02:20 and 02:50 UTC, from the management
@@ -494,7 +566,10 @@ medium-severity defect and a set of advisory ones, most of them in
 the shared-block validator that `2468dda` pointed at
 `PLAN-TEMPLATE.md`. The fixes are listed below and land as one
 findings pull request against `main`. That pull request also carries
-the close-out under decision 7. Problems that predate this plan, or
+the close-out under decision 7. Blocking here would mean holding a
+push, and the code under audit has been on `main` since August, so
+severity decides the order of the fixes, not whether this record
+merges. Problems that predate this plan, or
 that belong to another plan's blocks, are filed as issues rather
 than treated as findings.
 
@@ -525,7 +600,9 @@ record*.
   every default branch today, so no consumer was stranded.
 * Items 2 and 5 of the floor checklist do not apply to a prose file.
 
-**Fixed in the findings pull request:**
+**To be fixed in the findings pull request, not yet opened.** When
+it opens, it replaces this heading with its number and merge commit,
+and fills row 4's `Merged` cell, as decision 7 says.
 
 1. **The block extractor uses memory that grows with the square of
    its input.** This is medium severity, from 4f, reproduced here.
@@ -651,73 +728,6 @@ record*.
   table with no Status column passing "with statuses from the shared
   vocabulary", `2026-99-99` passing the date check, and `has_plans`
   being set by any link. Each is a message or an edge case, and no
-  report saw any of them give a wrong verdict on a real index. They are recorded
-  here so that a later change to the reader can pick them up.
-
-### Risks and mitigations
-
-* **An empty diff read as a clean audit.** Already-merged work
-  under the runbook's `origin/main...HEAD` default diffs nothing.
-  Mitigation: every brief carries its concrete range, every report
-  states its totals, and 4g refuses a report whose totals do not
-  match the table.
-* **Wave 1 greps that cannot fire, reported as clean.** Several
-  greps name paths that postdate these commits. Mitigation: 4a must
-  say per grep whether it could have fired, and run the underlying
-  question against the paths that existed; 4g checks that it did.
-* **Decision 3 misses a defect that existed only in the original
-  code.** If it was translated faithfully it is in the class and
-  wave 2 sees it; if it was not, the restructure fixed it.
-  Mitigation: 4c reads both commits for intent, and a behaviour the
-  original promised that the class does not deliver is itself a
-  finding.
-* **A fix to a canonical block files issues fleet-wide.**
-  Mitigation: no step edits `templates/shared-blocks/`; 4g decides
-  any bump deliberately, in the findings pull request, and states
-  how many repositories it newly fails.
-
-### Definition of done
-
-* Every report from 4a to 4f states the totals it read, and 4a's
-  are `628 4 14` and `696 4 9` with a 17-path union. Reproducible
-  with:
-
-  ```
-  for r in 2468dda^..2468dda 5918f5b^..5918f5b; do
-      git diff --numstat $r | awk '{i+=$1; d+=$2} END {print i, d, NR}'
-  done
-  for r in 2468dda^..2468dda 5918f5b^..5918f5b; do
-      git diff --numstat $r; done | cut -f3 | sort -u | wc -l
-  ```
-
-* This section has an **Outcome** subsection giving a verdict for
-  every finding, or one sentence saying there were none.
-* Every row of the *Landing record* matches `gh pr view` or
-  `git cat-file -p`, and 4b's report covers all eight pull
-  requests.
-* Row 4 of *Execution* and the plan's row in `docs/plans/index.md`
-  are `Complete`, set as decision 7 says and not before.
-* `python3 scripts/audit-check.py --repo-path . --repo-name
-  development` reports every `plan-*` check as it did on
-  2026-10-24 (pass, or `not_applicable` for
-  `plan-source-references`).
-* `pre-commit run --all-files` passes.
-
-### Future work
-
-* uncalibrated-sextant#12: three blocks missing from its
-  `PLAN-TEMPLATE.md`, and four other consistency issues open there
-  since September. consistency-fix work, with no owner while the
-  repository is dormant.
-* `docs/audits/compliance.md` is regenerated weekly and lags the
-  daily issue state, so it showed occystrap non-compliant a week
-  after occystrap#157 closed. Worth knowing before trusting it as a
-  survey source; not this plan's to fix.
-
-### Back brief
-
-Before running 4a, back brief the operator: which ranges each step
-reads, why #49 and #50 are cited rather than re-run, and why wave 2
-reads the live code rather than the historical diff. Decisions 2, 3
-and 4 narrow the audit, and a narrowing is cheap to agree before the
-agents run and expensive to discover afterwards.
+  report saw any of them give a wrong verdict on a real index. They
+  are recorded here so that a later change to the reader can pick
+  them up.
