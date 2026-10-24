@@ -316,6 +316,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      # persist-credentials stays at its default here, unlike every
+      # other checkout in this file: commit-audit-docs.sh pushes the
+      # page with the GITHUB_TOKEN it leaves in the clone.
       - name: Checkout development repo
         uses: actions/checkout@v7
 

@@ -1031,7 +1031,7 @@ actions groups the same way, in 5f:
 | 5c-2c-3 | the "will be closed when this PR merges" text | med | fix | actions#175 | A2 |
 | 5c-2c-4 | the diff-too-large advice | low | fix | actions#175 | A5 |
 | 5c-2c-5 | examples without timeouts | low | fix | actions#175 | A5 |
-| 5c-2c-6 | caller requirements missing | low | fix | actions#175, actions#175 | A5. `issues: write` is no longer one, after A2 |
+| 5c-2c-6 | caller requirements missing | low | fix | actions#175 | A5. `issues: write` is no longer one, after A2 |
 | 5c-2c-7 | stale `pr-ref` descriptions | low | fix | actions#175 | A5 |
 | 5c-2c-8 | same-repository `pull_request` only | low | fix | actions#175 | A5 |
 | 5c-2c-9 | `ARCHITECTURE.md:62-63` | low | fix | actions#175 | A5 |
@@ -1040,7 +1040,7 @@ actions groups the same way, in 5f:
 | 5c-2d-2 | the PR tree's `.claude/settings.json` hooks ran | med | fix | actions#168 | Fast-tracked: actions#168. Confirmed on a scratch repository with CLI 2.1.301 |
 | 5c-2d-3 | `pr-auto-review.yml` checkout credentials | low | fix | actions#168 | Fast-tracked: actions#168 |
 | 5c-2d-4 | issue spam; mentions in the rendered review | low | fix | actions#175, actions#174 | A2 removes the issues. Breaking mentions in `render-review.py` goes in A4 |
-| 5c-2d-5 | a fork PR can bring its own job to the self-hosted pool | info | cross-reference | - | An operator check, not code. Confirm org-wide approval for every outside collaborator, and that the `claude-code` runner group is restricted to selected workflows. Confirmed by the operator on 2026-10-24 |
+| 5c-2d-5 | a fork PR can bring its own job to the self-hosted pool | info | cross-reference | - | An operator check, not code. Confirm org-wide approval for every outside collaborator, and that the `claude-code` runner group is restricted to selected workflows. Confirmed by the operator on 2026-10-24. Both settings need `admin:org` to read, so this records the operator's confirmation rather than an observed state |
 
 **Summary.** 111 findings:
 
@@ -1091,7 +1091,10 @@ Closed out on 2026-10-24, once every fix group had merged.
   passed, with both writing jobs on VM runners, which was also #280's
   owed check. No issue changed state in that run, so it shows the new
   token can list issues fleet-wide; the next run that files or closes
-  one is the first to use it for writing.
+  one is the first to use it for writing. A refused write fails
+  `manage-issues`, and `report-failure`, which holds only
+  `GITHUB_TOKEN`, then files its issue, so that run reports the
+  outcome either way.
 - `docs/consistency-audits.md` said `AUDIT_TOKEN` pushes the compliance
   page. It does not: `update-docs` pushes with the job's own
   `GITHUB_TOKEN`. That sentence, and the matching workflow comment,

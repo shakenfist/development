@@ -165,8 +165,9 @@ issues the page links to; the page itself is pushed by
 `scripts/commit-audit-docs.sh` with the job's own `GITHUB_TOKEN`,
 which `actions/checkout` leaves in the clone and the job's
 `contents: write` permission lets push to this repository alone. The
-same lifetime limit applies, and when it lapses `manage-issues` fails
-and `report-failure` files its issue.
+same lifetime limit applies. When it lapses, `manage-issues` fails
+and `report-failure` files its issue, and `update-docs` still pushes
+the page but renders each issue link it could not look up as `?`.
 
 `AUDIT_TOKEN` is not a repository secret. It is an environment secret
 in the `audit-write` environment, whose deployment branch policy
