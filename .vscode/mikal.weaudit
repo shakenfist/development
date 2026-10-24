@@ -577,23 +577,11 @@
       "author": "mikal"
     },
     {
-      "path": "tools",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/ci.yml",
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/consistency-audit.yml",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/ci-review-automation.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/delete-branch-on-merge.md",
       "author": "mikal"
     },
     {
@@ -721,15 +709,7 @@
       "author": "mikal"
     },
     {
-      "path": "docs/consistency-audits.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/release-automation.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/github_config.py",
       "author": "mikal"
     },
     {
@@ -793,10 +773,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_audit_workflow.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_check_audit_smoke.py",
       "author": "mikal"
     },
@@ -810,10 +786,6 @@
     },
     {
       "path": "scripts/tests/test_docs_content.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_github_config.py",
       "author": "mikal"
     },
     {

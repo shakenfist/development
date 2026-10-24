@@ -41,10 +41,6 @@
       "sha": "975f656d8135aefe12ba2f2094d8671460ef1a8a",
       "date": "2026-10-01"
     },
-    ".github/workflows/consistency-audit.yml": {
-      "sha": "320c76e9dd3aa2ccb6032bf0d2cd507b63651657",
-      "date": "2026-10-19"
-    },
     ".github/workflows/export-repo-config.yml": {
       "sha": "b9b3936053b8685ef0ae47f656b2f35aa62ba637",
       "date": "2026-09-27"
@@ -116,10 +112,6 @@
     "docs/audits/default-branch-naming.md": {
       "sha": "e22c5606cf27d1a34c2af05cd7468c5f251dda64",
       "date": "2026-10-05"
-    },
-    "docs/audits/delete-branch-on-merge.md": {
-      "sha": "2e8c343d7c19ac59c7fdbba306024ab69920cd34",
-      "date": "2026-10-19"
     },
     "docs/audits/dependency-name-normalization.md": {
       "sha": "6ab4f1949fbdc965f14bcd987a4747ac09404d5d",
@@ -341,10 +333,6 @@
       "sha": "b8778a9bcbbd432ea2c13e2551f40134ae75ff44",
       "date": "2026-10-16"
     },
-    "docs/consistency-audits.md": {
-      "sha": "a13948a5294c58905dde6357a30786e2f06429fc",
-      "date": "2026-10-20"
-    },
     "docs/release-automation.md": {
       "sha": "f1b68accf5c567d979be2004064ac2cd285f9025",
       "date": "2026-10-20"
@@ -392,10 +380,6 @@
     "scripts/audit/checks/docs_content.py": {
       "sha": "d23aace6aa4bf6e1db54ade3bd446fb2995ac32e",
       "date": "2026-10-19"
-    },
-    "scripts/audit/checks/github_config.py": {
-      "sha": "12e7c76f7e5d7a3ee9000f6dc1541ce5a3c31b76",
-      "date": "2026-10-20"
     },
     "scripts/audit/checks/llm_docs.py": {
       "sha": "833e40cc0de6afb4aa4fbe580cec3b545c513b51",
@@ -521,10 +505,6 @@
       "sha": "0419d4a8d18b67b54dc834a7387eccbb956489eb",
       "date": "2026-10-18"
     },
-    "scripts/tests/test_audit_workflow.py": {
-      "sha": "8d0f4e2857aaf2b13127ec9bb2485a1410de9576",
-      "date": "2026-10-21"
-    },
     "scripts/tests/test_check_audit_smoke.py": {
       "sha": "11da7b42360c4037b712cc5111b19ce1fd3d1383",
       "date": "2026-10-21"
@@ -547,10 +527,6 @@
     },
     "scripts/tests/test_docs_content.py": {
       "sha": "4ed27b744d34694651da8ef3965d59e68d0ac3dc",
-      "date": "2026-10-21"
-    },
-    "scripts/tests/test_github_config.py": {
-      "sha": "9e488b622c2f9cbfe93aeeb83ac060addca863f3",
       "date": "2026-10-21"
     },
     "scripts/tests/test_hooks.py": {
