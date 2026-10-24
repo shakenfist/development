@@ -108,8 +108,9 @@ def scan_pre_commit_config(text):
     its lines are never read as keys.
 
     Line-based rather than YAML-parsed, matching the rest of this
-    file, which avoids a PyYAML dependency. Flow-style mappings and
-    multi-line quoted scalars are not understood; none of the fleet's
+    file, which avoids a PyYAML dependency. Flow-style mappings,
+    multi-line quoted scalars and a hook written as a bare `-` line
+    with its `id:` on the next are not understood; none of the fleet's
     configs use them.
     """
     lines = text.splitlines()

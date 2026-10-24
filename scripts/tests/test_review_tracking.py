@@ -917,8 +917,9 @@ class ReviewTrackingTest(unittest.TestCase):
         for command in (['stamp'], ['prune'], ['status', '--json'], ['regen']):
             with self.subTest(command=command):
                 p = self.run_tool(*command)
-                self.assert_refused(p, "'.vscode/testuser.weaudit' marks a path that is not a string "
-                                       'or contains a control character')
+                self.assert_refused(p, "'.vscode/testuser.weaudit' marks a path that is not a string, or "
+                                       'that contains a control character or a Unicode line or paragraph '
+                                       'separator')
                 self.assertNotIn('INJECTED', p.stdout + p.stderr)
                 self.assertFalse(os.path.exists(os.path.join(self.repo, 'REVIEWS.md')))
                 for path in state_paths:
@@ -936,6 +937,201 @@ class ReviewTrackingTest(unittest.TestCase):
         reviews = self.read('REVIEWS.md')
         self.assertIn('| src/a.py |', reviews)
         self.assertNotIn('INJECTED', reviews)
+
+    # Every other value that reaches a REVIEWS.md cell is as much a line
+    # of the repository's choosing as a marked path is: the reviewer
+    # (a state file's name), each stamp's date and sha, an imported
+    # entry's strings, and a partial mark's line numbers.
+
+    BREAKS = ('\n', '\u2028')
+
+    def refused_without_writing(self, commands, containing, paths):
+        """Run each command and assert it is refused, one line long, and changed none of paths."""
+        before = {path: self.read(path) for path in paths}
+        for command in commands:
+            with self.subTest(command=command):
+                p = self.run_tool(*command)
+                self.assert_refused(p, containing)
+                self.assertEqual(len(p.stderr.splitlines()), 1, p.stderr)
+                self.assertFalse(os.path.exists(os.path.join(self.repo, 'REVIEWS.md')))
+                for path in paths:
+                    self.assertEqual(self.read(path), before[path])
+
+    def test_a_state_file_with_a_line_break_in_its_name_is_refused(self):
+        for brk in self.BREAKS:
+            with self.subTest(brk=repr(brk)):
+                name = '.vscode/a%sINJECTED.weaudit' % brk
+                self.write(name, json.dumps(make_weaudit(['src/a.py'])))
+                self.refused_without_writing(
+                    [['stamp'], ['prune'], ['status', '--json'], ['regen']],
+                    'has a name containing a control character or a Unicode line or paragraph separator', [name])
+                os.remove(os.path.join(self.repo, name))
+
+    def test_a_stamp_with_a_line_break_in_its_date_or_sha_is_refused(self):
+        self.mark_reviewed(['src/a.py'])
+        for key in ('date', 'sha'):
+            for brk in self.BREAKS:
+                with self.subTest(key=key, brk=repr(brk)):
+                    stamp = {'sha': self.blob('HEAD:src/a.py'), 'date': '2026-01-02'}
+                    stamp[key] += brk + 'INJECTED'
+                    self.write('.vscode/testuser.weaudit-shas.json',
+                               json.dumps({'version': 1, 'files': {'src/a.py': stamp}}))
+                    self.refused_without_writing(
+                        [['stamp'], ['prune'], ['status', '--json'], ['regen']],
+                        "'.vscode/testuser.weaudit-shas.json' holds a stamp",
+                        ['.vscode/testuser.weaudit', '.vscode/testuser.weaudit-shas.json'])
+
+    def test_a_stamp_that_is_not_an_object_is_refused(self):
+        self.mark_reviewed(['src/a.py'])
+        self.write('.vscode/testuser.weaudit-shas.json', json.dumps({'version': 1, 'files': {'src/a.py': 'x'}}))
+        self.refused_without_writing([['regen'], ['status']], "'.vscode/testuser.weaudit-shas.json' holds a stamp",
+                                     ['.vscode/testuser.weaudit-shas.json'])
+
+    def test_an_imports_entry_with_a_line_break_in_a_cell_is_dropped(self):
+        good = {'sha': self.blob('HEAD:src/a.py'), 'date': '2026-01-02',
+                'imported': {'repo': 'shakenfist/development', 'reviewer': 'mikal',
+                             'path': 'src/a.py', 'commit': '0' * 40}}
+        for field in ('sha', 'date', 'reviewer', 'repo', 'path', 'commit'):
+            for brk in self.BREAKS:
+                with self.subTest(field=field, brk=repr(brk)):
+                    bad = json.loads(json.dumps(good))
+                    target = bad if field in ('sha', 'date') else bad['imported']
+                    target[field] += brk + 'INJECTED'
+                    self.write(IMPORTS, json.dumps({'version': 1, 'files': {
+                        'src/a.py': good, 'src/b.py': bad}}))
+                    p = self.run_tool('regen')
+                    self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+                    self.assertIn('entry for src/b.py is malformed', p.stderr)
+                    reviews = self.read('REVIEWS.md')
+                    self.assertIn('| src/a.py |', reviews)
+                    self.assertNotIn('src/b.py', reviews)
+                    self.assertNotIn('INJECTED', reviews)
+
+    def test_a_partial_mark_with_line_numbers_that_are_not_integers_is_refused(self):
+        for start in ('1', True, None, 1.5):
+            with self.subTest(start=start):
+                self.mark_reviewed([], [('src/a.py', start, 2)])
+                self.refused_without_writing(
+                    [['stamp'], ['prune'], ['status', '--json'], ['regen'], ['next', '--no-open']],
+                    'holds a partial mark whose line numbers are not integers', ['.vscode/testuser.weaudit'])
+        state = make_weaudit([], [('src/a.py', 1, 2)])
+        del state['partiallyAuditedFiles'][0]['endLine']
+        self.write('.vscode/testuser.weaudit', json.dumps(state))
+        self.refused_without_writing([['regen']], 'holds a partial mark whose line numbers are not integers', [])
+
+    def test_a_malformed_mark_entry_is_refused_rather_than_a_traceback(self):
+        # An unhashable path, an entry that is not an object, and one with no path.
+        bad_entries = ([{'path': ['x'], 'startLine': 1, 'endLine': 2}], ['x'], [{'startLine': 1, 'endLine': 2}])
+        for key in ('partiallyAuditedFiles', 'auditedFiles'):
+            for entries in bad_entries:
+                with self.subTest(key=key, entries=entries):
+                    state = make_weaudit(['src/a.py'])
+                    state[key] = entries
+                    self.write('.vscode/testuser.weaudit', json.dumps(state))
+                    for command in (['stamp'], ['prune'], ['status', '--json'], ['regen'], ['next', '--no-open']):
+                        p = self.run_tool(*command)
+                        self.assert_refused(p, "'.vscode/testuser.weaudit' ")
+        state = make_weaudit(['src/a.py'])
+        state['auditedFiles'] = {'path': 'src/a.py'}
+        self.write('.vscode/testuser.weaudit', json.dumps(state))
+        self.assert_refused(self.run_tool('regen'), 'is not a list')
+        self.write('.vscode/testuser.weaudit', json.dumps(['src/a.py']))
+        self.assert_refused(self.run_tool('regen'), 'is not a JSON object')
+
+    def run_tool_bounded(self, *args):
+        """Run with a timeout, for a fixture that would hang the tool if it blocked on it."""
+        return subprocess.run([sys.executable, SCRIPT] + list(args), cwd=self.repo,
+                              capture_output=True, text=True, timeout=60)
+
+    def test_reviews_md_that_is_a_fifo_is_refused_rather_than_waited_on(self):
+        os.mkfifo(os.path.join(self.repo, 'REVIEWS.md'))
+        p = self.run_tool_bounded('regen')
+        self.assert_refused(p, "'REVIEWS.md' is not a regular file")
+
+    def test_a_state_file_that_is_a_fifo_is_refused_rather_than_waited_on(self):
+        os.mkfifo(os.path.join(self.repo, '.vscode', 'testuser.weaudit'))
+        p = self.run_tool_bounded('regen')
+        self.assert_refused(p, "'.vscode/testuser.weaudit' is not a regular file")
+
+    def stale_review(self):
+        """Mark src/a.py reviewed with a stamp for other content, which prune would remove and rewrite."""
+        self.mark_reviewed(['src/a.py'])
+        self.write('.vscode/testuser.weaudit-shas.json', json.dumps(
+            {'version': 1, 'files': {'src/a.py': {'sha': '0' * 40, 'date': '2026-01-02'}}}))
+        return ['.vscode/testuser.weaudit', '.vscode/testuser.weaudit-shas.json']
+
+    def test_prune_refused_over_a_reviews_md_symlink_writes_nothing_first(self):
+        paths = self.stale_review()
+        self.write('victim.md', 'original contents\n')
+        os.symlink('victim.md', os.path.join(self.repo, 'REVIEWS.md'))
+        before = {path: self.read(path) for path in paths}
+        p = self.run_tool('prune')
+        self.assert_refused(p, "'REVIEWS.md' is a symlink")
+        for path in paths:
+            self.assertEqual(self.read(path), before[path])
+        self.assertEqual(self.read('victim.md'), 'original contents\n')
+
+    def two_reviewers(self):
+        """A valid first reviewer with a mark to stamp, and the path of a second to break."""
+        self.write('.vscode/alice.weaudit', json.dumps(make_weaudit(['src/a.py'], author='alice')))
+        self.git('add', '-A')
+
+    def test_stamp_refused_over_a_later_reviewer_writes_no_earlier_sidecar(self):
+        self.two_reviewers()
+        broken = {
+            'name': ('.vscode/bob\nX.weaudit', json.dumps(make_weaudit(['src/b.py'], author='bob'))),
+            'stamp': ('.vscode/bob.weaudit', json.dumps(make_weaudit(['src/b.py'], author='bob'))),
+        }
+        for kind, (name, content) in broken.items():
+            with self.subTest(kind=kind):
+                self.write(name, content)
+                if kind == 'stamp':
+                    self.write('.vscode/bob.weaudit-shas.json', json.dumps(
+                        {'version': 1, 'files': {'src/b.py': {'sha': '0' * 40, 'date': 'x\ny'}}}))
+                p = self.run_tool('stamp')
+                self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+                self.assertNotIn('Traceback', p.stderr)
+                self.assertFalse(os.path.exists(os.path.join(self.repo, '.vscode/alice.weaudit-shas.json')))
+                self.assertFalse(os.path.exists(os.path.join(self.repo, 'REVIEWS.md')))
+                os.remove(os.path.join(self.repo, name))
+
+    def test_stamp_refused_over_a_reviews_md_symlink_writes_no_sidecar(self):
+        self.two_reviewers()
+        self.write('victim.md', 'original contents\n')
+        os.symlink('victim.md', os.path.join(self.repo, 'REVIEWS.md'))
+        p = self.run_tool('stamp')
+        self.assert_refused(p, "'REVIEWS.md' is a symlink")
+        self.assertFalse(os.path.exists(os.path.join(self.repo, '.vscode/alice.weaudit-shas.json')))
+
+    def test_a_pipe_in_a_path_is_escaped_so_that_it_stays_in_its_cell(self):
+        # A file may be named with a pipe, and a backslash before one is
+        # the case a plain replace gets wrong.
+        names = ['src/p|q.py', 'src/r\\|s.py', 'src/t\\u.py']
+        for name in names:
+            self.write(name, 'x = 1\n')
+        self.git('add', '-A')
+        self.git('commit', '-m', 'odd names')
+        self.mark_reviewed(names, [('src/a.py', 1, 2)])
+        p = self.run_tool('regen')
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        rows = [line for line in self.read('REVIEWS.md').splitlines() if line.startswith('| src/')]
+        self.assertEqual(len(rows), 4)
+        for row in rows:
+            # Five cells in either table is six pipes that do not end a cell.
+            self.assertEqual(len(re.findall(r'(?<!\\)(?:\\\\)*\|', row)), 6, row)
+        self.assertTrue(any(r.startswith('| src/p\\|q.py |') for r in rows), rows)
+        self.assertTrue(any(r.startswith('| src/r\\\\\\|s.py |') for r in rows), rows)
+        self.assertTrue(any(r.startswith('| src/t\\u.py |') for r in rows), rows)
+
+    def test_prune_refused_over_an_unreadable_imports_file_writes_nothing_first(self):
+        paths = self.stale_review()
+        os.mkdir(os.path.join(self.repo, IMPORTS))
+        before = {path: self.read(path) for path in paths}
+        p = self.run_tool('prune')
+        self.assert_refused(p, "is not a regular file")
+        for path in paths:
+            self.assertEqual(self.read(path), before[path])
+        self.assertFalse(os.path.exists(os.path.join(self.repo, 'REVIEWS.md')))
 
 
 # A stand-in for gitsign, which needs Sigstore's network services. It
@@ -2093,6 +2289,15 @@ class ImportTest(unittest.TestCase):
         self.assertIn('| src/a.py | mikal | 2026-01-02 | %s | development@%s |'
                       % (self.tblob('src/a.py')[:12], commit[:12]), reviews)
         self.assertRegex(reviews, r'\| src/b\.py \| testuser \| [0-9-]+ \| [0-9a-f]{12} \| - \|')
+
+    def test_import_refused_over_a_reviews_md_symlink_writes_no_imports_file(self):
+        self.review_a()
+        self.twrite('victim.md', 'original contents\n')
+        os.symlink('victim.md', os.path.join(self.target, 'REVIEWS.md'))
+        p = self.run_tool('import')
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+        self.assertIn("'REVIEWS.md' is a symlink", p.stderr)
+        self.assertFalse(os.path.exists(os.path.join(self.target, IMPORTS)))
 
     def test_reviews_md_shows_the_native_row_when_a_file_is_also_imported(self):
         """render_reviews_md keeps one row per file even before import removes its entry."""
