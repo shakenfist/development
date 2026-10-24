@@ -81,10 +81,6 @@
       "sha": "121bfae4d5735b0ab0c72ebca68532e94ea29d6b",
       "date": "2026-10-16"
     },
-    "PUSH-AUDIT.md": {
-      "sha": "32c3231274122ed8249d061e393cc09430c771e4",
-      "date": "2026-10-18"
-    },
     "README.md": {
       "sha": "d99208aebffcfe7bb0d0d0eda46419f568f7b4f9",
       "date": "2026-10-22"
@@ -191,14 +187,6 @@
     },
     "docs/audits/plan-audit-phase.md": {
       "sha": "fdb2179a490fe5c810e4f9f3d7d563dbaef44f5e",
-      "date": "2026-10-05"
-    },
-    "docs/audits/plan-history-in-source.md": {
-      "sha": "7c03ef16a75dd5f9c4df55c047185ecb0330d0dd",
-      "date": "2026-10-12"
-    },
-    "docs/audits/plan-phase-references.md": {
-      "sha": "08e51b13f6f3ff523d292a1b5daad5a8c9568301",
       "date": "2026-10-05"
     },
     "docs/audits/plan-source-references.md": {

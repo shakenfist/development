@@ -365,10 +365,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/plan-phase-references.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/secret-handling.md",
       "author": "mikal"
     },
@@ -402,10 +398,6 @@
     },
     {
       "path": "templates/shared-blocks/plan-file-conventions.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/plan-history-in-source.md",
       "author": "mikal"
     },
     {
@@ -474,10 +466,6 @@
     },
     {
       "path": "AGENTS.md",
-      "author": "mikal"
-    },
-    {
-      "path": "PUSH-AUDIT.md",
       "author": "mikal"
     },
     {
