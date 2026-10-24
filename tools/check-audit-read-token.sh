@@ -31,7 +31,9 @@ fi
 # merge setting, for a fine-grained token with read-only
 # Administration, whatever that token can see. GraphQL answers it, so
 # delete-branch-on-merge reads it there, and so does this.
-# The query is the one DeleteBranchOnMerge sends, on one line.
+# The query is the one DeleteBranchOnMerge sends, on one line. Its
+# $owner and $name are GraphQL variables, not shell ones.
+# shellcheck disable=SC2016
 query='query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { deleteBranchOnMerge } }'
 if ! delete_branch=$(gh api graphql -f query="${query}" \
         -f owner="${GITHUB_REPOSITORY%%/*}" -f name="${GITHUB_REPOSITORY#*/}" \
