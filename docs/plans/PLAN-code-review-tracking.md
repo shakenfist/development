@@ -338,7 +338,7 @@ answered each, which is what Phase 4 step 5 asked for:
 |-------|--------|--------|
 | 0. Trial weAudit | Complete | nothing in this repository; the trial ran in ryll |
 | 1. Conventions for signed review state | Complete | `d180c39` |
-| 2. Stamp and prune hooks | Complete | `0957d15..ee6d4ea`; ryll `7775679e` (#144), `ef94c321` (#146) |
+| 2. Stamp and prune hooks | Complete | `0957d15`, `9f8d47f`, `4eae793`, `ee6d4ea`; ryll `7775679e` (#144), `ef94c321` (#146) |
 | 3. Optional CI backstop | Superseded | nothing; replaced by `PLAN-review-coverage.md` |
 | 4. Documentation and rollout as a consistency audit | Complete | accreted over many landings; reconstructed in Phase 5 |
 | 5. Push audit | In progress | |
@@ -887,8 +887,9 @@ fix, and none prunes, regenerates or commits `REVIEWS.md`.
 #### Definition of done
 
 * The Outcome's totals table matches the survey's on every row. This
-  prints fourteen lines that must equal the table's Files and
-  Diffstat columns:
+  prints fourteen labelled lines that must equal the table's Files
+  and Diffstat columns. Range 13 prints last, because it needs its
+  pathspec:
 
   ```
   for r in d180c39^..d180c39 0957d15^..ee6d4ea a3b7f50^1..a3b7f50 \
@@ -896,7 +897,7 @@ fix, and none prunes, regenerates or commits `REVIEWS.md`.
       b51f550^..b51f550 ccaac6e^1..ccaac6e 127079e^1..127079e \
       a33e694^1..a33e694 44748d4^1..44748d4 0ba8920^1..0ba8920 \
       f624d26^1..f624d26; do echo "$r $(git diff --shortstat $r)"; done
-  git diff --shortstat 39f8d5b^1..39f8d5b -- ':!.vscode' ':!REVIEWS.md'
+  echo "39f8d5b^1..39f8d5b $(git diff --shortstat 39f8d5b^1..39f8d5b -- ':!.vscode' ':!REVIEWS.md')"
   ```
 
 * Every finding in the Outcome has a current path and line or a "no
@@ -970,7 +971,8 @@ These land as one follow-up pull request against `main` after this
 phase merges. That pull request sets this phase's `Status` to
 `Complete` and fills its `Merged` cell, and sets the index row to
 `Complete`, as `plan-phase-landing` requires. Until then both rows
-read `In progress`.
+read `In progress`. development#315 tracks the findings, so a slip in
+the follow-up stays visible outside this plan.
 
 * **F1 (medium, security; range 2, reached through #11).**
   `load_json()` at `scripts/review-tracking.py:283` opens with no
@@ -999,7 +1001,7 @@ read `In progress`.
   `blob_sha(':%s' % path)` (`:633`, `:645`). A weAudit path `/x`
   becomes `:/x`, git's commit-message search, and stamps a commit
   SHA. It heals itself at prune. Fix: `':0:%s'`.
-* **F4 (latent false pass; range 8, widened by 9).**
+* **F4 (low, latent false pass; range 8, widened by 9).**
   `pre_commit_excludes_review_marks()` at
   `scripts/audit/checks/review.py:64` accepts any `exclude:` line in
   the file:
