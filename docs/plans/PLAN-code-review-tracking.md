@@ -300,7 +300,23 @@ Still open:
 
 ## Execution
 
-### Phase 0: Trial weAudit -- UNDERWAY
+| Phase | Status | Merged |
+|-------|--------|--------|
+| 0. Trial weAudit | Complete | nothing in this repository; the trial ran in ryll |
+| 1. Conventions for signed review state | Complete | `d180c39` |
+| 2. Stamp and prune hooks | Complete | `0957d15..ee6d4ea`; ryll `7775679e` (#144), `ef94c321` (#146) |
+| 3. Optional CI backstop | Superseded | nothing; replaced by `PLAN-review-coverage.md` |
+| 4. Documentation and rollout as a consistency audit | Complete | accreted over many landings; reconstructed in Phase 5 |
+| 5. Push audit | Not started | |
+
+This table was added on 2026-10-24, when Phases 0--4 were closed
+out together. Until then the plan carried no status table and every
+phase section still read as if work were outstanding. The `Merged`
+cells for Phases 1 and 2 come from the reconstruction that
+`PLAN-push-audit-phase` added to Phase 5. Phase 4's landings were
+never recorded, and Phase 5 reconstructs them.
+
+### Phase 0: Trial weAudit
 
 The point of this phase is to find out whether the core review loop
 feels good *before* investing in any automation. Course-correct the
@@ -419,8 +435,20 @@ the hooks up.
    disappears after a weAudit refresh, re-review, re-commit. *The
    hook-level loop is already validated against the fixture; this
    is the live confirmation from the review account.*
+   *Closed out on 2026-10-24 without being run.* The hooks this step
+   would have checked were removed nine days after they landed, in
+   `cde84bb` (#9, 2026-07-18), and the script has been run by hand
+   ever since. The same loop running from CI was confirmed in
+   production by `PLAN-review-coverage.md` phase 5.
 
 ### Phase 3: Optional CI backstop (deferred)
+
+*Superseded on 2026-08-02 by `PLAN-review-coverage.md`*, which built
+both halves of this phase in a different shape. Each adopting
+repository prunes its own default branch from CI, rather than one
+scheduled workflow comparing stamps across the fleet. Never-reviewed
+coverage is reported by the daily audit's `review-coverage`
+criterion.
 
 Only if a demonstrated need appears (multiple clones or reviewers,
 hooks not installed somewhere):
