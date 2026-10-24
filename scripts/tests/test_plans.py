@@ -3055,6 +3055,15 @@ class PushAuditTest(CheckTestCase):
                 self.assert_fail(result, containing=f'{name} could not be read')
                 self.assertIn('link out of the repository', result['details'])
 
+    def test_an_unreadable_legacy_file_does_not_stop_a_readable_runbook(self):
+        result = self._check({
+            'PUSH-AUDIT.md': f'# Audit\n\n{self.canonical}\n',
+            'PUSH-TEMPLATE.md': oversize(self.canonical),
+        })
+        self.assert_fail(result, containing='legacy filename PUSH-TEMPLATE.md')
+        self.assertNotIn('could not be read', result['details'])
+        self.assertNotIn('missing shared block', result['details'])
+
     def test_current_block_passes(self):
         result = self._check({
             'PUSH-AUDIT.md': f'# Audit\n\n{self.canonical}\n',
@@ -3153,6 +3162,9 @@ class PushAuditTest(CheckTestCase):
         )
         result = self._check({'PUSH-AUDIT.md': content})
         self.assert_fail(result, containing='no <!-- shared-block-end -->')
+        # The last block in a file has no next block, so the hint must
+        # not depend on one.
+        self.assertIn('add one after the block', result['details'])
 
     def test_both_files_fails_even_with_current_block(self):
         result = self._check({
@@ -3365,6 +3377,19 @@ class PlanTemplateTest(CheckTestCase):
         result = self._check({})
         self.assert_fail(result, containing='PLAN-TEMPLATE.md could not be read')
         self.assertIn('link out of the repository', result['details'])
+
+    def test_a_dangling_or_directory_template_fails_rather_than_being_absent(self):
+        for kind in ('dangling', 'directory'):
+            with self.subTest(kind=kind):
+                self.fresh_fixture()
+                path = os.path.join(self.fixture.path, 'PLAN-TEMPLATE.md')
+                if kind == 'dangling':
+                    os.symlink(os.path.join(self.tempdir(), 'gone.md'), path)
+                else:
+                    os.makedirs(path)
+                result = self._check({})
+                self.assert_fail(result, containing='PLAN-TEMPLATE.md could not be read')
+                self.assertIn('not a regular file', result['details'])
 
     def test_all_blocks_passes(self):
         result = self._check({'PLAN-TEMPLATE.md': self._template()})

@@ -1683,13 +1683,18 @@ class PushAudit(Check):
         into every session, which makes it the one place a reference is
         certain to be read.
         """
-        for name in ('PUSH-AUDIT.md', 'PUSH-TEMPLATE.md'):
-            detail = unreadable_file_detail(repo, name)
-            if detail:
-                return self.fail(detail)
-
+        # Only the file that would be audited can stop the audit: a
+        # readable PUSH-AUDIT.md is audited whatever state a leftover
+        # PUSH-TEMPLATE.md is in, and the legacy name is flagged below
+        # either way.
+        detail = unreadable_file_detail(repo, 'PUSH-AUDIT.md')
         has_new = repo.isfile('PUSH-AUDIT.md')
-        has_legacy = repo.isfile('PUSH-TEMPLATE.md')
+        if not detail and not has_new:
+            detail = unreadable_file_detail(repo, 'PUSH-TEMPLATE.md')
+        if detail:
+            return self.fail(detail)
+
+        has_legacy = os.path.lexists(repo.join('PUSH-TEMPLATE.md'))
         if not has_new and not has_legacy:
             return self.skip('No pre-push audit file')
 
