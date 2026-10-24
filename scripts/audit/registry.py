@@ -23,8 +23,8 @@ import traceback
 
 from audit.check import ERROR, NOT_APPLICABLE, ToolFailure
 from audit.checks import (
-    ci_workflows, distros, docs_content, github_config, llm_docs, npm_dependencies, packaging, plans, review,
-    runners,
+    ci_workflows, distros, docs_content, github_config, llm_docs, npm_dependencies, packaging, plans, release,
+    review, runners,
 )
 
 
@@ -49,7 +49,7 @@ CHECKS = [
     plans.PlanAuditPhase(),
     plans.PushAudit(),
     plans.PlanTemplate(),
-    packaging.ReleaseProcess(),
+    release.ReleaseProcess(),
     packaging.Renovate(),
     packaging.PinIndirectDependencies(),
     packaging.DependencyNameNormalization(),
