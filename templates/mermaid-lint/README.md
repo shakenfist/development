@@ -83,6 +83,40 @@ block. A fleet whose docker-capable image does not carry that
 configuration needs it there, not here -- an `http_proxy` in the job
 would not reach the daemon doing the pull.
 
+## Fork pull requests
+
+The job refuses pull requests from forks, with a
+`head.repo.full_name` guard. The reason is where the code runs. The
+container is sandboxed by `--network none` and a read-only mount, but
+`tools/mermaid-lint.sh` itself is bash on the runner host, and the job
+runs the pull request's own copy of it. A fork can edit that script,
+and because the script is in the path filter, editing it is enough to
+start the lane. Push and dispatch runs are unaffected: they only ever
+run the repository's own code.
+
+This is defence in depth rather than the boundary. The `vm` runner is
+discarded after the job, and the guard lives in a workflow file the
+pull request can edit, so it stops a fork that changes the script,
+not one that also deletes the guard. That case is GitHub's approval
+for fork pull request workflows, which it enforces server-side, but
+only as far as the repository sets it. The default asks for approval
+from first-time contributors alone. A repository that runs this lane
+should set it to require approval for all external contributors
+(Settings, Actions, General, or `fork-pr-contributor-approval` set to
+`all_external_contributors` in the API).
+
+The guard refuses a fork's pull request whatever it touches, so a
+fork that breaks a diagram shows `Mermaid lint` as skipped, not
+failed. The push run lints the tree again after the merge, which puts
+that failure on the default branch rather than on a later author.
+Before merging a fork's pull request that changes diagrams, run
+`tools/mermaid-lint.sh` on its branch by hand.
+
+The checkout also sets `persist-credentials: false`. Nothing in the
+job pushes or calls the API, and the checkout is mounted into a
+third-party container, so `GITHUB_TOKEN` has no reason to be in its
+`.git/config`.
+
 ## Required status checks
 
 The workflow is path-filtered, so it does not run on a pull request
