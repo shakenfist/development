@@ -99,7 +99,7 @@ jobs:
 
       # The legs hold AUDIT_READ_TOKEN, which can read every repository
       # in the organisation and write to none of them. AUDIT_TOKEN, which
-      # files issues and pushes, appears only in manage-issues and
+      # files and closes issues, appears only in manage-issues and
       # update-docs: the checks here read files the audited repositories
       # control, and run programs over them. That split is per host as
       # well as per job: manage-issues and update-docs run on ephemeral
@@ -316,6 +316,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      # persist-credentials stays at its default here, unlike every
+      # other checkout in this file: commit-audit-docs.sh pushes the
+      # page with the GITHUB_TOKEN it leaves in the clone.
       - name: Checkout development repo
         uses: actions/checkout@v7
 
