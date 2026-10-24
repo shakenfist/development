@@ -48,40 +48,155 @@ FILE_REWRITING_HOOK_IDS = (
 )
 
 
-def pre_commit_rewriting_hooks(repo):
-    """Which file-rewriting hooks does .pre-commit-config.yaml run?"""
-    found = set()
-    for line in (repo.read('.pre-commit-config.yaml') or '').splitlines():
-        match = re.match(r'\s*-\s*id:\s*(\S+)', line)
-        if not match:
-            continue
-        hook_id = match.group(1).strip('\'"')
-        if hook_id in FILE_REWRITING_HOOK_IDS:
-            found.add(hook_id)
-    return sorted(found)
+_BLOCK_SCALAR = re.compile(r'([|>])([+-]?)(\d?)([+-]?)\s*(?:#.*)?$')
+_SINGLE_QUOTED = re.compile(r"'((?:[^']|'')*)'")
+_DOUBLE_QUOTED = re.compile(r'"((?:[^"\\]|\\.)*)"')
 
 
-def pre_commit_excludes_review_marks(repo):
-    """Does .pre-commit-config.yaml exempt the weAudit review marks?
+def _block_scalar_text(match, lines):
+    """The string a YAML block scalar (`|`, `>`, `|-`, `>+`...) holds.
+
+    `lines` are the raw continuation lines. The content indent is taken
+    as that of the least indented non-blank line, which is how every
+    config in the fleet writes one; an explicit indentation digit is
+    accepted but not needed for that.
+    """
+    body = list(lines)
+    while body and not body[-1].strip():
+        body.pop()
+    trailing = len(lines) - len(body)
+    if not body:
+        return ''
+    indent = min(len(line) - len(line.lstrip(' ')) for line in body if line.strip())
+    body = [line[indent:] if line.strip() else '' for line in body]
+    if match.group(1) == '|':
+        text = '\n'.join(body)
+    else:
+        text = body[0]
+        for previous, line in zip(body, body[1:]):
+            if not line:
+                text += '\n'
+            elif not previous:
+                text += line
+            else:
+                text += ' ' + line
+    chomp = match.group(2) or match.group(4)
+    if chomp == '-':
+        return text
+    return text + '\n' * (1 + trailing if chomp == '+' else 1)
+
+
+def _scalar_value(value):
+    """The string a plain or quoted YAML scalar on one line holds."""
+    for quoted, unescape in ((_SINGLE_QUOTED, lambda s: s.replace("''", "'")),
+                             (_DOUBLE_QUOTED, lambda s: re.sub(r'\\(["\\])', r'\1', s))):
+        match = quoted.match(value)
+        if match:
+            return unescape(match.group(1))
+    return re.sub(r'\s+#.*$', '', value).strip()
+
+
+def scan_pre_commit_config(text):
+    """Find the `exclude:` patterns in a .pre-commit-config.yaml.
+
+    Returns (top_level_excludes, hooks), where hooks is a list of
+    (hook_id, excludes) with one entry per `- id:` in the file. An
+    exclude belongs to the hook whose mapping it is a key of -- found
+    from indentation, since pre-commit applies a top-level exclude to
+    every hook but a hook's own to that hook alone. A block scalar
+    contributes the text it holds, never its `|` or `>` indicator, and
+    its lines are never read as keys.
 
     Line-based rather than YAML-parsed, matching the rest of this
-    file, which avoids a PyYAML dependency. Every `exclude:` value is
-    tried as the regex pre-commit would apply, and the check passes if
-    any one of them matches both sample paths -- so a top-level
-    exclude and a per-hook exclude both count. A value we cannot
-    compile, or whose search does not finish (see bounded_search()),
-    is skipped rather than raising: an unrelated malformed pattern is
+    file, which avoids a PyYAML dependency. Flow-style mappings,
+    multi-line quoted scalars and a hook written as a bare `-` line
+    with its `id:` on the next are not understood; none of the fleet's
+    configs use them.
+    """
+    lines = text.splitlines()
+    top = []
+    hooks = []
+    open_items = []
+    i = 0
+    while i < len(lines):
+        raw = lines[i]
+        i += 1
+        if not raw.strip() or raw.strip().startswith('#'):
+            continue
+        indent = len(raw) - len(raw.lstrip(' '))
+        while open_items and indent <= open_items[-1]['dash']:
+            item = open_items.pop()
+            if item['id'] is not None:
+                hooks.append((item['id'], item['excludes']))
+
+        body = raw.strip()
+        column = indent
+        dash = re.match(r'-\s+', body)
+        if dash:
+            column = indent + dash.end()
+            open_items.append({'dash': indent, 'column': column, 'id': None, 'excludes': []})
+            body = body[dash.end():]
+
+        key = re.match(r'([\w-]+):(?:\s+(.*?))?\s*$', body)
+        if not key:
+            continue
+        name, value = key.group(1), key.group(2) or ''
+
+        block = _BLOCK_SCALAR.match(value)
+        if block:
+            content = []
+            while i < len(lines) and (not lines[i].strip()
+                                      or len(lines[i]) - len(lines[i].lstrip(' ')) > column):
+                content.append(lines[i])
+                i += 1
+            value = _block_scalar_text(block, content)
+        else:
+            value = _scalar_value(value)
+
+        if name == 'exclude' and column == 0:
+            top.append(value)
+        elif name in ('id', 'exclude'):
+            owner = open_items[-1] if open_items else None
+            if owner and owner['column'] == column:
+                if name == 'id':
+                    owner['id'] = value
+                else:
+                    owner['excludes'].append(value)
+    for item in open_items:
+        if item['id'] is not None:
+            hooks.append((item['id'], item['excludes']))
+    return top, hooks
+
+
+def pre_commit_rewriting_hooks(repo):
+    """Which file-rewriting hooks does .pre-commit-config.yaml run?"""
+    _, hooks = scan_pre_commit_config(repo.read('.pre-commit-config.yaml') or '')
+    return sorted({hook_id for hook_id, _ in hooks if hook_id in FILE_REWRITING_HOOK_IDS})
+
+
+def pre_commit_unprotected_rewriting_hooks(repo):
+    """Which file-rewriting hooks would still be handed the review marks?
+
+    A hook is protected by an `exclude:` on its own entry or at the
+    top level of the file, whichever matches both sample paths -- the
+    regex pre-commit would apply. An exclude on any other hook does
+    nothing for this one, and each entry is judged separately because
+    pre-commit runs each separately. A value we cannot compile, or whose
+    search does not finish (see bounded_search()), protects nothing
+    rather than raising: an unrelated malformed pattern is
     pre-commit's problem to report, not this audit's.
     """
-    for line in (repo.read('.pre-commit-config.yaml') or '').splitlines():
-        match = re.match(r'\s*exclude:\s*(\S.*?)\s*$', line)
-        if not match:
-            continue
-        pattern = match.group(1).strip('\'"')
+    top, hooks = scan_pre_commit_config(repo.read('.pre-commit-config.yaml') or '')
+
+    def protects(pattern):
         found = bounded_search(pattern, REVIEW_MARK_SAMPLE_PATHS)
-        if found is not None and all(found):
-            return True
-    return False
+        return found is not None and all(found)
+
+    if any(protects(pattern) for pattern in top):
+        return []
+    return sorted({hook_id for hook_id, excludes in hooks
+                   if hook_id in FILE_REWRITING_HOOK_IDS
+                   and not any(protects(pattern) for pattern in excludes)})
 
 
 # Repos with human review tracking deployed should keep the review
@@ -162,9 +277,10 @@ class ReviewMarksPreCommit(Check):
             return self.skip(
                 'No file-rewriting pre-commit hooks, so nothing '
                 'rewrites the review marks')
-        if not pre_commit_excludes_review_marks(repo):
+        unprotected = pre_commit_unprotected_rewriting_hooks(repo)
+        if unprotected:
             return self.fail(
-                f'{", ".join(rewriting)} rewrite(s) the review marks; '
+                f'{", ".join(unprotected)} rewrite(s) the review marks; '
                 r'add exclude: ^\.vscode/.*\.weaudit to those hooks')
         return self.ok(f'Review marks excluded from {", ".join(rewriting)}')
 
@@ -194,12 +310,18 @@ class ReviewCoverage(Check):
         # Every way this can go wrong is the tooling failing rather than
         # the repository, so each raises and the result is `error`. A
         # missing review-tracking.py makes the interpreter exit non-zero
-        # and lands in the returncode branch; a repo.path that failed to
-        # clone or was cleaned up mid-run fails as cwd, inside
+        # and lands in the returncode branch, as does a review state file
+        # the script refuses to read (a link out of the checkout, say),
+        # which exits 2 with the reason on stderr; a repo.path that
+        # failed to clone or was cleaned up mid-run fails as cwd, inside
         # run_tool(), before anything runs.
+        #
+        # The script runs inside the audited checkout and needs no
+        # credential, so, as for every child but gh, it is given none.
         result = run_tool(
             [sys.executable, REVIEW_TRACKING_SCRIPT, 'status', '--json'],
             'review-tracking.py status', timeout=60, cwd=repo.path,
+            env=environment_without_credentials(),
         )
         if result.returncode != 0:
             raise ToolFailure(
@@ -282,10 +404,12 @@ class ReviewScopeCompleteness(Check):
                 'Human review tracking not deployed '
                 '(no .vscode/review-scope.toml)')
 
+        # Without a credential, for the reason ReviewCoverage gives.
         result = run_tool(
             [sys.executable, REVIEW_TRACKING_SCRIPT, 'scope-orphans',
              '--json'],
             'review-tracking.py scope-orphans', timeout=60, cwd=repo.path,
+            env=environment_without_credentials(),
         )
         # Exit status 1 is the reportable outcome, not an error: the
         # subcommand exits non-zero precisely when there are orphans, so

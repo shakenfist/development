@@ -80,6 +80,27 @@ repository and passes through to the script.
   marked reviewed by import (see "Importing reviews from this
   repository" under "Steady state").
 
+Every one of these files must be a regular file inside the
+repository and no larger than 2 MiB (the audit's own read cap), and
+none may be a symlink when the tooling writes it. Anything else --
+a link out of the checkout, a link to a device, a directory, an
+oversized file -- stops the subcommand with exit status 2 and a
+`review-tracking: ERROR:` line naming the file, rather than being
+read, written through or treated as absent; the `review-coverage`
+and `review-scope-completeness` audits report that as an error.
+
+So does a state file that would put a line of its own in the
+generated `REVIEWS.md`, since `prune` commits that file. That covers
+every value which reaches one of its table cells: a state file whose
+name (the reviewer), marked path, or sidecar stamp date or sha
+contains a control or format character or a Unicode line or paragraph
+separator, a weAudit mark that is not an object with a path, and a
+partial mark whose line numbers are not integers. A reviewer can
+clear it by un-marking the file in weAudit. An entry in the imports
+file with such a value in any of its fields is not refused but
+dropped, with a warning, as that file treats every entry `import`
+did not write.
+
 ## Adopting a repository
 
 1. Ensure the review state files are committable. If `.gitignore`

@@ -341,7 +341,7 @@ answered each, which is what Phase 4 step 5 asked for:
 | 2. Stamp and prune hooks | Complete | `0957d15`, `9f8d47f`, `4eae793`, `ee6d4ea`; ryll `7775679e` (#144), `ef94c321` (#146) |
 | 3. Optional CI backstop | Superseded | nothing; replaced by `PLAN-review-coverage.md` |
 | 4. Documentation and rollout as a consistency audit | Complete | accreted over many landings; reconstructed in Phase 5 |
-| 5. Push audit | In progress | |
+| 5. Push audit | Complete | `c39b06e` (#314) |
 
 This table was added on 2026-10-24, when Phases 0--4 were closed
 out together. Until then the plan carried no status table and every
@@ -1041,6 +1041,29 @@ the follow-up stays visible outside this plan.
   repository-chosen code today. Fix: pass the scrubbed environment,
   in the same PR as F1.
 
+##### How the findings were resolved
+
+The findings pull request fixed every item above, in three commits,
+each through a sub-agent and reviewed in the management session:
+
+| Finding | Commit | Proof |
+|---------|--------|-------|
+| F1, F2, F8 | `30bf5aa` Guard every review state read and write. | 11 mutants killed; 5e PoC 2 re-run, refused with exit 2 |
+| F3, F5, F7, F6 (partial marks) | `a914f48` Fix four small review-tracking.py defects. | 5 mutants killed |
+| F4, F6 (hook ids) | `fc52a33` Judge review-mark excludes per rewriting hook. | 19 mutants killed; every adopter's verdict unchanged |
+
+F1, F2 and F8 share one commit because they share the new I/O
+helper's hunks and the tests that drive the child.
+
+The pull request's automated review found F2 only partly fixed. The
+first commit guarded marked paths, but the reviewer name, stamp dates
+and shas, imported fields and line numbers also reach a `REVIEWS.md`
+cell. `00d4425` guards every cell, table-escapes `|`, refuses before
+writing in `stamp`, `prune` and `import`, and refuses a malformed mark
+entry without a traceback (21 mutants). `aeb765e` refuses malformed
+JSON and format characters, and stops dropping an import whose date
+is null (5 mutants).
+
 ##### Findings declined, with reasons
 
 * **The `next` wording in both wrapper copies is stale**
@@ -1058,7 +1081,11 @@ the follow-up stays visible outside this plan.
   convention in adoption step 8 (`docs/code-review-tracking.md:318`)
   and the adoption skill, carried by seven repositories. Changing it
   is a convention decision for Mikal, and the findings pull request
-  either takes it or records why not.
+  either takes it or records why not. *Declined there, on
+  2026-10-24, and filed as development#316.* The change touches step
+  8, the adoption skill, any criterion asserting the four-path set and
+  seven repositories' `ci.yml`, so it needs its own change and review
+  rather than being folded into security fixes.
 * **The three review checks repeat the scope-file skip in `run()`**
   instead of `applies()` (`review.py:154`, `:189`, `:280`). Verdicts
   are unaffected. This is a style point outside any range's intent,
@@ -1165,9 +1192,22 @@ that we fixed.
   the default branch. Fixed in `ba3876a`, which landed under #47 and
   is recorded in `PLAN-consistency-audits-v2.md`.
 
-None of the push audit's findings is fixed yet. They are recorded in
-its Outcome and tracked in development#315, and their fixes belong
-here once the follow-up pull request lands.
+* Review state was read with a bare `open()`. The daily audit's
+  `status` and `scope-orphans` runs, inside each audited checkout,
+  would follow a committed symlink out of the clone or into
+  `/dev/zero`. Writes followed symlinks, and a newline in a marked
+  path could inject a line into `REVIEWS.md`. Fixed in `30bf5aa`,
+  which also runs both review criteria without credentials, and
+  completed in `00d4425` and `aeb765e`, which guard every other
+  `REVIEWS.md` cell.
+* `stamp` read a marked path beginning with `/` as git's
+  commit-message search, and `prune` raised `KeyError` on a stamp
+  with no sha. Fixed in `a914f48`, with two smaller wording fixes.
+* `review-marks-pre-commit` passed a block-scalar `exclude: |`, and
+  an exclude on an unrelated hook. Fixed in `fc52a33`.
+
+The push audit found all three (Phase 5 Outcome, F1 to F8), and
+development#315 tracked them.
 
 ### Back brief
 

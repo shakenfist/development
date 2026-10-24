@@ -65,18 +65,38 @@ State read and written:
   patterns defining which files are in scope for review, and an
   import-exclude list of files that must never be imported.
 - REVIEWS.md -- generated summary of review state; never hand-edited.
+
+Any of these that resolves outside the repository, is not a regular
+file or exceeds the audit's read cap stops every subcommand with exit
+status 2 and a one-line reason, as does a state file whose name, marks
+or stamps would put a line of its own in REVIEWS.md: a name, a marked
+path, a stamp date or sha carrying a control or format character or a Unicode
+line or paragraph separator, or a partial mark whose line numbers are
+not integers. None is written through a symlink.
 """
 
 import argparse
+import collections
 import datetime
 import fnmatch
 import glob
+import io
 import json
 import os
 import random
+import re
 import shutil
+import stat
 import subprocess
 import sys
+import unicodedata
+
+# Every caller runs this file out of a full clone of
+# shakenfist/development (the wrappers locate scripts/review-tracking.py
+# in one), so scripts/ is sys.path[0] and the audit package beside it
+# imports. The cap is shared rather than restated, so that this script
+# and the audit cannot disagree about what is too large to read.
+from audit.repo import READ_MAX_BYTES, path_is_within
 
 
 DOCS_URL = ('https://github.com/shakenfist/development/blob/main/'
@@ -232,11 +252,12 @@ def listed_position(path, include):
 
 
 def load_scope_config():
-    if not os.path.exists(SCOPE_PATH):
+    data = read_state_bytes(SCOPE_PATH)
+    if data is None:
         return {}
     import tomllib
-    with open(SCOPE_PATH, 'rb') as f:
-        return tomllib.load(f)
+    # What tomllib.load() does with a binary file: decode as UTF-8, strictly.
+    return tomllib.loads(data.decode('utf-8'))
 
 
 def excluded_by(path, patterns):
@@ -277,30 +298,249 @@ def sidecar_path(state_path):
 
 
 def reviewer_name(state_path):
-    return os.path.basename(state_path)[:-len('.weaudit')]
+    """The reviewer a state file belongs to, which REVIEWS.md prints in a table cell.
+
+    The name is the state file's, so the repository chose it: see unsafe_text().
+    """
+    name = os.path.basename(state_path)[:-len('.weaudit')]
+    if unsafe_text(name):
+        raise RefusedState('%r has a name containing a control or format character or a Unicode line or paragraph '
+                           'separator; rename or remove it' % state_path)
+    return name
+
+
+class RefusedState(Exception):
+    """Review state this script will not read, write or act on.
+
+    Raised rather than read as absent. The consistency audit runs status
+    and scope-orphans inside every audited repository's checkout, and
+    prune runs on every push to an adopting repository's default branch,
+    so a state file is a path that repository chose: a symlink out of
+    the checkout, a link to a device, or a file of any size. Reading
+    such a file as absent would have status report a coverage figure
+    the repository's own state does not support. main() reports the
+    refusal as one line on stderr and exits 2, a status no subcommand
+    uses for an answer, so the audit's review checks report the tooling
+    failing rather than a verdict. The message names the path and the
+    reason, never the content.
+    """
+
+
+def repository_root():
+    """The target repository's toplevel, resolved: main() makes it the working directory."""
+    return os.path.realpath(os.getcwd())
+
+
+def read_state_bytes(path):
+    """Return the bytes of the repository file at path, or None if nothing is there.
+
+    Every read of the target's review state goes through here. The rules
+    are audit.repo.read_within()'s, with each refusal raised instead of
+    returned as None:
+
+    - a path resolving outside the repository is refused before it is
+      opened, so a link to /dev/zero or to a FIFO outside the checkout
+      is never touched;
+    - anything that is not a regular file once opened (a directory, a
+      dangling link, a device) is refused. Checked with fstat on the
+      open descriptor rather than beforehand, and opened non-blocking,
+      so that the check is of the file actually read;
+    - a file over READ_MAX_BYTES is refused rather than read in part,
+      counting bytes as they are read rather than taken from a stat.
+
+    Only a path that does not exist at all, link or otherwise, is absent.
+    """
+    if not os.path.lexists(path):
+        return None
+    if not path_is_within(repository_root(), path, root_is_real=True):
+        raise RefusedState('%r resolves outside the repository; not reading it' % path)
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+    except OSError as e:
+        raise RefusedState('%r cannot be opened: %s' % (path, e.strerror))
+    # Before fdopen(), which raises its own error for a directory.
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        os.close(fd)
+        raise RefusedState('%r is not a regular file; not reading it' % path)
+    with os.fdopen(fd, 'rb') as f:
+        data = f.read(READ_MAX_BYTES + 1)
+    if len(data) > READ_MAX_BYTES:
+        raise RefusedState('%r is larger than %d bytes; not reading it' % (path, READ_MAX_BYTES))
+    return data
+
+
+def read_state_text(path):
+    """read_state_bytes(), decoded as text-mode open() would: UTF-8, universal newlines.
+
+    UTF-8 strictly rather than in the locale, so that a decoding error is
+    raised the same way wherever this runs; load_imports() relies on it.
+    """
+    data = read_state_bytes(path)
+    if data is None:
+        return None
+    return io.TextIOWrapper(io.BytesIO(data), encoding='utf-8').read()
+
+
+def check_writable(path):
+    """Refuse to replace or remove path if it is a symlink or resolves outside the repository.
+
+    A symlink at the final component is refused outright rather than
+    resolved and checked: no review state file is legitimately a link,
+    and prune holds a token that can push to the default branch, so a
+    committed REVIEWS.md link would otherwise have it overwrite a file
+    of the repository's choosing. With the final component known not to
+    be a link, the containment check is of the parent directories.
+    """
+    if os.path.islink(path):
+        raise RefusedState('%r is a symlink; not writing through it' % path)
+    if not path_is_within(repository_root(), path, root_is_real=True):
+        raise RefusedState('%r resolves outside the repository; not writing it' % path)
+
+
+def write_state(path, content):
+    """Write content (text) to the repository file at path, never through a symlink.
+
+    O_NOFOLLOW holds the check_writable() rule at the open itself, for a
+    link that appears between the two. The descriptor is checked to be a
+    regular file before anything is truncated, and opened non-blocking so
+    that a FIFO is an error rather than a wait.
+    """
+    check_writable(path)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
+    try:
+        fd = os.open(path, flags, 0o666)
+    except OSError as e:
+        raise RefusedState('%r cannot be written: %s' % (path, e.strerror))
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        os.close(fd)
+        raise RefusedState('%r is not a regular file; not writing it' % path)
+    with os.fdopen(fd, 'wb') as f:
+        f.truncate(0)
+        f.write(content.encode('utf-8'))
+
+
+class MalformedState(RefusedState):
+    """A review state file that is not valid UTF-8 JSON.
+
+    Refused like any other RefusedState, so that a malformed .weaudit is
+    exit status 2 and one line rather than a traceback and exit 1, which
+    scope-orphans uses for an answer. Separate so that load_imports() can
+    keep treating a malformed imports file as empty: that file is
+    machine-written, and import rewrites it.
+    """
 
 
 def load_json(path, default):
-    if not os.path.exists(path):
+    try:
+        raw = read_state_text(path)
+    except UnicodeDecodeError:
+        raise MalformedState('%r is not valid UTF-8; not reading it' % path)
+    if raw is None:
         return default, True
-    with open(path) as f:
-        raw = f.read()
-    return json.loads(raw), raw.endswith('\n')
+    try:
+        return json.loads(raw), raw.endswith('\n')
+    except ValueError as e:
+        # A JSONDecodeError names a position, never the content.
+        raise MalformedState('%r is not valid JSON (%s); not reading it' % (path, e))
 
 
 def write_json(path, data, trailing_newline):
-    with open(path, 'w') as f:
-        f.write(json.dumps(data, indent=2) + ('\n' if trailing_newline else ''))
+    write_state(path, json.dumps(data, indent=2) + ('\n' if trailing_newline else ''))
 
 
-def marked_paths(state):
+def unsafe_text(value):
+    """Is value something no REVIEWS.md cell may hold: not a string, or carrying a line break?
+
+    Everything the generated REVIEWS.md prints comes from a file the
+    repository chose, and a newline in a table cell is a line of the
+    repository's choosing in a generated file that prune commits. Every
+    control character is rejected, and the Unicode line and paragraph
+    separators, because str.splitlines() breaks a line at those too.
+    Format characters (Cf) go as well: a right-to-left override or an
+    isolate cannot add a line, but it can make a path or a reviewer name
+    read as something else to the person reading the table.
+    """
+    return not isinstance(value, str) or any(
+        unicodedata.category(c) in ('Cc', 'Cf', 'Zl', 'Zp') for c in value)
+
+
+def is_line_number(value):
+    """Is value a line number as weAudit writes one? A bool is an int to Python, and not one to JSON."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def marked_paths(state, state_path):
     """Return (audited, partial) where audited is a list of paths and partial
-    maps path -> list of (startLine, endLine)."""
-    audited = [e['path'] for e in state.get('auditedFiles', [])]
+    maps path -> list of (startLine, endLine).
+
+    Every entry is checked before any structure is built from it, so a
+    malformed one is a refusal rather than a traceback (or, from
+    scope-orphans, an exit status that means orphans were found). An
+    unsafe path (see unsafe_text()), or a partial mark whose line numbers
+    are not integers, refuses the whole state file rather than being
+    skipped. Skipping would leave a mark that stamp neither stamps nor
+    reports, and it is a mark only a reviewer can remove: failing names
+    the file, so whoever runs this can un-mark it. The path itself is not
+    quoted, since it is what is unsafe to print.
+    """
+    if not isinstance(state, dict):
+        raise RefusedState('%r is not a JSON object' % state_path)
+    audited_entries = state.get('auditedFiles', [])
+    partial_entries = state.get('partiallyAuditedFiles') or []
+    if not isinstance(audited_entries, list) or not isinstance(partial_entries, list):
+        raise RefusedState('%r holds an auditedFiles or partiallyAuditedFiles that is not a list' % state_path)
+    for e in audited_entries + partial_entries:
+        if not isinstance(e, dict) or 'path' not in e:
+            raise RefusedState('%r holds a mark that is not an object with a path; un-mark it in weAudit'
+                               % state_path)
+        if unsafe_text(e['path']):
+            raise RefusedState('%r marks a path that is not a string, or that contains a control or format character '
+                               'or a Unicode line or paragraph separator; un-mark it in weAudit' % state_path)
+    for e in partial_entries:
+        if not is_line_number(e.get('startLine')) or not is_line_number(e.get('endLine')):
+            raise RefusedState('%r holds a partial mark whose line numbers are not integers; un-mark it '
+                               'in weAudit' % state_path)
+    audited = [e['path'] for e in audited_entries]
     partial = {}
-    for e in state.get('partiallyAuditedFiles', []) or []:
+    for e in partial_entries:
         partial.setdefault(e['path'], []).append((e['startLine'], e['endLine']))
     return audited, partial
+
+
+def checked_stamps(sidecar, side_path):
+    """Return a sidecar's stamps, refusing a sidecar whose stamps cannot be printed safely.
+
+    A stamp's date and sha are table cells in REVIEWS.md (see
+    unsafe_text()). Either may be absent or null, which reads as an
+    unstamped mark, but not anything else.
+    """
+    stamps = sidecar.get('files', {}) if isinstance(sidecar, dict) else None
+    if not isinstance(stamps, dict):
+        raise RefusedState('%r is not a JSON object holding a "files" object' % side_path)
+    for stamp in stamps.values():
+        if not isinstance(stamp, dict) or any(
+                stamp.get(k) is not None and unsafe_text(stamp[k]) for k in ('date', 'sha')):
+            raise RefusedState('%r holds a stamp that is not an object, or whose date or sha is not a string '
+                               'or contains a control or format character or a Unicode line or paragraph separator'
+                               % side_path)
+    return stamps
+
+
+Reviewer = collections.namedtuple('Reviewer', 'name state state_nl sidecar side_nl audited partial')
+
+
+def load_reviewer(state_path):
+    """Read and check one reviewer's state file and sidecar, refusing what REVIEWS.md cannot print.
+
+    Everything that can refuse a reviewer is here, so that a command
+    which writes can read every reviewer before it writes any of them.
+    """
+    name = reviewer_name(state_path)
+    state, state_nl = load_json(state_path, {})
+    audited, partial = marked_paths(state, state_path)
+    sidecar, side_nl = load_json(sidecar_path(state_path), {'version': 1, 'files': {}})
+    checked_stamps(sidecar, sidecar_path(state_path))
+    return Reviewer(name, state, state_nl, sidecar, side_nl, audited, partial)
 
 
 def is_dir_entry(path, tracked_set):
@@ -325,9 +565,8 @@ def load_imports():
     """
     try:
         imports, nl = load_json(IMPORTS_PATH, {'version': 1, 'files': {}})
-    except (ValueError, UnicodeDecodeError) as e:
-        print('review-tracking: WARNING: %s is not valid JSON (%s); ignoring it' % (IMPORTS_PATH, e),
-              file=sys.stderr)
+    except MalformedState as e:
+        print('review-tracking: WARNING: %s; ignoring it' % e, file=sys.stderr)
         imports, nl = {'version': 1, 'files': {}}, True
     if not isinstance(imports, dict):
         print('review-tracking: WARNING: %s is not a JSON object; ignoring it' % IMPORTS_PATH, file=sys.stderr)
@@ -358,11 +597,24 @@ def drop_malformed_imports(imports):
     for path in sorted(entries):
         entry = entries[path]
         imported = entry.get('imported') if isinstance(entry, dict) else None
-        if (isinstance(entry, dict) and isinstance(entry.get('sha'), str) and isinstance(imported, dict)
-                and all(isinstance(imported.get(k), str) for k in ('repo', 'reviewer', 'path', 'commit'))):
+        # Any of these would put a line of its own in REVIEWS.md if it
+        # carried a line break, as a marked path would (see
+        # unsafe_text()): the path, the sha and date, and the reviewer
+        # and commit REVIEWS.md prints. The imported repo and path are
+        # held to the same rule because nothing reading them needs to
+        # ask. Dropped here rather than refused, because this file is
+        # machine-written and dropping is how this file treats every
+        # other entry import did not write. A date may be absent or
+        # null, which renders as '-', as it does for a native stamp.
+        if (isinstance(entry, dict) and isinstance(imported, dict)
+                and not any(unsafe_text(v) for v in (
+                    path, entry.get('sha'), entry.get('date') or '-', imported.get('repo'),
+                    imported.get('reviewer'), imported.get('path'), imported.get('commit')))):
             continue
+        # json.dumps for the path too, so that an unsafe one is escaped on stderr.
         print('review-tracking: WARNING: %s entry for %s is malformed; ignoring it (%s)'
-              % (IMPORTS_PATH, path, json.dumps(entry, sort_keys=True)), file=sys.stderr)
+              % (IMPORTS_PATH, path if not unsafe_text(path) else json.dumps(path),
+                 json.dumps(entry, sort_keys=True)), file=sys.stderr)
         del entries[path]
         malformed.append(path)
     return malformed
@@ -377,7 +629,8 @@ def write_imports(imports, trailing_newline):
     """
     files = imports.get('files', {})
     if not files:
-        if os.path.exists(IMPORTS_PATH):
+        if os.path.lexists(IMPORTS_PATH):
+            check_writable(IMPORTS_PATH)
             os.remove(IMPORTS_PATH)
         return
     imports['files'] = dict(sorted(files.items()))
@@ -423,15 +676,12 @@ def native_marks(tracked, current_sha):
     marked = {}
     valid = set()
     for state_path in state_files():
-        reviewer = reviewer_name(state_path)
-        state, _ = load_json(state_path, {})
-        sidecar, _ = load_json(sidecar_path(state_path), {'version': 1, 'files': {}})
-        stamps = sidecar.get('files', {})
-        audited, _partial = marked_paths(state)
-        for path in audited:
+        r = load_reviewer(state_path)
+        stamps = r.sidecar.get('files', {})
+        for path in r.audited:
             if is_dir_entry(path, tracked):
                 continue
-            marked.setdefault(path, reviewer)
+            marked.setdefault(path, r.name)
             stamp = stamps.get(path)
             if stamp is not None and stamp.get('sha') is not None and current_sha(path) == stamp['sha']:
                 valid.add(path)
@@ -449,6 +699,22 @@ def import_source_label(entry):
     if imported.get('verified') is False:
         label += ' (unverified)'
     return label
+
+
+def table_cell(text):
+    """Escape text for a GitHub-flavoured Markdown table cell, where an unescaped pipe ends the cell.
+
+    A path may legitimately contain a pipe, so it is escaped rather than
+    refused. A run of backslashes before a pipe is doubled as well, so
+    that it cannot escape the backslash added here and leave the pipe
+    ending the cell after all. Backslashes anywhere else are left alone,
+    since they cannot end a cell.
+    """
+    return re.sub(r'(\\*)\|', lambda m: m.group(1) * 2 + '\\|', text)
+
+
+def table_row(cells):
+    return '| %s |' % ' | '.join(table_cell(c) for c in cells)
 
 
 def render_reviews_md():
@@ -470,22 +736,17 @@ def render_reviews_md():
     partial_rows = []
     reviewed_paths = set()
     for state_path in state_files():
-        reviewer = reviewer_name(state_path)
-        state, _ = load_json(state_path, {})
-        sidecar, _ = load_json(sidecar_path(state_path), {'version': 1, 'files': {}})
-        stamps = sidecar.get('files', {})
-        audited, partial = marked_paths(state)
-        audited = [p for p in audited if not is_dir_entry(p, tracked)]
-        for path in audited:
+        r = load_reviewer(state_path)
+        stamps = r.sidecar.get('files', {})
+        for path in [p for p in r.audited if not is_dir_entry(p, tracked)]:
             stamp = stamps.get(path, {})
             reviewed_paths.add(path)
-            full_rows.append((path, reviewer, stamp.get('date', '-'),
-                              stamp.get('sha', '-')[:SHORT_SHA], '-'))
-        for path, regions in sorted(partial.items()):
+            full_rows.append((path, r.name, stamp.get('date') or '-', (stamp.get('sha') or '-')[:SHORT_SHA], '-'))
+        for path, regions in sorted(r.partial.items()):
             stamp = stamps.get(path, {})
             lines = ', '.join('%d-%d' % (s, e) for s, e in sorted(regions))
-            partial_rows.append((path, lines, reviewer, stamp.get('date', '-'),
-                                 stamp.get('sha', '-')[:SHORT_SHA]))
+            partial_rows.append((path, lines, r.name, stamp.get('date') or '-',
+                                 (stamp.get('sha') or '-')[:SHORT_SHA]))
 
     # Imported reviews count toward the header and get a row, like a
     # native mark, and like a native mark they are trusted here rather
@@ -498,7 +759,7 @@ def render_reviews_md():
         if path in native_paths:
             continue
         reviewed_paths.add(path)
-        full_rows.append((path, entry.get('imported', {}).get('reviewer', '-'), entry.get('date', '-'),
+        full_rows.append((path, entry.get('imported', {}).get('reviewer', '-'), (entry.get('date') or '-'),
                           entry.get('sha', '-')[:SHORT_SHA], import_source_label(entry)))
 
     reviewed_in_scope = len([p for p in reviewed_paths if p in set(scoped)])
@@ -523,8 +784,8 @@ def render_reviews_md():
     if full_rows:
         out.append('| File | Reviewer | Date | Blob SHA | Source |')
         out.append('|------|----------|------|----------|--------|')
-        for path, reviewer, date, sha, source in sorted(full_rows):
-            out.append('| %s | %s | %s | %s | %s |' % (path, reviewer, date, sha, source))
+        for row in sorted(full_rows):
+            out.append(table_row(row))
     else:
         out.append('No files are currently reviewed.')
     if partial_rows:
@@ -533,23 +794,17 @@ def render_reviews_md():
         out.append('')
         out.append('| File | Lines | Reviewer | Date | Blob SHA |')
         out.append('|------|-------|----------|------|----------|')
-        for path, lines, reviewer, date, sha in sorted(partial_rows):
-            out.append('| %s | %s | %s | %s | %s |' % (path, lines, reviewer, date, sha))
+        for row in sorted(partial_rows):
+            out.append(table_row(row))
     return '\n'.join(out) + '\n'
 
 
 def generate_reviews_md():
     """Regenerate REVIEWS.md. Returns True if the file changed."""
     content = render_reviews_md()
-
-    old = None
-    if os.path.exists(REVIEWS_PATH):
-        with open(REVIEWS_PATH) as f:
-            old = f.read()
-    if content == old:
+    if content == read_state_text(REVIEWS_PATH):
         return False
-    with open(REVIEWS_PATH, 'w') as f:
-        f.write(content)
+    write_state(REVIEWS_PATH, content)
     return True
 
 
@@ -584,7 +839,7 @@ def report_out_of_scope(paths):
     lines.extend('    %s' % path for path in paths)
     lines.extend([
         '',
-        'These are excluded by %s, so reviewing them' % SCOPE_PATH,
+        'These are not in scope (see %s), so reviewing them' % SCOPE_PATH,
         'did not count. They do get a row in the %s table, which is what' % REVIEWS_PATH,
         'makes this easy to miss, but the coverage number above that table counts',
         'in-scope files only and has not moved. `status` cannot see them either, so',
@@ -619,18 +874,30 @@ def cmd_stamp(_args):
     changed = []
     stale = []
     out_of_scope = []
-    for state_path in state_files():
-        state, _ = load_json(state_path, {})
+
+    # As in prune: every read that can refuse is made, and every file
+    # this may write is checked, before the first write, so that a
+    # refusal over a later reviewer cannot follow an earlier reviewer's
+    # sidecar having been rewritten. The imports file is only read, here
+    # and by the REVIEWS.md render, which parses it without refusing.
+    reviewers = [(state_path, load_reviewer(state_path)) for state_path in state_files()]
+    read_state_text(IMPORTS_PATH)
+    read_state_text(REVIEWS_PATH)
+    check_writable(REVIEWS_PATH)
+    for state_path, _ in reviewers:
+        check_writable(sidecar_path(state_path))
+
+    for state_path, r in reviewers:
         side_path = sidecar_path(state_path)
-        sidecar, side_nl = load_json(side_path, {'version': 1, 'files': {}})
+        sidecar, side_nl = r.sidecar, r.side_nl
         stamps = sidecar.setdefault('files', {})
-        audited, partial = marked_paths(state)
+        audited, partial = r.audited, r.partial
         marked = set(p for p in set(audited) | set(partial) if not is_dir_entry(p, tracked))
         out_of_scope.extend(p for p in marked if not in_scope(p, include, exclude))
 
         side_changed = False
         for path in sorted(marked - set(stamps)):
-            sha = blob_sha(':%s' % path)
+            sha = blob_sha(':0:%s' % path)
             if sha is None:
                 print('review-stamp: WARNING: %s is marked reviewed but not in the git index; '
                       'not stamping it' % path, file=sys.stderr)
@@ -642,7 +909,7 @@ def cmd_stamp(_args):
             print('review-stamp: stamped %s at %s' % (path, sha[:SHORT_SHA]))
             side_changed = True
         for path in sorted(marked & set(stamps)):
-            sha = blob_sha(':%s' % path)
+            sha = blob_sha(':0:%s' % path)
             # `is not None and ==` rather than a bare ==: a sidecar
             # entry with no sha at all compares equal to a file that
             # has left the index, and two unknowns are not a match.
@@ -682,18 +949,39 @@ def cmd_stamp(_args):
 
 
 def cmd_prune(_args):
-    pruned = []
     tracked = set(tracked_files())
-    for state_path in state_files():
-        state, state_nl = load_json(state_path, {})
+
+    # Every read that can refuse is made, and every file this will write
+    # is checked for a symlink or a path outside the repository, before
+    # the first write: a refused run then leaves the tree as it found
+    # it, rather than with its state files pruned and REVIEWS.md stale.
+    # The REVIEWS.md render at the end reads only what is left of these.
+    # (A write that fails for want of permission is still refused where
+    # it happens, as it cannot be known beforehand.)
+    check_writable(REVIEWS_PATH)
+    read_state_text(REVIEWS_PATH)
+    load_scope()
+    reviewers = [(state_path, load_reviewer(state_path)) for state_path in state_files()]
+    imports = load_imports()
+    for state_path, _ in reviewers:
+        check_writable(state_path)
+        check_writable(sidecar_path(state_path))
+    check_writable(IMPORTS_PATH)
+
+    pruned = []
+    for state_path, r in reviewers:
+        state, state_nl = r.state, r.state_nl
         side_path = sidecar_path(state_path)
-        sidecar, side_nl = load_json(side_path, {'version': 1, 'files': {}})
+        sidecar, side_nl = r.sidecar, r.side_nl
         stamps = sidecar.get('files', {})
 
         stale = []
         for path in sorted(stamps):
             current = blob_sha('HEAD:%s' % path)
-            if current != stamps[path]['sha']:
+            recorded = stamps[path].get('sha')
+            # A stamp with no sha attests to nothing, so it is stale
+            # whatever the file holds now.
+            if recorded is None or current != recorded:
                 stale.append((path, stamps[path], current))
         if not stale:
             continue
@@ -702,7 +990,7 @@ def cmd_prune(_args):
             del stamps[path]
             now = current[:SHORT_SHA] if current else 'gone'
             print('review-prune: %s changed since its review (%s, %s -> %s); treating as unreviewed'
-                  % (path, stamp.get('date', 'undated'), stamp['sha'][:SHORT_SHA], now))
+                  % (path, stamp.get('date', 'undated'), (stamp.get('sha') or 'nothing')[:SHORT_SHA], now))
         stale_paths = set(path for path, _, _ in stale)
         state['auditedFiles'] = [e for e in state.get('auditedFiles', [])
                                  if e['path'] not in stale_paths]
@@ -728,7 +1016,7 @@ def cmd_prune(_args):
         write_json(side_path, sidecar, side_nl)
         pruned.extend(sorted(stale_paths))
 
-    pruned.extend(prune_imports())
+    pruned.extend(prune_imports(*imports))
 
     regenerated = generate_reviews_md()
     if pruned:
@@ -741,14 +1029,14 @@ def cmd_prune(_args):
     return 0
 
 
-def prune_imports():
+def prune_imports(imports, nl, malformed):
     """Drop imported reviews whose blob is no longer the file's content.
 
     Exactly the rule prune applies to a native stamp: an import attests
     to a blob SHA, not a path, so once the file changes the import says
-    nothing about it. Returns the paths dropped.
+    nothing about it. Takes load_imports()'s result, which cmd_prune has read
+    before writing anything. Returns the paths dropped.
     """
-    imports, nl, malformed = load_imports()
     stale = drop_stale_imports(imports['files'], lambda path: blob_sha('HEAD:%s' % path), 'review-prune')
     if stale or malformed:
         write_imports(imports, nl)
@@ -1129,6 +1417,12 @@ def cmd_import(args):
     native, valid = native_marks(tracked, head.get)
     imports, nl, removed = load_imports()
     entries = imports['files']
+    # Before the imports file is written, rather than after: the run's
+    # last write is REVIEWS.md, and refusing it then would leave the
+    # imports file changed beside a stale REVIEWS.md.
+    read_state_text(REVIEWS_PATH)
+    check_writable(REVIEWS_PATH)
+    check_writable(IMPORTS_PATH)
 
     # First, what this run should no longer be carrying (a malformed
     # entry, load_imports() has already dropped). A stale entry (its sha
@@ -1500,7 +1794,7 @@ def cmd_next(args):
     reviewed = set()
     for state_path in state_files():
         state, _ = load_json(state_path, {})
-        audited, _partial = marked_paths(state)
+        audited, _partial = marked_paths(state, state_path)
         reviewed.update(audited)
     # An imported review is a review: the file is not offered.
     imports, _, _ = load_imports()
@@ -1527,7 +1821,7 @@ def cmd_next(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('stamp', help='record blob SHAs for newly reviewed files')
     sub.add_parser('prune', help='discard reviews of files changed since review')
@@ -1551,9 +1845,14 @@ def main():
     top = git('rev-parse', '--show-toplevel').stdout.strip()
     os.chdir(top)
 
-    return {'stamp': cmd_stamp, 'prune': cmd_prune, 'import': cmd_import, 'regen': cmd_regen,
-            'next': cmd_next, 'status': cmd_status,
-            'scope-orphans': cmd_scope_orphans}[args.command](args)
+    command = {'stamp': cmd_stamp, 'prune': cmd_prune, 'import': cmd_import, 'regen': cmd_regen,
+               'next': cmd_next, 'status': cmd_status,
+               'scope-orphans': cmd_scope_orphans}[args.command]
+    try:
+        return command(args)
+    except RefusedState as e:
+        print('review-tracking: ERROR: %s' % e, file=sys.stderr)
+        return 2
 
 
 if __name__ == '__main__':

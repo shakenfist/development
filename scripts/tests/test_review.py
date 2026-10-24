@@ -15,6 +15,7 @@ import unittest.mock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit import check as check_module  # noqa: E402
+from audit import github  # noqa: E402
 from audit.checks import review  # noqa: E402
 from audit.text import patterns  # noqa: E402
 from tests.base import CheckTestCase, FixtureRepo  # noqa: E402
@@ -38,11 +39,24 @@ class StandInScriptMixin:
     repository, so each is a ToolFailure. These are the levers.
     """
 
-    def use_script(self, stdout='', stderr='', returncode=0):
+    def use_script(self, stdout='', stderr='', returncode=0, refuse_credentials=False):
+        """Stand in a script answering stdout, stderr and returncode.
+
+        With refuse_credentials, it instead exits 3 saying so when any
+        CREDENTIAL_ENV variable reaches it, which is not an answer
+        either check accepts.
+        """
         path = os.path.join(self.tempdir(), 'review-tracking.py')
+        guard = ''
+        if refuse_credentials:
+            guard = ('import os\n'
+                     f'if any(name in os.environ for name in {github.CREDENTIAL_ENV!r}):\n'
+                     '    sys.stderr.write("saw a credential")\n'
+                     '    sys.exit(3)\n')
         with open(path, 'w') as f:
             f.write('import sys\n'
-                    f'sys.stdout.write({stdout!r})\n'
+                    + guard
+                    + f'sys.stdout.write({stdout!r})\n'
                     f'sys.stderr.write({stderr!r})\n'
                     f'sys.exit({returncode})\n')
         patcher = unittest.mock.patch.object(review, 'REVIEW_TRACKING_SCRIPT', path)
@@ -110,6 +124,140 @@ class ReviewMarksPreCommitTest(CheckTestCase):
                            '      - id: end-of-file-fixer\n'
                            '        exclude: ^\\.vscode/.*\\.weaudit\n')
         self.assert_pass(self.check())
+
+    def hooks(self, *entries, top=''):
+        """Write a config from (hook id, exclude lines) pairs."""
+        body = ''.join(
+            f'      - id: {hook_id}\n{exclude}' for hook_id, exclude in entries)
+        self.fixture.write(
+            '.pre-commit-config.yaml',
+            f'{top}repos:\n  - repo: local\n    hooks:\n{body}')
+
+    # Spelled out rather than read from review.py, so that dropping an id
+    # from the list under test cannot also drop it from the test.
+    REWRITING_HOOKS = ('end-of-file-fixer', 'trailing-whitespace', 'mixed-line-ending',
+                       'pretty-format-json', 'file-contents-sorter')
+
+    def test_each_rewriting_hook_id_is_recognised(self):
+        """Every id in the list makes the check apply, and fail unprotected."""
+        for hook_id in self.REWRITING_HOOKS:
+            with self.subTest(hook=hook_id):
+                self.fixture.write('.vscode/review-scope.toml', 'include = ["*.py"]\n')
+                self.config('', hooks=hook_id)
+                self.assert_fail(self.check(), containing=hook_id)
+
+    def test_per_hook_exclude_passes_on_each_rewriting_hook(self):
+        for hook_id in self.REWRITING_HOOKS:
+            with self.subTest(hook=hook_id):
+                self.adopt()
+                self.hooks((hook_id, '        exclude: ^\\.vscode/.*\\.weaudit\n'))
+                self.assert_pass(self.check())
+
+    def test_exclude_on_an_unrelated_hook_fails(self):
+        """An exclude on gitleaks does nothing for end-of-file-fixer."""
+        self.adopt()
+        self.hooks(('gitleaks', '        exclude: ^\\.vscode/.*\\.weaudit\n'),
+                   ('end-of-file-fixer', ''))
+        self.assert_fail(self.check(), containing='end-of-file-fixer')
+
+    def test_exclude_on_a_hook_before_the_rewriting_hook_does_not_leak(self):
+        self.adopt()
+        self.hooks(('check-yaml', '        exclude: ^\\.vscode/.*\\.weaudit\n'),
+                   ('trailing-whitespace', ''))
+        self.assert_fail(self.check(), containing='trailing-whitespace')
+
+    def test_only_the_protected_rewriting_hook_passes(self):
+        """Two rewriting hooks, one protected: the other still rewrites the marks."""
+        self.adopt()
+        self.hooks(('end-of-file-fixer', '        exclude: ^\\.vscode/.*\\.weaudit\n'),
+                   ('trailing-whitespace', ''))
+        result = self.check()
+        self.assert_fail(result, containing='trailing-whitespace')
+        self.assertNotIn('end-of-file-fixer', result['details'])
+
+    def test_both_rewriting_hooks_protected_passes(self):
+        self.adopt()
+        exclude = '        exclude: ^\\.vscode/.*\\.weaudit\n'
+        self.hooks(('end-of-file-fixer', exclude), ('trailing-whitespace', exclude))
+        self.assert_pass(self.check())
+
+    def test_top_level_exclude_protects_every_rewriting_hook(self):
+        self.adopt()
+        self.hooks(('end-of-file-fixer', ''), ('trailing-whitespace', ''),
+                   top='exclude: ^\\.vscode/.*\\.weaudit\n')
+        self.assert_pass(self.check())
+
+    def test_block_scalar_exclude_matching_the_marks_passes(self):
+        self.adopt()
+        self.hooks(('end-of-file-fixer',
+                    '        exclude: |\n'
+                    '          (?x)^(\n'
+                    '            docs/generated/|\n'
+                    '            \\.vscode/.*\\.weaudit\n'
+                    '          )\n'))
+        self.assert_pass(self.check())
+
+    def test_block_scalar_exclude_not_matching_the_marks_fails(self):
+        """The `|` indicator is not the pattern, which as a regex matches everything."""
+        self.adopt()
+        self.hooks(('end-of-file-fixer',
+                    '        exclude: |\n'
+                    '          (?x)^(\n'
+                    '            docs/generated/|\n'
+                    '            vendor/\n'
+                    '          )$\n'))
+        self.assert_fail(self.check(), containing='end-of-file-fixer')
+
+    def test_every_block_scalar_indicator_is_read_as_text(self):
+        for indicator in ('|', '>', '|-', '>-', '|+', '>+', '| # why'):
+            with self.subTest(indicator=indicator):
+                self.adopt()
+                self.hooks(('end-of-file-fixer',
+                            f'        exclude: {indicator}\n'
+                            '          ^vendor/\n'))
+                self.assert_fail(self.check(), containing='end-of-file-fixer')
+
+    def test_literal_block_scalar_keeps_its_trailing_newline(self):
+        """`|` ends the pattern in a newline pre-commit would try to match; `|-` does not."""
+        self.adopt()
+        self.hooks(('end-of-file-fixer',
+                    '        exclude: |\n'
+                    '          ^\\.vscode/.*\\.weaudit\n'))
+        self.assert_fail(self.check(), containing='end-of-file-fixer')
+        self.hooks(('end-of-file-fixer',
+                    '        exclude: |-\n'
+                    '          ^\\.vscode/.*\\.weaudit\n'))
+        self.assert_pass(self.check())
+
+    def test_folded_block_scalar_joins_its_lines_with_a_space(self):
+        self.adopt()
+        self.hooks(('end-of-file-fixer',
+                    '        exclude: >-\n'
+                    '          ^\\.vscode/\n'
+                    '          .*\\.weaudit\n'))
+        self.assert_fail(self.check(), containing='end-of-file-fixer')
+
+    def test_exclude_nested_inside_another_key_is_not_the_hooks_own(self):
+        self.adopt()
+        self.hooks(('end-of-file-fixer',
+                    '        description:\n'
+                    '          exclude: ^\\.vscode/.*\\.weaudit\n'))
+        self.assert_fail(self.check(), containing='end-of-file-fixer')
+
+    def test_block_scalar_top_level_exclude_matching_the_marks_passes(self):
+        self.adopt()
+        self.hooks(('end-of-file-fixer', ''),
+                   top='exclude: >-\n  ^\\.vscode/.*\\.weaudit\n\n')
+        self.assert_pass(self.check())
+
+    def test_hook_lookalikes_inside_a_block_scalar_are_not_hooks(self):
+        """A script body mentioning `- id:` or `exclude:` is not configuration."""
+        self.adopt()
+        self.hooks(('local-script',
+                    '        entry: |\n'
+                    '          echo "- id: end-of-file-fixer"\n'
+                    '          exclude: ^\\.vscode/.*\\.weaudit\n'))
+        self.assert_skip(self.check(), containing='No file-rewriting')
 
     def test_quoted_exclude_passes(self):
         self.adopt()
@@ -289,6 +437,30 @@ class ReviewCoverageTest(StandInScriptMixin, CheckTestCase):
                 os.path.join(self.fixture.path, 'moved-away.py')):
             self.assert_tool_failure(self.check, containing='review-tracking.py status failed')
 
+    def test_review_tracking_sees_no_github_credential(self):
+        # The audit step holds a GitHub token, and the script runs inside
+        # the audited checkout.
+        self.make_reviewed_repo(['a.py'], reviewed=[])
+        self.use_script(stdout=json.dumps({'reviewed': 1, 'in_scope': 1, 'needing_review': 0,
+                                           'stale': [], 'never_reviewed': []}),
+                        refuse_credentials=True)
+        with unittest.mock.patch.dict(os.environ, {
+                'GH_TOKEN': 'audit-token', 'GITHUB_TOKEN': 'job-token'}):
+            result = self.check()
+        self.assert_pass(result)
+
+    def test_a_state_file_linked_out_of_the_checkout_is_a_tool_failure(self):
+        # The real script, refusing the link: an error, not a verdict.
+        self.make_reviewed_repo(['a.py'], reviewed=[])
+        outside = os.path.join(self.tempdir(), 'outside.weaudit')
+        with open(outside, 'w') as f:
+            f.write(json.dumps({'auditedFiles': [], 'partiallyAuditedFiles': []}))
+        os.symlink(outside, os.path.join(self.fixture.path, '.vscode', 'evil.weaudit'))
+        self.assert_tool_failure(
+            self.check,
+            containing="review-tracking.py status failed: review-tracking: ERROR: "
+                       "'.vscode/evil.weaudit' resolves outside the repository")
+
     def test_unparseable_output_is_a_tool_failure(self):
         self.make_reviewed_repo(['a.py'], reviewed=[])
         self.use_script(stdout='not json')
@@ -407,6 +579,14 @@ class ReviewScopeCompletenessTest(StandInScriptMixin, CheckTestCase):
             with self.subTest(body=body):
                 self.use_script(stdout=body, returncode=1)
                 self.assert_tool_failure(self.check, containing='without an orphans list')
+
+    def test_review_tracking_sees_no_github_credential(self):
+        self.commit('include = ["*.py"]\n', ['a.py'])
+        self.use_script(stdout='{"orphans": [], "orphan_count": 0}', refuse_credentials=True)
+        with unittest.mock.patch.dict(os.environ, {
+                'GH_TOKEN': 'audit-token', 'GITHUB_TOKEN': 'job-token'}):
+            result = self.check()
+        self.assert_pass(result)
 
     def test_orphans_reported_with_status_one_are_a_finding(self):
         self.commit('include = ["*.py"]\n', ['a.py'])
