@@ -341,7 +341,7 @@ answered each, which is what Phase 4 step 5 asked for:
 | 2. Stamp and prune hooks | Complete | `0957d15..ee6d4ea`; ryll `7775679e` (#144), `ef94c321` (#146) |
 | 3. Optional CI backstop | Superseded | nothing; replaced by `PLAN-review-coverage.md` |
 | 4. Documentation and rollout as a consistency audit | Complete | accreted over many landings; reconstructed in Phase 5 |
-| 5. Push audit | Complete | |
+| 5. Push audit | In progress | |
 
 This table was added on 2026-10-24, when Phases 0--4 were closed
 out together. Until then the plan carried no status table and every
@@ -555,7 +555,7 @@ one sentence: that is a real result, and a run of them is the
 evidence for making this phase conditional rather than mandatory.
 
 **Planning effort:** high. Every phase of this plan merged between
-three and fifteen weeks ago, and none of Phase 4 was recorded as it
+two and fifteen weeks ago, and none of Phase 4 was recorded as it
 landed. Nearly all of the judgement here is about which landings
 belong to this plan and which tree to report against. Getting either
 wrong produces a confident audit of nothing. **Review effort:** the
@@ -635,10 +635,11 @@ which this section's earlier text recorded as four direct commits.
 They are written as one `first^..last` range because the four commits
 are consecutive on `main`. Range 5 is a local merge with two parents,
 so `^1` reads it whole, and it is the same diff as its only branch
-commit `9c4821a`. Range 13 is a review-session pull request that also
-carried a criterion. The pathspec removes its marks, which record a
-review session rather than the plan's work: 15 files and +771 -42
-unscoped.
+commit `9c4821a`. Range 3 is #9's merge commit, and its only branch
+commit is `cde84bb`, the one the correction notes cite. Range 13 is a
+review-session pull request that also carried a criterion. The
+pathspec removes its marks, which record a review session rather than
+the plan's work: 15 files and +771 -42 unscoped.
 
 **Landings that touched these paths and are deliberately not in the
 table**, with whose record covers each:
@@ -856,7 +857,7 @@ fix, and none prunes, regenerates or commits `REVIEWS.md`.
 | 5e | high | opus | none | Wave 2d, security, per `PUSH-AUDIT.md`, over the fourteen ranges. Read the actual code at HEAD. The surface this plan introduced to this repository is range 10 (`a33e694`). It added `.github/workflows/prune-reviews.yml` and `tools/ci-prune-reviews.sh`, which push to `main` with a bot token. Both have since been replaced by the template copies, which `PLAN-review-import.md` phase 5 audited. So the question is narrow: did range 10 add anything to `ci.yml` (12 lines) or elsewhere that the template replacement left behind and that still runs? Read `ci.yml` at HEAD for it. Then the path surface: `scripts/review-tracking.py` builds paths from `.vscode/review-scope.toml`, from weAudit JSON and from `next`'s subtree argument (range 14). Apply the path-traversal block to each, bearing in mind that the first two need a merged pull request to change and the third is a local argument. Then `stamp` (ranges 2 and 11), which shells out to `git` with paths from weAudit JSON: is any of them passed where git would read it as an option? Report severity, current file and line, class, and fix. |
 | 5f | medium | sonnet | none | The removed-interface consumer check, D5.6. Fetch every Shaken Fist clone beside this one under `src/shakenfist/`, skipping `-wt-` worktrees. Use `gh repo list shakenfist --limit 200` to find any repository with no local clone, and use `gh search code --owner shakenfist` for those. Grep each default branch (`git grep <pattern> origin/HEAD`) for: `review-stamp`, `review-prune`, `pre-commit-hooks.yaml` together with `development`, `repo: https://github.com/shakenfist/development` in any `.pre-commit-config.yaml`, `test_every_stamp_matches`, `test_audit_check`, `check_review_coverage` and `check_review_marks`. State every command run and the repositories covered, and count the repositories searched. A hit in a plan file or a changelog is history, not a consumer, so say which each hit is. No commit, no issue, no edits in any repository. |
 | 5g | high | opus | none | Management triage, in the management session. Read all five reports and check each one's totals table against the survey's. Work the management checklist at the end of `PUSH-AUDIT.md`. Decide each finding blocking, advisory or declined. Check every finding attributed to an excluded range against the owning plan's Outcome (D5.2). Write an **Outcome** subsection here: the ranges and totals seen, what wave 1 found, what each of 5b to 5f found, and for every finding where it will be fixed or why it was declined. Cite development#307, and record D5.4's list as not audited, with the reason. |
-| 5h | low | sonnet | none | Close the plan, per D5.8. Set Phase 5's row to `Complete`. If 5g recorded no findings to fix, set the plan's row in `docs/plans/index.md` to `Complete`, leave the `Merged` cell empty, and update the index Intent to say the push audit ran and found nothing. Otherwise leave the index row `In progress`, and say in the Outcome that the findings pull request carries the close-out. Fill the `Bugs fixed during this work` section from what the plan's landings fixed, at least the auto-stamp of a stale mark that Phase 2 step 5 records, or say none were recorded. Run `pre-commit run --all-files`. Commit subject: `Record the review tracking push audit.` |
+| 5h | low | sonnet | none | Close the plan, per D5.8. If 5g recorded no findings to fix, set Phase 5's row and the plan's row in `docs/plans/index.md` to `Complete`, leave the `Merged` cell empty, and update the index Intent to say the push audit ran and found nothing. Otherwise leave both rows `In progress` and say in the Outcome that the findings pull request carries the close-out: it sets both to `Complete` and fills the `Merged` cell with this phase's merge commit. Fill the `Bugs fixed during this work` section from what the plan's landings fixed, at least the auto-stamp of a stale mark that Phase 2 step 5 records, or say none were recorded. Run `pre-commit run --all-files`. Commit subject: `Record the review tracking push audit.` |
 
 #### Risks and mitigations
 
@@ -905,10 +906,13 @@ fix, and none prunes, regenerates or commits `REVIEWS.md`.
   `gh repo list shakenfist --limit 200 --json name --jq length`, less
   any archived repositories it names.
 * The Outcome links development#307.
-* `grep -c '^| 5. Push audit | Complete |' docs/plans/PLAN-code-review-tracking.md`
-  returns 1. The anchor matters: without it the grep also matches this
-  line, which quotes the row, and returns 2. The index row reads `Complete` only if the Outcome
-  records no unresolved finding.
+* Phase 5's row and the plan's index row agree with the Outcome. If
+  it records findings to fix, both read `In progress`, and
+  `grep -c '^| 5. Push audit | In progress | |'
+  docs/plans/PLAN-code-review-tracking.md` returns 1. If it records
+  none, both read `Complete` and the `Merged` cell is empty. The
+  anchor matters: without it the grep also matches this bullet,
+  which quotes the row.
 * `pre-commit run --all-files` passes, and `git diff origin/main
   --stat` on the branch lists only this plan and `docs/plans/index.md`.
 
@@ -963,8 +967,10 @@ and the rest by reading it.
 ##### Findings to fix
 
 These land as one follow-up pull request against `main` after this
-phase merges. That pull request carries this phase's `Merged` cell
-and the index row's `Complete`, as `plan-phase-landing` requires.
+phase merges. That pull request sets this phase's `Status` to
+`Complete` and fills its `Merged` cell, and sets the index row to
+`Complete`, as `plan-phase-landing` requires. Until then both rows
+read `In progress`.
 
 * **F1 (medium, security; range 2, reached through #11).**
   `load_json()` at `scripts/review-tracking.py:283` opens with no
@@ -1152,8 +1158,10 @@ that we fixed.
   changed, silently and with exit zero, so a stale mark could reach
   the default branch. Fixed in `ba3876a`, which landed under #47 and
   is recorded in `PLAN-consistency-audits-v2.md`.
-* The push audit (Phase 5) found eight defects and gaps, recorded in
-  its Outcome. They are fixed in the follow-up pull request, not here.
+* The push audit (Phase 5) recorded eight findings: one medium and
+  two low security issues, one latent false pass, test gaps, and
+  three advisories. Its Outcome gives each one, and the follow-up
+  pull request fixes them, not this one.
 
 ### Back brief
 
