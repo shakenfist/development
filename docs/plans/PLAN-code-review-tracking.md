@@ -588,9 +588,9 @@ Out of scope:
 
 **The plan's status record was wrong in every phase.** Phase 0
 still read "UNDERWAY", Phase 2 step 6 and every Phase 4 step were
-still open, and there was no Execution table. The first commit on
-this branch closes out Phases 0--4. This commit corrects the false
-claims where they are made, not by rewriting the history: a dated
+still open, and there was no Execution table. `4b15e15` closes out
+Phases 0--4. `9acc3bc`, the commit that wrote this plan, corrects the
+false claims where they are made, not by rewriting the history: a dated
 note at the top of "Staleness via stamped blob SHAs and git hooks",
 another under "Open questions", the answers to the three open
 questions, and a step-by-step "What actually landed" under Phase 4.
@@ -904,8 +904,9 @@ fix, and none prunes, regenerates or commits `REVIEWS.md`.
   longer exists", and a disposition: fixed in a named pull request,
   or declined with a reason.
 * 5f's report names every repository searched, and their count equals
-  `gh repo list shakenfist --limit 200 --json name --jq length`, less
-  any archived repositories it names.
+  `gh repo list shakenfist --limit 200 --json name --jq length`,
+  archived repositories included. Searching those as well costs
+  nothing and leaves no gap to name.
 * The Outcome links development#307.
 * Phase 5's row and the plan's index row agree with the Outcome. If
   it records findings to fix, both read `In progress`, and
@@ -954,9 +955,12 @@ grep hits were these, all accepted:
 * 5c (tests): no assertion lost in either move, 162 tests passing.
   35 mutants ran under `timeout`, and four survived.
 * 5d (documentation): no gaps found. One imprecision, in this plan's
-  own correction note, is fixed in this commit.
+  own correction note, is fixed in `8e1b850`.
 * 5e (security): one medium finding, two low and two informational,
-  with four proofs of concept.
+  with four proofs of concept. There is no option injection: every
+  path from weAudit or the scope config reaches git prefixed with `:`
+  or `HEAD:`, so none can start with `-` (PoC 3). `shell=True`
+  appears nowhere in `scripts/` or `tools/`.
 * 5f (consumers of removed interfaces): no live consumer across the
   organisation's 40 repositories. 26 were searched by fetched clone
   and 14 by `gh`; 10 of the 14 are archived.
@@ -1160,10 +1164,10 @@ that we fixed.
   changed, silently and with exit zero, so a stale mark could reach
   the default branch. Fixed in `ba3876a`, which landed under #47 and
   is recorded in `PLAN-consistency-audits-v2.md`.
-* The push audit (Phase 5) recorded eight findings: one medium and
-  two low security issues, one latent false pass, test gaps, and
-  three advisories. Its Outcome gives each one, and the follow-up
-  pull request fixes them, not this one.
+
+None of the push audit's findings is fixed yet. They are recorded in
+its Outcome and tracked in development#315, and their fixes belong
+here once the follow-up pull request lands.
 
 ### Back brief
 
