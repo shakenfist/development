@@ -28,8 +28,11 @@ from audit.text.shared_blocks import validate_shared_blocks
 
 # Plan phase references: documentation outside plans directories
 # describes current behaviour, not the phase of the plan that built
-# it. See docs/audits/plan-phase-references.md.
-PHASE_REFERENCE_RE = re.compile(r'\bphases?\s+\d+\b', re.IGNORECASE)
+# it. See docs/audits/plan-phase-references.md. The number may carry
+# letters, because a plan's sub-phases are written `phase 3d`, and
+# without them the word boundary after the digits fails and the
+# reference goes unseen.
+PHASE_REFERENCE_RE = re.compile(r'\bphases?\s+\d+[a-z]*\b', re.IGNORECASE)
 
 
 # An inline code span, removed from a line before it is matched so
@@ -108,7 +111,7 @@ PLAN_HISTORY_RE = re.compile(
     PHASE_REFERENCE_RE.pattern
     + r'|\bphase-\d+\b'
     + r'|\bdecisions?\s+\d+(?:\.\d+)?\b'
-    + r'|\bsteps?\s+\d+[a-z]\b',
+    + r'|\bsteps?\s+\d+[a-z]+\b',
     re.IGNORECASE)
 
 
