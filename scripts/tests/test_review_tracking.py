@@ -290,6 +290,59 @@ class ReviewTrackingTest(unittest.TestCase):
         self.assertIn('src/gen_pb2.py', p.stderr)
         self.assertIn('changes staged in this commit', p.stderr)
 
+    def test_stamp_announces_a_partial_only_mark_on_an_out_of_scope_file(self):
+        self.mark_reviewed([], partial=[('src/gen_pb2.py', 1, 1)])
+        p = self.run_tool('stamp')
+        self.assertIn('OUT OF REVIEW SCOPE', p.stderr)
+        self.assertIn('src/gen_pb2.py', p.stderr)
+        self.assertEqual(p.returncode, 1)
+
+    def test_out_of_scope_banner_does_not_claim_an_exclusion(self):
+        # in_scope is also false for a file no include pattern matches,
+        # so "excluded" would be wrong for those.
+        self.write('.vscode/review-scope.toml', 'include = ["src/a.py"]\n')
+        self.mark_reviewed(['src/b.py'])
+        p = self.run_tool('stamp')
+        self.assertIn('src/b.py', p.stderr)
+        self.assertIn('not in scope (see .vscode/review-scope.toml)', p.stderr)
+        self.assertNotIn('These are excluded', p.stderr)
+
+    def test_stamp_does_not_read_a_leading_slash_path_as_a_commit_search(self):
+        # ':/text' is git's "newest commit whose message matches", so a
+        # mark on '/initial' must not be stamped with that commit.
+        self.mark_reviewed(['/initial'])
+        head = self.git('rev-parse', 'HEAD').stdout.strip()
+        p = self.run_tool('stamp')
+        self.assertIn('/initial is marked reviewed but not in the git index', p.stderr)
+        self.assertNotIn(head[:7], p.stdout)
+        self.assertFalse(os.path.exists(os.path.join(self.repo, '.vscode/testuser.weaudit-shas.json'))
+                         and '/initial' in self.read_json('.vscode/testuser.weaudit-shas.json')['files'])
+
+    def test_stamp_does_not_match_a_stamped_leading_slash_path_to_a_commit(self):
+        self.mark_reviewed(['/initial'])
+        head = self.git('rev-parse', 'HEAD').stdout.strip()
+        self.write('.vscode/testuser.weaudit-shas.json',
+                   json.dumps({'version': 1, 'files': {'/initial': {'sha': head, 'date': '2026-01-01'}}}))
+        p = self.run_tool('stamp')
+        self.assertIn('/initial is marked reviewed and stamped but is no longer in the git index', p.stderr)
+
+    def test_help_keeps_the_docstring_line_breaks(self):
+        p = self.run_tool('--help')
+        self.assertIn('- stamp: record the blob SHA and date of newly reviewed files in a\n'
+                      '  sidecar next to each weAudit state file', p.stdout)
+
+    def test_prune_treats_a_stamp_with_no_sha_as_stale(self):
+        self.mark_reviewed(['src/a.py'])
+        self.write('.vscode/testuser.weaudit-shas.json',
+                   json.dumps({'version': 1, 'files': {'src/a.py': {'date': '2026-01-01'}}}))
+        self.git('add', '-A')
+        self.git('commit', '-m', 'reviews')
+        p = self.run_tool('prune')
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn('src/a.py changed since its review', p.stdout)
+        self.assertEqual(self.read_json('.vscode/testuser.weaudit')['auditedFiles'], [])
+        self.assertEqual(self.read_json('.vscode/testuser.weaudit-shas.json')['files'], {})
+
     def test_stamp_announces_out_of_scope_every_run(self):
         """The announcement must survive the run that first stamps the file.
 

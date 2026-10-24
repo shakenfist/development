@@ -733,7 +733,7 @@ def report_out_of_scope(paths):
     lines.extend('    %s' % path for path in paths)
     lines.extend([
         '',
-        'These are excluded by %s, so reviewing them' % SCOPE_PATH,
+        'These are not in scope (see %s), so reviewing them' % SCOPE_PATH,
         'did not count. They do get a row in the %s table, which is what' % REVIEWS_PATH,
         'makes this easy to miss, but the coverage number above that table counts',
         'in-scope files only and has not moved. `status` cannot see them either, so',
@@ -779,7 +779,7 @@ def cmd_stamp(_args):
 
         side_changed = False
         for path in sorted(marked - set(stamps)):
-            sha = blob_sha(':%s' % path)
+            sha = blob_sha(':0:%s' % path)
             if sha is None:
                 print('review-stamp: WARNING: %s is marked reviewed but not in the git index; '
                       'not stamping it' % path, file=sys.stderr)
@@ -791,7 +791,7 @@ def cmd_stamp(_args):
             print('review-stamp: stamped %s at %s' % (path, sha[:SHORT_SHA]))
             side_changed = True
         for path in sorted(marked & set(stamps)):
-            sha = blob_sha(':%s' % path)
+            sha = blob_sha(':0:%s' % path)
             # `is not None and ==` rather than a bare ==: a sidecar
             # entry with no sha at all compares equal to a file that
             # has left the index, and two unknowns are not a match.
@@ -846,7 +846,10 @@ def cmd_prune(_args):
         stale = []
         for path in sorted(stamps):
             current = blob_sha('HEAD:%s' % path)
-            if current != stamps[path]['sha']:
+            recorded = stamps[path].get('sha')
+            # A stamp with no sha attests to nothing, so it is stale
+            # whatever the file holds now.
+            if recorded is None or current != recorded:
                 stale.append((path, stamps[path], current))
         if not stale:
             continue
@@ -855,7 +858,7 @@ def cmd_prune(_args):
             del stamps[path]
             now = current[:SHORT_SHA] if current else 'gone'
             print('review-prune: %s changed since its review (%s, %s -> %s); treating as unreviewed'
-                  % (path, stamp.get('date', 'undated'), stamp['sha'][:SHORT_SHA], now))
+                  % (path, stamp.get('date', 'undated'), (stamp.get('sha') or 'nothing')[:SHORT_SHA], now))
         stale_paths = set(path for path, _, _ in stale)
         state['auditedFiles'] = [e for e in state.get('auditedFiles', [])
                                  if e['path'] not in stale_paths]
@@ -1680,7 +1683,7 @@ def cmd_next(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('stamp', help='record blob SHAs for newly reviewed files')
     sub.add_parser('prune', help='discard reviews of files changed since review')
