@@ -77,6 +77,21 @@ maintenance` (project-specific) sits between `### Bugs fixed during
 this work` and `### Back brief`, so the close-out sections are not
 even contiguous.
 
+## Execution
+
+This plan was written before the Execution table convention, and
+its phases are the prose sections below. The table was added when
+the push audit was planned, on 2026-10-24, so the `Merged` cells of
+phases 1 to 3 are reconstructed rather than recorded as each phase
+landed; how is under *Push audit*.
+
+| Phase | Status | Merged |
+|-------|--------|--------|
+| 1. Implementation: blocks, check and spec | Complete | `2468dda`, `5918f5b` direct; `5b1fb74` (#49), `ff92357` (#50) |
+| 2. Migration | Complete | eight repositories, one pull request each; see *Push audit* |
+| 3. Verification | Complete | n/a -- confirmations against scratch copies, no commit |
+| 4. Push audit | Not started | |
+
 ## Implementation
 
 ### 1. Nine shared blocks -- `templates/shared-blocks/`
@@ -146,13 +161,21 @@ roster is separate, and what stays project-specific. Registered in
 
 ## Migration (separate commits, one per repository)
 
-Landed in five of the eight repositories: client-python-k3s,
-divergulent, instar, kerbside and ryll are `compliant` on the
-`plan-template` check. Outstanding for occystrap (sfui has no
-template and is N/A). shakenfist, one of the original four, is now
-non-compliant on `plan-template` for missing the
-`plan-push-audit-phase` block (shakenfist#3892). For each remaining
-repository, in its own branch:
+Landed in all eight repositories, each as one pull request merged
+on 2026-08-16 and touching `PLAN-TEMPLATE.md` alone; the record is
+under *Push audit* below. Those carried the restructure and the
+seven blocks that existed that day. `plan-status-vocabulary`
+(2026-08-19) and `plan-push-audit-phase` (2026-08-24) reached the
+templates afterwards through the issues the audit files, which is
+the steady state working rather than more migration.
+
+An earlier revision of this paragraph said five had landed and
+occystrap was outstanding, which was never true -- occystrap#115
+merged the same day as the rest -- and that shakenfist was
+non-compliant over `plan-push-audit-phase` (shakenfist#3892), which
+shakenfist#4160 fixed and the audit closed on 2026-09-13. Where each
+repository stands today is under *Verification*. Each migration
+followed these steps:
 
 1. Restructure `PLAN-TEMPLATE.md` so no section mixes generic and
    project-specific text. In practice: move the project-specific
@@ -182,9 +205,26 @@ review before eight copies of it exist.
 * A restructured shakenfist template carrying all seven blocks
   returns `pass`. Confirmed against a scratch copy -- at seven,
   before `plan-status-vocabulary` and `plan-push-audit-phase` were
-  added. Re-confirm at nine as part of the migration.
+  added. Re-confirmed on 2026-10-24 at ten blocks, after
+  `plan-phase-landing` joined `PLAN_TEMPLATE_BLOCKS`: run against
+  fresh clones of all eleven other repositories carrying a
+  template, andris, kerbside-patches, occystrap, private-ci and
+  shakenfist pass, as does this repository.
 * Bumping a block version marks the embedding repository stale, and
-  names the block that moved. Confirmed.
+  names the block that moved. Confirmed, and since confirmed in the
+  field twice: the `plan-file-conventions` v2 bump (`d0ab9d4`,
+  2026-10-06) and the `plan-push-audit-phase` v4 bump (`d502250`,
+  2026-10-14) each produced `shared block <name> is stale (vN
+  embedded, vM current)` naming that block and nothing else.
+  client-python-k3s, divergulent, instar, kerbside and ryll fail on
+  2026-10-24 on exactly those lines and no others.
+* uncalibrated-sextant is the one repository missing blocks rather
+  than lagging a version: `plan-status-vocabulary` and
+  `plan-push-audit-phase`, both written after its migration, and
+  `plan-phase-landing`, which is not this plan's. That is
+  uncalibrated-sextant#12, open since 2026-09-04 in a repository
+  with no push since 2026-09-03. It is consistency-fix work rather
+  than migration; see *Future work* under *Push audit*.
 
 ## Push audit
 
