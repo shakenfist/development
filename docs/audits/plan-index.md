@@ -78,9 +78,10 @@ does not police it.
 
 ## Template
 
-No template. `templates/shared-blocks/plan-status-vocabulary.md` holds
-the canonical status vocabulary; copy it verbatim, markers included,
-into the repository's `PLAN-TEMPLATE.md`.
+Every issue links `templates/shared-blocks/`, the directory of shared
+blocks. `templates/shared-blocks/plan-status-vocabulary.md` holds the
+canonical status vocabulary; copy it verbatim, markers included, into
+the repository's `PLAN-TEMPLATE.md`.
 
 To convert an index to the canonical layout, move the date to the first
 column, sort each table oldest first, and move everything that is not a

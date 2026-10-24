@@ -6,7 +6,11 @@ the software rather than the history of how it was built.
 
 push-audit is here too. It is about a runbook rather than a plan, but
 what it checks is the same shared blocks the plan template is checked
-against, and splitting them would put one validator in two places.
+against. The file is long because it holds several checks, not because
+they share a validator (that lives in audit.text.shared_blocks). A
+future split would use one seam: PushAudit, PlanTemplate,
+unreadable_file_detail and their block lists form a group of
+shared-block consumers, and could move together to their own module.
 """
 
 import os

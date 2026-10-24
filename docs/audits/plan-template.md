@@ -45,7 +45,18 @@ version of each of:
   where the Execution phases are a table, added last so a row which
   omits it still reaches `Status`, or a `Merged:` line where they are
   prose sections. It never goes in the `Status` cell, which
-  `plan-status-vocabulary` reserves for a single term; and
+  `plan-status-vocabulary` reserves for a single term. Since v3 the
+  rule that a plan already in a terminal status is not reopened to
+  acquire the phase names all three terminal statuses (`Complete`,
+  `Abandoned` and `Superseded`), not `Complete` alone. Since v4 a
+  repository with no `PUSH-AUDIT.md` is no longer left to invent its
+  own checklist: the phase requires a floor of five items, applied to
+  the recorded landings -- that each landing takes one of the
+  recorded forms, that unattended work reports its own failure, that
+  no secret or token entered a repository and no private hostname or
+  address entered a more public one, that nothing removed has a
+  consumer left, and that publishing fails closed -- each with a
+  verdict or a reason it does not apply; and
 * **`plan-phase-landing`** -- that a phase is closed out in the first
   commit of the next phase rather than in a pull request of its own,
   so that the merge commit the `Merged` cell records is known by the
@@ -89,6 +100,11 @@ written from them, which publish through mkdocs-material, so it renders
 as a proper callout -- whereas a repeated `### In this project` heading
 would mint duplicate anchor IDs and duplicate table-of-contents entries
 in every one of those plans.
+
+That justification applies to repositories whose plans publish through
+mkdocs. A repository that publishes nothing (one with no `mkdocs.yml`)
+may mark its project-specific runs with any non-heading marker, such as
+a bold lead-in paragraph. The check tests for neither form.
 
 Only the short runs trailing a shared block need the admonition. Whole
 sections that are project-specific in their entirety -- `## Prompt`,
