@@ -209,24 +209,12 @@
       "sha": "7c03ef16a75dd5f9c4df55c047185ecb0330d0dd",
       "date": "2026-10-12"
     },
-    "docs/audits/plan-index.md": {
-      "sha": "436cf37b2f9d0492d38ddf205f49bccbbad677c6",
-      "date": "2026-10-05"
-    },
     "docs/audits/plan-phase-references.md": {
       "sha": "08e51b13f6f3ff523d292a1b5daad5a8c9568301",
       "date": "2026-10-05"
     },
     "docs/audits/plan-source-references.md": {
       "sha": "f4a5692ebc7df73e1408d526523d5b407ea851e4",
-      "date": "2026-10-12"
-    },
-    "docs/audits/plan-template.md": {
-      "sha": "4cf93d4dadebc842fc643300d689bb06aa6b539b",
-      "date": "2026-10-05"
-    },
-    "docs/audits/push-audit.md": {
-      "sha": "54baefdd0b45a60aeae483fc5342e1795862f8f8",
       "date": "2026-10-12"
     },
     "docs/audits/pyproject-usage.md": {
@@ -393,10 +381,6 @@
       "sha": "141782bb8f1ccd73eea1a55e31cb555833d34f2e",
       "date": "2026-10-19"
     },
-    "scripts/audit/checks/plans.py": {
-      "sha": "5ab880e15c8bae4eb2f7a12aac1192d5afb64e17",
-      "date": "2026-10-19"
-    },
     "scripts/audit/checks/review.py": {
       "sha": "f788d3519144769d532aa1091b826dcd1e87df62",
       "date": "2026-10-19"
@@ -444,10 +428,6 @@
     "scripts/audit/text/python_source.py": {
       "sha": "3279930e796e7d42ea3a4a1382d180d4391d94a8",
       "date": "2026-10-22"
-    },
-    "scripts/audit/text/shared_blocks.py": {
-      "sha": "100a6bcd559df58c9dc57a27814d3bb846f59aef",
-      "date": "2026-09-02"
     },
     "scripts/audit/text/workflows.py": {
       "sha": "cff1f11b4acc0f004a3767315b00f312f14d991f",
@@ -563,10 +543,6 @@
     },
     "scripts/tests/test_patterns.py": {
       "sha": "4477ff162d7fd9a3ffb14e31b5979850e23e514f",
-      "date": "2026-10-21"
-    },
-    "scripts/tests/test_plans.py": {
-      "sha": "555e03cf4c1998fbecaf3930eadc87dfa971aaaa",
       "date": "2026-10-21"
     },
     "scripts/tests/test_python_source.py": {
@@ -736,10 +712,6 @@
     "templates/review-tracking/review-tracking.sh": {
       "sha": "db83f953a7b90229111cf75bd24504a19a032c2f",
       "date": "2026-09-27"
-    },
-    "templates/shared-blocks/README.md": {
-      "sha": "00fd86eb39aae7e25abcf418a2d6a80fc35f225f",
-      "date": "2026-10-05"
     },
     "templates/shared-blocks/comment-proportion.md": {
       "sha": "38c366bd44e111f047e5eb2379451ba9c13d04c6",

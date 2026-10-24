@@ -69,10 +69,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/text/shared_blocks.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/__init__.py",
       "author": "mikal"
     },
@@ -309,10 +305,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/shared-blocks/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/security-sanitization.md",
       "author": "mikal"
     },
@@ -381,10 +373,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/plan-template.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/plan-phase-references.md",
       "author": "mikal"
     },
@@ -410,10 +398,6 @@
     },
     {
       "path": "docs/audits/pyproject-usage.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/plan-index.md",
       "author": "mikal"
     },
     {
@@ -446,10 +430,6 @@
     },
     {
       "path": "docs/audits/plan-source-references.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/push-audit.md",
       "author": "mikal"
     },
     {
@@ -510,10 +490,6 @@
     },
     {
       "path": "templates/shared-blocks/plan-push-audit-phase.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/shared-blocks",
       "author": "mikal"
     },
     {
@@ -677,10 +653,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/plans.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/review.py",
       "author": "mikal"
     },
@@ -814,10 +786,6 @@
     },
     {
       "path": "scripts/tests/test_patterns.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_plans.py",
       "author": "mikal"
     },
     {
