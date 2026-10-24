@@ -634,6 +634,24 @@ in D5, corrected above.
   one specification.
 * Phase 4's findings are resolved or declined in writing.
 
+**Outcome, checked on 2026-10-25 when the plan was closed out.** The
+first scheduled run after the merge was the one queued for 06:00 UTC
+on 2026-08-27, which GitHub started late at 17:24 UTC; its commit,
+`2f0f0e5`, touched only `docs/audits/compliance.md`. So has every bot
+commit that regenerated the page since, which
+`git log --name-only --grep='Regenerate the audit compliance page'`
+shows. On shakenfist.com, the published `export-repo-config`
+specification links to
+`/components/development/audits/compliance/#export-repo-config`, and
+the published compliance page carries an element with that `id`.
+
+The schedule has changed since this plan was written. `33def50`
+(2026-10-02) moved the audit from 06:00 UTC daily to 18:00 UTC every
+Sunday, so the "every morning" and "06:00 UTC" wording above
+describes the schedule at the time of the change, not the current one.
+`docs/audits/compliance.md` states the current schedule in its
+preamble.
+
 ## Future work
 
 * **`compliance.json`.** If something ever wants the fleet-wide
