@@ -2,6 +2,10 @@
 
 ## Context
 
+This section describes the fleet as it stood in August 2026, when
+the plan was written. Twelve repositories carry a template today;
+see *Verification*.
+
 Ten repositories carry a `PLAN-TEMPLATE.md`. Nothing audits any of
 them, and they have drifted into three states:
 
@@ -121,8 +125,9 @@ This started as seven. `plan-status-vocabulary` was added when the
 `plan-push-audit-phase` by `PLAN-push-audit-phase.md`, which needed
 somewhere to put the pre-push audit's trigger and found that this
 plan's migration was the only pass that would carry it into eight
-templates without editing them twice. The migration below covers
-all nine.
+templates without editing them twice. The migration below carried
+the seven that existed on 2026-08-16; the other two reached the
+templates afterwards through the issues the audit files.
 
 `subagent-model-roster` is separate from `subagent-step-guidance`
 on purpose. It churns whenever a model ships or retires while the
@@ -194,7 +199,7 @@ followed these steps:
    `### Documentation index maintenance` up next to
    `### Success criteria` so the close-out sections become
    contiguous.
-2. Embed the nine blocks verbatim.
+2. Embed every block that exists at the time, verbatim.
 3. Confirm `audit-check.py` reports `plan-template` as pass.
 
 occystrap and client-python-k3s have no `## Agent guidance` section
@@ -266,9 +271,12 @@ and `ff92357` (#50). Between them those cover all nine blocks,
 `check_plan_template`, and `docs/audits/plan-template.md` --
 `2468dda` carried seven blocks plus the check and the spec page,
 `5918f5b` added `plan-status-vocabulary`, and #49 and #50 added and
-then revised `plan-push-audit-phase`. The migration commits in the
-other four repositories are named in their own pull requests and are
-audited there.
+then revised `plan-push-audit-phase`. The eight migration pull
+requests are listed in the *Landing record* below. None of them ran a
+push audit, because the obligation postdates them, and step 4b runs
+the floor checklist over them instead. An earlier revision of this
+paragraph said the migration was in four other repositories and was
+audited there; neither was true.
 
 **Two corrections to that line, both worth reading before doing this
 for another plan.** It first read as seven commits "all direct to
@@ -285,8 +293,8 @@ The larger error was scope. Four of the seven -- `9a74046`
 (`readme-discipline`), `fbcd759` (`comment-proportion`), `3abb973`
 (`plan-phase-references`) and `51d872f` (`llm-doc-discipline`) --
 are not this plan's work at all. They touch
-`templates/shared-blocks/` but none of them is one of the nine
-blocks `PLAN_TEMPLATE_BLOCKS` names, so an audit anchored on them
+`templates/shared-blocks/` but none of them is one of this plan's
+nine blocks, so an audit anchored on them
 would have swept in four unrelated consistency audits. Recording a
 range by the directory a plan happens to touch is the same mistake
 as deriving it from a date: both answer "what else was going on"
@@ -426,9 +434,11 @@ as work below.
    nobody has pushed to since September. It goes in *Future work*.
 7. **Close-out follows `plan-phase-landing`.** If the audit raises
    findings, their pull request carries the close-out: row 4 to
-   `Complete` with this phase's merge commit, and the index row to
-   `Complete`. If it raises none, this phase's own pull request sets
-   both and row 4 records no `Merged` cell.
+   `Complete`, with the merge commit of the pull request that lands
+   this record as its `Merged` cell, and the index row to `Complete`.
+   The findings pull request's own merge is not recorded in row 4; it
+   is cited in the *Outcome*. If it raises none, this phase's own pull
+   request sets both and row 4 records no `Merged` cell.
 
 ### Landing record
 
@@ -569,12 +579,12 @@ findings pull request against `main`. That pull request also carries
 the close-out under decision 7. Blocking here would mean holding a
 push, and the code under audit has been on `main` since August, so
 severity decides the order of the fixes, not whether this record
-merges. Problems that predate this plan, or
-that belong to another plan's blocks, are filed as issues rather
-than treated as findings.
+merges. Problems that predate this plan, or that belong to another
+plan's blocks, are filed as issues rather than treated as findings.
 
 **4a, wave 1.** `pre-commit run --all-files` passed. Every grep was
 either empty or a hit that was looked at and accepted:
+
 * Seven blocks created at v1 by `2468dda`, and
   `plan-status-vocabulary` at v1 by `5918f5b`. Neither commit edits
   an existing block.
@@ -593,6 +603,7 @@ issue development#309.
 
 **4b, migration floor.** All eight pull requests match the *Landing
 record*.
+
 * No secret, private hostname or address was added.
 * The only removed headings are `### Future work` and `### Bugs
   fixed during this work`, in six templates. Both are re-added in the
@@ -600,19 +611,23 @@ record*.
   every default branch today, so no consumer was stranded.
 * Items 2 and 5 of the floor checklist do not apply to a prose file.
 
-**To be fixed in the findings pull request, not yet opened.** When
-it opens, it replaces this heading with its number and merge commit,
-and fills row 4's `Merged` cell, as decision 7 says.
+**To be fixed in the findings pull request, not yet opened, and
+tracked by development#313.** When it opens, it replaces this heading
+with its number and closes out row 4 as decision 7 says.
 
-1. **The block extractor uses memory that grows with the square of
-   its input.** This is medium severity, from 4f, reproduced here.
+1. **The block extractor uses memory that grows with the square of its
+   input.** This is medium severity, from 4f, reproduced here.
    `extract_shared_blocks` (`scripts/audit/text/shared_blocks.py:54`)
    slices from every begin marker to the next end marker and keeps
-   every slice. A file of 200 KB of begin markers and one end marker
-   took 428 MB, and the read cap allows 2 MB, on a shared
-   self-hosted runner. The extractor predates this plan (`9a74046`).
-   It is fixed here anyway: `2468dda` gave it its largest untrusted
-   input, and the same rewrite closes the next three items.
+   every slice, and runs one `find` per begin marker, so time grows
+   with the square of the input as well as memory. A file of 200 KB of
+   begin markers and one end marker took 428 MB, and the read cap
+   allows 2 MB, on a shared self-hosted runner. The extractor predates
+   this plan (`9a74046`). It is fixed here anyway: `2468dda` gave it
+   its largest untrusted input, and the same rewrite closes the next
+   three items. The fix is a single linear pass that pairs begin and
+   end markers in order, with a test on the pathological input that
+   bounds both.
 2. **The validator's account of malformed blocks is wrong.** From
    4c, 4d and 4e.
    * A block missing its end marker borrows the next block's marker
@@ -698,10 +713,9 @@ and fills row 4's `Merged` cell, as decision 7 says.
     prose section, which `plan-push-audit-phase` assumes.
 * development#311: `MD_HEADING_CLOSING_RE`
   (`scripts/audit/text/markdown.py:105`) is quadratic on a line of
-  spaces: 1.35 s at 20,000 characters, reproduced here. It is called from
-  six places under `scripts/audit/checks/`, and a 2 MB line would
-  exceed the leg timeout.
-  This is outside this plan's subject (4f).
+  spaces: 1.35 s at 20,000 characters, reproduced here. It is called
+  from six places under `scripts/audit/checks/`, and a 2 MB line would
+  exceed the leg timeout. This is outside this plan's subject (4f).
 * uncalibrated-sextant#12 already exists; see *Future work*.
 
 **Declined:**
