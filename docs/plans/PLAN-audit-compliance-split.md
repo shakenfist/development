@@ -634,7 +634,7 @@ in D5, corrected above.
   one specification.
 * Phase 4's findings are resolved or declined in writing.
 
-**Outcome, checked on 2026-10-25 when the plan was closed out.** The
+**Outcome, checked on 2026-10-24 (UTC) when the plan was closed out.** The
 first scheduled run after the merge was the one queued for 06:00 UTC
 on 2026-08-27, which GitHub started late at 17:24 UTC; its commit,
 `2f0f0e5`, touched only `docs/audits/compliance.md`. So has every bot
@@ -644,6 +644,9 @@ shows. On shakenfist.com, the published `export-repo-config`
 specification links to
 `/components/development/audits/compliance/#export-repo-config`, and
 the published compliance page carries an element with that `id`.
+The published page was then the one generated at 2026-10-11T21:20
+UTC, about two weeks behind this repository's copy. That lag is in the
+website deploy, not in anything this plan changed.
 
 The schedule has changed since this plan was written. `33def50`
 (2026-10-02) moved the audit from 06:00 UTC daily to 18:00 UTC every
