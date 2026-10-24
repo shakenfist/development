@@ -121,6 +121,18 @@ natively.
 
 ### Staleness via stamped blob SHAs and git hooks
 
+*Corrected on 2026-10-24*: the hooks described in this section and in
+"New code required" below were removed in `cde84bb` (#9,
+2026-07-18), and `.pre-commit-hooks.yaml` went with them. Review state
+changing in the middle of unrelated git operations confused more than
+it helped. `stamp` and `prune` are now run by hand through a
+per-repository wrapper. Since `PLAN-review-coverage.md`, `prune` and
+`import` also run from each adopter's `prune-reviews` workflow on its
+own default branch. The stamped-SHA sidecar, the O(1) staleness
+comparison and the reasons for both still stand. This section is
+kept as the record of the design, and `docs/code-review-tracking.md`
+is the authority on how the pieces run today.
+
 Phase 0 confirmed the gap: weAudit has no idea when a reviewed file
 changes. The revised design (July 2026, after trialling weAudit)
 solves this entirely client-side with two hooks and one small script,
@@ -284,19 +296,40 @@ with an explanatory header and coverage summary; a `next`
 subcommand picks a random unreviewed in-scope file and opens it in
 VSCode.
 
-Still open:
+*Corrected on 2026-10-24*: two of the resolutions above did not
+last. The hooks are gone (see the note at the top of "Staleness via
+stamped blob SHAs and git hooks"). Scope is no longer direct code
+only: `ed10382` made code plus the prose that documents it the
+recommended default, and `9c4821a` added YAML configuration. The
+current rule is the scope config entry under "The pieces" in
+`docs/code-review-tracking.md`.
+
+The three questions below were left open in July. Practice has
+answered each, which is what Phase 4 step 5 asked for:
 
 * **Are unit tests in scope?** Direct code is in and generated code
   is out (decided); unit tests sit in between. Probably a per-repo
-  call recorded in that repo's scope config.
+  call recorded in that repo's scope config. *Settled as a per-repo
+  call*, which is how `docs/code-review-tracking.md` states it, and
+  each adopter's `.vscode/review-scope.toml` records the choice.
 * **Should REVIEWS.md link to findings?** The header and coverage
   summary are decided; whether rows should also reference weAudit
-  findings/notes for the file is not.
+  findings/notes for the file is not. *Settled as no, by default.*
+  The rows carry path, reviewer, date, blob SHA and, since
+  `PLAN-review-import.md`, the source of an imported review. No
+  findings link was built and nobody has asked for one. Findings
+  stay in the weAudit state, which is committed beside
+  `REVIEWS.md`.
 * **Multi-reviewer**: weAudit state is per-user
   (`<username>.weaudit`). For now there is one reviewer; the design
   extends naturally (one sidecar per state file) but the hook script
   should not assume a single state file, and `REVIEWS.md` must merge
-  all reviewers' state.
+  all reviewers' state. *Settled as designed.* `review-tracking.py`
+  reads every `.vscode/*.weaudit` file. `REVIEWER_IDENTITIES` maps
+  each reviewer to the signing identity that `import` verifies. The
+  imports file is a reviewer-shaped sidecar of its own. There is
+  still only one human reviewer, so the multi-reviewer path has had
+  no real use.
 
 ## Execution
 
@@ -307,7 +340,7 @@ Still open:
 | 2. Stamp and prune hooks | Complete | `0957d15..ee6d4ea`; ryll `7775679e` (#144), `ef94c321` (#146) |
 | 3. Optional CI backstop | Superseded | nothing; replaced by `PLAN-review-coverage.md` |
 | 4. Documentation and rollout as a consistency audit | Complete | accreted over many landings; reconstructed in Phase 5 |
-| 5. Push audit | Not started | |
+| 5. Push audit | In progress | |
 
 This table was added on 2026-10-24, when Phases 0--4 were closed
 out together. Until then the plan carried no status table and every
@@ -479,42 +512,410 @@ becomes yet another thing the consistency audits check for:
 4. Roll out to further codebases as first passes are scheduled.
 5. Revisit the open questions above with real experience.
 
+*What actually landed (survey of 2026-10-24).* This phase was never
+run as a unit. Its work arrived in pieces between July and October,
+some as unplanned landings and some under later plans, and none of it
+was recorded here at the time. Phase 5's survey reconstructs those
+landings. Taking the steps in turn:
+
+1. Done. `README.md` describes review tracking among its
+   documentation links. It first did so in Phase 2, and was reworded
+   by #9 and `b51f550`.
+2. Done in a different shape. There is no
+   `audits/code-review-tracking.md`. The criteria are
+   `docs/audits/review-coverage.md` (backlog against HEAD, from
+   `PLAN-review-coverage.md`), `docs/audits/review-scope-completeness.md`
+   (nothing leaves scope silently, #72), and the
+   `review-marks-pre-commit` check in
+   `docs/audits/workflow-standards.md` (#14, #15). The template
+   directory is `templates/review-tracking/`, not
+   `templates/code-review-tracking/`. It holds the prune workflow,
+   its script and the by-hand wrapper (`PLAN-review-import.md`), not
+   a `.pre-commit-config.yaml` stanza: that stanza went when the hooks
+   did.
+3. No longer applicable. There is no hook configuration to check
+   for. The checks that do exist are listed under step 2.
+4. Done. Besides ryll, the adopters are kerbside (kerbside#214),
+   actions (actions#24), hunkydory (hunkydory#8), sfui (sfui#39),
+   kerbside-client (kerbside-client#10) and this repository (#36). The
+   `review-tracking-adoption` skill (`b51f550`) is the procedure for
+   adopting a repository.
+5. Settled in practice and now recorded under "Open questions" above.
+
 ### Phase 5: Push audit
 
 Run `PUSH-AUDIT.md` over the accumulated diff of every phase in
 this plan against `main`, not over the last phase's diff alone --
 the interactions between phases are most of what a whole-plan
-audit is for.
+audit is for. Findings land as their own pull request. The plan is
+not complete until each finding is resolved or declined in writing,
+with the reason recorded here. If the audit finds nothing, say so in
+one sentence: that is a real result, and a run of them is the
+evidence for making this phase conditional rather than mandatory.
 
-Phases 0--2 are already on `main`, so `git diff main` for this plan
-is empty and would read as a clean audit. The audit runs over the
-commits that put them there, reconstructed from this plan file's
-history rather than recorded as they landed -- which is what the
-`plan-push-audit-phase` block now asks for, and did not when these
-phases merged:
+**Planning effort:** high. Every phase of this plan merged between
+three and fifteen weeks ago, and none of Phase 4 was recorded as it
+landed. Nearly all of the judgement here is about which landings
+belong to this plan and which tree to report against. Getting either
+wrong produces a confident audit of nothing. **Review effort:** the
+runbook's own settings, raised to high for 2a and 2b. Fourteen ranges
+have to be mapped onto a tree that has since been restructured, and
+that mapping is where a lighter run would go wrong.
 
-| Phase | Merged |
-|-------|--------|
-| 0. Trial weAudit | nothing in this repository; the trial ran in ryll |
-| 1. Conventions for signed review state | `d180c39` |
-| 2. Stamp and prune hooks | `0957d15`, `9f8d47f`, `4eae793`, `ee6d4ea` |
+In scope:
 
-There are no merge commits to name: all of these landed directly on
-`main` on 2026-07-09, confirmed against
-`repos/shakenfist/development/commits/<sha>/pulls`, which returns no
-pull request for any of them. That is the second shape v2 covers --
-"the phase's last commit where it landed directly" -- and it is why
-the block asks for the landing commit rather than the merge commit.
+* running `PUSH-AUDIT.md` over the fourteen ranges in D5.1;
+* the consumer check D5.6 adds for the interfaces this plan removed;
+* writing the Outcome into this section;
+* closing the plan.
 
-Phase 4's rollout lands in other repositories, so each rollout pull
-request carries its own audit against that repository's default
-branch -- which is `develop`, not `main`, in shakenfist and ryll.
+Out of scope:
 
-Findings land as their own pull request; the plan is not complete
-until each is resolved or declined in writing, with the reason
-recorded here. If the audit finds nothing, say so in one sentence:
-that is a real result, and a run of them is the evidence for making
-this phase conditional rather than mandatory.
+* fixing anything the audit finds, which lands as its own pull
+  request;
+* re-auditing work that other plans own and have audited (D5.2);
+* re-auditing the adoption pull requests in other repositories
+  (D5.4);
+* the template drift in sfui and kerbside-client, which the survey
+  found and which is filed rather than fixed (D5.5);
+* development#22 (Dockerfiles in human review scope), a per-repository
+  scope decision that this plan's machinery already supports;
+* the `default-branch-protection` criterion, which stays under Future
+  work.
+
+#### What the survey found
+
+**The plan's status record was wrong in every phase.** Phase 0
+still read "UNDERWAY", Phase 2 step 6 and every Phase 4 step were
+still open, and there was no Execution table. The first commit on
+this branch closes out Phases 0--4. This commit corrects the false
+claims where they are made, not by rewriting the history: a dated
+note at the top of "Staleness via stamped blob SHAs and git hooks",
+another under "Open questions", the answers to the three open
+questions, and a step-by-step "What actually landed" under Phase 4.
+`cde84bb` deliberately left this file as "a historical record" when
+it removed the hooks, and `PLAN-review-coverage.md` phase 5 made the
+same call. The notes respect both decisions, so a later step need not
+redo them.
+
+**Phase 4 landed in fourteen pieces that nobody recorded**, besides
+the work later plans did under their own names. The ranges below are
+every first-parent landing on `main` that touched the review tracking
+paths and is not claimed by another plan's Execution record.
+`scripts/review-tracking.py`, `scripts/*test_review_tracking.py`,
+`docs/code-review-tracking.md`, `templates/review-tracking/`,
+`.claude/skills/review-tracking-adoption/`,
+`scripts/audit/checks/review.py`, the two review criterion specs,
+`tools/*review*.sh` and `.github/workflows/prune-reviews.yml` were
+searched with `git log --first-parent main`. Every landing was then
+checked for single or double parents with `git log -1 --format=%p`.
+These are the diffstats the audit must reproduce:
+
+| # | Range | Landed | What | Files | Diffstat |
+|---|-------|--------|------|-------|----------|
+| 1 | `d180c39^..d180c39` | 2026-07-09 direct | Phase 1 conventions | 5 | +244 -6 |
+| 2 | `0957d15^..ee6d4ea` | 2026-07-09 direct | Phase 2 script, hooks, bootstrap rule, `next` workspace, derived dirs | 8 | +854 -60 |
+| 3 | `a3b7f50^1..a3b7f50` | #9, 2026-07-18 | Hooks removed; run by hand | 7 | +93 -130 |
+| 4 | `ed10382^..ed10382` | 2026-07-24 direct | Code plus docs as the default scope | 1 | +24 -7 |
+| 5 | `079e34e^1..079e34e` | 2026-08-05 local merge | YAML into review scope | 1 | +25 -12 |
+| 6 | `ba4a6a7^..ba4a6a7` | 2026-08-07 direct | Scope example: JavaScript and protobuf | 1 | +16 -7 |
+| 7 | `b51f550^..b51f550` | 2026-08-08 direct | `review-tracking-adoption` skill | 4 | +110 -0 |
+| 8 | `ccaac6e^1..ccaac6e` | #14, 2026-08-11 | Review marks exempt from rewriting hooks; the `review-marks-pre-commit` check | 5 | +209 -0 |
+| 9 | `127079e^1..127079e` | #15, 2026-08-11 | Narrow that exclude | 4 | +143 -43 |
+| 10 | `a33e694^1..a33e694` | #36, 2026-08-21 | This repository adopted | 7 | +172 -0 |
+| 11 | `44748d4^1..44748d4` | #56, 2026-08-27 | `stamp` announces out-of-scope reviews | 3 | +171 -10 |
+| 12 | `0ba8920^1..0ba8920` | #62, 2026-08-29 | Stale-stamp CI gate dropped | 3 | +19 -43 |
+| 13 | `39f8d5b^1..39f8d5b -- ':!.vscode' ':!REVIEWS.md'` | #72, 2026-08-31 | `review-scope-completeness` and `scope-orphans` | 11 | +515 -20 |
+| 14 | `f624d26^1..f624d26` | #236, 2026-10-09 | `next` picks from a subtree, in scope order | 3 | +204 -7 |
+
+The total is 63 file-diffs, +2,799 -345. Ranges 1 and 2 repeat the
+reconstruction that `PLAN-push-audit-phase` wrote here in August,
+which this section's earlier text recorded as four direct commits.
+They are written as one `first^..last` range because the four commits
+are consecutive on `main`. Range 5 is a local merge with two parents,
+so `^1` reads it whole, and it is the same diff as its only branch
+commit `9c4821a`. Range 13 is a review-session pull request that also
+carried a criterion. The pathspec removes its marks, which record a
+review session rather than the plan's work: 15 files and +771 -42
+unscoped.
+
+**Landings that touched these paths and are deliberately not in the
+table**, with whose record covers each:
+
+* `PLAN-review-coverage.md`: #11 (`b677b61`), #139, #146. Its
+  phase 6 audited them.
+* `PLAN-review-import.md`: #177, #186, #203, #249, #251, #254, and
+  the re-syncs in actions, hunkydory, kerbside and ryll. Its phase 5
+  audited them.
+* `PLAN-audit-scripts-restructure.md`: #79, which moved every check
+  out of `audit-check.py`.
+* `PLAN-review-unit-size.md`: #160.
+* `PLAN-consistency-audits-v2.md`: #47 (`e3d1333`) as a whole,
+  including `ba3876a`. That commit taught `stamp` to refuse a stale
+  stamp, and it is the one review-tracking change inside a PR that
+  another plan has recorded. The cav2 `fix` PRs (#266 to #285) are
+  also that plan's.
+* Not review-tracking work: #17's fixture git-environment scrub
+  (`4697409`), `805cb21`'s lint pass and #167's test-suite move
+  (`b9e8b6c`). Each touched these files only as one of many.
+* Review sessions (#47, #52, #72, #167, #277, #292, #296, #301,
+  #303) commit marks, and that is attestation, not plan work.
+
+**The tree has moved under every range.** Map each finding to a
+current path before reporting it (D5.3):
+
+* The check functions that #14, #15 and #72 added to
+  `scripts/audit-check.py` are now the `ReviewMarksPreCommit`,
+  `ReviewCoverage` and `ReviewScopeCompleteness` classes. They are
+  at `scripts/audit/checks/review.py:130`, `:172` and `:247`, and
+  registered at `scripts/audit/registry.py:86-88`.
+* `scripts/test_audit_check.py` is gone. The criteria's tests are
+  `scripts/tests/test_review.py`.
+* `scripts/test_review_tracking.py` is now
+  `scripts/tests/test_review_tracking.py` (`b9e8b6c`). This corrects
+  `PLAN-review-coverage.md`'s phase 6 survey, which was true when
+  written.
+* `audits/workflow-standards.md` is now
+  `docs/audits/workflow-standards.md`.
+* `.pre-commit-hooks.yaml` is gone (range 3). Its hook ids were
+  `review-stamp` and `review-prune`.
+
+**Every file the audit would report against carries a current human
+review mark.** For each live file the ranges touched, the `REVIEWS.md`
+stamp equals `git rev-parse HEAD:<path>` at `aa8d259`. That holds for
+`scripts/review-tracking.py`, `scripts/audit/checks/review.py`, both
+test modules, `docs/code-review-tracking.md`, the two criterion specs,
+`docs/audits/workflow-standards.md`, the adoption skill, both `tools/`
+scripts, `prune-reviews.yml`, `ci.yml`, `.pre-commit-config.yaml`,
+`README.md`, `AGENTS.md` and `ARCHITECTURE.md`. All were reviewed
+between 2026-09-27 and 2026-10-21. `.vscode/review-scope.toml` is
+tracking machinery and never carries a mark. A person has therefore
+read every file in its present form. That shapes D5.3 and D5.7: what
+whole-file review does not do is read a diff for what it removed, who
+consumed it, or how two landings interact.
+
+**sfui and kerbside-client carry stale copies of the review tracking
+CI.** `templates/review-tracking/README.md` says all three files
+"must stay byte-identical to the template in every adopted
+repository". Blob hashes fetched on 2026-10-24 with
+`gh api repos/shakenfist/<repo>/contents/<path>` show this:
+
+| Repository | `prune-reviews.yml` | `ci-prune-reviews.sh` | `review-tracking.sh` |
+|------------|---------------------|-----------------------|----------------------|
+| actions, hunkydory, kerbside, ryll | identical | identical | identical |
+| sfui, kerbside-client | differs | differs | identical |
+
+Both adopted on 2026-09-27 (sfui#39, kerbside-client#10). The
+template directory then took eleven commits on 2026-10-13 and
+2026-10-14, `99a2783` to `467b09a`. Several of those isolate the
+prune job from shared runner state: `9556eba`, `014f82e`, `ba549e4`
+and `130d700`. The
+re-sync wave that `PLAN-review-import.md` phase 5 audited covered the
+four older adopters only. No criterion measures the byte-identity
+the README requires, which is why nothing has reported this. D5.5
+files it as development#307.
+
+**`PUSH-AUDIT.md` agrees with the tree** on every point this phase
+leans on: `AUDIT_RANGE` throughout, the six-file rule pointing at
+`docs/consistency-audits.md`, and the suites 2b names, all of which
+now sit under `scripts/tests/`. Nothing else disagreed.
+
+**Review marks this phase can stale: none.** The phase edits only
+this plan, and `.vscode/review-scope.toml` excludes `docs/plans/*`.
+
+#### Decisions
+
+**D5.1. The audit reads the fourteen ranges in the survey table,
+each separately.** They are not joined into one span, because
+fifteen weeks of unrelated work sits between range 1 and range 14.
+Each agent runs every check once per range. Each reports a totals
+table, one row per range, with files, insertions and deletions. A
+report whose totals do not match the survey's is re-run, not
+triaged, as `PUSH-AUDIT.md` requires. Each brief below carries the
+ranges literally, not as `$AUDIT_RANGE`.
+
+**D5.2. Work another plan owns is cited, not re-audited.** This is
+the same rule `plan-push-audit-phase` gives for cross-repository
+landings, applied to cross-plan ones. `PLAN-review-coverage.md` and
+`PLAN-review-import.md` are both `Complete`, and their audits
+covered the steady-state machinery and the template. Reading those
+ranges again would double the cost and turn up findings that already
+carry dispositions there. The exclusion list in the survey is the
+boundary. An agent that finds a defect it can only attribute to an
+excluded range reports it as outside this plan, so the management
+session can check it against that plan's Outcome before deciding.
+
+**D5.3. Findings are reported against today's tree, and the ranges
+are read for intent.** This is `PLAN-review-coverage.md` D6.3,
+adopted unchanged, and the reasoning is stronger here. A finding is
+only actionable where a fix would land, and for most of these ranges
+that is a different path. The survey also shows a person has read
+every live file in its current form. Each agent therefore states,
+for each finding, the current path and line, or that the code no
+longer exists. A finding that later work already resolved is
+reported as resolved, with the commit, not dropped.
+
+**D5.4. The adoption pull requests in other repositories are listed,
+not re-audited.** The block expects each cross-repository landing to
+carry its own audit and be cited. None of these did, because all of
+them predate the block or adopted a template whose own audit was
+cited:
+
+* ryll#144, #146, #170;
+* kerbside#214, #219, #254;
+* actions#24, #49;
+* hunkydory#8;
+* sfui#39;
+* kerbside-client#10.
+
+What they added falls into three kinds, and none needs a fresh
+audit:
+
+* **Hook wiring.** ryll#170 removed it, the hooks are gone, and
+  D5.6 checks that nothing still references them.
+* **Copies of the CI template.** These are byte-identical in four
+  repositories, and `PLAN-review-import.md` phase 5 audited the
+  copies. The two that are not identical are D5.5's subject.
+* **Per-repository scope configs and `.gitignore` lines.** The
+  daily `review-scope-completeness` and `review-marks-pre-commit`
+  criteria measure these, and they are policy rather than code.
+
+kerbside#254 (skipping functional tests on review-only pull
+requests) is the one piece of real CI logic among them. The
+`review-tracking-adoption` skill re-verifies it. It is named here so
+the gap is stated rather than silent.
+
+**D5.5. The sfui and kerbside-client drift is filed, not fixed or
+audited here.** Re-syncing two repositories is a fix with its own
+review, and the audit's own findings land as their own pull request.
+The missing measurement belongs to a criterion, and a criterion has
+a blast radius this phase should not take on. A new
+`review-tracking-template` check would newly fail exactly those two
+repositories today, and probably none elsewhere. It belongs in the
+issue, with that count. It was filed during planning, as
+development#307, so the Outcome can cite it.
+
+**D5.6. One extra check: nothing still consumes what the plan
+removed.** `plan-push-audit-phase` item 4 is not in this
+repository's `PUSH-AUDIT.md`, which never had to ask it. This plan
+removed several things:
+
+* a whole published interface, `.pre-commit-hooks.yaml` and its hook
+  ids `review-stamp` and `review-prune`;
+* a test assertion (range 12);
+* a set of `audit-check.py` functions, which #79 moved.
+
+A repository still pinning the hooks would fail on its next
+`pre-commit autoupdate`, not today. Nothing in the fleet would
+report it. The check is a grep across every fleet clone, and the
+greps are stated in the report.
+
+**D5.7. Wave 2 runs in full, at the runbook's settings, raised to
+high for 2a and 2b.** This is the decision most likely to be argued
+with. Every live file has had a whole-file human read since these
+ranges landed. Later plans' push audits read most of the steady
+state. The case for spending four agents on July's diffs is weak if
+the question is "is this code good". It is not the question. Each
+wave 2 brief below is aimed at what neither of those reads covered:
+
+* what a range removed;
+* whether a later range silently undid an earlier one, as range 12
+  undid part of `ba3876a`'s guard;
+* whether the documentation still tells one story across fourteen
+  edits;
+* the token and runner surface that range 10 introduced to this
+  repository.
+
+Skipping a dimension because the code "has been reviewed" would
+also be the first audit to argue its way out of the mandatory phase.
+That argument belongs in `plan-push-audit-phase`, with evidence, not
+in one plan's execution. 2a and 2b go to high because they carry the
+path mapping. 2c and 2d keep the runbook's settings.
+
+**D5.8. The phase closes the plan.** Where the audit finds nothing,
+step 5h sets Phase 5 and the index row to `Complete` in this
+phase's own pull request, and records no `Merged` cell. Where it
+finds something, the findings pull request is the carrier, as
+`plan-phase-landing` requires.
+
+#### Step plan
+
+Steps 5b to 5f are independent, and run in parallel once 5a's totals
+are in hand. Every brief below must carry the fourteen ranges
+literally, copied from the survey table with their pathspecs, and
+the totals the agent must reproduce. Every agent reports and does not
+fix, and none prunes, regenerates or commits `REVIEWS.md`.
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 5a | medium | sonnet | none | Wave 1 of `PUSH-AUDIT.md`, in this worktree, which differs from `origin/main` only in this plan. Run `git fetch origin`, then `pre-commit run --all-files` once on a clean tree. Then run every grep in the wave 1 block once per range, for the fourteen ranges in the survey table, by exporting `AUDIT_RANGE` to each in turn. For range 13, append the pathspec `':!.vscode' ':!REVIEWS.md'` to each command's own pathspec. First run `git diff --shortstat` per range and confirm it matches the table's files and diffstat. Stop and report if any does not, because a mismatch means the range was read wrong. Report every hit with a verdict: accepted or blocking, and why. Expect and explain, rather than ignore: paths under `audits/` and `scripts/test_audit_check.py` in ranges 8, 9 and 13 predate the restructure; `REVIEWS.md` moves inside range 10, which is adoption working; and the plan-reference grep excludes `*.md`, so a hit in `docs/code-review-tracking.md` means its pathspec was dropped. No commit. |
+| 5b | high | sonnet | none | Wave 2a, code quality, per `PUSH-AUDIT.md`, over the fourteen ranges, taking 5a's report as input. Apply D5.3: read each range for intent, then resolve the code to its current home using the survey's path map before writing a finding. Three questions matter most. (1) **Did a later range undo an earlier one without saying so?** Range 12 (`0ba8920`) deleted a test that asserted every stamp matches its content. `ba3876a`, inside #47 and outside this audit, added that test as one of two guards. Confirm that the other guard, `stamp` refusing a stale stamp, still exists in `scripts/review-tracking.py` at HEAD, and say where. (2) **`stamp`'s out-of-scope announcement (range 11) and `scope-orphans` (range 13) both decide what is in scope.** Do they use one matcher, or two that could disagree? (3) **The `next` subtree and order options (range 14)**: what happens with a subtree that matches no in-scope file, or a scope file whose include order lists a pattern twice? Apply the comment-proportion and source-file-size blocks to `scripts/review-tracking.py` at HEAD, and give its line count. Report findings with the current file and line, blocking or advisory, and the range that introduced each. |
+| 5c | high | sonnet | none | Wave 2b, test review, per `PUSH-AUDIT.md`, over the fourteen ranges, applying D5.3. Tests now live in `scripts/tests/test_review_tracking.py` and `scripts/tests/test_review.py`. Ranges 8, 9 and 13 wrote theirs into `scripts/test_audit_check.py`, which is gone, so the first question is whether every assertion those ranges added survived the moves. Name any that did not. For each subcommand and check the ranges introduced or changed, find a test exercising each status it can return: `next` with a subtree and with ordering; `stamp`'s out-of-scope path; `scope-orphans`; `ReviewMarksPreCommit` pass, fail and not_applicable; `ReviewScopeCompleteness` pass, fail and not_applicable. Name the gaps. Range 12 removed a test. Say whether anything still proves a committed stamp matches the content it names, and if nothing does, whether the `review-coverage` criterion makes that redundant. Name the test that would fail if prune stopped running, or say there is none. Report grouped by file. |
+| 5d | medium | sonnet | none | Wave 2c, documentation review, per `PUSH-AUDIT.md`, over the fourteen ranges. `docs/code-review-tracking.md` was edited by every one of them. Check the following: (1) no page outside `docs/plans/` describes the removed hooks as live, so grep `docs/`, `README.md`, `AGENTS.md`, `ARCHITECTURE.md`, `templates/` and `.claude/skills/` for `pre-commit-hooks`, `review-stamp`, `review-prune`, `post-merge`, `post-checkout` and `default_install_hook_types`, and judge each hit; (2) the default scope (code plus docs plus YAML, from ranges 4 to 6) is stated once, and agrees between `docs/code-review-tracking.md`, the adoption skill and this repository's own `.vscode/review-scope.toml` comments; (3) the template README's claim that copies "must stay byte-identical" is not contradicted by any page that tells an adopter to edit a copy; (4) the adoption procedure in the doc and in `.claude/skills/review-tracking-adoption/SKILL.md` lists the same steps in the same order. The skill was added in range 7 and edited since. Also check that the two `*Corrected on 2026-10-24*` notes in this plan's analysis are accurate against the doc. Report as a bullet list. |
+| 5e | high | opus | none | Wave 2d, security, per `PUSH-AUDIT.md`, over the fourteen ranges. Read the actual code at HEAD. The surface this plan introduced to this repository is range 10 (`a33e694`). It added `.github/workflows/prune-reviews.yml` and `tools/ci-prune-reviews.sh`, which push to `main` with a bot token. Both have since been replaced by the template copies, which `PLAN-review-import.md` phase 5 audited. So the question is narrow: did range 10 add anything to `ci.yml` (12 lines) or elsewhere that the template replacement left behind and that still runs? Read `ci.yml` at HEAD for it. Then the path surface: `scripts/review-tracking.py` builds paths from `.vscode/review-scope.toml`, from weAudit JSON and from `next`'s subtree argument (range 14). Apply the path-traversal block to each, bearing in mind that the first two need a merged pull request to change and the third is a local argument. Then `stamp` (ranges 2 and 11), which shells out to `git` with paths from weAudit JSON: is any of them passed where git would read it as an option? Report severity, current file and line, class, and fix. |
+| 5f | medium | sonnet | none | The removed-interface consumer check, D5.6. Fetch every Shaken Fist clone beside this one under `src/shakenfist/`, skipping `-wt-` worktrees. Use `gh repo list shakenfist --limit 200` to find any repository with no local clone, and use `gh search code --owner shakenfist` for those. Grep each default branch (`git grep <pattern> origin/HEAD`) for: `review-stamp`, `review-prune`, `pre-commit-hooks.yaml` together with `development`, `repo: https://github.com/shakenfist/development` in any `.pre-commit-config.yaml`, `test_every_stamp_matches`, `test_audit_check`, `check_review_coverage` and `check_review_marks`. State every command run and the repositories covered, and count the repositories searched. A hit in a plan file or a changelog is history, not a consumer, so say which each hit is. No commit, no issue, no edits in any repository. |
+| 5g | high | opus | none | Management triage, in the management session. Read all five reports and check each one's totals table against the survey's. Work the management checklist at the end of `PUSH-AUDIT.md`. Decide each finding blocking, advisory or declined. Check every finding attributed to an excluded range against the owning plan's Outcome (D5.2). Write an **Outcome** subsection here: the ranges and totals seen, what wave 1 found, what each of 5b to 5f found, and for every finding where it will be fixed or why it was declined. Cite development#307, and record D5.4's list as not audited, with the reason. |
+| 5h | low | sonnet | none | Close the plan, per D5.8. Set Phase 5's row to `Complete`. If 5g recorded no findings to fix, set the plan's row in `docs/plans/index.md` to `Complete`, leave the `Merged` cell empty, and update the index Intent to say the push audit ran and found nothing. Otherwise leave the index row `In progress`, and say in the Outcome that the findings pull request carries the close-out. Fill the `Bugs fixed during this work` section from what the plan's landings fixed, at least the auto-stamp of a stale mark that Phase 2 step 5 records, or say none were recorded. Run `pre-commit run --all-files`. Commit subject: `Record the review tracking push audit.` |
+
+#### Risks and mitigations
+
+* **An agent reads the wrong range and reports a clean audit.**
+  This is the characteristic failure of auditing merged work. Every
+  brief carries the ranges literally, and every report carries a
+  totals table. In 5g, the management session compares each table
+  to the survey's, row by row, before reading any findings.
+* **Range 13 is read without its pathspec**, and the review marks
+  in it get audited as code. The unscoped total is +771 -42 and the
+  scoped total is +515 -20, so the totals check catches it.
+* **A finding is reported against a path that no longer exists.**
+  D5.3 and the survey's path map cover this. 5g rejects any finding
+  without a current path or a "no longer exists" statement.
+* **Two plans audit the same diff and disagree.** D5.2's exclusion
+  list is explicit. 5g checks findings against excluded ranges
+  against the owning plan's Outcome before deciding them.
+* **The consumer grep misses a repository with no local clone.** 5f
+  reconciles against `gh repo list` and states its count. The
+  management session checks that count against the organisation's
+  repository count.
+* **The issue D5.5 files reads as a fix request, and someone
+  re-syncs without the criterion.** The drift then recurs at the
+  next template change. The issue asks for both, and says the
+  criterion is what prevents recurrence.
+
+#### Definition of done
+
+* The Outcome's totals table matches the survey's on every row. This
+  prints fourteen lines that must equal the table's Files and
+  Diffstat columns:
+
+  ```
+  for r in d180c39^..d180c39 0957d15^..ee6d4ea a3b7f50^1..a3b7f50 \
+      ed10382^..ed10382 079e34e^1..079e34e ba4a6a7^..ba4a6a7 \
+      b51f550^..b51f550 ccaac6e^1..ccaac6e 127079e^1..127079e \
+      a33e694^1..a33e694 44748d4^1..44748d4 0ba8920^1..0ba8920 \
+      f624d26^1..f624d26; do echo "$r $(git diff --shortstat $r)"; done
+  git diff --shortstat 39f8d5b^1..39f8d5b -- ':!.vscode' ':!REVIEWS.md'
+  ```
+
+* Every finding in the Outcome has a current path and line or a "no
+  longer exists", and a disposition: fixed in a named pull request,
+  or declined with a reason.
+* 5f's report names every repository searched, and their count equals
+  `gh repo list shakenfist --limit 200 --json name --jq length`, less
+  any archived repositories it names.
+* The Outcome links development#307.
+* `grep -c '| 5. Push audit | Complete |' docs/plans/PLAN-code-review-tracking.md`
+  returns 1. The index row reads `Complete` only if the Outcome
+  records no unresolved finding.
+* `pre-commit run --all-files` passes, and `git diff origin/main
+  --stat` on the branch lists only this plan and `docs/plans/index.md`.
+
+#### Back brief
+
+Before running 5a, back brief Mikal: the fourteen ranges, the
+exclusion list, and D5.7. If the attribution of landings in the
+survey looks wrong to him, that is the cheapest point to correct it.
+Every brief inherits it.
 
 ## Administration and logistics
 
@@ -558,6 +959,10 @@ We will know this plan has been successfully implemented when:
   `audit-check.py`'s existing gh-based style. This is general repo
   hygiene rather than review-specific, so it can proceed
   independently of this plan.
+* A criterion holding every adopter's review tracking CI copies
+  byte-identical to `templates/review-tracking/`, as that template's
+  README requires. development#307 records the two repositories that
+  have drifted and asks for both the re-sync and the criterion.
 
 ### Bugs fixed during this work
 
