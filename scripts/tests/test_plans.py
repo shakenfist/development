@@ -24,6 +24,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tracemalloc
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -2982,7 +2983,12 @@ class PushAuditTest(CheckTestCase):
         result = self._check({
             'PUSH-AUDIT.md': f'# Audit\n\n{stale}\n',
         })
-        self.assert_fail(result, containing='stale (v1 embedded, v2 current)')
+        self.assert_fail(
+            result, containing='stale (v1 embedded, v2 current; copy it verbatim')
+        self.assertIn(
+            'copy it verbatim from templates/shared-blocks/'
+            'readme-discipline.md in the development repository',
+            result['details'])
 
     def test_drifted_content_fails(self):
         drifted = self.canonical.replace(
@@ -3200,6 +3206,24 @@ class PlanTemplateTest(CheckTestCase):
             if name != omit
         )
 
+    def _assert_names_only(self, result, name):
+        # Every problem string names the block it is about, so a
+        # fault in one block that is reported against its neighbours
+        # shows up as another name in the details.
+        for other in PLAN_TEMPLATE_BLOCKS:
+            if other != name:
+                with self.subTest(other=other):
+                    self.assertNotIn(other, result['details'])
+
+    def _stale(self, name):
+        # Take the marker from the fixture setUp built rather than
+        # naming a version. These fixtures are deliberately
+        # independent of templates/shared-blocks/, so a literal here
+        # would be a version this test does not otherwise track.
+        marker = self.blocks[name].splitlines()[0]
+        return self._template().replace(
+            marker, f'<!-- shared-block: {name} v0 -->')
+
     def test_not_applicable_without_template(self):
         self.assert_skip(self._check({}))
 
@@ -3217,19 +3241,160 @@ class PlanTemplateTest(CheckTestCase):
             containing='missing shared block plan-push-audit-phase')
 
     def test_stale_push_audit_phase_block_fails(self):
-        # Take the marker from the fixture setUp built rather than
-        # naming a version. These fixtures are deliberately
-        # independent of templates/shared-blocks/, so a literal here
-        # would be a version this test does not otherwise track.
-        marker = self.blocks['plan-push-audit-phase'].splitlines()[0]
-        stale = self._template().replace(
-            marker,
-            '<!-- shared-block: plan-push-audit-phase v0 -->',
-        )
-        result = self._check({'PLAN-TEMPLATE.md': stale})
+        result = self._check({
+            'PLAN-TEMPLATE.md': self._stale('plan-push-audit-phase'),
+        })
         self.assert_fail(
             result,
             containing='shared block plan-push-audit-phase is stale')
+        self.assertIn(
+            'copy it verbatim from templates/shared-blocks/'
+            'plan-push-audit-phase.md in the development repository',
+            result['details'])
+        self._assert_names_only(result, 'plan-push-audit-phase')
+
+    def test_stale_model_roster_block_is_the_only_block_named(self):
+        # The roster is versioned apart from the blocks around it, so
+        # that a change to the models moves one block across the
+        # fleet and not the whole template. A validator that reported
+        # every block once one was stale would undo that.
+        result = self._check({
+            'PLAN-TEMPLATE.md': self._stale('subagent-model-roster'),
+        })
+        self.assert_fail(
+            result,
+            containing='shared block subagent-model-roster is stale')
+        self._assert_names_only(result, 'subagent-model-roster')
+
+    def test_drifted_block_fails(self):
+        drifted = self._template().replace(
+            'Canonical plan-review-checklist wording.',
+            'Mutated plan-review-checklist wording.')
+        result = self._check({'PLAN-TEMPLATE.md': drifted})
+        self.assert_fail(
+            result,
+            containing='shared block plan-review-checklist has drifted')
+        self.assertIn(
+            'copy it verbatim from templates/shared-blocks/'
+            'plan-review-checklist.md in the development repository',
+            result['details'])
+        self._assert_names_only(result, 'plan-review-checklist')
+
+    def test_missing_end_marker_on_an_inner_block_fails(self):
+        # Not the last block: a block missing its end marker once
+        # borrowed the next block's, and was reported as drifted.
+        first = self.blocks['plan-file-conventions']
+        unclosed = self._template().replace(
+            first, first.replace('<!-- shared-block-end -->\n', ''))
+        result = self._check({'PLAN-TEMPLATE.md': unclosed})
+        self.assert_fail(
+            result,
+            containing='shared block plan-file-conventions has no '
+                       '<!-- shared-block-end --> marker')
+        self.assertNotIn('drifted', result['details'])
+        self._assert_names_only(result, 'plan-file-conventions')
+
+    def test_nested_block_fails(self):
+        # The inner block is whole and current, so only the outer
+        # block, which has lost its end marker to it, is reported.
+        outer = self.blocks['plan-file-conventions']
+        inner = self.blocks['plan-status-vocabulary']
+        nested = outer.replace(
+            '<!-- shared-block-end -->\n',
+            f'{inner}<!-- shared-block-end -->\n')
+        template = self._template(omit='plan-status-vocabulary').replace(
+            outer, nested)
+        result = self._check({'PLAN-TEMPLATE.md': template})
+        self.assert_fail(
+            result,
+            containing='shared block plan-file-conventions has no '
+                       '<!-- shared-block-end --> marker')
+        self.assertNotIn('drifted', result['details'])
+        self._assert_names_only(result, 'plan-file-conventions')
+
+    def test_duplicated_block_fails(self):
+        template = (
+            self._template() + '\n'
+            + self.blocks['plan-closeout-sections'])
+        result = self._check({'PLAN-TEMPLATE.md': template})
+        self.assert_fail(
+            result,
+            containing='shared block plan-closeout-sections is embedded '
+                       '2 times')
+        self._assert_names_only(result, 'plan-closeout-sections')
+
+    def test_unknown_block_fails(self):
+        template = (
+            self._template()
+            + '<!-- shared-block: no-such-block v1 -->\n'
+            'Words.\n'
+            '<!-- shared-block-end -->\n')
+        result = self._check({'PLAN-TEMPLATE.md': template})
+        self.assert_fail(
+            result, containing='unknown shared block no-such-block')
+        self._assert_names_only(result, 'no-such-block')
+
+    def test_huge_version_is_a_problem_not_an_error(self):
+        # int() refuses more than 4,300 digits by default, and an
+        # exception here would turn the check into an error, which
+        # skips the fleet's compliance update. A marker that long is
+        # not a marker, so the block it was meant to open is missing.
+        marker = self.blocks['plan-planning-effort'].splitlines()[0]
+        template = self._template().replace(
+            marker,
+            '<!-- shared-block: plan-planning-effort v'
+            + '9' * 5000 + ' -->')
+        result = self._check({'PLAN-TEMPLATE.md': template})
+        self.assert_fail(
+            result,
+            containing='missing shared block plan-planning-effort')
+        self._assert_names_only(result, 'plan-planning-effort')
+
+    def test_many_unclosed_markers_stay_small(self):
+        # About 200 KB of begin markers and a single end marker. Each
+        # marker once sliced its own copy of everything up to that
+        # end marker, which is about 400 MB at this size and grows
+        # with the square of the input; the read cap allows ten
+        # times this much. Measured at about 2 MB since, so 50 MB is
+        # headroom rather than a target.
+        marker = '<!-- shared-block: plan-file-conventions v1 -->\n'
+        template = (
+            marker * (200_000 // len(marker))
+            + '<!-- shared-block-end -->\n')
+        self.fixture.write_all({'PLAN-TEMPLATE.md': template})
+        tracemalloc.start()
+        self.addCleanup(tracemalloc.stop)
+        result = self.check(check_args={'blocks_dir': self.blocks_dir})
+        _, peak = tracemalloc.get_traced_memory()
+        self.assert_fail(
+            result,
+            containing='shared block plan-file-conventions has no '
+                       '<!-- shared-block-end --> marker')
+        # Said once, not once per marker: the details become an
+        # issue body.
+        self.assertEqual(1, result['details'].count('has no'))
+        self.assertLess(peak, 50 * 1024 * 1024)
+
+    def test_required_blocks_are_pinned(self):
+        # Spelled out rather than read from the list, because the
+        # fixtures above are built from the list: a name dropped from
+        # it would be dropped from them too, and every case here
+        # would still pass. Changing this list re-marks the fleet,
+        # which is what this class exists to make deliberate.
+        self.assertEqual(
+            [
+                'plan-file-conventions',
+                'plan-status-vocabulary',
+                'subagent-execution-model',
+                'plan-planning-effort',
+                'subagent-step-guidance',
+                'subagent-model-roster',
+                'plan-review-checklist',
+                'plan-closeout-sections',
+                'plan-push-audit-phase',
+                'plan-phase-landing',
+            ],
+            PLAN_TEMPLATE_BLOCKS)
 
     def test_push_audit_phase_is_required(self):
         # The line of this change with the widest fleet consequence:

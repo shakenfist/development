@@ -107,8 +107,17 @@ Shared blocks are canonical wording embedded verbatim across
 repositories between `<!-- shared-block: <name> v<N> -->` and
 `<!-- shared-block-end -->` markers; the canonical copies live in
 `templates/shared-blocks/`, whose `README.md` describes the
-mechanism. The check fails when a required block is missing, stale,
-drifted from the canonical wording, unknown, or missing its end marker.
+mechanism. The check fails when a required block is missing, and
+when any embedded block is stale, has drifted from the canonical
+wording, is unknown, is embedded more than once, or has no end marker
+of its own. Each begin marker pairs with the first end marker after
+it, so a block left open when the next one begins -- never closed, or
+with another block nested inside it -- is reported as having no end
+marker rather than being measured against the next block's. Each
+problem names the one block it is about, and a stale, drifted or
+missing block's names the canonical file to copy. A version of more
+than six digits is not read as a marker, so a block carrying one is
+reported missing.
 
 ### Recently enforced
 
