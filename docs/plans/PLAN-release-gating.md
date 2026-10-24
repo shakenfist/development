@@ -437,7 +437,7 @@ Out of scope, each for a stated reason:
 |-------|--------|--------|
 | 1. Release environment criterion | Complete | b87012d (#288) |
 | 2. Shared `require-ci-success` and `check-dist` actions | Complete | actions 69d4589 (#182) |
-| 3. Template and fleet adoption | In progress | |
+| 3. Template and fleet adoption | Complete | development f3f8472 (#294), 8d032a5 (#295), 10e3145 (#299), d668b98 (#300), 3e0ced1 (#304); actions 658d767 (#184), e1e2c85 (#185); client-python-ova 4a8eeed (#29), 3b40144 (#30), 4b1764d (#31); library-utilities 0940cbe (#74); divergulent 70ae4c3 (#132); occystrap e9e66d9 (#163); client-python-k3s 6d40cee (#154); clingwrap f4966df (#145); hunkydory b421cef (#103); agent-python 65a1778 (#155); client-python d789e0b (#432); kerbside d30ff34 (#582); shakenfist b3dc0c6 (#4597), 6a3f307 (#4581), 1ec1a6c (#4607); ryll d70ff4d (#591), 20e3cd4 (#599); instar a31e0d1 (#796); andris 288aba3 (#34) |
 | 4. Release-flow and merge-queue criteria | Not started | |
 | 5. Push audit | Not started | |
 
@@ -1440,6 +1440,29 @@ Started on 2026-10-19 (AEDT).
   "Can merge" waits for every need, and two lanes only got runners at
   08:50 and 08:59, so the entry hit the 360-minute timeout instead of
   ejecting. See Future work.
+* **occystrap's queue has never built a merge group.** The completion
+  check on 2026-10-25 (AEDT) found no `merge_group` run in occystrap
+  at all. The other seven new queues had each merged a pull request
+  through the queue by then.
+  - occystrap#164 waited in the queue from 2026-10-21 until it was
+    dequeued by hand and merged around the queue (487a2e2).
+  - occystrap#166 was closed unmerged: #168 had removed the action it
+    bumped.
+
+  The repository settings, the Actions permissions and the workflow
+  states all match divergulent's, whose queue works. The ruleset
+  differs from divergulent's only in also requiring the
+  `Can enqueue: unit` and `Can merge: unit` pair, and all four checks
+  reported on #164's head. The cause is not known yet. occystrap's
+  gated workflows have no push trigger, so no commit on its `develop`
+  carries a run the gate accepts, and it cannot release at all until
+  its queue works. The 3g note above is therefore wrong for occystrap.
+  With the operator's agreement, phase 3 closes with this open, and
+  phase 4 owns finding the cause and holds its own merge on the fix
+  (plan-blockers b1).
+* **Merge commits.** The note on 3c gives `ca8d9a5` for
+  client-python-ova#29, which is the commit rather than the merge.
+  The Execution table records its merge commit, 4a8eeed.
 
 ### Phase 4: release-flow and merge-queue criteria
 
@@ -1832,6 +1855,10 @@ chosen to defer to here, so that we do not forget them.
   merge commit that changed no gated file, as hunkydory's review marks
   need too (above). The conductor merging past a failed queue run is
   `PLAN-bot-bypass-identity.md`'s to close.
+* **occystrap's merge queue has never run** (occystrap#169). It is a
+  known failure that phase 3 closed with, by the operator's choice:
+  occystrap cannot release until it is fixed. Phase 4 owns finding the
+  cause (step 4e) and holds its own merge on the fix.
 * **Phase 4 should check the build-job guard** in Rust releases
   (template invariant 6), and that a path filter on a merge group
   diffs against `merge_group.base_sha`. Neither is a rule yet, and the
