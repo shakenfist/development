@@ -194,12 +194,18 @@ class ReviewCoverage(Check):
         # Every way this can go wrong is the tooling failing rather than
         # the repository, so each raises and the result is `error`. A
         # missing review-tracking.py makes the interpreter exit non-zero
-        # and lands in the returncode branch; a repo.path that failed to
-        # clone or was cleaned up mid-run fails as cwd, inside
+        # and lands in the returncode branch, as does a review state file
+        # the script refuses to read (a link out of the checkout, say),
+        # which exits 2 with the reason on stderr; a repo.path that
+        # failed to clone or was cleaned up mid-run fails as cwd, inside
         # run_tool(), before anything runs.
+        #
+        # The script runs inside the audited checkout and needs no
+        # credential, so, as for every child but gh, it is given none.
         result = run_tool(
             [sys.executable, REVIEW_TRACKING_SCRIPT, 'status', '--json'],
             'review-tracking.py status', timeout=60, cwd=repo.path,
+            env=environment_without_credentials(),
         )
         if result.returncode != 0:
             raise ToolFailure(
@@ -282,10 +288,12 @@ class ReviewScopeCompleteness(Check):
                 'Human review tracking not deployed '
                 '(no .vscode/review-scope.toml)')
 
+        # Without a credential, for the reason ReviewCoverage gives.
         result = run_tool(
             [sys.executable, REVIEW_TRACKING_SCRIPT, 'scope-orphans',
              '--json'],
             'review-tracking.py scope-orphans', timeout=60, cwd=repo.path,
+            env=environment_without_credentials(),
         )
         # Exit status 1 is the reportable outcome, not an error: the
         # subcommand exits non-zero precisely when there are orphans, so

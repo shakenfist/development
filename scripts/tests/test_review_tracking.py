@@ -10,6 +10,7 @@ import importlib.util
 import json
 import os
 import re
+import resource
 import shutil
 import subprocess
 import sys
@@ -19,6 +20,14 @@ import unittest
 
 SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPT = os.path.join(SCRIPT_DIR, 'review-tracking.py')
+
+# The script imports the audit package beside it. Run as a script, it
+# finds it as sys.path[0]; loaded as a module by ThisRepositoryTest, it
+# needs scripts/ on this process's path, which running this file
+# directly (as the review-tracking-tests hook does) does not give it.
+sys.path.insert(0, SCRIPT_DIR)
+
+from audit.repo import READ_MAX_BYTES  # noqa: E402
 
 # These tests drive fixture git repositories, and the pre-commit hook
 # runs them during `git commit`, when git exports GIT_INDEX_FILE and
@@ -756,6 +765,125 @@ class ReviewTrackingTest(unittest.TestCase):
         for path in state_paths:
             self.assertEqual(self.read(path), before[path])
 
+    # The state files are paths the repository chose, and the audit runs
+    # status and scope-orphans in every audited checkout. A refusal must
+    # be exit status 2 with a one-line reason, which the review checks
+    # turn into an error result, rather than a traceback or a read.
+
+    def outside(self, name, content):
+        """Write a file outside the fixture repository and return its path."""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = os.path.join(tmp.name, name)
+        with open(path, 'w') as f:
+            f.write(content)
+        return path
+
+    def assert_refused(self, p, containing):
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+        self.assertIn('review-tracking: ERROR: ', p.stderr)
+        self.assertIn(containing, p.stderr)
+        self.assertNotIn('Traceback', p.stderr)
+
+    def test_a_state_file_linked_out_of_the_repository_is_refused(self):
+        # Valid weAudit state, so that only the link can be the reason.
+        secret = self.outside('secret.weaudit', json.dumps(make_weaudit(['src/a.py', 'OUTSIDE-MARKER'])))
+        os.symlink(secret, os.path.join(self.repo, '.vscode', 'evil.weaudit'))
+        p = self.run_tool('status', '--json')
+        self.assert_refused(p, "'.vscode/evil.weaudit' resolves outside the repository")
+        self.assertEqual(p.stdout, '')
+        self.assertNotIn('OUTSIDE-MARKER', p.stderr)
+
+    def test_a_state_file_linked_to_dev_zero_is_refused_without_reading_it(self):
+        # An unbounded read of /dev/zero grows until something kills it,
+        # and the audit's timeout bounds time rather than memory. Run
+        # under an address space limit and a timeout, so that losing the
+        # guard fails this test rather than the machine running it.
+        def limit_memory():
+            resource.setrlimit(resource.RLIMIT_AS, (1 << 30, 1 << 30))
+        os.symlink('/dev/zero', os.path.join(self.repo, '.vscode', 'evil.weaudit'))
+        p = subprocess.run([sys.executable, SCRIPT, 'status', '--json'], cwd=self.repo,
+                           capture_output=True, text=True, timeout=60, preexec_fn=limit_memory)
+        self.assert_refused(p, "'.vscode/evil.weaudit' resolves outside the repository")
+
+    def test_a_state_file_that_is_a_directory_is_refused(self):
+        os.mkdir(os.path.join(self.repo, '.vscode', 'evil.weaudit'))
+        p = self.run_tool('status', '--json')
+        self.assert_refused(p, "'.vscode/evil.weaudit' is not a regular file")
+
+    def test_a_state_file_over_the_size_cap_is_refused(self):
+        # Valid JSON, so that without the cap it would be read and parsed.
+        state = make_weaudit(['src/a.py'])
+        state['padding'] = ''
+        body = json.dumps(state)
+        state['padding'] = 'x' * (READ_MAX_BYTES + 1 - len(body))
+        self.write('.vscode/testuser.weaudit', json.dumps(state))
+        p = self.run_tool('status', '--json')
+        self.assert_refused(p, "'.vscode/testuser.weaudit' is larger than %d bytes" % READ_MAX_BYTES)
+
+    def test_a_scope_config_linked_out_of_the_repository_is_refused(self):
+        # scope-orphans exits 1 for orphans, so a refusal must be neither 0 nor 1.
+        scope = self.outside('review-scope.toml', 'exclude = ["*_pb2.py"]\n')
+        os.remove(os.path.join(self.repo, '.vscode', 'review-scope.toml'))
+        os.symlink(scope, os.path.join(self.repo, '.vscode', 'review-scope.toml'))
+        p = self.run_tool('scope-orphans', '--json')
+        self.assert_refused(p, "'.vscode/review-scope.toml' resolves outside the repository")
+
+    def test_reviews_md_that_is_a_symlink_is_not_written_through(self):
+        # Inside the repository, so the read is allowed and only the
+        # write's refusal to follow the link stands between prune and
+        # the link's target. One outside is refused at the read.
+        for target in ('inside', 'outside'):
+            with self.subTest(target=target):
+                if target == 'inside':
+                    victim = os.path.join(self.repo, 'victim.md')
+                    with open(victim, 'w') as f:
+                        f.write('original contents\n')
+                else:
+                    victim = self.outside('victim.md', 'original contents\n')
+                link = os.path.join(self.repo, 'REVIEWS.md')
+                if os.path.lexists(link):
+                    os.remove(link)
+                os.symlink(victim, link)
+                p = self.run_tool('prune')
+                self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+                self.assertNotIn('Traceback', p.stderr)
+                with open(victim) as f:
+                    self.assertEqual(f.read(), 'original contents\n')
+                self.assertTrue(os.path.islink(link))
+
+    def test_a_marked_path_with_a_newline_is_refused(self):
+        # It would otherwise be a REVIEWS.md row and a line of its own.
+        # The stale stamp on src/b.py gives prune something to rewrite,
+        # so that a refusal coming only after the rewrite is caught too.
+        self.mark_reviewed(['src/a.py\nINJECTED LINE', 'src/b.py'])
+        self.write('.vscode/testuser.weaudit-shas.json', json.dumps(
+            {'version': 1, 'files': {'src/b.py': {'sha': '0' * 40, 'date': '2026-01-02'}}}))
+        state_paths = ['.vscode/testuser.weaudit', '.vscode/testuser.weaudit-shas.json']
+        before = {path: self.read(path) for path in state_paths}
+        for command in (['stamp'], ['prune'], ['status', '--json'], ['regen']):
+            with self.subTest(command=command):
+                p = self.run_tool(*command)
+                self.assert_refused(p, "'.vscode/testuser.weaudit' marks a path that is not a string "
+                                       'or contains a control character')
+                self.assertNotIn('INJECTED', p.stdout + p.stderr)
+                self.assertFalse(os.path.exists(os.path.join(self.repo, 'REVIEWS.md')))
+                for path in state_paths:
+                    self.assertEqual(self.read(path), before[path])
+
+    def test_an_imported_path_with_a_newline_is_dropped(self):
+        entry = {'sha': self.blob('HEAD:src/a.py'), 'date': '2026-01-02',
+                 'imported': {'repo': 'shakenfist/development', 'reviewer': 'mikal',
+                              'path': 'src/a.py', 'commit': '0' * 40}}
+        self.write(IMPORTS, json.dumps({'version': 1, 'files': {
+            'src/a.py': entry, 'src/b.py\nINJECTED LINE': entry}}))
+        p = self.run_tool('regen')
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIn('entry for "src/b.py\\nINJECTED LINE" is malformed', p.stderr)
+        reviews = self.read('REVIEWS.md')
+        self.assertIn('| src/a.py |', reviews)
+        self.assertNotIn('INJECTED', reviews)
+
 
 # A stand-in for gitsign, which needs Sigstore's network services. It
 # logs every invocation beside itself and fails exactly the commits
@@ -821,6 +949,10 @@ class ImportTest(unittest.TestCase):
         os.mkdir(os.path.join(self.source, 'scripts'))
         self.script = os.path.join(self.source, 'scripts', 'review-tracking.py')
         shutil.copy(SCRIPT, self.script)
+        # The script imports the audit package beside it, as it finds it
+        # in every real clone. Linked rather than copied: no test edits
+        # it, and it is twenty-odd files to commit per test.
+        os.symlink(os.path.join(SCRIPT_DIR, 'audit'), os.path.join(self.source, 'scripts', 'audit'))
         self.git(self.source, 'add', '-A')
         self.git(self.source, 'commit', '-m', 'tooling')
         self.publish()
@@ -2011,7 +2143,7 @@ class ThisRepositoryTest(unittest.TestCase):
             sidecar, _ = self.rt.load_json(
                 self.rt.sidecar_path(state_path), {'version': 1, 'files': {}})
             stamps = sidecar.get('files', {})
-            audited, _partial = self.rt.marked_paths(state)
+            audited, _partial = self.rt.marked_paths(state, state_path)
             for path in audited:
                 if self.rt.is_dir_entry(path, tracked):
                     continue

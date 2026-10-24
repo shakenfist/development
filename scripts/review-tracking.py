@@ -65,18 +65,33 @@ State read and written:
   patterns defining which files are in scope for review, and an
   import-exclude list of files that must never be imported.
 - REVIEWS.md -- generated summary of review state; never hand-edited.
+
+Any of these that resolves outside the repository, is not a regular
+file or exceeds the audit's read cap, or a weAudit mark on a path
+carrying a control character, stops every subcommand with exit status
+2 and a one-line reason; none is written through a symlink.
 """
 
 import argparse
 import datetime
 import fnmatch
 import glob
+import io
 import json
 import os
 import random
 import shutil
+import stat
 import subprocess
 import sys
+import unicodedata
+
+# Every caller runs this file out of a full clone of
+# shakenfist/development (the wrappers locate scripts/review-tracking.py
+# in one), so scripts/ is sys.path[0] and the audit package beside it
+# imports. The cap is shared rather than restated, so that this script
+# and the audit cannot disagree about what is too large to read.
+from audit.repo import READ_MAX_BYTES, path_is_within
 
 
 DOCS_URL = ('https://github.com/shakenfist/development/blob/main/'
@@ -232,11 +247,12 @@ def listed_position(path, include):
 
 
 def load_scope_config():
-    if not os.path.exists(SCOPE_PATH):
+    data = read_state_bytes(SCOPE_PATH)
+    if data is None:
         return {}
     import tomllib
-    with open(SCOPE_PATH, 'rb') as f:
-        return tomllib.load(f)
+    # What tomllib.load() does with a binary file: decode as UTF-8, strictly.
+    return tomllib.loads(data.decode('utf-8'))
 
 
 def excluded_by(path, patterns):
@@ -280,26 +296,157 @@ def reviewer_name(state_path):
     return os.path.basename(state_path)[:-len('.weaudit')]
 
 
+class RefusedState(Exception):
+    """Review state this script will not read, write or act on.
+
+    Raised rather than read as absent. The consistency audit runs status
+    and scope-orphans inside every audited repository's checkout, and
+    prune runs on every push to an adopting repository's default branch,
+    so a state file is a path that repository chose: a symlink out of
+    the checkout, a link to a device, or a file of any size. Reading
+    such a file as absent would have status report a coverage figure
+    the repository's own state does not support. main() reports the
+    refusal as one line on stderr and exits 2, a status no subcommand
+    uses for an answer, so the audit's review checks report the tooling
+    failing rather than a verdict. The message names the path and the
+    reason, never the content.
+    """
+
+
+def repository_root():
+    """The target repository's toplevel, resolved: main() makes it the working directory."""
+    return os.path.realpath(os.getcwd())
+
+
+def read_state_bytes(path):
+    """Return the bytes of the repository file at path, or None if nothing is there.
+
+    Every read of the target's review state goes through here. The rules
+    are audit.repo.read_within()'s, with each refusal raised instead of
+    returned as None:
+
+    - a path resolving outside the repository is refused before it is
+      opened, so a link to /dev/zero or to a FIFO outside the checkout
+      is never touched;
+    - anything that is not a regular file once opened (a directory, a
+      dangling link, a device) is refused. Checked with fstat on the
+      open descriptor rather than beforehand, and opened non-blocking,
+      so that the check is of the file actually read;
+    - a file over READ_MAX_BYTES is refused rather than read in part,
+      counting bytes as they are read rather than taken from a stat.
+
+    Only a path that does not exist at all, link or otherwise, is absent.
+    """
+    if not os.path.lexists(path):
+        return None
+    if not path_is_within(repository_root(), path, root_is_real=True):
+        raise RefusedState('%r resolves outside the repository; not reading it' % path)
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+    except OSError as e:
+        raise RefusedState('%r cannot be opened: %s' % (path, e.strerror))
+    # Before fdopen(), which raises its own error for a directory.
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        os.close(fd)
+        raise RefusedState('%r is not a regular file; not reading it' % path)
+    with os.fdopen(fd, 'rb') as f:
+        data = f.read(READ_MAX_BYTES + 1)
+    if len(data) > READ_MAX_BYTES:
+        raise RefusedState('%r is larger than %d bytes; not reading it' % (path, READ_MAX_BYTES))
+    return data
+
+
+def read_state_text(path):
+    """read_state_bytes(), decoded as text-mode open() would: UTF-8, universal newlines.
+
+    UTF-8 strictly rather than in the locale, so that a decoding error is
+    raised the same way wherever this runs; load_imports() relies on it.
+    """
+    data = read_state_bytes(path)
+    if data is None:
+        return None
+    return io.TextIOWrapper(io.BytesIO(data), encoding='utf-8').read()
+
+
+def check_writable(path):
+    """Refuse to replace or remove path if it is a symlink or resolves outside the repository.
+
+    A symlink at the final component is refused outright rather than
+    resolved and checked: no review state file is legitimately a link,
+    and prune holds a token that can push to the default branch, so a
+    committed REVIEWS.md link would otherwise have it overwrite a file
+    of the repository's choosing. With the final component known not to
+    be a link, the containment check is of the parent directories.
+    """
+    if os.path.islink(path):
+        raise RefusedState('%r is a symlink; not writing through it' % path)
+    if not path_is_within(repository_root(), path, root_is_real=True):
+        raise RefusedState('%r resolves outside the repository; not writing it' % path)
+
+
+def write_state(path, content):
+    """Write content (text) to the repository file at path, never through a symlink.
+
+    O_NOFOLLOW holds the check_writable() rule at the open itself, for a
+    link that appears between the two. The descriptor is checked to be a
+    regular file before anything is truncated, and opened non-blocking so
+    that a FIFO is an error rather than a wait.
+    """
+    check_writable(path)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
+    try:
+        fd = os.open(path, flags, 0o666)
+    except OSError as e:
+        raise RefusedState('%r cannot be written: %s' % (path, e.strerror))
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        os.close(fd)
+        raise RefusedState('%r is not a regular file; not writing it' % path)
+    with os.fdopen(fd, 'wb') as f:
+        f.truncate(0)
+        f.write(content.encode('utf-8'))
+
+
 def load_json(path, default):
-    if not os.path.exists(path):
+    raw = read_state_text(path)
+    if raw is None:
         return default, True
-    with open(path) as f:
-        raw = f.read()
     return json.loads(raw), raw.endswith('\n')
 
 
 def write_json(path, data, trailing_newline):
-    with open(path, 'w') as f:
-        f.write(json.dumps(data, indent=2) + ('\n' if trailing_newline else ''))
+    write_state(path, json.dumps(data, indent=2) + ('\n' if trailing_newline else ''))
 
 
-def marked_paths(state):
+def unsafe_path(path):
+    """Is path something no review state may name: not a string, or carrying a line break?
+
+    A marked path becomes a REVIEWS.md table row verbatim, so a newline
+    in one is a line of the repository's choosing in a generated file
+    that prune commits. Every control character is rejected, and the
+    Unicode line and paragraph separators, because str.splitlines()
+    breaks a line at those too.
+    """
+    return not isinstance(path, str) or any(
+        unicodedata.category(c) in ('Cc', 'Zl', 'Zp') for c in path)
+
+
+def marked_paths(state, state_path):
     """Return (audited, partial) where audited is a list of paths and partial
-    maps path -> list of (startLine, endLine)."""
+    maps path -> list of (startLine, endLine).
+
+    An unsafe path (see unsafe_path()) refuses the whole state file
+    rather than being skipped. Skipping would leave a mark that stamp
+    neither stamps nor reports, and it is a mark only a reviewer can
+    remove: failing names the file, so whoever runs this can un-mark it.
+    The path itself is not quoted, since it is what is unsafe to print.
+    """
     audited = [e['path'] for e in state.get('auditedFiles', [])]
     partial = {}
     for e in state.get('partiallyAuditedFiles', []) or []:
         partial.setdefault(e['path'], []).append((e['startLine'], e['endLine']))
+    if any(unsafe_path(p) for p in audited + list(partial)):
+        raise RefusedState('%r marks a path that is not a string or contains a control character; '
+                           'un-mark it in weAudit' % state_path)
     return audited, partial
 
 
@@ -358,11 +505,18 @@ def drop_malformed_imports(imports):
     for path in sorted(entries):
         entry = entries[path]
         imported = entry.get('imported') if isinstance(entry, dict) else None
-        if (isinstance(entry, dict) and isinstance(entry.get('sha'), str) and isinstance(imported, dict)
+        # An unsafe path would put a line of its own in REVIEWS.md, as a
+        # marked one would (see marked_paths()). Dropped here rather than
+        # refused, because this file is machine-written and dropping is
+        # how this file treats every other entry import did not write.
+        if (not unsafe_path(path) and isinstance(entry, dict) and isinstance(entry.get('sha'), str)
+                and isinstance(imported, dict)
                 and all(isinstance(imported.get(k), str) for k in ('repo', 'reviewer', 'path', 'commit'))):
             continue
+        # json.dumps for the path too, so that an unsafe one is escaped on stderr.
         print('review-tracking: WARNING: %s entry for %s is malformed; ignoring it (%s)'
-              % (IMPORTS_PATH, path, json.dumps(entry, sort_keys=True)), file=sys.stderr)
+              % (IMPORTS_PATH, path if not unsafe_path(path) else json.dumps(path),
+                 json.dumps(entry, sort_keys=True)), file=sys.stderr)
         del entries[path]
         malformed.append(path)
     return malformed
@@ -377,7 +531,8 @@ def write_imports(imports, trailing_newline):
     """
     files = imports.get('files', {})
     if not files:
-        if os.path.exists(IMPORTS_PATH):
+        if os.path.lexists(IMPORTS_PATH):
+            check_writable(IMPORTS_PATH)
             os.remove(IMPORTS_PATH)
         return
     imports['files'] = dict(sorted(files.items()))
@@ -427,7 +582,7 @@ def native_marks(tracked, current_sha):
         state, _ = load_json(state_path, {})
         sidecar, _ = load_json(sidecar_path(state_path), {'version': 1, 'files': {}})
         stamps = sidecar.get('files', {})
-        audited, _partial = marked_paths(state)
+        audited, _partial = marked_paths(state, state_path)
         for path in audited:
             if is_dir_entry(path, tracked):
                 continue
@@ -474,7 +629,7 @@ def render_reviews_md():
         state, _ = load_json(state_path, {})
         sidecar, _ = load_json(sidecar_path(state_path), {'version': 1, 'files': {}})
         stamps = sidecar.get('files', {})
-        audited, partial = marked_paths(state)
+        audited, partial = marked_paths(state, state_path)
         audited = [p for p in audited if not is_dir_entry(p, tracked)]
         for path in audited:
             stamp = stamps.get(path, {})
@@ -541,15 +696,9 @@ def render_reviews_md():
 def generate_reviews_md():
     """Regenerate REVIEWS.md. Returns True if the file changed."""
     content = render_reviews_md()
-
-    old = None
-    if os.path.exists(REVIEWS_PATH):
-        with open(REVIEWS_PATH) as f:
-            old = f.read()
-    if content == old:
+    if content == read_state_text(REVIEWS_PATH):
         return False
-    with open(REVIEWS_PATH, 'w') as f:
-        f.write(content)
+    write_state(REVIEWS_PATH, content)
     return True
 
 
@@ -624,7 +773,7 @@ def cmd_stamp(_args):
         side_path = sidecar_path(state_path)
         sidecar, side_nl = load_json(side_path, {'version': 1, 'files': {}})
         stamps = sidecar.setdefault('files', {})
-        audited, partial = marked_paths(state)
+        audited, partial = marked_paths(state, state_path)
         marked = set(p for p in set(audited) | set(partial) if not is_dir_entry(p, tracked))
         out_of_scope.extend(p for p in marked if not in_scope(p, include, exclude))
 
@@ -686,6 +835,10 @@ def cmd_prune(_args):
     tracked = set(tracked_files())
     for state_path in state_files():
         state, state_nl = load_json(state_path, {})
+        # prune reads no marked path itself, but the REVIEWS.md render at
+        # the end does; refusing here, before any state file is
+        # rewritten, keeps a refused run from writing half its result.
+        marked_paths(state, state_path)
         side_path = sidecar_path(state_path)
         sidecar, side_nl = load_json(side_path, {'version': 1, 'files': {}})
         stamps = sidecar.get('files', {})
@@ -1500,7 +1653,7 @@ def cmd_next(args):
     reviewed = set()
     for state_path in state_files():
         state, _ = load_json(state_path, {})
-        audited, _partial = marked_paths(state)
+        audited, _partial = marked_paths(state, state_path)
         reviewed.update(audited)
     # An imported review is a review: the file is not offered.
     imports, _, _ = load_imports()
@@ -1551,9 +1704,14 @@ def main():
     top = git('rev-parse', '--show-toplevel').stdout.strip()
     os.chdir(top)
 
-    return {'stamp': cmd_stamp, 'prune': cmd_prune, 'import': cmd_import, 'regen': cmd_regen,
-            'next': cmd_next, 'status': cmd_status,
-            'scope-orphans': cmd_scope_orphans}[args.command](args)
+    command = {'stamp': cmd_stamp, 'prune': cmd_prune, 'import': cmd_import, 'regen': cmd_regen,
+               'next': cmd_next, 'status': cmd_status,
+               'scope-orphans': cmd_scope_orphans}[args.command]
+    try:
+        return command(args)
+    except RefusedState as e:
+        print('review-tracking: ERROR: %s' % e, file=sys.stderr)
+        return 2
 
 
 if __name__ == '__main__':

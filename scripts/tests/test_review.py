@@ -15,6 +15,7 @@ import unittest.mock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit import check as check_module  # noqa: E402
+from audit import github  # noqa: E402
 from audit.checks import review  # noqa: E402
 from audit.text import patterns  # noqa: E402
 from tests.base import CheckTestCase, FixtureRepo  # noqa: E402
@@ -38,11 +39,24 @@ class StandInScriptMixin:
     repository, so each is a ToolFailure. These are the levers.
     """
 
-    def use_script(self, stdout='', stderr='', returncode=0):
+    def use_script(self, stdout='', stderr='', returncode=0, refuse_credentials=False):
+        """Stand in a script answering stdout, stderr and returncode.
+
+        With refuse_credentials, it instead exits 3 saying so when any
+        CREDENTIAL_ENV variable reaches it, which is not an answer
+        either check accepts.
+        """
         path = os.path.join(self.tempdir(), 'review-tracking.py')
+        guard = ''
+        if refuse_credentials:
+            guard = ('import os\n'
+                     f'if any(name in os.environ for name in {github.CREDENTIAL_ENV!r}):\n'
+                     '    sys.stderr.write("saw a credential")\n'
+                     '    sys.exit(3)\n')
         with open(path, 'w') as f:
             f.write('import sys\n'
-                    f'sys.stdout.write({stdout!r})\n'
+                    + guard
+                    + f'sys.stdout.write({stdout!r})\n'
                     f'sys.stderr.write({stderr!r})\n'
                     f'sys.exit({returncode})\n')
         patcher = unittest.mock.patch.object(review, 'REVIEW_TRACKING_SCRIPT', path)
@@ -289,6 +303,30 @@ class ReviewCoverageTest(StandInScriptMixin, CheckTestCase):
                 os.path.join(self.fixture.path, 'moved-away.py')):
             self.assert_tool_failure(self.check, containing='review-tracking.py status failed')
 
+    def test_review_tracking_sees_no_github_credential(self):
+        # The audit step holds a GitHub token, and the script runs inside
+        # the audited checkout.
+        self.make_reviewed_repo(['a.py'], reviewed=[])
+        self.use_script(stdout=json.dumps({'reviewed': 1, 'in_scope': 1, 'needing_review': 0,
+                                           'stale': [], 'never_reviewed': []}),
+                        refuse_credentials=True)
+        with unittest.mock.patch.dict(os.environ, {
+                'GH_TOKEN': 'audit-token', 'GITHUB_TOKEN': 'job-token'}):
+            result = self.check()
+        self.assert_pass(result)
+
+    def test_a_state_file_linked_out_of_the_checkout_is_a_tool_failure(self):
+        # The real script, refusing the link: an error, not a verdict.
+        self.make_reviewed_repo(['a.py'], reviewed=[])
+        outside = os.path.join(self.tempdir(), 'outside.weaudit')
+        with open(outside, 'w') as f:
+            f.write(json.dumps({'auditedFiles': [], 'partiallyAuditedFiles': []}))
+        os.symlink(outside, os.path.join(self.fixture.path, '.vscode', 'evil.weaudit'))
+        self.assert_tool_failure(
+            self.check,
+            containing="review-tracking.py status failed: review-tracking: ERROR: "
+                       "'.vscode/evil.weaudit' resolves outside the repository")
+
     def test_unparseable_output_is_a_tool_failure(self):
         self.make_reviewed_repo(['a.py'], reviewed=[])
         self.use_script(stdout='not json')
@@ -407,6 +445,14 @@ class ReviewScopeCompletenessTest(StandInScriptMixin, CheckTestCase):
             with self.subTest(body=body):
                 self.use_script(stdout=body, returncode=1)
                 self.assert_tool_failure(self.check, containing='without an orphans list')
+
+    def test_review_tracking_sees_no_github_credential(self):
+        self.commit('include = ["*.py"]\n', ['a.py'])
+        self.use_script(stdout='{"orphans": [], "orphan_count": 0}', refuse_credentials=True)
+        with unittest.mock.patch.dict(os.environ, {
+                'GH_TOKEN': 'audit-token', 'GITHUB_TOKEN': 'job-token'}):
+            result = self.check()
+        self.assert_pass(result)
 
     def test_orphans_reported_with_status_one_are_a_finding(self):
         self.commit('include = ["*.py"]\n', ['a.py'])

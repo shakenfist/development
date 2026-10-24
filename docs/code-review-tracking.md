@@ -80,6 +80,17 @@ repository and passes through to the script.
   marked reviewed by import (see "Importing reviews from this
   repository" under "Steady state").
 
+Every one of these files must be a regular file inside the
+repository and no larger than 2 MiB (the audit's own read cap), and
+none may be a symlink when the tooling writes it. Anything else --
+a link out of the checkout, a link to a device, a directory, an
+oversized file, or a weAudit mark on a path containing a newline or
+other control character -- stops the subcommand with exit status 2
+and a `review-tracking: ERROR:` line naming the file, rather than
+being read, written through or treated as absent; the
+`review-coverage` and `review-scope-completeness` audits report that
+as an error.
+
 ## Adopting a repository
 
 1. Ensure the review state files are committable. If `.gitignore`
