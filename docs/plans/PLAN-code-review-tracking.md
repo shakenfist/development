@@ -1055,6 +1055,15 @@ each through a sub-agent and reviewed in the management session:
 F1, F2 and F8 share one commit because they share the new I/O
 helper's hunks and the tests that drive the child.
 
+The pull request's automated review found F2 only partly fixed. The
+first commit guarded marked paths, but the reviewer name, stamp dates
+and shas, imported fields and line numbers also reach a `REVIEWS.md`
+cell. `00d4425` guards every cell, table-escapes `|`, refuses before
+writing in `stamp`, `prune` and `import`, and refuses a malformed mark
+entry without a traceback (21 mutants). `aeb765e` refuses malformed
+JSON and format characters, and stops dropping an import whose date
+is null (5 mutants).
+
 ##### Findings declined, with reasons
 
 * **The `next` wording in both wrapper copies is stale**
@@ -1188,7 +1197,9 @@ that we fixed.
   would follow a committed symlink out of the clone or into
   `/dev/zero`. Writes followed symlinks, and a newline in a marked
   path could inject a line into `REVIEWS.md`. Fixed in `30bf5aa`,
-  which also runs both review criteria without credentials.
+  which also runs both review criteria without credentials, and
+  completed in `00d4425` and `aeb765e`, which guard every other
+  `REVIEWS.md` cell.
 * `stamp` read a marked path beginning with `/` as git's
   commit-message search, and `prune` raised `KeyError` on a stamp
   with no sha. Fixed in `a914f48`, with two smaller wording fixes.
