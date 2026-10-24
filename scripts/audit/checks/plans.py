@@ -6,14 +6,18 @@ the software rather than the history of how it was built.
 
 push-audit is here too. It is about a runbook rather than a plan, but
 what it checks is the same shared blocks the plan template is checked
-against, and splitting them would put one validator in two places.
+against. The file is long because it holds several checks, not because
+they share a validator (that lives in audit.text.shared_blocks). A
+future split would use one seam: PushAudit, PlanTemplate,
+unreadable_file_detail and their block lists form a group of
+shared-block consumers, and could move together to their own module.
 """
 
 import os
 import re
 
 from audit.check import Check
-from audit.repo import path_is_within
+from audit.repo import READ_MAX_BYTES, path_is_within
 from audit.files import check_file_contains, iter_doc_content_files, require_tracked_paths
 from audit.text.markdown import (
     blank_generated_blocks, iter_lines_outside_fences,
@@ -325,8 +329,40 @@ PLAN_LINK_RE = re.compile(
 PLAN_LINK_SCHEME_RE = re.compile(r'^(?:[a-z][a-z0-9+.-]*:|//)', re.IGNORECASE)
 
 
+# The optional title after a link's destination: `[a](PLAN-a.md "t")`.
+# Anchored to the end of the target, which PLAN_LINK_RE has already cut
+# at the first closing paren.
+PLAN_LINK_TITLE_RE = re.compile(r"""\s+(?:"[^"]*"|'[^']*')$""")
+
+
 # How many offending items to name before summarising.
 PLAN_INDEX_MAX_SHOWN = 5
+
+
+def plan_link_path(target):
+    """The path a link target names, or None if it leaves this repository.
+
+    What PLAN_LINK_RE captured is the whole of the parenthesised part,
+    which markdown lets carry more than the path: the destination may
+    be wrapped in angle brackets, a quoted title may follow it, and a
+    `#fragment` may trail the path. Every reader of an index's links
+    comes through here, so that two of them cannot disagree about which
+    file a link names.
+
+    None for a target carrying a URL scheme, which names a file in
+    another repository (see PLAN_LINK_SCHEME_RE). The directory part of
+    a relative path is kept: callers that match by filename take the
+    basename themselves.
+    """
+    path = target.strip()
+    if path.startswith('<'):
+        path = path[1:].split('>')[0]
+    else:
+        path = PLAN_LINK_TITLE_RE.sub('', path)
+    path = path.split('#')[0].strip()
+    if PLAN_LINK_SCHEME_RE.match(path):
+        return None
+    return path
 
 
 def plan_cell_text(cell):
@@ -588,8 +624,8 @@ def plan_index_entries(content):
     found = {}
 
     def record(target, status):
-        cleaned = target.split('#')[0].strip()
-        if PLAN_LINK_SCHEME_RE.match(cleaned):
+        cleaned = plan_link_path(target)
+        if cleaned is None:
             return
         name = os.path.basename(cleaned)
         if not name.startswith('PLAN-') or not name.endswith('.md'):
@@ -1315,9 +1351,12 @@ class PlanIndex(Check):
                                          columns=plan_table_columns):
             lineno = offset + 1
             for _, target in PLAN_LINK_RE.findall(line):
-                name = target.split('#')[0].strip()
-                if name.endswith('.md'):
-                    linked.add(os.path.basename(name))
+                # By basename on purpose: finished plans are filed
+                # under docs/plans/completed/, and a link written from
+                # there or from the repository root names the same plan.
+                path = plan_link_path(target)
+                if path is not None and path.endswith('.md'):
+                    linked.add(os.path.basename(path))
 
             if cells is None:
                 # Prose between tables ends the run of rows, so two
@@ -1591,6 +1630,25 @@ class PlanAuditPhase(Check):
         return self.ok('; '.join(parts + unjudged))
 
 
+def unreadable_file_detail(repo, name):
+    """Why a file that is there cannot be read, or None if it can or is absent.
+
+    Repo.read() returns None for an absent file and for one it will
+    not read -- over the read cap, a link out of the clone, not a
+    regular file -- and a criterion that takes None to mean "absent"
+    reports not_applicable, which closes the open issue about it. The
+    file is there; an audit that cannot read it has found a problem
+    to name, not a reason to stand down.
+    """
+    if repo.isfile(name) or not os.path.lexists(repo.join(name)):
+        return None
+    return (
+        f'{name} could not be read (it may be over the '
+        f'{READ_MAX_BYTES // (1024 * 1024)} MB read limit, a link out '
+        f'of the repository, or not a regular file)'
+    )
+
+
 class PushAudit(Check):
     id = 'push-audit'
     spec = 'docs/audits/push-audit.md'
@@ -1625,6 +1683,11 @@ class PushAudit(Check):
         into every session, which makes it the one place a reference is
         certain to be read.
         """
+        for name in ('PUSH-AUDIT.md', 'PUSH-TEMPLATE.md'):
+            detail = unreadable_file_detail(repo, name)
+            if detail:
+                return self.fail(detail)
+
         has_new = repo.isfile('PUSH-AUDIT.md')
         has_legacy = repo.isfile('PUSH-TEMPLATE.md')
         if not has_new and not has_legacy:
@@ -1698,6 +1761,9 @@ class PlanTemplate(Check):
         """
         content = repo.read('PLAN-TEMPLATE.md')
         if content is None:
+            detail = unreadable_file_detail(repo, 'PLAN-TEMPLATE.md')
+            if detail:
+                return self.fail(detail)
             return self.skip('No PLAN-TEMPLATE.md')
         problems = validate_shared_blocks(
             content,

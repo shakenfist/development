@@ -19,8 +19,9 @@ included:
 <!-- shared-block-end -->
 ```
 
-The `<name>` must match the filename (`<name>.md`). Repositories
-embed the whole block -- markers and all -- verbatim.
+The `<name>` must match the filename (`<name>.md`), and `<N>` is at
+most six digits. Repositories embed the whole block -- markers and
+all -- verbatim.
 
 ## How the audit uses these
 
@@ -40,9 +41,16 @@ checks) verify that an embedded block:
   `plan-review-checklist`, `plan-closeout-sections`,
   `plan-push-audit-phase` and `plan-phase-landing` in
   `PLAN-TEMPLATE.md`;
-- carries the current version number; and
+- carries the current version number;
 - matches the canonical wording exactly (modulo trailing
-  whitespace).
+  whitespace);
+- appears once; and
+- closes with its own end marker before the next block begins.
+  Blocks do not nest: a block with another inside it is reported as
+  having no end marker.
+
+Each problem names the block it is about and, where the fix is a
+copy, the file here to copy it from.
 
 `plan-phase-landing` has been enforced since 2026-09-20, the day
 after it was written, rather than left advisory for repositories to
