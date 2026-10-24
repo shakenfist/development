@@ -237,14 +237,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/review-tracking/review-tracking.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "tools/review-tracking.sh",
-      "author": "mikal"
-    },
-    {
       "path": "templates/test-drift-fix/test-drift-fix.yml",
       "author": "mikal"
     },
@@ -381,18 +373,6 @@
       "author": "mikal"
     },
     {
-      "path": ".claude/skills/review-tracking-adoption/SKILL.md",
-      "author": "mikal"
-    },
-    {
-      "path": ".claude/skills/review-tracking-adoption",
-      "author": "mikal"
-    },
-    {
-      "path": ".claude/skills",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/export-repo-config.md",
       "author": "mikal"
     },
@@ -453,10 +433,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/review-tracking/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_ci_prune_reviews.py",
       "author": "mikal"
     },
@@ -470,10 +446,6 @@
     },
     {
       "path": "templates/review-tracking/ci-prune-reviews.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/review-tracking",
       "author": "mikal"
     },
     {
@@ -538,10 +510,6 @@
     },
     {
       "path": "tools/report-audit-failure.sh",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/ci.yml",
       "author": "mikal"
     },
     {
@@ -617,10 +585,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/ci_workflows.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/docs_content.py",
       "author": "mikal"
     },
@@ -649,10 +613,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/release-environment-protection.md",
       "author": "mikal"
     },
@@ -670,10 +630,6 @@
     },
     {
       "path": "scripts/audit/github.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/repo.py",
       "author": "mikal"
     },
     {
@@ -701,10 +657,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/registry.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/scope.py",
       "author": "mikal"
     },
@@ -729,10 +681,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_ci_workflows.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_containment.py",
       "author": "mikal"
     },
@@ -753,10 +701,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_metadata.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_npm_dependencies.py",
       "author": "mikal"
     },
@@ -766,10 +710,6 @@
     },
     {
       "path": "scripts/tests/test_patterns.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_registry.py",
       "author": "mikal"
     },
     {
