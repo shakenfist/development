@@ -300,7 +300,8 @@ VSCode.
 last. The hooks are gone (see the note at the top of "Staleness via
 stamped blob SHAs and git hooks"). Scope is no longer direct code
 only: `ed10382` made code plus the prose that documents it the
-recommended default, and `9c4821a` added YAML configuration. The
+recommended default, and `9c4821a` added YAML and other declarative
+configuration. The
 current rule is the scope config entry under "The pieces" in
 `docs/code-review-tracking.md`.
 
@@ -340,7 +341,7 @@ answered each, which is what Phase 4 step 5 asked for:
 | 2. Stamp and prune hooks | Complete | `0957d15..ee6d4ea`; ryll `7775679e` (#144), `ef94c321` (#146) |
 | 3. Optional CI backstop | Superseded | nothing; replaced by `PLAN-review-coverage.md` |
 | 4. Documentation and rollout as a consistency audit | Complete | accreted over many landings; reconstructed in Phase 5 |
-| 5. Push audit | In progress | |
+| 5. Push audit | Complete | |
 
 This table was added on 2026-10-24, when Phases 0--4 were closed
 out together. Until then the plan carried no status table and every
@@ -904,8 +905,9 @@ fix, and none prunes, regenerates or commits `REVIEWS.md`.
   `gh repo list shakenfist --limit 200 --json name --jq length`, less
   any archived repositories it names.
 * The Outcome links development#307.
-* `grep -c '| 5. Push audit | Complete |' docs/plans/PLAN-code-review-tracking.md`
-  returns 1. The index row reads `Complete` only if the Outcome
+* `grep -c '^| 5. Push audit | Complete |' docs/plans/PLAN-code-review-tracking.md`
+  returns 1. The anchor matters: without it the grep also matches this
+  line, which quotes the row, and returns 2. The index row reads `Complete` only if the Outcome
   records no unresolved finding.
 * `pre-commit run --all-files` passes, and `git diff origin/main
   --stat` on the branch lists only this plan and `docs/plans/index.md`.
@@ -916,6 +918,174 @@ Before running 5a, back brief Mikal: the fourteen ranges, the
 exclusion list, and D5.7. If the attribution of landings in the
 survey looks wrong to him, that is the cheapest point to correct it.
 Every brief inherits it.
+
+#### Outcome
+
+The audit ran on 2026-10-24 (AEDT), in the order the step table
+gives. 5a ran first and alone. 5b to 5f then ran in parallel as
+read-only reporters, and 5g's triage below is the management
+session's. The back brief was taken first, and Mikal confirmed the
+attribution of landings in the survey unchanged.
+
+**Ranges.** All five reporting agents reproduced the survey table
+exactly, every one of the fourteen rows, including range 13 with its
+pathspec. The management session re-ran ranges 2 and 13 by hand. No
+report was re-run.
+
+**Wave 1 (5a): clean.** `pre-commit run --all-files` passed. The only
+grep hits were these, all accepted:
+
+* stdlib imports in range 2;
+* one plan citation in range 2's `.pre-commit-hooks.yaml`, which
+  range 3 deleted with the file;
+* two files over the size threshold at HEAD,
+  `scripts/review-tracking.py` (1,560 lines) and
+  `scripts/tests/test_review_tracking.py` (2,135);
+* paths that predate the restructure.
+
+**Wave 2.**
+
+* 5b (code quality): ten advisory findings, none blocking.
+* 5c (tests): no assertion lost in either move, 162 tests passing.
+  35 mutants ran under `timeout`, and four survived.
+* 5d (documentation): no gaps found. One imprecision, in this plan's
+  own correction note, is fixed in this commit.
+* 5e (security): one medium finding, two low and two informational,
+  with four proofs of concept.
+* 5f (consumers of removed interfaces): no live consumer across the
+  organisation's 40 repositories. 26 were searched by fetched clone
+  and 14 by `gh`; 10 of the 14 are archived.
+
+Every finding below was checked against the tree at `aa8d259` by the
+management session. F1 and F2 were reproduced by running the code,
+and the rest by reading it.
+
+##### Findings to fix
+
+These land as one follow-up pull request against `main` after this
+phase merges. That pull request carries this phase's `Merged` cell
+and the index row's `Complete`, as `plan-phase-landing` requires.
+
+* **F1 (medium, security; range 2, reached through #11).**
+  `load_json()` at `scripts/review-tracking.py:283` opens with no
+  symlink, containment or size check. `status` and `scope-orphans`
+  run it inside every audited repository's checkout, from
+  `ReviewCoverage` (`scripts/audit/checks/review.py:200`) and
+  `ReviewScopeCompleteness`. A merged `.vscode/x.weaudit -> /dev/zero`
+  in any adopter used 1 GiB in under half a second (5e PoC 2,
+  re-run here against a copy of HEAD's script). The runner is the
+  shared `[self-hosted, static]` pool, and the 60-second timeout
+  does not bound memory. The audit's own guarded
+  `Repo.read()` (`scripts/audit/repo.py`, `READ_MAX_BYTES`) refuses
+  the same link, so this sidesteps a guard the package already
+  has. No content disclosure was achieved. `PLAN-review-coverage.md`'s
+  audit recorded the timeout case only, so this is new. Fix: route
+  every read through one guarded opener: realpath within the
+  toplevel, regular files only, `O_NOFOLLOW`, and a size cap
+  matching `READ_MAX_BYTES`.
+* **F2 (low, security; range 2).** `write_json()` at `:291` and the
+  `REVIEWS.md` write at `:551` follow symlinks. A newline in a
+  weAudit path injects a line into the target (5e PoC 4). This needs
+  a merged pull request, by someone who can usually already run code
+  on the runners, so it is low. Fix: the same opener for writes, and
+  reject control characters in marked paths.
+* **F3 (low, integrity; range 2).** `stamp` resolves
+  `blob_sha(':%s' % path)` (`:633`, `:645`). A weAudit path `/x`
+  becomes `:/x`, git's commit-message search, and stamps a commit
+  SHA. It heals itself at prune. Fix: `':0:%s'`.
+* **F4 (latent false pass; range 8, widened by 9).**
+  `pre_commit_excludes_review_marks()` at
+  `scripts/audit/checks/review.py:64` accepts any `exclude:` line in
+  the file:
+  * a YAML block scalar (`exclude: |`) captures `|`, which matches
+    every path (5b reproduced it);
+  * an exclude on an unrelated hook counts for the rewriting hook,
+    which it does not protect (5c).
+
+  Either way `review-marks-pre-commit` passes a repository whose
+  rewriting hook still rewrites the marks. None of the six local
+  adopter clones trips it today. Fix: reject a block-scalar
+  indicator or an empty value, and require the matching exclude on
+  the rewriting hook or at the top level. Add tests for both.
+* **F5 (advisory, robustness; range 2).** `cmd_prune` indexes
+  `stamps[path]['sha']` (`scripts/review-tracking.py:696`, `:705`).
+  For a sidecar entry with no sha it raises `KeyError`, right after
+  `stamp` has told the user to run `prune`. Fix: `.get('sha')`.
+* **F6 (test gaps; ranges 8 and 11).** Three mutants survived:
+  dropping `mixed-line-ending`, `pretty-format-json` or
+  `file-contents-sorter` from `FILE_REWRITING_HOOK_IDS`
+  (`review.py:42`). So did one ignoring partial marks in
+  `stamp`'s out-of-scope detection (`review-tracking.py:628`). Fix:
+  one test per hook id (or a parameterised one), and a partial-mark
+  out-of-scope case.
+* **F7 (advisory, small; ranges 2 and 11).** The `--help` text
+  reflows the module docstring into one paragraph (`:1530`): use
+  `RawDescriptionHelpFormatter`. The out-of-scope banner says
+  "excluded by review-scope.toml" (`:587`) for files that are only
+  unmatched: say "not in scope".
+* **F8 (informational; range 13, and #11).** Both review checks run
+  the child without `environment_without_credentials()`
+  (`review.py:200`, `:285`). `SfuiVendor` uses it. The child runs no
+  repository-chosen code today. Fix: pass the scrubbed environment,
+  in the same PR as F1.
+
+##### Findings declined, with reasons
+
+* **The `next` wording in both wrapper copies is stale**
+  (`tools/review-tracking.sh:11` and its template): it says
+  "random", but range 14 added subtree and `listed` order. This is
+  not fixed alone, because the template copies must stay
+  byte-identical and an edit here means a re-sync of six
+  repositories. It goes with the re-sync development#307 already
+  asks for, and is noted there.
+* **`.vscode/review-scope.toml` is in `ci.yml`'s `paths-ignore`**
+  (`.github/workflows/ci.yml:39`; 5b and 5e F5). A scope-only pull
+  request skips lint, the smoke run and the automated reviewer,
+  although the scope file is policy rather than review state. This
+  is not a defect in this repository's copy. It is the fleet
+  convention in adoption step 8 (`docs/code-review-tracking.md:318`)
+  and the adoption skill, carried by seven repositories. Changing it
+  is a convention decision for Mikal, and the findings pull request
+  either takes it or records why not.
+* **The three review checks repeat the scope-file skip in `run()`**
+  instead of `applies()` (`review.py:154`, `:189`, `:280`). Verdicts
+  are unaffected. This is a style point outside any range's intent,
+  and it belongs to the next change that touches them.
+* **The 3.11 floor** (`tomllib`, `review-tracking.py:237`) is
+  undocumented for by-hand use. The audit runner is guarded
+  (`ci.yml:97`). The failure is a clear `ImportError`, and no
+  by-hand user is known to be on an older interpreter, so this is
+  declined until one is.
+* **Comment proportion**: the `report_out_of_scope` and
+  `scope_orphans` docstrings narrate more than they need
+  (`:556-573`, `:1393-1413`). Advisory. Both carry their reasons,
+  and a person read them in full on 2026-10-16.
+* **Source file size**: `scripts/review-tracking.py` is 1,560 lines,
+  over the 1,500 that wants a stated reason. About 1,000 of them are
+  the import machinery from `PLAN-review-import.md`, outside this
+  plan. Its seam is clean (the imports file, the history walk,
+  `verify_commit`, `cmd_import`), and splitting it is recorded under
+  Future work rather than done in an audit.
+* **Smaller gaps, declined for their size, as advisories:**
+  * `next` ignores a mistyped path among valid ones;
+  * `scope-orphans` has no assertion on its zero-orphan message;
+  * `prune-reviews.yml`'s triggers are pinned only by byte
+    comparison with the template;
+  * range 13 did not state its blast radius, a historical record
+    that the compliance page now carries.
+
+##### What the audit did not do
+
+* It did not audit the adoption pull requests in other
+  repositories, per D5.4. They are listed there, with kerbside#254
+  named as the unaudited CI logic.
+* It did not read `import` (`review-tracking.py` around
+  `:781-1300`), which belongs to `PLAN-review-import.md`.
+* It did not re-review the template copies of `prune-reviews.yml`
+  and `ci-prune-reviews.sh`, which that plan's audit read.
+* The 14 uncloned repositories in 5f were covered by `gh search
+  code`, which only indexes default branches and can lag. 5f gives
+  their result as indicative.
 
 ## Administration and logistics
 
@@ -963,11 +1133,27 @@ We will know this plan has been successfully implemented when:
   byte-identical to `templates/review-tracking/`, as that template's
   README requires. development#307 records the two repositories that
   have drifted and asks for both the re-sync and the criterion.
+* Split the import machinery out of `scripts/review-tracking.py`,
+  which is 1,560 lines, about 1,000 of them `import`. The push
+  audit found the seam already clean.
 
 ### Bugs fixed during this work
 
 This section should list any bugs we encounter during development
 that we fixed.
+
+* A scoped pre-commit run while the ryll wiring was being prepared
+  auto-stamped a stale mark at the file's current content. The
+  bootstrap rule in `9f8d47f` made bootstrap land with the wiring,
+  and is now adoption step 6 (Phase 2 step 5).
+* weAudit records derived directory entries in `auditedFiles`, and
+  the script treated them as files (`ee6d4ea`).
+* `stamp` skipped an already-stamped file whose content had since
+  changed, silently and with exit zero, so a stale mark could reach
+  the default branch. Fixed in `ba3876a`, which landed under #47 and
+  is recorded in `PLAN-consistency-audits-v2.md`.
+* The push audit (Phase 5) found eight defects and gaps, recorded in
+  its Outcome. They are fixed in the follow-up pull request, not here.
 
 ### Back brief
 
