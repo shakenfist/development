@@ -169,15 +169,7 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/mermaid-lint.yml",
-      "author": "mikal"
-    },
-    {
       "path": ".github/actionlint.yaml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/mermaid-lint/mermaid-lint.yml",
       "author": "mikal"
     },
     {
@@ -226,14 +218,6 @@
     },
     {
       "path": "templates/export-repo-config/export-repo-config.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/mermaid-lint/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/mermaid-lint",
       "author": "mikal"
     },
     {
@@ -670,10 +654,6 @@
     },
     {
       "path": "scripts/tests/test_containment.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_docs_content.py",
       "author": "mikal"
     },
     {

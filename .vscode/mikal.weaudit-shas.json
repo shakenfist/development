@@ -41,10 +41,6 @@
       "sha": "6d0ce3ba5bf1008a1139a1a1be27959413f8ad0a",
       "date": "2026-09-09"
     },
-    ".github/workflows/mermaid-lint.yml": {
-      "sha": "d5b8377f8a98d3f68fd14469ed4d5be8fece1c6a",
-      "date": "2026-09-14"
-    },
     ".github/workflows/pr-re-review.yml": {
       "sha": "501583b681bc88c12846372364aa302b1b05aec3",
       "date": "2026-10-20"
@@ -449,10 +445,6 @@
       "sha": "6b651ae5d0f23436f91ccfb243802bbe854c538f",
       "date": "2026-10-14"
     },
-    "scripts/tests/test_docs_content.py": {
-      "sha": "4ed27b744d34694651da8ef3965d59e68d0ac3dc",
-      "date": "2026-10-21"
-    },
     "scripts/tests/test_hooks.py": {
       "sha": "f87b63fadcf25dccf18d7350d57863e2a7e1f6c7",
       "date": "2026-09-22"
@@ -557,17 +549,9 @@
       "sha": "6d0ce3ba5bf1008a1139a1a1be27959413f8ad0a",
       "date": "2026-09-09"
     },
-    "templates/mermaid-lint/README.md": {
-      "sha": "5deb7cf997d81ce52818f65a0c72260481324da0",
-      "date": "2026-09-27"
-    },
     "templates/mermaid-lint/mermaid-lint.sh": {
       "sha": "22f14bf915f76875950bb5589212b55ab0a91db1",
       "date": "2026-09-22"
-    },
-    "templates/mermaid-lint/mermaid-lint.yml": {
-      "sha": "d5b8377f8a98d3f68fd14469ed4d5be8fece1c6a",
-      "date": "2026-09-16"
     },
     "templates/pin-indirect-dependencies/README.md": {
       "sha": "c340937342fdf83e0c24ec1c9ce6a024933e12b1",
