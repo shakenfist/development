@@ -917,6 +917,36 @@ class MermaidLintDeploymentTest(unittest.TestCase):
         for paths in filters:
             self.assertIn('tools/mermaid-lint-exclude', paths, paths)
 
+    def _workflow(self):
+        return repo_file('templates', 'mermaid-lint',
+                         'mermaid-lint.yml').decode('utf-8')
+
+    def test_the_job_refuses_fork_pull_requests(self):
+        """A fork must not get its own script run on the runner host.
+
+        The script is bash on the host, outside the container's
+        sandbox, and editing it starts the lane. The guard has to keep
+        push and dispatch runs, so it is the whole expression that is
+        pinned rather than the mere presence of head.repo.
+        """
+        guard = re.search(r'^    if: \|\n((?:      .*\n)+)', self._workflow(),
+                          re.MULTILINE)
+        self.assertIsNotNone(guard, 'the job has no if: block')
+        self.assertEqual(
+            ' '.join(guard.group(1).split()),
+            "github.event_name != 'pull_request' || "
+            'github.event.pull_request.head.repo.full_name == '
+            'github.repository')
+
+    def test_the_checkout_keeps_no_token(self):
+        """The checkout is mounted into a third-party container."""
+        checkout = re.search(
+            r'- uses: actions/checkout@\S+\n((?:\s+.*\n)*?)(?=\s*- |\Z)',
+            self._workflow())
+        self.assertIsNotNone(checkout)
+        self.assertRegex(checkout.group(1),
+                         r'with:\s*\n\s+persist-credentials: false')
+
     def test_the_script_excludes_what_the_workflow_excludes(self):
         """The two halves of the REVIEWS.md exclusion travel together.
 

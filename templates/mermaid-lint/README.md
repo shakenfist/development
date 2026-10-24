@@ -83,6 +83,28 @@ block. A fleet whose docker-capable image does not carry that
 configuration needs it there, not here -- an `http_proxy` in the job
 would not reach the daemon doing the pull.
 
+## Fork pull requests
+
+The job refuses pull requests from forks, with a
+`head.repo.full_name` guard. The reason is where the code runs. The container is sandboxed by `--network none` and a read-only
+mount, but `tools/mermaid-lint.sh` itself is bash on the runner host,
+and the job runs the pull request's own copy of it. A fork can edit
+that script, and because the script is in the path filter, editing it
+is enough to start the lane. Push and dispatch runs are unaffected:
+they only ever run the repository's own code.
+
+This is defence in depth rather than the boundary. The `vm` runner
+is discarded after the job, and the guard lives in a workflow file
+the pull request can edit, so it stops a fork that changes the
+script, not one that also deletes the guard. That case is the
+repository's approval requirement for fork workflows, which GitHub
+enforces server-side.
+
+The checkout also sets `persist-credentials: false`. Nothing in the
+job pushes or calls the API, and the checkout is mounted into a
+third-party container, so `GITHUB_TOKEN` has no reason to be in its
+`.git/config`.
+
 ## Required status checks
 
 The workflow is path-filtered, so it does not run on a pull request
