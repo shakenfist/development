@@ -103,7 +103,10 @@ The workflow-safety rules, where there is a `release.yml`:
     a success. `cancel-in-progress: false` does not prevent this: a
     group holds one running and one pending run, so a third arrival
     cancels the pending one. The group has to branch on
-    `github.event_name == 'push'` and key by sha there. The key the
+    `github.event_name == 'push'` and key by sha there. The rule
+    reads the group as text: it passes one that mentions `github.ref`
+    only if it also names both the push event and `github.sha`, and it
+    does not check how the expression combines them. The key the
     merge queue needs falls back to `github.ref`, so on a push
     workflow it fails here. How merge-group runs cancel is
     [merge-group-cancellation](merge-group-cancellation.md)'s to

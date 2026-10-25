@@ -425,6 +425,9 @@ PYTHON_BUILD_RE = re.compile(r'\bpython[0-9.]*\s+-m\s+build\b')
 #: merge-group-cancellation does not read its merge_group branch.
 PUSH_BRANCH_RE = re.compile(r"github\.event_name\s*[=!]=\s*'push'")
 
+#: What a push run's concurrency group has to be keyed on.
+SHA_RE = re.compile(r'\bgithub\.sha\b')
+
 #: The commit a merge group's path filter must diff against.
 MERGE_GROUP_BASE_SHA = 'github.event.merge_group.base_sha'
 
@@ -608,6 +611,10 @@ def push_concurrency_issues(wf, content):
     gives each commit a run of its own, and is the only fix: what
     cancel-in-progress says does not matter.
 
+    A group that mentions github.ref passes only when it branches on
+    the push event and names github.sha. The expression is not parsed,
+    so how the two are combined is taken on trust.
+
     The workflow's group and each job's are both read, because either
     can cancel, in the mapping form and in the inline form that names
     the group alone. A job's own `if:` is not, so a job kept off push
@@ -624,7 +631,9 @@ def push_concurrency_issues(wf, content):
                   for name, body in workflow_job_blocks(content))
     issues = []
     for where, block in blocks:
-        if block is None or 'github.ref' not in block or PUSH_BRANCH_RE.search(block):
+        if block is None or 'github.ref' not in block:
+            continue
+        if PUSH_BRANCH_RE.search(block) and SHA_RE.search(block):
             continue
         issues.append(
             f'{wf}, which the gate counts on a push to {DEFAULT_BRANCH}, keys '

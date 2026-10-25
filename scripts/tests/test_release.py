@@ -1090,6 +1090,13 @@ class CiTriggerTest(CheckTestCase):
                                                              '  cancel-in-progress: true\n'))
             self.assertEqual([], self.issues(), group)
 
+    def test_branching_on_push_without_keying_by_sha_fails(self):
+        """Naming the push event is not enough: the push key has to be the sha."""
+        group = "${{ github.workflow }}-${{ github.event_name == 'push' && github.ref || github.head_ref }}"
+        self.gated(self.ci('on:\n  push:\n', concurrency=f'concurrency:\n  group: {group}\n'
+                                                         '  cancel-in-progress: true\n'))
+        self.assertIn('keys the concurrency group of the workflow on github.ref', ' '.join(self.issues()))
+
     def test_a_ref_keyed_group_which_does_not_cancel_in_progress_still_fails(self):
         """A third arrival cancels the pending run whatever the flag says."""
         self.gated(self.ci('on:\n  push:\n', concurrency=self.GROUP_ON_REF.replace('true', 'false')))
