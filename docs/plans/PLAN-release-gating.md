@@ -1498,7 +1498,8 @@ In scope:
 * Moving the release rules out of `packaging.py` into modules of their
   own (decision 4.9).
 * Finding out why occystrap's queue has never built a merge group, and
-  fixing it (decision 4.7).
+  fixing it, or failing that, moving occystrap back to a single tier of
+  CI (decision 4.7).
 * ryll's two findings (decision 4.2).
 
 Out of scope:
@@ -1725,12 +1726,21 @@ below, so it has been rewritten rather than patched.
   This is the decision a reviewer is most likely to dispute, and the
   back brief asks the operator to confirm it. If it holds, Future work
   records liveness as declined, with these reasons.
-* **4.7. occystrap's queue is fixed before this phase's criteria
-  merge.** The operator chose this when phase 3 closed. Merging
-  `release-merge-queue` first would report a repository that cannot
-  release as compliant. Step 4e is a read-only diagnosis. Any ruleset
-  or settings change it proposes needs the operator's yes at the time,
-  as in phase 3.
+* **4.7. occystrap goes back to a single tier of CI until its queue
+  works.** When phase 3 closed, the operator chose to fix occystrap's
+  queue before this phase's criteria merged, so that
+  `release-merge-queue` would not pass a repository that cannot
+  release. Step 4e and the probe that followed found nothing on our
+  side to fix (see the execution notes). The operator then chose to
+  disable the queue and gate releases on push runs to `develop`
+  instead, keeping occystrap#169 open to try the queue again.
+  occystrap keeps its `merge_group` triggers and "Can merge"
+  aggregators, so turning the queue back on is only a ruleset change.
+  Until then `release-merge-queue` fails occystrap, and the audit's
+  issue keeps that gap visible alongside #169. This repository's pull
+  request waits for occystrap's single-tier pull request rather than
+  for the queue. Every ruleset or settings change needs the operator's
+  yes at the time, as in phase 3.
 * **4.8. Rule 2 checks how a gated workflow's path filter reads a merge
   group.** It applies to a named workflow that triggers on
   `merge_group` and has a `dorny/paths-filter` step. That step must
@@ -1847,7 +1857,8 @@ Commit subjects:
   `grep -n 'from audit.checks' scripts/audit/checks/*.py` prints only
   that line.
 * Run from a directory of fresh clones of the fourteen release
-  repositories, this prints nothing:
+  repositories, this prints only occystrap's `release-merge-queue`
+  failure (decision 4.7):
 
   ```bash
   for r in */; do r=${r%/}
@@ -1862,17 +1873,21 @@ Commit subjects:
   `pass`, not `not_applicable`.
 * `docs/audits/release-process.md` maps all fifteen Rust invariants
   to rules, and the test that reads the README passes.
-* occystrap has merged a pull request through its queue: its newest
-  successful `merge_group` run's head commit is an ancestor of
-  `develop`. This prints `ahead` or `identical`:
+* occystrap gates its releases on push runs: its single-tier pull
+  request has merged, its "Develop branch" ruleset has no
+  `merge_queue` rule, and `develop`'s tip has a successful `push` run
+  of both gated workflows. This prints two lines, each `success`:
 
   ```bash
-  gh api 'repos/shakenfist/occystrap/actions/runs?event=merge_group&status=success&per_page=1' \
-    --jq '.workflow_runs[0].head_sha' |
-    xargs -I{} gh api 'repos/shakenfist/occystrap/compare/{}...develop' --jq .status
+  tip=$(gh api repos/shakenfist/occystrap/commits/develop --jq .sha)
+  for w in python-unit-tests.yml functional-tests.yml; do
+    gh api "repos/shakenfist/occystrap/actions/workflows/$w/runs?event=push&head_sha=$tip" \
+      --jq '.workflow_runs[0].conclusion'
+  done
   ```
 
-  plan-blockers b1 is resolved, and occystrap#169 is closed.
+  plan-blockers b1 is resolved, and occystrap#169 is open and listed
+  in Future work.
 * Future work no longer asks for the merge-group path-filter rule,
   and records queue liveness as declined or, if the operator chose it,
   no longer lists it.
@@ -1953,7 +1968,23 @@ Started on 2026-10-25 (AEDT).
   - the operator re-enqueued #170 at 02:37:04Z. By 02:48:06Z it was
     still `QUEUED` at position 1, with no queue branch, and occystrap
     still had no `merge_group` run. The required checks are not the
-    cause, and the queue stays the precondition decision 4.7 makes it.
+    cause;
+  - with the operator's approval, the ruleset was deleted and
+    recreated from its JSON at 02:52:27Z (new ruleset 25807190, new
+    merge queue `MQ_kwDOFKiz484ABO4F`). Re-enqueued at 03:40:16Z, #170
+    was still `QUEUED` with no group at 03:51. A runner shortage is
+    ruled out too: GitHub creates the queue branch before any
+    workflow runs, and occystrap had no run waiting for a runner. The
+    repository's merge methods, Actions permissions, protection and
+    fork status match divergulent's. A GitHub support ticket was
+    drafted for the operator, and the results are posted on #169.
+* **occystrap goes single tier.** The operator chose to disable the
+  queue rather than wait on GitHub, and decision 4.7 is rewritten at
+  its source. The merge_queue rule and the two "Can merge" required
+  checks came out of the ruleset at 04:46:40Z, and #170 was closed.
+  An occystrap pull request adds the push trigger the gate then
+  needs. The operator also chose to let `release-merge-queue` fail
+  occystrap rather than exempt it, with #169 kept open.
 
 ### Phase 5: push audit
 
@@ -2316,10 +2347,12 @@ chosen to defer to here, so that we do not forget them.
   merge commit that changed no gated file, as hunkydory's review marks
   need too (above). The conductor merging past a failed queue run is
   `PLAN-bot-bypass-identity.md`'s to close.
-* **occystrap's merge queue has never run** (occystrap#169). It is a
-  known failure that phase 3 closed with, by the operator's choice:
-  occystrap cannot release until it is fixed. Phase 4 owns finding the
-  cause (step 4e) and holds its own merge on the fix.
+* **occystrap's merge queue has never run** (occystrap#169). Phase 4
+  found no cause on our side, so the queue is disabled and occystrap
+  gates releases on push runs (decision 4.7). Turning it back on is a
+  ruleset change, with the settings in occystrap's `RELEASE-SETUP.md`,
+  once GitHub support or a later attempt shows the queue builds
+  groups. Until then `release-merge-queue` fails occystrap.
 * **CodeQL on merge groups.** `codeql-analysis.yml` runs on push
   only. It only needs `merge_group` if it becomes a required check.
 * **shakenfist's "Can merge" does not require `sanity_checks`**
