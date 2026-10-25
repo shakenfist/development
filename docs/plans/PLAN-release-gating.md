@@ -1661,7 +1661,9 @@ below, so it has been rewritten rather than patched.
   in the fleet triggers on `push` any more (survey 4). The push branch
   stays anyway, tested on fixtures, because it is what fails a
   repository that adds a push trigger back with a ref-keyed
-  `cancel-in-progress` group. `merge-group-cancellation` already judges
+  concurrency group, whatever its `cancel-in-progress` says: a group
+  with `false` still drops the pending run when a newer one queues, as
+  phase 3's survey found. `merge-group-cancellation` already judges
   concurrency on merge groups, and this rule does not repeat it.
 * **4.4. The three new rules, as built:**
   - **Rule 1, the gate:** exactly one job has a step that uses
@@ -1840,9 +1842,10 @@ Commit subjects:
   `not_applicable`.
 * `scripts/audit/checks/packaging.py` no longer defines
   `ReleaseProcess` or any of its helpers, and no check module imports
-  another check module:
-  `grep -n 'from audit.checks' scripts/audit/checks/*.py` prints
-  nothing.
+  another, except that `release.py` imports `release_rust.py`, one
+  check split across two files for size:
+  `grep -n 'from audit.checks' scripts/audit/checks/*.py` prints only
+  that line.
 * Run from a directory of fresh clones of the fourteen release
   repositories, this prints nothing:
 
@@ -1889,6 +1892,68 @@ Before 4a starts, the operator confirms:
 4. **Pushing and opening pull requests:** ask each time, or the same
    standing grant as phase 3. Merging, rulesets and anything 4e leads
    to are always asked at the time.
+
+#### Phase 4 execution notes
+
+Started on 2026-10-25 (AEDT).
+
+* **Back brief.** The operator chose:
+  - `release-merge-queue` checks configuration only (decision 4.6);
+  - ryll adds a checkout, rather than the container-path rule
+    exempting ephemeral runners (decision 4.2);
+  - this repository's pull request waits for occystrap's queue to be
+    fixed (decision 4.7);
+  - the same standing grant as phase 3 to push and open pull
+    requests. Merging, rulesets and anything 4e led to were asked at
+    the time.
+* **Order.** 4a, 4e and 4f ran in parallel: 4e only read, and 4f
+  worked in its own clone of ryll. 4d ran after 4c rather than
+  alongside it, because both run pre-commit and the unit tests in
+  this worktree.
+* **4a** sonnet at medium effort, as two commits: the shared
+  workflow readers (2c79749), then `release-process` in its own
+  module (36a8cf5).
+* **4b** opus at high effort (09271a7). The first version's
+  push-concurrency rule flagged only a `cancel-in-progress: true`
+  group. That followed decision 4.3 as written, but phase 3's survey
+  had already shown that `false` drops a pending run too, so the rule
+  was sent back and widened, and decision 4.3 is corrected at its
+  source.
+* **4c** opus at high effort (5d90225). The first version had
+  `release_rust.py` import its helpers from `release.py`, and
+  `release.py` call it through an import inside `run()`, so that the
+  two imported each other. The 4c brief's "called from `run()`" and
+  the Definition of done's empty import grep could not both hold. The
+  operator chose to move the shared helpers into
+  `audit/text/release_jobs.py` and keep one import, `release.py`'s of
+  `release_rust.py`. The Definition of done's import item is corrected
+  to allow exactly that line.
+* **4d** opus at medium effort (b502711). The criterion also had to
+  join `NETWORK_CHECKS` in `scripts/audit_snapshot.py`, which
+  "Adding a criterion" in `docs/consistency-audits.md` did not list;
+  that page now says so.
+* **4f** sonnet at low effort, as ryll#623 (67cc32e3). Its `cargo
+  audit` and `cargo deny` jobs fail, and so do ryll#621's and #622's,
+  so the failure is not this change's. The operator was told.
+* **4e** opus at high effort, read only. occystrap's event feed has
+  never had a `gh-readonly-queue` branch created, while divergulent's
+  appear within a minute of each enqueue. The queue's settings match
+  divergulent's exactly, and toggling the ruleset on 2026-10-24 did
+  not help. The diagnosis is posted on occystrap#169.
+* **The occystrap probe.** The operator approved occystrap#170, an
+  empty commit, to test the queue directly:
+  - enqueued at 2026-10-24 23:32:14Z, it sat `QUEUED` at position 1
+    with every check reported, and no merge group was built. It was
+    never `AWAITING_CHECKS`, which rules out an unreported required
+    check;
+  - with the operator's approval, the "Develop branch" ruleset's
+    `Can enqueue: unit` and `Can merge: unit` checks were dropped at
+    00:29:05Z, leaving the same required checks as divergulent. The
+    entry stayed `QUEUED`, with no group;
+  - the operator re-enqueued #170 at 02:37:04Z. By 02:48:06Z it was
+    still `QUEUED` at position 1, with no queue branch, and occystrap
+    still had no `merge_group` run. The required checks are not the
+    cause, and the queue stays the precondition decision 4.7 makes it.
 
 ### Phase 5: push audit
 
