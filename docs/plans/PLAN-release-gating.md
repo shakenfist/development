@@ -438,7 +438,7 @@ Out of scope, each for a stated reason:
 | 1. Release environment criterion | Complete | b87012d (#288) |
 | 2. Shared `require-ci-success` and `check-dist` actions | Complete | actions 69d4589 (#182) |
 | 3. Template and fleet adoption | Complete | development f3f8472 (#294), 8d032a5 (#295), 10e3145 (#299), d668b98 (#300), 3e0ced1 (#304); actions 658d767 (#184), e1e2c85 (#185); client-python-ova 4a8eeed (#29), 3b40144 (#30), 4b1764d (#31); library-utilities 0940cbe (#74); divergulent 70ae4c3 (#132); occystrap e9e66d9 (#163); client-python-k3s 6d40cee (#154); clingwrap f4966df (#145); hunkydory b421cef (#103); agent-python 65a1778 (#155); client-python d789e0b (#432); kerbside d30ff34 (#582); shakenfist b3dc0c6 (#4597), 6a3f307 (#4581), 1ec1a6c (#4607); ryll d70ff4d (#591), 20e3cd4 (#599); instar a31e0d1 (#796); andris 288aba3 (#34) |
-| 4. Release-flow and merge-queue criteria | Not started | |
+| 4. Release-flow and merge-queue criteria | In progress | |
 | 5. Push audit | Not started | |
 
 Phases run in order. Phase 2 lands in `shakenfist/actions` and
@@ -2353,6 +2353,15 @@ chosen to defer to here, so that we do not forget them.
   ruleset change, with the settings in occystrap's `RELEASE-SETUP.md`,
   once GitHub support or a later attempt shows the queue builds
   groups. Until then `release-merge-queue` fails occystrap.
+* **Scalar `on:` triggers in the CI criteria.** `release-process`
+  reads `on: push` and `on: merge_group` written as a bare scalar,
+  through `scalar_trigger_re()` in `audit/text/workflows.py`.
+  `merge-group-cancellation` (for `merge_group` and `workflow_call`),
+  `fuzz-nightly-reporting` (for `merge_group`) and
+  `expensive-lane-path-filter` (for `pull_request`) still read only
+  the block and flow forms, so a workflow spelled the scalar way reads
+  to them as not triggered. No workflow in the fleet uses that
+  spelling. This predates the plan.
 * **CodeQL on merge groups.** `codeql-analysis.yml` runs on push
   only. It only needs `merge_group` if it becomes a required check.
 * **shakenfist's "Can merge" does not require `sanity_checks`**

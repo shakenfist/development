@@ -11,8 +11,8 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from audit.checks import release  # noqa: E402
-from audit.text import workflows  # noqa: E402
+from audit.checks import release, release_rust  # noqa: E402
+from audit.text import release_jobs, workflows  # noqa: E402
 from tests.base import REPO_ROOT, CheckTestCase  # noqa: E402
 
 
@@ -982,6 +982,50 @@ class CiGateTest(CheckTestCase):
                                    "|| needs.build.result == 'skipped') }}\n"))
         self.assertIn('the publish job lets build through', ' '.join(self.issues()))
 
+    def test_the_rust_rules_defer_to_exactly_the_jobs_the_findings_name(self):
+        """The Rust rules' silence is read from the findings this rule reports.
+
+        For each fixture the jobs the Rust rules leave to this rule are
+        the jobs its findings name, and each named job is one its
+        message names, so a finding cannot be reported here while the
+        Rust rules judge the same job, or the other way about.
+        """
+        ref_only = "    if: startsWith(github.ref, 'refs/tags/v')\n"
+        on_push = ("    if: ${{ !cancelled() && (needs.ci-gate.result == 'success' || "
+                   "needs.ci-gate.result == 'skipped') }}\n")
+        cases = [
+            ('template', (GATE_JOB, job('build', needs='ci-gate', condition=TEMPLATE_BUILD_GUARD),
+                          job('publish', needs='build', condition=PUSH_TAG_GUARD, environment=True)),
+             set(), set()),
+            ('status override', (GATE_JOB, job('build', needs='ci-gate', condition='    if: always()\n'),
+                                 job('publish', needs='build', condition=PUSH_TAG_GUARD, environment=True)),
+             {'build'}, set()),
+            ('admission on push', (GATE_JOB, job('build', needs='ci-gate', condition=on_push),
+                                   job('publish', needs='build', condition=PUSH_TAG_GUARD, environment=True)),
+             {'build'}, set()),
+            ('unguarded below admission', (GATE_JOB, job('build', needs='ci-gate', condition=TEMPLATE_BUILD_GUARD),
+                                           job('sign', needs='build', condition=PUSH_TAG_GUARD, environment=True),
+                                           job('publish', needs='build', condition=ref_only, environment=True)),
+             {'publish'}, set()),
+            ('unreached', (GATE_JOB, job('build'),
+                           job('publish', needs='build', condition=PUSH_TAG_GUARD, environment=True)),
+             set(), {'publish'}),
+        ]
+        for label, jobs, reported, unreached in cases:
+            with self.subTest(label):
+                self.fresh_fixture()
+                self.release(*jobs)
+                blocks = workflows.workflow_job_blocks(self.repo().workflow('release.yml'))
+                findings = release_jobs.ci_gate_findings(blocks)
+                self.assertEqual([finding.message for finding in findings], self.issues())
+                for finding in findings:
+                    for name in finding.jobs:
+                        self.assertIn(name, finding.message)
+                named = {name for finding in findings for name in finding.jobs}
+                self.assertEqual(reported, release_rust.gate_reported_jobs(blocks))
+                self.assertEqual(unreached, release_rust.gate_unreached_jobs(blocks))
+                self.assertEqual(named, reported | unreached)
+
 
 class CiTriggerTest(CheckTestCase):
     """The workflows the gate names can give it a run to count."""
@@ -1043,6 +1087,27 @@ class CiTriggerTest(CheckTestCase):
     def test_a_flow_style_push_passes(self):
         self.gated(self.ci('on: [push]\n'))
         self.assertEqual([], self.issues())
+
+    def test_a_scalar_push_passes(self):
+        for on in ('on: push\n', 'on: push  # every branch\n'):
+            self.fresh_fixture()
+            self.gated(self.ci(on))
+            self.assertEqual([], self.issues(), on)
+
+    def test_a_scalar_merge_group_passes(self):
+        self.gated(self.ci('on: merge_group\n'))
+        self.assertEqual([], self.issues())
+
+    def test_a_scalar_naming_another_event_is_no_trigger(self):
+        for on in ('on: pushed\n', 'on: pull_request\n'):
+            self.fresh_fixture()
+            self.gated(self.ci(on))
+            self.assertIn('runs neither', ' '.join(self.issues()), on)
+
+    def test_a_scalar_push_has_its_concurrency_judged(self):
+        self.gated(self.ci('on: push\n', concurrency=self.GROUP_ON_REF))
+        self.assertIn('ci.yml, which the gate counts on a push to develop, keys the concurrency group of the '
+                      'workflow on github.ref', ' '.join(self.issues()))
 
     def test_a_push_filtered_to_the_default_branch_passes(self):
         for branches in ('[develop]', 'develop', "\n      - 'develop'", '[main, "dev*"]'):

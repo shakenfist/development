@@ -25,10 +25,9 @@ from audit.check import ToolFailure
 from audit.files import require_tracked_paths
 from audit.repo import DEVELOPMENT_ROOT, read_within
 from audit.text.release_jobs import (
-    CHECK_DIST_ACTION, CI_GATE_ACTION, DOWNLOAD_ARTIFACT_ACTION, GH_RELEASE_ACTION, OFF_PUSH_RE,
-    RUNNER_TEMP_RE, STATUS_OVERRIDE_RE, UPLOAD_ARTIFACT_ACTION, admission_clause_re, downstream_jobs,
-    gate_jobs, gate_workflow_names, input_is, job_checks_out, job_container_actions, job_graph_issues,
-    job_publishes, success_clause_re, trigger_filter, upstream_jobs,
+    CHECK_DIST_ACTION, CI_GATE_ACTION, DOWNLOAD_ARTIFACT_ACTION, GH_RELEASE_ACTION, GUARD_KINDS, RUNNER_TEMP_RE,
+    UNREACHED, UPLOAD_ARTIFACT_ACTION, ci_gate_findings, gate_jobs, gate_workflow_names, input_is, job_checks_out,
+    job_container_actions, job_graph_issues, job_publishes, trigger_filter, upstream_jobs,
 )
 from audit.text.workflows import (
     GITHUB_HOSTED_LABEL_RE, RUNNER_EXCEPTION_RE, STEP_USES_RE, concurrency_block, has_workflow_dispatch,
@@ -217,49 +216,23 @@ def is_build_job_guard(condition, needs):
             and sorted(clauses[1:]) == sorted(f"needs.{need}.result == 'success'" for need in needs))
 
 
-def gate_reported_jobs(blocks, needs):
+def gate_reported_jobs(blocks):
     """The jobs whose `if:` release_ci_gate_issues() already reports.
 
-    That rule judges the jobs between the gate and an environment, and
-    reports a status override without the success clauses, an admission
-    of a skipped need that is not confined off push, and an environment
-    job reached by such an admission without being confined to a pushed
-    tag. Each of those is a guard the README's exact guards also rule
-    out, so the guard rules here would otherwise report the same `if:`
-    a second time. The selection below is that rule's own, built from
-    the same helpers, so the two cannot disagree about which jobs it
-    reads.
+    That rule reports a status override without the success clauses, an
+    admission of a skipped need that is not confined off push, and an
+    environment job reached by such an admission without being confined
+    to a pushed tag. Each of those is a guard the README's exact guards
+    also rule out, so the guard rules here would otherwise report the
+    same `if:` a second time. The jobs are the ones those findings name,
+    read from ci_gate_findings(), which is where that rule's messages
+    come from too.
     """
-    gates = gate_jobs(blocks)
-    if len(gates) != 1 or job_graph_issues(needs):
-        return set()
-    gate = gates[0]
-    jobs = dict(blocks)
-    gated = downstream_jobs(needs, gate)
-    environments = [name for name, body in blocks if job_environment(body) is not None]
-    path = {gate}
-    for name in environments:
-        if name in gated:
-            path |= {name} | (upstream_jobs(needs, name) & gated)
-
-    reported = set()
-    for name in path:
-        condition = job_level_keys(jobs[name]).get('if', '')
-        if not STATUS_OVERRIDE_RE.search(condition):
-            continue
-        if any(not success_clause_re(need).search(condition) for need in needs[name]):
-            reported.add(name)
-        if not any(admission_clause_re(need).search(condition) for need in needs[name]):
-            continue
-        if not OFF_PUSH_RE.search(condition):
-            reported.add(name)
-        reported |= {job for job in environments
-                     if (job == name or job in downstream_jobs(needs, name))
-                     and not job_is_push_guarded(jobs[job])}
-    return reported
+    return {job for finding in ci_gate_findings(blocks) if finding.kind in GUARD_KINDS
+            for job in finding.jobs}
 
 
-def guard_reported(content, blocks, needs, name):
+def guard_reported(content, blocks, name):
     """Does a workflow-safety rule already report this job's `if:`?
 
     Two of them read it: the dispatch rule, which wants every publishing
@@ -269,22 +242,19 @@ def guard_reported(content, blocks, needs, name):
     body = dict(blocks)[name]
     if has_workflow_dispatch(content) and job_publishes(body) and not job_is_push_guarded(body):
         return True
-    return name in gate_reported_jobs(blocks, needs)
+    return name in gate_reported_jobs(blocks)
 
 
-def gate_unreached_jobs(blocks, needs):
+def gate_unreached_jobs(blocks):
     """The environment jobs release_ci_gate_issues() reports as not downstream of the gate.
 
     The rules here that want a job to need check-version or sign-tag
     leave these out: the gate rule has already said the job needs
     something it does not, and adding the gate through check-version is
-    the fix both findings would ask for.
+    the fix both findings would ask for. They are read from the same
+    ci_gate_findings() that rule reports.
     """
-    gates = gate_jobs(blocks)
-    if len(gates) != 1 or job_graph_issues(needs):
-        return set()
-    gated = downstream_jobs(needs, gates[0])
-    return {name for name, body in blocks if job_environment(body) is not None and name not in gated}
+    return {job for finding in ci_gate_findings(blocks) if finding.kind == UNREACHED for job in finding.jobs}
 
 
 def describe_condition(condition):
@@ -492,7 +462,7 @@ def rust_ci_gate_issues(repo):
     needs = {name: job_needs(job) for name, job in blocks}
     issues = []
     condition = job_level_keys(body).get('if', '')
-    if condition != PUSH_TAG_GUARD and not guard_reported(content, blocks, needs, CI_GATE_JOB):
+    if condition != PUSH_TAG_GUARD and not guard_reported(content, blocks, CI_GATE_JOB):
         issues.append(
             f'the {CI_GATE_JOB} job has {describe_condition(condition)}, not the push and tag guard '
             f'"if: {PUSH_TAG_GUARD}", so it runs on something other than a pushed tag (invariant 4)')
@@ -565,7 +535,7 @@ def rust_check_version_issues(repo):
             f'the {CHECK_VERSION_JOB} job needs {", ".join(needs[CHECK_VERSION_JOB]) or "nothing"}, not '
             f'{CI_GATE_JOB} alone, so its guard does not describe what it waits for (invariant 5)')
     condition = job_level_keys(body).get('if', '')
-    if condition != SKIPPED_GATE_GUARD and not guard_reported(content, blocks, needs, CHECK_VERSION_JOB):
+    if condition != SKIPPED_GATE_GUARD and not guard_reported(content, blocks, CHECK_VERSION_JOB):
         issues.append(
             f'the {CHECK_VERSION_JOB} job has {describe_condition(condition)}, not the skipped-gate guard '
             f'"if: {SKIPPED_GATE_GUARD}" (invariant 5)')
@@ -596,7 +566,7 @@ def rust_build_root_issues(repo):
     needs = {name: job_needs(body) for name, body in blocks}
     if CHECK_VERSION_JOB not in jobs or job_graph_issues(needs):
         return []
-    skipped = gate_unreached_jobs(blocks, needs)
+    skipped = gate_unreached_jobs(blocks)
     loose = [name for name, body in blocks
              if name not in (CI_GATE_JOB, CHECK_VERSION_JOB) and name not in skipped
              and not (SIGN_TAG_JOB in jobs and needs_sign_tag(name, body))
@@ -635,7 +605,7 @@ def rust_build_guard_issues(repo):
         condition = job_level_keys(body).get('if', '')
         if condition == PUSH_TAG_GUARD or is_build_job_guard(condition, needs[name]):
             continue
-        if guard_reported(content, blocks, needs, name):
+        if guard_reported(content, blocks, name):
             continue
         issues.append(
             f'the {name} job has {describe_condition(condition)}, which is neither the build-job guard '
@@ -657,13 +627,12 @@ def rust_effect_guard_issues(repo):
     if found is None:
         return []
     content, blocks = found
-    needs = {name: job_needs(body) for name, body in blocks}
     issues = []
     for name, body in blocks:
         if not needs_push_tag_guard(name, body):
             continue
         condition = job_level_keys(body).get('if', '')
-        if condition == PUSH_TAG_GUARD or guard_reported(content, blocks, needs, name):
+        if condition == PUSH_TAG_GUARD or guard_reported(content, blocks, name):
             continue
         effects = job_effects(body)
         reason = (f'{" and ".join(effects)}, an effect outside the run' if effects
@@ -754,7 +723,7 @@ def rust_sign_tag_needs_issues(repo):
     needs = {name: job_needs(body) for name, body in blocks}
     if SIGN_TAG_JOB not in jobs or job_graph_issues(needs):
         return []
-    skipped = gate_unreached_jobs(blocks, needs)
+    skipped = gate_unreached_jobs(blocks)
     early = [name for name, body in blocks
              if needs_sign_tag(name, body) and name not in skipped
              and SIGN_TAG_JOB not in upstream_jobs(needs, name)]

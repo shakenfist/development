@@ -92,7 +92,10 @@ The workflow-safety rules, where there is a `release.yml`:
 * **The workflows the gate names can give it a run.** Each file in the
   gate's `workflows:` input exists under `.github/workflows/`. Each
   triggers on `merge_group`, or on a push that reaches `develop`, the
-  two events whose runs the gate counts. A workflow on neither has no
+  two events whose runs the gate counts. Either trigger may be written
+  as a block key, in a flow sequence (`on: [push]`) or as a bare scalar
+  (`on: push`); the last two carry no branch filter, so a push written
+  that way reaches `develop`. A workflow on neither has no
   run on any merged commit, so every release fails at the gate, after
   the tag is pushed.
   Each trigger brings its own way to pass a commit that was not

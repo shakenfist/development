@@ -13,17 +13,15 @@ import re
 from audit.check import Check
 from audit.checks.release_rust import release_rust_issues
 from audit.text.release_jobs import (
-    CHECK_DIST_ACTION, CI_GATE_ACTION, DOWNLOAD_ARTIFACT_ACTION, GH_RELEASE_ACTION, OFF_PUSH_RE, RUNNER_TEMP_RE,
-    STATUS_OVERRIDE_RE, UPLOAD_ARTIFACT_ACTION, admission_clause_re, downstream_jobs, gate_jobs,
-    gate_workflow_names, input_is, job_checks_out, job_container_actions, job_graph_issues, job_publishes,
-    success_clause_re, trigger_filter, upstream_jobs,
+    CHECK_DIST_ACTION, DOWNLOAD_ARTIFACT_ACTION, GH_RELEASE_ACTION, RUNNER_TEMP_RE, UPLOAD_ARTIFACT_ACTION,
+    ci_gate_findings, gate_workflow_names, input_is, job_checks_out, job_container_actions, job_publishes,
+    trigger_filter,
 )
 from audit.text.workflows import (
-    BLOCK_INDICATOR_RE, EVENT_NAME_EQUALITY_RE, MERGE_GROUP_FLOW_RE,
-    MERGE_GROUP_TRIGGER_RE, PUSH_FLOW_RE, PUSH_TRIGGER_RE, concurrency_block, has_workflow_dispatch,
-    indented_block, job_environment, job_is_push_guarded, job_is_tag_guarded, job_level_keys,
-    job_needs, mapping_value_lines, step_action, step_keys, step_with_inputs, strip_yaml_comments,
-    workflow_header, workflow_job_blocks, workflow_step_blocks,
+    BLOCK_INDICATOR_RE, EVENT_NAME_EQUALITY_RE, MERGE_GROUP_FLOW_RE, MERGE_GROUP_SCALAR_RE,
+    MERGE_GROUP_TRIGGER_RE, PUSH_FLOW_RE, PUSH_SCALAR_RE, PUSH_TRIGGER_RE, concurrency_block, has_workflow_dispatch,
+    indented_block, job_is_push_guarded, job_is_tag_guarded, job_level_keys, mapping_value_lines, step_action,
+    step_keys, step_with_inputs, strip_yaml_comments, workflow_header, workflow_job_blocks, workflow_step_blocks,
 )
 
 
@@ -435,117 +433,14 @@ MERGE_GROUP_BASE_SHA = 'github.event.merge_group.base_sha'
 def release_ci_gate_issues(repo):
     """Findings for a release that can publish without CI having passed.
 
-    The gate is a job running require-ci-success, which fails unless
-    the named CI workflows succeeded on the tagged commit. It stops a
-    release only for the jobs that wait for it. A job that names an
-    environment is the one a reviewer approves and the one that signs
-    or publishes, so each of those has to be downstream of the gate
-    through `needs:`. A reviewer is a human check that the release is
-    wanted, not that it was tested, and kerbside's ungated release
-    showed the two are not the same.
-
-    Being downstream is not enough on its own. A job whose `if:` uses
-    always() or !cancelled() runs whatever became of the jobs it
-    needs, so a failed gate would not stop it -- unless the same
-    condition requires `needs.<job>.result == 'success'` for each job
-    it needs. That is asked of every job on the way from the gate to
-    an environment, because one job let through breaks the chain for
-    everything after it.
-
-    The template's build guard also lets a skipped gate through, so
-    that a workflow_dispatch dry run still exercises the build. That
-    is accepted only where it cannot reach a release: the admission
-    has to sit beside "github.event_name != 'push'", and every
-    environment job below it has to be confined to a pushed tag, which
-    is the one event on which the gate always runs. The condition's
-    boolean structure is not parsed, so the two clauses are looked for
-    rather than proved to be joined by &&.
+    What is judged, and why, is ci_gate_findings()'s to say: the Rust
+    rules read the same findings to know which jobs this rule has
+    already reported.
     """
     content = repo.workflow('release.yml')
     if content is None:
         return []
-
-    blocks = workflow_job_blocks(content)
-    gates = gate_jobs(blocks)
-    if not gates:
-        return [
-            f'release.yml has no job running {CI_GATE_ACTION}, so a tag '
-            'publishes the commit it points at whether or not CI passed '
-            'there; add the ci-gate job from the template and make the '
-            'build need it']
-    if len(gates) > 1:
-        return [
-            f'release.yml runs {CI_GATE_ACTION} in {len(gates)} jobs '
-            f'({", ".join(gates)}), so which jobs wait for CI cannot be '
-            'read; keep one ci-gate job and have the others need it']
-
-    needs = {name: job_needs(body) for name, body in blocks}
-    unreadable = job_graph_issues(needs)
-    if unreadable:
-        return unreadable
-
-    jobs = dict(blocks)
-    gate = gates[0]
-    gated = downstream_jobs(needs, gate)
-    environments = [name for name, body in blocks
-                    if job_environment(body) is not None]
-
-    issues = []
-    for name in environments:
-        if name not in gated:
-            issues.append(
-                f'the {name} job names an environment but is not downstream '
-                f'of {gate} through "needs:", so its reviewer can approve a '
-                'release of a commit CI never passed; make it need '
-                f'{gate}, or a job that does')
-
-    # The jobs between the gate and an environment, gate included:
-    # anything not on such a path cannot carry a failed gate into a
-    # release, and judging it would ask a build-only job to be guarded.
-    path = {gate}
-    for name in environments:
-        if name in gated:
-            path |= {name} | (upstream_jobs(needs, name) & gated)
-
-    for name, body in blocks:
-        if name not in path:
-            continue
-        condition = job_level_keys(body).get('if', '')
-        if not STATUS_OVERRIDE_RE.search(condition):
-            continue
-        missing = [need for need in needs[name]
-                   if not success_clause_re(need).search(condition)]
-        if missing:
-            issues.append(
-                f'the {name} job runs under always() or !cancelled() '
-                'without requiring '
-                + ' and '.join(f"needs.{need}.result == 'success'" for need in missing)
-                + ', so it runs after a failed gate and carries that '
-                'commit on towards a release; add the clause')
-        admitted = [need for need in needs[name]
-                    if admission_clause_re(need).search(condition)]
-        if not admitted:
-            continue
-        if not OFF_PUSH_RE.search(condition):
-            issues.append(
-                f'the {name} job lets {", ".join(admitted)} through on a '
-                'result other than success without confining that to '
-                "\"github.event_name != 'push'\", so a tag push whose gate "
-                'did not succeed can still reach a release; admit a skipped '
-                'gate only off push, as the template does')
-        reached = [job for job in environments
-                   if job == name or job in downstream_jobs(needs, name)]
-        unguarded = [job for job in reached if not job_is_push_guarded(jobs[job])]
-        if unguarded:
-            issues.append(
-                f'the {name} job lets {", ".join(admitted)} through on a '
-                'result other than success, which is safe only while the '
-                'environment jobs below it run on a pushed tag alone, and '
-                f'{", ".join(unguarded)} '
-                f'{"is" if len(unguarded) == 1 else "are"} not confined to one; '
-                "add \"if: github.event_name == 'push' && "
-                "startsWith(github.ref, 'refs/tags/v')\"")
-    return issues
+    return [finding.message for finding in ci_gate_findings(workflow_job_blocks(content))]
 
 
 def branch_matches(patterns, branch):
@@ -575,9 +470,10 @@ def pushes_to_default_branch(header):
 
     A push trigger whose filters cannot be found below it is taken to
     reach every branch. That errs towards judging the workflow's
-    concurrency rather than excusing it.
+    concurrency rather than excusing it. The flow and scalar spellings
+    have nowhere to put a filter, so they reach every branch too.
     """
-    if PUSH_FLOW_RE.search(header):
+    if PUSH_FLOW_RE.search(header) or PUSH_SCALAR_RE.search(header):
         return True
     if not PUSH_TRIGGER_RE.search(header):
         return False
@@ -730,7 +626,8 @@ def release_ci_trigger_issues(repo):
             continue
         header = workflow_header(text)
         merge_group = bool(MERGE_GROUP_TRIGGER_RE.search(header)
-                           or MERGE_GROUP_FLOW_RE.search(header))
+                           or MERGE_GROUP_FLOW_RE.search(header)
+                           or MERGE_GROUP_SCALAR_RE.search(header))
         push = pushes_to_default_branch(header)
         if not (merge_group or push):
             issues.append(

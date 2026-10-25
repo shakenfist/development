@@ -5,17 +5,20 @@ which start from a cleaned checkout, and the clauses an `if:` uses to
 let a job run after a need did not succeed. Both halves of the
 release-process criterion read release.yml this way -- the
 workflow-safety rules in checks/release.py and the Rust template's
-invariants in checks/release_rust.py -- and the Rust rules defer to the
-workflow-safety rules' findings by asking the same questions of the
-same readers. Kept here rather than in either check module because a
-check module imports shared readers, never another check module.
+invariants in checks/release_rust.py. The gate rule's selection lives
+here too, as ci_gate_findings(): the gate rule reports its messages,
+and the Rust rules stay silent about the jobs its findings name, so the
+two read one selection rather than two copies of it. Kept here rather
+than in either check module because a check module imports shared
+readers, never another check module.
 """
 
+import collections
 import re
 
 from audit.text.workflows import (
-    indented_block, job_level_keys, mapping_value_lines, step_action, step_with_inputs,
-    workflow_job_blocks, workflow_step_blocks,
+    indented_block, job_environment, job_is_push_guarded, job_level_keys, job_needs, mapping_value_lines,
+    step_action, step_with_inputs, workflow_job_blocks, workflow_step_blocks,
 )
 
 
@@ -188,31 +191,39 @@ def needs_cycle(needs):
     return None
 
 
-def job_graph_issues(needs):
-    """Findings for a `needs:` graph that cannot be read as one.
+def job_graph_problems(needs):
+    """A `needs:` graph's defects, as (message, jobs) pairs.
 
     GitHub refuses to run a workflow whose jobs need a job that does
     not exist, or need each other in a loop, so neither is a shape a
     working release has. They are reported rather than raised: these
     rules read text, and a reading that crashed on a malformed file
     would be an error on every run instead of a finding someone can
-    fix.
+    fix. The jobs are the ones the message names as at fault: the job
+    with the dangling need, or every job in the cycle.
     """
-    issues = []
+    problems = []
     for name, wanted in needs.items():
         for need in wanted:
             if need not in needs:
-                issues.append(
+                problems.append((
                     f'the {name} job needs {need}, which is not a job in '
                     'release.yml, so GitHub will not run the workflow and '
-                    'which jobs wait for CI cannot be read')
+                    'which jobs wait for CI cannot be read',
+                    frozenset({name})))
     cycle = needs_cycle(needs)
     if cycle:
-        issues.append(
+        problems.append((
             f'the jobs {" -> ".join(cycle)} need each other in a cycle, so '
             'GitHub will not run the workflow and which jobs wait for CI '
-            'cannot be read')
-    return issues
+            'cannot be read',
+            frozenset(cycle)))
+    return problems
+
+
+def job_graph_issues(needs):
+    """Findings for a `needs:` graph that cannot be read as one."""
+    return [message for message, _ in job_graph_problems(needs)]
 
 
 def downstream_jobs(needs, root):
@@ -290,3 +301,150 @@ def trigger_filter(trigger, key):
         if part:
             patterns.append(part)
     return patterns
+
+
+#: The kinds of finding ci_gate_findings() returns.
+NO_GATE = 'no-gate'
+SEVERAL_GATES = 'several-gates'
+UNREADABLE_GRAPH = 'unreadable-graph'
+UNREACHED = 'unreached'
+MISSING_SUCCESS = 'missing-success'
+ADMISSION_ON_PUSH = 'admission-on-push'
+UNGUARDED_BELOW_ADMISSION = 'unguarded-below-admission'
+
+#: The kinds which report a job's `if:`, and so a guard the Rust
+#: template's exact guards also rule out.
+GUARD_KINDS = frozenset({MISSING_SUCCESS, ADMISSION_ON_PUSH, UNGUARDED_BELOW_ADMISSION})
+
+#: One finding of the gate rule: what it says, which kind it is, and
+#: the jobs it is about.
+GateFinding = collections.namedtuple('GateFinding', ('kind', 'message', 'jobs'))
+
+
+def ci_gate_findings(blocks):
+    """The findings for a release that can publish without CI having passed.
+
+    The gate is a job running require-ci-success, which fails unless
+    the named CI workflows succeeded on the tagged commit. It stops a
+    release only for the jobs that wait for it. A job that names an
+    environment is the one a reviewer approves and the one that signs
+    or publishes, so each of those has to be downstream of the gate
+    through `needs:` (UNREACHED). A reviewer is a human check that the
+    release is wanted, not that it was tested, and kerbside's ungated
+    release showed the two are not the same.
+
+    Being downstream is not enough on its own. A job whose `if:` uses
+    always() or !cancelled() runs whatever became of the jobs it
+    needs, so a failed gate would not stop it -- unless the same
+    condition requires `needs.<job>.result == 'success'` for each job
+    it needs (MISSING_SUCCESS). That is asked of every job on the way
+    from the gate to an environment, because one job let through breaks
+    the chain for everything after it.
+
+    The template's build guard also lets a skipped gate through, so
+    that a workflow_dispatch dry run still exercises the build. That
+    is accepted only where it cannot reach a release: the admission
+    has to sit beside "github.event_name != 'push'" (ADMISSION_ON_PUSH),
+    and every environment job below it has to be confined to a pushed
+    tag, which is the one event on which the gate always runs
+    (UNGUARDED_BELOW_ADMISSION, whose jobs are those environment jobs,
+    since it is their `if:` that is at fault). The condition's boolean
+    structure is not parsed, so the two clauses are looked for rather
+    than proved to be joined by &&.
+
+    No gate (NO_GATE), more than one (SEVERAL_GATES) or a `needs:`
+    graph that cannot be read (UNREADABLE_GRAPH) is reported alone,
+    since nothing else can be read without one gate and one graph.
+    """
+    gates = gate_jobs(blocks)
+    if not gates:
+        return [GateFinding(
+            NO_GATE,
+            f'release.yml has no job running {CI_GATE_ACTION}, so a tag '
+            'publishes the commit it points at whether or not CI passed '
+            'there; add the ci-gate job from the template and make the '
+            'build need it',
+            frozenset())]
+    if len(gates) > 1:
+        return [GateFinding(
+            SEVERAL_GATES,
+            f'release.yml runs {CI_GATE_ACTION} in {len(gates)} jobs '
+            f'({", ".join(gates)}), so which jobs wait for CI cannot be '
+            'read; keep one ci-gate job and have the others need it',
+            frozenset(gates))]
+
+    needs = {name: job_needs(body) for name, body in blocks}
+    unreadable = job_graph_problems(needs)
+    if unreadable:
+        return [GateFinding(UNREADABLE_GRAPH, message, jobs) for message, jobs in unreadable]
+
+    jobs = dict(blocks)
+    gate = gates[0]
+    gated = downstream_jobs(needs, gate)
+    environments = [name for name, body in blocks
+                    if job_environment(body) is not None]
+
+    findings = []
+    for name in environments:
+        if name not in gated:
+            findings.append(GateFinding(
+                UNREACHED,
+                f'the {name} job names an environment but is not downstream '
+                f'of {gate} through "needs:", so its reviewer can approve a '
+                'release of a commit CI never passed; make it need '
+                f'{gate}, or a job that does',
+                frozenset({name})))
+
+    # The jobs between the gate and an environment, gate included:
+    # anything not on such a path cannot carry a failed gate into a
+    # release, and judging it would ask a build-only job to be guarded.
+    path = {gate}
+    for name in environments:
+        if name in gated:
+            path |= {name} | (upstream_jobs(needs, name) & gated)
+
+    for name, body in blocks:
+        if name not in path:
+            continue
+        condition = job_level_keys(body).get('if', '')
+        if not STATUS_OVERRIDE_RE.search(condition):
+            continue
+        missing = [need for need in needs[name]
+                   if not success_clause_re(need).search(condition)]
+        if missing:
+            findings.append(GateFinding(
+                MISSING_SUCCESS,
+                f'the {name} job runs under always() or !cancelled() '
+                'without requiring '
+                + ' and '.join(f"needs.{need}.result == 'success'" for need in missing)
+                + ', so it runs after a failed gate and carries that '
+                'commit on towards a release; add the clause',
+                frozenset({name})))
+        admitted = [need for need in needs[name]
+                    if admission_clause_re(need).search(condition)]
+        if not admitted:
+            continue
+        if not OFF_PUSH_RE.search(condition):
+            findings.append(GateFinding(
+                ADMISSION_ON_PUSH,
+                f'the {name} job lets {", ".join(admitted)} through on a '
+                'result other than success without confining that to '
+                "\"github.event_name != 'push'\", so a tag push whose gate "
+                'did not succeed can still reach a release; admit a skipped '
+                'gate only off push, as the template does',
+                frozenset({name})))
+        reached = [job for job in environments
+                   if job == name or job in downstream_jobs(needs, name)]
+        unguarded = [job for job in reached if not job_is_push_guarded(jobs[job])]
+        if unguarded:
+            findings.append(GateFinding(
+                UNGUARDED_BELOW_ADMISSION,
+                f'the {name} job lets {", ".join(admitted)} through on a '
+                'result other than success, which is safe only while the '
+                'environment jobs below it run on a pushed tag alone, and '
+                f'{", ".join(unguarded)} '
+                f'{"is" if len(unguarded) == 1 else "are"} not confined to one; '
+                "add \"if: github.event_name == 'push' && "
+                "startsWith(github.ref, 'refs/tags/v')\"",
+                frozenset(unguarded)))
+    return findings

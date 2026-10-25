@@ -804,6 +804,16 @@ def flow_trigger_re(name):
         r'^on:[ \t]*\[[^\]]*\b' + re.escape(name) + r'\b', re.MULTILINE)
 
 
+def scalar_trigger_re(name):
+    """The same trigger written as a bare scalar, `on: name`.
+
+    The one event the workflow runs on, with no filter of any kind,
+    since a scalar has nowhere to put one.
+    """
+    return re.compile(
+        r'^on:[ \t]*' + re.escape(name) + r'[ \t]*(?:#.*)?$', re.MULTILINE)
+
+
 # On a merge_group event github.ref is the per-attempt queue branch,
 # gh-readonly-queue/<base>/pr-<N>-<SHA>, and GitHub mints a fresh SHA
 # every time it rebuilds the group. A concurrency group keyed on it is
@@ -812,6 +822,7 @@ def flow_trigger_re(name):
 # docs/audits/merge-group-cancellation.md.
 MERGE_GROUP_TRIGGER_RE = trigger_re('merge_group')
 MERGE_GROUP_FLOW_RE = flow_trigger_re('merge_group')
+MERGE_GROUP_SCALAR_RE = scalar_trigger_re('merge_group')
 
 WORKFLOW_CALL_TRIGGER_RE = trigger_re('workflow_call')
 WORKFLOW_CALL_FLOW_RE = flow_trigger_re('workflow_call')
@@ -821,6 +832,7 @@ SCHEDULE_TRIGGER_RE = trigger_re('schedule')
 
 PUSH_TRIGGER_RE = trigger_re('push')
 PUSH_FLOW_RE = flow_trigger_re('push')
+PUSH_SCALAR_RE = scalar_trigger_re('push')
 
 
 # An event named by equality in a condition, such as the
