@@ -37,6 +37,7 @@ NETWORK_CHECKS = frozenset({
     'delete-branch-on-merge',
     'merge-queue-config',
     'release-environment-protection',
+    'release-merge-queue',
     'merge-group-cancellation',
     'sfui-vendor',
     # Reads run history, which moves every time a workflow fires.

@@ -711,6 +711,76 @@ class MergeQueueConfigApiTest(GithubConfigTestCase):
         }), containing='timed out')
 
 
+class RefusingGitHub(FakeGitHub):
+    """A client that fails the test on any call at all."""
+
+    def run(self, args, timeout=None):
+        raise AssertionError(f'unexpected GitHub call: {" ".join(args)}')
+
+
+class ReleaseMergeQueueTest(GithubConfigTestCase):
+    check_class = github_config.ReleaseMergeQueue
+
+    RELEASE = """name: Release
+on:
+  push:
+    tags: ['v*']
+jobs:
+  build:
+    runs-on: [self-hosted, static]
+    steps:
+      - run: python -m build
+"""
+
+    def setUp(self):
+        super().setUp()
+        self.fixture.workflow('release.yml', self.RELEASE)
+
+    def answers(self, rules, branch='develop'):
+        return {
+            self.api('.default_branch'): CompletedCommand(stdout=f'{branch}\n'),
+            self.rules(branch): CompletedCommand(stdout=json.dumps(rules)),
+        }
+
+    def test_a_merge_queue_passes(self):
+        result = self.assert_pass(self.run_with(self.answers(
+            [{'type': 'pull_request'}, {'type': 'merge_queue', 'parameters': {}}])))
+        self.assertIn('"develop"', result['details'])
+
+    def test_the_queue_settings_are_not_judged(self):
+        stacking = {'max_entries_to_build': 5, 'min_entries_to_merge': 3}
+        self.assert_pass(self.run_with(self.answers(
+            [{'type': 'merge_queue', 'parameters': stacking}])))
+
+    def test_no_merge_queue_fails_naming_the_branch(self):
+        result = self.run_with(self.answers([{'type': 'pull_request'}], branch='main'))
+        self.assert_fail(result, containing='No merge queue on default branch "main"')
+
+    def test_a_branch_with_no_rules_fails(self):
+        self.assert_fail(self.run_with(self.answers([])), containing='No merge queue')
+
+    def test_no_release_workflow_asks_github_nothing(self):
+        os.remove(os.path.join(self.fixture.path, '.github', 'workflows', 'release.yml'))
+        result = run_check(self.check_class(), self.fixture.path, github=RefusingGitHub())
+        self.assert_skip(result, containing='release.yml')
+
+    def test_a_release_workflow_asks_for_the_default_branch_rules(self):
+        github = FakeGitHub(self.answers([{'type': 'merge_queue'}]))
+        run_check(self.check_class(), self.fixture.path, github=github)
+        self.assertEqual([self.api('.default_branch'), self.rules('develop')], github.calls)
+
+    def test_the_branch_lookup_failing_is_a_tool_failure(self):
+        self.assert_tool_failure(lambda: self.run_with({
+            self.api('.default_branch'): CompletedCommand(returncode=1, stderr='HTTP 404'),
+        }), containing='the default branch')
+
+    def test_an_unparseable_ruleset_is_a_tool_failure(self):
+        self.assert_tool_failure(lambda: self.run_with({
+            self.api('.default_branch'): CompletedCommand(stdout='develop\n'),
+            self.rules('develop'): CompletedCommand(stdout='{"message": "Not Found"}'),
+        }), containing='expected a list of rules')
+
+
 class ScopeCoverageTest(CheckTestCase):
     """The criterion that measures the fleet rather than one repository."""
 

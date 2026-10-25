@@ -27,6 +27,39 @@ from audit.files import workflows_inheriting_secrets_into
 from audit.text.workflows import job_environment, workflow_job_blocks
 
 
+def merge_queue_rules(rules):
+    """The merge_queue rules among a branch's effective rules."""
+    return [r for r in rules if r.get('type') == 'merge_queue']
+
+
+def default_branch_rules(repo):
+    """The default branch's name and its effective rules, as a tuple.
+
+    Reads /repos/{org}/{repo} for the default branch, then
+    /repos/{org}/{repo}/rules/branches/{branch}. A branch with no rules
+    answers an empty list rather than an error, so every failure here
+    is GitHub not answering, and is a ToolFailure.
+    """
+    client = repo.github
+    result = client.api_answer(
+        f'repos/{repo.org}/{repo.name}', 'the default branch',
+        jq='.default_branch')
+    branch = result.stdout.strip()
+
+    result = client.api_answer(
+        f'repos/{repo.org}/{repo.name}/rules/branches/{branch}',
+        'branch rules')
+    try:
+        rules = json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        raise ToolFailure(
+            f'Could not parse the branch rules response: {e}') from e
+    if not isinstance(rules, list) or not all(isinstance(r, dict) for r in rules):
+        raise ToolFailure(
+            'Could not parse the branch rules response: expected a list of rules')
+    return branch, rules
+
+
 def evaluate_merge_queue_rules(rules):
     """Evaluate effective branch rules for merge queue reasonability.
 
@@ -51,7 +84,7 @@ def evaluate_merge_queue_rules(rules):
       is pure latency. With min_entries_to_merge = 1 the wait timer
       never engages.
     """
-    merge_queue = [r for r in rules if r.get('type') == 'merge_queue']
+    merge_queue = merge_queue_rules(rules)
     if not merge_queue:
         return None
 
@@ -263,26 +296,7 @@ class MergeQueueConfig(Check):
 
     def run(self, repo):
         """Check any merge queue on the default branch is serialized."""
-        client = repo.github
-        result = client.api_answer(
-            f'repos/{repo.org}/{repo.name}', 'the default branch',
-            jq='.default_branch')
-        branch = result.stdout.strip()
-
-        # A branch with no rules answers an empty list rather than an
-        # error, so every failure here is GitHub not answering.
-        result = client.api_answer(
-            f'repos/{repo.org}/{repo.name}/rules/branches/{branch}',
-            'branch rules')
-        try:
-            rules = json.loads(result.stdout)
-        except json.JSONDecodeError as e:
-            raise ToolFailure(
-                f'Could not parse the branch rules response: {e}') from e
-        if not isinstance(rules, list) or not all(isinstance(r, dict) for r in rules):
-            raise ToolFailure(
-                'Could not parse the branch rules response: expected a list of rules')
-
+        branch, rules = default_branch_rules(repo)
         problems = evaluate_merge_queue_rules(rules)
         if problems is None:
             return self.skip(f'No merge queue on default branch "{branch}"')
@@ -291,6 +305,37 @@ class MergeQueueConfig(Check):
         return self.ok(
             f'Merge queue on "{branch}" is serialized '
             f'(max_entries_to_build 1, min_entries_to_merge 1)')
+
+
+class ReleaseMergeQueue(Check):
+    id = 'release-merge-queue'
+    spec = 'docs/audits/release-merge-queue.md'
+    template = None
+    issue_title = 'Release merge queue'
+
+    WORKFLOW = 'release.yml'
+
+    def applies(self, repo):
+        """Only a repository that releases through release.yml needs a queue."""
+        if repo.workflow(self.WORKFLOW) is None:
+            return f'No .github/workflows/{self.WORKFLOW}, so nothing is released from the default branch'
+        return None
+
+    def run(self, repo):
+        """Check the default branch of a releasing repository has a merge queue.
+
+        The release's CI gate publishes only a commit CI passed on the
+        default branch. A queue is what makes that commit one CI tested
+        before it landed, rather than after. How the queue is
+        configured is merge-queue-config's question, and whether it has
+        run lately is deliberately not asked: see the specification.
+        """
+        branch, rules = default_branch_rules(repo)
+        if not merge_queue_rules(rules):
+            return self.fail(
+                f'No merge queue on default branch "{branch}", but {self.WORKFLOW} releases from it: '
+                'add a merge_queue rule to the branch\'s ruleset')
+        return self.ok(f'Default branch "{branch}" has a merge queue')
 
 
 def parse_json_answer(result, what):
