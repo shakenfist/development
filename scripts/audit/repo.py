@@ -36,6 +36,14 @@ from audit.github import GhCli
 READ_MAX_BYTES = 2 * 1024 * 1024
 
 
+#: This repository's checkout, whose templates the copies elsewhere are
+#: compared with. One copy, here beside read_within() which every such
+#: comparison reads the template through: the walk up from __file__ is
+#: the part a move gets wrong, and two criteria compare copies with it.
+DEVELOPMENT_ROOT = os.path.realpath(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))))
+
+
 # Minimal hardcoded overrides for properties that cannot be detected
 # from a clone alone.
 REPO_OVERRIDES = {

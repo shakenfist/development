@@ -24,6 +24,20 @@ RUNS_ON_RE = re.compile(r'^\s*runs-on:\s*(.+?)\s*$')
 STATIC_ALLOWED_LABELS = frozenset({'self-hosted', 'static'})
 
 
+# GitHub-hosted runner labels (e.g. ubuntu-latest, windows-2022,
+# macos-15, ubuntu-24.04-arm). Self-hosted runner labels never use
+# these names.
+GITHUB_HOSTED_LABEL_RE = re.compile(
+    r'\b(?:ubuntu|windows|macos)-(?:latest|\d+(?:\.\d+)?)'
+    r'(?:-(?:arm|arm64|large|xlarge))?\b'
+)
+
+
+# Marker acknowledging a deliberate exception, placed on the
+# offending line or the line immediately above it.
+RUNNER_EXCEPTION_RE = re.compile(r'audit-ok:\s*github-hosted-runner')
+
+
 # A GitHub Actions expression, which we cannot resolve statically.
 # Non-greedy so two expressions on one line stay two spans.
 EXPRESSION_RE = re.compile(r'\$\{\{.*?\}\}')

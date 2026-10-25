@@ -3,16 +3,19 @@
 ## Where it applies
 
 The criterion applies to a repository with a `pyproject.toml` or a
-`.github/workflows/release.yml`, and to nothing else. It has two halves
-with different scopes:
+`.github/workflows/release.yml`, and to nothing else. Its rules come in
+three sets with different scopes:
 
 * The **packaging** rules need a `pyproject.toml`, because they are
   about how a Python project is laid out for release.
 * The **workflow-safety** rules need a `release.yml`, because they are
   about what that workflow does. A Rust or TypeScript release signs and
   publishes the same way a Python one does, so hunkydory, ryll, instar
-  and andris are measured by this half even though they have no
+  and andris are measured by this set even though they have no
   `pyproject.toml` at the top of the tree.
+* The **Rust** rules need a `release.yml` and a `Cargo.toml`, at the
+  top of the tree or under `src/`. They hold the release to the Rust
+  template's invariants, listed [below](#the-rust-invariants).
 
 ## What we check
 
@@ -143,10 +146,83 @@ What these rules cannot see:
   scripts but upload `*.whl`, so they are judged; nothing in the fleet
   has the other shape today.
 
+## The Rust invariants
+
+[`templates/release-automation-rust/README.md`](https://github.com/shakenfist/development/blob/main/templates/release-automation-rust/README.md#invariants)
+lists, under "Invariants", what every Rust release keeps. It is the
+authority: the rules read its three guards as exact strings, so a guard
+spelled any other way fails, even where it would be safe. A respelling
+is fixed in the repository, or in the README and then the rule, never
+by loosening the rule alone.
+
+Each invariant is checked once. Where a workflow-safety rule above
+already checks part of one, the Rust rule checks only the rest. It
+also stays silent about a job whose `if:` or `needs:` that rule has
+already reported, so that a defect is one finding. The table maps each
+invariant to the functions in `scripts/audit/checks/release_rust.py`
+and `scripts/audit/checks/release.py` that check it, and
+`ReleaseRustInvariantTableTest` fails when the README gains an
+invariant the table does not list.
+
+| Invariant | Checked by |
+|-----------|------------|
+| 1 | `rust_trigger_issues` |
+| 2 | `rust_permissions_issues` |
+| 3 | `rust_concurrency_issues` |
+| 4 | `rust_ci_gate_issues`; one gate job, `release_ci_gate_issues`; the named workflows exist, `release_ci_trigger_issues` |
+| 5 | `rust_check_version_issues`, `rust_build_root_issues`; waiting for the gate, `release_ci_gate_issues` |
+| 6 | `rust_build_guard_issues`; a status override without the success clauses, `release_ci_gate_issues` |
+| 7 | `rust_effect_guard_issues`; a publishing job a dispatch reaches, `release_dispatch_guard_issues` |
+| 8 | `rust_sign_tag_issues`; its guard, `rust_effect_guard_issues` |
+| 9 | `rust_upload_needs_issues` |
+| 10 | `rust_sign_tag_needs_issues`; waiting for the gate, `release_ci_gate_issues` |
+| 11 | `rust_write_permission_issues` |
+| 12 | `rust_github_release_issues`; its guard, `rust_effect_guard_issues`; its need for `sign-tag`, `rust_sign_tag_needs_issues`; the download and `fail_on_unmatched_files`, `release_asset_issues` and `release_workspace_issues` |
+| 13 | `release_check_dist_issues`; the `@main` version, `rust_check_dist_ref_issues` |
+| 14 | `rust_script_issues` |
+| 15 | `rust_git_tag_issues` |
+
+How the rules read what the README leaves open:
+
+* **"Needs" is transitive**, as the README defines it: a job needs
+  another if it lists it, or lists a job that does.
+* **The build-job guard's clauses may come in any order.** The README
+  fixes which clauses there are, not their order, and the order changes
+  nothing GitHub evaluates.
+* **"No `branches`" on the push trigger** rules out `branches-ignore`
+  as well. Either one makes a push to a branch start a run.
+* **A job with an effect outside the run** (invariant 7) names an
+  environment, holds `contents: write` or `id-token: write` (or
+  `write-all`), or reads a secret other than `GITHUB_TOKEN`, including
+  through `secrets['...']` or `secrets: inherit`. Such a job needs
+  `sign-tag`, and so does `github-release`. Needing `sign-tag` covers
+  invariant 5's need for `check-version` too, so a job that needs
+  neither is told about `sign-tag` alone.
+* **Executable** (invariant 14) is the owner's execute bit in the
+  checkout, which a clone takes from the mode git records.
+* **The per-repository section** of `propose-release.sh` and
+  `release-version.sh` is the lines strictly between its two markers.
+  The marker lines themselves are compared with the template's, and a
+  copy without exactly one of each fails. The template's own
+  `release-version.sh` keeps its `{{CARGO_TOML}}`, `{{CARGO_LOCK}}` and
+  `{{CRATE_NAME}}` placeholders in that section, so a copy nobody
+  filled in fails on its `{{`.
+* **A `git tag` command** (invariant 15) is `git tag`, or `git -C <dir>
+  tag` and the like, outside a comment, in a tracked `Makefile` (or
+  `GNUmakefile` or `makefile`), a tracked `*.sh`, or a workflow under
+  `.github/workflows/`. Listing the tracked files needs git, so a
+  checkout git cannot list reports `error` rather than a verdict.
+
+If this repository's own copy of a template script cannot be read, the
+criterion reports `error`: the audit's tree has failed, not the
+repository's.
+
 ## Template
 
 Template: `templates/release-automation/`
 See: `templates/release-automation/README.md`
+Rust template: `templates/release-automation-rust/`, whose README holds
+the invariants
 Docs: `docs/release-automation.md`
 
 ## Projects
