@@ -27,6 +27,9 @@ the Shaken Fist project.
   REVIEWS.md; each target's `prune-reviews` workflow prunes and
   imports reviews made here on its default branch
   (plan: [PLAN-code-review-tracking.md](https://github.com/shakenfist/development/blob/main/docs/plans/PLAN-code-review-tracking.md))
+- [Plan Retirement](https://github.com/shakenfist/development/blob/main/docs/plan-retirement.md) -- How finished
+  plans are retired after 90 days: reasoning moved into docs/ and
+  future work filed as issues
 
 ## Consistency Audits
 

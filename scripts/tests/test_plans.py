@@ -1165,6 +1165,24 @@ class PlanIndexTest(CheckTestCase):
         self.assert_fail(result, containing='not listed in the index')
         self.assertIn('PLAN-a.md', result['details'])
 
+    def test_a_retired_row_is_legal(self):
+        # A retired plan's file is gone but its row stays: the row is
+        # the index's record that the plan existed, now linking a
+        # permalink. A check demanding that every linked plan exist
+        # locally would break every retired row.
+        result = self._check(
+            plans=['PLAN-live.md'],
+            index=(
+                self.HEADER
+                + '| 2026-01-01 | [Gone](https://github.com/shakenfist/'
+                'development/blob/0123456789abcdef0123456789abcdef01234567/'
+                'docs/plans/PLAN-gone.md) | Do it | Complete |\n'
+                + '| 2026-01-02 | [Live](PLAN-live.md) | Do it '
+                '| In progress |\n'
+            ),
+        )
+        self.assert_pass(result)
+
     def test_a_scheme_relative_link_does_not_register_a_local_plan(self):
         result = self._check(
             plans=['PLAN-a.md'],
