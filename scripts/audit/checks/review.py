@@ -20,7 +20,7 @@ import tempfile
 
 from audit.check import Check, ToolFailure, run_tool
 from audit.github import environment_without_credentials
-from audit.repo import READ_MAX_BYTES, read_within
+from audit.repo import DEVELOPMENT_ROOT, READ_MAX_BYTES, read_within
 from audit.text.patterns import bounded_search
 
 
@@ -217,10 +217,6 @@ REVIEW_TRACKING_SCRIPT = os.path.join(
 )
 
 
-# This repository's checkout, whose templates the copies elsewhere are
-# compared with.
-DEVELOPMENT_ROOT = os.path.realpath(os.path.dirname(os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 REVIEW_TRACKING_TEMPLATE_DIR = 'templates/review-tracking'
 
 # Each review tracking CI template, and where an adopting repository

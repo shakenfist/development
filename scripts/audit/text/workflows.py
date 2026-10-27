@@ -24,6 +24,20 @@ RUNS_ON_RE = re.compile(r'^\s*runs-on:\s*(.+?)\s*$')
 STATIC_ALLOWED_LABELS = frozenset({'self-hosted', 'static'})
 
 
+# GitHub-hosted runner labels (e.g. ubuntu-latest, windows-2022,
+# macos-15, ubuntu-24.04-arm). Self-hosted runner labels never use
+# these names.
+GITHUB_HOSTED_LABEL_RE = re.compile(
+    r'\b(?:ubuntu|windows|macos)-(?:latest|\d+(?:\.\d+)?)'
+    r'(?:-(?:arm|arm64|large|xlarge))?\b'
+)
+
+
+# Marker acknowledging a deliberate exception, placed on the
+# offending line or the line immediately above it.
+RUNNER_EXCEPTION_RE = re.compile(r'audit-ok:\s*github-hosted-runner')
+
+
 # A GitHub Actions expression, which we cannot resolve statically.
 # Non-greedy so two expressions on one line stay two spans.
 EXPRESSION_RE = re.compile(r'\$\{\{.*?\}\}')
@@ -509,6 +523,41 @@ def mapping_entries(block):
     return entries
 
 
+def mapping_value_lines(block, key):
+    """The lines of one entry's value in a mapping block, stripped.
+
+    An input such as `workflows:` or `path:` takes either an inline
+    value or a block scalar (`workflows: |`) with one item per line,
+    and mapping_entries() records only the indicator of the second.
+    Reading the lines below it here, rather than in each caller, is
+    what stops a list written as a block scalar reading as one item
+    called '|'. Blank lines are dropped, and an absent key, or a block
+    of None, is an empty list. Only the top level of the mapping is
+    read, as mapping_entries() reads it.
+    """
+    if block is None:
+        return []
+    lines = block.splitlines()
+    indent = None
+    for position, line in enumerate(lines):
+        match = WITH_ENTRY_RE.match(line)
+        if not match:
+            continue
+        if indent is None:
+            indent = len(match.group(1))
+        if len(match.group(1)) != indent or match.group(2) != key:
+            continue
+        value = re.sub(r'\s+#.*$', '', match.group(3)).strip()
+        if not BLOCK_INDICATOR_RE.match(value):
+            return [value] if value else []
+        depth = len(match.group(1))
+        return [later.strip() for later in itertools.takewhile(
+                    lambda text: not text.strip() or len(text) - len(text.lstrip()) > depth,
+                    lines[position + 1:])
+                if later.strip()]
+    return []
+
+
 def step_keys(step):
     """A step's own keys, mapped to their inline value.
 
@@ -686,3 +735,124 @@ def job_is_push_guarded(body):
     return bool(
         TAG_GUARD_RE.search(condition) and PUSH_EVENT_RE.search(condition)
     )
+
+
+# The flow-mapping spelling of a job's environment,
+# `environment: {name: release, url: ...}`, reduced to its name.
+FLOW_ENVIRONMENT_NAME_RE = re.compile(r'^\{.*?\bname\s*:\s*([^,}]+)')
+
+
+def unquote(value):
+    """A YAML scalar without the quotes around it."""
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in '\'"':
+        return value[1:-1]
+    return value
+
+
+def job_environment(body):
+    """The environment a job names, as written, or None.
+
+    `environment:` takes a name, or a mapping whose `name:` is the
+    name, in either block or flow form. A mapping without a name is
+    returned as the empty string rather than None: the job has the key,
+    and a caller that read it as absent would stop asking about it. A
+    value holding an expression is returned whole, because cutting a
+    name out of it would stop at the expression's own braces.
+    """
+    keys = job_level_keys(body)
+    if 'environment' not in keys:
+        return None
+    value = keys['environment']
+    if not value:
+        return unquote(mapping_entries(indented_block(body, 'environment')).get('name', ''))
+    if '${{' in value:
+        return value
+    match = FLOW_ENVIRONMENT_NAME_RE.match(value)
+    if match:
+        return unquote(match.group(1))
+    if value.startswith('{'):
+        return ''
+    return unquote(value)
+
+
+def trigger_re(name):
+    r"""A block-form `on:` trigger key, as written under `on:`.
+
+    Built rather than spelled out three times because the three
+    triggers this module looks for kept drifting apart: the trailing
+    comment was allowed for on `merge_group` and not on the other two,
+    which made `schedule:  # nightly at 04:00` read as an absence of
+    any schedule. A trigger line that carries a comment is still a
+    trigger, in every direction that matters -- for `merge_group` the
+    blind spot hides a queue lane, for `schedule` and `workflow_call`
+    it fails a repository that got the nightly right.
+
+    `[ \t]` rather than `\s`, which matches a newline and would let
+    the match run off the trigger line onto a comment below it. That
+    produces no wrong answers on today's inputs, because anything it
+    matches has already matched on the trigger line alone, but the
+    regex should mean what it looks like it means.
+    """
+    return re.compile(
+        r'^[ \t]{1,4}' + re.escape(name) + r':[ \t]*(?:#.*)?$', re.MULTILINE)
+
+
+def flow_trigger_re(name):
+    """The same trigger written in flow style, `on: [a, b]`."""
+    return re.compile(
+        r'^on:[ \t]*\[[^\]]*\b' + re.escape(name) + r'\b', re.MULTILINE)
+
+
+def scalar_trigger_re(name):
+    """The same trigger written as a bare scalar, `on: name`.
+
+    The one event the workflow runs on, with no filter of any kind,
+    since a scalar has nowhere to put one.
+    """
+    return re.compile(
+        r'^on:[ \t]*' + re.escape(name) + r'[ \t]*(?:#.*)?$', re.MULTILINE)
+
+
+# On a merge_group event github.ref is the per-attempt queue branch,
+# gh-readonly-queue/<base>/pr-<N>-<SHA>, and GitHub mints a fresh SHA
+# every time it rebuilds the group. A concurrency group keyed on it is
+# therefore unique per rebuild, cancel-in-progress never matches, and
+# superseded runs build whole clouds nobody is waiting on. See
+# docs/audits/merge-group-cancellation.md.
+MERGE_GROUP_TRIGGER_RE = trigger_re('merge_group')
+MERGE_GROUP_FLOW_RE = flow_trigger_re('merge_group')
+MERGE_GROUP_SCALAR_RE = scalar_trigger_re('merge_group')
+
+WORKFLOW_CALL_TRIGGER_RE = trigger_re('workflow_call')
+WORKFLOW_CALL_FLOW_RE = flow_trigger_re('workflow_call')
+
+
+SCHEDULE_TRIGGER_RE = trigger_re('schedule')
+
+PUSH_TRIGGER_RE = trigger_re('push')
+PUSH_FLOW_RE = flow_trigger_re('push')
+PUSH_SCALAR_RE = scalar_trigger_re('push')
+
+
+# An event named by equality in a condition, such as the
+# 'pull_request' of "github.event_name == 'pull_request'".
+EVENT_NAME_EQUALITY_RE = re.compile(
+    r"github\.event_name\s*==\s*'([a-z_]+)'"
+)
+
+
+def concurrency_block(body):
+    """Extract a `concurrency:` mapping from a job or workflow body."""
+    return indented_block(body, 'concurrency')
+
+
+# A concurrency block which cancels the run it supersedes. Only the
+# literal true: an expression here is usually a condition on the
+# event, and what it evaluates to on any one event is not read.
+CANCEL_IN_PROGRESS_RE = re.compile(r'cancel-in-progress:\s*true')
+
+
+def workflow_header(content):
+    """Everything in a workflow file above its `jobs:` key."""
+    return content.split('\njobs:')[0]

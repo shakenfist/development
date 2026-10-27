@@ -8,24 +8,10 @@ import re
 
 from audit.check import Check
 from audit.text.workflows import (
-    BIND_PREFIX, BOUND_PREFIX, RUNS_ON_RE, STATIC_ALLOWED_LABELS,
-    is_runner_label_value, literal_runner_labels, parse_runner_labels,
+    BIND_PREFIX, BOUND_PREFIX, GITHUB_HOSTED_LABEL_RE, RUNNER_EXCEPTION_RE, RUNS_ON_RE,
+    STATIC_ALLOWED_LABELS, is_runner_label_value, literal_runner_labels, parse_runner_labels,
     split_runner_labels,
 )
-
-
-# GitHub-hosted runner labels (e.g. ubuntu-latest, windows-2022,
-# macos-15, ubuntu-24.04-arm). Self-hosted runner labels never use
-# these names.
-GITHUB_HOSTED_LABEL_RE = re.compile(
-    r'\b(?:ubuntu|windows|macos)-(?:latest|\d+(?:\.\d+)?)'
-    r'(?:-(?:arm|arm64|large|xlarge))?\b'
-)
-
-
-# Marker acknowledging a deliberate exception, placed on the
-# offending line or the line immediately above it.
-RUNNER_EXCEPTION_RE = re.compile(r'audit-ok:\s*github-hosted-runner')
 
 
 # The runner sizes the CI conductor knows about. A "vm" job which
