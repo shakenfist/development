@@ -441,17 +441,128 @@ next push to main.
 
 ### Phase 1: retirement convention
 
-Planning effort: medium.
+Planning effort: medium. Lands on this plan's own branch,
+`plan-retirement`, with the master plan, as `plan-release-gating`
+carried release gating's plan and first phase.
 
-Write down what retiring a plan means, once, where both the skill
-and the criterion can point at it.
+#### Scope
+
+In: one page in `docs/` that defines eligibility and what retiring
+a plan involves, which both the skill and the criterion will cite; a
+test that a retired index row is legal; a pointer from
+`PLAN-TEMPLATE.md` and `README.md`.
+
+Out: the skill (phase 2), any check (phase 4), retiring anything,
+and any change to the fleet's `PLAN-TEMPLATE.md` copies. Nothing this
+phase does files an issue or changes a verdict anywhere.
+
+#### What the survey found
+
+Checked against the tree on 2026-10-28, at `1426131`:
+
+1. **A retired row already passes `plan-index`, and is already
+   covered by a test.** `plan_link_path()`
+   (`scripts/audit/checks/plans.py:345`) returns `None` for any
+   target with a scheme, so a permalink registers nothing and is
+   never an unregistered master. `PlanIndexTest.
+   test_a_link_to_another_repository_does_not_register_a_local_plan`
+   (`scripts/tests/test_plans.py:1155`) already pins URL handling;
+   `PlanAuditPhaseTest.test_a_plan_linked_by_absolute_url_is_not_judged`
+   (`:2077`) shows `plan-audit-phase` skips such rows too. The
+   master plan's step 1c assumed a gap here; what is missing is a
+   test whose fixture *is* a retired row (a permalink, a terminal
+   status, no local file), named for the case it protects.
+2. **A shared block is the wrong vehicle.** Every block in
+   `templates/shared-blocks/` is required by `PLAN_TEMPLATE_BLOCKS`
+   or `PUSH_AUDIT_BLOCKS`; none is optional. An embedded block that
+   is not required is still validated for version and wording
+   (`scripts/audit/text/shared_blocks.py:131-160`), so an optional
+   one would work, but it would be the first, and it would buy
+   nothing: the text is read by one skill and one spec page, both of
+   which can link to a single page here. Shared blocks exist to be
+   copied verbatim into many files. See decision 1.
+3. **Dangling pointers are only partly caught.** `docs-external-links`
+   (`scripts/audit/checks/docs_content.py:305`) reports a relative
+   link inside `docs/` to a file that does not exist, and
+   `plan-source-references` reports source pointers that do not
+   resolve. Nothing checks `README.md`'s absolute `blob/main` links
+   (this repository's README links `PLAN-code-review-tracking.md`
+   that way, line 29) or backticked names in `AGENTS.md` (three
+   here). After a retirement those are silent 404s and stale names.
+   That is the skill's job (phase 2 brief already says
+   `git grep -n <basename>`); the page should say so plainly.
+4. **The permalink sha needs a rule.** "The last commit that held
+   the file" is ambiguous until the deleting pull request merges.
+   `git log -1 --format=%H origin/<default> -- <file>` names the
+   last commit on the default branch that changed the file: it is
+   on the default branch, so it is never garbage collected, and it
+   holds the final text. See decision 2.
+
+Corrected at source: the master plan's phase 1 table (replaced by
+this section), and the references to a `plan-retirement` shared
+block in steps 2a, 4a and 4b, which now name `docs/plan-retirement.md`.
+
+#### Decisions
+
+1. **A docs page, not a shared block.** `docs/plan-retirement.md`
+   is the definition. Phase 4 may promote it into a block if the
+   pilot shows plan authors in other repositories need it in front
+   of them while writing; nothing before then reads it from a
+   template. This is the decision most likely to be argued with: a
+   block would put the rule in every repository's template, where
+   the agent writing a plan's *Future work* would see that it will
+   one day be filed as issues. The answer is that `PLAN-TEMPLATE.md`
+   here gets a one-sentence pointer (step 1c), and the fleet copies
+   get it in phase 4 if the pilot earns it.
+2. **Permalinks pin the last commit that changed the file**, as in
+   survey item 4, never `main`.
+3. **Retirement keeps the status.** A retired row still reads
+   `Complete` (or `Superseded`, `Abandoned`). Retired is a fact
+   about where the text lives, which the link already shows; the
+   status vocabulary block says a status answers only whether a plan
+   wants attention, and a retired plan does not.
+4. **A plan whose reasoning cannot be placed is not retired.** The
+   page says the skill reports it and leaves it; deleting the only
+   copy of a decision's justification to meet a 90-day rule is the
+   failure this plan exists to prevent.
+
+#### Steps
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 1a | high | opus | none | Write `templates/shared-blocks/plan-retirement.md` (v1), following the format in `templates/shared-blocks/README.md`. It states: a plan is eligible once its index status has been `Complete`, `Superseded` or `Abandoned` and none of its files has changed for 90 days; retiring it means (1) docs/ describes what it built, (2) its reasoning -- constraints, measurements, rejected alternatives -- is written into docs/ or ARCHITECTURE.md, (3) each still-valid *Future work* item becomes an issue and each dropped one is named with a reason in the pull request, (4) every pointer to it in markdown, source, other plans and AGENTS.md is rewritten, (5) its master and phase files are deleted, and (6) its index row keeps its date, intent and status, with the link replaced by a `https://github.com/shakenfist/<repo>/blob/<sha>/docs/plans/<file>` permalink at the last commit that held the file. Retirement goes through a reviewed pull request, never a direct push. Keep it under 60 lines. |
-| 1b | medium | sonnet | none | Embed the `plan-retirement` block in `PLAN-TEMPLATE.md` under *Documentation index maintenance*, after `plan-closeout-sections`, and add it to the list of blocks the template carries in `templates/shared-blocks/README.md`. Do **not** add it to `PLAN_TEMPLATE_BLOCKS` in `scripts/audit/checks/plans.py` in this phase: requiring it would mark every other repository's template non-compliant before the skill exists. Phase 4 decides that. |
-| 1c | medium | sonnet | none | Add a test to `scripts/tests/test_plans.py` (follow the `CheckTestCase` convention in `docs/consistency-audits.md`, *Testing a change*) proving `plan-index` passes an index whose row links to a `https://github.com/.../blob/<sha>/docs/plans/PLAN-x.md` permalink when no `PLAN-x.md` exists locally. Read `plan_link_path()` first: it returns `None` for absolute URLs, so this should pass without a code change; if it does not, stop and report rather than changing the check. |
-| 1d | medium | sonnet | none | Add a *Retiring finished plans* section to `docs/consistency-audits.md` (or a new `docs/plan-retirement.md` linked from it, if the section would exceed ~40 lines): what retirement is, why it is reviewed rather than automatic, and that the `retire-plans` skill does it. Note ryll's `docs/plans/completed/` as the earlier, superseded approach. |
+| 1a | high | opus | none | Write `docs/plan-retirement.md` (title *Retiring finished plans*, under ~120 lines, no phase numbers -- `plan-phase-references` checks docs/). Sections: **Why** (plans accumulate; their reasoning and future work are lost when nothing reads them again; three or four sentences, using the numbers in this plan's Situation without citing the plan). **Eligibility**: index status `Complete`, `Superseded` or `Abandoned`, and no commit has touched the master plan or any of its phase files for 90 days. **What retiring involves**, as a numbered list: (1) docs/ describes what the plan built; (2) its reasoning -- constraints, measurements, rejected alternatives, push-audit declines -- is written into docs/ or ARCHITECTURE.md; (3) each still-valid *Future work* item becomes an issue labelled `from-retired-plan`, filed while the pull request is prepared and listed in its body, and closed again if the pull request is closed unmerged; dropped items are listed with a reason; (4) every pointer is rewritten -- relative links in docs/ (`docs-external-links` catches those), source (`plan-source-references` catches those), and the ones nothing catches: absolute `blob/<branch>` links in README.md, backticked names in AGENTS.md, ARCHITECTURE.md, other plans and `.claude/`; (5) the master and phase files are deleted; (6) the index row keeps its date, intent and status, and its link becomes `https://github.com/shakenfist/<repo>/blob/<sha>/docs/plans/<file>` where `<sha>` is `git log -1 --format=%H origin/<default> -- <file>`. **What it is not**: retired is not a status (decision 3 above, in a sentence); a plan whose reasoning cannot be placed is left in place and reported; it always goes through a reviewed pull request, one per repository, one commit per plan, and is never done by the `prune-reviews` workflow, which pushes straight to the default branch. **History**: ryll's `docs/plans/completed/` was an earlier archive-in-place approach; retirement replaces it. End with a one-line pointer to the `retire-plans` skill in llm-setup as what does this, noting it is not written yet. |
+| 1b | medium | sonnet | none | In `scripts/tests/test_plans.py`, add `test_a_retired_row_is_legal` to `PlanIndexTest` (near `test_a_link_to_another_repository_does_not_register_a_local_plan`, line ~1155), using `self._check(plans=[...], index=...)` with `self.HEADER`. Fixture: one live plan `PLAN-live.md` linked normally with status `In progress`, and one row dated earlier linking `https://github.com/shakenfist/development/blob/0123456789abcdef0123456789abcdef01234567/docs/plans/PLAN-gone.md` with status `Complete`, and no `PLAN-gone.md` on disk. Assert `assert_pass`. Comment why in the file's style: a retired plan's row is the index's record that it existed, and a future check requiring every linked plan to exist locally would break every retired row. Run `python3 scripts/tests/test_plans.py`. |
+| 1c | low | sonnet | none | In `PLAN-TEMPLATE.md`, in the *Documentation index maintenance* section, after the paragraph ending "Update it as the plan progresses, not only at the end.", add one paragraph: once a plan has been finished for 90 days it is retired as `docs/plan-retirement.md` describes -- its reasoning moved into docs/ and its *Future work* filed as issues -- so write both to survive being read by someone who was not here. Outside any shared block. In `README.md`, add a curated link to `https://github.com/shakenfist/development/blob/main/docs/plan-retirement.md` beside the other docs links, matching their one-line form. |
+
+#### Risks and mitigations
+
+* **The page drifts from what the skill does.** The skill (phase
+  2) links the page rather than restating the rule; the management
+  session checks in phase 2 review that the skill quotes no number
+  the page also carries except 90.
+* **README growth.** README.md is a pitch; one curated link is
+  within its rules (`readme-structure` is run as part of the
+  verification below).
+
+#### Definition of done
+
+* `docs/plan-retirement.md` exists and `grep -nE '[Pp]hase [0-9]'
+  docs/plan-retirement.md` prints nothing.
+* `python3 scripts/tests/test_plans.py` passes and includes
+  `test_a_retired_row_is_legal`.
+* `grep -n 'plan-retirement.md' PLAN-TEMPLATE.md README.md` finds
+  one line in each.
+* `pre-commit run --all-files` passes.
+* `python3 scripts/audit-check.py --repo-path . --repo-name
+  development` reports the same verdicts as on `1426131`, apart
+  from `review-coverage` detail for the new, unreviewed page.
+* No file under `templates/` changed.
+
+#### Back brief
+
+Before step 1a, back brief Mikal on decision 1 (docs page rather
+than shared block). It is cheap to change now and touches phases 2
+and 4 if it changes later.
 
 ### Phase 2: `retire-plans` skill
 
@@ -465,7 +576,7 @@ beside `consistency-fix`, as its own pull request; record it in
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 2a | xhigh | opus | none | Write the `retire-plans` skill. Read `consistency-fix/SKILL.md` and `template-resync/SKILL.md` for shape and tone first. Invoked in a repository (optionally with plan filenames), it: lists eligible plans by the rule in the `plan-retirement` shared block (computing age locally with `git log -1 --format=%cs -- <plan and phase files>` against `origin/<default>`); skips the run if an open pull request already retires any of them; cuts one worktree and branch; and, per plan, in one commit each: reads the whole plan and its phases; compares against `docs/`, `ARCHITECTURE.md` and `AGENTS.md`, filling gaps; extracts the reasoning (analysis, *Situation* measurements, rejected alternatives, back-brief corrections, push-audit declines) and writes what a future change needs into docs/; triages each *Future work* item against the code and open issues (`gh issue list --search`) into filed / already tracked / done / dropped-with-reason; rewrites every pointer (`git grep -n <basename>` across the repo, including other plans and `.claude/`); deletes the files; rewrites the index link to a permalink. The pull request body carries a per-plan table: docs changed, reasoning moved (with links), issues filed, items dropped and why. It runs `pre-commit run --all-files` and the repo's audit checks for `plan-index` and `plan-source-references` before pushing. It never merges, and it never runs `prune` or touches `REVIEWS.md`. State explicitly that a plan whose reasoning cannot be placed in docs/ is left unretired and reported, rather than deleted. |
+| 2a | xhigh | opus | none | Write the `retire-plans` skill. Read `consistency-fix/SKILL.md` and `template-resync/SKILL.md` for shape and tone first. Invoked in a repository (optionally with plan filenames), it: lists eligible plans by the rule in `docs/plan-retirement.md` here (link to it; do not restate it) (computing age locally with `git log -1 --format=%cs -- <plan and phase files>` against `origin/<default>`); skips the run if an open pull request already retires any of them; cuts one worktree and branch; and, per plan, in one commit each: reads the whole plan and its phases; compares against `docs/`, `ARCHITECTURE.md` and `AGENTS.md`, filling gaps; extracts the reasoning (analysis, *Situation* measurements, rejected alternatives, back-brief corrections, push-audit declines) and writes what a future change needs into docs/; triages each *Future work* item against the code and open issues (`gh issue list --search`) into filed / already tracked / done / dropped-with-reason; rewrites every pointer (`git grep -n <basename>` across the repo, including other plans and `.claude/`); deletes the files; rewrites the index link to a permalink. The pull request body carries a per-plan table: docs changed, reasoning moved (with links), issues filed, items dropped and why. It runs `pre-commit run --all-files` and the repo's audit checks for `plan-index` and `plan-source-references` before pushing. It never merges, and it never runs `prune` or touches `REVIEWS.md`. State explicitly that a plan whose reasoning cannot be placed in docs/ is left unretired and reported, rather than deleted. |
 | 2b | medium | sonnet | none | Teach `consistency-fix` to hand a `Completed plans awaiting retirement` issue to `retire-plans` instead of fixing it itself, and to close the issue from the retirement pull request body. |
 
 ### Phase 3: pilot
@@ -493,8 +604,8 @@ Planning effort: high. It reaches `audit-manage-issues.py`.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 4a | high | opus | none | Add a `PlanRetirement` class to `scripts/audit/checks/plans.py`: id `plan-retirement`, spec `docs/audits/plan-retirement.md`, `issue_title = 'Completed plans awaiting retirement'`. N/A without `docs/plans/index.md`. Read the index with `iter_markdown_table_rows` and `plan_table_columns` as `PlanIndex` does; for each row with a local link and a terminal status, find its phase files with `PLAN_PHASE_FILE_RE`, and ask `repo.github.api_answer()` for `repos/shakenfist/<repo>/commits?path=<file>&per_page=1` per file (the clone is `--depth 1`, so `git log` is not available), taking the newest date. Fail listing each plan over `RETIREMENT_AGE_DAYS = 90` with its age, as `findings`. GitHub not answering raises `ToolFailure` (status `error`), never `fail` or `not_applicable`. Register in `CHECKS` in `scripts/audit/registry.py` beside the plan checks; write the spec following `docs/audits/README.md`, naming the `retire-plans` skill and the shared block; add its row to `docs/audits/README.md`; add `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` lines in `scripts/tests/test_metadata.py`; tests in `scripts/tests/test_plans.py` covering pass, fail, N/A, a permalink row (ignored), phase-file ages, and API failure, using `FakeGitHub`. |
-| 4b | medium | sonnet | none | Decide, with the pilot results, whether to add `plan-retirement` to `PLAN_TEMPLATE_BLOCKS`. If yes, the template change reaches the fleet through the issues `plan-template` files, as `plan-phase-landing` did. |
+| 4a | high | opus | none | Add a `PlanRetirement` class to `scripts/audit/checks/plans.py`: id `plan-retirement`, spec `docs/audits/plan-retirement.md`, `issue_title = 'Completed plans awaiting retirement'`. N/A without `docs/plans/index.md`. Read the index with `iter_markdown_table_rows` and `plan_table_columns` as `PlanIndex` does; for each row with a local link and a terminal status, find its phase files with `PLAN_PHASE_FILE_RE`, and ask `repo.github.api_answer()` for `repos/shakenfist/<repo>/commits?path=<file>&per_page=1` per file (the clone is `--depth 1`, so `git log` is not available), taking the newest date. Fail listing each plan over `RETIREMENT_AGE_DAYS = 90` with its age, as `findings`. GitHub not answering raises `ToolFailure` (status `error`), never `fail` or `not_applicable`. Register in `CHECKS` in `scripts/audit/registry.py` beside the plan checks; write the spec following `docs/audits/README.md`, naming the `retire-plans` skill and linking `docs/plan-retirement.md`; add its row to `docs/audits/README.md`; add `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` lines in `scripts/tests/test_metadata.py`; tests in `scripts/tests/test_plans.py` covering pass, fail, N/A, a permalink row (ignored), phase-file ages, and API failure, using `FakeGitHub`. |
+| 4b | medium | sonnet | none | Decide, with the pilot results, whether the rule in `docs/plan-retirement.md` should also become a shared block in every `PLAN-TEMPLATE.md` (added to `PLAN_TEMPLATE_BLOCKS`). If yes, it reaches the fleet through the issues `plan-template` files, as `plan-phase-landing` did. |
 | 4c | medium | sonnet | none | Run the new check with `--dry-run` across the matrix and record here how many repositories it newly fails, including this one, before merging. |
 
 ### Phase 5: push audit
