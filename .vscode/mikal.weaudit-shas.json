@@ -89,6 +89,18 @@
       "sha": "92ea1a0c5605ce77aad663e70be3e2880917584e",
       "date": "2026-10-22"
     },
+    "PLAN-TEMPLATE.md": {
+      "sha": "121bfae4d5735b0ab0c72ebca68532e94ea29d6b",
+      "date": "2026-10-16"
+    },
+    "README.md": {
+      "sha": "d99208aebffcfe7bb0d0d0eda46419f568f7b4f9",
+      "date": "2026-10-22"
+    },
+    "docs/audits/README.md": {
+      "sha": "2ae40143f3bef4dc6276f20c157d4e2c7e61f0ab",
+      "date": "2026-10-28"
+    },
     "docs/audits/ci-review-automation.md": {
       "sha": "ceb7b6ba2ae57439dc519581f22e8e98530816a8",
       "date": "2026-10-19"
@@ -100,6 +112,10 @@
     "docs/audits/default-branch-naming.md": {
       "sha": "e22c5606cf27d1a34c2af05cd7468c5f251dda64",
       "date": "2026-10-05"
+    },
+    "docs/audits/delete-branch-on-merge.md": {
+      "sha": "db112439660e756567e33d55f92bc01d367f5da0",
+      "date": "2026-10-28"
     },
     "docs/audits/dependency-name-normalization.md": {
       "sha": "6ab4f1949fbdc965f14bcd987a4747ac09404d5d",
@@ -165,6 +181,10 @@
       "sha": "47dc9572d8e3a651392f06ff3ce1ac0ea2023bff",
       "date": "2026-10-19"
     },
+    "docs/audits/merge-queue-config.md": {
+      "sha": "6f361c1122db0b18d4e15bc0f0cd6b9635d9def7",
+      "date": "2026-10-28"
+    },
     "docs/audits/mermaid-lint-ci.md": {
       "sha": "820c00c1669077d5e07e65439a01cdc3986c7178",
       "date": "2026-10-19"
@@ -189,9 +209,29 @@
       "sha": "fdb2179a490fe5c810e4f9f3d7d563dbaef44f5e",
       "date": "2026-10-05"
     },
+    "docs/audits/plan-history-in-source.md": {
+      "sha": "59d7e206cadc0ccfca4727179376985f1d29109e",
+      "date": "2026-10-28"
+    },
+    "docs/audits/plan-index.md": {
+      "sha": "c86f0eb31b2748f641c60c9d5077b961183a148d",
+      "date": "2026-10-28"
+    },
+    "docs/audits/plan-phase-references.md": {
+      "sha": "1e4484ed652def0fd7d64c0befa81b7c16795cd3",
+      "date": "2026-10-28"
+    },
     "docs/audits/plan-source-references.md": {
       "sha": "f4a5692ebc7df73e1408d526523d5b407ea851e4",
       "date": "2026-10-12"
+    },
+    "docs/audits/plan-template.md": {
+      "sha": "cbc66f2a1d124c0ce9bb7844bb3e02473a60f9e9",
+      "date": "2026-10-28"
+    },
+    "docs/audits/push-audit.md": {
+      "sha": "102a9f2f6a2462b7b58c448e207f384d511a295b",
+      "date": "2026-10-28"
     },
     "docs/audits/pyproject-usage.md": {
       "sha": "c7c1f0311e26b8fc94ff6f31653f9139ae538e09",
@@ -217,6 +257,14 @@
       "sha": "159275c37b1616ede63bde05f35a806beb270bdb",
       "date": "2026-10-20"
     },
+    "docs/audits/release-merge-queue.md": {
+      "sha": "0faae83433bd015dfa575e03b74c17c09df5f6bf",
+      "date": "2026-10-28"
+    },
+    "docs/audits/release-process.md": {
+      "sha": "0b59d81ff09415d6d0c6f73996dcecfe2e1b6fa9",
+      "date": "2026-10-28"
+    },
     "docs/audits/renovate-lockstep-groups.md": {
       "sha": "c58fa988567ea392014294842ae64989649a56f4",
       "date": "2026-10-19"
@@ -236,6 +284,10 @@
     "docs/audits/review-scope-completeness.md": {
       "sha": "69d0195f65c8f013a8002447e85574320e355617",
       "date": "2026-10-19"
+    },
+    "docs/audits/review-tracking-templates.md": {
+      "sha": "b2061518a40357410d04c05439b85b8759509560",
+      "date": "2026-10-28"
     },
     "docs/audits/rust-unwrap-lint.md": {
       "sha": "1c8bd3130fe9813be2f4714ae4654b313a7fdaa9",
@@ -277,6 +329,10 @@
       "sha": "179afb0f85bc331ee7c78e5e8c20c8b497b242c3",
       "date": "2026-10-05"
     },
+    "docs/audits/workflow-standards.md": {
+      "sha": "f526cb73d352e2fc1d61e304ca5db4a673a69720",
+      "date": "2026-10-28"
+    },
     "docs/automated-pr-review.md": {
       "sha": "de3e153a8c87e04156f45b9f2e70860a644cf2cb",
       "date": "2026-10-20"
@@ -284,6 +340,14 @@
     "docs/ci-review-automation.md": {
       "sha": "2e1d83cb3523df735fb92e24200923afab65ad4f",
       "date": "2026-10-19"
+    },
+    "docs/code-review-tracking.md": {
+      "sha": "26367480aa81583c99ceee4a1a10a7d64768142a",
+      "date": "2026-10-28"
+    },
+    "docs/consistency-audits.md": {
+      "sha": "50b94497c98955ac2310d54d1b42c797ce08094f",
+      "date": "2026-10-28"
     },
     "docs/release-automation.md": {
       "sha": "f1b68accf5c567d979be2004064ac2cd285f9025",
