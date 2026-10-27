@@ -157,10 +157,6 @@
       "sha": "47dc9572d8e3a651392f06ff3ce1ac0ea2023bff",
       "date": "2026-10-19"
     },
-    "docs/audits/merge-queue-config.md": {
-      "sha": "24ed42c20d9aa54987ff54c0c47764ce5980658a",
-      "date": "2026-10-05"
-    },
     "docs/audits/mermaid-lint-ci.md": {
       "sha": "820c00c1669077d5e07e65439a01cdc3986c7178",
       "date": "2026-10-19"
@@ -212,10 +208,6 @@
     "docs/audits/release-environment-protection.md": {
       "sha": "159275c37b1616ede63bde05f35a806beb270bdb",
       "date": "2026-10-20"
-    },
-    "docs/audits/release-process.md": {
-      "sha": "1f55a6941faee14aee9630a39400a176e95039fb",
-      "date": "2026-10-19"
     },
     "docs/audits/renovate-lockstep-groups.md": {
       "sha": "c58fa988567ea392014294842ae64989649a56f4",
@@ -337,14 +329,6 @@
       "sha": "943ce339c00aa725090b244fb7037cc55791a388",
       "date": "2026-10-19"
     },
-    "scripts/audit/checks/packaging.py": {
-      "sha": "141782bb8f1ccd73eea1a55e31cb555833d34f2e",
-      "date": "2026-10-19"
-    },
-    "scripts/audit/checks/runners.py": {
-      "sha": "aab016083a54431e0a6a93e30411dc975b061b45",
-      "date": "2026-10-19"
-    },
     "scripts/audit/files.py": {
       "sha": "8f5d918180d6e6ed530a1573cf3bd90f2704e83c",
       "date": "2026-10-21"
@@ -377,17 +361,9 @@
       "sha": "3279930e796e7d42ea3a4a1382d180d4391d94a8",
       "date": "2026-10-22"
     },
-    "scripts/audit/text/workflows.py": {
-      "sha": "cff1f11b4acc0f004a3767315b00f312f14d991f",
-      "date": "2026-10-20"
-    },
     "scripts/audit_common.py": {
       "sha": "46e35a9bc799f7b392ca9394edcc266a4bdb5b35",
       "date": "2026-10-18"
-    },
-    "scripts/audit_snapshot.py": {
-      "sha": "6aa34acf0ed54c0c5e965198d342958536afcdf6",
-      "date": "2026-10-21"
     },
     "scripts/check-audit-smoke.py": {
       "sha": "016f302a2d95f8b6a35e50b677ca86429711886a",
@@ -467,10 +443,6 @@
     },
     "scripts/tests/test_npm_dependencies.py": {
       "sha": "0896f21e5074d0d68ff9107e53f34fe454fb3873",
-      "date": "2026-10-21"
-    },
-    "scripts/tests/test_packaging.py": {
-      "sha": "0a8fc8f2b76e5fd85fff1a9ad722b6d95ab2af74",
       "date": "2026-10-21"
     },
     "scripts/tests/test_patterns.py": {

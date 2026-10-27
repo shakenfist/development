@@ -321,10 +321,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/merge-queue-config.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/python-version.md",
       "author": "mikal"
     },
@@ -521,10 +517,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/release-process.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/renovate-lockstep-groups.md",
       "author": "mikal"
     },
@@ -569,14 +561,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/packaging.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/runners.py",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/pr-re-review.yml",
       "author": "mikal"
     },
@@ -594,10 +578,6 @@
     },
     {
       "path": "docs/release-automation.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/text/workflows.py",
       "author": "mikal"
     },
     {
@@ -673,10 +653,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_packaging.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_patterns.py",
       "author": "mikal"
     },
@@ -690,10 +666,6 @@
     },
     {
       "path": "scripts/tests/test_runners.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit_snapshot.py",
       "author": "mikal"
     },
     {
