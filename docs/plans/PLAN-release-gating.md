@@ -1784,7 +1784,7 @@ below, so it has been rewritten rather than patched.
 | 4d | medium | opus | none | Add `release-merge-queue` to `scripts/audit/checks/github_config.py`, beside `MergeQueueConfig` (:260), as decision 4.6 describes. `applies()` reads the repository for `release.yml`, so no API call is made for a repository without one. `run()` reuses `MergeQueueConfig`'s default-branch and rules reads; factor them into a shared function rather than copying them. It fails, naming the branch, when there is no `merge_queue` rule, and passes otherwise. It does not judge the queue's settings. Write all six files in `docs/consistency-audits.md`'s "Adding a criterion" list: the check, its `registry.py` line, tests in `scripts/tests/test_github_config.py`, `docs/audits/release-merge-queue.md`, the `docs/audits/README.md` index line, and the frozen lines in `scripts/tests/test_metadata.py`. The issue title is `Release merge queue`. The spec explains why the criterion checks configuration and not whether the queue runs, by citing the decision's reasons rather than its number. Run pre-commit and the unit tests. Leave the change uncommitted. This step can run alongside 4b and 4c, since it touches other files. |
 | 4e | high | opus | none | Read-only diagnosis of occystrap's merge queue (occystrap#169). It has never built a merge group: no `merge_group` run exists, and #164 sat queued from 2026-10-21 to 2026-10-24. Phase 3's execution notes in `docs/plans/PLAN-release-gating.md` list what has been ruled out; start from there, and do not repeat those checks. Compare occystrap with divergulent, whose queue works. Look at the ruleset's history, the PR timeline events (GraphQL `AddedToMergeQueueEvent` and `RemovedFromMergeQueueEvent`), GitHub's merge-queue state for occystrap's `develop`, organisation rulesets, the required check names against the job names that report them, and any app or integration setting that differs. Do not change anything in GitHub: no ruleset edits, no enqueueing, no pull requests, no comments. Report the cause with its evidence, or the remaining candidates with how to tell them apart, and the smallest fix. The management session takes the fix to the operator and records it on occystrap#169. |
 | 4f | low | sonnet | own clone of ryll | In ryll, on a branch named `release-gating-phase-04`. Add an `actions/checkout` step at the start of `publish-ryll-pypi` in `.github/workflows/release.yml`, as andris's `publish-pypi` does (andris `release.yml:207`). Copy `tools/tag-release.sh` and `tools/sign-release-tag.sh` byte for byte, with `cp`, from this repository's `templates/release-automation-rust/`. Copy those two files only: the template-resync helper copies all five and would overwrite `release.yml` and the per-repository sections. Confirm with `cmp` and check that the mode is executable. Run ryll's pre-commit through its Docker wrapper; never install a Rust toolchain. Leave the change uncommitted. The management session commits, pushes and opens the pull request, which lands before this repository's. |
-| 4g | low | sonnet | none | Verification, after 4a to 4d are committed, 4f has merged, and occystrap has merged a pull request through its queue. Run `pre-commit run --all-files` and the unit tests here. Run `scripts/audit-check.py` against this repository and diff its id-to-status map against `main`'s: only `release-process` and `release-merge-queue` may differ, and both must be `not_applicable`. Then run the Definition of done script against fresh clones of the fourteen, and report any failure with its full text. Read by hand the job graphs of kerbside, shakenfist and ryll, the three most complex, and confirm that rule 1's verdict matches. Do not file or close issues; do not run `audit-manage-issues.py` without `--dry-run`. |
+| 4g | low | sonnet | none | Verification, after 4a to 4d are committed, 4f has merged, and occystrap's single-tier pull request has merged. Run `pre-commit run --all-files` and the unit tests here. Run `scripts/audit-check.py` against this repository and diff its id-to-status map against `main`'s: only `release-process` and `release-merge-queue` may differ, and both must be `not_applicable`. Then run the Definition of done script against fresh clones of the fourteen, and report any failure with its full text. Read by hand the job graphs of kerbside, shakenfist and ryll, the three most complex, and confirm that rule 1's verdict matches. Do not file or close issues; do not run `audit-manage-issues.py` without `--dry-run`. |
 
 Order:
 1. 4a first; 4e and 4f can start at once.
@@ -1926,15 +1926,15 @@ Started on 2026-10-25 (AEDT).
   alongside it, because both run pre-commit and the unit tests in
   this worktree.
 * **4a** sonnet at medium effort, as two commits: the shared
-  workflow readers (2c79749), then `release-process` in its own
-  module (36a8cf5).
-* **4b** opus at high effort (09271a7). The first version's
+  workflow readers (2ba7e1f), then `release-process` in its own
+  module (05df069).
+* **4b** opus at high effort (248946e). The first version's
   push-concurrency rule flagged only a `cancel-in-progress: true`
   group. That followed decision 4.3 as written, but phase 3's survey
   had already shown that `false` drops a pending run too, so the rule
   was sent back and widened, and decision 4.3 is corrected at its
   source.
-* **4c** opus at high effort (5d90225). The first version had
+* **4c** opus at high effort (844eeff). The first version had
   `release_rust.py` import its helpers from `release.py`, and
   `release.py` call it through an import inside `run()`, so that the
   two imported each other. The 4c brief's "called from `run()`" and
@@ -1943,13 +1943,16 @@ Started on 2026-10-25 (AEDT).
   `audit/text/release_jobs.py` and keep one import, `release.py`'s of
   `release_rust.py`. The Definition of done's import item is corrected
   to allow exactly that line.
-* **4d** opus at medium effort (b502711). The criterion also had to
+* **4d** opus at medium effort (9cad4f1). The criterion also had to
   join `NETWORK_CHECKS` in `scripts/audit_snapshot.py`, which
   "Adding a criterion" in `docs/consistency-audits.md` did not list;
   that page now says so.
 * **4f** sonnet at low effort, as ryll#623 (67cc32e3). Its `cargo
-  audit` and `cargo deny` jobs fail, and so do ryll#621's and #622's,
-  so the failure is not this change's. The operator was told.
+  audit` and `cargo deny` jobs failed, and so did ryll#621's and #622's,
+  so the failure was not this change's. The operator was told. A later
+  run failed `cargo deny` on a yanked `crypto-bigint` 0.7.7 that
+  `develop`'s lock file held. Rebased onto a `develop` holding 0.7.9,
+  the pull request passed, and it merged on 2026-10-27 as f8b99b38.
 * **4e** opus at high effort, read only. occystrap's event feed has
   never had a `gh-readonly-queue` branch created, while divergulent's
   appear within a minute of each enqueue. The queue's settings match
@@ -1985,6 +1988,34 @@ Started on 2026-10-25 (AEDT).
   An occystrap pull request adds the push trigger the gate then
   needs. The operator also chose to let `release-merge-queue` fail
   occystrap rather than exempt it, with #169 kept open.
+* **Review rounds.** Writing occystrap's single-tier change (90eadd6)
+  showed that `push_concurrency_issues` passed a push group keyed by
+  `github.ref` behind an `event_name == 'push'` branch. It now also
+  requires `github.sha` in such a group (0cab7d4). A review round on
+  this pull request moved the gate's job selection into one shared
+  function, so the gate rule and the Rust rules cannot disagree, and
+  taught the triggers to read a scalar `on:` (dd1a20a).
+* **occystrap#174 merged** on 2026-10-25 at 22:49Z (199f5b8e). The
+  first push runs of both gated workflows on `develop` succeeded; the
+  functional job waited about 90 minutes for a runner.
+* **4g** sonnet at low effort, read only, on 2026-10-27, against
+  fresh clones of the fourteen and this branch at dd1a20a:
+  - pre-commit passes, and 2411 unit tests pass;
+  - this repository's id-to-status map differs from `main`'s only by
+    the new `release-merge-queue`, which is `not_applicable`;
+    `release-process` is `not_applicable` on both;
+  - the Definition of done loop printed one line, occystrap's
+    expected `release-merge-queue` failure. `release-process` passes
+    for all fourteen, and `release-merge-queue` for the other
+    thirteen;
+  - by hand, kerbside's, shakenfist's and ryll's `release.yml` reach
+    every `release` environment job and every publishing job only
+    through a job whose `if` checks the gate's result, which matches
+    rule 1's pass for all three. In ryll the gate is checked once, by
+    `check-version`, and the builds need `check-version`'s success;
+  - the import grep, the fifteen-invariant table, occystrap's push
+    runs and ruleset, b1, #169 and Future work all hold as the
+    Definition of done states.
 
 ### Phase 5: push audit
 
