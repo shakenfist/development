@@ -584,6 +584,11 @@ The index row carries the whole-plan status, so it only reaches
 `Complete` once every phase has been completed, abandoned or
 superseded. Update it as the plan progresses, not only at the end.
 
+Once a plan has been finished for 90 days it is retired as
+`docs/plan-retirement.md` describes: its reasoning is moved into
+docs/ and its *Future work* is filed as issues. Write both so they
+survive being read by someone who was not here.
+
 <!-- shared-block: plan-closeout-sections v1 -->
 Plan close-out sections (shared block; do not edit -- the
 canonical copy lives in shakenfist/development at
