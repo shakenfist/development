@@ -213,7 +213,7 @@ human merging the pull request.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. Retirement convention | Not started | |
+| 1. Retirement convention | In progress | |
 | 2. `retire-plans` skill | Not started | |
 | 3. Pilot | Not started | |
 | 4. `plan-retirement` criterion | Not started | |
@@ -563,6 +563,27 @@ block in steps 2a, 4a and 4b, which now name `docs/plan-retirement.md`.
 Before step 1a, back brief Mikal on decision 1 (docs page rather
 than shared block). It is cheap to change now and touches phases 2
 and 4 if it changes later.
+
+#### Phase 1 execution notes
+
+2026-10-28 (AEDT). The back brief's one gate, a docs page rather
+than a shared block, was answered by Mikal before implementation
+began; he also gave this session leave to push and open the pull
+request once the phase was done.
+
+* Steps 1a and 1b ran in parallel: they write separate files, and
+  neither consumes the other. Step 1c ran after both, since it
+  links the page 1a wrote.
+* 1a's page carries two sentences beyond its brief, explaining why
+  the clock is the last commit and that `Superseded` and
+  `Abandoned` plans share it. Both restate this plan's open-question
+  defaults, so they were kept.
+* 1b's test was shown to fail on a copy of the tree in which
+  `PlanIndex` rejected scheme links; the two neighbouring URL tests
+  failed with it.
+* `audit-check.py` reports `llm-context-lint` as `error` locally
+  both before and after the phase: `skillsaw` is not installed on
+  this host. It is a tooling gap here, not a verdict.
 
 ### Phase 2: `retire-plans` skill
 
