@@ -29,9 +29,17 @@
       "sha": "63b5043da65a8228e4c56540364b6a253ef14cbe",
       "date": "2026-09-01"
     },
+    ".github/workflows/ci.yml": {
+      "sha": "c2aa066633d845856f5a8991d88cde7c90bc3141",
+      "date": "2026-10-28"
+    },
     ".github/workflows/codeql-analysis.yml": {
       "sha": "975f656d8135aefe12ba2f2094d8671460ef1a8a",
       "date": "2026-10-01"
+    },
+    ".github/workflows/consistency-audit.yml": {
+      "sha": "3f37406fe6d9df801734c3683014186b4789ed2a",
+      "date": "2026-10-28"
     },
     ".github/workflows/export-repo-config.yml": {
       "sha": "b9b3936053b8685ef0ae47f656b2f35aa62ba637",
@@ -40,6 +48,10 @@
     ".github/workflows/issue-link-check.yml": {
       "sha": "6d0ce3ba5bf1008a1139a1a1be27959413f8ad0a",
       "date": "2026-09-09"
+    },
+    ".github/workflows/mermaid-lint.yml": {
+      "sha": "29408a6b2da8760271d2614561adff59683f53f7",
+      "date": "2026-10-28"
     },
     ".github/workflows/pr-re-review.yml": {
       "sha": "501583b681bc88c12846372364aa302b1b05aec3",
@@ -52,6 +64,10 @@
     ".github/workflows/prune-reviews.yml": {
       "sha": "91ff1783e6589e198ce5d14aab473112761b7ce2",
       "date": "2026-10-16"
+    },
+    ".github/workflows/renovate.yml": {
+      "sha": "1bfb2bb6c5ed1d38e167b27fd219d1130533080f",
+      "date": "2026-10-28"
     },
     ".github/workflows/secret-scan.yml": {
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
