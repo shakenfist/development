@@ -2312,6 +2312,234 @@ Before 5a starts, the operator confirms:
 4. **Pushing and opening this phase's pull request:** the same
    standing grant as phases 3 and 4, or ask.
 
+#### Phase 5 execution notes
+
+Started on 2026-10-28 (AEDT).
+
+* **Back brief.** The operator chose:
+  - one agent per repository running its whole runbook, outside this
+    repository (decision 5.2);
+  - all twelve dry runs, dispatched together; the answer was the yes
+    at the time (decision 5.4);
+  - the management session files the issues for pre-plan problems,
+    after the operator has seen the list;
+  - the same standing grant as phases 3 and 4 to push and open this
+    phase's pull request.
+* **Order.** The twelve dry runs were dispatched at 05:27Z, before
+  any agent started. 5a, 5f, the nine 5g agents and 5h ran at once.
+  5b to 5e started when 5a reported, and 5i started when the last dry
+  run finished at 06:03Z. 5b was sent back once, to read the e7a34fc
+  diff line by line for the 2a items it had first judged from the
+  diff stat alone.
+* **Totals.** Every report's insertion and deletion totals matched
+  the landing record, for all 29 ranges, so no report was re-run.
+* **Host load.** With fourteen agents building at once, the host's
+  load average reached 78, and andris's timing-bound `make test`
+  timed out locally. The merge changed no Rust, and andris's
+  `merge_group` run on `develop`'s tip succeeded, so this is recorded
+  as not cleanly run rather than as a finding.
+
+#### Phase 5 results
+
+**Every landing fails closed.** For all fourteen release repositories
+the answer to decision 5.3's first question is no: no job that names
+an environment or publishes can run when `ci-gate` fails or is
+skipped on a tag push. Every required check is reported on both
+`pull_request` and `merge_group` (occystrap's queue is off, so only
+the first applies there), a queue run can be cancelled only
+once it is superseded, and every `check-dist` step reads the
+directory its job uploads. No report found a blocking finding in the
+fleet's workflows. The live findings are in this repository's rules
+and templates, and in documentation.
+
+| Repository | Ranges | Runbook | Verdict |
+|---|---|---|---|
+| development | 6 | wave 1 (5a), 2a to 2d (5b to 5e) | findings D1 to D6 |
+| actions | 2 | whole runbook (5f) | finding X1; one pre-plan issue |
+| andris | 1 | whole runbook | finding R1; `make test` not cleanly run here |
+| client-python-k3s | 1 | single-pass runbook | advisory only; one pre-plan issue |
+| divergulent | 1 | whole runbook | finding R2 |
+| hunkydory | 1 | whole runbook | advisory only; one pre-plan issue |
+| instar | 1 | whole runbook | finding R3; tag ruleset missing |
+| kerbside | 1 | whole runbook | finding D4 started here |
+| occystrap | 2 | single-pass runbook | advisory only |
+| ryll | 3 | whole runbook | finding R4; D3 started here |
+| shakenfist | 3 | whole runbook | advisory only; one pre-plan issue |
+| agent-python | 1 | floor checklist (5h) | clean |
+| client-python | 1 | floor checklist (5h) | finding R5 |
+| client-python-ova | 3 | floor checklist (5h) | one defect, fixed since by #31 |
+| clingwrap | 1 | floor checklist (5h) | finding R5 |
+| library-utilities | 1 | floor checklist (5h) | clean |
+
+The floor checklist's five items passed for all seven of 5h's ranges:
+every landing is a two-parent merge; nothing unattended was added; no
+secret, private hostname or address entered a repository; nothing
+removed or renamed is still named (5h grepped all fourteen release
+repositories, `actions` and this one); and every release fails
+closed.
+
+**Dry runs.** All twelve were `workflow_dispatch` runs on `develop`
+that concluded `success`, with `ci-gate` and every publishing job
+skipped, every build job successful, every `check-dist` step run and
+successful, and no pending deployment or approval.
+
+| Repository | Run | Head |
+|---|---|---|
+| agent-python | 40638078010 | ce31934e |
+| andris | 40638081095 | d508b778 |
+| client-python | 40638084091 | 05d04ebb |
+| client-python-k3s | 40638087137 | 74c69893 |
+| clingwrap | 40638090421 | 8a579925 |
+| divergulent | 40638093494 | 2cc81773 |
+| hunkydory | 40638096377 | 1ed3acba |
+| kerbside | 40638099406 | 9d8bf6f1 |
+| library-utilities | 40638102507 | 70cbf5dc |
+| occystrap | 40638105643 | 6a86cc84 |
+| ryll | 40638108706 | e49ddce5 |
+| shakenfist | 40638111603 | 9f7d908f |
+
+client-python-ova (39303533446) and instar (39476356008) are cited, as
+survey item 4 says. hunkydory publishes a `.vsix`, not a wheel, so it
+has no `check-dist` step; its digest step and upload read the same
+directory.
+
+**Findings to fix.** Each lands after this phase merges, as one pull
+request per repository (decision 5.5).
+
+* **D1. `release-process` fails open in six ways** (5e, e7a34fc). The
+  management session reproduced each with 5e's fixture script: thirteen
+  workflows that should fail all pass, and the control fails. No
+  release workflow in the fleet is spelled any of these ways today.
+  - The gate step's `continue-on-error: true`, or `if: ${{ false }}`
+    on it, or the Rust gate job's `continue-on-error`, passes.
+  - A `sha:` input on the gate step passes, so the gate can approve a
+    commit other than the one released.
+  - The Python rules' status-function check (`release_jobs.py:63`)
+    knows only `always()` and `!cancelled()`, so a `sign-tag` guarded
+    by `(success() || failure()) && ...` passes. Result literals are
+    also matched case-sensitively, where GitHub is not.
+  - The Rust rules' `job_effects` (`release_rust.py:159`) misses
+    `packages: write` and other write scopes, so such a job under the
+    build-job guard runs on a dispatch with no gate, and passes.
+  - The Python gate rule requires only environment jobs to be
+    downstream of the gate, so a `github-release` job with
+    `contents: write` and no environment can need only an ungated job.
+  - `STEP_USES_RE` (`workflows.py:40`) misses a `uses:` with a trailing
+    comment, the form Renovate writes for a digest pin, so an
+    unguarded publishing step stops counting as publishing.
+* **D2. The Rust template README is narrower than the rules it says
+  it governs** (5d). Invariant 7 does not mention `write-all`,
+  `secrets['...']` or `secrets: inherit`; invariant 13 says "uploads a
+  path naming `*.whl`" where the rule finds wheel jobs by their build
+  and requires the check after it; invariant 1 does not say
+  `branches-ignore`. `release-process.md:159-160` says the guards are
+  read "as exact strings", which its own lines 195 to 197 contradict
+  for the build-job guard. The Python template README's prerequisites
+  omit the `paths-filter` `base_sha` rule and the named-workflow-exists
+  rule, and say "the default branch" where the rule reads `develop`.
+* **D3. The Rust template's `sign-release-tag.sh` carries a
+  `<repository>` placeholder** in its verify-command comment (ryll
+  5g). Invariant 14 requires the script byte for byte, so phase 4's
+  copy into ryll (ryll#623) undid ryll's filled-in name, and no
+  repository now says how to verify a release tag.
+* **D4. A bypassed merge can be released through a later docs-only
+  queue entry** (kerbside 5g). In a repository whose CI filters by
+  path, a docs-only entry on top of a bypassed code merge skips the
+  code tests and still succeeds, so the gate accepts it. The template
+  README's recovery table says to "tag a later commit that went
+  through the queue", which is that commit, and kerbside's
+  `docs/development.md` says the same. client-python-k3s already says
+  "a later non-docs queue entry". The wording is fixed in the
+  template and in kerbside; the gate's blindness goes to Future work.
+* **D5. Duplicated and fragile helpers** (5b). `step_uses()` in
+  `release_rust.py:284` repeats `step_action()` in `workflows.py:442`
+  without its version split; `test_release_rust.py:189,194` split
+  READMEs on bare heading literals.
+* **D6. `README.md`'s Rust template bullet** (5d) runs to four lines
+  where its siblings take one; the detail is already in
+  `docs/release-automation.md`.
+* **X1. `actions`' `docs/consuming.md` Mode 2 snippet** uses `<job>`
+  inside the concurrency group expression, so two jobs pasted
+  unchanged share a group and cancel each other (5f).
+* **R1. andris:** `AGENTS.md:115` calls every script in `tools/` a
+  template copy, but `tools/test-release-version.sh` is andris's own;
+  `docs/releasing.md`'s "the tag names a different version" recovery
+  runs `tag-release.sh` without the `COMMIT` that the template's
+  recovery gives.
+* **R2. divergulent:** `docs/development.md:56-60` still calls the
+  reviewer the job at the bottom of `unit-tests.yml`, which #132 made
+  false; `RELEASE-SETUP.md` section 4 does not say that a pull request
+  opened with `GITHUB_TOKEN` never reports "Can enqueue".
+* **R3. instar:** `docs/development.md:543` assumes a tag ruleset
+  that instar does not have, and `CHANGELOG.md` has no entry for the
+  new release process. The operator decides whether to create the
+  "Release tags" ruleset that `RELEASE-SETUP.md` step 3 asks for, a
+  settings change.
+* **R4. ryll:** `fuzz.yml:300-302` and `tools/report-fuzz-failure.sh:377-379`
+  cite the version-mismatch issue step that #591 removed;
+  `publish-ryll-pypi`'s checkout (`release.yml:426`) has no comment
+  saying why it is there. Its verify command returns with D3.
+* **R5. client-python and clingwrap** keep a workflow-level
+  `pull-requests: write` in `functional-tests.yml` (:21 and :10) after
+  adding `merge_group`, so queue runs install dependencies with a
+  write-scoped token. agent-python removed it in the same change for
+  that reason. client-python's `functional-tests.yml:161-163` also says
+  `smoke-cluster.yml`'s key lacks the re-run guard, which `actions`
+  added before #432 merged.
+
+**Fixed since.** client-python-ova#29's aggregators used
+`!cancelled()`, so a cancelled run skipped them into a pass; #31
+changed them to `always()`. ryll#591's build jobs had no `if:`, so a
+dry run skipped them; #599 fixed it. shakenfist#4581's "Can merge"
+accepted any skipped job; 896b2aca8 fixed it (shakenfist#4582,
+closed). occystrap had no gate-countable CI between #163 and #174;
+#174 fixed it, and no tag was cut in the window.
+
+**Declined, with reasons.**
+* Files over 800 lines: `release_rust.py` (989), `test_release.py`
+  (1,355) and `test_release_rust.py` (860) are new, but e7a34fc moved
+  that code out of two files over 2,000 lines, and each mirrors one
+  seam already.
+* Long comments: hunkydory's concurrency comment, repeated in three
+  workflows, and client-python-k3s's `release.yml:55-64` and
+  `functional-tests.yml` comments explain contracts that are easy to
+  break, which `comment-proportion` allows.
+* Exact-string assertions in `test_release_rust.py` and
+  `test_release.py:943` pin which rule produced a finding, which is
+  their purpose.
+* `audit/text/release_jobs.py` is tested through the checks that use
+  it, as the rest of `audit/text/` is.
+* occystrap's lines over 120 characters are in YAML comments and in a
+  `jq` line copied from the template.
+* shakenfist's `tools/check-wheel-data.py` lacks type hints on a
+  40-line release tool, and its sf-resources fix has no unit test for
+  a raising poll; the cluster test it fixed is the proof.
+* andris's `make test` is not re-run: see the execution notes.
+
+**Pre-plan problems, for issues** (filed by the management session
+once the operator has read this list):
+1. hunkydory: four required checks ("Build, test and lint",
+   "Pre-commit hooks", "Analyze", "gitleaks") carry no
+   `integration_id`, so any app could satisfy them.
+2. client-python-k3s: `release.yml:272` cites a plan step in a
+   comment.
+3. `actions`: `docs/consuming.md:60,85` and `smoke-cluster.yml:199`
+   link to `development/blob/main/audits/...`, which moved to
+   `docs/audits/` in August.
+4. shakenfist: `release.yml:294` interpolates a secret into a `run:`
+   line.
+5. development: the Python template's `sign-tag` checks gitsign
+   against a `checksums.txt` from the same release, fetched with
+   `curl -sLO` and no `-f`, where the Rust template pins a hash; and
+   its `build` checks out without `persist-credentials: false` on the
+   static pool.
+6. instar: the release `build` job runs on a persistent runner rather
+   than a `vm` one.
+
+`sign-tag` on a non-`vm` runner in the Python repositories is
+already in Future work, and clingwrap's missing path filter is
+clingwrap#118.
+
 ## Agent guidance
 
 ### Execution model
@@ -2679,9 +2907,20 @@ chosen to defer to here, so that we do not forget them.
   spelling. This predates the plan.
 * **CodeQL on merge groups.** `codeql-analysis.yml` runs on push
   only. It only needs `merge_group` if it becomes a required check.
-* **shakenfist's "Can merge" does not require `sanity_checks`**
-  (shakenfist#4582), found while reviewing wave 2. It predates this
-  plan, so phase 3 left it alone.
+* **The gate cannot tell a queue run that tested the code from one
+  that skipped it.** A docs-only queue entry on top of a bypassed code
+  merge succeeds without running the code tests, and the gate accepts
+  it (phase 5 finding D4). Closing it needs either no bypass, which is
+  `PLAN-bot-bypass-identity.md`'s, or a gate that refuses a run whose
+  code lanes were skipped.
+* **`merge-group-cancellation` does not require the first-attempt
+  term** in a base-branch concurrency key, which phase 3 added fleet
+  wide so that a re-run cannot cancel a live entry. All eleven
+  consumers carry it today, and nothing tests it in `actions`'
+  `smoke-cluster.yml` (phase 5).
+* **The Rust template's shell scripts are never run by a test.**
+  `release-version.sh` is; `propose-release.sh`, `tag-release.sh` and
+  `sign-release-tag.sh` are only compared with their copies (phase 5).
 
 ### Bugs fixed during this work
 
