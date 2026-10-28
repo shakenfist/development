@@ -26,13 +26,14 @@ from audit.files import require_tracked_paths
 from audit.repo import DEVELOPMENT_ROOT, read_within
 from audit.text.release_jobs import (
     CHECK_DIST_ACTION, CI_GATE_ACTION, DOWNLOAD_ARTIFACT_ACTION, GH_RELEASE_ACTION, GUARD_KINDS, RUNNER_TEMP_RE,
-    UNREACHED, UPLOAD_ARTIFACT_ACTION, ci_gate_findings, gate_jobs, gate_workflow_names, input_is, job_checks_out,
-    job_container_actions, job_graph_issues, job_publishes, trigger_filter, upstream_jobs,
+    UNREACHED, UPLOAD_ARTIFACT_ACTION, ci_gate_findings, gate_jobs, gate_workflow_names, holds_write, input_is,
+    job_checks_out, job_container_actions, job_graph_issues, job_permissions, job_publishes, trigger_filter,
+    upstream_jobs, write_grants,
 )
 from audit.text.workflows import (
-    GITHUB_HOSTED_LABEL_RE, RUNNER_EXCEPTION_RE, STEP_USES_RE, concurrency_block, has_workflow_dispatch,
+    GITHUB_HOSTED_LABEL_RE, RUNNER_EXCEPTION_RE, concurrency_block, has_workflow_dispatch,
     indented_block, job_environment, job_is_push_guarded, job_level_keys, job_needs, mapping_entries,
-    split_runner_labels, step_action, step_keys, step_with_inputs, strip_trailing_comment,
+    split_runner_labels, step_action, step_keys, step_uses, step_with_inputs, strip_trailing_comment,
     strip_yaml_comments, unquote, workflow_header, workflow_job_blocks, workflow_step_blocks,
 )
 
@@ -114,38 +115,6 @@ def release_jobs(repo):
     return content, workflow_job_blocks(content)
 
 
-def job_permissions(body):
-    """The permissions a job, or a workflow's header, sets.
-
-    A dict of scope to access for the block and flow mappings, the
-    scalar for `read-all` and `write-all`, and None where there is no
-    `permissions:` key at all. `{}` is an empty dict, which is the
-    point of it: no scope at all, rather than the repository default.
-    """
-    keys = job_level_keys(body)
-    if 'permissions' not in keys:
-        return None
-    value = keys['permissions']
-    if not value:
-        return {key: unquote(access)
-                for key, access in mapping_entries(indented_block(body, 'permissions')).items()}
-    if value.startswith('{'):
-        entries = {}
-        for part in value.strip('{}').split(','):
-            if ':' in part:
-                key, access = part.split(':', 1)
-                entries[unquote(key)] = unquote(access)
-        return entries
-    return unquote(value)
-
-
-def holds_write(permissions, scope):
-    """Does this permissions value grant write on scope?"""
-    if isinstance(permissions, dict):
-        return permissions.get(scope) == 'write'
-    return permissions == 'write-all'
-
-
 def secrets_read(body):
     """The secrets a job reads other than GITHUB_TOKEN, by name ('*' if unnamed)."""
     names = []
@@ -162,14 +131,15 @@ def job_effects(body):
     An empty list for a job whose work stays inside the run. The
     effects are named so that a finding can say which one it is, since
     "this job has an effect" is not something its author can act on.
+    Every write scope counts, not only contents and id-token:
+    `packages: write` pushes an image and `write-all` grants everything,
+    and a build-section job holding either would otherwise run its
+    effect on a dispatch, whose gate is skipped.
     """
     effects = []
     if job_environment(body) is not None:
         effects.append('names an environment')
-    permissions = job_permissions(body)
-    for scope in ('contents', 'id-token'):
-        if holds_write(permissions, scope):
-            effects.append(f'holds {scope}: write')
+    effects.extend(f'holds {grant}' for grant in write_grants(job_permissions(body)))
     effects.extend(f'reads secrets.{name}' if name != '*' else 'reads a secret'
                    for name in secrets_read(body))
     return effects
@@ -279,14 +249,6 @@ def format_permissions(permissions):
     if isinstance(permissions, dict):
         return '{' + ', '.join(f'{scope}: {access}' for scope, access in permissions.items()) + '}'
     return permissions
-
-
-def step_uses(step):
-    """The action a step invokes, with its version, or None."""
-    match = STEP_USES_RE.search(strip_yaml_comments(step))
-    if not match:
-        return None
-    return match.group(1).strip().strip('"').strip("'")
 
 
 def step_runs(steps, command):
@@ -617,9 +579,9 @@ def rust_build_guard_issues(repo):
 def rust_effect_guard_issues(repo):
     """Findings for jobs with an effect outside the run that a dry run reaches (invariant 7).
 
-    A job that names an environment, can write to the repository, can
-    mint an OIDC token or reads a secret is one a dispatch must never
-    run, and a pushed tag is the one event on which the gate always
+    A job that names an environment, holds any write scope -- to the
+    repository, the package registry, an OIDC token -- or reads a secret
+    is one a dispatch must never run, and a pushed tag is the one event on which the gate always
     runs. sign-tag and github-release take the guard whatever their
     permissions say, as invariants 8 and 12 require.
     """
