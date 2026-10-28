@@ -77,8 +77,9 @@ use them rather than argue with the block.
 Every repository that plans the current way keeps every plan it has
 ever written in `docs/plans/`, forever. Nothing removes a finished
 one, so the directory only grows. A survey of the local clones on
-2026-10-28 (the age is the first commit of `docs/plans/index.md`
-in which the plan's row carried its current terminal status; the
+2026-10-28 (the age is the last commit of `docs/plans/index.md`
+in which the plan's row changed into a terminal status from one
+that was not; the
 instar clone is from 2026-08-17 and its index still holds prose
 statuses, so its row is a file count only):
 
@@ -123,10 +124,10 @@ Mechanics that constrain the design, verified in the code:
 
 * The audit clones every target with `--depth 1`
   (`.github/workflows/consistency-audit.yml:126`), so a criterion
-  cannot read `git log`. Anything about age goes through the
-  `audit/github.py` seam's `api_answer()`, which raises
-  `ToolFailure` (and so reports `error`) when GitHub does not
-  answer.
+  cannot read `git log`. Age needs the index's history, so it comes
+  either from a deeper clone or from the `audit/github.py` seam's
+  `api_answer()`, which raises `ToolFailure` (and so reports
+  `error`) when GitHub does not answer; phase 4 decides which.
 * `plan-index` (`scripts/audit/checks/plans.py`, `PlanIndex`)
   requires every master plan *file* to be linked from the index,
   and `plan_link_path()` returns `None` for an absolute URL. A row
@@ -607,8 +608,9 @@ repository whose `dot-claude/skills/` is symlinked as
 * `tests/test_retire_plans.py` for it;
 * `dot-claude/skills/retire-plans/SKILL.md`, the judgement;
 * a hand-off paragraph in `dot-claude/skills/consistency-fix/SKILL.md`;
-* a row for both in `llm-setup`'s `README.md` skills and helpers
-  lists, following its existing entries.
+* a row for the skill in `llm-setup`'s `README.md` skills list, and
+  for the helper in `docs/layout.md` and `docs/helper-scripts.md`
+  (the README lists no helpers).
 
 Out: retiring any plan (phase 3), the criterion (phase 4), and any
 change to this repository beyond this plan's own record.
@@ -755,9 +757,10 @@ this section, and the Execution table row's name.
 * `bin/retire-plans pointers PLAN-code-review-tracking.md`, run in
   this repository, finds the `README.md` link at line 29 and the
   `AGENTS.md` mentions.
-* `grep -c '90' dot-claude/skills/retire-plans/SKILL.md` is at most
-  1, and the skill links `docs/plan-retirement.md`: the rule lives
-  in one place.
+* `grep -cwiE '90|ninety|three months' dot-claude/skills/retire-plans/SKILL.md`
+  is at most 1, the skill links `docs/plan-retirement.md`, and on
+  review it does not describe how the clock is computed: the rule
+  lives in one place.
 * The merge request is open, and Mikal has merged it.
 
 #### Back brief
@@ -789,7 +792,12 @@ llm-setup branch `retire-plans`:
   eligible, not 3 / 3 / 23). Mikal chose the status-change clock;
   corrected at source in `b7f1470` here (the docs page, open question
   2, decision 3 and phase 4's brief). With it, the helper's counts
-  match the Situation table exactly.
+  match the Situation table exactly. A change from one terminal
+  status to another does not restart the clock, as the helper
+  implements; the docs page says so.
+* `permalink` and `rewrite-index` resolve a plan's file by name
+  anywhere under `docs/plans/`, as `plan-index` does, so ryll's
+  `completed/` phase files get their real path; tests cover it.
 * 2a's extras, kept: `eligible` refuses a shallow clone, and never
   dates a row by an index rename or by the commit restoring a
   deleted index; `permalink` and `rewrite-index` fetch too, and take
@@ -836,7 +844,7 @@ Planning effort: high. It reaches `audit-manage-issues.py`.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 4a | high | opus | none | Add a `PlanRetirement` class to `scripts/audit/checks/plans.py`: id `plan-retirement`, spec `docs/audits/plan-retirement.md`, `issue_title = 'Completed plans awaiting retirement'`. N/A without `docs/plans/index.md`. Read the index with `iter_markdown_table_rows` and `plan_table_columns` as `PlanIndex` does; for each row with a local link and a terminal status, find its phase files with `PLAN_PHASE_FILE_RE`, and date the commit where its row last changed into a terminal status (open question 2). That needs the index's history, which the audit's `--depth 1` clone lacks: phase 4 planning decides between cloning with `--filter=blob:none` (full history, blobs fetched on demand) and walking `repos/shakenfist/<repo>/commits?path=docs/plans/index.md` through `repo.github.api_answer()`, and must say what either costs across the matrix. Fail listing each plan over `RETIREMENT_AGE_DAYS = 90` with its age, as `findings`. GitHub not answering raises `ToolFailure` (status `error`), never `fail` or `not_applicable`. Register in `CHECKS` in `scripts/audit/registry.py` beside the plan checks; write the spec following `docs/audits/README.md`, naming the `retire-plans` skill and linking `docs/plan-retirement.md`; add its row to `docs/audits/README.md`; add `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` lines in `scripts/tests/test_metadata.py`; tests in `scripts/tests/test_plans.py` covering pass, fail, N/A, a permalink row (ignored), phase-file ages, and API failure, using `FakeGitHub`. |
+| 4a | high | opus | none | Add a `PlanRetirement` class to `scripts/audit/checks/plans.py`: id `plan-retirement`, spec `docs/audits/plan-retirement.md`, `issue_title = 'Completed plans awaiting retirement'`. N/A without `docs/plans/index.md`. Read the index with `iter_markdown_table_rows` and `plan_table_columns` as `PlanIndex` does; for each row with a local link and a terminal status, date the commit where its row last changed into a terminal status (open question 2). That needs the index's history, which the audit's `--depth 1` clone lacks: phase 4 planning decides between cloning with `--filter=blob:none` (full history, blobs fetched on demand) and walking `repos/shakenfist/<repo>/commits?path=docs/plans/index.md` through `repo.github.api_answer()`, and must say what either costs across the matrix. Fail listing each plan over `RETIREMENT_AGE_DAYS = 90` with its age, as `findings`; phase files play no part in the age. GitHub not answering raises `ToolFailure` (status `error`), never `fail` or `not_applicable`. Register in `CHECKS` in `scripts/audit/registry.py` beside the plan checks; write the spec following `docs/audits/README.md`, naming the `retire-plans` skill and linking `docs/plan-retirement.md`; add its row to `docs/audits/README.md`; add `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` lines in `scripts/tests/test_metadata.py`; tests in `scripts/tests/test_plans.py` covering pass, fail, N/A, a permalink row (ignored), a row that went terminal long ago although its files were touched recently (eligible), a plan reopened and finished again (the clock restarts), a terminal-to-terminal change such as `Complete` to `Superseded` (the clock does not restart), an index rename, and API failure, using `FakeGitHub`. |
 | 4b | medium | sonnet | none | Decide, with the pilot results, whether the rule in `docs/plan-retirement.md` should also become a shared block in every `PLAN-TEMPLATE.md` (added to `PLAN_TEMPLATE_BLOCKS`). If yes, it reaches the fleet through the issues `plan-template` files, as `plan-phase-landing` did. |
 | 4c | medium | sonnet | none | Run the new check with `--dry-run` across the matrix and record here how many repositories it newly fails, including this one, before merging. |
 

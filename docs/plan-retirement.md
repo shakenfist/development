@@ -35,6 +35,10 @@ time by changes that are not about them -- a sweep making links
 absolute, a template fix, and retirement itself rewriting pointers
 in other plans -- so a clock that restarts on every touch never runs
 out. A plan that is reopened and finished again starts a new clock.
+Only a change into a terminal status from one that is not starts
+the clock: a move from one terminal status to another, such as
+`Complete` to `Superseded`, and an edit that leaves the status
+alone, such as rewriting the row's link, do not.
 `Superseded` and `Abandoned` plans retire on the same clock; for an
 abandoned plan, the reasoning worth keeping is usually why it was
 abandoned.
