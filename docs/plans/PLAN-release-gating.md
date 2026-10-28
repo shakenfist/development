@@ -2058,26 +2058,28 @@ Out:
 #### Landing record
 
 Every landing is a merge commit with two parents, so every range is
-`<sha>^1..<sha>`, read against that repository's default branch.
+`<sha>^1..<sha>`, read against that repository's default branch. Each
+merge carries its `git diff --shortstat` insertions and deletions,
+which every audit report must match.
 
 | Repository | Merges | Runbook |
 |---|---|---|
-| development | f3f8472 (#294), 8d032a5 (#295), 10e3145 (#299), d668b98 (#300), 3e0ced1 (#304), e7a34fc (#328) | yes |
-| actions | 658d767 (#184), e1e2c85 (#185) | yes |
-| andris | 288aba3 (#34) | yes |
-| client-python-k3s | 6d40cee (#154) | yes |
-| divergulent | 70ae4c3 (#132) | yes |
-| hunkydory | b421cef (#103) | yes |
-| instar | a31e0d1 (#796) | yes |
-| kerbside | d30ff34 (#582) | yes |
-| occystrap | e9e66d9 (#163), 199f5b8 (#174) | yes |
-| ryll | d70ff4d (#591), 20e3cd4 (#599), f8b99b3 (#623) | yes |
-| shakenfist | b3dc0c6 (#4597), 6a3f307 (#4581), 1ec1a6c (#4607) | yes |
-| agent-python | 65a1778 (#155) | no |
-| client-python | d789e0b (#432) | no |
-| client-python-ova | 4a8eeed (#29), 3b40144 (#30), 4b1764d (#31) | no |
-| clingwrap | f4966df (#145) | no |
-| library-utilities | 0940cbe (#74) | no |
+| development | f3f8472 (#294, +968/-87), 8d032a5 (#295, +1363/-3), 10e3145 (#299, +53/-22), d668b98 (#300, +16/-4), 3e0ced1 (#304, +159/-6), e7a34fc (#328, +5625/-1378) | yes |
+| actions | 658d767 (#184, +69/-6), e1e2c85 (#185, +32/-8) | yes |
+| andris | 288aba3 (#34, +1064/-690) | yes |
+| client-python-k3s | 6d40cee (#154, +198/-32) | yes |
+| divergulent | 70ae4c3 (#132, +269/-23) | yes |
+| hunkydory | b421cef (#103, +457/-82) | yes |
+| instar | a31e0d1 (#796, +939/-146) | yes |
+| kerbside | d30ff34 (#582, +214/-39) | yes |
+| occystrap | e9e66d9 (#163, +487/-59), 199f5b8 (#174, +161/-104) | yes |
+| ryll | d70ff4d (#591, +879/-421), 20e3cd4 (#599, +23/-6), f8b99b3 (#623, +10/-4) | yes |
+| shakenfist | b3dc0c6 (#4597, +94/-30), 6a3f307 (#4581, +202/-37), 1ec1a6c (#4607, +76/-7) | yes |
+| agent-python | 65a1778 (#155, +315/-41) | no |
+| client-python | d789e0b (#432, +391/-21) | no |
+| client-python-ova | 4a8eeed (#29, +240/-35), 3b40144 (#30, +35/-3), 4b1764d (#31, +25/-13) | no |
+| clingwrap | f4966df (#145, +302/-18) | no |
+| library-utilities | 0940cbe (#74, +300/-27) | no |
 
 #### What the survey found
 
@@ -2338,9 +2340,10 @@ Started on 2026-10-28 (AEDT).
   totals matched before it was sent back. Reading its report against
   its brief caught it, and no rule would have: a lesson for
   `PLAN-push-audit-phase.md`.
-* **Host load.** With fourteen agents building at once, the host's
-  load average reached 78, and andris's timing-bound `make test`
-  timed out locally. The merge changed no Rust, and andris's
+* **Host load.** With up to sixteen agents running at once (twelve
+  from the start, and 5b to 5e while the 5g agents were still
+  building), the host's load average reached 78, and andris's
+  timing-bound `make test` timed out locally. The merge changed no Rust, and andris's
   `merge_group` run on `develop`'s tip succeeded, so this is recorded
   as not cleanly run rather than as a finding.
 
@@ -2432,7 +2435,7 @@ request per repository (decision 5.5).
   - The Python gate rule requires only environment jobs to be
     downstream of the gate, so a `github-release` job with
     `contents: write` and no environment can need only an ungated job.
-  - `STEP_USES_RE` (`workflows.py:40`) misses a `uses:` with a trailing
+  - `STEP_USES_RE` (`workflows.py:439`) misses a `uses:` with a trailing
     comment, the form Renovate writes for a digest pin, so an
     unguarded publishing step stops counting as publishing.
 * **D2. The Rust template README is narrower than the rules it says
