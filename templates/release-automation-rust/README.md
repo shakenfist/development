@@ -113,14 +113,15 @@ signature. With `OWNER/REPO` replaced by the repository:
 ```bash
 git fetch --tags --force origin
 gitsign verify-tag vX.Y.Z \
-  --certificate-identity-regexp '^https://github\.com/OWNER/REPO/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-identity-regexp '^https://github\.com/OWNER/REPO/\.github/workflows/release\.yml@refs/tags/v[0-9]' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
 The certificate's identity is the workflow that signed and the ref it
-ran on, so the pattern names `release.yml` and a `v*` tag. One that
-stops at the repository would accept a signature from any of its
-workflows, on any branch. A repository's `docs/releasing.md` carries
+ran on, so the pattern names `release.yml` and a version tag, `v` and
+a digit, which is all `sign-release-tag.sh` will sign. One that stops
+at the repository would accept a signature from any of its workflows,
+on any branch. A repository's `docs/releasing.md` carries
 this command with its own name filled in; `tools/sign-release-tag.sh`'s
 header has the same check, written with `${GITHUB_REPOSITORY}` so that
 the script stays identical in every repository.
