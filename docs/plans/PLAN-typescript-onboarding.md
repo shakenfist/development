@@ -283,10 +283,11 @@ holds the half that does. The phase section carries the split.
 
 7b then landed on 2026-09-21, once the operator stood up the Entra
 credential, with follow-ups over the next two days; *What 7b found*
-in the phase section records it. Neither phase 7 nor phase 8 was closed out when it finished -- the
-plan file was not touched between 2026-09-21 and 2026-10-28 -- so
-both rows above were set to `Complete` together on 2026-10-28, from
-the GitHub record rather than from memory.
+in the phase section records it. Neither phase 7 nor phase 8 was
+closed out when it finished -- the plan file was not touched between
+2026-09-21 and 2026-10-28 -- so both rows above were set to
+`Complete` together on 2026-10-28, from the GitHub record rather
+than from memory.
 
 ### 1. Register hunkydory in the audit scope
 
