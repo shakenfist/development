@@ -5,6 +5,10 @@
       "sha": "da73cad9f9e2a81aca7aff32d644c0197d747ec2",
       "date": "2026-09-06"
     },
+    ".claude/skills/review-tracking-adoption/SKILL.md": {
+      "sha": "7ae236df589b598f5678e26bcb67d42d65ce2f4e",
+      "date": "2026-10-28"
+    },
     ".claude/skills/standards-alignment/SKILL.md": {
       "sha": "3eb61107b6d97f32b6a51d55d9f2bcdb6b18e05e",
       "date": "2026-10-05"
@@ -66,7 +70,7 @@
       "date": "2026-10-16"
     },
     ".github/workflows/renovate.yml": {
-      "sha": "1bfb2bb6c5ed1d38e167b27fd219d1130533080f",
+      "sha": "100616f204cceb7495f6dbb1223e5bfc5e920a0c",
       "date": "2026-10-28"
     },
     ".github/workflows/secret-scan.yml": {
@@ -90,12 +94,16 @@
       "date": "2026-10-22"
     },
     "PLAN-TEMPLATE.md": {
-      "sha": "121bfae4d5735b0ab0c72ebca68532e94ea29d6b",
-      "date": "2026-10-16"
+      "sha": "2586a6e49881abcb8c0a00414eac30364bd53da7",
+      "date": "2026-10-28"
+    },
+    "PUSH-AUDIT.md": {
+      "sha": "19250ecbf2e394e40a54ca5babb36d7b0d211fcb",
+      "date": "2026-10-28"
     },
     "README.md": {
-      "sha": "d99208aebffcfe7bb0d0d0eda46419f568f7b4f9",
-      "date": "2026-10-22"
+      "sha": "9d0658d08cf96ae9864ee8effe80ec7e04869669",
+      "date": "2026-10-28"
     },
     "docs/audits/README.md": {
       "sha": "2ae40143f3bef4dc6276f20c157d4e2c7e61f0ab",
@@ -347,6 +355,10 @@
     },
     "docs/consistency-audits.md": {
       "sha": "50b94497c98955ac2310d54d1b42c797ce08094f",
+      "date": "2026-10-28"
+    },
+    "docs/plan-retirement.md": {
+      "sha": "251042e2280c30d2d534440ef45608f51875a05d",
       "date": "2026-10-28"
     },
     "docs/release-automation.md": {
@@ -610,7 +622,7 @@
       "date": "2026-10-21"
     },
     "scripts/tests/test_plans.py": {
-      "sha": "edbd0f4644d8fe2556f2c7f6f9ce43687fb1469d",
+      "sha": "797590b39276266726da7b06b3275b4aa826235d",
       "date": "2026-10-28"
     },
     "scripts/tests/test_python_source.py": {
@@ -778,7 +790,7 @@
       "date": "2026-10-18"
     },
     "templates/renovate/renovate.yml": {
-      "sha": "1bfb2bb6c5ed1d38e167b27fd219d1130533080f",
+      "sha": "100616f204cceb7495f6dbb1223e5bfc5e920a0c",
       "date": "2026-10-28"
     },
     "templates/review-tracking/README.md": {
@@ -897,6 +909,10 @@
       "sha": "9d7efbf68a9f510b036f0db47cff860b635bb41f",
       "date": "2026-09-04"
     },
+    "tools/check-audit-read-token.sh": {
+      "sha": "e07ef1adf5539a4a2fad3817489faf207b999ffd",
+      "date": "2026-10-28"
+    },
     "tools/ci-prune-reviews.sh": {
       "sha": "b4ce5b64c79afb01e07b98f43457fa5ff842e896",
       "date": "2026-10-16"
@@ -908,6 +924,10 @@
     "tools/report-audit-failure.sh": {
       "sha": "44d17f77b0a35be27b7368141c1bdadb9200e807",
       "date": "2026-10-18"
+    },
+    "tools/review-tracking.sh": {
+      "sha": "0864c56af83a71932257dcb9dbc6cf1801f698db",
+      "date": "2026-10-28"
     }
   }
 }

@@ -749,18 +749,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/delete-branch-on-merge.md",
       "author": "mikal"
     },
@@ -905,10 +893,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_plans.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_registry.py",
       "author": "mikal"
     },
@@ -949,14 +933,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/renovate/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate",
-      "author": "mikal"
-    },
-    {
       "path": "templates/review-tracking/README.md",
       "author": "mikal"
     },
@@ -974,10 +950,6 @@
     },
     {
       "path": "templates/shared-blocks",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     },
     {
@@ -1006,6 +978,46 @@
     },
     {
       "path": "PUSH-AUDIT.md",
+      "author": "mikal"
+    },
+    {
+      "path": "README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/plan-retirement.md",
+      "author": "mikal"
+    },
+    {
+      "path": "PLAN-TEMPLATE.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_plans.py",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
       "author": "mikal"
     }
   ],
