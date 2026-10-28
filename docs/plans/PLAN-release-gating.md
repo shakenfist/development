@@ -2184,8 +2184,9 @@ repository, and fresh clones of the fourteen taken on 2026-10-27.
      - Did the change remove or rename anything, such as a trigger, a
        job name, a script or a step, that something else still
        names?
-     The other fourteen repositories' agents ask these questions too,
-     after their runbook's own.
+     The other eleven repositories' agents (this repository's,
+     `actions`' and the nine in 5g) ask these questions too, after
+     their runbook's own.
 5.4. **Twelve dry runs, dispatched by the management session after
      the operator's yes at the time.** Dispatching runs live CI, so it
      needs a yes, as phase 3's did. One yes covers the batch. The
@@ -2333,6 +2334,10 @@ Started on 2026-10-28 (AEDT).
   diff stat alone.
 * **Totals.** Every report's insertion and deletion totals matched
   the landing record, for all 29 ranges, so no report was re-run.
+  That proves each range was opened, not that it was read: 5b's
+  totals matched before it was sent back. Reading its report against
+  its brief caught it, and no rule would have: a lesson for
+  `PLAN-push-audit-phase.md`.
 * **Host load.** With fourteen agents building at once, the host's
   load average reached 78, and andris's timing-bound `make test`
   timed out locally. The merge changed no Rust, and andris's
@@ -2346,11 +2351,14 @@ the answer to decision 5.3's first question is no: no job that names
 an environment or publishes can run when `ci-gate` fails or is
 skipped on a tag push. Every required check is reported on both
 `pull_request` and `merge_group` (occystrap's queue is off, so only
-the first applies there), a queue run can be cancelled only
-once it is superseded, and every `check-dist` step reads the
-directory its job uploads. No report found a blocking finding in the
-fleet's workflows. The live findings are in this repository's rules
-and templates, and in documentation.
+the first applies there). A newer entry does cancel an older queue
+run, as decision 3.1 intends: on a first attempt every consumer's
+concurrency group keys on the base branch. A re-run keys on its own
+queue branch, so it neither cancels a live entry nor is cancelled by
+one. Every `check-dist` step reads the directory its job uploads.
+No report found a blocking finding in the fleet's workflows. The
+live findings are in this repository's rules and templates, and in
+documentation.
 
 | Repository | Ranges | Runbook | Verdict |
 |---|---|---|---|
@@ -2449,8 +2457,9 @@ request per repository (decision 5.5).
   README's recovery table says to "tag a later commit that went
   through the queue", which is that commit, and kerbside's
   `docs/development.md` says the same. client-python-k3s already says
-  "a later non-docs queue entry". The wording is fixed in the
-  template and in kerbside; the gate's blindness goes to Future work.
+  "a later non-docs queue entry". The fix rewords the template's
+  recovery table and kerbside's `docs/development.md` the same way;
+  the gate's blindness is in Future work.
 * **D5. Duplicated and fragile helpers** (5b). `step_uses()` in
   `release_rust.py:284` repeats `step_action()` in `workflows.py:442`
   without its version split; `test_release_rust.py:189,194` split
@@ -2478,7 +2487,8 @@ request per repository (decision 5.5).
 * **R4. ryll:** `fuzz.yml:300-302` and `tools/report-fuzz-failure.sh:377-379`
   cite the version-mismatch issue step that #591 removed;
   `publish-ryll-pypi`'s checkout (`release.yml:426`) has no comment
-  saying why it is there. Its verify command returns with D3.
+  saying why it is there. Its verify command comes back with D3's
+  fix.
 * **R5. client-python and clingwrap** keep a workflow-level
   `pull-requests: write` in `functional-tests.yml` (:21 and :10) after
   adding `merge_group`, so queue runs install dependencies with a
@@ -2491,9 +2501,10 @@ request per repository (decision 5.5).
 `!cancelled()`, so a cancelled run skipped them into a pass; #31
 changed them to `always()`. ryll#591's build jobs had no `if:`, so a
 dry run skipped them; #599 fixed it. shakenfist#4581's "Can merge"
-accepted any skipped job; 896b2aca8 fixed it (shakenfist#4582,
-closed). occystrap had no gate-countable CI between #163 and #174;
-#174 fixed it, and no tag was cut in the window.
+did not need `sanity_checks` and accepted any skipped job; 896b2aca8
+fixed both (shakenfist#4582, closed). occystrap had no
+gate-countable CI between #163 and #174; #174 fixed it, and no tag
+was cut in the window.
 
 **Declined, with reasons.**
 * Files over 800 lines: `release_rust.py` (989), `test_release.py`
@@ -2517,19 +2528,20 @@ closed). occystrap had no gate-countable CI between #163 and #174;
 * andris's `make test` is not re-run: see the execution notes.
 
 **Pre-plan problems, for issues** (filed by the management session
-once the operator has read this list):
-1. hunkydory: four required checks ("Build, test and lint",
-   "Pre-commit hooks", "Analyze", "gitleaks") carry no
+once the operator has read this list). Items 1, 4 and 5 are security
+problems in what this plan protects, so they are filed first:
+1. Security. hunkydory: four required checks ("Build, test and
+   lint", "Pre-commit hooks", "Analyze", "gitleaks") carry no
    `integration_id`, so any app could satisfy them.
 2. client-python-k3s: `release.yml:272` cites a plan step in a
    comment.
 3. `actions`: `docs/consuming.md:60,85` and `smoke-cluster.yml:199`
    link to `development/blob/main/audits/...`, which moved to
    `docs/audits/` in August.
-4. shakenfist: `release.yml:294` interpolates a secret into a `run:`
-   line.
-5. development: the Python template's `sign-tag` checks gitsign
-   against a `checksums.txt` from the same release, fetched with
+4. Security. shakenfist: `release.yml:294` interpolates a secret into
+   a `run:` line.
+5. Security. development: the Python template's `sign-tag` checks
+   gitsign against a `checksums.txt` from the same release, fetched with
    `curl -sLO` and no `-f`, where the Rust template pins a hash; and
    its `build` checks out without `persist-credentials: false` on the
    static pool.
@@ -2937,6 +2949,8 @@ while planning it.
   match client-python's: `mikalstill` as required reviewer and a
   single `tag: v*` deployment policy. Each was read back afterwards.
   Phase 1's criterion is what keeps them repaired.
+* Defects in this plan's own landings that later merges fixed are
+  listed under *Fixed since* in the Phase 5 results.
 * Related issues: client-python-ova#19 is the prompt, and its phase 3
   pull request closes it. client-python-k3s's `tools/check-dist.sh`
   is the prior art for `check-dist`.
