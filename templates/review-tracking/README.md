@@ -195,6 +195,7 @@ re-synced.
 | Project | Default branch | Token |
 |---------|----------------|-------|
 | [actions](https://github.com/shakenfist/actions) | `main` | `GITHUB_TOKEN` |
+| [andris](https://github.com/shakenfist/andris) | `develop` | `DEPENDENCIES_TOKEN` |
 | [development](https://github.com/shakenfist/development) | `main` | `GITHUB_TOKEN` |
 | [hunkydory](https://github.com/shakenfist/hunkydory) | `develop` | `DEPENDENCIES_TOKEN` |
 | [kerbside](https://github.com/shakenfist/kerbside) | `develop` | `DEPENDENCIES_TOKEN` |
