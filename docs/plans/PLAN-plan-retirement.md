@@ -193,12 +193,16 @@ human merging the pull request.
    say to close them too. The alternative -- drafting them in the
    body and filing after merge -- keeps the issue tracker clean of
    anything unapproved but needs a second session after the merge.
-2. **What starts the 90-day clock?** Default: the date of the last
-   commit touching the plan file or any of its phase files, read
-   through the GitHub API. It needs no new field, and it means a
-   plan whose push-audit follow-ups are still landing is not yet a
-   candidate. The alternative is an explicit completion date in the
-   plan, which every repository would have to start writing.
+2. **What starts the 90-day clock?** Decided 2026-10-29 by Mikal,
+   reversing the original default: the commit where the plan's
+   index row last changed into a terminal status. The default was
+   the last commit touching the plan's files, but phase 2's helper
+   showed that maintenance sweeps restart it constantly
+   (divergulent `ddeaff6` touched six finished plans; one ryll sweep
+   eight), and that retirement's own pointer rewrites would restart
+   the clocks of the plans they edit. Under the last-touch clock,
+   divergulent, kerbside and ryll had 1, 1 and 10 eligible rather
+   than 3, 3 and 23.
 3. **Is there an opt-out?** Default: no. A plan worth keeping past
    90 days is a plan whose content belongs in `docs/`, which is
    what retirement does. If one is needed later, it is a marker in
@@ -683,7 +687,10 @@ this section, and the Execution table row's name.
    * `eligible [REPO_PATH]` -- fetch `origin`, read the index's plan
      table(s) by header, and for each row with a local link and a
      terminal status list the master and phase files and the date of
-     the last commit on `origin/<default>` touching any of them.
+     the commit on `origin/<default>` where the row last changed
+     into a terminal status, found by walking the index's history
+     (open question 2). The last commit touching the files is shown
+     for information only.
      Prints a table, and `--json`. Rows it cannot read are listed
      separately with why. `--days` defaults to 90.
    * `pointers PLAN` -- every line in the repository, outside the
@@ -741,7 +748,8 @@ this section, and the Execution table row's name.
   passes and includes `tests/test_retire_plans.py`.
 * `bin/retire-plans eligible ~/src/shakenfist/divergulent` and
   `.../kerbside` each list 3 plans, matching this plan's Situation
-  table, or the difference is explained in the execution notes.
+  table (which measured the same status-change clock), or the
+  difference is explained in the execution notes.
 * `bin/retire-plans eligible ~/src/shakenfist/ryll` reads the
   five-column index without listing any row as unreadable.
 * `bin/retire-plans pointers PLAN-code-review-tracking.md`, run in
@@ -783,7 +791,7 @@ Planning effort: high. It reaches `audit-manage-issues.py`.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 4a | high | opus | none | Add a `PlanRetirement` class to `scripts/audit/checks/plans.py`: id `plan-retirement`, spec `docs/audits/plan-retirement.md`, `issue_title = 'Completed plans awaiting retirement'`. N/A without `docs/plans/index.md`. Read the index with `iter_markdown_table_rows` and `plan_table_columns` as `PlanIndex` does; for each row with a local link and a terminal status, find its phase files with `PLAN_PHASE_FILE_RE`, and ask `repo.github.api_answer()` for `repos/shakenfist/<repo>/commits?path=<file>&per_page=1` per file (the clone is `--depth 1`, so `git log` is not available), taking the newest date. Fail listing each plan over `RETIREMENT_AGE_DAYS = 90` with its age, as `findings`. GitHub not answering raises `ToolFailure` (status `error`), never `fail` or `not_applicable`. Register in `CHECKS` in `scripts/audit/registry.py` beside the plan checks; write the spec following `docs/audits/README.md`, naming the `retire-plans` skill and linking `docs/plan-retirement.md`; add its row to `docs/audits/README.md`; add `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` lines in `scripts/tests/test_metadata.py`; tests in `scripts/tests/test_plans.py` covering pass, fail, N/A, a permalink row (ignored), phase-file ages, and API failure, using `FakeGitHub`. |
+| 4a | high | opus | none | Add a `PlanRetirement` class to `scripts/audit/checks/plans.py`: id `plan-retirement`, spec `docs/audits/plan-retirement.md`, `issue_title = 'Completed plans awaiting retirement'`. N/A without `docs/plans/index.md`. Read the index with `iter_markdown_table_rows` and `plan_table_columns` as `PlanIndex` does; for each row with a local link and a terminal status, find its phase files with `PLAN_PHASE_FILE_RE`, and date the commit where its row last changed into a terminal status (open question 2). That needs the index's history, which the audit's `--depth 1` clone lacks: phase 4 planning decides between cloning with `--filter=blob:none` (full history, blobs fetched on demand) and walking `repos/shakenfist/<repo>/commits?path=docs/plans/index.md` through `repo.github.api_answer()`, and must say what either costs across the matrix. Fail listing each plan over `RETIREMENT_AGE_DAYS = 90` with its age, as `findings`. GitHub not answering raises `ToolFailure` (status `error`), never `fail` or `not_applicable`. Register in `CHECKS` in `scripts/audit/registry.py` beside the plan checks; write the spec following `docs/audits/README.md`, naming the `retire-plans` skill and linking `docs/plan-retirement.md`; add its row to `docs/audits/README.md`; add `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` lines in `scripts/tests/test_metadata.py`; tests in `scripts/tests/test_plans.py` covering pass, fail, N/A, a permalink row (ignored), phase-file ages, and API failure, using `FakeGitHub`. |
 | 4b | medium | sonnet | none | Decide, with the pilot results, whether the rule in `docs/plan-retirement.md` should also become a shared block in every `PLAN-TEMPLATE.md` (added to `PLAN_TEMPLATE_BLOCKS`). If yes, it reaches the fleet through the issues `plan-template` files, as `plan-phase-landing` did. |
 | 4c | medium | sonnet | none | Run the new check with `--dry-run` across the matrix and record here how many repositories it newly fails, including this one, before merging. |
 
