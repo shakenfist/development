@@ -862,7 +862,12 @@ class ScriptTest(RustReleaseCase):
         self.assertIn('tools/tag-release.sh is not executable', self.script_issues())
 
     def test_a_verbatim_script_that_differs_fails(self):
-        self.script('sign-release-tag.sh', filled_script('sign-release-tag.sh').replace(b'<repository>', b'ryll'))
+        # Filling in the repository's name, which the template spells as
+        # ${GITHUB_REPOSITORY} so that every copy can stay byte for byte.
+        template = filled_script('sign-release-tag.sh')
+        changed = template.replace(b'${GITHUB_REPOSITORY}', b'shakenfist/ryll')
+        self.assertNotEqual(template, changed)
+        self.script('sign-release-tag.sh', changed)
         self.assertEqual(['tools/sign-release-tag.sh differs from templates/release-automation-rust/'
                           'sign-release-tag.sh, which every Rust release copies byte for byte (invariant 14)'],
                          self.issues(release_rust.rust_script_issues))

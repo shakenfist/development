@@ -106,6 +106,20 @@ per-repository section:
    environment itself, as a PyPI trusted publisher requires, asks a
    second time.
 
+Once `sign-tag` has run, anyone can check the tag's signature. Set
+`GITHUB_REPOSITORY` to the repository's owner/name, for example
+`shakenfist/ryll`, and run:
+
+```bash
+git fetch --tags --force origin
+gitsign verify-tag vX.Y.Z \
+  --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+A repository's `docs/releasing.md` can carry this command as it
+stands. The same command is in `tools/sign-release-tag.sh`'s header.
+
 Running the workflow by hand (**Actions -> Release -> Run workflow**)
 on any branch is a dry run. It runs `check-version` and the build jobs,
 and `ci-gate`, `sign-tag`, `github-release` and every publishing job
@@ -160,7 +174,8 @@ A job "needs" another if it lists it in `needs:`, or needs a job that
 does.
 
 1. `on:` has exactly two triggers: `push`, with `tags: ['v*']` and
-   no `branches`, and `workflow_dispatch`, with no `inputs`.
+   neither `branches` nor `branches-ignore`, and `workflow_dispatch`,
+   with no `inputs`.
 2. The workflow sets `permissions: {}` at the top level, and every
    job has a `permissions:` block of its own.
 3. The workflow sets a top-level `concurrency` whose `group` contains
@@ -171,6 +186,10 @@ does.
    `shakenfist/actions/require-ci-success@main`, sets
    `timeout-minutes`, and gives a `workflows` input of one or more
    bare file names, each of which exists in `.github/workflows/`.
+   Neither the job nor the step has `continue-on-error`, and the step
+   has no `if:` and no `sha:` input, whatever their values: each would
+   let the gate fail, skip or check another commit while the job
+   succeeds.
 5. `ci-gate` is the only job with no `needs`. A job named
    `check-version` has `needs: ci-gate` and nothing else, the
    skipped-gate guard, and permissions of exactly `contents: read`,
@@ -180,10 +199,15 @@ does.
    `ci-gate` and `check-version` that lacks the push and tag guard is
    a build job, and has the build-job guard. No job-level `if:` other
    than `check-version`'s and the build jobs' contains `!cancelled()`.
+   A job-level `if:` that calls any status function (`success()`,
+   `failure()`, `cancelled()` or `always()`, in any case) also has a
+   `needs.<job>.result == 'success'` clause for each job it needs.
 7. Every job with an effect outside the run has the push and tag
-   guard. Such a job names an `environment`, or holds
-   `contents: write` or `id-token: write`, or reads a secret other than
-   `GITHUB_TOKEN`.
+   guard. Such a job names an `environment`, or holds any write scope
+   (any access but `read` or `none`, such as `contents: write`,
+   `id-token: write` or `packages: write`, or `write-all`), or reads a
+   secret other than `GITHUB_TOKEN`, including through
+   `secrets['...']` or `secrets: inherit`.
 8. A job named `sign-tag` names `environment: release`, has the push
    and tag guard, has permissions of exactly `contents: write` and
    `id-token: write`, and runs `tools/sign-release-tag.sh`. Its
@@ -202,9 +226,12 @@ does.
     downloads artifacts with `pattern: release-*` into a path under
     `${{ runner.temp }}`, and creates the release with
     `softprops/action-gh-release` and `fail_on_unmatched_files: true`.
-13. Every job whose `actions/upload-artifact` step uploads a path
-    naming `*.whl` has a step using `shakenfist/actions/check-dist@main`
-    before it, whose `path` is the directory holding those wheels.
+13. Every job that builds wheels, with `python -m build` or
+    `PyO3/maturin-action`, or whose `actions/upload-artifact` step
+    uploads a path naming `*.whl`, has a step using
+    `shakenfist/actions/check-dist@main` after every build step and
+    before every upload, whose `path` is the directory each upload
+    reads.
 14. `tools/propose-release.sh`, `tools/tag-release.sh`,
     `tools/release-version.sh` and `tools/sign-release-tag.sh` exist,
     are executable, and contain no `{{`. `tag-release.sh` and

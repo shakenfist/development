@@ -187,10 +187,11 @@ What these rules cannot see:
 
 [`templates/release-automation-rust/README.md`](https://github.com/shakenfist/development/blob/main/templates/release-automation-rust/README.md#invariants)
 lists, under "Invariants", what every Rust release keeps. It is the
-authority: the rules read its three guards as exact strings, so a guard
-spelled any other way fails, even where it would be safe. A respelling
-is fixed in the repository, or in the README and then the rule, never
-by loosening the rule alone.
+authority: the rules read the push and tag guard and the skipped-gate
+guard as exact strings, and the build-job guard as exactly its clauses
+in any order (see below), so a guard spelled any other way fails, even
+where it would be safe. A respelling is fixed in the repository, or in
+the README and then the rule, never by loosening the rule alone.
 
 Each invariant is checked once. Where a workflow-safety rule above
 already checks part of one, the Rust rule checks only the rest. It

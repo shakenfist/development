@@ -10,8 +10,9 @@ different words. docs/audits/release-process.md maps every invariant to
 the rule that checks it, and a test fails when the README gains an
 invariant the table does not name.
 
-The README is the authority. It defines three guards as exact strings,
-and they are compared as exact strings here: a guard spelled another way
+The README is the authority. It defines three guards, and they are
+compared as exact strings here, apart from the build-job guard's clauses,
+whose order the README leaves open: a guard spelled another way
 may well be safe, but it is no longer the guard the README and the other
 Rust releases share, and each such respelling is one more thing for a
 reader to prove safe by hand.
