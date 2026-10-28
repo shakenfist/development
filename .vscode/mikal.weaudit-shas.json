@@ -705,9 +705,17 @@
       "sha": "6d0ce3ba5bf1008a1139a1a1be27959413f8ad0a",
       "date": "2026-09-09"
     },
+    "templates/mermaid-lint/README.md": {
+      "sha": "4f48fabdf3f3606633084ee202854e28f908832d",
+      "date": "2026-10-28"
+    },
     "templates/mermaid-lint/mermaid-lint.sh": {
       "sha": "22f14bf915f76875950bb5589212b55ab0a91db1",
       "date": "2026-09-22"
+    },
+    "templates/mermaid-lint/mermaid-lint.yml": {
+      "sha": "29408a6b2da8760271d2614561adff59683f53f7",
+      "date": "2026-10-28"
     },
     "templates/pin-indirect-dependencies/README.md": {
       "sha": "c340937342fdf83e0c24ec1c9ce6a024933e12b1",
@@ -749,6 +757,10 @@
       "sha": "16a49ce3cf6bfa3420093406c981401eaab19c90",
       "date": "2026-10-22"
     },
+    "templates/release-automation/README.md": {
+      "sha": "4e94fdc4942e0cb37eaf1e9b3e41c48ab49c63b4",
+      "date": "2026-10-28"
+    },
     "templates/release-automation/RELEASE-SETUP.md": {
       "sha": "7b880ebda6d241915e8e4fd5e3283c2e0dee6a04",
       "date": "2026-10-22"
@@ -765,6 +777,14 @@
       "sha": "0155b2e100a310454fe89e015823b3372be4777a",
       "date": "2026-10-18"
     },
+    "templates/renovate/renovate.yml": {
+      "sha": "1bfb2bb6c5ed1d38e167b27fd219d1130533080f",
+      "date": "2026-10-28"
+    },
+    "templates/review-tracking/README.md": {
+      "sha": "87f1c50ec03b554186d4b2237a6502623ae36056",
+      "date": "2026-10-28"
+    },
     "templates/review-tracking/ci-prune-reviews.sh": {
       "sha": "b4ce5b64c79afb01e07b98f43457fa5ff842e896",
       "date": "2026-10-16"
@@ -772,6 +792,14 @@
     "templates/review-tracking/prune-reviews.yml": {
       "sha": "91ff1783e6589e198ce5d14aab473112761b7ce2",
       "date": "2026-10-16"
+    },
+    "templates/review-tracking/review-tracking.sh": {
+      "sha": "fcadd30b9cea7aec8c747c7f43ef1864bc01bbef",
+      "date": "2026-10-28"
+    },
+    "templates/shared-blocks/README.md": {
+      "sha": "3c0e4e257e78ce28b2dc6cd97014effcc837c384",
+      "date": "2026-10-28"
     },
     "templates/shared-blocks/comment-proportion.md": {
       "sha": "38c366bd44e111f047e5eb2379451ba9c13d04c6",
