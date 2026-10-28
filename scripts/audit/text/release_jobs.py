@@ -17,8 +17,9 @@ import collections
 import re
 
 from audit.text.workflows import (
-    indented_block, job_environment, job_is_push_guarded, job_level_keys, job_needs, mapping_value_lines,
-    step_action, step_with_inputs, workflow_job_blocks, workflow_step_blocks,
+    indented_block, job_environment, job_is_push_guarded, job_level_keys, job_needs, mapping_entries,
+    mapping_value_lines, step_action, step_keys, step_with_inputs, unquote, workflow_job_blocks,
+    workflow_step_blocks,
 )
 
 
@@ -56,16 +57,22 @@ CHECK_DIST_ACTION = 'shakenfist/actions/check-dist'
 UPLOAD_ARTIFACT_ACTION = 'actions/upload-artifact'
 
 
-#: The status functions which let a job run whatever became of the
-#: jobs it needs. Without one, GitHub's implicit success() skips a job
-#: whose needs did not all succeed, which is the property the gate
-#: relies on.
-STATUS_OVERRIDE_RE = re.compile(r'\balways\(\)|!\s*cancelled\(\)')
+#: A call of a status function. GitHub adds an implicit success() to a
+#: job's `if:` only when the condition calls none of them, and that
+#: implicit success() is what skips a job whose needs did not all
+#: succeed -- the property the gate relies on. Any call replaces it,
+#: not only always() and !cancelled(): `success() || failure()` runs
+#: after a failed gate as surely as always() does, and since the
+#: condition's boolean structure is not parsed, even a bare success()
+#: is not proof that it survives an `||`. GitHub matches function names
+#: without regard to case, so this does too.
+STATUS_FUNCTION_RE = re.compile(r'!?\s*\b(?:success|failure|cancelled|always)\s*\(\s*\)', re.IGNORECASE)
 
 
 #: The clause confining an admission of a skipped need to runs that are
-#: not a push, as the template's build guard does.
-OFF_PUSH_RE = re.compile(r"github\.event_name\s*!=\s*'push'")
+#: not a push, as the template's build guard does. GitHub compares
+#: strings without regard to case, so `!= 'PUSH'` is the same clause.
+OFF_PUSH_RE = re.compile(r"github\.event_name\s*!=\s*'push'", re.IGNORECASE)
 
 
 def input_is(inputs, key, expected):
@@ -137,15 +144,18 @@ def job_publishes(body):
 
 
 def need_result_re(need, comparison):
-    """A test of `needs.<need>.result`, in either spelling GitHub takes.
+    """A test of `needs.<need>.result`, in every spelling GitHub takes.
 
     `needs.ci-gate.result` and `needs['ci-gate'].result` are the same
     property, and a clause written the second way is still the clause.
+    GitHub compares strings, and reads property names, without regard
+    to case, so `== 'Skipped'` admits a skipped need exactly as
+    `== 'skipped'` does, and is matched the same way.
     """
     name = re.escape(need)
     return re.compile(
         r"needs(?:\." + name + r"|\[\s*'" + name + r"'\s*\])"
-        r'\.result\s*' + comparison)
+        r'\.result\s*' + comparison, re.IGNORECASE)
 
 
 def success_clause_re(need):
@@ -156,6 +166,81 @@ def success_clause_re(need):
 def admission_clause_re(need):
     """A clause letting a job through on some other result of a need."""
     return need_result_re(need, r"(?:==\s*'(?!success')[a-z]+'|!=)")
+
+
+def job_permissions(body):
+    """The permissions a job, or a workflow's header, sets.
+
+    A dict of scope to access for the block and flow mappings, the
+    scalar for `read-all` and `write-all`, and None where there is no
+    `permissions:` key at all. `{}` is an empty dict, which is the
+    point of it: no scope at all, rather than the repository default.
+    """
+    keys = job_level_keys(body)
+    if 'permissions' not in keys:
+        return None
+    value = keys['permissions']
+    if not value:
+        return {key: unquote(access)
+                for key, access in mapping_entries(indented_block(body, 'permissions')).items()}
+    if value.startswith('{'):
+        entries = {}
+        for part in value.strip('{}').split(','):
+            if ':' in part:
+                key, access = part.split(':', 1)
+                entries[unquote(key)] = unquote(access)
+        return entries
+    return unquote(value)
+
+
+def holds_write(permissions, scope):
+    """Does this permissions value grant more than read on scope?
+
+    Read the way write_grants() reads a grant, so that the rule gating a
+    job and the rule limiting what it may hold agree: an access other
+    than `read` or `none`, `Write` included, counts.
+    """
+    if isinstance(permissions, dict):
+        return scope in permissions and permissions[scope] not in ('read', 'none')
+    return permissions is not None and permissions != 'read-all'
+
+
+def write_grants(permissions):
+    """Everything a permissions value grants beyond reading, as a finding names it.
+
+    A scope whose access is anything but `read` or `none` counts,
+    rather than `write` alone, so that a misspelt or unfamiliar access
+    is reported rather than passed over: the rules asking this want to
+    know whether a job can act outside its run, and the answer they can
+    afford to get wrong is yes. `packages: write` pushes an image as
+    surely as `contents: write` moves a tag. A scalar other than
+    `read-all` is `write-all` or something GitHub would refuse, and
+    counts whole.
+    """
+    if permissions is None:
+        return []
+    if isinstance(permissions, dict):
+        return [f'{scope}: {access}' for scope, access in permissions.items() if access not in ('read', 'none')]
+    return [] if permissions == 'read-all' else [permissions]
+
+
+def gate_reasons(body):
+    """Why a job has to wait for the CI gate: what it can do outside the run.
+
+    An empty list for a job whose work stays inside the run. A job that
+    names an environment is the one a reviewer approves; one that
+    publishes or holds a write scope acts on the commit whether or not
+    anyone approves it, and github-release, which carries no
+    environment, is the fleet's example. Each reason is a phrase a
+    finding can use after the job's name.
+    """
+    reasons = []
+    if job_environment(body) is not None:
+        reasons.append('names an environment')
+    elif job_publishes(body):
+        reasons.append('publishes a GitHub release')
+    reasons.extend(f'holds {grant}' for grant in write_grants(job_permissions(body)))
+    return reasons
 
 
 def needs_cycle(needs):
@@ -306,6 +391,7 @@ def trigger_filter(trigger, key):
 #: The kinds of finding ci_gate_findings() returns.
 NO_GATE = 'no-gate'
 SEVERAL_GATES = 'several-gates'
+BYPASSED_GATE = 'bypassed-gate'
 UNREADABLE_GRAPH = 'unreadable-graph'
 UNREACHED = 'unreached'
 MISSING_SUCCESS = 'missing-success'
@@ -321,40 +407,94 @@ GUARD_KINDS = frozenset({MISSING_SUCCESS, ADMISSION_ON_PUSH, UNGUARDED_BELOW_ADM
 GateFinding = collections.namedtuple('GateFinding', ('kind', 'message', 'jobs'))
 
 
+def gate_bypass_findings(gate, body):
+    """Findings for a gate job that can finish without its gate having held.
+
+    require-ci-success stops a release by failing, and only a failure
+    GitHub records as one does that. `continue-on-error` on the job or
+    on the gate step records it as success, and an `if:` on the step
+    can skip the gate while the job still succeeds, so the jobs waiting
+    for the gate see it pass either way. None of these is in the
+    template, and no condition on the step is: the job's own `if:` is
+    where the gate is confined to a pushed tag.
+
+    The step's `sha:` input is refused outright rather than allowed at
+    `${{ github.sha }}`. That is already its default, so spelling it
+    out buys nothing, and accepting the one value would mean deciding
+    which spellings of it are the same expression -- a reading that,
+    got wrong, lets the gate approve a commit other than the one the
+    release builds.
+    """
+    findings = []
+    if 'continue-on-error' in job_level_keys(body):
+        findings.append(
+            f'the {gate} job sets continue-on-error, so a gate that fails is recorded as a success and the '
+            'jobs waiting for it release a commit CI did not pass; remove it')
+    for step in workflow_step_blocks(body):
+        if step_action(step) != CI_GATE_ACTION:
+            continue
+        keys = step_keys(step)
+        if 'continue-on-error' in keys:
+            findings.append(
+                f'the {gate} job\'s gate step sets continue-on-error, so a gate that fails lets the job '
+                'succeed and the jobs waiting for it release a commit CI did not pass; remove it')
+        if 'if' in keys:
+            condition = f'"if: {keys["if"]}"' if keys['if'] else 'an "if:"'
+            findings.append(
+                f'the {gate} job\'s gate step has {condition}, so the gate can be skipped while the '
+                'job succeeds and the jobs waiting for it release a commit CI did not pass; confine the job, '
+                'not the step')
+        if 'sha' in step_with_inputs(step):
+            findings.append(
+                f'the {gate} job\'s gate step passes sha:, so the gate can approve a commit other than the '
+                'one the release builds; remove it, since the default is the commit the workflow runs on')
+    return [GateFinding(BYPASSED_GATE, message, frozenset({gate})) for message in findings]
+
+
 def ci_gate_findings(blocks):
     """The findings for a release that can publish without CI having passed.
 
     The gate is a job running require-ci-success, which fails unless
     the named CI workflows succeeded on the tagged commit. It stops a
-    release only for the jobs that wait for it. A job that names an
-    environment is the one a reviewer approves and the one that signs
-    or publishes, so each of those has to be downstream of the gate
-    through `needs:` (UNREACHED). A reviewer is a human check that the
-    release is wanted, not that it was tested, and kerbside's ungated
-    release showed the two are not the same.
+    release only if a failure is recorded as one, so the gate job and
+    its step may neither continue on error nor skip the step, and the
+    step may not be pointed at another commit (BYPASSED_GATE).
 
-    Being downstream is not enough on its own. A job whose `if:` uses
-    always() or !cancelled() runs whatever became of the jobs it
-    needs, so a failed gate would not stop it -- unless the same
-    condition requires `needs.<job>.result == 'success'` for each job
-    it needs (MISSING_SUCCESS). That is asked of every job on the way
-    from the gate to an environment, because one job let through breaks
-    the chain for everything after it.
+    It stops a release only for the jobs that wait for it, too. A job
+    that names an environment is the one a reviewer approves and the
+    one that signs or publishes; a job that attaches a GitHub release
+    or holds any write scope acts outside the run without a reviewer.
+    Each of those has to be downstream of the gate through `needs:`
+    (UNREACHED). A reviewer is a human check that the release is
+    wanted, not that it was tested, and kerbside's ungated release
+    showed the two are not the same.
+
+    Being downstream is not enough on its own. A job whose `if:` calls
+    any status function -- always(), !cancelled(), failure(), even
+    success() -- loses GitHub's implicit success() and so can run
+    whatever became of the jobs it needs, so a failed gate would not
+    stop it -- unless the same condition requires
+    `needs.<job>.result == 'success'` for each job it needs
+    (MISSING_SUCCESS). That is asked of every job on the way from the
+    gate to a job that must wait for it, because one job let through
+    breaks the chain for everything after it.
 
     The template's build guard also lets a skipped gate through, so
     that a workflow_dispatch dry run still exercises the build. That
     is accepted only where it cannot reach a release: the admission
     has to sit beside "github.event_name != 'push'" (ADMISSION_ON_PUSH),
-    and every environment job below it has to be confined to a pushed
-    tag, which is the one event on which the gate always runs
-    (UNGUARDED_BELOW_ADMISSION, whose jobs are those environment jobs,
+    and every job below it that must wait for the gate has to be
+    confined to a pushed tag, which is the one event on which the gate
+    always runs (UNGUARDED_BELOW_ADMISSION, whose jobs are those jobs,
     since it is their `if:` that is at fault). The condition's boolean
     structure is not parsed, so the two clauses are looked for rather
-    than proved to be joined by &&.
+    than proved to be joined by &&. Strings are compared without regard
+    to case, as GitHub compares them.
 
     No gate (NO_GATE), more than one (SEVERAL_GATES) or a `needs:`
     graph that cannot be read (UNREADABLE_GRAPH) is reported alone,
-    since nothing else can be read without one gate and one graph.
+    apart from the gate job's own shape, since nothing else can be read
+    without one gate and one graph.
     """
     gates = gate_jobs(blocks)
     if not gates:
@@ -373,33 +513,37 @@ def ci_gate_findings(blocks):
             'read; keep one ci-gate job and have the others need it',
             frozenset(gates))]
 
+    jobs = dict(blocks)
+    gate = gates[0]
+    findings = gate_bypass_findings(gate, jobs[gate])
+
     needs = {name: job_needs(body) for name, body in blocks}
     unreadable = job_graph_problems(needs)
     if unreadable:
-        return [GateFinding(UNREADABLE_GRAPH, message, jobs) for message, jobs in unreadable]
+        return findings + [GateFinding(UNREADABLE_GRAPH, message, named) for message, named in unreadable]
 
-    jobs = dict(blocks)
-    gate = gates[0]
     gated = downstream_jobs(needs, gate)
-    environments = [name for name, body in blocks
-                    if job_environment(body) is not None]
+    targets = {name: reasons for name, reasons in ((name, gate_reasons(body)) for name, body in blocks)
+               if reasons and name != gate}
 
-    findings = []
-    for name in environments:
+    for name, reasons in targets.items():
         if name not in gated:
+            consequence = ('its reviewer can approve a release of a commit CI never passed'
+                           if job_environment(jobs[name]) is not None
+                           else 'it acts on a commit CI never passed')
             findings.append(GateFinding(
                 UNREACHED,
-                f'the {name} job names an environment but is not downstream '
-                f'of {gate} through "needs:", so its reviewer can approve a '
-                'release of a commit CI never passed; make it need '
+                f'the {name} job {" and ".join(reasons)} but is not downstream '
+                f'of {gate} through "needs:", so {consequence}; make it need '
                 f'{gate}, or a job that does',
                 frozenset({name})))
 
-    # The jobs between the gate and an environment, gate included:
-    # anything not on such a path cannot carry a failed gate into a
-    # release, and judging it would ask a build-only job to be guarded.
+    # The jobs between the gate and a job that must wait for it, gate
+    # included: anything not on such a path cannot carry a failed gate
+    # into a release, and judging it would ask a build-only job to be
+    # guarded.
     path = {gate}
-    for name in environments:
+    for name in targets:
         if name in gated:
             path |= {name} | (upstream_jobs(needs, name) & gated)
 
@@ -407,15 +551,16 @@ def ci_gate_findings(blocks):
         if name not in path:
             continue
         condition = job_level_keys(body).get('if', '')
-        if not STATUS_OVERRIDE_RE.search(condition):
+        functions = [re.sub(r'\s+', '', call) for call in STATUS_FUNCTION_RE.findall(condition)]
+        if not functions:
             continue
         missing = [need for need in needs[name]
                    if not success_clause_re(need).search(condition)]
         if missing:
             findings.append(GateFinding(
                 MISSING_SUCCESS,
-                f'the {name} job runs under always() or !cancelled() '
-                'without requiring '
+                f'the {name} job runs under {", ".join(dict.fromkeys(functions))}, which replaces GitHub\'s '
+                'implicit success(), without requiring '
                 + ' and '.join(f"needs.{need}.result == 'success'" for need in missing)
                 + ', so it runs after a failed gate and carries that '
                 'commit on towards a release; add the clause',
@@ -433,7 +578,7 @@ def ci_gate_findings(blocks):
                 'did not succeed can still reach a release; admit a skipped '
                 'gate only off push, as the template does',
                 frozenset({name})))
-        reached = [job for job in environments
+        reached = [job for job in targets
                    if job == name or job in downstream_jobs(needs, name)]
         unguarded = [job for job in reached if not job_is_push_guarded(jobs[job])]
         if unguarded:
@@ -441,8 +586,8 @@ def ci_gate_findings(blocks):
                 UNGUARDED_BELOW_ADMISSION,
                 f'the {name} job lets {", ".join(admitted)} through on a '
                 'result other than success, which is safe only while the '
-                'environment jobs below it run on a pushed tag alone, and '
-                f'{", ".join(unguarded)} '
+                'jobs below it that sign, publish or write run on a pushed '
+                f'tag alone, and {", ".join(unguarded)} '
                 f'{"is" if len(unguarded) == 1 else "are"} not confined to one; '
                 "add \"if: github.event_name == 'push' && "
                 "startsWith(github.ref, 'refs/tags/v')\"",

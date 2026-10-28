@@ -54,9 +54,7 @@ to Shaken Fist projects:
 - [`templates/release-automation/`](https://github.com/shakenfist/development/tree/main/templates/release-automation) --
   `release.yml` workflow and `RELEASE-SETUP.md` for PyPI releases
 - [`templates/release-automation-rust/`](https://github.com/shakenfist/development/tree/main/templates/release-automation-rust) --
-  `release.yml` workflow and release scripts for Rust projects, which
-  propose a version bump through the merge queue and tag the merged
-  commit
+  `release.yml` workflow and release scripts for Rust projects
 - [`templates/ci-review-automation/`](https://github.com/shakenfist/development/tree/main/templates/ci-review-automation) --
   Bot-triggered workflows for PR review and retest
 - [`templates/test-drift-fix/`](https://github.com/shakenfist/development/tree/main/templates/test-drift-fix) --

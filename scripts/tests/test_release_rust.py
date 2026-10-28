@@ -181,19 +181,42 @@ class TemplateTest(RustReleaseCase):
         self.assertEqual(release_rust.build_job_guard(['check-version']), build)
 
 
+#: The heading the template README lists its invariants under, and the
+#: one docs/audits/release-process.md maps them to rules under.
+README_INVARIANTS_HEADING = '## Invariants'
+SPEC_INVARIANTS_HEADING = '## The Rust invariants'
+
+
 class ReleaseRustInvariantTableTest(unittest.TestCase):
     """docs/audits/release-process.md maps every README invariant to a rule."""
 
+    def section(self, text, heading, source):
+        """The text under a level-two heading, up to the next one.
+
+        Fails, naming the file and the heading, when the heading is
+        gone: a renamed heading would otherwise surface as an
+        IndexError that says nothing about which document moved.
+        """
+        marker = f'\n{heading}\n'
+        self.assertIn(marker, text, f'{source} has no "{heading}" heading; the invariant table tests read the '
+                                    'section under it, so update the constant if the heading was renamed')
+        return text.split(marker, 1)[1].split('\n## ', 1)[0]
+
     def readme_invariants(self):
         text = repo_text('templates', 'release-automation-rust', 'README.md')
-        section = text.split('\n## Invariants\n', 1)[1].split('\n## ', 1)[0]
+        section = self.section(text, README_INVARIANTS_HEADING, 'templates/release-automation-rust/README.md')
         return {int(number) for number in re.findall(r'^(\d+)\. ', section, re.MULTILINE)}
 
     def table(self):
         text = repo_text('docs', 'audits', 'release-process.md')
-        section = text.split('\n## The Rust invariants\n', 1)[1].split('\n## ', 1)[0]
+        section = self.section(text, SPEC_INVARIANTS_HEADING, 'docs/audits/release-process.md')
         return {int(row.group(1)): row.group(2)
                 for row in re.finditer(r'^\| (\d+) \| (.+) \|$', section, re.MULTILINE)}
+
+    def test_a_missing_heading_is_named_in_the_failure(self):
+        with self.assertRaises(AssertionError) as raised:
+            self.section('# Title\n\n## Other\n\ntext\n', README_INVARIANTS_HEADING, 'README.md')
+        self.assertIn('README.md has no "## Invariants" heading', str(raised.exception))
 
     def test_the_readme_lists_invariants(self):
         self.assertEqual(set(range(1, 16)), self.readme_invariants())
@@ -377,6 +400,40 @@ class CiGateShapeTest(RustReleaseCase):
         self.assertIn('names .github/workflows/ci.yml, which is not a workflow', self.details())
 
 
+class GateBypassTest(RustReleaseCase):
+    """The gate rule's refusal of a gate that can pass without holding, on the Rust template."""
+
+    def test_the_template_s_gate_passes(self):
+        self.assert_pass(self.check())
+
+    def test_a_gate_job_that_continues_on_error_fails(self):
+        self.release(in_job(FILLED, 'ci-gate', PUSH_TAG_IF, PUSH_TAG_IF + '    continue-on-error: true\n'))
+        self.assertIn('the ci-gate job sets continue-on-error, so a gate that fails is recorded as a success',
+                      self.details())
+
+    def test_a_gate_step_that_continues_on_error_fails(self):
+        self.release(in_job(FILLED, 'ci-gate', '        timeout-minutes: 5\n',
+                            '        timeout-minutes: 5\n        continue-on-error: true\n'))
+        self.assertIn("the ci-gate job's gate step sets continue-on-error", self.details())
+
+    def test_a_gate_step_with_a_condition_fails(self):
+        self.release(in_job(FILLED, 'ci-gate', '        timeout-minutes: 5\n',
+                            '        timeout-minutes: 5\n        if: ${{ false }}\n'))
+        self.assertIn('the ci-gate job\'s gate step has "if: ${{ false }}", so the gate can be skipped',
+                      self.details())
+
+    def test_a_gate_step_naming_a_commit_fails(self):
+        self.release(in_job(FILLED, 'ci-gate', '        with:\n',
+                            '        with:\n          sha: ${{ github.event.before }}\n'))
+        self.assertIn("the ci-gate job's gate step passes sha:", self.details())
+
+    def test_a_gate_reference_with_a_trailing_comment_is_still_at_main(self):
+        self.release(in_job(FILLED, 'ci-gate', 'require-ci-success@main\n',
+                            'require-ci-success@main  # newest, always\n'))
+        self.assertEqual([], self.issues(release_rust.rust_ci_gate_issues))
+        self.assert_pass(self.check())
+
+
 class CheckVersionTest(RustReleaseCase):
     """Invariant 5, for check-version itself."""
 
@@ -404,7 +461,8 @@ class CheckVersionTest(RustReleaseCase):
     def test_an_unsafe_guard_is_the_gate_rule_s_finding(self):
         self.release(in_job(FILLED, 'check-version', CHECK_VERSION_IF, '    if: always()\n'))
         details = self.details()
-        self.assertIn('the check-version job runs under always() or !cancelled() without requiring', details)
+        self.assertIn("the check-version job runs under always(), which replaces GitHub's implicit success(), "
+                      'without requiring', details)
         self.assertNotIn('skipped-gate guard', details)
 
     def test_an_admission_not_confined_off_push_is_the_gate_rule_s_finding(self):
@@ -419,7 +477,8 @@ class CheckVersionTest(RustReleaseCase):
         """Without a dispatch trigger the dispatch rule is silent, and the gate rule says it."""
         self.release(in_job(FILLED.replace('  workflow_dispatch:\n', ''), 'sign-tag', PUSH_TAG_IF, ''))
         details = self.details()
-        self.assertIn('safe only while the environment jobs below it run on a pushed tag alone, and sign-tag',
+        self.assertIn('safe only while the jobs below it that sign, publish or write run on a pushed tag alone, '
+                      'and sign-tag',
                       details)
         self.assertNotIn('not the push and tag guard', details)
 
@@ -517,7 +576,7 @@ class BuildGuardTest(RustReleaseCase):
     def test_cancelled_without_the_success_clause_on_the_gate_s_path_is_the_gate_rule_s_finding(self):
         self.release(in_job(FILLED, 'build', BUILD_IF, "    if: ${{ !cancelled() && github.event_name == 'push' }}\n"))
         details = self.details()
-        self.assertIn('the build job runs under always() or !cancelled()', details)
+        self.assertIn('the build job runs under !cancelled(), which replaces', details)
         self.assertNotIn('neither the build-job guard', details)
 
 
@@ -545,11 +604,40 @@ class EffectGuardTest(RustReleaseCase):
         for extra, permissions, effect in (
                 ('    environment: release\n', '      contents: read\n', 'names an environment'),
                 ('', '      contents: write\n', 'holds contents: write'),
-                ('', '      id-token: write\n', 'holds id-token: write')):
+                ('', '      id-token: write\n', 'holds id-token: write'),
+                ('', '      contents: read\n      packages: write\n', 'holds packages: write'),
+                ('', '      attestations: write\n', 'holds attestations: write'),
+                ('', '      pull-requests: Write\n', 'holds pull-requests: Write')):
             self.fresh_fixture()
             self.compliant(add_job(FILLED, job('publish', needs='[build, sign-tag]', condition=RESPELLED_PUSH_TAG_IF,
                                                permissions=permissions, extra=extra)))
             self.assertIn(effect, ' '.join(self.issues(release_rust.rust_effect_guard_issues)), effect)
+
+    def test_write_all_is_an_effect(self):
+        publisher = job('publish', needs='[build, sign-tag]', condition=RESPELLED_PUSH_TAG_IF).replace(
+            '    permissions:\n      contents: read\n', '    permissions: write-all\n')
+        self.release(add_job(FILLED, publisher))
+        self.assertIn('the publish job holds write-all, an effect outside the run',
+                      ' '.join(self.issues(release_rust.rust_effect_guard_issues)))
+
+    def test_read_access_is_no_effect(self):
+        for permissions in ('      contents: read\n      packages: read\n', '      packages: none\n'):
+            self.fresh_fixture()
+            self.compliant(add_job(FILLED, job('lint', permissions=permissions)))
+            self.assertEqual([], self.issues(release_rust.rust_effect_guard_issues), permissions)
+            self.assertEqual([], self.issues(release_rust.rust_sign_tag_needs_issues), permissions)
+
+    def test_a_package_push_under_the_build_job_guard_fails(self):
+        """A build-section job pushing an image would run on a dispatch, whose gate is skipped."""
+        self.release(add_job(FILLED, job(
+            'publish-image', needs='build',
+            condition="    if: ${{ !cancelled() && needs.build.result == 'success' }}\n",
+            permissions='      contents: read\n      packages: write\n')))
+        details = self.details()
+        self.assertIn('and publish-image is not confined to one', details)
+        self.assertIn('publish-image has an effect outside the run but does not need sign-tag', details)
+        # The guard is the gate rule's finding, so the effect rule says nothing more about it.
+        self.assertNotIn('not the push and tag guard', details)
 
     def test_a_safe_respelling_on_sign_tag_fails_once(self):
         self.release(in_job(FILLED, 'sign-tag', PUSH_TAG_IF, RESPELLED_PUSH_TAG_IF))
@@ -661,6 +749,12 @@ class WritePermissionTest(RustReleaseCase):
 
     def test_contents_write_elsewhere_fails(self):
         self.assertIn('publish holds contents: write', self.holder('      contents: write\n'))
+
+    def test_a_write_spelt_with_capitals_still_counts(self):
+        self.assertIn('publish holds contents: write', self.holder('      contents: Write\n'))
+        self.fresh_fixture()
+        self.compliant()
+        self.assertIn('publish holds id-token: write without', self.holder('      id-token: WRITE\n'))
 
     def test_id_token_without_the_release_environment_fails(self):
         self.assertIn('publish holds id-token: write without', self.holder('      id-token: write\n'))
@@ -774,7 +868,12 @@ class ScriptTest(RustReleaseCase):
         self.assertIn('tools/tag-release.sh is not executable', self.script_issues())
 
     def test_a_verbatim_script_that_differs_fails(self):
-        self.script('sign-release-tag.sh', filled_script('sign-release-tag.sh').replace(b'<repository>', b'ryll'))
+        # Filling in the repository's name, which the template spells as
+        # ${GITHUB_REPOSITORY} so that every copy can stay byte for byte.
+        template = filled_script('sign-release-tag.sh')
+        changed = template.replace(b'${GITHUB_REPOSITORY}', b'shakenfist/ryll')
+        self.assertNotEqual(template, changed)
+        self.script('sign-release-tag.sh', changed)
         self.assertEqual(['tools/sign-release-tag.sh differs from templates/release-automation-rust/'
                           'sign-release-tag.sh, which every Rust release copies byte for byte (invariant 14)'],
                          self.issues(release_rust.rust_script_issues))

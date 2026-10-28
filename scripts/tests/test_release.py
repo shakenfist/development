@@ -129,6 +129,7 @@ class ReleaseProcessTest(CheckTestCase):
         'name: Release\n'
         'jobs:\n' + GATE_JOB +
         '  github-release:\n'
+        '    needs: ci-gate\n'
         '    runs-on: [self-hosted, static]\n'
         '    steps:\n'
         '      - name: Download artifacts\n'
@@ -267,6 +268,7 @@ class ReleaseProcessTest(CheckTestCase):
             '      - name: Create signed tag\n'
             '        run: git push origin "${TAG_NAME}" --force\n'
             '  github-release:\n'
+            '    needs: ci-gate\n'
             + release_guard +
             '    runs-on: [self-hosted, static]\n'
             '    steps:\n'
@@ -334,6 +336,16 @@ class ReleaseProcessTest(CheckTestCase):
                  "github.ref_type == 'tag'\n")
         self.dispatch_workflow(sign_guard=guard, release_guard=guard)
         self.assert_pass(self.check(has_pyproject_toml=True))
+
+    def test_a_release_step_with_a_trailing_comment_still_needs_the_guard(self):
+        """A digest pin with its release in a comment is the same action."""
+        self.dispatch_workflow(sign_guard=self.PUSH_GUARD, release_guard='')
+        path = os.path.join(self.fixture.path, '.github', 'workflows', 'release.yml')
+        with open(path) as f:
+            content = f.read()
+        self.fixture.workflow('release.yml', content.replace(
+            'softprops/action-gh-release@v3\n', 'softprops/action-gh-release@v3  # v3.0.0\n'))
+        self.assert_fail(self.check(has_pyproject_toml=True), containing='github-release lacks')
 
     def test_a_step_level_if_does_not_guard_the_job(self):
         """An `if:` on a step leaves the job itself free to run."""
@@ -616,6 +628,7 @@ class ReleaseProcessTest(CheckTestCase):
             "    tags: ['v*']\n"
             'jobs:\n' + GATE_JOB +
             '  github-release:\n'
+            '    needs: ci-gate\n'
             '    runs-on: [self-hosted, static]\n'
             '    steps:\n'
             '      - uses: actions/download-artifact@v8\n'
@@ -672,6 +685,7 @@ class ReleaseProcessTest(CheckTestCase):
             "    tags: ['v*']\n"
             'jobs:\n' + GATE_JOB +
             '  github-release:\n'
+            '    needs: ci-gate\n'
             '    runs-on: [self-hosted, static]\n'
             '    steps:\n'
             '      - uses: actions/download-artifact@v8\n'
@@ -697,6 +711,7 @@ class ReleaseProcessTest(CheckTestCase):
             "    tags: ['v*']\n"
             'jobs:\n' + GATE_JOB +
             '  github-release:\n'
+            '    needs: ci-gate\n'
             '    runs-on: [self-hosted, static]\n'
             '    steps:\n'
             '      - uses: actions/download-artifact@v8\n'
@@ -786,7 +801,7 @@ TEMPLATE_BUILD_GUARD = (
 )
 
 
-def job(name, needs=None, condition='', environment=False, steps=None):
+def job(name, needs=None, condition='', environment=False, steps=None, permissions=None):
     """One job of a fixture release.yml."""
     text = f'  {name}:\n'
     if needs:
@@ -794,6 +809,8 @@ def job(name, needs=None, condition='', environment=False, steps=None):
     text += condition
     if environment:
         text += '    environment: release\n'
+    if permissions:
+        text += f'    permissions:\n{permissions}'
     text += '    runs-on: [self-hosted, static]\n    steps:\n'
     text += steps or '      - run: make\n'
     return text
@@ -878,8 +895,9 @@ class CiGateTest(CheckTestCase):
         self.release(GATE_JOB,
                      job('build', needs='ci-gate', condition='    if: ${{ !cancelled() }}\n'),
                      job('publish', needs='build', condition=PUSH_TAG_GUARD, environment=True))
-        self.assert_fail(self.check(), containing="the build job runs under always() or !cancelled() without "
-                                                  "requiring needs.ci-gate.result == 'success'")
+        self.assert_fail(self.check(), containing="the build job runs under !cancelled(), which replaces GitHub's "
+                                                  "implicit success(), without requiring "
+                                                  "needs.ci-gate.result == 'success'")
 
     def test_always_without_the_success_clause_fails(self):
         self.release(GATE_JOB,
@@ -981,6 +999,177 @@ class CiGateTest(CheckTestCase):
                                    "startsWith(github.ref, 'refs/tags/v') && (needs.build.result == 'success' "
                                    "|| needs.build.result == 'skipped') }}\n"))
         self.assertIn('the publish job lets build through', ' '.join(self.issues()))
+
+    def gate_step(self, extra, job_extra=''):
+        """The gate job with lines added to its gate step, and to the job itself."""
+        gate = GATE_JOB.replace('    runs-on:', job_extra + '    runs-on:').replace(
+            '        with:\n', extra + '        with:\n')
+        self.release(gate, job('publish', needs='ci-gate', condition=PUSH_TAG_GUARD, environment=True))
+        return self.issues()
+
+    def test_a_gate_step_with_nothing_added_passes(self):
+        self.assertEqual([], self.gate_step(''))
+
+    def test_a_gate_step_that_continues_on_error_fails(self):
+        for value in ('true', 'false', "${{ github.event_name != 'push' }}"):
+            self.fresh_fixture()
+            self.assertEqual(["the ci-gate job's gate step sets continue-on-error, so a gate that fails lets the "
+                              'job succeed and the jobs waiting for it release a commit CI did not pass; remove it'],
+                             self.gate_step(f'        continue-on-error: {value}\n'), value)
+
+    def test_a_gate_job_that_continues_on_error_fails(self):
+        self.assertEqual(['the ci-gate job sets continue-on-error, so a gate that fails is recorded as a success '
+                          'and the jobs waiting for it release a commit CI did not pass; remove it'],
+                         self.gate_step('', job_extra='    continue-on-error: true\n'))
+
+    def test_continuing_on_error_elsewhere_is_not_the_gate_s_business(self):
+        """A job after the release may tolerate its own failure, as ryll's tap update does."""
+        self.release(GATE_JOB, job('publish', needs='ci-gate', condition=PUSH_TAG_GUARD, environment=True),
+                     job('update-tap', needs='publish', condition=PUSH_TAG_GUARD + '    continue-on-error: true\n'))
+        self.assertEqual([], self.issues())
+
+    def test_a_gate_step_with_a_condition_fails(self):
+        for condition, quoted in (('${{ false }}', '"if: ${{ false }}"'), ('always()', '"if: always()"'),
+                                  (">-\n          ${{ false }}", '"if: ${{ false }}"'),
+                                  ("\n          ${{ false }}", 'an "if:"')):
+            self.fresh_fixture()
+            issues = self.gate_step(f'        if: {condition}\n')
+            self.assertEqual(1, len(issues), issues)
+            self.assertIn(f"the ci-gate job's gate step has {quoted}, so the gate can be skipped", issues[0])
+
+    def test_a_gate_step_naming_a_commit_fails_even_the_default_one(self):
+        """sha: is refused outright: its default is the only safe value, and it is the default."""
+        for sha in ('${{ github.event.before }}', '${{ github.sha }}', '0123456789abcdef0123456789abcdef01234567'):
+            self.fresh_fixture()
+            gate = GATE_JOB.replace('          workflows: ci.yml\n',
+                                    f'          workflows: ci.yml\n          sha: {sha}\n')
+            self.release(gate, job('publish', needs='ci-gate', condition=PUSH_TAG_GUARD, environment=True))
+            self.assertEqual(["the ci-gate job's gate step passes sha:, so the gate can approve a commit other than "
+                              'the one the release builds; remove it, since the default is the commit the workflow '
+                              'runs on'], self.issues(), sha)
+
+    def test_a_gate_step_s_other_inputs_pass(self):
+        gate = GATE_JOB.replace('          workflows: ci.yml\n',
+                                '          workflows: ci.yml\n          token: ${{ github.token }}\n')
+        self.release(gate, job('publish', needs='ci-gate', condition=PUSH_TAG_GUARD, environment=True))
+        self.assertEqual([], self.issues())
+
+    def test_every_status_function_replaces_the_implicit_success(self):
+        """success() || failure() runs after a failed gate as surely as always() does."""
+        for condition in ('(success() || failure())', 'failure()', 'cancelled() || success()', 'success()',
+                          'Always()', '! CANCELLED( )'):
+            self.fresh_fixture()
+            self.release(GATE_JOB, job('build', needs='ci-gate'),
+                         job('sign-tag', needs='build', environment=True,
+                             condition=f"    if: ${{{{ {condition} && github.event_name == 'push' }}}}\n"))
+            issues = ' '.join(self.issues())
+            self.assertIn("the sign-tag job runs under ", issues, condition)
+            self.assertIn("without requiring needs.build.result == 'success'", issues, condition)
+
+    def test_a_status_function_with_the_success_clause_passes(self):
+        for condition in ('success()', 'failure() || always()'):
+            self.fresh_fixture()
+            self.release(GATE_JOB, job('build', needs='ci-gate'),
+                         job('sign-tag', needs='build', environment=True,
+                             condition=f"    if: ${{{{ ({condition}) && needs.build.result == 'success' && "
+                                       "github.event_name == 'push' }}\n"))
+            self.assertEqual([], self.issues(), condition)
+
+    def test_a_status_function_s_name_in_a_string_or_identifier_is_not_a_call(self):
+        self.release(GATE_JOB, job('build', needs='ci-gate'),
+                     job('sign-tag', needs='build', environment=True,
+                         condition="    if: github.event_name == 'push' && inputs.mysuccess != 'always'\n"))
+        self.assertEqual([], self.issues())
+
+    def test_a_result_is_compared_without_regard_to_case(self):
+        """GitHub compares strings case-insensitively, so 'Skipped' is an admission and 'SUCCESS' a success."""
+        self.release(GATE_JOB,
+                     job('build', needs='ci-gate',
+                         condition="    if: ${{ !cancelled() && (needs.ci-gate.result == 'SUCCESS' || "
+                                   "needs.ci-gate.result == 'Skipped') }}\n"),
+                     job('publish', needs='build', condition=PUSH_TAG_GUARD, environment=True))
+        issues = self.issues()
+        self.assertEqual(1, len(issues), issues)
+        self.assertIn('the build job lets ci-gate through on a result other than success without confining', issues[0])
+
+    def test_an_uppercase_success_clause_is_the_clause(self):
+        self.release(GATE_JOB,
+                     job('build', needs='ci-gate',
+                         condition="    if: ${{ !cancelled() && needs.ci-gate.result == 'Success' }}\n"),
+                     job('publish', needs='build', condition=PUSH_TAG_GUARD, environment=True))
+        self.assertEqual([], self.issues())
+
+    def test_an_uppercase_off_push_clause_confines_the_admission(self):
+        self.release(GATE_JOB,
+                     job('build', needs='ci-gate',
+                         condition="    if: ${{ !cancelled() && (needs.ci-gate.result == 'success' || "
+                                   "(github.event_name != 'PUSH' && needs.ci-gate.result == 'skipped')) }}\n"),
+                     job('publish', needs='build', condition=PUSH_TAG_GUARD, environment=True))
+        self.assertEqual([], self.issues())
+
+    def test_a_publishing_job_off_the_gate_fails(self):
+        """github-release has no environment, and acts without a reviewer."""
+        release_step = '      - uses: softprops/action-gh-release@v3\n'
+        self.release(GATE_JOB, job('build'),
+                     job('github-release', needs='build', condition=PUSH_TAG_GUARD, steps=release_step))
+        self.assertEqual(['the github-release job publishes a GitHub release but is not downstream of ci-gate '
+                          'through "needs:", so it acts on a commit CI never passed; make it need ci-gate, or a '
+                          'job that does'], self.issues())
+
+    def test_a_job_holding_any_write_scope_off_the_gate_fails(self):
+        for permissions, held in (('      contents: write\n', 'contents: write'),
+                                  ('      packages: write\n', 'packages: write'),
+                                  ('      contents: read\n      attestations: write\n', 'attestations: write'),
+                                  ('      contents: Write\n', 'contents: Write')):
+            self.fresh_fixture()
+            self.release(GATE_JOB, job('build'),
+                         job('push-image', needs='build', condition=PUSH_TAG_GUARD, permissions=permissions))
+            self.assertIn(f'the push-image job holds {held} but is not downstream of ci-gate', ' '.join(self.issues()),
+                          held)
+
+    def test_write_all_off_the_gate_fails(self):
+        self.release(GATE_JOB, job('build'),
+                     job('push-image', needs='build', condition=PUSH_TAG_GUARD).replace(
+                         '    runs-on:', '    permissions: write-all\n    runs-on:'))
+        self.assertIn('the push-image job holds write-all but is not downstream', ' '.join(self.issues()))
+
+    def test_a_read_only_job_off_the_gate_passes(self):
+        for permissions in ('      contents: read\n', '      contents: none\n'):
+            self.fresh_fixture()
+            self.release(GATE_JOB, job('lint', permissions=permissions),
+                         job('publish', needs='ci-gate', condition=PUSH_TAG_GUARD, environment=True))
+            self.assertEqual([], self.issues(), permissions)
+        self.fresh_fixture()
+        self.release(GATE_JOB, job('lint').replace('    runs-on:', '    permissions: read-all\n    runs-on:'),
+                     job('publish', needs='ci-gate', condition=PUSH_TAG_GUARD, environment=True))
+        self.assertEqual([], self.issues())
+
+    def test_a_writing_job_is_on_the_path_the_status_rule_judges(self):
+        """A job between the gate and a writer is judged, as one before an environment is."""
+        self.release(GATE_JOB, job('build', needs='ci-gate', condition='    if: always()\n'),
+                     job('push-image', needs='build', condition=PUSH_TAG_GUARD,
+                         permissions='      packages: write\n'))
+        self.assertIn('the build job runs under always()', ' '.join(self.issues()))
+
+    def test_an_admission_needs_writing_jobs_below_confined_to_a_pushed_tag(self):
+        self.release(GATE_JOB, job('build', needs='ci-gate', condition=TEMPLATE_BUILD_GUARD),
+                     job('push-image', needs='build', permissions='      packages: write\n'))
+        issues = self.issues()
+        self.assertEqual(1, len(issues), issues)
+        self.assertIn('and push-image is not confined to one', issues[0])
+
+    def test_a_publishing_step_with_a_trailing_comment_is_still_publishing(self):
+        """Renovate pins a digest and records the release in a comment after it."""
+        steps = ('      - uses: softprops/action-gh-release@0123456789abcdef0123456789abcdef01234567  # v3.0.0\n')
+        self.release(GATE_JOB, job('build'),
+                     job('github-release', needs='build', condition=PUSH_TAG_GUARD, steps=steps))
+        self.assertIn('the github-release job publishes a GitHub release but is not downstream',
+                      ' '.join(self.issues()))
+
+    def test_a_gate_step_with_a_trailing_comment_is_the_gate(self):
+        gate = GATE_JOB.replace('require-ci-success@main\n', 'require-ci-success@main  # always the newest\n')
+        self.release(gate, job('publish', needs='ci-gate', condition=PUSH_TAG_GUARD, environment=True))
+        self.assertEqual([], self.issues())
 
     def test_the_rust_rules_defer_to_exactly_the_jobs_the_findings_name(self):
         """The Rust rules' silence is read from the findings this rule reports.
@@ -1323,6 +1512,32 @@ class CheckDistTest(CheckTestCase):
     def test_a_pip_install_of_build_is_not_a_build(self):
         self.build('      - run: pip install build twine\n', self.upload())
         self.assertEqual([], self.issues())
+
+
+class StepUsesTest(unittest.TestCase):
+    """step_uses() and step_action() read one `uses:` line the same way."""
+
+    def test_the_reference_and_the_action(self):
+        for line, uses in (
+                ('      - uses: actions/checkout@v7', 'actions/checkout@v7'),
+                ('        uses: "actions/checkout@v7"', 'actions/checkout@v7'),
+                ('      - uses: actions/checkout@0123abcd  # v7.0.1', 'actions/checkout@0123abcd'),
+                ('      - uses: actions/checkout@v7 # a comment', 'actions/checkout@v7'),
+                ('      - uses: ./.github/actions/local', './.github/actions/local')):
+            self.assertEqual(uses, workflows.step_uses(line), line)
+            self.assertEqual(uses.split('@')[0], workflows.step_action(line), line)
+
+    def test_a_hash_without_a_space_is_part_of_the_value(self):
+        """YAML starts a comment only at a # after whitespace, so this one is no comment."""
+        self.assertEqual('owner/action@v1#x', workflows.step_uses('      - uses: owner/action@v1#x'))
+
+    def test_a_step_that_runs_a_script_uses_nothing(self):
+        for step in ('      - run: make', '      - name: uses\n        run: echo "uses: x@y"'):
+            self.assertIsNone(workflows.step_uses(step), step)
+            self.assertIsNone(workflows.step_action(step), step)
+
+    def test_a_commented_out_uses_is_not_read(self):
+        self.assertIsNone(workflows.step_uses('      - run: make\n      # uses: actions/checkout@v7'))
 
 
 class MappingValueLinesTest(unittest.TestCase):

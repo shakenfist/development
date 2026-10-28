@@ -435,8 +435,25 @@ def workflow_step_blocks(body):
 
 # The action a step invokes. The optional dash covers a `uses:` written
 # as the first key of the step, where the sequence marker shares the
-# line.
-STEP_USES_RE = re.compile(r'^\s*(?:-\s+)?uses:\s*(\S+)\s*$', re.MULTILINE)
+# line, and the optional tail a comment after the reference, which is
+# how Renovate records the release a digest pin stands for
+# (`uses: owner/action@<sha>  # v3.0.0`). A `#` with no space before it
+# is part of the value in YAML, so only a spaced one starts the comment.
+STEP_USES_RE = re.compile(r'^\s*(?:-\s+)?uses:\s*(\S+)(?:\s+#.*)?\s*$', re.MULTILINE)
+
+
+def step_uses(step):
+    """The action a step invokes, with its version, or None.
+
+    None for a step which runs a script rather than an action. This is
+    the reference exactly as written, quotes aside, for the rules that
+    care which release of an action is called; step_action() is the
+    same reading with the version dropped.
+    """
+    match = STEP_USES_RE.search(strip_yaml_comments(step))
+    if not match:
+        return None
+    return match.group(1).strip().strip('"').strip("'")
 
 
 def step_action(step):
@@ -448,10 +465,10 @@ def step_action(step):
     majors, so matching on the full string would need updating each
     time one moves.
     """
-    match = STEP_USES_RE.search(strip_yaml_comments(step))
-    if not match:
+    uses = step_uses(step)
+    if uses is None:
         return None
-    return match.group(1).strip().strip('"').strip("'").split('@')[0]
+    return uses.split('@')[0]
 
 
 # One `key: value` pair, captured from a step's `with:` mapping.

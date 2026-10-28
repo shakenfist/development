@@ -93,7 +93,7 @@ recoverable. Which fix applies depends on why the gate failed:
 
 | Why the gate failed | What to do |
 |---------------------|------------|
-| The commit was merged by bypassing the merge queue, so it is a merge commit with no queue run | Delete the tag and tag a later commit that went through the queue |
+| The commit was merged by bypassing the merge queue, so it is a merge commit with no queue run | Delete the tag and tag a later commit that went through the queue in an entry that changed code, not only docs, so that the code lanes ran on it |
 | The tag is not on the default branch's first-parent history | Delete the tag and tag a commit that is: the commit the merge queue landed on the default branch for that change, or a later one |
 | The commit changed only files that `paths-ignore` skips, such as docs, so CI never ran | Delete the tag and move it to the last commit CI did run on |
 | A CI run on the commit was re-run after it merged, and that later attempt failed, for example on a flaky test | Re-run the failed runs until they succeed, then use "Re-run jobs" on the release's `ci-gate` job |
@@ -117,6 +117,12 @@ request, and tag the commit that merges.
 Commits made after a bypass merge, including the review-mark commits
 that `prune-reviews` adds on top of it, fail for the same reason as
 the bypass itself, because the gate does not cross a merge commit.
+The first commit the gate accepts again is a later queue entry's, but
+in a repository whose CI filters by path, a docs-only entry skips the
+code lanes and still succeeds, so the gate accepts a commit on which
+the bypassed code was never tested. Release only from a later queue
+entry that changes code, so that every lane runs on the code the
+bypass merged.
 
 ## The sign-tag runner
 
@@ -151,9 +157,13 @@ The target project must:
 The gate can only pass if CI leaves a result it can count on the
 commit that is tagged. For each workflow named in `{{CI_WORKFLOWS}}`:
 
+- It exists under `.github/workflows/`. A name with no file behind it
+  has no run on any commit, so every release fails at the gate.
 - It runs on `push` to the default branch, with a `branches:` filter
   so that a pushed tag starts no CI of its own, or it runs on
-  `merge_group`.
+  `merge_group`. The default branch is `develop` in every Shaken Fist
+  repository, and the release-process audit looks for a push that
+  reaches `develop` by name.
 - With a merge queue, the run that counts is the queue's: the
   `merge_group` run on the commit is the one the gate finds. The
   workflow therefore needs a `merge_group` trigger, and a pull
@@ -186,6 +196,13 @@ commit that is tagged. For each workflow named in `{{CI_WORKFLOWS}}`:
   workflows named together have different `paths-ignore` lists, a
   commit one of them ran on and another skipped fails as only
   part-tested, so name workflows whose filters match.
+- A `dorny/paths-filter` step in a workflow that runs on
+  `merge_group` either passes `base: ${{ github.event.merge_group.base_sha }}`,
+  or is confined to `github.event_name == 'pull_request'` by its own
+  `if:` or its job's. A filter that diffs a merge group against the
+  branch name finds no changes when the run is re-run after the entry
+  has merged, so the run skips the tests yet succeeds, and the gate
+  counts it.
 
 ## Note for converting the template
 
