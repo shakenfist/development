@@ -2116,10 +2116,11 @@ repository, and fresh clones of the fourteen taken on 2026-10-27.
    4a8eeed on 2026-10-19) and instar's (run 39476356008, at a31e0d1
    on 2026-10-20). Neither repository's `release.yml` has changed
    since, and nor have `check-dist` or `require-ci-success` in
-   `actions`, whose last changes (actions#184 and f53cd9b) predate both
-   runs. The other twelve have no dispatch run since their phase 3
-   merge, and ryll, andris, divergulent, library-utilities, clingwrap,
-   agent-python, client-python and shakenfist have never had one.
+   `actions`, whose last changes (actions#184, and f53cd9b in
+   actions#182) predate both runs. The other twelve have no dispatch
+   run since their phase 3 merge, and ryll, andris, divergulent,
+   library-utilities, clingwrap, agent-python, client-python and
+   shakenfist have never had one.
 5. **A dry run cannot publish.** All fourteen `release.yml` files have
    a `workflow_dispatch` trigger. ryll gained one when it converged on
    the Rust template, although this plan's phase 3 survey said it had
@@ -2135,8 +2136,8 @@ repository, and fresh clones of the fourteen taken on 2026-10-27.
    ryll's graphs by hand and agreed with the rule. The audits still
    read it, as a check on the rule, but they are not its only
    evidence.
-7. **This section's old text was stale in two places, and has been
-   rewritten in this planning commit.** It said the audit covers
+7. **This section's old text was stale in two places, and was
+   rewritten when this phase was planned.** It said the audit covers
    "whatever fixed occystrap's queue". Nothing fixed it: occystrap#174
    moved occystrap to a single tier of CI, and is audited here like any
    other landing. It also asked for every repository to be dry-run,
@@ -2162,9 +2163,9 @@ repository, and fresh clones of the fourteen taken on 2026-10-27.
      It runs at opus and high effort, the strongest any runbook names.
      This repository keeps the four separate wave 2 readers that its
      runbook asks for. Its six merges change 9,684 lines, and its
-     blast radius is the fleet. This is the decision a
-     reviewer is most likely to push back on, because it bends what
-     nine runbooks say. The guard against what it gives up is the
+     blast radius is the fleet. This is the decision a reviewer is
+     most likely to push back on, because it bends what nine runbooks
+     say. The guard against what it gives up is the
      totals rule. Every report states the insertion and deletion
      totals it measured for each range, and a report whose totals do
      not match the landing record is re-run rather than triaged.
@@ -2201,7 +2202,8 @@ repository, and fresh clones of the fourteen taken on 2026-10-27.
      finding.
 5.5. **Findings land after this phase, and the plan completes in the
      pull request that carries them.** This phase's own pull request
-     carries the record and nothing else. Each repository's fixes are
+     carries the record and the plan bookkeeping it implies: phase 4's
+     close-out, Future work and the index row. Each repository's fixes are
      one pull request in that repository, made after the operator has
      read the record. A finding not fixed is declined here, in a
      sentence that says why. The follow-up pull request in this
@@ -2343,9 +2345,13 @@ Started on 2026-10-28 (AEDT).
 * **Host load.** With up to sixteen agents running at once (twelve
   from the start, and 5b to 5e while the 5g agents were still
   building), the host's load average reached 78, and andris's
-  timing-bound `make test` timed out locally. The merge changed no Rust, and andris's
-  `merge_group` run on `develop`'s tip succeeded, so this is recorded
-  as not cleanly run rather than as a finding.
+  timing-bound `make test` timed out locally. The merge changed no
+  Rust, and andris's `merge_group` run on `develop`'s tip succeeded,
+  so this is recorded as not cleanly run rather than as a finding.
+* **The record's own checks.** `pre-commit run --all-files` passed,
+  `scripts/audit-check.py` gave the same status for all 66 checks as
+  on `main`, and a probe of the added text for addresses, private
+  hostnames, tokens and email addresses found nothing.
 
 #### Phase 5 results
 
@@ -2387,7 +2393,8 @@ every landing is a two-parent merge; nothing unattended was added; no
 secret, private hostname or address entered a repository; nothing
 removed or renamed is still named (5h grepped all fourteen release
 repositories, `actions` and this one); and every release fails
-closed.
+closed. R5 and client-python-ova's fixed defect came from decision
+5.3's questions, not from the floor checklist.
 
 **Dry runs.** All twelve were `workflow_dispatch` runs on `develop`
 that concluded `success`, with `ci-gate` and every publishing job
@@ -2487,8 +2494,9 @@ request per repository (decision 5.5).
   new release process. The operator decides whether to create the
   "Release tags" ruleset that `RELEASE-SETUP.md` step 3 asks for, a
   settings change.
-* **R4. ryll:** `fuzz.yml:300-302` and `tools/report-fuzz-failure.sh:377-379`
-  cite the version-mismatch issue step that #591 removed;
+* **R4. ryll:** `fuzz.yml:300-302` and
+  `tools/report-fuzz-failure.sh:377-379` cite the version-mismatch
+  issue step that #591 removed;
   `publish-ryll-pypi`'s checkout (`release.yml:426`) has no comment
   saying why it is there. Its verify command comes back with D3's
   fix.
@@ -2530,26 +2538,29 @@ was cut in the window.
   a raising poll; the cluster test it fixed is the proof.
 * andris's `make test` is not re-run: see the execution notes.
 
-**Pre-plan problems, for issues** (filed by the management session
-once the operator has read this list). Items 1, 4 and 5 are security
-problems in what this plan protects, so they are filed first:
-1. Security. hunkydory: four required checks ("Build, test and
-   lint", "Pre-commit hooks", "Analyze", "gitleaks") carry no
-   `integration_id`, so any app could satisfy them.
-2. client-python-k3s: `release.yml:272` cites a plan step in a
+**Pre-plan problems, filed as issues** once the operator had read
+this list. Items 1, 4 and 5 are security problems in what this plan
+protects, so they were filed first. None is in a recorded range:
+item 5's lines date from f093fb0 (February 2026) and item 4's from
+shakenfist a335760 (June 2026), and the merges that touched those
+files left the lines alone.
+1. Security, hunkydory#127. hunkydory: four required checks ("Build,
+   test and lint", "Pre-commit hooks", "Analyze", "gitleaks") carry
+   no `integration_id`, so any app could satisfy them.
+2. client-python-k3s#159: `release.yml:272` cites a plan step in a
    comment.
-3. `actions`: `docs/consuming.md:60,85` and `smoke-cluster.yml:199`
+3. actions#213: `docs/consuming.md:60,85` and `smoke-cluster.yml:199`
    link to `development/blob/main/audits/...`, which moved to
    `docs/audits/` in August.
-4. Security. shakenfist: `release.yml:294` interpolates a secret into
-   a `run:` line.
-5. Security. development: the Python template's `sign-tag` checks
+4. Security, shakenfist#4711. shakenfist: `release.yml:294`
+   interpolates a secret into a `run:` line.
+5. Security, development#338. The Python template's `sign-tag` checks
    gitsign against a `checksums.txt` from the same release, fetched with
    `curl -sLO` and no `-f`, where the Rust template pins a hash; and
    its `build` checks out without `persist-credentials: false` on the
    static pool.
-6. instar: the release `build` job runs on a persistent runner rather
-   than a `vm` one.
+6. instar#846: the release `build` job runs on a persistent runner
+   rather than a `vm` one.
 
 `sign-tag` on a non-`vm` runner in the Python repositories is
 already in Future work, and clingwrap's missing path filter is
