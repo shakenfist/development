@@ -218,7 +218,7 @@ human merging the pull request.
 | Phase | Status | Merged |
 |-------|--------|--------|
 | 1. Retirement convention | Complete | f7b1219 (#333) |
-| 2. `retire-plans` helper and skill | Not started | |
+| 2. `retire-plans` helper and skill | In progress | |
 | 3. Pilot | Not started | |
 | 4. `plan-retirement` criterion | Not started | |
 | 5. Push audit | Not started | |
@@ -765,6 +765,51 @@ this section, and the Execution table row's name.
 Before step 2a, back brief Mikal on decision 1 (helper plus skill,
 not skill alone), since it doubles the phase, and confirm decision 2
 (merge request rather than a direct commit to llm-setup main).
+
+#### Phase 2 execution notes
+
+2026-10-29 (AEDT). The back brief confirmed the helper-plus-skill
+shape and a merge request. This shell has no credentials for
+`gitlab.home.stillhq.com`, so the llm-setup branch was cut from the
+local main (`cf613af`) and Mikal pushes it and opens the merge
+request; the `Merged` cell records it once merged.
+
+llm-setup branch `retire-plans`:
+
+| Commit | Step |
+|--------|------|
+| `85316be` | 2a: `bin/retire-plans` and its tests |
+| `589d84d` | 2a follow-up: `pointers` matches plans cited without `.md` |
+| `ced5395` | 2b: the `retire-plans` skill |
+| `b088711` | 2c: `consistency-fix` hand-off; README and docs entries |
+
+* **The clock changed.** 2a's first version used the last commit
+  touching a plan, as open question 2's default said, and found it
+  restarted by sweeps (divergulent 1 / kerbside 1 / ryll 10
+  eligible, not 3 / 3 / 23). Mikal chose the status-change clock;
+  corrected at source in `b7f1470` here (the docs page, open question
+  2, decision 3 and phase 4's brief). With it, the helper's counts
+  match the Situation table exactly.
+* 2a's extras, kept: `eligible` refuses a shallow clone, and never
+  dates a row by an index rename or by the commit restoring a
+  deleted index; `permalink` and `rewrite-index` fetch too, and take
+  `--no-fetch`; `rewrite-index --dry-run`; `eligible --all`; a table
+  with no Status column is reported as never eligible rather than
+  unreadable (ryll has one, of 12 plans).
+* 2b's author found that `pointers` missed plans cited by stem
+  (divergulent `PLAN-published-cache.md:12,43,131`) and worked
+  around it with a grep in skill prose; that went into the helper
+  instead (`589d84d`) and the prose came out. Its own two
+  conventions were kept: commit subject `Retire PLAN-<stem>.md.`, and
+  `Fixes` on the audit issue only when every eligible plan retired.
+* 2c added the helper to llm-setup's `docs/layout.md` and
+  `docs/helper-scripts.md`, since its README lists no helpers; the
+  management session added the `check` subcommand the entry omitted.
+* Mutation checks, all on copies: `pointers` skipping README.md (2
+  tests failed), `rewrite-index` rewriting a non-plan link (3), first
+  rather than latest terminal transition (2), rename detection off
+  (1), stem boundary dropped (2, and 4 with the names too). Suite:
+  720 tests, OK.
 
 ### Phase 3: pilot
 
