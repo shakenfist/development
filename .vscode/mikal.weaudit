@@ -933,15 +933,7 @@
       "author": "mikal"
     },
     {
-      "path": "templates/review-tracking/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/review-tracking/review-tracking.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/review-tracking",
       "author": "mikal"
     },
     {
@@ -1014,10 +1006,6 @@
     },
     {
       "path": "templates/renovate",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     }
   ],
