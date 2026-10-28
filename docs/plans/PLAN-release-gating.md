@@ -439,7 +439,7 @@ Out of scope, each for a stated reason:
 | 2. Shared `require-ci-success` and `check-dist` actions | Complete | actions 69d4589 (#182) |
 | 3. Template and fleet adoption | Complete | development f3f8472 (#294), 8d032a5 (#295), 10e3145 (#299), d668b98 (#300), 3e0ced1 (#304); actions 658d767 (#184), e1e2c85 (#185); client-python-ova 4a8eeed (#29), 3b40144 (#30), 4b1764d (#31); library-utilities 0940cbe (#74); divergulent 70ae4c3 (#132); occystrap e9e66d9 (#163); client-python-k3s 6d40cee (#154); clingwrap f4966df (#145); hunkydory b421cef (#103); agent-python 65a1778 (#155); client-python d789e0b (#432); kerbside d30ff34 (#582); shakenfist b3dc0c6 (#4597), 6a3f307 (#4581), 1ec1a6c (#4607); ryll d70ff4d (#591), 20e3cd4 (#599); instar a31e0d1 (#796); andris 288aba3 (#34) |
 | 4. Release-flow and merge-queue criteria | Complete | development e7a34fc (#328); ryll f8b99b3 (#623); occystrap 199f5b8 (#174) |
-| 5. Push audit | Not started | |
+| 5. Push audit | In progress | |
 
 Phases run in order. Phase 2 lands in `shakenfist/actions` and
 phase 3 lands in the template and in fourteen other repositories, so
@@ -2019,14 +2019,298 @@ Started on 2026-10-25 (AEDT).
 
 ### Phase 5: push audit
 
-Runs `PUSH-AUDIT.md` over every recorded landing in the Execution
-table, across `development`, `actions` and the fourteen adopting
-repositories, including phase 4's ryll pull request and whatever
-fixed occystrap's queue. Checklist item 5 is the centre of it: for each
-repository, confirm with a `workflow_dispatch` dry run (which skips
-the publish jobs by design) that `build` and `check-dist` still run,
-and confirm by reading that `ci-gate` is upstream of every
-environment.
+Runs each repository's `PUSH-AUDIT.md` over the merges phases 3 and
+4 landed there, and checks that every release still fails closed by
+dispatching `release.yml` as a dry run. Planned on 2026-10-28
+(AEDT), after phase 4 was closed out.
+
+**Planning effort:** high. **Review effort:** high for the security
+reading, as every runbook asks; the triage is the management
+session's.
+
+#### Scope
+
+In:
+
+* The 29 merges that phases 3 and 4 landed, in sixteen repositories
+  (the landing record below), each read with its own repository's
+  runbook, or with the shared block's floor checklist where the
+  repository has none.
+* A `workflow_dispatch` dry run of `release.yml` on `develop` in each
+  release repository whose current `release.yml` has not had one.
+* The record: a verdict per landing, per runbook brief or checklist
+  item, in this section.
+
+Out:
+
+* Phases 1 and 2. Each ran its push audit before its pull request
+  opened (development#288's body, and phase 2's execution notes), so
+  this phase cites them, as the shared block asks.
+* Fixing findings. They land after this phase merges, as their own
+  pull requests in the repositories they concern.
+* Problems that predate this plan. They are filed as issues, not
+  findings.
+* occystrap's queue (occystrap#169) and every other Future work
+  entry. A finding that turns out to be one is cross-referenced.
+* Adding a runbook to the five repositories without one. The
+  `push-audit` criterion measures that, and it predates this plan.
+
+#### Landing record
+
+Every landing is a merge commit with two parents, so every range is
+`<sha>^1..<sha>`, read against that repository's default branch.
+
+| Repository | Merges | Runbook |
+|---|---|---|
+| development | f3f8472 (#294), 8d032a5 (#295), 10e3145 (#299), d668b98 (#300), 3e0ced1 (#304), e7a34fc (#328) | yes |
+| actions | 658d767 (#184), e1e2c85 (#185) | yes |
+| andris | 288aba3 (#34) | yes |
+| client-python-k3s | 6d40cee (#154) | yes |
+| divergulent | 70ae4c3 (#132) | yes |
+| hunkydory | b421cef (#103) | yes |
+| instar | a31e0d1 (#796) | yes |
+| kerbside | d30ff34 (#582) | yes |
+| occystrap | e9e66d9 (#163), 199f5b8 (#174) | yes |
+| ryll | d70ff4d (#591), 20e3cd4 (#599), f8b99b3 (#623) | yes |
+| shakenfist | b3dc0c6 (#4597), 6a3f307 (#4581), 1ec1a6c (#4607) | yes |
+| agent-python | 65a1778 (#155) | no |
+| client-python | d789e0b (#432) | no |
+| client-python-ova | 4a8eeed (#29), 3b40144 (#30), 4b1764d (#31) | no |
+| clingwrap | f4966df (#145) | no |
+| library-utilities | 0940cbe (#74) | no |
+
+#### What the survey found
+
+Checked on 2026-10-28 against GitHub, the default branch of each
+repository, and fresh clones of the fourteen taken on 2026-10-27.
+
+1. **Every recorded landing is a two-parent merge on its default
+   branch.** For each of the 31 in the Execution table, GitHub's
+   commit has two parents, its compare against the default branch is
+   `ahead`, and its pull request's merge commit is the recorded sha.
+   The diffs run from +10/-4 (ryll#623) to +5625/-1378
+   (development#328, 24 files). Per repository, the changed lines
+   outside this one total between 115 (`actions`) and 1,754
+   (andris); this repository's six merges total 9,684.
+2. **No landing of phase 3 or phase 4 was push-audited.** The shared
+   block says a landing in another repository "is audited against that
+   repository's default branch, as part of the pull request that lands
+   it", and that the plan's own phase cites that audit. No body or
+   comment of those 29 pull requests mentions one, and the execution
+   notes record none. Phases 1 and 2 did run one. So this phase runs
+   the audits that those pull requests should have carried, rather
+   than citing them.
+3. **Nine of the fourteen have a `PUSH-AUDIT.md`**: andris,
+   client-python-k3s, divergulent, hunkydory, instar, kerbside,
+   occystrap, ryll and shakenfist. agent-python, client-python,
+   client-python-ova, clingwrap and library-utilities have none, nor a
+   legacy `PUSH-TEMPLATE.md`. `actions` has one. Seven of the nine,
+   and `actions`, split the audit into a mechanical wave 1 and four
+   wave 2 briefs, the last of them security at opus and high effort.
+   client-python-k3s's and occystrap's are a single checklist of six
+   sections, with no waves and no model named.
+4. **Only two release repositories have had a dry run since they
+   adopted the gate.** client-python-ova's (run 39303533446, at
+   4a8eeed on 2026-10-19) and instar's (run 39476356008, at a31e0d1
+   on 2026-10-20). Neither repository's `release.yml` has changed
+   since, and nor have `check-dist` or `require-ci-success` in
+   `actions`, whose last changes (actions#184 and f53cd9b) predate both
+   runs. The other twelve have no dispatch run since their phase 3
+   merge, and ryll, andris, divergulent, library-utilities, clingwrap,
+   agent-python, client-python and shakenfist have never had one.
+5. **A dry run cannot publish.** All fourteen `release.yml` files have
+   a `workflow_dispatch` trigger. ryll gained one when it converged on
+   the Rust template, although this plan's phase 3 survey said it had
+   none. On 2026-10-27, step 4g found that `release-process` passes
+   all fourteen, and its dispatch-guard rule keeps every publishing
+   job off a dispatch. `release-environment-protection` passes all
+   fourteen too, so a job that slipped through would still wait for a
+   reviewer.
+6. **That `ci-gate` is upstream of every environment is now
+   measured.** The old text of this section asked for it to be
+   confirmed by reading. Rule 1 of `release-process` checks it every
+   week for all fourteen, and 4g read kerbside's, shakenfist's and
+   ryll's graphs by hand and agreed with the rule. The audits still
+   read it, as a check on the rule, but they are not its only
+   evidence.
+7. **This section's old text was stale in two places, and has been
+   rewritten in this planning commit.** It said the audit covers
+   "whatever fixed occystrap's queue". Nothing fixed it: occystrap#174
+   moved occystrap to a single tier of CI, and is audited here like any
+   other landing. It also asked for every repository to be dry-run,
+   which survey item 4 narrows to twelve.
+
+#### Decisions
+
+5.1. **Phases 3 and 4 are audited per repository, with that
+     repository's runbook, one range per merge.** Each agent sets
+     `AUDIT_RANGE=<sha>^1..<sha>` for each of its merges, in a fresh
+     clone of the repository's default branch. Before a hit is
+     reported as a finding, the agent checks it against the default
+     branch's tip, because a later merge may already have fixed it.
+     A finding fixed since is recorded as such, not dropped.
+5.2. **Outside this repository, one agent runs a repository's whole
+     runbook.** Eight runbooks split wave 2 into four independent
+     readers. For 115 to 1,754 changed lines that is four agents
+     re-reading the same few files, about forty agents across the
+     fleet, and independence buys little at that size. So for
+     `actions` and the nine, one agent per repository runs wave 1 and
+     then each wave 2 brief in turn, or each section of a single-pass
+     runbook, reporting under each brief's or section's own heading.
+     It runs at opus and high effort, the strongest any runbook names.
+     This repository keeps the four separate wave 2 readers that its
+     runbook asks for. Its six merges change 9,684 lines, and its
+     blast radius is the fleet. This is the decision a
+     reviewer is most likely to push back on, because it bends what
+     nine runbooks say. The guard against what it gives up is the
+     totals rule. Every report states the insertion and deletion
+     totals it measured for each range, and a report whose totals do
+     not match the landing record is re-run rather than triaged.
+5.3. **The five repositories without a runbook get the shared block's
+     floor checklist, with this plan's own questions, from one
+     agent.** The block forbids borrowing another repository's
+     runbook. The five landed the same Python template change, so one
+     reader comparing them side by side is more likely to see a
+     difference between them than five readers who each see one. The
+     plan's questions are:
+     - Can any job that names an environment, or that publishes, run
+       when `ci-gate` fails or is skipped on a tag push?
+     - Is every check that the default branch's ruleset requires
+       reported by some job, on both `pull_request` and
+       `merge_group`?
+     - Can a merge group's run be cancelled by a newer entry?
+     - Does `check-dist` read the same directory that the upload
+       step uploads?
+     - Did the change remove or rename anything, such as a trigger, a
+       job name, a script or a step, that something else still
+       names?
+     The other fourteen repositories' agents ask these questions too,
+     after their runbook's own.
+5.4. **Twelve dry runs, dispatched by the management session after
+     the operator's yes at the time.** Dispatching runs live CI, so it
+     needs a yes, as phase 3's did. One yes covers the batch. The
+     twelve are every release repository except client-python-ova and
+     instar, whose runs survey item 4 cites. A dry run passes when
+     `ci-gate` and every publishing job are skipped, and every build
+     job, and every job with a `check-dist` step, succeeds. A
+     deployment review request during a dry run means a job reached
+     an environment. The operator rejects it, and it is a blocking
+     finding.
+5.5. **Findings land after this phase, and the plan completes in the
+     pull request that carries them.** This phase's own pull request
+     carries the record and nothing else. Each repository's fixes are
+     one pull request in that repository, made after the operator has
+     read the record. A finding not fixed is declined here, in a
+     sentence that says why. The follow-up pull request in this
+     repository records this phase's merge commit and sets the plan to
+     `Complete`. If the audit finds nothing, this phase sets itself to
+     `Complete` in its own pull request, as the `plan-phase-landing`
+     block says.
+
+#### Steps
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 5a | low | sonnet | none | Wave 1 of this repository's `PUSH-AUDIT.md`, read only, in a detached worktree of `origin/main` after `git fetch origin`. Run `pre-commit run --all-files` once. Then run every grep under "Then the grep-level checks on the diff" once for each range: `f3f8472^1..f3f8472`, `8d032a5^1..8d032a5`, `10e3145^1..10e3145`, `d668b98^1..d668b98`, `3e0ced1^1..3e0ced1` and `e7a34fc^1..e7a34fc`, with `AUDIT_RANGE` exported for each. Report each range's `git diff --shortstat`, and every hit with its range, file and line. Say for each hit whether it still holds at `origin/main`. Change nothing. |
+| 5b | medium | sonnet | none | Wave 2 brief 2a (code quality) of this repository's `PUSH-AUDIT.md`, verbatim, over the six ranges in 5a, with 5a's report as input. Read only. State each range's shortstat. For each finding give the range, the file, the line, blocking or advisory, and whether it still holds at `origin/main`. |
+| 5c | medium | sonnet | none | Wave 2 brief 2b (tests), as 5b. Ranges and rules as in 5b. |
+| 5d | medium | sonnet | none | Wave 2 brief 2c (documentation), as 5b. Ranges and rules as in 5b. Also check that `templates/release-automation/README.md`, `templates/release-automation-rust/README.md` and `docs/audits/release-process.md` state each invariant and each rule the same way. |
+| 5e | high | opus | none | Wave 2 brief 2d (security), as 5b. Ranges and rules as in 5b. Add these, because the templates ship to fourteen repositories. Can a tag, a branch name, a fork, a `workflow_dispatch` input or a merge group reach a publishing job without the gate? Does any template or rule fail open when GitHub returns something unexpected? |
+| 5f | high | opus | own fresh clone of `shakenfist/actions` | `actions`' own `PUSH-AUDIT.md`, all of it, over `658d767^1..658d767` and `e1e2c85^1..e1e2c85`, as decision 5.2 describes: wave 1, then each wave 2 brief in turn, reported under its own heading, with each range's shortstat. Then the questions in decision 5.3 that apply to a shared action or workflow. Read only. |
+| 5g | high | opus | own fresh clone per repository | One agent for each of andris, client-python-k3s, divergulent, hunkydory, instar, kerbside, occystrap, ryll and shakenfist, run in parallel. Each runs its repository's whole `PUSH-AUDIT.md` over that repository's ranges in the landing record, as decision 5.2 describes, then the questions in decision 5.3. Where a runbook's wave 1 needs a toolchain, use its Docker wrapper or report the step as not run. Never install a Rust toolchain on the host. Read only: no pull requests, comments or issues. Each report states each range's shortstat. |
+| 5h | high | opus | own fresh clone per repository | One agent for agent-python, client-python, client-python-ova, clingwrap and library-utilities, as decision 5.3 describes. For each repository and range, give a verdict on each of the five items in the `plan-push-audit-phase` block's floor checklist, or a sentence on why one does not apply, and then on each of decision 5.3's questions. Item 4's greps run across all fourteen release repositories and `actions`, and the report states them. Then compare the five diffs, and report every place where one repository did something differently from the others, saying whether that is a defect or a deliberate per-repository choice. Read only. Each report states each range's shortstat. |
+| 5i | low | sonnet | none | After the management session has dispatched the twelve dry runs (decision 5.4), read each run with `gh api repos/shakenfist/<r>/actions/runs/<id>/jobs --paginate --jq '.jobs[] \| "\(.name)\t\(.conclusion)"'`. Classify each job against that repository's `release.yml` as gate, build, `check-dist` carrier or publishing, and report the repository, the run URL, the head sha, and pass or fail against decision 5.4's test. For a failure, report the failing step's log tail. Do not re-run or cancel anything. |
+| 5j | high | management session | none | Triage every report: blocking or advisory, a finding or something that predates the plan, fixed since or still live. Write the record into this section as *Phase 5 results*: one row per landing, a verdict per runbook brief or checklist item, the dry-run table, and the findings list with the fate of each. Run the private-data probes over the added text. Commit the record and open the pull request under the standing grant. |
+
+Order:
+1. 5a first, then 5b to 5e in parallel, which read 5a's report.
+2. 5f, 5g and 5h at once, alongside 5a. They work in their own clones
+   and read nothing that 5a writes.
+3. The dry runs as soon as the operator says yes, then 5i.
+4. 5j last.
+
+Commit subject: "Record the release gating push audit."
+
+#### Risks and mitigations
+
+* **A brief expands to the empty diff, and an audit of nothing reads
+  as clean.** Every brief names its ranges literally, and every report
+  states its totals. The management session compares them with
+  `git diff --shortstat <sha>^1..<sha>` before triaging, and re-runs a
+  report whose totals differ.
+* **One reader per repository misses what four independent ones would
+  have caught** (decision 5.2). The security brief, which is where a
+  miss costs most, runs at opus high in every repository, and the
+  sixteen repositories' answers to decision 5.3's questions are
+  compared with each other in 5j. A question answered differently for
+  two repositories that landed the same change is re-read by hand.
+* **A dry run publishes.** Survey item 5 says it cannot. If one does,
+  the operator sees a deployment review request and rejects it, and
+  that is a blocking finding against the dispatch-guard rule as well
+  as against the repository.
+* **The dry runs cost CI capacity.** They build only, and they share
+  the static and VM pools with live work. The management session
+  dispatches them in one batch and waits for them, rather than
+  re-running any that fail. A failure is triaged, not retried.
+* **The audit grows into a fleet review.** Hits on code these merges
+  did not touch are backlog, not findings, as the runbooks say.
+  Problems that predate the plan become issues, filed only after the
+  operator has seen the list.
+* **A runbook asks for something the host cannot do**, such as a
+  native Rust toolchain or a running cluster. The agent reports the
+  item as not run, with the reason. 5j records it as not checked
+  rather than passed.
+
+#### Definition of done
+
+* The landing record lists all 29 merges, and *Phase 5 results*
+  gives each a verdict for every runbook brief, or for every floor
+  checklist item and decision 5.3 question.
+* Every report's totals match:
+
+  ```bash
+  git -C <clone> diff --shortstat <sha>^1..<sha>
+  ```
+
+  for each range it read.
+* Each of the twelve dry runs exists on `develop`, concluded, with
+  `ci-gate` and every publishing job `skipped`, and every build and
+  `check-dist` job `success`. This prints one line per job for
+  reading against the table in *Phase 5 results*:
+
+  ```bash
+  for id in <the twelve run ids>; do
+    gh api "repos/shakenfist/<r>/actions/runs/$id/jobs" --paginate \
+      --jq '.jobs[] | "\(.name)\t\(.conclusion)"'
+  done
+  ```
+
+* No deployment review request was raised by a dry run:
+  `gh api repos/shakenfist/<r>/actions/runs/<id>/pending_deployments`
+  returns `[]` for each.
+* Every finding is fixed by a linked pull request or declined in a
+  sentence here. Every pre-plan problem is a linked issue.
+* `pre-commit run --all-files` passes, and `scripts/audit-check.py`
+  against this repository gives the same id-to-status map as `main`.
+* The plan's Execution row for phase 5, and its `docs/plans/index.md`
+  row, read `Complete` in this pull request if there were no
+  findings. Otherwise they are `Complete` in the follow-up pull
+  request, which records this phase's merge commit.
+
+#### Back brief
+
+Before 5a starts, the operator confirms:
+
+1. **Decision 5.2:** one agent per repository runs the whole runbook
+   outside this repository, or every runbook's four wave 2 readers
+   run as written, about forty agents.
+2. **Decision 5.4:** the twelve dry runs, dispatched together after a
+   yes at the time, or a smaller set, or none.
+3. **Issues for pre-plan problems:** the management session files
+   them after the operator has seen the list, or the operator files
+   them.
+4. **Pushing and opening this phase's pull request:** the same
+   standing grant as phases 3 and 4, or ask.
 
 ## Agent guidance
 
