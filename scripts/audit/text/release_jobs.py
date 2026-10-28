@@ -194,10 +194,15 @@ def job_permissions(body):
 
 
 def holds_write(permissions, scope):
-    """Does this permissions value grant write on scope?"""
+    """Does this permissions value grant more than read on scope?
+
+    Read the way write_grants() reads a grant, so that the rule gating a
+    job and the rule limiting what it may hold agree: an access other
+    than `read` or `none`, `Write` included, counts.
+    """
     if isinstance(permissions, dict):
-        return permissions.get(scope) == 'write'
-    return permissions == 'write-all'
+        return scope in permissions and permissions[scope] not in ('read', 'none')
+    return permissions is not None and permissions != 'read-all'
 
 
 def write_grants(permissions):

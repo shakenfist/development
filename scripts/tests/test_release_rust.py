@@ -750,6 +750,12 @@ class WritePermissionTest(RustReleaseCase):
     def test_contents_write_elsewhere_fails(self):
         self.assertIn('publish holds contents: write', self.holder('      contents: write\n'))
 
+    def test_a_write_spelt_with_capitals_still_counts(self):
+        self.assertIn('publish holds contents: write', self.holder('      contents: Write\n'))
+        self.fresh_fixture()
+        self.compliant()
+        self.assertIn('publish holds id-token: write without', self.holder('      id-token: WRITE\n'))
+
     def test_id_token_without_the_release_environment_fails(self):
         self.assertIn('publish holds id-token: write without', self.holder('      id-token: write\n'))
         self.fresh_fixture()

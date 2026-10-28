@@ -582,9 +582,10 @@ def rust_effect_guard_issues(repo):
 
     A job that names an environment, holds any write scope -- to the
     repository, the package registry, an OIDC token -- or reads a secret
-    is one a dispatch must never run, and a pushed tag is the one event on which the gate always
-    runs. sign-tag and github-release take the guard whatever their
-    permissions say, as invariants 8 and 12 require.
+    is one a dispatch must never run, and a pushed tag is the one event
+    on which the gate always runs. sign-tag and github-release take the
+    guard whatever their permissions say, as invariants 8 and 12
+    require.
     """
     found = release_jobs(repo)
     if found is None:

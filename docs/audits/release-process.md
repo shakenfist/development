@@ -233,10 +233,10 @@ How the rules read what the README leaves open:
   environment, holds any write scope (`contents: write`,
   `id-token: write`, `packages: write`, any access but `read` or
   `none`, or `write-all`), or reads a secret other than `GITHUB_TOKEN`,
-  including through `secrets['...']` or `secrets: inherit`. Such a job needs
-  `sign-tag`, and so does `github-release`. Needing `sign-tag` covers
-  invariant 5's need for `check-version` too, so a job that needs
-  neither is told about `sign-tag` alone.
+  including through `secrets['...']` or `secrets: inherit`. Such a job
+  needs `sign-tag`, and so does `github-release`. Needing `sign-tag`
+  covers invariant 5's need for `check-version` too, so a job that
+  needs neither is told about `sign-tag` alone.
 * **Executable** (invariant 14) is the owner's execute bit in the
   checkout, which a clone takes from the mode git records.
 * **The per-repository section** of `propose-release.sh` and
