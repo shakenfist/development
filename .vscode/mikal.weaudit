@@ -815,6 +815,118 @@
     {
       "path": "docs/consistency-audits.md",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/ci_workflows.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/github_config.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/packaging.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/plans.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/release_rust.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/release.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/runners.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/release_jobs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/shared_blocks.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/workflows.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/registry.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/repo.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit_snapshot.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/review-tracking.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_audit_workflow.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_check_audit_read_token.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_ci_workflows.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_docs_content.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_github_config.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_metadata.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_packaging.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_plans.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_registry.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_release_rust.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_release.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_review_tracking.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_review.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
