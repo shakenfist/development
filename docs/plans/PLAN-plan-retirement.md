@@ -214,7 +214,7 @@ human merging the pull request.
 | Phase | Status | Merged |
 |-------|--------|--------|
 | 1. Retirement convention | Complete | f7b1219 (#333) |
-| 2. `retire-plans` skill | Not started | |
+| 2. `retire-plans` helper and skill | Not started | |
 | 3. Pilot | Not started | |
 | 4. `plan-retirement` criterion | Not started | |
 | 5. Push audit | Not started | |
@@ -585,20 +585,178 @@ request once the phase was done.
   both before and after the phase: `skillsaw` is not installed on
   this host. It is a tooling gap here, not a verdict.
 
-### Phase 2: `retire-plans` skill
+### Phase 2: `retire-plans` helper and skill
 
-Planning effort: high. The skill is where the judgement lives, and
-a weak brief here produces confident deletions of the reasoning the
-mission exists to keep.
+Planning effort: high. The skill is where the judgement lives, and a
+weak brief here produces confident deletions of the reasoning the
+mission exists to keep. Review effort: high, by the management
+session reading every line of the skill.
 
-Lands in `llm-setup` (`dot-claude/skills/retire-plans/SKILL.md`),
-beside `consistency-fix`, as its own pull request; record it in
-`Merged` as `llm-setup <sha> (#pr)`.
+#### Scope
+
+In, all in `llm-setup` (the private `gitlab.home.stillhq.com`
+repository whose `dot-claude/skills/` is symlinked as
+`~/.claude/skills`):
+
+* `bin/retire-plans`, a helper doing every deterministic part of a
+  retirement;
+* `tests/test_retire_plans.py` for it;
+* `dot-claude/skills/retire-plans/SKILL.md`, the judgement;
+* a hand-off paragraph in `dot-claude/skills/consistency-fix/SKILL.md`;
+* a row for both in `llm-setup`'s `README.md` skills and helpers
+  lists, following its existing entries.
+
+Out: retiring any plan (phase 3), the criterion (phase 4), and any
+change to this repository beyond this plan's own record.
+
+#### What the survey found
+
+Checked on 2026-10-28 against development `1118f06` and llm-setup
+`cf613af`:
+
+1. **The master plan put deterministic work in skill prose, which
+   llm-setup forbids.** Its `AGENTS.md` says "Deterministic work goes
+   in a script, not in skill prose ... A skill tells the model which
+   command to run and when to involve Mikal." Listing eligible plans,
+   computing permalinks, finding pointers, rewriting index links and
+   running the relevant criteria are all deterministic. The precedent
+   is `template-resync`: `bin/template-resync` (582 lines) with
+   `status` / `apply` / `check` subcommands, `tests/test_template_resync.py`,
+   and a 229-line skill. Phase 2 is reshaped to match; the master
+   plan's step 2a, which asked for all of it in the skill, is replaced
+   by this section.
+2. **The live skills are the llm-setup main checkout.** `install.sh`
+   links `dot-claude/skills` into `~/.claude/skills`, so editing the
+   primary clone changes every running session. The work happens in
+   an llm-setup worktree.
+3. **llm-setup lands both ways.** Recent skills (`template-resync`
+   `c1d993d`, `import-bloat` `3407b07`) were committed directly to
+   main; larger work went through merge requests
+   (`session-events-phase-14-*`). This phase uses a merge request, so
+   Mikal reviews the skill before it is live (decision 2).
+4. **llm-setup has no pre-commit.** Its checks are
+   `python3 -m unittest discover tests` and `bash -n` on changed
+   shell. Its tests mock `gh` and use temporary git repositories.
+5. **Index layouts differ across the fleet**, and the helper must
+   cope rather than assume this repository's four columns:
+   ryll's index has a fifth `Phases` column of links to phase files
+   (`ryll/docs/plans/index.md:29`), which a retirement must also turn
+   into permalinks or drop; instar's index (local clone of
+   2026-08-17) has prose in its status column, which `plan-index`
+   already fails. The helper finds the Status column by its header,
+   as `plan_table_columns` does in `scripts/audit/checks/plans.py`,
+   matches statuses exactly against the shared vocabulary, and
+   reports a row it cannot read instead of guessing.
+6. **`audit-check.py` has no per-criterion filter** (its only options
+   are `--repo-path`, `--repo-name`, `--github-org`). Callers filter
+   the JSON's `checks[]` by `id`, as `template-resync check` and
+   `consistency-fix` already do.
+7. **The `from-retired-plan` label exists nowhere yet.** Filing the
+   first issue in a repository must create it.
+8. **`plan-blockers` may hold entries for a retired plan.** It has a
+   `clear` subcommand (`plan-blockers clear --plan <name>`), which the
+   skill runs after the merge, not before.
+9. **The `consistency-fix` hand-off names an issue that does not exist
+   yet.** `Completed plans awaiting retirement` is filed only once the
+   phase 4 criterion lands; the paragraph is written now so the
+   llm-setup change is one review, and is inert until then.
+
+Corrected at source: the master plan's phase 2 table, replaced by
+this section, and the Execution table row's name.
+
+#### Decisions
+
+1. **Helper does the mechanics, skill does the judgement.** The
+   helper never decides what is reasoning, what is still valid, or
+   where text belongs; the skill never computes an age, a sha or a
+   grep. This is the decision most likely to be argued with, because
+   it roughly doubles the size of the phase. The answer is that every
+   deterministic step the skill did by hand would be done slightly
+   differently in each of some forty retirements, and the
+   pointer search in particular is exactly what a model gets
+   plausibly wrong: a missed `blob/main` link in a README is a silent
+   404 nobody reports.
+2. **Through a merge request**, branch `retire-plans`, so the skill is
+   reviewed before it is live in every session. Recorded in `Merged`
+   as `llm-setup <merge sha> (!<mr>)`.
+3. **Helper subcommands**, each read-only unless stated:
+   * `eligible [REPO_PATH]` -- fetch `origin`, read the index's plan
+     table(s) by header, and for each row with a local link and a
+     terminal status list the master and phase files and the date of
+     the last commit on `origin/<default>` touching any of them.
+     Prints a table, and `--json`. Rows it cannot read are listed
+     separately with why. `--days` defaults to 90.
+   * `pointers PLAN` -- every line in the repository, outside the
+     plan's own files, naming any of its files' basenames, by
+     `git grep -n -F`, grouped as: index row, other plans, docs/,
+     README.md, AGENTS.md / ARCHITECTURE.md, `.claude/`, source.
+   * `permalink FILE` -- the URL, from
+     `git log -1 --format=%H origin/<default> -- docs/plans/FILE`
+     and the `origin` remote's owner and name.
+   * `rewrite-index PLAN` (writes) -- replace every link in the index
+     to the plan's master or phase files with its permalink, leaving
+     every other byte of the row alone.
+   * `check REPO_PATH` -- run development's `audit-check.py` against
+     the checkout and report `plan-index`, `plan-source-references`,
+     `plan-phase-references` and `docs-external-links`; exit 1 if any
+     is `fail` or `error`.
+4. **The skill's per-plan order** is fixed, because the cheap
+   refusals come first: read the plan and phases whole; decide where
+   the reasoning goes, and stop on that plan if nowhere fits; write
+   the docs changes; triage *Future work*; file issues; rewrite
+   pointers from `pointers`; `rewrite-index`; delete the files; one
+   commit. Then `check` once over the branch.
+5. **Issues are filed only once the plan's commit is ready**, so a
+   plan abandoned mid-way leaves no orphaned issues; and the skill's
+   pull request body lists them, as the open-question answer
+   requires.
+6. **The skill refuses repositories with a failing `plan-index`.**
+   An index the audit cannot read is one the helper cannot rewrite
+   safely; fix it first (it already has its own consistency issue).
+
+#### Steps
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 2a | xhigh | opus | none | Write the `retire-plans` skill. Read `consistency-fix/SKILL.md` and `template-resync/SKILL.md` for shape and tone first. Invoked in a repository (optionally with plan filenames), it: lists eligible plans by the rule in `docs/plan-retirement.md` here (link to it; do not restate it) (computing age locally with `git log -1 --format=%cs -- <plan and phase files>` against `origin/<default>`); skips the run if an open pull request already retires any of them; cuts one worktree and branch; and, per plan, in one commit each: reads the whole plan and its phases; compares against `docs/`, `ARCHITECTURE.md` and `AGENTS.md`, filling gaps; extracts the reasoning (analysis, *Situation* measurements, rejected alternatives, back-brief corrections, push-audit declines) and writes what a future change needs into docs/; triages each *Future work* item against the code and open issues (`gh issue list --search`) into filed / already tracked / done / dropped-with-reason; rewrites every pointer (`git grep -n <basename>` across the repo, including other plans and `.claude/`); deletes the files; rewrites the index link to a permalink. The pull request body carries a per-plan table: docs changed, reasoning moved (with links), issues filed, items dropped and why. It runs `pre-commit run --all-files` and the repo's audit checks for `plan-index` and `plan-source-references` before pushing. It never merges, and it never runs `prune` or touches `REVIEWS.md`. State explicitly that a plan whose reasoning cannot be placed in docs/ is left unretired and reported, rather than deleted. |
-| 2b | medium | sonnet | none | Teach `consistency-fix` to hand a `Completed plans awaiting retirement` issue to `retire-plans` instead of fixing it itself, and to close the issue from the retirement pull request body. |
+| 2a | high | opus | none (llm-setup worktree) | Write `bin/retire-plans` and `tests/test_retire_plans.py` in the llm-setup worktree, implementing decision 3 exactly. Read first: llm-setup `AGENTS.md`; `bin/template-resync` (argparse layout, `say()`, how it locates the development clone via `SHAKENFIST_DEVELOPMENT` and runs `audit-check.py` in `cmd_check`, line ~513) and `tests/test_template_resync.py` (temporary git repositories, mocked `gh`); development's `docs/plan-retirement.md` (the rules) and `scripts/audit/checks/plans.py` (`PLAN_STATUSES`, `plan_table_columns`, `PLAN_LINK_RE`, `plan_link_path`, `PLAN_PHASE_FILE_RE`) -- reimplement the small parts needed rather than importing development's package, and say so in a comment. Stdlib only. Tests cover: a four-column and a five-column (ryll-style `Phases`) index; a prose status reported as unreadable; age from the newest of master and phase files; a permalink row already retired is skipped; `pointers` finding a `blob/main` README link, a backticked AGENTS.md name and a phase-file basename; `rewrite-index` changing only link targets; `check` exiting 1 on a failing criterion (mock the audit run). Run `python3 -m unittest discover tests`. |
+| 2b | xhigh | opus | none (llm-setup worktree) | Write `dot-claude/skills/retire-plans/SKILL.md`, after 2a has landed in the worktree. Read `consistency-fix/SKILL.md` and `template-resync/SKILL.md` for shape and tone, and development's `docs/plan-retirement.md`, which the skill links and must not restate. Frontmatter description says when to use it (asked to retire plans; a `Completed plans awaiting retirement` issue; `/retire-plans` bare means every eligible plan in the current repository). Body: invocation and authority (being asked is permission to create the worktree `<repo>-wt-retire-plans-<date>` and commit per plan; pushing and the PR need an ask, as in consistency-fix); refuse if `check` shows `plan-index` failing; skip plans an open PR already retires (`gh pr list --search retire`); per plan, decision 4's order, with the judgement spelled out: what counts as reasoning (constraints verified, measurements, rejected alternatives and why, back-brief corrections, push-audit declines), where it goes (the existing doc a reader of that code would open; ARCHITECTURE.md only for the shape of the system; never AGENTS.md unless it is a convention), how to triage *Future work* (still valid against the code? already an issue?), and that a plan with nowhere for its reasoning is left and reported. Issues labelled `from-retired-plan` (create the label if absent), filed per decision 5. PR body: per-plan table of docs changed, reasoning moved, issues filed, items dropped with reasons. After merge: `plan-blockers clear --plan <name>` where an entry exists. Never touches `REVIEWS.md`, never merges. Call the helper as `$HOME/bin/retire-plans`. Under 250 lines. |
+| 2c | medium | sonnet | none (llm-setup worktree) | In `dot-claude/skills/consistency-fix/SKILL.md`, add a short paragraph where it decides how to fix each failing check: a `Completed plans awaiting retirement` issue (check id `plan-retirement`) is not fixed here; hand it to the `retire-plans` skill, whose pull request closes it. Add `retire-plans` (skill) and `retire-plans` (helper) to llm-setup's `README.md` in the lists where `template-resync` appears, matching their form. |
+
+#### Risks and mitigations
+
+* **The skill reads as plausible and retires badly.** No test can
+  catch that; phase 3's pilot is the test. The management session
+  reviews the skill against the four failure modes in decision 4's
+  order before the merge request is opened.
+* **Live-skill exposure.** Mitigated by decision 2: nothing reaches
+  `~/.claude/skills` until Mikal merges.
+* **Helper and development drift.** The helper reimplements a little
+  of `plans.py`. Its tests use index layouts from the fleet, and
+  `check` runs the real criteria, so a drifted reading is caught by
+  the audit's verdict, not trusted.
+
+#### Definition of done
+
+* In the llm-setup worktree, `python3 -m unittest discover tests`
+  passes and includes `tests/test_retire_plans.py`.
+* `bin/retire-plans eligible ~/src/shakenfist/divergulent` and
+  `.../kerbside` each list 3 plans, matching this plan's Situation
+  table, or the difference is explained in the execution notes.
+* `bin/retire-plans eligible ~/src/shakenfist/ryll` reads the
+  five-column index without listing any row as unreadable.
+* `bin/retire-plans pointers PLAN-code-review-tracking.md`, run in
+  this repository, finds the `README.md` link at line 29 and the
+  `AGENTS.md` mentions.
+* `grep -c '90' dot-claude/skills/retire-plans/SKILL.md` is at most
+  1, and the skill links `docs/plan-retirement.md`: the rule lives
+  in one place.
+* The merge request is open, and Mikal has merged it.
+
+#### Back brief
+
+Before step 2a, back brief Mikal on decision 1 (helper plus skill,
+not skill alone), since it doubles the phase, and confirm decision 2
+(merge request rather than a direct commit to llm-setup main).
 
 ### Phase 3: pilot
 
