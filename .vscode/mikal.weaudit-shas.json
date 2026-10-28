@@ -101,10 +101,6 @@
       "sha": "19250ecbf2e394e40a54ca5babb36d7b0d211fcb",
       "date": "2026-10-28"
     },
-    "README.md": {
-      "sha": "9d0658d08cf96ae9864ee8effe80ec7e04869669",
-      "date": "2026-10-28"
-    },
     "docs/audits/README.md": {
       "sha": "2ae40143f3bef4dc6276f20c157d4e2c7e61f0ab",
       "date": "2026-10-28"
@@ -269,10 +265,6 @@
       "sha": "0faae83433bd015dfa575e03b74c17c09df5f6bf",
       "date": "2026-10-28"
     },
-    "docs/audits/release-process.md": {
-      "sha": "0b59d81ff09415d6d0c6f73996dcecfe2e1b6fa9",
-      "date": "2026-10-28"
-    },
     "docs/audits/renovate-lockstep-groups.md": {
       "sha": "c58fa988567ea392014294842ae64989649a56f4",
       "date": "2026-10-19"
@@ -433,10 +425,6 @@
       "sha": "33db8dee30d497d39a070a5465bf597c0031c5a0",
       "date": "2026-10-28"
     },
-    "scripts/audit/checks/release_rust.py": {
-      "sha": "67aadead58f2acf6f09edf7adb529b251f956759",
-      "date": "2026-10-28"
-    },
     "scripts/audit/checks/review.py": {
       "sha": "42478ba9ec6c01f5722efde0525b213fe7c950aa",
       "date": "2026-10-28"
@@ -485,16 +473,8 @@
       "sha": "3279930e796e7d42ea3a4a1382d180d4391d94a8",
       "date": "2026-10-22"
     },
-    "scripts/audit/text/release_jobs.py": {
-      "sha": "3ff4a218966336887aa440f9389bc992c0fc0753",
-      "date": "2026-10-28"
-    },
     "scripts/audit/text/shared_blocks.py": {
       "sha": "b379c2cdddfe65b8a6018e3897abd5ce3892e34b",
-      "date": "2026-10-28"
-    },
-    "scripts/audit/text/workflows.py": {
-      "sha": "cf6e24260da4accb7e80ee235648a636187dcee5",
       "date": "2026-10-28"
     },
     "scripts/audit_common.py": {
@@ -633,14 +613,6 @@
       "sha": "9fb8cb54d2291ba02112f8de83400e8b22d1dfcd",
       "date": "2026-10-28"
     },
-    "scripts/tests/test_release.py": {
-      "sha": "7550f3dadd4f3b6e9439bfcda2fb447dce229291",
-      "date": "2026-10-28"
-    },
-    "scripts/tests/test_release_rust.py": {
-      "sha": "bcb25547abfa95615cf68af51dc1b2bc33a38c80",
-      "date": "2026-10-28"
-    },
     "scripts/tests/test_release_version.py": {
       "sha": "3522e57d1aab3c4e667a3e27b33ad26b0bb94460",
       "date": "2026-10-21"
@@ -745,10 +717,6 @@
       "sha": "94e1e3a47510da8436eb629a047ba1edd4979905",
       "date": "2026-10-01"
     },
-    "templates/release-automation-rust/README.md": {
-      "sha": "3619daa5923d58cec1564d9730a3c53f2ccafd39",
-      "date": "2026-10-22"
-    },
     "templates/release-automation-rust/propose-release.sh": {
       "sha": "17276962a0f92590fafe059cac68e5d44026f388",
       "date": "2026-10-20"
@@ -761,17 +729,9 @@
       "sha": "8c9a27eee3c86f2e09c3f295f6a04779afd62046",
       "date": "2026-10-22"
     },
-    "templates/release-automation-rust/sign-release-tag.sh": {
-      "sha": "6eea42015fc6b25bcf30d09c22c9da0b3841ed5f",
-      "date": "2026-10-20"
-    },
     "templates/release-automation-rust/tag-release.sh": {
       "sha": "16a49ce3cf6bfa3420093406c981401eaab19c90",
       "date": "2026-10-22"
-    },
-    "templates/release-automation/README.md": {
-      "sha": "4e94fdc4942e0cb37eaf1e9b3e41c48ab49c63b4",
-      "date": "2026-10-28"
     },
     "templates/release-automation/RELEASE-SETUP.md": {
       "sha": "7b880ebda6d241915e8e4fd5e3283c2e0dee6a04",

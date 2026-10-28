@@ -593,10 +593,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/release-automation-rust/sign-release-tag.sh",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/check.py",
       "author": "mikal"
     },
@@ -701,14 +697,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/release-automation-rust/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/release-automation-rust",
-      "author": "mikal"
-    },
-    {
       "path": "templates/release-automation/RELEASE-SETUP.md",
       "author": "mikal"
     },
@@ -785,10 +773,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/release-process.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/review-tracking-templates.md",
       "author": "mikal"
     },
@@ -821,10 +805,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/release_rust.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/release.py",
       "author": "mikal"
     },
@@ -837,15 +817,7 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/text/release_jobs.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/text/shared_blocks.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/text/workflows.py",
       "author": "mikal"
     },
     {
@@ -897,14 +869,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_release_rust.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_release.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_review_tracking.py",
       "author": "mikal"
     },
@@ -922,14 +886,6 @@
     },
     {
       "path": "templates/mermaid-lint",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/release-automation/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/release-automation",
       "author": "mikal"
     },
     {
@@ -970,10 +926,6 @@
     },
     {
       "path": "PUSH-AUDIT.md",
-      "author": "mikal"
-    },
-    {
-      "path": "README.md",
       "author": "mikal"
     },
     {
