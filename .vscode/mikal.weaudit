@@ -979,6 +979,34 @@
     {
       "path": "templates",
       "author": "mikal"
+    },
+    {
+      "path": "tools/check-audit-read-token.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/review-tracking.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools",
+      "author": "mikal"
+    },
+    {
+      "path": ".claude/skills/review-tracking-adoption/SKILL.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".claude/skills/review-tracking-adoption",
+      "author": "mikal"
+    },
+    {
+      "path": ".claude/skills",
+      "author": "mikal"
+    },
+    {
+      "path": "PUSH-AUDIT.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
