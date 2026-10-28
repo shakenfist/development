@@ -213,7 +213,7 @@ human merging the pull request.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. Retirement convention | In progress | |
+| 1. Retirement convention | Complete | f7b1219 (#333) |
 | 2. `retire-plans` skill | Not started | |
 | 3. Pilot | Not started | |
 | 4. `plan-retirement` criterion | Not started | |
