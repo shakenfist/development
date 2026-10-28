@@ -106,19 +106,24 @@ per-repository section:
    environment itself, as a PyPI trusted publisher requires, asks a
    second time.
 
-Once `sign-tag` has run, anyone can check the tag's signature. Set
-`GITHUB_REPOSITORY` to the repository's owner/name, for example
-`shakenfist/ryll`, and run:
+Once `sign-tag` has run, anyone with
+[gitsign](https://github.com/sigstore/gitsign) can check the tag's
+signature. With `OWNER/REPO` replaced by the repository:
 
 ```bash
 git fetch --tags --force origin
 gitsign verify-tag vX.Y.Z \
-  --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/" \
+  --certificate-identity-regexp '^https://github\.com/OWNER/REPO/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
-A repository's `docs/releasing.md` can carry this command as it
-stands. The same command is in `tools/sign-release-tag.sh`'s header.
+The certificate's identity is the workflow that signed and the ref it
+ran on, so the pattern names `release.yml` and a `v*` tag. One that
+stops at the repository would accept a signature from any of its
+workflows, on any branch. A repository's `docs/releasing.md` carries
+this command with its own name filled in; `tools/sign-release-tag.sh`'s
+header has the same check, written with `${GITHUB_REPOSITORY}` so that
+the script stays identical in every repository.
 
 Running the workflow by hand (**Actions -> Release -> Run workflow**)
 on any branch is a dry run. It runs `check-version` and the build jobs,
