@@ -64,6 +64,19 @@ the workflow does not work without them.
   reaches. Add the secret only where the ruleset needs it, and keep
   it out of organisation-level secrets.
 
+  A repository secret is also readable by any workflow that runs on a
+  push to any branch, including one a writer adds on a branch of
+  their own; the job's default-branch guard does not stop that. This
+  is accepted, as it is for the pin-indirect-dependencies template's
+  use of the same secret, because it is not a boundary these
+  repositories have: their rulesets require no approving review, so
+  a writer can already land a change through a pull request, and what
+  the token adds is a push that skips the required checks. Keep the
+  token's reach to the repositories that need it. If a ruleset starts
+  requiring review, hold the secret in an environment whose
+  deployment branches are the default branch alone, and give the job
+  that `environment:`.
+
 ## gitsign
 
 `import` verifies the signature on each source commit it points at,
@@ -130,9 +143,12 @@ earlier job could write is treated as hostile. The script therefore:
   anything, so curl, gitsign and `review-tracking.py` never see it,
   and passes it to `git push` alone as an
   `http.https://github.com/.extraheader` through `GIT_CONFIG_COUNT`,
-  never in argv. The push's environment is still readable, through
-  `/proc/<pid>/environ`, by any process running as the runner's user
-  while the push runs; what bounds that is the runner killing a job's
+  never in argv. The token is still readable, through
+  `/proc/<pid>/environ` of the script itself as well as of the push,
+  by any process running as the runner's user, for the whole run:
+  `unset` changes what children inherit, not the environment a
+  process was started with. Only a runner user of the job's own would
+  close that. What bounds it is the runner killing a job's
   orphaned processes when the job ends, and the fresh clone, which
   leaves an earlier job's code no hook through which to start such a
   process inside this one.
