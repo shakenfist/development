@@ -849,8 +849,13 @@ is also why its `prune-reviews` pushes with `github.token`.
 
 `AUDIT_READ_TOKEN` sees `bypass_actors` on hunkydory's ruleset
 23805020 before the demotion (1a, 2026-10-30): **yes**, `has
-bypass_actors: True`. After the demotion (1b): *pending*. Since the
-token is the bot's, the answer may change, and 1b re-probes it.
+bypass_actors: True`. After the demotion (1b, 2026-10-30, run
+40936327542, deleted once read): **no**, `has bypass_actors:
+False`, with `current_user_can_bypass: always` because the bot is
+still in the team. So step 3c takes its fallback shape: the audit
+measures only the environment and secret half, and the bypass
+list moves to the spec's reviewer-confirmed half, as the plan
+provides.
 
 **The bot's token list (1a).** *Pending: to be read as
 `shakenfist-bot` by the operator.* Secrets elsewhere in the fleet
@@ -911,9 +916,13 @@ through the team, not the role); the unknown is only whether
 6: the ephemeral vm pool, `[self-hosted, vm, debian-13, s]`, which
 the one runner group serves to every repository.
 
-**Demotion (1b).** Role after: *pending*. Permissions after, on
-shakenfist, kerbside, ryll, instar, hunkydory, client-python-k3s,
-actions, development, sfui, kerbside-client, andris: *pending*.
+**Demotion (1b).** Done 2026-10-30 06:01 AEDT with
+`gh api -X PUT orgs/shakenfist/memberships/shakenfist-bot -f
+role=member`. Role after: `member` (re-read). Permissions after,
+on shakenfist, kerbside, ryll, instar, hunkydory,
+client-python-k3s, actions, development, sfui, kerbside-client
+and andris: `write` on every one, from the base permission.
+`orgs/shakenfist/members?role=admin` lists `mikalstill` alone.
 Soak evidence: audit run *pending* (the audit is weekly, Sunday
 18:00 UTC, so the next scheduled run is 2026-11-02 05:00 AEDT; a
 `workflow_dispatch` of `main` before then counts, and is recorded
@@ -946,6 +955,10 @@ first four, the environment's secret names; for all eight,
   installing `gh`. Its run, the two skipped `prune-reviews` runs the
   branch pushes caused, the branch and the file were deleted
   afterwards; `gh run list --branch bbi-p1-token-probe` is empty.
+- 2026-10-30: the post-demotion re-probe ran the same way as the
+  first, on a `push` trigger, with one step for `AUDIT_READ_TOKEN`,
+  and was deleted with its branch and the skipped `prune-reviews`
+  run the push caused.
 - 2026-10-30: the last scheduled audit run (40229216560, 2026-10-25)
   failed in `manage-issues` on a transient GraphQL error updating
   one issue, after every leg passed. Not this plan's; noted because
