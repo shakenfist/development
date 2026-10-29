@@ -3499,6 +3499,28 @@ class PreCommitNodeVersionTest(CheckTestCase):
         self.local_node('        language_version: default\n', top='default_language_version:\n  node: lts\n\n')
         self.assert_pass(self.check())
 
+    def test_a_comment_after_default_language_version_still_pins(self):
+        self.local_node(top='default_language_version:  # pinned for nodeenv\n  node: lts\n\n')
+        self.assert_pass(self.check())
+
+    def test_a_comment_as_the_hooks_version_leaves_it_unpinned(self):
+        self.local_node('        language_version:  # todo\n')
+        self.assert_fail(self.check(), containing='markdownlint-cli2 (default)')
+
+    def test_flow_default_language_version_pins(self):
+        self.local_node(top='default_language_version: {python: python3, node: lts}  # one line\n\n')
+        self.assert_pass(self.check())
+
+    def test_flow_default_language_version_latest_fails(self):
+        self.local_node(top='default_language_version: {node: latest}\n\n')
+        self.assert_fail(self.check(), containing='markdownlint-cli2 (latest)')
+
+    def test_unreadable_default_language_version_is_a_tool_failure(self):
+        for value in ('{node: [lts]}', 'node', '{node}'):
+            with self.subTest(value=value):
+                self.local_node(top=f'default_language_version: {value}\n\n')
+                self.assert_tool_failure(self.check, containing='Could not read default_language_version')
+
     def test_language_version_text_inside_args_is_not_the_hooks(self):
         self.local_node('        args:\n          - language_version: lts\n')
         self.assert_fail(self.check(), containing='markdownlint-cli2 (default)')
@@ -3527,6 +3549,17 @@ class PreCommitNodeVersionTest(CheckTestCase):
         self.remote('      - id: prettier\n        language_version: latest\n')
         github = self.manifest(self.NODE_MANIFEST + '  language_version: lts\n')
         self.assert_fail(self.check(github=github), containing='prettier (latest)')
+
+    def test_an_explicit_default_beats_the_manifest_version(self):
+        """The config's keys replace the manifest's, `default` included."""
+        self.remote('      - id: prettier\n        language_version: default\n')
+        github = self.manifest(self.NODE_MANIFEST + '  language_version: lts\n')
+        self.assert_fail(self.check(github=github), containing='prettier (default)')
+
+    def test_an_empty_manifest_version_leaves_the_hook_unpinned(self):
+        self.remote('      - id: prettier\n')
+        github = self.manifest(self.NODE_MANIFEST + '  language_version:\n')
+        self.assert_fail(self.check(github=github), containing='prettier (default)')
 
     def test_remote_python_hook_is_not_applicable(self):
         self.remote('      - id: skillsaw\n')

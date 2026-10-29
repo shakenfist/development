@@ -105,7 +105,9 @@ for example `markdownlint-cli2 (default)`.
 
 If GitHub does not answer, or the pinned `rev` has no
 `.pre-commit-hooks.yaml`, the check reports an error rather than a
-verdict, and no issue is filed or closed.
+verdict, and no issue is filed or closed. So does a
+`default_language_version` the audit cannot read as a mapping, since
+treating it as absent could fail a repository that pins Node there.
 
 ## Template
 
@@ -128,6 +130,9 @@ Or pin every Node hook in the file at once:
 default_language_version:
   node: lts
 ```
+
+The one-line form, `default_language_version: {node: lts}`, is read
+too.
 
 ## Projects
 

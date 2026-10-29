@@ -7,10 +7,12 @@ hooks. Both are lists of mappings, so one scanner reads both, and the
 criteria that care about a hook ask it for the keys that hook set.
 
 Line based rather than YAML-parsed, like the workflow helpers beside
-it, which avoids a PyYAML dependency. Flow-style mappings, multi-line
-quoted scalars and a list item written as a bare `-` line with its
-first key on the next are not understood; none of the fleet's configs
-use them.
+it, which avoids a PyYAML dependency. A flow-style mapping is read only
+as the one-line value of a column-0 key, which is how a config writes
+`default_language_version: {node: lts}`. Flow mappings anywhere else,
+multi-line quoted scalars and a list item written as a bare `-` line
+with its first key on the next are not understood; none of the fleet's
+configs use them.
 """
 
 import re
@@ -19,6 +21,10 @@ import re
 _BLOCK_SCALAR = re.compile(r'([|>])([+-]?)(\d?)([+-]?)\s*(?:#.*)?$')
 _SINGLE_QUOTED = re.compile(r"'((?:[^']|'')*)'")
 _DOUBLE_QUOTED = re.compile(r'"((?:[^"\\]|\\.)*)"')
+_QUOTED = _SINGLE_QUOTED.pattern + '|' + _DOUBLE_QUOTED.pattern
+# One entry of a flow mapping: everything up to the next comma that is
+# not inside a quoted scalar.
+_FLOW_ENTRY = re.compile(r'(?:' + _QUOTED + r'''|[^,'"])*''')
 
 
 def _block_scalar_text(match, lines):
@@ -61,7 +67,45 @@ def _scalar_value(value):
         match = quoted.match(value)
         if match:
             return unescape(match.group(1))
-    return re.sub(r'\s+#.*$', '', value).strip()
+    # A comment needs whitespace before it, which the key pattern has
+    # already consumed when the comment is all the line holds.
+    return re.sub(r'(?:^|\s+)#.*$', '', value).strip()
+
+
+def _flow_mapping(value):
+    """The keys and values of a one-line flow mapping, or None.
+
+    `value` is a scalar as _scalar_value() left it. Only a flat mapping
+    of plain or quoted scalars is read, `{node: lts, python: python3}`;
+    anything else, a nested collection or an entry that is not
+    `key: value`, returns None rather than a guess.
+    """
+    match = re.fullmatch(r'\{(.*)\}', value)
+    if not match:
+        return None
+    inner = match.group(1)
+    if re.search(r'[{}\[\]]', re.sub(_QUOTED, '', inner)):
+        return None
+    parts = []
+    at = 0
+    while True:
+        entry = _FLOW_ENTRY.match(inner, at)
+        parts.append(entry.group(0))
+        at = entry.end()
+        if at == len(inner):
+            break
+        if inner[at] != ',':
+            return None
+        at += 1
+    mapping = {}
+    for part in parts:
+        if not part.strip():
+            continue
+        entry = re.fullmatch(r'\s*([\w-]+):(?:\s+(.*?))?\s*', part)
+        if not entry:
+            return None
+        mapping[entry.group(1)] = _scalar_value(entry.group(2) or '')
+    return mapping
 
 
 class PreCommitYaml:
@@ -150,6 +194,9 @@ def scan_pre_commit_yaml(text):
         if column == 0:
             top.setdefault(name, []).append(value)
             section = name if not value else None
+            flow = _flow_mapping(value)
+            if flow is not None:
+                sections[name] = flow
         elif open_items:
             owner = open_items[-1]
             if owner['column'] == column:

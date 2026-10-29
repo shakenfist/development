@@ -2503,20 +2503,21 @@ def hook_manifest(client, owner, name, rev):
     """The hooks a GitHub repository's .pre-commit-hooks.yaml declares at rev.
 
     Returns {hook id: (language, language_version)}, with None for a
-    key the manifest does not set. GitHub not answering, and a rev or
+    key the manifest does not set or leaves empty. GitHub not answering, and a rev or
     manifest that does not exist, both raise ToolFailure: pre-commit
     could not install from that rev either, and which language the hook
     would have used is not something the audit can guess.
     """
-    path = (f'repos/{owner}/{name}/contents/.pre-commit-hooks.yaml'
-            f'?ref={urllib.parse.quote(rev, safe="")}')
+    ref = urllib.parse.quote(rev, safe='')
+    path = f'repos/{owner}/{name}/contents/.pre-commit-hooks.yaml?ref={ref}'
     what = f'the hook manifest of {owner}/{name} at {rev}'
     result = client.api_answer(path, what, jq='.content')
     try:
         text = base64.b64decode(result.stdout).decode('utf-8', errors='replace')
     except ValueError as e:
         raise ToolFailure(f'Could not decode {what}: {e}') from e
-    return {item_value(hook, 'id'): (item_value(hook, 'language'), item_value(hook, 'language_version'))
+    return {item_value(hook, 'id'): (item_value(hook, 'language') or None,
+                                     item_value(hook, 'language_version') or None)
             for hook in scan_pre_commit_yaml(text).hooks()}
 
 
@@ -2546,8 +2547,16 @@ class PreCommitNodeVersion(Check):
         then `default_language_version.node`, then `default`. Only
         `default` and `latest` fail; `lts`, an explicit version and
         `system` all name what will run.
+
+        A `default_language_version` the scanner cannot read as a
+        mapping is an error rather than a verdict: read as absent, it
+        would fail a repository that may well pin Node there.
         """
         config = scan_pre_commit_yaml(repo.read('.pre-commit-config.yaml') or '')
+        defaults = config.top.get('default_language_version', [])
+        if defaults and defaults[-1] and 'default_language_version' not in config.sections:
+            raise ToolFailure(f'Could not read default_language_version: {defaults[-1]} '
+                              f'as a mapping in .pre-commit-config.yaml')
         default_node = config.sections.get('default_language_version', {}).get('node')
         manifests = {}
         pinned = []
@@ -2557,8 +2566,9 @@ class PreCommitNodeVersion(Check):
             hook_id = item_value(hook, 'id')
             entry = hook['parent']
             source = item_value(entry, 'repo') if entry is not None else None
-            language = item_value(hook, 'language')
-            version = item_value(hook, 'language_version')
+            # An empty value is YAML's null: the key is as good as unset.
+            language = item_value(hook, 'language') or None
+            version = item_value(hook, 'language_version') or None
 
             remote = source not in (None, 'local', 'meta')
             if remote and (language is None or (language == 'node' and version is None)):
