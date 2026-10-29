@@ -102,13 +102,21 @@ fresh install, and their install scripts run in the step that holds
 although the floating tag moved it anyway.
 
 `node-version` follows Renovate's `engines.node` (`^24.11.0` for
-44.x). Renovate's github-actions manager also proposes Node majors for
-`setup-node`. Do not take one until the pinned Renovate's
-`engines.node` accepts it. A Renovate major that raises
-`engines.node` needs `node-version` raised in the same pull request.
-`renovate.json` carries a `packageRules` entry for Renovate majors
-whose `prBodyNotes` puts that check in front of the reviewer, since
-the bump itself only touches the pin. Keep it when adapting the file.
+44.x), and `renovate.json` keeps the two in step with two
+`packageRules` entries. Keep both when adapting the file.
+
+- **Renovate majors carry a note.** A Renovate major that raises
+  `engines.node` needs `node-version` raised in the same pull request,
+  but the bump itself only touches the pin, so the rule's
+  `prBodyNotes` puts that check in front of the reviewer.
+- **Node majors for this workflow are never proposed.** Renovate's
+  github-actions manager proposes Node majors for `setup-node`, and
+  one taken before the pinned Renovate's `engines.node` accepts it
+  fails every hourly run with "Unsupported node environment
+  detected". In October 2026 a Node 26 bump did that to nine
+  repositories at once. The rule disables Node majors in
+  `.github/workflows/renovate.yml` alone; Node in a repository's other
+  workflows is still proposed as usual.
 
 The checkout sets `persist-credentials: false`. Only `hashFiles()`
 reads it, and Renovate clones the repository itself with
