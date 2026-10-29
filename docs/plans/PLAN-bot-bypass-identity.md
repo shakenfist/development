@@ -829,56 +829,98 @@ default, the repository lists and counts in phases 2 and 3, phase
 
 Filled in by the operator as the steps run. Every cell cites the
 command or page it came from and the date it was read; a cell that
-could not be read says so rather than staying blank.
+could not be read says so rather than staying blank. Dates are
+Australian Eastern Daylight Time (UTC+11).
 
-**Credentials (1a).**
+**Credentials (1a).** Read on 2026-10-30 from the probe run
+(development run 40802724777, deleted once read), from
+`gh secret list` with `admin:org`, and from issue authorship.
 
 | Secret | Level and visibility | Repositories holding it | Account | Type | Scopes or permissions | Expiry |
 |--------|----------------------|-------------------------|---------|------|-----------------------|--------|
-| `DEPENDENCIES_TOKEN` | | | | | | |
-| `RENOVATE_TOKEN` | | | | | | |
-| `AUDIT_READ_TOKEN` | repository, development | development | | fine-grained | | |
-| `AUDIT_TOKEN` | environment `audit-write`, development | development | `shakenfist-bot` (authored #247) | | | |
+| `DEPENDENCIES_TOKEN` | repository only; no organisation secret of that name exists | client-python, hunkydory, kerbside, ryll, shakenfist | `shakenfist-bot` (rule-suite `actor_name` of every push made with it) | *pending: the bot's token list* | *pending* | *pending* |
+| `RENOVATE_TOKEN` | organisation, selected: the 22 repositories in the next table | none at repository level | `shakenfist-bot` (probe) | classic PAT | `read:org`, `read:project`, `repo`, `workflow` | none: no expiration header |
+| `AUDIT_READ_TOKEN` | repository, development | development | `shakenfist-bot` (probe) | fine-grained | read-only, as `docs/consistency-audits.md` lists | 2027-10-24 21:29:44 UTC |
+| `AUDIT_TOKEN` | environment `audit-write`, development; policy `main` only | development | `shakenfist-bot` (authored #247) | *pending: the bot's token list* | *pending* | *pending* |
+
+The probe could not read `DEPENDENCIES_TOKEN` at all ("secret not
+set in this context"): no copy is visible to this repository, which
+is also why its `prune-reviews` pushes with `github.token`.
 
 `AUDIT_READ_TOKEN` sees `bypass_actors` on hunkydory's ruleset
-(1a, before the demotion): *unrecorded*. After the demotion (1b, if
-the token is the bot's): *unrecorded*.
+23805020 before the demotion (1a, 2026-10-30): **yes**, `has
+bypass_actors: True`. After the demotion (1b): *pending*. Since the
+token is the bot's, the answer may change, and 1b re-probes it.
 
-**The bot's token list (1a).** Read as `shakenfist-bot` on
-*date*.
+**The bot's token list (1a).** *Pending: to be read as
+`shakenfist-bot` by the operator.* Secrets elsewhere in the fleet
+that may also be rows in it: kerbside-patches'
+`DAILY_REBASE_TOKEN`, ryll's `HOMEBREW_TAP_TOKEN`, and the two
+`GITLAB_TESTDATA_*` tokens, which are GitLab's and not GitHub's.
 
 | Token name | Type | Scopes or permissions | Expiry | Matched secret |
 |------------|------|-----------------------|--------|----------------|
-| | | | | |
+| *pending* | | | | |
 
-**Organisation secrets and variables (1a).**
+**Organisation secrets and variables (1a).** `gh secret list --org
+shakenfist` and `gh variable list --org shakenfist`, 2026-10-30.
+There are no organisation variables, and no secret named
+`REVIEW_MARKS_APP_KEY` at organisation level or in any of the 30
+non-archived repositories (`gh secret list --repo` for each; the
+nine repositories with any secret are agent-python, client-python,
+development, hunkydory, instar, kerbside, kerbside-patches, ryll
+and shakenfist).
 
 | Name | Kind | Visibility | Repositories (if selected) |
 |------|------|------------|----------------------------|
-| | | | |
+| `GITLAB_TESTDATA_TOKEN` | secret | selected | client-python-ova, shakenfist |
+| `RENOVATE_TOKEN` | secret | selected | actions, agent-python, andris, client-python, client-python-k3s, client-python-ova, clingwrap, cloudgood, development, divergulent, hunkydory, images, instar, kerbside, kerbside-client, kerbside-patches, library-utilities, occystrap, ryll, sfui, shakenfist, visual-digest-rust |
 
 **Other identities (1a).**
 
-- `sfconductor`: *what it is, who operates it, where its credential
-  is held, what it does* (open question 3).
-- `shakenfist-k3s-ci-arc`: installed on *repositories*; gate for
-  decision 4: *clear or not*.
-- Runner group serving `vm`: *name, visibility*.
-- Organisation rulesets: *none, or list*.
-- Rule-suite bypasses by `shakenfist-bot` in the month to *date*,
-  all seven rulesets: *count*, every one a prune commit: *yes/no*.
-- #211 reopened on *date*.
+- `sfconductor`: Mikal's own merge automation, a user account he
+  operates with a credential held outside GitHub Actions (back
+  brief, 2026-10-30; where it is held was not stated). Open question
+  3 stays out of scope: the exposure this plan closes is a credential
+  that branch code and third-party actions can read, and that one is
+  not in a workflow.
+- `shakenfist-k3s-ci-arc`: *pending: the installed repositories, from
+  the organisation's GitHub Apps settings page; the API refuses the
+  listing to a user token.* Gate for decision 4: *pending*.
+- Runner group serving `vm`: one group, `Default`, `visibility: all`
+  (`orgs/shakenfist/actions/runner-groups`, 2026-10-30). The runners
+  registered at the time carried `self-hosted, Linux, X64, debian,
+  debian-13, vm, s` and `..., vm, s, debian-13-docker`: the vm pool
+  registers ephemeral runners per job.
+- Organisation rulesets: none can exist. The endpoint answers
+  "Upgrade to GitHub Team to enable this feature" (2026-10-30), so
+  only repository rulesets apply to the default branches.
+- Rule-suite bypasses by `shakenfist-bot` in the month to
+  2026-10-29, all seven pull-request rulesets: 141 (kerbside 37,
+  ryll 76, hunkydory 28, none elsewhere), every one with the commit
+  subject "Prune and import review marks.".
+- #211 reopened on 2026-10-30 with a comment naming #255.
 
-**Open questions settled (1a).** 3: *...*. 5: *...*. 6: *...*.
+**Open questions settled (1a).** 3: `sfconductor` is Mikal's merge
+automation and stays out of scope; nothing is filed. 5: the
+demotion proceeds. All four known bot credentials are the bot's and
+none needs admin (Renovate opens pull requests, the audit files
+issues and pushes to an unprotected `main`, `prune-reviews` bypasses
+through the team, not the role); the unknown is only whether
+`AUDIT_READ_TOKEN` keeps seeing `bypass_actors`, which 1b measures.
+6: the ephemeral vm pool, `[self-hosted, vm, debian-13, s]`, which
+the one runner group serves to every repository.
 
-**Demotion (1b).** Role after: *...*. Permissions after, on
+**Demotion (1b).** Role after: *pending*. Permissions after, on
 shakenfist, kerbside, ryll, instar, hunkydory, client-python-k3s,
-actions, development, sfui, kerbside-client, andris: *...*. Soak
-evidence: audit run *URL*, Renovate run *URL*, prune pushes *three
-URLs*.
+actions, development, sfui, kerbside-client, andris: *pending*.
+Soak evidence: audit run *pending* (the audit is weekly, Sunday
+18:00 UTC, so the next scheduled run is 2026-11-02 05:00 AEDT; a
+`workflow_dispatch` of `main` before then counts, and is recorded
+as such), Renovate run *pending*, prune pushes *pending*.
 
 **App (1b).** Name, id, client id, installation id, installed
-repositories, permissions, created on: *...*.
+repositories, permissions, created on: *pending*.
 
 **Environments (1b).** For each of andris, hunkydory, kerbside,
 ryll, actions, development, sfui, kerbside-client: the
@@ -886,9 +928,28 @@ ryll, actions, development, sfui, kerbside-client: the
 and the `deployment-branch-policies` response, verbatim; for the
 first four, the environment's secret names; for all eight,
 `gh secret list --repo` showing no `REVIEW_MARKS_APP_KEY`.
+*Pending.*
 
 **Rulesets (1c).** For each of andris, hunkydory, kerbside, ryll:
-`bypass_actors` after the PUT, verbatim.
+`bypass_actors` after the PUT, verbatim. *Pending.*
+
+#### Execution notes
+
+- 2026-10-30 (AEDT): back brief answered. Decisions 3, 4 and 7
+  stand; step 1a was approved in full; this session may push the
+  branch and open the pull request when the definition of done
+  passes. The bot's token list is held for later.
+- 2026-10-30: the probe could not be started by `workflow_dispatch`,
+  which GitHub refuses (404) for a workflow that is not on the
+  default branch, so it ran on a `push` trigger for its own branch
+  instead. It read its secrets with `curl` and `python3` rather than
+  installing `gh`. Its run, the two skipped `prune-reviews` runs the
+  branch pushes caused, the branch and the file were deleted
+  afterwards; `gh run list --branch bbi-p1-token-probe` is empty.
+- 2026-10-30: the last scheduled audit run (40229216560, 2026-10-25)
+  failed in `manage-issues` on a transient GraphQL error updating
+  one issue, after every leg passed. Not this plan's; noted because
+  decision 8's soak reads the next run.
 
 #### Risks and mitigations
 
