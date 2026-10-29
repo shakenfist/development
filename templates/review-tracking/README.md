@@ -71,11 +71,20 @@ the workflow does not work without them.
   use of the same secret, because it is not a boundary these
   repositories have: their rulesets require no approving review, so
   a writer can already land a change through a pull request, and what
-  the token adds is a push that skips the required checks. Keep the
-  token's reach to the repositories that need it. If a ruleset starts
-  requiring review, hold the secret in an environment whose
-  deployment branches are the default branch alone, and give the job
-  that `environment:`.
+  the token adds is a push that skips the required checks. The token
+  is not confined to the repository holding it, though: it can push
+  wherever its owner can write, so a writer here can use it to push
+  to another repository. That is accepted on the same ground only
+  while every repository the owner can write to requires no review
+  either. Keep the token's reach to the repositories that need it.
+  If a ruleset starts requiring review, move the secret into an
+  environment whose deployment branches are the default branch
+  alone, delete the repository secret of the same name, and give the
+  job that `environment:` so the expression above still finds it:
+  a repository secret left beside it stays readable from every
+  branch. Restrict by branch rather than by required reviewers,
+  which the pin-indirect-dependencies template names, since this job
+  runs unattended and a reviewer gate would stall every run.
 
 ## gitsign
 
@@ -144,7 +153,8 @@ earlier job could write is treated as hostile. The script therefore:
   and passes it to `git push` alone as an
   `http.https://github.com/.extraheader` through `GIT_CONFIG_COUNT`,
   never in argv. The token is still readable, through
-  `/proc/<pid>/environ` of the script itself as well as of the push,
+  `/proc/<pid>/environ` of the step's shell and the script itself as
+  well as of the push,
   by any process running as the runner's user, for the whole run:
   `unset` changes what children inherit, not the environment a
   process was started with. Only a runner user of the job's own would

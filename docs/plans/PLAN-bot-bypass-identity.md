@@ -152,12 +152,17 @@ and against accident, but not against a writer
 (`templates/pin-indirect-dependencies/pin-indirect-dependencies.yml:58-65`).
 
 **Where the secrets live is not visible to this repository.**
-`actions` has no repository secrets at all, yet its
-`prune-reviews` pushed as `shakenfist-bot` 44 times in a quarter,
-so at least `DEPENDENCIES_TOKEN` is an organisation secret. Its
-visibility (all repositories, or selected ones) needs `admin:org`
-to read. If it is visible to every repository, a push of a new
-workflow to any branch of any of them reaches it.
+`actions` has no repository secrets at all, and its
+`prune-reviews` commits are authored by `shakenfist-bot`, but that
+is `ci-prune-reviews.sh` setting `git config user.name`, not the
+token: its ruleset rule suites show those pushes made by
+`github-actions[bot]`, as are sfui's and kerbside-client's, while
+ryll's are made by `shakenfist-bot` (checked 2026-10-29). The only
+organisation secret these repositories can see is `RENOVATE_TOKEN`
+(`repos/<repo>/actions/organization-secrets`), so
+`DEPENDENCIES_TOKEN` is a repository secret, in ryll, kerbside and
+hunkydory. The organisation secrets' visibility beyond that needs
+`admin:org` to read.
 
 **Only one job needs the bypass.** The ruleset rule-suite history
 for the last month shows what the bypass is actually used for:

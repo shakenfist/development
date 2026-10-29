@@ -313,11 +313,11 @@ Automated commit by the prune-reviews workflow.'
 # http.extraheader for github.com, through GIT_CONFIG_COUNT and friends
 # on this command alone: never in argv, where any process on the runner
 # could read it, and never in .git/config, where it would outlive the
-# push. The push's environment, and this script's own (see
-# take_push_token), is still readable through /proc/<pid>/environ by
-# any process running as the runner's own user, for the whole run and
-# not only while the push runs. Only a runner user of its own would
-# close that; what bounds it here is the runner killing a job's
+# push. The push's environment, and this script's own and its parent
+# step shell's (see take_push_token), is still readable through
+# /proc/<pid>/environ by any process running as the runner's own user,
+# for the whole run and not only while the push runs. Only a runner
+# user of the job's own would close that; what bounds it here is the runner killing a job's
 # orphaned processes when the job ends, and the fresh clone, whose
 # empty hooks directory gives an earlier job's code no way to start one
 # inside this job. printf is a builtin, so the token is not in base64's
