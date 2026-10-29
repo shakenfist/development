@@ -22,6 +22,7 @@ from audit.check import Check, ToolFailure, run_tool
 from audit.github import environment_without_credentials
 from audit.repo import DEVELOPMENT_ROOT, READ_MAX_BYTES, read_within
 from audit.text.patterns import bounded_search
+from audit.text.pre_commit import scan_pre_commit_config
 
 
 # Paths a review session rewrites, used to test candidate pre-commit
@@ -49,126 +50,6 @@ FILE_REWRITING_HOOK_IDS = (
     'pretty-format-json',
     'file-contents-sorter',
 )
-
-
-_BLOCK_SCALAR = re.compile(r'([|>])([+-]?)(\d?)([+-]?)\s*(?:#.*)?$')
-_SINGLE_QUOTED = re.compile(r"'((?:[^']|'')*)'")
-_DOUBLE_QUOTED = re.compile(r'"((?:[^"\\]|\\.)*)"')
-
-
-def _block_scalar_text(match, lines):
-    """The string a YAML block scalar (`|`, `>`, `|-`, `>+`...) holds.
-
-    `lines` are the raw continuation lines. The content indent is taken
-    as that of the least indented non-blank line, which is how every
-    config in the fleet writes one; an explicit indentation digit is
-    accepted but not needed for that.
-    """
-    body = list(lines)
-    while body and not body[-1].strip():
-        body.pop()
-    trailing = len(lines) - len(body)
-    if not body:
-        return ''
-    indent = min(len(line) - len(line.lstrip(' ')) for line in body if line.strip())
-    body = [line[indent:] if line.strip() else '' for line in body]
-    if match.group(1) == '|':
-        text = '\n'.join(body)
-    else:
-        text = body[0]
-        for previous, line in zip(body, body[1:]):
-            if not line:
-                text += '\n'
-            elif not previous:
-                text += line
-            else:
-                text += ' ' + line
-    chomp = match.group(2) or match.group(4)
-    if chomp == '-':
-        return text
-    return text + '\n' * (1 + trailing if chomp == '+' else 1)
-
-
-def _scalar_value(value):
-    """The string a plain or quoted YAML scalar on one line holds."""
-    for quoted, unescape in ((_SINGLE_QUOTED, lambda s: s.replace("''", "'")),
-                             (_DOUBLE_QUOTED, lambda s: re.sub(r'\\(["\\])', r'\1', s))):
-        match = quoted.match(value)
-        if match:
-            return unescape(match.group(1))
-    return re.sub(r'\s+#.*$', '', value).strip()
-
-
-def scan_pre_commit_config(text):
-    """Find the `exclude:` patterns in a .pre-commit-config.yaml.
-
-    Returns (top_level_excludes, hooks), where hooks is a list of
-    (hook_id, excludes) with one entry per `- id:` in the file. An
-    exclude belongs to the hook whose mapping it is a key of -- found
-    from indentation, since pre-commit applies a top-level exclude to
-    every hook but a hook's own to that hook alone. A block scalar
-    contributes the text it holds, never its `|` or `>` indicator, and
-    its lines are never read as keys.
-
-    Line-based rather than YAML-parsed, matching the rest of this
-    file, which avoids a PyYAML dependency. Flow-style mappings,
-    multi-line quoted scalars and a hook written as a bare `-` line
-    with its `id:` on the next are not understood; none of the fleet's
-    configs use them.
-    """
-    lines = text.splitlines()
-    top = []
-    hooks = []
-    open_items = []
-    i = 0
-    while i < len(lines):
-        raw = lines[i]
-        i += 1
-        if not raw.strip() or raw.strip().startswith('#'):
-            continue
-        indent = len(raw) - len(raw.lstrip(' '))
-        while open_items and indent <= open_items[-1]['dash']:
-            item = open_items.pop()
-            if item['id'] is not None:
-                hooks.append((item['id'], item['excludes']))
-
-        body = raw.strip()
-        column = indent
-        dash = re.match(r'-\s+', body)
-        if dash:
-            column = indent + dash.end()
-            open_items.append({'dash': indent, 'column': column, 'id': None, 'excludes': []})
-            body = body[dash.end():]
-
-        key = re.match(r'([\w-]+):(?:\s+(.*?))?\s*$', body)
-        if not key:
-            continue
-        name, value = key.group(1), key.group(2) or ''
-
-        block = _BLOCK_SCALAR.match(value)
-        if block:
-            content = []
-            while i < len(lines) and (not lines[i].strip()
-                                      or len(lines[i]) - len(lines[i].lstrip(' ')) > column):
-                content.append(lines[i])
-                i += 1
-            value = _block_scalar_text(block, content)
-        else:
-            value = _scalar_value(value)
-
-        if name == 'exclude' and column == 0:
-            top.append(value)
-        elif name in ('id', 'exclude'):
-            owner = open_items[-1] if open_items else None
-            if owner and owner['column'] == column:
-                if name == 'id':
-                    owner['id'] = value
-                else:
-                    owner['excludes'].append(value)
-    for item in open_items:
-        if item['id'] is not None:
-            hooks.append((item['id'], item['excludes']))
-    return top, hooks
 
 
 def pre_commit_rewriting_hooks(repo):

@@ -10,9 +10,11 @@ its content: which jobs a trigger reaches, what a concurrency key is
 keyed on, whether a lane that costs a VM is filtered.
 """
 
+import base64
 import json
 import os
 import re
+import urllib.parse
 
 from audit.check import Check, ToolFailure
 from audit.github import GhCli
@@ -20,6 +22,7 @@ from audit.files import (
     WALK_SKIP, check_file_contains, file_mentions, workflow_has_permissions,
     workflows_inheriting_secrets_into,
 )
+from audit.text.pre_commit import item_value, scan_pre_commit_yaml
 from audit.text.workflows import (
     CANCEL_IN_PROGRESS_RE, EVENT_NAME_EQUALITY_RE, MERGE_GROUP_FLOW_RE, MERGE_GROUP_TRIGGER_RE, RUNS_ON_RE,
     SCHEDULE_TRIGGER_RE, STATIC_ALLOWED_LABELS, WORKFLOW_CALL_FLOW_RE,
@@ -2478,3 +2481,115 @@ class ReusableWorkflowSecrets(Check):
                 f'those by name; if it reads none, delete the line',
                 findings=findings)
         return self.ok('No job passes "secrets: inherit" to a reusable workflow')
+
+
+# The Node versions that send nodeenv to the newest release on
+# nodejs.org. `default` is pre-commit's own value when nothing pins one:
+# it uses a system Node where `node` and `npm` are on the PATH, and
+# otherwise downloads, which is the case on a runner without Node.
+# `latest` always downloads. The newest release can be one nodeenv cannot
+# parse -- `v27.0.0-alpha.0.0.0` stopped every such runner before any
+# hook ran -- and it moves under the repository whatever it pins.
+UNPINNED_NODE_VERSIONS = ('default', 'latest')
+
+
+# A hook repository pre-commit would clone from GitHub, in the spellings
+# a config uses for one. Only these can be read through the API.
+GITHUB_HOOK_REPO_RE = re.compile(
+    r'^(?:https?://|ssh://git@|git@)github\.com[/:]([\w.-]+)/([\w.-]+?)(?:\.git)?/?$')
+
+
+def hook_manifest(client, owner, name, rev):
+    """The hooks a GitHub repository's .pre-commit-hooks.yaml declares at rev.
+
+    Returns {hook id: (language, language_version)}, with None for a
+    key the manifest does not set. GitHub not answering, and a rev or
+    manifest that does not exist, both raise ToolFailure: pre-commit
+    could not install from that rev either, and which language the hook
+    would have used is not something the audit can guess.
+    """
+    path = (f'repos/{owner}/{name}/contents/.pre-commit-hooks.yaml'
+            f'?ref={urllib.parse.quote(rev, safe="")}')
+    what = f'the hook manifest of {owner}/{name} at {rev}'
+    result = client.api_answer(path, what, jq='.content')
+    try:
+        text = base64.b64decode(result.stdout).decode('utf-8', errors='replace')
+    except ValueError as e:
+        raise ToolFailure(f'Could not decode {what}: {e}') from e
+    return {item_value(hook, 'id'): (item_value(hook, 'language'), item_value(hook, 'language_version'))
+            for hook in scan_pre_commit_yaml(text).hooks()}
+
+
+class PreCommitNodeVersion(Check):
+    id = 'pre-commit-node-version'
+    spec = 'docs/audits/pre-commit-node-version.md'
+    template = None
+    issue_title = 'Pre-commit Node version'
+
+    def applies(self, repo):
+        if not repo.isfile('.pre-commit-config.yaml'):
+            return 'No .pre-commit-config.yaml'
+        return None
+
+    def run(self, repo):
+        """Check every pre-commit hook built with nodeenv pins its Node.
+
+        A hook is built with nodeenv when its language is `node`. A
+        local hook states its language in the config. A remote hook's
+        comes from the hook repository's .pre-commit-hooks.yaml at the
+        pinned rev, unless the config overrides it, so the manifest is
+        fetched for every remote hook whose language or Node version
+        the config alone does not settle.
+
+        The effective version follows pre-commit's own precedence: the
+        hook's `language_version` in the config, then the manifest's,
+        then `default_language_version.node`, then `default`. Only
+        `default` and `latest` fail; `lts`, an explicit version and
+        `system` all name what will run.
+        """
+        config = scan_pre_commit_yaml(repo.read('.pre-commit-config.yaml') or '')
+        default_node = config.sections.get('default_language_version', {}).get('node')
+        manifests = {}
+        pinned = []
+        unpinned = []
+        unmeasured = []
+        for hook in config.hooks():
+            hook_id = item_value(hook, 'id')
+            entry = hook['parent']
+            source = item_value(entry, 'repo') if entry is not None else None
+            language = item_value(hook, 'language')
+            version = item_value(hook, 'language_version')
+
+            remote = source not in (None, 'local', 'meta')
+            if remote and (language is None or (language == 'node' and version is None)):
+                found = GITHUB_HOOK_REPO_RE.match(source)
+                rev = item_value(entry, 'rev')
+                if not found or not rev:
+                    unmeasured.append(f'{hook_id} ({source})')
+                    continue
+                key = (found.group(1), found.group(2), rev)
+                if key not in manifests:
+                    manifests[key] = hook_manifest(repo.github, *key)
+                if hook_id not in manifests[key]:
+                    unmeasured.append(f'{hook_id} (not in {source} at {rev})')
+                    continue
+                manifest_language, manifest_version = manifests[key][hook_id]
+                language = language or manifest_language
+                version = version if version is not None else manifest_version
+
+            if language != 'node':
+                continue
+            if version in (None, 'default'):
+                version = default_node or 'default'
+            (unpinned if version in UNPINNED_NODE_VERSIONS else pinned).append(f'{hook_id} ({version})')
+
+        note = f'; not measured: {", ".join(unmeasured)}' if unmeasured else ''
+        if unpinned:
+            return self.fail(
+                f'{", ".join(unpinned)} build(s) Node with nodeenv from the newest '
+                f'release on nodejs.org; set language_version: lts on the hook, or '
+                f'default_language_version: node: lts{note}',
+                findings=unpinned)
+        if not pinned:
+            return self.skip(f'No pre-commit hook is built with Node{note}')
+        return self.ok(f'Node is pinned for {", ".join(pinned)}{note}')

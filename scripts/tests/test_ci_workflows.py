@@ -5,6 +5,7 @@
 Run with: python3 scripts/tests/test_ci_workflows.py
 """
 
+import base64
 import json
 import os
 import subprocess
@@ -3401,6 +3402,240 @@ class ScheduledWorkflowHealthTest(CheckTestCase):
         self.assertIn(f'at least {words[ci_workflows.NEVER_SUCCEEDED_MIN_FAILURES]} times', spec)
         for conclusion in ci_workflows.FAILED_CONCLUSIONS:
             self.assertIn(f'`{conclusion}`', spec)
+
+
+class PreCommitNodeVersionTest(CheckTestCase):
+    """Tests PreCommitNodeVersion against config and manifest fixtures."""
+
+    check_class = ci_workflows.PreCommitNodeVersion
+
+    # cloudgood's markdownlint hook before it was pinned: a local Node
+    # hook with no language_version, which reached nodeenv's newest
+    # release on every runner without a system Node.
+    LOCAL_NODE = ('repos:\n'
+                  '  - repo: local\n'
+                  '    hooks:\n'
+                  '      - id: markdownlint-cli2\n'
+                  '        name: markdownlint-cli2\n'
+                  '        entry: markdownlint-cli2\n'
+                  '        language: node\n'
+                  '{version}'
+                  '        additional_dependencies: [markdownlint-cli2@0.24.0]\n')
+
+    def local_node(self, version_line='', top=''):
+        self.fixture.write('.pre-commit-config.yaml', top + self.LOCAL_NODE.format(version=version_line))
+
+    def remote(self, hooks, top='', source='https://github.com/example/hooks', rev='v1.0.0'):
+        """Write a config with one remote entry holding `hooks`, raw hook lines."""
+        self.fixture.write('.pre-commit-config.yaml',
+                           f'{top}repos:\n'
+                           f'  - repo: {source}\n'
+                           f'    rev: {rev}\n'
+                           f'    hooks:\n{hooks}')
+
+    @staticmethod
+    def manifest(text, owner='example', name='hooks', rev='v1.0.0'):
+        """A FakeGitHub serving `text` as owner/name's manifest at rev."""
+        key = f'api repos/{owner}/{name}/contents/.pre-commit-hooks.yaml?ref={rev} --jq .content'
+        return FakeGitHub({key: CompletedCommand(stdout=base64.b64encode(text.encode()).decode() + '\n')})
+
+    NODE_MANIFEST = ('- id: prettier\n'
+                     '  name: prettier\n'
+                     '  entry: prettier --write\n'
+                     '  language: node\n')
+
+    def test_not_applicable_without_a_config(self):
+        self.assert_skip(self.check(), containing='No .pre-commit-config.yaml')
+
+    def test_not_applicable_without_a_node_hook(self):
+        self.fixture.write('.pre-commit-config.yaml',
+                           'repos:\n'
+                           '  - repo: local\n'
+                           '    hooks:\n'
+                           '      - id: flake8\n'
+                           '        language: python\n'
+                           '  - repo: meta\n'
+                           '    hooks:\n'
+                           '      - id: check-hooks-apply\n')
+        # Exactly: a meta hook is pre-commit's own, so it is not named as unmeasured either.
+        self.assertEqual(self.assert_skip(self.check())['details'], 'No pre-commit hook is built with Node')
+
+    def test_local_node_hook_without_a_version_fails(self):
+        self.local_node()
+        self.assert_fail(self.check(), containing='markdownlint-cli2 (default)')
+
+    def test_local_node_hook_on_latest_fails(self):
+        self.local_node('        language_version: latest\n')
+        self.assert_fail(self.check(), containing='markdownlint-cli2 (latest)')
+
+    def test_local_node_hook_pinned_passes(self):
+        for version in ('lts', '22.11.0', "'20.18.1'", 'system'):
+            with self.subTest(version=version):
+                self.local_node(f'        language_version: {version}\n')
+                result = self.assert_pass(self.check())
+                self.assertIn(f'markdownlint-cli2 ({version.strip(chr(39))})', result['details'])
+
+    def test_default_language_version_pins_an_unversioned_hook(self):
+        self.local_node(top='default_language_version:\n  python: python3\n  node: lts\n\n')
+        self.assert_pass(self.check())
+
+    def test_default_language_version_latest_fails(self):
+        self.local_node(top='default_language_version:\n  node: latest\n\n')
+        self.assert_fail(self.check(), containing='markdownlint-cli2 (latest)')
+
+    def test_default_language_version_default_fails(self):
+        self.local_node(top='default_language_version:\n  node: default\n\n')
+        self.assert_fail(self.check(), containing='markdownlint-cli2 (default)')
+
+    def test_default_language_version_for_another_language_does_not_pin_node(self):
+        self.local_node(top='default_language_version:\n  python: python3.12\n\n')
+        self.assert_fail(self.check(), containing='markdownlint-cli2 (default)')
+
+    def test_a_hooks_own_version_beats_default_language_version(self):
+        self.local_node('        language_version: lts\n', top='default_language_version:\n  node: latest\n\n')
+        self.assert_pass(self.check())
+
+    def test_an_explicit_default_falls_through_to_default_language_version(self):
+        self.local_node('        language_version: default\n', top='default_language_version:\n  node: lts\n\n')
+        self.assert_pass(self.check())
+
+    def test_language_version_text_inside_args_is_not_the_hooks(self):
+        self.local_node('        args:\n          - language_version: lts\n')
+        self.assert_fail(self.check(), containing='markdownlint-cli2 (default)')
+
+    def test_remote_node_hook_without_a_version_fails(self):
+        self.remote('      - id: prettier\n')
+        self.assert_fail(self.check(github=self.manifest(self.NODE_MANIFEST)), containing='prettier (default)')
+
+    def test_remote_hook_pinned_by_its_manifest_passes(self):
+        """renovatebot/pre-commit-hooks' shape: the manifest itself says lts."""
+        self.remote('      - id: prettier\n')
+        github = self.manifest(self.NODE_MANIFEST + '  language_version: lts\n')
+        self.assert_pass(self.check(github=github))
+
+    def test_manifest_version_beats_default_language_version(self):
+        """pre-commit consults default_language_version only when the hook left it at default."""
+        self.remote('      - id: prettier\n', top='default_language_version:\n  node: latest\n\n')
+        github = self.manifest(self.NODE_MANIFEST + '  language_version: lts\n')
+        self.assert_pass(self.check(github=github))
+
+    def test_default_language_version_pins_a_remote_hook(self):
+        self.remote('      - id: prettier\n', top='default_language_version:\n  node: lts\n\n')
+        self.assert_pass(self.check(github=self.manifest(self.NODE_MANIFEST)))
+
+    def test_config_version_beats_the_manifest(self):
+        self.remote('      - id: prettier\n        language_version: latest\n')
+        github = self.manifest(self.NODE_MANIFEST + '  language_version: lts\n')
+        self.assert_fail(self.check(github=github), containing='prettier (latest)')
+
+    def test_remote_python_hook_is_not_applicable(self):
+        self.remote('      - id: skillsaw\n')
+        github = self.manifest('- id: skillsaw\n  name: skillsaw\n  entry: skillsaw lint\n  language: python\n')
+        self.assert_skip(self.check(github=github))
+
+    def test_config_language_override_needs_no_manifest(self):
+        """A hook the config moves off Node is settled without asking GitHub."""
+        self.remote('      - id: prettier\n        language: system\n')
+        github = FakeGitHub()
+        self.assert_skip(self.check(github=github))
+        self.assertEqual(github.calls, [])
+
+    def test_config_language_and_version_need_no_manifest(self):
+        self.remote('      - id: prettier\n        language: node\n        language_version: lts\n')
+        github = FakeGitHub()
+        self.assert_pass(self.check(github=github))
+        self.assertEqual(github.calls, [])
+
+    def test_config_language_node_still_reads_the_manifest_version(self):
+        self.remote('      - id: prettier\n        language: node\n')
+        github = self.manifest(self.NODE_MANIFEST + '  language_version: lts\n')
+        self.assert_pass(self.check(github=github))
+
+    def test_config_language_beats_the_manifest(self):
+        self.remote('      - id: prettier\n        language: node\n')
+        github = self.manifest('- id: prettier\n  name: prettier\n  entry: prettier\n  language: system\n')
+        self.assert_fail(self.check(github=github), containing='prettier (default)')
+
+    def test_config_version_with_manifest_language(self):
+        """A version in the config still needs the manifest to say the hook is Node."""
+        self.remote('      - id: prettier\n        language_version: latest\n')
+        self.assert_fail(self.check(github=self.manifest(self.NODE_MANIFEST)), containing='prettier (latest)')
+
+    def test_manifest_is_fetched_once_per_repository_and_rev(self):
+        self.remote('      - id: prettier\n      - id: prettier-again\n')
+        github = self.manifest(self.NODE_MANIFEST + '- id: prettier-again\n  language: node\n')
+        self.assert_fail(self.check(github=github), containing='prettier-again (default)')
+        self.assertEqual(len(github.calls), 1)
+
+    def test_rev_is_quoted_into_the_path(self):
+        self.remote('      - id: prettier\n', rev='release/1.0')
+        github = self.manifest(self.NODE_MANIFEST, rev='release%2F1.0')
+        self.assert_fail(self.check(github=github))
+
+    def test_ssh_and_dot_git_sources_are_read(self):
+        for source in ('git@github.com:example/hooks.git', 'https://github.com/example/hooks.git/'):
+            with self.subTest(source=source):
+                self.remote('      - id: prettier\n', source=source)
+                self.assert_fail(self.check(github=self.manifest(self.NODE_MANIFEST)))
+
+    def test_github_not_answering_is_a_tool_failure(self):
+        self.remote('      - id: prettier\n')
+        self.assert_tool_failure(lambda: self.check(github=FakeGitHub()), containing='example/hooks at v1.0.0')
+
+    def test_undecodable_manifest_is_a_tool_failure(self):
+        self.remote('      - id: prettier\n')
+        key = 'api repos/example/hooks/contents/.pre-commit-hooks.yaml?ref=v1.0.0 --jq .content'
+        github = FakeGitHub({key: CompletedCommand(stdout='not base64!')})
+        self.assert_tool_failure(lambda: self.check(github=github), containing='Could not decode')
+
+    def test_hook_on_another_host_is_not_measured(self):
+        self.remote('      - id: prettier\n', source='https://gitlab.com/example/hooks')
+        github = FakeGitHub()
+        self.assert_skip(self.check(github=github),
+                         containing='not measured: prettier (https://gitlab.com/example/hooks)')
+        self.assertEqual(github.calls, [])
+
+    def test_remote_hook_without_a_rev_is_not_measured(self):
+        self.fixture.write('.pre-commit-config.yaml',
+                           'repos:\n'
+                           '  - repo: https://github.com/example/hooks\n'
+                           '    hooks:\n'
+                           '      - id: prettier\n')
+        self.assert_skip(self.check(), containing='not measured: prettier')
+
+    def test_hook_missing_from_its_manifest_is_not_measured(self):
+        self.remote('      - id: nonesuch\n')
+        self.assert_skip(self.check(github=self.manifest(self.NODE_MANIFEST)), containing='nonesuch (not in')
+
+    def test_unmeasured_hooks_are_named_beside_a_verdict(self):
+        self.fixture.write('.pre-commit-config.yaml',
+                           self.LOCAL_NODE.format(version='        language_version: lts\n')
+                           + '  - repo: https://gitlab.com/example/hooks\n'
+                           '    rev: v1\n'
+                           '    hooks:\n'
+                           '      - id: elsewhere\n')
+        result = self.assert_pass(self.check())
+        self.assertIn('not measured: elsewhere', result['details'])
+        self.fixture.write('.pre-commit-config.yaml',
+                           self.LOCAL_NODE.format(version='')
+                           + '  - repo: https://gitlab.com/example/hooks\n'
+                           '    rev: v1\n'
+                           '    hooks:\n'
+                           '      - id: elsewhere\n')
+        self.assert_fail(self.check(), containing='not measured: elsewhere')
+
+    def test_only_unpinned_hooks_are_named_in_a_failure(self):
+        self.fixture.write('.pre-commit-config.yaml',
+                           'repos:\n'
+                           '  - repo: local\n'
+                           '    hooks:\n'
+                           '      - id: pinned\n'
+                           '        language: node\n'
+                           '        language_version: lts\n'
+                           '      - id: unpinned\n'
+                           '        language: node\n')
+        result = self.assert_fail(self.check())
+        self.assertEqual(result['findings'], ['unpinned (default)'])
 
 
 if __name__ == '__main__':

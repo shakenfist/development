@@ -46,6 +46,9 @@ NETWORK_CHECKS = frozenset({
     # entirely: it lists the organisation, so somebody creating a
     # repository moves its verdict without a line here changing.
     'scope-coverage',
+    # Reads each remote hook's manifest at its pinned rev, to learn
+    # whether the hook is built with Node.
+    'pre-commit-node-version',
 })
 
 
