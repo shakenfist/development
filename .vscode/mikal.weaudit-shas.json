@@ -749,10 +749,6 @@
       "sha": "100616f204cceb7495f6dbb1223e5bfc5e920a0c",
       "date": "2026-10-28"
     },
-    "templates/review-tracking/ci-prune-reviews.sh": {
-      "sha": "b4ce5b64c79afb01e07b98f43457fa5ff842e896",
-      "date": "2026-10-16"
-    },
     "templates/review-tracking/prune-reviews.yml": {
       "sha": "91ff1783e6589e198ce5d14aab473112761b7ce2",
       "date": "2026-10-16"
@@ -864,10 +860,6 @@
     "tools/check-audit-read-token.sh": {
       "sha": "e07ef1adf5539a4a2fad3817489faf207b999ffd",
       "date": "2026-10-28"
-    },
-    "tools/ci-prune-reviews.sh": {
-      "sha": "b4ce5b64c79afb01e07b98f43457fa5ff842e896",
-      "date": "2026-10-16"
     },
     "tools/mermaid-lint.sh": {
       "sha": "22f14bf915f76875950bb5589212b55ab0a91db1",
