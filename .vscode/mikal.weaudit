@@ -943,6 +943,82 @@
     {
       "path": "templates/renovate",
       "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation-rust/sign-release-tag.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation-rust/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation-rust",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/release-automation",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/review-tracking/ci-prune-reviews.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/review-tracking/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/review-tracking",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci-prune-reviews.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_release_rust.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_release.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/release_rust.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/release_jobs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/text/workflows.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/plan-retirement.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/release-process.md",
+      "author": "mikal"
+    },
+    {
+      "path": "README.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
