@@ -923,10 +923,44 @@ on shakenfist, kerbside, ryll, instar, hunkydory,
 client-python-k3s, actions, development, sfui, kerbside-client
 and andris: `write` on every one, from the base permission.
 `orgs/shakenfist/members?role=admin` lists `mikalstill` alone.
-Soak evidence: audit run *pending* (the audit is weekly, Sunday
-18:00 UTC, so the next scheduled run is 2026-11-02 05:00 AEDT; a
-`workflow_dispatch` of `main` before then counts, and is recorded
-as such), Renovate run *pending*, prune pushes *pending*.
+Soak evidence: audit run 40936371270, dispatched on `main` at
+2026-10-30 06:03 AEDT, **failed in every leg** at "Check the read
+token": `AUDIT_READ_TOKEN cannot see repository settings
+(security_and_analysis: false, deleteBranchOnMerge: true)`. The
+API returns `security_and_analysis` only to a repository admin,
+so the audit's read token does need admin, and decision 3's
+premise was wrong for that one credential; open question 5's
+gate applies to it. See the execution notes for what was done.
+Renovate run: development run 40936378714, dispatched
+2026-10-30 06:03 AEDT after the demotion, finished as the bot
+("Repository finished"). Prune runs dispatched at the same time in
+hunkydory (40936384188), kerbside (40936389176) and ryll
+(40936394700) all succeeded with "No review marks to prune or
+import", which proves the job and not the push. The push proof came
+at 06:56 AEDT: hunkydory's rule-suite history shows a `bypass` push
+by `shakenfist-bot` to `develop` (d0a36f2f, "Prune and import
+review marks.", run 40944610032) after the demotion, so
+`DEPENDENCIES_TOKEN` still pushes through the team bypass with the
+bot a member.
+
+The audit dispatched again under the security manager role
+(40943433199, 06:40 AEDT): all 25 legs passed their read-token
+check and their audit, `update-docs` pushed the compliance page to
+`main` with `AUDIT_TOKEN`, and `manage-issues` filed 14 issues in
+eight public repositories, but failed on private-ci: both of its
+creations there got `GraphQL: Resource not accessible by personal
+access token (repository.defaultBranchRef)`. `gh issue create`
+reads the repository's default branch (for issue templates) before
+creating, and in a private repository that needs contents read,
+which `AUDIT_TOKEN` evidently had as an owner and does not have as
+a member with `write` (it filed private-ci#219 on 2026-10-24). So
+the soak passed for Renovate, the prune push, the audit legs and the
+docs push, and found one more thing the owner role was quietly
+serving: `AUDIT_TOKEN`'s read of private repositories. The fix is
+in the token (grant it contents read, as the bot, when its token
+list is read) or in the script (create issues through the REST API,
+which needs only issues write); it is recorded here and decided in
+the execution notes.
 
 **App (1b).** Name, id, client id, installation id, installed
 repositories, permissions, created on: *pending*.
@@ -955,6 +989,29 @@ first four, the environment's secret names; for all eight,
   installing `gh`. Its run, the two skipped `prune-reviews` runs the
   branch pushes caused, the branch and the file were deleted
   afterwards; `gh run list --branch bbi-p1-token-probe` is empty.
+- 2026-10-30 06:30 AEDT: the dispatched audit (40936371270) failed
+  in every leg because `AUDIT_READ_TOKEN` no longer sees
+  `security_and_analysis`, which the API returns only to a
+  repository admin. Decision 3 was wrong for that credential.
+  Rather than restore the owner role, Mikal chose to try the
+  organisation security manager role: a team
+  `sf-security-managers` (id 20418434, no repositories, base
+  permission `pull`) holding the bot was made a security manager
+  (`PUT orgs/shakenfist/security-managers/teams/
+  sf-security-managers`). That role reads security settings and
+  alerts in every repository and grants no ruleset or environment
+  right, so Mission item 2 holds. The bot's role (`member`) and
+  permissions (`write`) were re-read and unchanged. The audit was
+  dispatched again (40943433199) as the test; its result is in
+  the soak evidence. The read-only App for the audit stays Future
+  work, and the fallback if the role does not suffice is the
+  plan's own: restore the owner role and move the credential
+  first.
+- 2026-10-30 07:30 AEDT: the second audit run shows the security
+  manager role is enough for the legs, and that `AUDIT_TOKEN`
+  cannot create issues in private-ci any more (see the soak
+  evidence). The next scheduled run, 2026-11-02 05:00 AEDT, will
+  fail the same way unless the token or the script changes first.
 - 2026-10-30: the post-demotion re-probe ran the same way as the
   first, on a `push` trigger, with one step for `AUDIT_READ_TOKEN`,
   and was deleted with its branch and the skipped `prune-reviews`
