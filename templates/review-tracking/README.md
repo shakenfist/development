@@ -64,27 +64,31 @@ the workflow does not work without them.
   reaches. Add the secret only where the ruleset needs it, and keep
   it out of organisation-level secrets.
 
-  A repository secret is also readable by any workflow that runs on a
-  push to any branch, including one a writer adds on a branch of
-  their own; the job's default-branch guard does not stop that. This
-  is accepted, as it is for the pin-indirect-dependencies template's
-  use of the same secret, because it is not a boundary these
-  repositories have: their rulesets require no approving review, so
-  a writer can already land a change through a pull request, and what
-  the token adds is a push that skips the required checks. The token
-  is not confined to the repository holding it, though: it can push
-  wherever its owner can write, so a writer here can use it to push
-  to another repository. That is accepted on the same ground only
-  while every repository the owner can write to requires no review
-  either. Keep the token's reach to the repositories that need it.
-  If a ruleset starts requiring review, move the secret into an
-  environment whose deployment branches are the default branch
-  alone, delete the repository secret of the same name, and give the
-  job that `environment:` so the expression above still finds it:
-  a repository secret left beside it stays readable from every
-  branch. Restrict by branch rather than by required reviewers,
-  which the pin-indirect-dependencies template names, since this job
-  runs unattended and a reviewer gate would stall every run.
+  A repository secret is also readable by any workflow run that is
+  not from a fork, whether from a push to any branch or from a pull
+  request from one, including a workflow a writer adds on a branch
+  of their own; the job's default-branch guard does not stop that.
+  For the check-skipping push alone that would be no new boundary:
+  these repositories' rulesets require no approving review, so a
+  writer can already land a change through a pull request. But the
+  token carries its owner's rights wherever its scopes allow, and
+  `shakenfist-bot` is an organisation owner with `admin` on every
+  repository that runs this job. A writer who reads the token can
+  therefore push to other repositories, and rewrite or delete the
+  rulesets and environment policies that bound it, not merely skip
+  checks. That is a real exposure, accepted for now, as it is for
+  the pin-indirect-dependencies template's use of the same secret,
+  only because `PLAN-bot-bypass-identity.md` replaces the PAT with
+  an App holding `contents: write` alone and demotes the bot. Until
+  then, keep the token's reach to the repositories that need it,
+  and do not treat an environment as a bound: holding the secret in
+  one whose deployment branches are the default branch alone, with
+  the repository secret of the same name deleted and the job given
+  that `environment:`, stops other branches reading it, but the
+  token itself can widen that policy. Restrict by branch rather than
+  by required reviewers, which the pin-indirect-dependencies
+  template names, since this job runs unattended and a reviewer gate
+  would stall every run.
 
 ## gitsign
 
@@ -154,11 +158,13 @@ earlier job could write is treated as hostile. The script therefore:
   `http.https://github.com/.extraheader` through `GIT_CONFIG_COUNT`,
   never in argv. The token is still readable, through
   `/proc/<pid>/environ` of the step's shell and the script itself as
-  well as of the push,
-  by any process running as the runner's user, for the whole run:
-  `unset` changes what children inherit, not the environment a
-  process was started with. Only a runner user of the job's own would
-  close that. What bounds it is the runner killing a job's
+  well as of the push, by any process running as the runner's user,
+  for the whole run: `unset` changes what children inherit, not the
+  environment a process was started with. Process memory is readable
+  the same way, through ptrace or `/proc/<pid>/mem` as
+  `kernel.yama.ptrace_scope` allows, so unsetting earlier would not
+  help either. Only a runner user of the job's own would close
+  that. What bounds it is the runner killing a job's
   orphaned processes when the job ends, and the fresh clone, which
   leaves an earlier job's code no hook through which to start such a
   process inside this one.

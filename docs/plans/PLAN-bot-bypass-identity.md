@@ -134,7 +134,7 @@ one of the two in scope:
 | Secret | Workflows | Triggers |
 |--------|-----------|----------|
 | `RENOVATE_TOKEN` | `renovate.yml` in 17 repositories, including all six above | `schedule`, `workflow_dispatch` |
-| `DEPENDENCIES_TOKEN` | `prune-reviews.yml` in actions, development, hunkydory, kerbside, kerbside-client, ryll, sfui | `push`, `schedule`, `workflow_dispatch` |
+| `DEPENDENCIES_TOKEN` | `prune-reviews.yml` in hunkydory, kerbside, ryll (in actions, development, kerbside-client and sfui it resolves to nothing, so the push uses `github.token`) | `push`, `schedule`, `workflow_dispatch` |
 | `DEPENDENCIES_TOKEN` | `pin-indirect-dependencies.yml` in shakenfist, kerbside | `pull_request`, `schedule`, `workflow_dispatch` |
 | `DEPENDENCIES_TOKEN` | `code-formatting.yml` in shakenfist, client-python | `pull_request`, `schedule`, `workflow_dispatch` |
 | `DEPENDENCIES_TOKEN` | `functional-tests.yml` (claude-code delinter job) in shakenfist | `pull_request`, `merge_group` |
@@ -157,12 +157,15 @@ and against accident, but not against a writer
 is `ci-prune-reviews.sh` setting `git config user.name`, not the
 token: its ruleset rule suites show those pushes made by
 `github-actions[bot]`, as are sfui's and kerbside-client's, while
-ryll's are made by `shakenfist-bot` (checked 2026-10-29). The only
-organisation secret these repositories can see is `RENOVATE_TOKEN`
-(`repos/<repo>/actions/organization-secrets`), so
-`DEPENDENCIES_TOKEN` is a repository secret, in ryll, kerbside and
-hunkydory. The organisation secrets' visibility beyond that needs
-`admin:org` to read.
+ryll's are made by `shakenfist-bot` (checked 2026-10-29). Checked
+with `repos/<r>/actions/secrets` and
+`repos/<r>/actions/organization-secrets` the same day:
+`DEPENDENCIES_TOKEN` is a repository secret in shakenfist,
+client-python, hunkydory, kerbside and ryll, and absent from
+actions, andris, development, kerbside-client and sfui. The only
+organisation secrets those ten can see are `RENOVATE_TOKEN`, and
+`GITLAB_TESTDATA_TOKEN` in shakenfist. Their visibility beyond that
+needs `admin:org` to read.
 
 **Only one job needs the bypass.** The ruleset rule-suite history
 for the last month shows what the bypass is actually used for:

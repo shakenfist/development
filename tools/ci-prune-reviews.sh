@@ -317,11 +317,12 @@ Automated commit by the prune-reviews workflow.'
 # step shell's (see take_push_token), is still readable through
 # /proc/<pid>/environ by any process running as the runner's own user,
 # for the whole run and not only while the push runs. Only a runner
-# user of the job's own would close that; what bounds it here is the runner killing a job's
-# orphaned processes when the job ends, and the fresh clone, whose
-# empty hooks directory gives an earlier job's code no way to start one
-# inside this job. printf is a builtin, so the token is not in base64's
-# argv either. LC_ALL=C keeps the rejection reason matchable.
+# user of the job's own would close that; what bounds it here is the
+# runner killing a job's orphaned processes when the job ends, and the
+# fresh clone, whose empty hooks directory gives an earlier job's code
+# no way to start one inside this job. printf is a builtin, so the
+# token is not in base64's argv either. LC_ALL=C keeps the rejection
+# reason matchable.
 push_review_state() {
     local header
 
