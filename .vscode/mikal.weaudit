@@ -437,18 +437,6 @@
       "author": "mikal"
     },
     {
-      "path": "renovate.json",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate/renovate.json",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/fake_issues.py",
       "author": "mikal"
     },
@@ -941,10 +929,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/renovate",
-      "author": "mikal"
-    },
-    {
       "path": "templates/release-automation-rust/sign-release-tag.sh",
       "author": "mikal"
     },
@@ -974,10 +958,6 @@
     },
     {
       "path": "templates/review-tracking",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     },
     {

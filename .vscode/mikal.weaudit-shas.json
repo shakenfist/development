@@ -365,10 +365,6 @@
       "sha": "f1b68accf5c567d979be2004064ac2cd285f9025",
       "date": "2026-10-20"
     },
-    "renovate.json": {
-      "sha": "9545114a3c885e9efc56da8514dffd8bcb643030",
-      "date": "2026-10-18"
-    },
     "scripts/audit-check.py": {
       "sha": "97673b9e35622a6049cab81725d8554754e715b5",
       "date": "2026-09-04"
@@ -780,14 +776,6 @@
     "templates/release-automation/release.yml": {
       "sha": "f33f521f70ad6e8f398627a4ca8a7af2fd240084",
       "date": "2026-10-20"
-    },
-    "templates/renovate/README.md": {
-      "sha": "c756bd4986a986a6ef690de782577a751683b427",
-      "date": "2026-10-18"
-    },
-    "templates/renovate/renovate.json": {
-      "sha": "0155b2e100a310454fe89e015823b3372be4777a",
-      "date": "2026-10-18"
     },
     "templates/renovate/renovate.yml": {
       "sha": "100616f204cceb7495f6dbb1223e5bfc5e920a0c",
