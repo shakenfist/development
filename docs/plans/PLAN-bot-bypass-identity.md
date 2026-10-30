@@ -95,8 +95,9 @@ reading, and phase 1's survey records what had changed.
 require a pull request, status checks and the merge queue, and
 every one of them names the same bypass actor, the team
 `sf-can-skip-merge-queue` (id 11722172), with `bypass_mode:
-always`. On 2026-10-14 there were six: andris, created on
-2026-10-08, was first read on 2026-10-29, and hunkydory's merge
+always`. The 2026-10-14 reading found six: andris, whose ruleset
+dates from 2026-10-08, was missed then and first read on 2026-10-29
+(its bot permission checked 2026-10-30), and hunkydory's merge
 queue arrived between the readings.
 
 | Repository | Rules on the default branch | Bypass |
@@ -116,8 +117,9 @@ token, so **every credential that authenticates as
 skipping review, required checks and the merge queue.
 
 **The bot is also an organisation owner** (as the plan found it;
-phase 1 step 1b demoted it on 2026-10-30, and the rest of this
-paragraph is the state before that).
+phase 1 step 1b demoted it on 2026-10-30, since when it is a member
+and, through `sf-security-managers`, an organisation security
+manager; the rest of this paragraph is the state before that).
 `orgs/shakenfist/memberships/shakenfist-bot` reported `role: admin`,
 and `repos/shakenfist/<r>/collaborators/shakenfist-bot/permission`
 reports `admin` in all eleven of shakenfist, kerbside, ryll,
@@ -642,7 +644,9 @@ not as the plan assumed.
 
 1. **andris is an eighth adopter and a seventh ruleset, and its
    review marks are not landing.** `shakenfist/andris` was created
-   on 2026-10-08, the day after Situation was read. It carries a
+   on 2026-10-08, the day after Situation was first read, and its
+   ruleset at 17:15 AEDT that day, so the 2026-10-14 re-read missed
+   it and there were already seven then. It carries a
    `prune-reviews.yml` byte-identical to the template, a `Develop
    branch` ruleset (id 24700229) requiring a pull request, the merge
    queue and status checks with the same team bypass, no repository
@@ -708,9 +712,11 @@ not as the plan assumed.
    do, and no per-repository grant is needed. (*Wrong for
    `AUDIT_READ_TOKEN`*, see item 3.) The organisation has
    two owners, `mikalstill` and `shakenfist-bot`; `sfconductor` is a
-   member; the two teams, `sf-can-skip-merge-queue` and `sf-team`,
-   have the same three members, and neither grants a repository
-   permission (`sf-can-skip-merge-queue` has no repositories).
+   member; the two teams then, `sf-can-skip-merge-queue` and
+   `sf-team`, have the same three members, and neither grants a
+   repository permission (`sf-can-skip-merge-queue` has no
+   repositories). A third, `sf-security-managers`, was added on
+   2026-10-30 (execution notes, 06:30).
 5. **A GitHub App with `administration: write` has been installed
    since the plan was written.** `orgs/shakenfist/installations`
    lists one installation: `shakenfist-k3s-ci-arc` (app id 5336982,
@@ -846,7 +852,8 @@ command or page it came from and the date it was read; a cell that
 could not be read says so rather than staying blank. Dates are
 Australian Eastern Daylight Time (UTC+11).
 
-**Credentials (1a).** Read on 2026-10-30 from the probe run
+**Credentials (1a).** Read on 2026-10-30 (the probe itself ran on
+2026-10-29 at 12:50 AEDT) from the probe run
 (development run 40802724777, deleted once read), from
 `gh secret list` with `admin:org`, and from issue authorship.
 
@@ -862,7 +869,7 @@ set in this context"): no copy is visible to this repository, which
 is also why its `prune-reviews` pushes with `github.token`.
 
 `AUDIT_READ_TOKEN` sees `bypass_actors` on hunkydory's ruleset
-23805020 before the demotion (1a, 2026-10-30): **yes**, `has
+23805020 before the demotion (1a, probe of 2026-10-29): **yes**, `has
 bypass_actors: True`. After the demotion (1b, 2026-10-30, run
 40936327542, deleted once read): **no**, `has bypass_actors:
 False`, with `current_user_can_bypass: always` because the bot is
@@ -975,7 +982,11 @@ also showed post-demotion bot prune pushes in kerbside (rule suites
 4803835127 at 09:03 and 4811205885 at 19:20 on 2026-10-30, commits
 5ba1d191 and 00796bb9) and ryll (rule suite 4813612660 at 21:56,
 commit 21577cd6), all `bypass` by `shakenfist-bot`, so all three
-are proven.
+are proven. In fairness to the gate: the key was set at 19:16 on
+2026-10-30, after hunkydory's push and kerbside's first but before
+kerbside's second and ryll's only one, so decision 8's prune-push
+leg was waived at 07:45 on hunkydory's evidence alone and the
+other two confirmed it afterwards.
 
 The audit dispatched again under the security manager role
 (40943433199, 06:40 AEDT): all 25 legs passed their read-token
@@ -1011,7 +1022,10 @@ token minted from the key, which listed exactly those four and
 expired within the hour). `apps/shakenfist-review-marks` and
 `orgs/shakenfist/installations` agree. The client id is the
 organisation variable `REVIEW_MARKS_APP_CLIENT_ID`, visibility
-`all`, set 2026-10-30.
+`all`, set 2026-10-30. Private keys held by the App: *pending the
+operator's confirmation from the App's page that the first key
+(lost at 18:19, after minting one live installation token) is
+deleted and only the second remains; no API lists an App's keys.*
 
 **Environments (1b).** For each of andris, hunkydory, kerbside,
 ryll, actions, development, sfui, kerbside-client: the
@@ -1052,6 +1066,14 @@ kerbside: `ANSIBLE_GALAXY_TOKEN`, `DEPENDENCIES_TOKEN`; ryll:
 development: `AUDIT_READ_TOKEN`; actions, sfui, kerbside-client:
 none), and the organisation holds only `GITLAB_TESTDATA_TOKEN` and
 `RENOVATE_TOKEN`. The key file was shredded after the read-back.
+
+The environment half is still readable by the audit after the
+demotion: the compliance page regenerated by run 40943433199
+(`main` e135d57, 2026-10-30 07:20 AEDT) reports
+`release-environment-protection` compliant in 14 repositories and
+not applicable in 10, with no error, so `AUDIT_READ_TOKEN` reads
+`environments/<name>` and `deployment-branch-policies` under the
+security manager role, which is the half step 3c measures.
 
 **Rulesets (1c).** Done 2026-10-31 07:55 to 07:58 AEDT, andris
 first and read back before the others, by GET, append and PUT with
@@ -1181,6 +1203,17 @@ after the PUT, identical on andris (24700229), hunkydory
   lets the role go, cited the kerbside and ryll push proofs by rule
   suite and commit, marked the soak item as met by waiver, dated
   the 2026-10-29 notes correctly, and put the notes in time order.
+- 2026-10-31 10:30 AEDT: the third review round: the probe's date
+  in the record cells, step 3a's probe placed in hunkydory with an
+  unset secret failing it, step 3c's brief leading with the
+  measured fallback shape, the key-set order against the soak said
+  plainly, the App's key count added to the record and the
+  definition of done as an operator confirmation, the environment
+  half confirmed readable from the regenerated compliance page,
+  andris's ruleset dated, and the security manager role named in
+  Situation. Two decisions recorded for Mikal with `plan-blockers`:
+  the key confirmation, and whether #352 lands before phases 2 and
+  3.
 
 #### Risks and mitigations
 
@@ -1253,6 +1286,8 @@ and the API, not from the operator's summary.
   two entries: the team (11722172, `Team`, `always`) and the App
   (`Integration`, `always`).
 * `gh issue view 211 --json state --jq .state` prints `OPEN`.
+* The App's page lists exactly one private key, the one the four
+  secrets were set from, and the record says so.
 * The probe branch does not exist, and `gh run list --repo
   shakenfist/development --branch <probe branch>` prints nothing.
 * The three soak URLs in the record are runs that succeeded after
@@ -1307,9 +1342,9 @@ leaves the old path open without anything saying so.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 3a | high | opus | none | Operator step. The App has been a bypass actor since step 1c, and phase 2's definition of done shows it landing. Remove `shakenfist-bot` from `sf-can-skip-merge-queue`, which takes its bypass away on all seven. Its role was already changed in 1b; re-record `repos/shakenfist/<r>/collaborators/shakenfist-bot/permission` for all eleven repositories (Situation's ten and andris) to confirm nothing restored it. Prove both halves. First, a push to `develop` in hunkydory is rejected by the ruleset, once authenticated with `DEPENDENCIES_TOKEN` and once with `RENOVATE_TOKEN`, from a throwaway workflow on a branch, deleted afterwards, built as phase 1's probe ran: on a `push` trigger for its own branch, since `workflow_dispatch` refuses a workflow that is not on the default branch, and on `[self-hosted, vm, debian-13, s]`, whose image has no `gh`, so with `git` and `curl` rather than `gh`. Each probe pushes an empty commit (`git commit --allow-empty`) on the current tip of `develop`, so an accepted push changes no file. If one is accepted, the bypass is still there: stop, record it from the rule-suite history, open a revert pull request at once, and do not go on to the second half until it is understood. A bypass belongs to an identity, no ruleset names the admin role or `OrganizationAdmin`, and 1b left the bot an admin nowhere, so one repository proves it for all seven. Second, the next `prune-reviews` run in andris, hunkydory, kerbside and ryll lands or finds nothing to do. Record the ruleset JSON's `bypass_actors` for each repository here. |
+| 3a | high | opus | none | Operator step. The App has been a bypass actor since step 1c, and phase 2's definition of done shows it landing. Remove `shakenfist-bot` from `sf-can-skip-merge-queue`, which takes its bypass away on all seven. Its role was already changed in 1b; re-record `repos/shakenfist/<r>/collaborators/shakenfist-bot/permission` for all eleven repositories (Situation's ten and andris) to confirm nothing restored it. Prove both halves. First, a push to `develop` in hunkydory is rejected by the ruleset, once authenticated with `DEPENDENCIES_TOKEN` and once with `RENOVATE_TOKEN`, from a throwaway workflow on a branch, deleted afterwards, built as phase 1's probe ran: on a `push` trigger for its own branch, since `workflow_dispatch` refuses a workflow that is not on the default branch, and on `[self-hosted, vm, debian-13, s]`, whose image has no `gh`, so with `git` and `curl` rather than `gh`. It runs on a branch of hunkydory itself, not of this repository: `DEPENDENCIES_TOKEN` is a repository secret of hunkydory and resolves to nothing here (phase 1's probe found it unset), while `RENOVATE_TOKEN` reaches hunkydory as an organisation secret. Each probe step fails the run if its secret resolves to an empty string, so an unset secret can never pass as a rejection. Each probe pushes an empty commit (`git commit --allow-empty`) on the current tip of `develop`, so an accepted push changes no file. If one is accepted, the bypass is still there: stop, record it from the rule-suite history, open a revert pull request at once, and do not go on to the second half until it is understood. A bypass belongs to an identity, no ruleset names the admin role or `OrganizationAdmin`, and 1b left the bot an admin nowhere, so one repository proves it for all seven. Second, the next `prune-reviews` run in andris, hunkydory, kerbside and ryll lands or finds nothing to do. Record the ruleset JSON's `bypass_actors` for each repository here. |
 | 3b | medium | sonnet | none | In this repository, amend `docs/plans/PLAN-workflow-ref-trust.md`: open question 1's default becomes the App from this plan rather than a team of one, with a sentence saying the residual it described is closed; step 2a's brief installs the App on `actions`, adds the key to the `review-marks` environment that phase 1 step 1b already created in `actions` (as an environment secret, never a repository one), and names the App as the only bypass actor; the "documented set" that step 2b's criterion compares `bypass_actors` against is that App. Step 2a's question of whether the audit token sees `bypass_actors` cites this plan's step 1a record (and 1b's, if it re-ran the probe) rather than measuring again. Remove the #211 entry from that plan's Future work and its related-issues list, citing this plan. Touch nothing else in that plan. |
-| 3c | high | opus | worktree | Add a criterion `bypass-actor-identity` in `scripts/audit/checks/github_config.py`, following `DeleteBranchOnMerge` for the API-call shape, with id `bypass-actor-identity`, its `spec` and its `issue_title` (`Bypass actor identity`). For each ruleset that applies to the default branch and carries a `pull_request` rule, it judges every bypass actor by its `actor_type`, and reports each one that fails. `Team` fails. `RepositoryRole` passes only for the admin role (confirm its `actor_id` against a real ruleset GET rather than assuming it) and fails for any other. `OrganizationAdmin` passes. `Integration` passes only if it is the review-marks App (a module constant holding its id). `DeployKey` fails: a deploy key with write access is an automation credential, like the PATs this plan removes. Any other `actor_type` is an error, never a pass. The admin-role and `OrganizationAdmin` passes rest on 1b having left no automation identity as an owner or an admin, and in particular as an admin of any repository the App is installed on, where it could widen the environment's policy. The check cannot see that, so the spec puts it in its "Required, but confirmed by a reviewer" half. That half also records the residual phase 1 accepted on hunkydory (execution notes, 2026-10-30 18:15): the runner-controller App `shakenfist-k3s-ci-arc` holds `administration: write` there until 33fl's k3s CI plan narrows it at its phase 5, and whoever holds its key could widen hunkydory's `review-marks` policy, read the review-marks key from a branch workflow, and mint push tokens for all four repositories the App is installed on. Separately, in every repository whether or not it has a pull-request ruleset, the check reads `repos/{org}/{repo}/environments/review-marks`. Where the environment exists, it fails unless the policy is exactly open question 4's default-branch policy: `protected_branches` false, `custom_branch_policies` true, and one policy, `type: branch`, named for the default branch with no glob characters. It also fails if `REVIEW_MARKS_APP_KEY` appears in `repos/{org}/{repo}/actions/secrets` (names only), since a repository-level copy is readable from any branch. If `AUDIT_READ_TOKEN` cannot list secrets (phase 1's record says), that half moves to the spec's reviewer-confirmed half, beside the organisation-level check, which the audit cannot make either way. A ruleset response without `bypass_actors` is an error, never a pass, as in `PLAN-workflow-ref-trust.md`'s phase 2. A repository with no pull-request ruleset and no `review-marks` environment reports `not_applicable` with that reason. **If step 1a (or 1b, after the demotion and the security manager grant) recorded that `AUDIT_READ_TOKEN` cannot see `bypass_actors`**, do not widen the token. Instead, the check measures only the environment and secret half above. The spec moves the bypass list to its reviewer-confirmed half, as `PLAN-workflow-ref-trust.md` step 2b does, and the actor-type tests below become tests of the spec's table rather than of code. Register it in `CHECKS` in `scripts/audit/registry.py`, write `docs/audits/bypass-actor-identity.md` following `docs/audits/README.md`, add its row there, add its lines to `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`, and add pass, fail and not-applicable tests to `scripts/tests/test_github_config.py` using `CheckTestCase` and a stubbed GitHub client, including a team bypass, a non-admin repository role, an `OrganizationAdmin` actor (a pass), a `DeployKey` actor, an unrecognised `actor_type` (an error), a missing `bypass_actors` key, an unknown App, an environment with no branch policy in a repository with no pull-request ruleset, an environment whose policies add a tag policy beside the default branch, one whose branch policy is a wildcard, one with `protected_branches: true` (each a fail), a repository-level `REVIEW_MARKS_APP_KEY`, and a repository with neither a pull-request ruleset nor the environment (`not_applicable`). Before writing the team rule, decide with the operator what `sfconductor`'s bypass becomes (open question 3). If it stays a team, the spec says the check is expected to fail there and why, rather than exempting it in code. But then 3c's first weekly run files seven issues that nothing in this plan can close. So 3c does not land with the team rule until open question 3 has an outcome. Until then, land the criterion without the team rule, reporting team bypass actors in the spec's reviewer-confirmed half, and say so in the commit message. State in the commit message how many repositories it newly fails, including this one, against this prediction. If open question 3 leaves `sf-can-skip-merge-queue` in place for `mikalstill` and `sfconductor`, all seven repositories in Situation fail on the team rule. This repository, actions (until `PLAN-workflow-ref-trust.md` step 2a), sfui and kerbside-client carry only the "Protect default branch history" ruleset, with no `pull_request` rule. They pass on the environment half, because 1b gave each one its policy. So seven newly fail, none of them this one. On the fallback shape, the team rule is not measured, and if 1b and 2b did their job nothing newly fails. |
+| 3c | high | opus | worktree | **Phase 1 measured the shape (record, 1a and 1b): `AUDIT_READ_TOKEN` sees neither `bypass_actors` nor a repository's secret list, under the security manager role too, so build the fallback shape described at the end of this brief: the check measures the `review-marks` environment and its branch policies only, and the bypass-actor rules and the repository-level key check live in the spec's reviewer-confirmed half, with the actor-type cases below as rows of the spec's table rather than tests of code, until a read identity that sees `bypass_actors` exists (#352).** Add a criterion `bypass-actor-identity` in `scripts/audit/checks/github_config.py`, following `DeleteBranchOnMerge` for the API-call shape, with id `bypass-actor-identity`, its `spec` and its `issue_title` (`Bypass actor identity`). For each ruleset that applies to the default branch and carries a `pull_request` rule, it judges every bypass actor by its `actor_type`, and reports each one that fails. `Team` fails. `RepositoryRole` passes only for the admin role (confirm its `actor_id` against a real ruleset GET rather than assuming it) and fails for any other. `OrganizationAdmin` passes. `Integration` passes only if it is the review-marks App (a module constant holding its id). `DeployKey` fails: a deploy key with write access is an automation credential, like the PATs this plan removes. Any other `actor_type` is an error, never a pass. The admin-role and `OrganizationAdmin` passes rest on 1b having left no automation identity as an owner or an admin, and in particular as an admin of any repository the App is installed on, where it could widen the environment's policy. The check cannot see that, so the spec puts it in its "Required, but confirmed by a reviewer" half. That half also records the residual phase 1 accepted on hunkydory (execution notes, 2026-10-30 18:15): the runner-controller App `shakenfist-k3s-ci-arc` holds `administration: write` there until 33fl's k3s CI plan narrows it at its phase 5, and whoever holds its key could widen hunkydory's `review-marks` policy, read the review-marks key from a branch workflow, and mint push tokens for all four repositories the App is installed on. Separately, in every repository whether or not it has a pull-request ruleset, the check reads `repos/{org}/{repo}/environments/review-marks`. Where the environment exists, it fails unless the policy is exactly open question 4's default-branch policy: `protected_branches` false, `custom_branch_policies` true, and one policy, `type: branch`, named for the default branch with no glob characters. It also fails if `REVIEW_MARKS_APP_KEY` appears in `repos/{org}/{repo}/actions/secrets` (names only), since a repository-level copy is readable from any branch. `AUDIT_READ_TOKEN` cannot list secrets (phase 1's record), so that half moves to the spec's reviewer-confirmed half, beside the organisation-level check, which the audit cannot make either way. A ruleset response without `bypass_actors` is an error, never a pass, as in `PLAN-workflow-ref-trust.md`'s phase 2. A repository with no pull-request ruleset and no `review-marks` environment reports `not_applicable` with that reason. **Step 1b recorded that `AUDIT_READ_TOKEN` cannot see `bypass_actors`, under the security manager role too**, so do not widen the token. Instead, the check measures only the environment and secret half above. The spec moves the bypass list to its reviewer-confirmed half, as `PLAN-workflow-ref-trust.md` step 2b does, and the actor-type tests below become tests of the spec's table rather than of code. Register it in `CHECKS` in `scripts/audit/registry.py`, write `docs/audits/bypass-actor-identity.md` following `docs/audits/README.md`, add its row there, add its lines to `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`, and add pass, fail and not-applicable tests to `scripts/tests/test_github_config.py` using `CheckTestCase` and a stubbed GitHub client, including a team bypass, a non-admin repository role, an `OrganizationAdmin` actor (a pass), a `DeployKey` actor, an unrecognised `actor_type` (an error), a missing `bypass_actors` key, an unknown App, an environment with no branch policy in a repository with no pull-request ruleset, an environment whose policies add a tag policy beside the default branch, one whose branch policy is a wildcard, one with `protected_branches: true` (each a fail), a repository-level `REVIEW_MARKS_APP_KEY`, and a repository with neither a pull-request ruleset nor the environment (`not_applicable`). Before writing the team rule, decide with the operator what `sfconductor`'s bypass becomes (open question 3). If it stays a team, the spec says the check is expected to fail there and why, rather than exempting it in code. But then 3c's first weekly run files seven issues that nothing in this plan can close. So 3c does not land with the team rule until open question 3 has an outcome. Until then, land the criterion without the team rule, reporting team bypass actors in the spec's reviewer-confirmed half, and say so in the commit message. State in the commit message how many repositories it newly fails, including this one, against this prediction. If open question 3 leaves `sf-can-skip-merge-queue` in place for `mikalstill` and `sfconductor`, all seven repositories in Situation fail on the team rule. This repository, actions (until `PLAN-workflow-ref-trust.md` step 2a), sfui and kerbside-client carry only the "Protect default branch history" ruleset, with no `pull_request` rule. They pass on the environment half, because 1b gave each one its policy. So seven newly fail, none of them this one. On the fallback shape, the team rule is not measured, and if 1b and 2b did their job nothing newly fails. |
 
 **Definition of done.** `shakenfist-bot` is not a member of
 `sf-can-skip-merge-queue`, and its role is what open question 5

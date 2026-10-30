@@ -179,7 +179,7 @@ permission beyond the Metadata every token gets: **Issues**, read and
 write, which covers listing, filing, editing, commenting on and
 closing issues, and creating the `consistency` label. It needs no
 Contents permission (though since the bot left the owner role it
-cannot file in the private repository, #349; what changes to fix
+cannot file in private-ci, a private repository, #349; what changes to fix
 that is recorded there). `update-docs` uses it only to look up the open
 issues the page links to; the page itself is pushed by
 `scripts/commit-audit-docs.sh` with the job's own `GITHUB_TOKEN`,
