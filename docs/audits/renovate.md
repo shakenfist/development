@@ -8,6 +8,8 @@
   copied verbatim rather than edited per repository.
 * `renovate.yml` does not run `renovatebot/github-action`, which needs
   a Docker daemon on the runner.
+* `renovate.yml` matches the template's apart from the value of
+  `PINNED_RENOVATE_VERSION`.
 * `renovate.json` exists, with package grouping rules and scheduling.
   It is a per-repository adaptation, not expected to be
   byte-identical to the template's copy.
@@ -39,6 +41,28 @@ matters is lock files, which Renovate now refreshes with the runner's
 own tools. The template provides npm always and a Rust toolchain when
 the repository has a `Cargo.lock`, so every repository can copy it
 unmodified.
+
+### The workflow is the template's
+
+`renovate.yml` is copied verbatim, so any difference from
+`templates/renovate/renovate.yml` is drift, with one exception: the
+value of `PINNED_RENOVATE_VERSION`. Renovate bumps that pin in each
+copy on its own schedule, so a copy whose Renovate is ahead of or
+behind the template's still matches.
+
+The drift that prompted this was Node. Renovate proposed Node 26 for
+the workflow's `setup-node` step, the pull request merged in eleven
+repositories, and each one's Renovate, which needs Node `^24.11.0`,
+then failed on every hourly run. The template's `renovate.json` now
+stops Renovate proposing that bump, but a copy can still drift by
+hand, and the workflow is where Node has to match the Renovate it
+runs.
+
+The finding names each place the copy differs, up to three, with the
+copy's line and the template's, and counts the rest. A copy still on
+the container action gets only that finding, which already says to
+copy the template. If the audit cannot read its own template, it
+reports an error rather than a verdict.
 
 ### The pre-commit manager
 
