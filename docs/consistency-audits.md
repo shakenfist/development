@@ -140,11 +140,17 @@ repository, and a fine-grained token never exceeds its account's
 access. The token is `shakenfist-bot`'s, and the bot stopped being
 an organisation owner on 2026-10-30; it reads the setting now
 because the bot is an organisation **security manager**, through
-the `sf-security-managers` team, a role that reads security
-settings and alerts in every repository and grants no other write.
-A token re-minted under an account without that role, or the team
-dropped from the security managers, fails every leg at "Check the
-read token".
+the `sf-security-managers` team. That role reads every repository,
+writes every security alert (code scanning, Dependabot and secret
+scanning, including reading leaked values and dismissing alerts)
+and can change code security settings such as secret scanning and
+push protection at organisation and repository level; it grants no
+ruleset, environment or branch right. It is wider than the audit
+needs, and it belongs to the account, so every bot token whose
+scopes allow it carries that reach too. A token re-minted under an
+account without the role, or the team dropped from the security
+managers, fails every leg at "Check the read token". The way out
+is a read-only App identity for the legs, #352.
 
 These are enough for `release-environment-protection` too: the token
 was confirmed on 2026-10-19 to read both

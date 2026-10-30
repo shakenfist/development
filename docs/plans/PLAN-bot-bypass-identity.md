@@ -115,8 +115,10 @@ token, so **every credential that authenticates as
 `shakenfist-bot` can push straight to those seven default branches**,
 skipping review, required checks and the merge queue.
 
-**The bot is also an organisation owner.**
-`orgs/shakenfist/memberships/shakenfist-bot` reports `role: admin`,
+**The bot is also an organisation owner** (as the plan found it;
+phase 1 step 1b demoted it on 2026-10-30, and the rest of this
+paragraph is the state before that).
+`orgs/shakenfist/memberships/shakenfist-bot` reported `role: admin`,
 and `repos/shakenfist/<r>/collaborators/shakenfist-bot/permission`
 reports `admin` in all eleven of shakenfist, kerbside, ryll,
 instar, hunkydory, client-python-k3s, actions, development, sfui,
@@ -930,7 +932,7 @@ and shakenfist).
   2026-10-29, all seven pull-request rulesets: 141 (kerbside 37,
   ryll 76, hunkydory 28, none elsewhere), every one with the commit
   subject "Prune and import review marks.".
-- #211 reopened on 2026-10-30 with a comment naming #255.
+- #211 reopened on 2026-10-29 12:48 AEDT with a comment naming #255.
 
 **Open questions settled (1a).** 3: `sfconductor` is Mikal's merge
 automation and stays out of scope; nothing is filed. 5: the
@@ -969,8 +971,11 @@ by `shakenfist-bot` to `develop` (d0a36f2f, "Prune and import
 review marks.", run 40944610032) after the demotion, so
 `DEPENDENCIES_TOKEN` still pushes through the team bypass with the
 bot a member. By 2026-10-31 07:58 AEDT the rule-suite histories
-also showed post-demotion bot prune pushes in kerbside (09:03 and
-19:20 on 2026-10-30) and ryll (21:56), so all three are proven.
+also showed post-demotion bot prune pushes in kerbside (rule suites
+4803835127 at 09:03 and 4811205885 at 19:20 on 2026-10-30, commits
+5ba1d191 and 00796bb9) and ryll (rule suite 4813612660 at 21:56,
+commit 21577cd6), all `bypass` by `shakenfist-bot`, so all three
+are proven.
 
 The audit dispatched again under the security manager role
 (40943433199, 06:40 AEDT): all 25 legs passed their read-token
@@ -1064,25 +1069,25 @@ after the PUT, identical on andris (24700229), hunkydory
 
 #### Execution notes
 
-- 2026-10-30 (AEDT): back brief answered. Decisions 3, 4 and 7
+- 2026-10-29 12:40 AEDT: back brief answered. Decisions 3, 4 and 7
   stand; step 1a was approved in full; this session may push the
   branch and open the pull request when the definition of done
   passes. The bot's token list is held for later.
-- 2026-10-30: the probe could not be started by `workflow_dispatch`,
+- 2026-10-29 12:50 AEDT: the probe could not be started by `workflow_dispatch`,
   which GitHub refuses (404) for a workflow that is not on the
   default branch, so it ran on a `push` trigger for its own branch
   instead. It read its secrets with `curl` and `python3` rather than
   installing `gh`. Its run, the two skipped `prune-reviews` runs the
   branch pushes caused, the branch and the file were deleted
   afterwards; `gh run list --branch bbi-p1-token-probe` is empty.
-- 2026-10-30 06:10 AEDT: the post-demotion re-probe ran the same way as the
-  first, on a `push` trigger, with one step for `AUDIT_READ_TOKEN`,
-  and was deleted with its branch and the skipped `prune-reviews`
-  run the push caused.
 - 2026-10-30 05:55 AEDT: the last scheduled audit run (40229216560, 2026-10-25)
   failed in `manage-issues` on a transient GraphQL error updating
   one issue, after every leg passed. Not this plan's; noted because
   decision 8's soak reads the next run.
+- 2026-10-30 06:10 AEDT: the post-demotion re-probe ran the same way as the
+  first, on a `push` trigger, with one step for `AUDIT_READ_TOKEN`,
+  and was deleted with its branch and the skipped `prune-reviews`
+  run the push caused.
 - 2026-10-30 06:30 AEDT: the dispatched audit (40936371270) failed
   in every leg because `AUDIT_READ_TOKEN` no longer sees
   `security_and_analysis`, which the API returns only to a
@@ -1092,9 +1097,18 @@ after the PUT, identical on andris (24700229), hunkydory
   `sf-security-managers` (id 20418434, no repositories, base
   permission `pull`) holding the bot was made a security manager
   (`PUT orgs/shakenfist/security-managers/teams/
-  sf-security-managers`). That role reads security settings and
-  alerts in every repository and grants no ruleset or environment
-  right, so Mission item 2 holds. The bot's role (`member`) and
+  sf-security-managers`). That role grants no ruleset, environment
+  or branch right, so Mission item 2 holds, but it is wider than
+  first described here: a security manager reads every repository,
+  writes every security alert (code scanning, Dependabot and secret
+  scanning, including reading leaked values and dismissing alerts)
+  and can change code security settings such as secret scanning
+  and push protection, at organisation and repository level. It is
+  a role on the account, so every bot token whose scopes allow it
+  (`RENOVATE_TOKEN`'s `repo`, `DEPENDENCIES_TOKEN`) carries that
+  reach too: narrower than the owner role it replaced, wider than
+  the audit needs. The exit is a read-only App for the audit legs,
+  #352. The bot's role (`member`) and
   permissions (`write`) were re-read and unchanged. The audit was
   dispatched again (40943433199) as the test; its result is in
   the soak evidence. The read-only App for the audit stays Future
@@ -1137,6 +1151,19 @@ after the PUT, identical on andris (24700229), hunkydory
   deletes the old, and the four secrets are set from it once the
   limit resets, with the read-back checked before the file is
   shredded.
+- 2026-10-31 08:00 AEDT: definition of done run from the record and
+  the API. Every GitHub-side item but one passed (role, owners, eight
+  environments by script, four environment secrets and no
+  repository or organisation copy across 30 repositories, the
+  variable, the App's permissions, four rulesets with exactly the
+  team and the App, #211 open, no probe branch or run, prune pushes
+  as the bot in all three repositories after the demotion). The
+  soak item is met by Mikal's 07:45 waiver, not by a run: neither
+  dispatched audit succeeded end to end. `pre-commit` passes and
+  the audit verdicts match `main`. Two record
+  cells stay pending on the operator: the bot's token list, and
+  with it the contents-read grant to `AUDIT_TOKEN` that Monday's
+  scheduled audit needs to file in private-ci.
 - 2026-10-31 08:30 AEDT: the automated review of #348 (7 fix, 1
   document, 4 consider) found the record overstating what the soak
   proved (`update-docs` pushes with the job's own `GITHUB_TOKEN`,
@@ -1147,17 +1174,13 @@ after the PUT, identical on andris (24700229), hunkydory
   the role (same answer), the security manager dependency is now
   in `docs/consistency-audits.md`, the private-ci failure is #349,
   and the hunkydory residual is written into step 3c's brief.
-- 2026-10-31 08:00 AEDT: definition of done run from the record and
-  the API. Every GitHub-side item passed (role, owners, eight
-  environments by script, four environment secrets and no
-  repository or organisation copy across 30 repositories, the
-  variable, the App's permissions, four rulesets with exactly the
-  team and the App, #211 open, no probe branch or run, prune pushes
-  as the bot in all three repositories after the demotion), and
-  `pre-commit` and the audit verdicts match `main`. Two record
-  cells stay pending on the operator: the bot's token list, and
-  with it the contents-read grant to `AUDIT_TOKEN` that Monday's
-  scheduled audit needs to file in private-ci.
+- 2026-10-31 09:30 AEDT: the second review round corrected the
+  description of the security manager role above and in
+  `docs/consistency-audits.md`, recorded that it widens what every
+  bot token can reach, filed #352 for the read-only audit App that
+  lets the role go, cited the kerbside and ryll push proofs by rule
+  suite and commit, marked the soak item as met by waiver, dated
+  the 2026-10-29 notes correctly, and put the notes in time order.
 
 #### Risks and mitigations
 
@@ -1184,8 +1207,9 @@ after the PUT, identical on andris (24700229), hunkydory
   `--env` writes a repository secret. The definition of done lists
   repository secrets for all eight and the organisation's, and
   expects no `REVIEW_MARKS_APP_KEY` at either level.
-* **The demotion hides `bypass_actors` from the audit.** Only if
-  `AUDIT_READ_TOKEN` is the bot's; the record says, and 3c has its
+* **The demotion hides `bypass_actors` from the audit.** It did:
+  the token is the bot's and lost `bypass_actors` and the secret
+  listing with the demotion (record, 1a and 1b), so 3c takes its
   fallback shape. Not a reason to keep the bot an owner.
 
 #### Definition of done
