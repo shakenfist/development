@@ -962,8 +962,17 @@ list is read) or in the script (create issues through the REST API,
 which needs only issues write); it is recorded here and decided in
 the execution notes.
 
-**App (1b).** Name, id, client id, installation id, installed
-repositories, permissions, created on: *pending*.
+**App (1b).** `shakenfist-review-marks`, created by Mikal in the
+web UI on 2026-10-30 at 18:00 AEDT: app id 5538020, client id
+`Iv23li7GsD5p4UvnqE4Y`, installation id 176803138, no webhook, no
+events, permissions `contents: write` and `metadata: read` (the
+latter is implicit), installed on selected repositories: andris,
+hunkydory, kerbside and ryll (read with a one-off installation
+token minted from the key, which listed exactly those four and
+expired within the hour). `apps/shakenfist-review-marks` and
+`orgs/shakenfist/installations` agree. The client id is the
+organisation variable `REVIEW_MARKS_APP_CLIENT_ID`, visibility
+`all`, set 2026-10-30.
 
 **Environments (1b).** For each of andris, hunkydory, kerbside,
 ryll, actions, development, sfui, kerbside-client: the
@@ -971,7 +980,28 @@ ryll, actions, development, sfui, kerbside-client: the
 and the `deployment-branch-policies` response, verbatim; for the
 first four, the environment's secret names; for all eight,
 `gh secret list --repo` showing no `REVIEW_MARKS_APP_KEY`.
-*Pending.*
+
+Created 2026-10-30 18:05 AEDT with `PUT
+repos/shakenfist/<r>/environments/review-marks` (body
+`{"deployment_branch_policy": {"protected_branches": false,
+"custom_branch_policies": true}}`) and `POST
+.../deployment-branch-policies` (`name=<default>`, `type=branch`).
+Read back the same minute; every row is the definition of done's
+script printing `ok`:
+
+| Repository | `deployment_branch_policy` | `deployment-branch-policies` |
+|------------|----------------------------|------------------------------|
+| andris | `{"protected_branches": false, "custom_branch_policies": true}` | one: id 64885235, `branch`, `develop` |
+| hunkydory | same | one: id 64885238, `branch`, `develop` |
+| kerbside | same | one: id 64885239, `branch`, `develop` |
+| ryll | same | one: id 64885244, `branch`, `develop` |
+| actions | same | one: id 64885247, `branch`, `main` |
+| development | same | one: id 64885248, `branch`, `main` |
+| sfui | same | one: id 64885251, `branch`, `develop` |
+| kerbside-client | same | one: id 64885253, `branch`, `develop` |
+
+Environment secrets and the repository-level check: *pending the
+key step*.
 
 **Rulesets (1c).** For each of andris, hunkydory, kerbside, ryll:
 `bypass_actors` after the PUT, verbatim. *Pending.*
