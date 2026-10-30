@@ -881,23 +881,7 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_plans.py",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate/renovate.yml",
       "author": "mikal"
     },
     {
