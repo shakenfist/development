@@ -1009,8 +1009,19 @@ script printing `ok`:
 | sfui | same | one: id 64885251, `branch`, `develop` |
 | kerbside-client | same | one: id 64885253, `branch`, `develop` |
 
-Environment secrets and the repository-level check: *pending the
-key step*.
+Environment secrets, set 2026-10-30 19:16 AEDT with `gh secret set
+REVIEW_MARKS_APP_KEY --repo shakenfist/<r> --env review-marks` from
+the regenerated key and read back the same minute:
+`environments/review-marks/secrets` lists exactly
+`REVIEW_MARKS_APP_KEY` in andris, hunkydory, kerbside and ryll, and
+nothing in actions, development, sfui and kerbside-client.
+`gh secret list --repo` for the eight shows no
+`REVIEW_MARKS_APP_KEY` (andris and hunkydory: `DEPENDENCIES_TOKEN`;
+kerbside: `ANSIBLE_GALAXY_TOKEN`, `DEPENDENCIES_TOKEN`; ryll:
+`CARGO_REGISTRY_TOKEN`, `DEPENDENCIES_TOKEN`, `HOMEBREW_TAP_TOKEN`;
+development: `AUDIT_READ_TOKEN`; actions, sfui, kerbside-client:
+none), and the organisation holds only `GITLAB_TESTDATA_TOKEN` and
+`RENOVATE_TOKEN`. The key file was shredded after the read-back.
 
 **Rulesets (1c).** For each of andris, hunkydory, kerbside, ryll:
 `bypass_actors` after the PUT, verbatim. *Pending.*
