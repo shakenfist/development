@@ -950,7 +950,9 @@ at 06:56 AEDT: hunkydory's rule-suite history shows a `bypass` push
 by `shakenfist-bot` to `develop` (d0a36f2f, "Prune and import
 review marks.", run 40944610032) after the demotion, so
 `DEPENDENCIES_TOKEN` still pushes through the team bypass with the
-bot a member.
+bot a member. By 2026-10-31 07:58 AEDT the rule-suite histories
+also showed post-demotion bot prune pushes in kerbside (09:03 and
+19:20 on 2026-10-30) and ryll (21:56), so all three are proven.
 
 The audit dispatched again under the security manager role
 (40943433199, 06:40 AEDT): all 25 legs passed their read-token
@@ -1102,6 +1104,17 @@ after the PUT, identical on andris (24700229), hunkydory
   deletes the old, and the four secrets are set from it once the
   limit resets, with the read-back checked before the file is
   shredded.
+- 2026-10-31 08:00 AEDT: definition of done run from the record and
+  the API. Every GitHub-side item passed (role, owners, eight
+  environments by script, four environment secrets and no
+  repository or organisation copy across 30 repositories, the
+  variable, the App's permissions, four rulesets with exactly the
+  team and the App, #211 open, no probe branch or run, prune pushes
+  as the bot in all three repositories after the demotion), and
+  `pre-commit` and the audit verdicts match `main`. Two record
+  cells stay pending on the operator: the bot's token list, and
+  with it the contents-read grant to `AUDIT_TOKEN` that Monday's
+  scheduled audit needs to file in private-ci.
 - 2026-10-30: the post-demotion re-probe ran the same way as the
   first, on a `push` trigger, with one step for `AUDIT_READ_TOKEN`,
   and was deleted with its branch and the skipped `prune-reviews`
