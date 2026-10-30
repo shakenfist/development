@@ -889,9 +889,18 @@ and shakenfist).
   3 stays out of scope: the exposure this plan closes is a credential
   that branch code and third-party actions can read, and that one is
   not in a workflow.
-- `shakenfist-k3s-ci-arc`: *pending: the installed repositories, from
-  the organisation's GitHub Apps settings page; the API refuses the
-  listing to a user token.* Gate for decision 4: *pending*.
+- `shakenfist-k3s-ci-arc`: installed on hunkydory only (Mikal, from
+  the organisation's GitHub Apps page, 2026-10-30; the installation
+  endpoints refuse every token that is not a GitHub App's, so the
+  API could not read it). hunkydory also carries a repository-level
+  runner `k3s-static-hunkydory-runner-q57jl`. It is the k3s CI
+  plan's credential (33fl `PLAN-k3s-ci-runners-phase-03-runners.md`,
+  decision 4 and open question 1), which accepted Administration on
+  hunkydory on 2026-10-15 as the minimum for a repository-scoped
+  scale set, to be narrowed to "Self-hosted runners" at an org-level
+  scale set in its phase 5. Gate for decision 4: **hit on hunkydory,
+  and relaxed for that one repository** (execution notes,
+  2026-10-30 18:15 AEDT).
 - Runner group serving `vm`: one group, `Default`, `visibility: all`
   (`orgs/shakenfist/actions/runner-groups`, 2026-10-30). The runners
   registered at the time carried `self-hosted, Linux, X64, debian,
@@ -1049,6 +1058,28 @@ key step*.
   changing the script or restoring the owner role. The App,
   environments and key proceed once the token list and the
   runner-controller App's repositories are recorded.
+- 2026-10-30 18:15 AEDT: decision 4 relaxed for hunkydory. The
+  runner-controller App already defeats hunkydory's ruleset outright
+  (Administration can delete it), a cost the k3s plan accepted on
+  2026-10-15; what the review-marks key adds is that whoever holds
+  the ARC key (the cluster kubeconfig or the SOPS key on kasm) could
+  widen hunkydory's `review-marks` policy, read this key from a
+  branch workflow, and mint push tokens for andris, kerbside and
+  ryll too. Holding hunkydory's key instead would stop phase 2
+  finishing and phase 3 starting until k3s phase 5 moves all 19
+  repositories. Mikal chose to key all four and record the residual
+  here and in `bypass-actor-identity`'s reviewer-confirmed half
+  (step 3c); 33fl's plan now says at phase 5 and open question 1
+  that the narrowing closes it (33fl commit 51d5eda8).
+- 2026-10-30 18:19 AEDT: the first attempt to set the four
+  environment secrets failed on the API rate limit (5,000 requests
+  an hour, spent by the day's inventory), and the key file was
+  shredded by the same command before the failure was read. No
+  secret was set and no copy of the key exists, so the App's key is
+  regenerated: Mikal generates a new one on the App's page and
+  deletes the old, and the four secrets are set from it once the
+  limit resets, with the read-back checked before the file is
+  shredded.
 - 2026-10-30: the post-demotion re-probe ran the same way as the
   first, on a `push` trigger, with one step for `AUDIT_READ_TOKEN`,
   and was deleted with its branch and the skipped `prune-reviews`
