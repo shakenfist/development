@@ -134,6 +134,18 @@ Administration permission does not reach them, and the probe below
 fails with "cannot see repository settings". The organisation also
 refuses a fine-grained token whose lifetime is over 366 days.
 
+The minting account's own role matters as much. GitHub returns
+`security_and_analysis` only to a caller with admin access to the
+repository, and a fine-grained token never exceeds its account's
+access. The token is `shakenfist-bot`'s, and the bot stopped being
+an organisation owner on 2026-10-30; it reads the setting now
+because the bot is an organisation **security manager**, through
+the `sf-security-managers` team, a role that reads security
+settings and alerts in every repository and grants no other write.
+A token re-minted under an account without that role, or the team
+dropped from the security managers, fails every leg at "Check the
+read token".
+
 These are enough for `release-environment-protection` too: the token
 was confirmed on 2026-10-19 to read both
 `environments/<name>` and its `deployment-branch-policies` without a
@@ -160,7 +172,9 @@ repositories and no organisation permissions. It needs one repository
 permission beyond the Metadata every token gets: **Issues**, read and
 write, which covers listing, filing, editing, commenting on and
 closing issues, and creating the `consistency` label. It needs no
-Contents permission. `update-docs` uses it only to look up the open
+Contents permission (though since the bot left the owner role it
+cannot file in the private repository, #349; what changes to fix
+that is recorded there). `update-docs` uses it only to look up the open
 issues the page links to; the page itself is pushed by
 `scripts/commit-audit-docs.sh` with the job's own `GITHUB_TOKEN`,
 which `actions/checkout` leaves in the clone and the job's
