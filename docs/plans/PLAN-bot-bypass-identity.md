@@ -862,7 +862,7 @@ Australian Eastern Daylight Time (UTC+11).
 | `DEPENDENCIES_TOKEN` | repository only; no organisation secret of that name exists | client-python, hunkydory, kerbside, ryll, shakenfist, and andris since 2026-10-29 18:39 UTC (#343) | `shakenfist-bot` (rule-suite `actor_name` of every push made with it) | *pending: the bot's token list* | *pending* | *pending* |
 | `RENOVATE_TOKEN` | organisation, selected: the 22 repositories in the next table | none at repository level | `shakenfist-bot` (probe) | classic PAT | `read:org`, `read:project`, `repo`, `workflow` | none: no expiration header |
 | `AUDIT_READ_TOKEN` | repository, development | development | `shakenfist-bot` (probe) | fine-grained | read-only, as `docs/consistency-audits.md` lists | 2027-10-24 21:29:44 UTC |
-| `AUDIT_TOKEN` | environment `audit-write`, development; policy `main` only | development | `shakenfist-bot` (authored #247) | fine-grained (`docs/consistency-audits.md`) | Issues read and write, all repositories, organisation as resource owner (documented; confirmed against the token list: *pending*) | *pending* |
+| `AUDIT_TOKEN` | environment `audit-write`, development; policy `main` only | development | `shakenfist-bot` (authored #247) | fine-grained (`docs/consistency-audits.md`) | Issues read and write, all repositories, organisation as resource owner (documented), plus Contents read since 2026-10-31 (#349; confirmed against the token list: *pending*) | *pending* |
 
 The probe could not read `DEPENDENCIES_TOKEN` at all ("secret not
 set in this context"): no copy is visible to this repository, which
@@ -1203,6 +1203,16 @@ after the PUT, identical on andris (24700229), hunkydory
   lets the role go, cited the kerbside and ryll push proofs by rule
   suite and commit, marked the soak item as met by waiver, dated
   the 2026-10-29 notes correctly, and put the notes in time order.
+- 2026-10-31 09:45 AEDT: Mikal added Contents read to `AUDIT_TOKEN`
+  (the existing token, same expiry) for #349, and
+  `docs/consistency-audits.md` now says so. The test is audit run
+  41140043392, dispatched on `main` at 09:44 AEDT: **its result is
+  not yet recorded**. Next session: read its `manage-issues` job; if
+  it filed in private-ci without the `defaultBranchRef` error,
+  close #349 citing the run and resolve the `AUDIT_TOKEN` half of
+  plan-blocker b2; if not, the docs paragraph and this note are
+  wrong and the REST-creation route in #349 is next. Then read
+  review round 4 on #348 if it has arrived.
 - 2026-10-31 09:20 AEDT: the third review round: the probe's date
   in the record cells, step 3a's probe placed in hunkydory with an
   unset secret failing it, step 3c's brief leading with the

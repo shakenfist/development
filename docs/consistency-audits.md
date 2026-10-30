@@ -174,13 +174,16 @@ replace the secret, then dispatch a run of `main` to confirm it.
 
 `AUDIT_TOKEN` is also a fine-grained personal access token, with the
 `shakenfist` organisation as its resource owner, access to all
-repositories and no organisation permissions. It needs one repository
-permission beyond the Metadata every token gets: **Issues**, read and
-write, which covers listing, filing, editing, commenting on and
-closing issues, and creating the `consistency` label. It needs no
-Contents permission (though since the bot left the owner role it
-cannot file in private-ci, a private repository, #349; what changes to fix
-that is recorded there). `update-docs` uses it only to look up the open
+repositories and no organisation permissions. It needs two repository
+permissions beyond the Metadata every token gets: **Issues**, read
+and write, which covers listing, filing, editing, commenting on and
+closing issues, and creating the `consistency` label; and
+**Contents**, read only, because `gh issue create` reads the
+repository's default branch before it creates, and on a private
+repository that read needs Contents. Issues alone was enough while
+the bot was an organisation owner; once it became a member on
+2026-10-30 the token could no longer file in private-ci (#349), and
+Contents read was added to it on 2026-10-31. `update-docs` uses it only to look up the open
 issues the page links to; the page itself is pushed by
 `scripts/commit-audit-docs.sh` with the job's own `GITHUB_TOKEN`,
 which `actions/checkout` leaves in the clone and the job's
