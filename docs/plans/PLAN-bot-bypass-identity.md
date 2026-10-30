@@ -1186,7 +1186,7 @@ after the PUT, identical on andris (24700229), hunkydory
   cells stay pending on the operator: the bot's token list, and
   with it the contents-read grant to `AUDIT_TOKEN` that Monday's
   scheduled audit needs to file in private-ci.
-- 2026-10-31 08:30 AEDT: the automated review of #348 (7 fix, 1
+- 2026-10-31 08:25 AEDT: the automated review of #348 (7 fix, 1
   document, 4 consider) found the record overstating what the soak
   proved (`update-docs` pushes with the job's own `GITHUB_TOKEN`,
   not the bot's), the audit's dependence on the owner role already
@@ -1196,14 +1196,14 @@ after the PUT, identical on andris (24700229), hunkydory
   the role (same answer), the security manager dependency is now
   in `docs/consistency-audits.md`, the private-ci failure is #349,
   and the hunkydory residual is written into step 3c's brief.
-- 2026-10-31 09:30 AEDT: the second review round corrected the
+- 2026-10-31 08:45 AEDT: the second review round corrected the
   description of the security manager role above and in
   `docs/consistency-audits.md`, recorded that it widens what every
   bot token can reach, filed #352 for the read-only audit App that
   lets the role go, cited the kerbside and ryll push proofs by rule
   suite and commit, marked the soak item as met by waiver, dated
   the 2026-10-29 notes correctly, and put the notes in time order.
-- 2026-10-31 10:30 AEDT: the third review round: the probe's date
+- 2026-10-31 09:20 AEDT: the third review round: the probe's date
   in the record cells, step 3a's probe placed in hunkydory with an
   unset secret failing it, step 3c's brief leading with the
   measured fallback shape, the key-set order against the soak said
