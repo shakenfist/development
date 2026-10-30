@@ -1023,8 +1023,19 @@ development: `AUDIT_READ_TOKEN`; actions, sfui, kerbside-client:
 none), and the organisation holds only `GITLAB_TESTDATA_TOKEN` and
 `RENOVATE_TOKEN`. The key file was shredded after the read-back.
 
-**Rulesets (1c).** For each of andris, hunkydory, kerbside, ryll:
-`bypass_actors` after the PUT, verbatim. *Pending.*
+**Rulesets (1c).** Done 2026-10-31 07:55 to 07:58 AEDT, andris
+first and read back before the others, by GET, append and PUT with
+`name`, `target`, `enforcement`, `conditions` and `rules` carried
+over unchanged (diffed before and after). GitHub accepted the App
+as an actor on all four, each of which it is installed on; whether
+it refuses an uninstalled App was not tested. `bypass_actors`
+after the PUT, identical on andris (24700229), hunkydory
+(23805020), kerbside (20252051) and ryll (18708684):
+
+```json
+[{"actor_id": 5538020, "actor_type": "Integration", "bypass_mode": "always"},
+ {"actor_id": 11722172, "actor_type": "Team", "bypass_mode": "always"}]
+```
 
 #### Execution notes
 
