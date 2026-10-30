@@ -254,6 +254,10 @@ FROZEN_METADATA = {
         'spec': 'docs/audits/reusable-workflow-secrets.md',
         'template': None,
     },
+    'pre-commit-node-version': {
+        'spec': 'docs/audits/pre-commit-node-version.md',
+        'template': None,
+    },
     'review-marks-pre-commit': {
         'spec': 'docs/audits/workflow-standards.md',
         'template': None,
@@ -378,6 +382,7 @@ FROZEN_ISSUE_TITLES = {
     'fuzz-nightly-reporting': 'Fuzz nightly reporting',
     'scheduled-workflow-health': 'Scheduled workflow health',
     'reusable-workflow-secrets': 'Reusable workflow secrets',
+    'pre-commit-node-version': 'Pre-commit Node version',
     'review-coverage': 'Human review coverage',
     'review-scope-completeness': 'Human review scope completeness',
     'review-tracking-templates': 'Review tracking templates',

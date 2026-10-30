@@ -209,6 +209,7 @@ attached rather than quietly disappearing from the table.
 | [fuzz-nightly-reporting.md](fuzz-nightly-reporting.md) | Fuzz targets run nightly and file issues for crashes, rather than gating the merge queue |
 | [scheduled-workflow-health.md](scheduled-workflow-health.md) | No workflow that fires unattended has failed without ever succeeding |
 | [reusable-workflow-secrets.md](reusable-workflow-secrets.md) | Reusable workflows are passed named secrets, never `secrets: inherit` |
+| [pre-commit-node-version.md](pre-commit-node-version.md) | Pre-commit hooks built with Node pin a Node line rather than fetching the newest release |
 | [console-logging.md](console-logging.md) | Console script logging setup |
 | [python-version.md](python-version.md) | Python version targeting and type hints |
 | [pyproject-usage.md](pyproject-usage.md) | Python projects use pyproject.toml |
