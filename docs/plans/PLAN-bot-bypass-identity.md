@@ -1012,6 +1012,13 @@ first four, the environment's secret names; for all eight,
   cannot create issues in private-ci any more (see the soak
   evidence). The next scheduled run, 2026-11-02 05:00 AEDT, will
   fail the same way unless the token or the script changes first.
+- 2026-10-30 07:45 AEDT: Mikal ruled the soak passed on the
+  Renovate, prune-push, audit-leg and docs-push evidence, and chose
+  to fix the private-ci gap by editing `AUDIT_TOKEN` as the bot to
+  add contents read when its token list is read, rather than
+  changing the script or restoring the owner role. The App,
+  environments and key proceed once the token list and the
+  runner-controller App's repositories are recorded.
 - 2026-10-30: the post-demotion re-probe ran the same way as the
   first, on a `push` trigger, with one step for `AUDIT_READ_TOKEN`,
   and was deleted with its branch and the skipped `prune-reviews`
