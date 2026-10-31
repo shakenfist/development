@@ -584,7 +584,11 @@ class CiPruneReviewsTest(unittest.TestCase):
         return text, steps
 
     def test_the_workflow_never_checks_out_the_workspace(self):
-        """A hook left in the reused workspace would run during a checkout and could rewrite the script."""
+        """No checkout, and the key and push token reach only the steps that need them.
+
+        A runner left dirty by an earlier job, as a static one can be, then has no hook
+        through which to rewrite the script, and no step but the push sees the token.
+        """
         text, steps = self.workflow_steps()
         self.assertNotIn('actions/checkout', text)
         for name, step in steps.items():

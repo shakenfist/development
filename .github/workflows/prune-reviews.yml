@@ -122,14 +122,13 @@ jobs:
       # this way.
       HAS_REVIEW_MARKS_KEY: ${{ secrets.REVIEW_MARKS_APP_KEY != '' }}
     steps:
-      # No actions/checkout. The job no longer runs on the static
-      # runners, which run pull request code and reuse the workspace,
-      # .git included, so that a hook an earlier job left there would
+      # No actions/checkout. This job assumes a runner that may run
+      # pull request code and reuse the workspace, .git included, as
+      # the static runners do, where a hook an earlier job left would
       # run during the checkout and could rewrite the script before the
-      # next step ran it with the push token. The ephemeral vm runner it
-      # runs on now starts each job with an empty workspace, and the
-      # design is kept anyway: as defence in depth, and because moving
-      # the job back is a one-line edit to runs-on above. So the script
+      # next step ran it with the push token. The vm runner above
+      # starts each job with an empty workspace; the design is kept as
+      # defence in depth, and because runs-on is one line. So the script
       # comes from a fresh clone of the default branch in RUNNER_TEMP,
       # made ignoring the runner's git configuration and any repository
       # above RUNNER_TEMP, in a step without the token; nothing in the

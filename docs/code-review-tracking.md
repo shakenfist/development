@@ -380,19 +380,25 @@ did not write.
    4. Add the App to the ruleset's bypass actors, by the same fetch
       and PUT that [merge queue
       configuration](audits/merge-queue-config.md) uses, carrying
-      everything else over unchanged and appending the App (its
-      app id is 5538020):
+      everything else over unchanged and adding the App (its app id
+      is 5538020). The filter drops any entry for the App before
+      adding it, so running the step twice leaves one entry, not two:
 
       ```
       gh api repos/shakenfist/<r>/rulesets --jq \
           '.[] | select(.target == "branch") | {id, name}'
       gh api repos/shakenfist/<r>/rulesets/<id> | jq \
           '{name, target, enforcement, conditions, rules,
-            bypass_actors: ((.bypass_actors // []) +
-              [{"actor_id": 5538020, "actor_type": "Integration",
-                "bypass_mode": "always"}])}' > ruleset.json
+            bypass_actors: ([(.bypass_actors // [])[]
+                | select(.actor_type != "Integration" or .actor_id != 5538020)]
+              + [{"actor_id": 5538020, "actor_type": "Integration",
+                  "bypass_mode": "always"}])}' > ruleset.json
       gh api -X PUT repos/shakenfist/<r>/rulesets/<id> --input ruleset.json
+      gh api repos/shakenfist/<r>/rulesets/<id> --jq '.bypass_actors'
       ```
+
+      Read the bypass actors back: the App must appear once, beside
+      every actor that was there before.
 
    The job's `environment:` sets `deployment: false`, so its runs do
    not appear in the repository's Deployments view.
@@ -857,12 +863,12 @@ the merged workflow, `Prune stale review marks.`, which committed
 nothing). The commit's author is still shakenfist-bot, set by the
 script, whichever identity pushes it.
 
-The job runs on an ephemeral vm runner, a fresh machine per job. It
-was built for the shared, long-lived static runners, which also run
-pull request code, and it keeps the isolation built for them anyway,
-as defence in depth and because moving it back is a one-line edit to
-`runs-on`: it trusts as little as it can of what an earlier job could
-have left on the runner. It never reads the workspace: the script
+The job runs on an ephemeral vm runner, a fresh machine per job. Its
+design assumes a shared, long-lived runner that also runs pull
+request code, as the static runners are, and keeps that isolation on
+the vm runner as defence in depth, since the runner is one line of
+the workflow: it trusts as little as it can of what an earlier job
+could have left on the runner. It never reads the workspace: the script
 comes from a fresh clone in `RUNNER_TEMP`, and lands from another; it
 ignores global and system git configuration, gives gitsign a fresh TUF
 cache on every run, keeps no credentials in either clone, and hands

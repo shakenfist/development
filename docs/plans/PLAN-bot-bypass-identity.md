@@ -1690,7 +1690,10 @@ record and the API, not from a sub-agent's summary.
   prints nothing.
 * `grep -n 'static' templates/review-tracking/prune-reviews.yml
   templates/review-tracking/ci-prune-reviews.sh` matches only
-  lines that say the job no longer runs there.
+  lines that describe the shared runner the design assumes, not
+  lines that put the job on one. (Reworded after the first review
+  of #354, which asked for the threat model in the present tense
+  rather than as the story of the move.)
 * For each of the eight repositories, the blob of
   `.github/workflows/prune-reviews.yml` and of
   `tools/ci-prune-reviews.sh` on the default branch (`gh api

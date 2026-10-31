@@ -150,13 +150,13 @@ The workflow never passes `--no-verify`.
 The job runs on the fleet's ephemeral vm runners
 (`[self-hosted, vm, debian-13, s]`), a fresh machine per job, so
 nothing an earlier job ran is still there while it holds the App's
-key and the token minted from it. It was built for the static
-runners, which are long-lived, share one home directory across jobs
-and repositories, and run pull request code, and the design below
-treats anything an earlier job could write as hostile. That design
-stays: as defence in depth, and because moving the job back to the
-static pool is a one-line edit to `runs-on`, after which every
-threat below is live again. The script therefore:
+key and the token minted from it. The design below assumes a
+runner that is long-lived, shares one home directory across jobs and
+repositories, and runs pull request code, as the static runners do,
+and treats anything an earlier job could write as hostile. On a vm
+runner none of that holds, and the design is kept anyway: as defence
+in depth, and because the runner is one line of the workflow, after
+which every threat below would be live. The script therefore:
 
 - **never touches the workspace.** On a static runner the
   workspace is reused, `.git` included, so hooks an earlier job left
