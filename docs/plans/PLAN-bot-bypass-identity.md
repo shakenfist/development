@@ -1583,16 +1583,27 @@ Filled in as the steps run. Every cell cites the run, pull request
 or command it came from and the date; a cell that could not be
 read says so. Dates are Australian Eastern Daylight Time (UTC+11).
 
-**2a landed.** *Pending.* Merge commit, and the first `prune-reviews`
-run on `main` here: token step skipped, push actor, deployments
-list.
+**2a landed.** #354 merged on 2026-10-31 at 16:15 AEDT as
+`9f080cd`. The first `prune-reviews` run on `main` here, run
+41171895436, queued at 16:15:59 and started at 16:29:14 on the
+ephemeral runner `sfcbr-35REmDBR8R1taZnI`. That is a wait of about
+13 minutes for a vm runner, not the 98 seconds the survey measured:
+the queue time is the pool's load, not the boot, and it sits outside
+`timeout-minutes`, which counts from the job's start. The job then
+took 16 seconds. `Mint the push token` was skipped, `Prune and import
+review marks` succeeded and pushed `0bd8d7c` ("Prune and import
+review marks.", the marks this pull request staled), rule suite
+4829478319 records the push by `github-actions[bot]` (actor id
+41898282), and `repos/shakenfist/development/deployments?environment=review-marks`
+lists nothing, so GitHub accepted `deployment: false`. The no-key
+path works as designed.
 
 **Rollout.**
 
 | Repository | Pull request | Merged | First run | Token step | Push actor (`actor_name`, `actor_id`) | Deployments |
 |------------|--------------|--------|-----------|------------|----------------------------------------|-------------|
-| development | 2a | *pending* | *pending* | skipped | *pending* | *pending* |
-| andris | *pending* | | | ran | | |
+| development | #354 | `9f080cd`, 2026-10-31 | 41171895436 | skipped | `github-actions[bot]`, 41898282 | none |
+| andris | andris#65 (eb5278f) | | | ran | | |
 | hunkydory | *pending* | | | ran | | |
 | ryll | *pending* | | | ran | | |
 | kerbside | *pending* | | | ran | | |
@@ -1628,6 +1639,17 @@ with what the log showed.
   fallback" paragraph, which went on to explain why the fallback
   fails loudly, and kept the agent's one extra, the README gitsign
   section no longer claiming the static runners lack gitsign.
+- 2026-10-31 17:30 AEDT: the first automated review of andris#65
+  (1 fix, 2 document, 1 consider) was answered there: the fix item
+  asked for the environment, key, variable and bypass entry that
+  phase 1 had already set up and 2b had re-read, and the two
+  document items were andris's own AGENTS.md and its phase 11 plan.
+  Its consider item found "On such a runner" in the script's
+  isolation comment reading as the vm runner just mentioned, which is
+  wording #354's review round introduced. It is fixed in the template
+  here; andris#65 carries the earlier wording, so andris needs a
+  comment-only re-sync once this lands, and 2c's pull requests carry
+  the fixed text.
 
 #### Risks and mitigations
 
