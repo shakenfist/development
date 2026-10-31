@@ -410,7 +410,7 @@ Out of scope:
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. Operator inventory and App creation | In progress | |
+| 1. Operator inventory and App creation | Complete | 2fbf7c7 (#348) |
 | 2. `prune-reviews` mints an App token | Not started | |
 | 3. Move the bypass and enforce it | Not started | |
 | 4. Push audit | Not started | |
@@ -859,10 +859,10 @@ Australian Eastern Daylight Time (UTC+11).
 
 | Secret | Level and visibility | Repositories holding it | Account | Type | Scopes or permissions | Expiry |
 |--------|----------------------|-------------------------|---------|------|-----------------------|--------|
-| `DEPENDENCIES_TOKEN` | repository only; no organisation secret of that name exists | client-python, hunkydory, kerbside, ryll, shakenfist, and andris since 2026-10-29 18:39 UTC (#343) | `shakenfist-bot` (rule-suite `actor_name` of every push made with it) | *pending: the bot's token list* | *pending* | *pending* |
+| `DEPENDENCIES_TOKEN` | repository only; no organisation secret of that name exists | client-python, hunkydory, kerbside, ryll, shakenfist, and andris since 2026-10-29 18:39 UTC (#343) | `shakenfist-bot` (rule-suite `actor_name` of every push made with it) | *deferred to the bot's token list* | *deferred* | *deferred* |
 | `RENOVATE_TOKEN` | organisation, selected: the 22 repositories in the next table | none at repository level | `shakenfist-bot` (probe) | classic PAT | `read:org`, `read:project`, `repo`, `workflow` | none: no expiration header |
 | `AUDIT_READ_TOKEN` | repository, development | development | `shakenfist-bot` (probe) | fine-grained | read-only, as `docs/consistency-audits.md` lists | 2027-10-24 21:29:44 UTC |
-| `AUDIT_TOKEN` | environment `audit-write`, development; policy `main` only | development | `shakenfist-bot` (authored #247) | fine-grained (`docs/consistency-audits.md`) | Issues read and write, all repositories, organisation as resource owner (documented), plus Contents read since 2026-10-31 (#349; confirmed against the token list: *pending*) | *pending* |
+| `AUDIT_TOKEN` | environment `audit-write`, development; policy `main` only | development | `shakenfist-bot` (authored #247) | fine-grained (`docs/consistency-audits.md`) | Issues read and write, all repositories, organisation as resource owner (documented), plus Contents read since 2026-10-31 09:45 AEDT (#349, closed on audit run 41140043392; confirmed against the token list: *deferred*) | *deferred to the token list* |
 
 The probe could not read `DEPENDENCIES_TOKEN` at all ("secret not
 set in this context"): no copy is visible to this repository, which
@@ -883,15 +883,17 @@ measures only the environment half, and both the bypass list and
 the repository-level key check move to the spec's
 reviewer-confirmed half, as the plan provides.
 
-**The bot's token list (1a).** *Pending: to be read as
-`shakenfist-bot` by the operator.* Secrets elsewhere in the fleet
-that may also be rows in it: kerbside-patches'
+**The bot's token list (1a).** *Deferred: still to be read as
+`shakenfist-bot` by the operator (plan-blocker b2). Phase 1 closed
+on 2026-10-31 with this the one cell not filled, by Mikal's
+decision; it lands in a later record commit.* Secrets elsewhere in
+the fleet that may also be rows in it: kerbside-patches'
 `DAILY_REBASE_TOKEN`, ryll's `HOMEBREW_TAP_TOKEN`, and the two
 `GITLAB_TESTDATA_*` tokens, which are GitLab's and not GitHub's.
 
 | Token name | Type | Scopes or permissions | Expiry | Matched secret |
 |------------|------|-----------------------|--------|----------------|
-| *pending* | | | | |
+| *deferred, see above* | | | | |
 
 **Organisation secrets and variables (1a).** `gh secret list --org
 shakenfist` and `gh variable list --org shakenfist`, 2026-10-30.
@@ -946,8 +948,9 @@ automation and stays out of scope; nothing is filed. 5: the
 demotion proceeds. All four known bot credentials are the bot's.
 Written before the soak, this said none needs admin;
 `AUDIT_READ_TOKEN` did (survey item 3, corrected) and reads with
-the security manager role since 06:40, `AUDIT_TOKEN` has lost
-issue filing in private-ci (#349), and `update-docs` pushes with
+the security manager role since 06:40, `AUDIT_TOKEN` lost
+issue filing in private-ci until it was granted Contents read on
+2026-10-31 (#349, closed), and `update-docs` pushes with
 the job's own `GITHUB_TOKEN`, so it never depended on the bot.
 6: the ephemeral vm pool, `[self-hosted, vm, debian-13, s]`, which
 the one runner group serves to every repository.
@@ -1005,12 +1008,20 @@ and found one more thing the owner role was quietly
 serving: `AUDIT_TOKEN`'s read of private repositories. The fix is
 in the token (grant it contents read, as the bot, when its token
 list is read) or in the script (create issues through the REST API,
-which needs only issues write); it is tracked as #349, and either
-way the `AUDIT_TOKEN` paragraph of `docs/consistency-audits.md`,
-which says the token needs no Contents permission, changes with
-it. The mechanism is inferred from the symptom (public repositories
-fine, the private one refused on `defaultBranchRef`) and from
-private-ci#219 having been filed as an owner; it is not measured.
+which needs only issues write); it was tracked as #349, and the
+`AUDIT_TOKEN` paragraph of `docs/consistency-audits.md` changed
+with it. Resolved in the token: Mikal added Contents read to
+`AUDIT_TOKEN` on 2026-10-31 09:45 AEDT, and audit run 41140043392,
+dispatched on `main` at 09:44 AEDT, succeeded end to end, every
+leg and all three writing jobs, with `manage-issues` filing
+private-ci#259 and private-ci#260 as `shakenfist-bot`. That run
+is the first audit to succeed end to end since the demotion, so
+the soak's audit item is met by a run as well as by the 07:45
+waiver, and #349 was closed on 2026-10-31 citing it. The
+mechanism, inferred on 2026-10-30 from the symptom (public
+repositories fine, the private one refused on `defaultBranchRef`)
+and from private-ci#219 having been filed as an owner, is now
+measured: Contents read alone restored the creation.
 
 **App (1b).** `shakenfist-review-marks`, created by Mikal in the
 web UI on 2026-10-30 at 18:00 AEDT: app id 5538020, client id
@@ -1022,10 +1033,11 @@ token minted from the key, which listed exactly those four and
 expired within the hour). `apps/shakenfist-review-marks` and
 `orgs/shakenfist/installations` agree. The client id is the
 organisation variable `REVIEW_MARKS_APP_CLIENT_ID`, visibility
-`all`, set 2026-10-30. Private keys held by the App: *pending the
-operator's confirmation from the App's page that the first key
-(lost at 18:19, after minting one live installation token) is
-deleted and only the second remains; no API lists an App's keys.*
+`all`, set 2026-10-30. Private keys held by the App: one, the
+second, from which the four environment secrets were set; the
+first (lost at 18:19, after minting one live installation token)
+is deleted. Confirmed by Mikal from the App's page on 2026-10-31
+14:05 AEDT; no API lists an App's keys.
 
 **Environments (1b).** For each of andris, hunkydory, kerbside,
 ryll, actions, development, sfui, kerbside-client: the
@@ -1203,16 +1215,6 @@ after the PUT, identical on andris (24700229), hunkydory
   lets the role go, cited the kerbside and ryll push proofs by rule
   suite and commit, marked the soak item as met by waiver, dated
   the 2026-10-29 notes correctly, and put the notes in time order.
-- 2026-10-31 09:45 AEDT: Mikal added Contents read to `AUDIT_TOKEN`
-  (the existing token, same expiry) for #349, and
-  `docs/consistency-audits.md` now says so. The test is audit run
-  41140043392, dispatched on `main` at 09:44 AEDT: **its result is
-  not yet recorded**. Next session: read its `manage-issues` job; if
-  it filed in private-ci without the `defaultBranchRef` error,
-  close #349 citing the run and resolve the `AUDIT_TOKEN` half of
-  plan-blocker b2; if not, the docs paragraph and this note are
-  wrong and the REST-creation route in #349 is next. Then read
-  review round 4 on #348 if it has arrived.
 - 2026-10-31 09:20 AEDT: the third review round: the probe's date
   in the record cells, step 3a's probe placed in hunkydory with an
   unset secret failing it, step 3c's brief leading with the
@@ -1224,6 +1226,28 @@ after the PUT, identical on andris (24700229), hunkydory
   Situation. Two decisions recorded for Mikal with `plan-blockers`:
   the key confirmation, and whether #352 lands before phases 2 and
   3.
+- 2026-10-31 09:45 AEDT: Mikal added Contents read to `AUDIT_TOKEN`
+  (the existing token, same expiry) for #349, and
+  `docs/consistency-audits.md` now says so. The test was audit run
+  41140043392, dispatched on `main` at 09:44 AEDT, read at 11:30:
+  it succeeded end to end, and its `manage-issues` job filed
+  private-ci#259 and #260 as `shakenfist-bot` without the
+  `defaultBranchRef` error. #349 closed citing the run; the
+  REST-creation route was not needed. No fourth review round
+  arrived on #348, which merged at 11:07 AEDT as 2a24d00 (branch
+  head 2fbf7c7).
+- 2026-10-31 14:05 AEDT: phase 1 closed out. Mikal confirmed from
+  the App's page that exactly one private key remains (b4
+  resolved), and chose to close the phase with the bot's token list
+  deferred (the remaining half of b2), the one record cell not
+  filled. Every other definition-of-done item was checked at 08:00,
+  and the soak item is now met by run 41140043392 as well as by
+  the waiver. Re-read at 14:00: #211 open, the bot's role `member`,
+  `mikalstill` the only owner, `shakenfist-review-marks` and
+  `shakenfist-k3s-ci-arc` the installed Apps. Phase 1's pull
+  request was #348 (2fbf7c7); this close-out is its own. Open
+  before phase 2: b5, whether #352 lands first or the security
+  manager role is accepted meanwhile.
 
 #### Risks and mitigations
 
