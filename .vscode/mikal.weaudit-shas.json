@@ -273,10 +273,6 @@
       "sha": "c58fa988567ea392014294842ae64989649a56f4",
       "date": "2026-10-19"
     },
-    "docs/audits/renovate.md": {
-      "sha": "654574616b93ebe228fb96e2dde3067b500b644f",
-      "date": "2026-10-18"
-    },
     "docs/audits/reusable-workflow-secrets.md": {
       "sha": "2ebc5177a729dd8b6025ea36afdd1b305f7b536f",
       "date": "2026-10-05"
@@ -412,10 +408,6 @@
     "scripts/audit/checks/npm_dependencies.py": {
       "sha": "943ce339c00aa725090b244fb7037cc55791a388",
       "date": "2026-10-19"
-    },
-    "scripts/audit/checks/packaging.py": {
-      "sha": "291123990953a0271ba76037b97b9a36021f2727",
-      "date": "2026-10-28"
     },
     "scripts/audit/checks/plans.py": {
       "sha": "f944e5fa461aa7becf648439a7aeb13a285b9dc9",
@@ -605,10 +597,6 @@
       "sha": "0896f21e5074d0d68ff9107e53f34fe454fb3873",
       "date": "2026-10-21"
     },
-    "scripts/tests/test_packaging.py": {
-      "sha": "4f35b49be9fa4f9b8ec0ae8f94e598b5809db01e",
-      "date": "2026-10-28"
-    },
     "scripts/tests/test_patterns.py": {
       "sha": "4477ff162d7fd9a3ffb14e31b5979850e23e514f",
       "date": "2026-10-21"
@@ -776,10 +764,6 @@
     "templates/release-automation/release.yml": {
       "sha": "f33f521f70ad6e8f398627a4ca8a7af2fd240084",
       "date": "2026-10-20"
-    },
-    "templates/renovate/README.md": {
-      "sha": "0c52ce0f4cf9721eabb2b7b98f235ec5323036dd",
-      "date": "2026-10-31"
     },
     "templates/renovate/renovate.json": {
       "sha": "c91385eb8cc7717ff9f3c5dbebad3de2ee8b70b2",
