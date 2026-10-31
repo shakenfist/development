@@ -109,6 +109,9 @@ the workflow does not work without them.
   keeps its runs out of the repository's Deployments view while still
   resolving the environment's secrets; should the environment ever
   gain a custom deployment protection rule, the job fails at once.
+  The step sets `NODE_USE_ENV_PROXY: '1'`: the vm runners set a proxy
+  in the environment, and the action refuses to start behind one
+  unless Node.js is told to honour it.
 
   The fallback to `GITHUB_TOKEN` says nothing about itself. Where
   that is wrong, it fails rather than landing: a repository whose

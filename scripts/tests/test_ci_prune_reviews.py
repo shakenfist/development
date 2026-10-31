@@ -634,6 +634,9 @@ class CiPruneReviewsTest(unittest.TestCase):
         self.assertRegex(mint, r'\n        uses: actions/create-github-app-token@[0-9a-f]{40} # v\d+\.\d+\.\d+\n')
         self.assertIn('\n          client-id: ${{ vars.REVIEW_MARKS_APP_CLIENT_ID }}\n', mint)
         self.assertIn('\n          permission-contents: write\n', mint)
+        # The vm runners set a proxy, and the action will not start
+        # behind one unless Node.js is told to use it.
+        self.assertIn("\n        env:\n          NODE_USE_ENV_PROXY: '1'\n", mint)
         # Naming the owner, or repositories, would widen the token to
         # every repository the App is installed on.
         self.assertNotRegex(mint, r'\n\s+(owner|repositories):')
