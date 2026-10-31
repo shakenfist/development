@@ -34,15 +34,20 @@ take_push_token() {
     unset PUSH_TOKEN
 }
 
-# Isolate git and gitsign from state left on the runner. The static
-# runners are long-lived, share one home directory across jobs and
-# repositories, and run pull request code, so ~/.gitconfig and
-# ~/.sigstore are writable by any earlier job. A url.<x>.insteadOf
-# there could swap the development clone, whose script this job runs,
-# for another; a poisoned TUF cache could change which Fulcio roots
-# and Rekor keys gitsign trusts, or, through its remote.json, which
-# mirror it updates them from. The workspace's own .git is reused
-# state too, which is why nothing here runs git in it (clone_target).
+# Isolate git and gitsign from state left on the runner. The job
+# no longer runs on the static runners it was built for, which are
+# long-lived, share one home directory across jobs and repositories,
+# and run pull request code, so that ~/.gitconfig and ~/.sigstore
+# there are writable by any earlier job. It runs on an ephemeral vm
+# runner, a fresh machine per job, and the isolation stays: as defence
+# in depth, and because moving the job back is a one-line edit to the
+# workflow's runs-on, after which these threats are live again. A
+# url.<x>.insteadOf in ~/.gitconfig could swap the development clone,
+# whose script this job runs, for another; a poisoned TUF cache could
+# change which Fulcio roots and Rekor keys gitsign trusts, or, through
+# its remote.json, which mirror it updates them from. A reused
+# workspace's own .git is such state too, which is why nothing here
+# runs git in it (clone_target).
 #
 # GIT_CONFIG_GLOBAL=/dev/null replaces both ~/.gitconfig and
 # $XDG_CONFIG_HOME/git/config, and GIT_CONFIG_NOSYSTEM skips the
@@ -77,8 +82,10 @@ isolate_from_runner() {
     mkdir -p "${TUF_ROOT}"
 }
 
-# Download the pinned gitsign and put it first on PATH. The static
-# runners do not carry gitsign, and without it import imports nothing.
+# Download the pinned gitsign and put it first on PATH, because
+# without it import imports nothing, and no runner image is relied on
+# to carry it: the job no longer runs on the static runners, which
+# never did, and the vm image it runs on now is not checked for it.
 # The download is checked twice: the release's checksums.txt must list
 # the pinned digest for the binary, which catches a version bumped
 # without its digest, and the binary must hash to it, which is what
@@ -130,12 +137,17 @@ clone_development() {
 }
 
 # Clone the repository being landed on into RUNNER_TEMP, and work
-# there rather than in the runner's workspace. A static runner reuses
-# its workspace, .git included: hooks an earlier pull request job left
-# in .git/hooks would run on this job's fetch, reset and commit, and
-# keys it left in .git/config -- core.fsmonitor, an include.path, a
-# pushurl or url.<x>.insteadOf -- would run commands or redirect the
-# push. A fresh clone has neither. The workflow fetches this script
+# there rather than in the runner's workspace. The workspace is reused,
+# .git included, on the static runners the job no longer runs on:
+# there, hooks an earlier pull request job left in .git/hooks would
+# run on this job's fetch, reset and commit, and keys it left in
+# .git/config -- core.fsmonitor, an include.path, a pushurl or
+# url.<x>.insteadOf -- would run commands or redirect the push. The
+# ephemeral vm runner it runs on now starts each job with an empty
+# workspace, and the fresh clone stays: as defence in depth, and
+# because moving the job back is a one-line edit to the workflow's
+# runs-on, after which that threat is live again. A fresh clone has
+# neither hooks nor such keys. The workflow fetches this script
 # the same way, so nothing in the job reads the workspace at all. The
 # URL comes from GITHUB_REPOSITORY, which the runner sets for every
 # job; like the development clone's, nothing an earlier job could

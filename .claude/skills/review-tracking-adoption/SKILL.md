@@ -51,6 +51,16 @@ never the template to match it, since the whole point of a
 byte-identical copy is that `import` can credit it against this
 repository's own review of the template file.
 
+Step 7 of the doc also has operator steps that must be done before
+the workflow's first run: the `review-marks` environment and its
+default-branch policy, and, where the default branch's ruleset
+requires a pull request, the App's installation, its key and its
+place among the ruleset's bypass actors. Every adopted repository
+gets the environment with its policy, key or no key, and the key is
+only ever an environment secret, never a repository or organisation
+one. This skill does not repeat those steps; follow them from the
+doc.
+
 After writing or editing `.vscode/review-scope.toml`, run
 `review-tracking.py scope-orphans` in the target repo. It lists
 tracked files that are out of scope only because no `include`
