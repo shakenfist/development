@@ -81,10 +81,6 @@
       "sha": "26a19958e61609c60e1b721594ab8151ddf1634f",
       "date": "2026-09-04"
     },
-    ".pre-commit-config.yaml": {
-      "sha": "5683bc75de6afdb03262364873b2a4119b9912d1",
-      "date": "2026-10-22"
-    },
     "AGENTS.md": {
       "sha": "dd4e9bcf06e4ee7957cc38b980b9ca11ef8c240e",
       "date": "2026-10-18"

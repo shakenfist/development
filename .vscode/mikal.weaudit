@@ -685,10 +685,6 @@
       "author": "mikal"
     },
     {
-      "path": ".pre-commit-config.yaml",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/ci.yml",
       "author": "mikal"
     },
