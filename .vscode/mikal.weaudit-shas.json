@@ -5,10 +5,6 @@
       "sha": "da73cad9f9e2a81aca7aff32d644c0197d747ec2",
       "date": "2026-09-06"
     },
-    ".claude/skills/review-tracking-adoption/SKILL.md": {
-      "sha": "7ae236df589b598f5678e26bcb67d42d65ce2f4e",
-      "date": "2026-10-28"
-    },
     ".claude/skills/standards-alignment/SKILL.md": {
       "sha": "3eb61107b6d97f32b6a51d55d9f2bcdb6b18e05e",
       "date": "2026-10-05"
@@ -64,10 +60,6 @@
     ".github/workflows/pr-retest.yml": {
       "sha": "189610eb241bbecbf11c6459f874c97ff80c0359",
       "date": "2026-10-20"
-    },
-    ".github/workflows/prune-reviews.yml": {
-      "sha": "91ff1783e6589e198ce5d14aab473112761b7ce2",
-      "date": "2026-10-16"
     },
     ".github/workflows/secret-scan.yml": {
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
@@ -341,10 +333,6 @@
       "sha": "2e1d83cb3523df735fb92e24200923afab65ad4f",
       "date": "2026-10-19"
     },
-    "docs/code-review-tracking.md": {
-      "sha": "26367480aa81583c99ceee4a1a10a7d64768142a",
-      "date": "2026-10-28"
-    },
     "docs/plan-retirement.md": {
       "sha": "fe23c8e5d02a5bd6efdb843e8121a33ab7c2771f",
       "date": "2026-10-30"
@@ -528,10 +516,6 @@
     "scripts/tests/test_check_audit_smoke.py": {
       "sha": "11da7b42360c4037b712cc5111b19ce1fd3d1383",
       "date": "2026-10-21"
-    },
-    "scripts/tests/test_ci_prune_reviews.py": {
-      "sha": "ad0c9b5c23e2b5be7d7157bf64afcdc5bf8574fc",
-      "date": "2026-10-16"
     },
     "scripts/tests/test_containment.py": {
       "sha": "3cec7ccb87046ee2bf25de3492ae71efcb605570",
@@ -741,18 +725,6 @@
       "sha": "f33f521f70ad6e8f398627a4ca8a7af2fd240084",
       "date": "2026-10-20"
     },
-    "templates/review-tracking/README.md": {
-      "sha": "b3ab585e98e60f5eca85aa5082202c131bdf60b8",
-      "date": "2026-10-30"
-    },
-    "templates/review-tracking/ci-prune-reviews.sh": {
-      "sha": "d58e2363ab02e9dc5c9f12c8c9dbe0ece6f2cce3",
-      "date": "2026-10-30"
-    },
-    "templates/review-tracking/prune-reviews.yml": {
-      "sha": "91ff1783e6589e198ce5d14aab473112761b7ce2",
-      "date": "2026-10-16"
-    },
     "templates/review-tracking/review-tracking.sh": {
       "sha": "fcadd30b9cea7aec8c747c7f43ef1864bc01bbef",
       "date": "2026-10-28"
@@ -860,10 +832,6 @@
     "tools/check-audit-read-token.sh": {
       "sha": "e07ef1adf5539a4a2fad3817489faf207b999ffd",
       "date": "2026-10-28"
-    },
-    "tools/ci-prune-reviews.sh": {
-      "sha": "d58e2363ab02e9dc5c9f12c8c9dbe0ece6f2cce3",
-      "date": "2026-10-30"
     },
     "tools/mermaid-lint.sh": {
       "sha": "22f14bf915f76875950bb5589212b55ab0a91db1",
