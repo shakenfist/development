@@ -1639,6 +1639,17 @@ with what the log showed.
   fallback" paragraph, which went on to explain why the fallback
   fails loudly, and kept the agent's one extra, the README gitsign
   section no longer claiming the static runners lack gitsign.
+- 2026-10-31 17:30 AEDT: the first automated review of andris#65
+  (1 fix, 2 document, 1 consider) was answered there: the fix item
+  asked for the environment, key, variable and bypass entry that
+  phase 1 had already set up and 2b had re-read, and the two
+  document items were andris's own AGENTS.md and its phase 11 plan.
+  Its consider item found "On such a runner" in the script's
+  isolation comment reading as the vm runner just mentioned, which is
+  wording #354's review round introduced. It is fixed in the template
+  here; andris#65 carries the earlier wording, so andris needs a
+  comment-only re-sync once this lands, and 2c's pull requests carry
+  the fixed text.
 
 #### Risks and mitigations
 
