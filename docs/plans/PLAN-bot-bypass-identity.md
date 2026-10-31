@@ -1608,6 +1608,26 @@ with what the log showed.
 - 2026-10-31 14:00 AEDT: phase planned. Mikal ruled that phase 1 is
   closed out with its two operator cells pending (b2, b4), and that
   #352 does not hold this phase (b5).
+- 2026-10-31 14:40 AEDT: back brief answered. Decisions 1, 2 and 3
+  stand; 2a runs as one sub-agent in a worktree; 2b and 2c wait for
+  2a to merge, since `template-resync` reads the template from
+  `origin/main`. Phase 1's close-out is pull request #353, on which
+  this branch sits; once it merges, this session rebases onto `main`,
+  pushes and opens the phase 2 pull request without asking again.
+- 2026-10-31 15:20 AEDT: 2a done by one opus sub-agent at high
+  effort in its own worktree, reviewed and committed here. It
+  added eleven workflow mutants (the old template, the static
+  runner, no environment, an unguarded mint, an `owner` input, a tag
+  pin, and others) and the shape tests caught every one. The review
+  changed one thing of substance: the agent's adoption step 7 told
+  an operator to generate a new App key for each new repository,
+  which would leave the App with one key per repository and break
+  phase 1's one-key property, so the step now makes adding a
+  repository a rotation (a new key into every keyed environment,
+  then the old one deleted). It also renamed the README's "silent
+  fallback" paragraph, which went on to explain why the fallback
+  fails loudly, and kept the agent's one extra, the README gitsign
+  section no longer claiming the static runners lack gitsign.
 
 #### Risks and mitigations
 
