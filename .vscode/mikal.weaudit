@@ -951,6 +951,86 @@
     {
       "path": "scripts/tests/test_metadata.py",
       "author": "mikal"
+    },
+    {
+      "path": "docs/code-review-tracking.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/renovate.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/review-tracking/prune-reviews.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".claude/skills/review-tracking-adoption/SKILL.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".claude/skills/review-tracking-adoption",
+      "author": "mikal"
+    },
+    {
+      "path": ".claude/skills",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_packaging.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_ci_prune_reviews.py",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/review-tracking/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci-prune-reviews.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/review-tracking/ci-prune-reviews.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/review-tracking",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/packaging.py",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/prune-reviews.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
