@@ -6,6 +6,7 @@ source-level checks that go with them: how a console script sets up
 logging, and whether an HTTP handler sanitises what it logs.
 """
 
+import difflib
 import fnmatch
 import json
 import os
@@ -16,6 +17,7 @@ from audit.check import Check, ToolFailure, run_tool
 from audit.files import (
     check_file_contains, require_tracked_paths, toml_section_has_key,
 )
+from audit.repo import DEVELOPMENT_ROOT, read_within
 from audit.text.workflows import (
     step_action, workflow_job_blocks, workflow_step_blocks,
 )
@@ -85,6 +87,75 @@ RENOVATE_VERSION_COMMENT_PRESETS = (
     'customManagers:githubActionsVersions',
     'regexManagers:githubActionsVersions',
 )
+
+
+# Every repository copies the template's renovate.yml verbatim, apart
+# from the versions Renovate bumps in each copy on its own schedule:
+# the Renovate it pins, and the ref of each action it uses. Anything
+# else that differs is drift; docs/audits/renovate.md has the Node 26
+# bump that showed why it matters.
+RENOVATE_WORKFLOW_TEMPLATE = 'templates/renovate/renovate.yml'
+RENOVATE_PIN_RE = re.compile(r'(?m)^(\s*PINNED_RENOVATE_VERSION:).*$')
+# The ref after @, and the version comment that digest pinning leaves
+# after the ref. The action's name still has to match.
+RENOVATE_USES_RE = re.compile(r'(?m)^(\s*(?:-\s+)?uses:\s*[^@\s]+)@\S+(\s+#.*)?$')
+# Each keeps what the audit compares in group 1.
+RENOVATE_BUMPED_RES = (RENOVATE_PIN_RE, RENOVATE_USES_RE)
+
+
+# How many differing places a finding names before it counts the rest.
+RENOVATE_DRIFT_SHOWN = 3
+
+
+def renovate_workflow_drift(content, template):
+    """Where renovate.yml departs from the template, or None.
+
+    Both are compared with the versions Renovate bumps blanked (the
+    PINNED_RENOVATE_VERSION value and the ref of each uses: action), so
+    a copy whose Renovate or actions are ahead of or behind the
+    template's still matches. Returns the places that differ, each
+    named by its first line with the copy's text and the template's,
+    for the issue to quote: every place, so that one fix closes the
+    issue.
+    """
+    ours = _without_renovate_bumps(content).splitlines()
+    theirs = _without_renovate_bumps(template).splitlines()
+    places = []
+    opcodes = difflib.SequenceMatcher(
+        None, theirs, ours, autojunk=False).get_opcodes()
+    for tag, t1, _, o1, _ in opcodes:
+        if tag == 'insert':
+            places.append(
+                f'line {o1 + 1}, {_quote_line(ours[o1])}, is not in the '
+                f'template')
+        elif tag == 'delete':
+            if o1 == len(ours):
+                where = 'at the end'
+            else:
+                where = f'before line {o1 + 1}'
+            places.append(
+                f'the template\'s {_quote_line(theirs[t1])} is missing '
+                f'{where}')
+        elif tag == 'replace':
+            places.append(
+                f'line {o1 + 1} is {_quote_line(ours[o1])} where the '
+                f'template has {_quote_line(theirs[t1])}')
+    if not places:
+        return None
+    shown = places[:RENOVATE_DRIFT_SHOWN]
+    if len(places) > len(shown):
+        shown.append(f'and {len(places) - len(shown)} more')
+    return '; '.join(shown)
+
+
+def _without_renovate_bumps(text):
+    for pattern in RENOVATE_BUMPED_RES:
+        text = pattern.sub(r'\1', text)
+    return text
+
+
+def _quote_line(line):
+    return f'`{line.strip()[:80]}`'
 
 
 def renovate_workflow_runs_container(content):
@@ -385,15 +456,30 @@ class Renovate(Check):
         if missing:
             return self.fail(f'Missing: {", ".join(missing)}', missing=missing)
 
+        template = read_within(
+            DEVELOPMENT_ROOT,
+            os.path.join(DEVELOPMENT_ROOT, RENOVATE_WORKFLOW_TEMPLATE))
+        if template is None:
+            raise ToolFailure(
+                f'Could not read {RENOVATE_WORKFLOW_TEMPLATE} in the '
+                f'audit\'s own checkout')
+
         issues = []
-        if renovate_workflow_runs_container(
-            repo.read('.github/workflows/renovate.yml') or ''
-        ):
+        workflow = repo.read('.github/workflows/renovate.yml') or ''
+        if renovate_workflow_runs_container(workflow):
             issues.append(
                 f'renovate.yml runs Renovate through '
                 f'{RENOVATE_CONTAINER_ACTION}, which needs a Docker daemon '
                 f'the runner may not have; copy the template, which runs '
                 f'it from npm')
+        else:
+            # The container finding already says to copy the template.
+            drift = renovate_workflow_drift(workflow, template)
+            if drift:
+                issues.append(
+                    f'renovate.yml differs from {RENOVATE_WORKFLOW_TEMPLATE} '
+                    f'beyond the versions Renovate bumps ({drift}); copy '
+                    f'the template verbatim')
         if not renovate_reads_version_comments(repo):
             issues.append(
                 'renovate.json does not extend '
