@@ -1603,7 +1603,7 @@ path works as designed.
 | Repository | Pull request | Merged | First run | Token step | Push actor (`actor_name`, `actor_id`) | Deployments |
 |------------|--------------|--------|-----------|------------|----------------------------------------|-------------|
 | development | #354 | `9f080cd`, 2026-10-31 | 41171895436 | skipped | `github-actions[bot]`, 41898282 | none |
-| andris | *pending* | | | ran | | |
+| andris | andris#65 (eb5278f) | | | ran | | |
 | hunkydory | *pending* | | | ran | | |
 | ryll | *pending* | | | ran | | |
 | kerbside | *pending* | | | ran | | |
