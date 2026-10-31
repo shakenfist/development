@@ -1664,15 +1664,17 @@ with what the log showed.
   the step ran rather than being skipped, so the presence guard
   reads the environment secret, and there is no deployment, so
   `deployment: false` holds. The rollout stopped there, as 2b says.
-  None of the three causes risk 2 and the 2b brief anticipated (key,
-  variable, guard) was it: the survey checked the image for what the
-  script needs, not for what a Node action needs. Mikal chose to fix
+  The 2b brief reads a failed token step as a wrong key or client id
+  (risk 2), and it was neither: the survey checked the image for what
+  the script needs, not for what a Node action needs (now risk 9).
+  Mikal chose to fix
   it in the template, not to revert andris: the mint step now sets
   `NODE_USE_ENV_PROXY: '1'`, pinned by the shape test and a twelfth
   mutant. Until the fix is re-synced into andris, every push to its
   `develop` fails its prune run and its stale marks stay. 2b is
   re-run for andris with the fixed template, and its three readings
-  taken again, before 2c starts.
+  taken again, before 2c starts; the re-run gets a row of its own in
+  the rollout table, so the table still shows this one failed.
 
 #### Risks and mitigations
 
@@ -1717,6 +1719,12 @@ with what the log showed.
    still in the bypass team until phase 3, so a repository on the
    old copy keeps landing marks with `DEPENDENCIES_TOKEN`. A stall
    costs nothing but time.
+9. **The vm runner's environment breaks the token action.** A proxy
+   the action does not honour, or a Node.js too old for it, fails
+   the token step before anything is pushed, as andris's first run
+   did (execution notes, 19:30). The fix belongs in the template,
+   never in one repository's copy, and 2b or 2c stops until it has
+   been re-synced.
 
 #### Definition of done
 

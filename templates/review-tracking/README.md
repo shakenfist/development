@@ -253,7 +253,11 @@ run against this repository is a no-op that says so and exits zero.
 
 - Self-hosted ephemeral vm runners with the labels `vm`, `debian-13`
   and `s`, `x86_64`, with `curl`, `git` and `python3`, and egress to
-  github.com.
+  github.com. That egress may go through a proxy set in the
+  environment (`HTTPS_PROXY`, `NO_PROXY`): git reads it, and the mint
+  step sets `NODE_USE_ENV_PROXY: '1'` so that the action's Node.js
+  runtime reads it too. A runner whose Node.js predates that variable
+  fails the mint step, closed, before anything is pushed.
 - Repositories adopted into review tracking; see the steps above.
 
 ## Projects using these templates
