@@ -14,7 +14,10 @@ in Shaken Fist projects.
 
 `renovate.yml` has no placeholders and is copied verbatim: its
 autodiscover filter is `${{ github.repository }}`, which the runtime
-supplies, so nothing changes per repository.
+supplies, so nothing changes per repository. The audit holds every
+copy to the template apart from the versions Renovate bumps in each
+repository: the `PINNED_RENOVATE_VERSION` value and the ref of each
+action it uses.
 
 `renovate.json` is a per-repository adaptation, not expected to be
 byte-identical between repositories. It is copied as a starting point
