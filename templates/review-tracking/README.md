@@ -109,6 +109,9 @@ the workflow does not work without them.
   keeps its runs out of the repository's Deployments view while still
   resolving the environment's secrets; should the environment ever
   gain a custom deployment protection rule, the job fails at once.
+  The step sets `NODE_USE_ENV_PROXY: '1'`: the vm runners set a proxy
+  in the environment, and the action refuses to start behind one
+  unless Node.js is told to honour it.
 
   The fallback to `GITHUB_TOKEN` says nothing about itself. Where
   that is wrong, it fails rather than landing: a repository whose
@@ -250,7 +253,11 @@ run against this repository is a no-op that says so and exits zero.
 
 - Self-hosted ephemeral vm runners with the labels `vm`, `debian-13`
   and `s`, `x86_64`, with `curl`, `git` and `python3`, and egress to
-  github.com.
+  github.com. That egress may go through a proxy set in the
+  environment (`HTTPS_PROXY`, `NO_PROXY`): git reads it, and the mint
+  step sets `NODE_USE_ENV_PROXY: '1'` so that the action's Node.js
+  runtime reads it too. A runner whose Node.js predates that variable
+  fails the mint step, closed, before anything is pushed.
 - Repositories adopted into review tracking; see the steps above.
 
 ## Projects using these templates
