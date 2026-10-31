@@ -8,8 +8,9 @@
   copied verbatim rather than edited per repository.
 * `renovate.yml` does not run `renovatebot/github-action`, which needs
   a Docker daemon on the runner.
-* `renovate.yml` matches the template's apart from the value of
-  `PINNED_RENOVATE_VERSION`.
+* `renovate.yml` matches the template's apart from the versions
+  Renovate bumps: the value of `PINNED_RENOVATE_VERSION` and the ref of
+  each action it uses.
 * `renovate.json` exists, with package grouping rules and scheduling.
   It is a per-repository adaptation, not expected to be
   byte-identical to the template's copy.
@@ -45,10 +46,14 @@ unmodified.
 ### The workflow is the template's
 
 `renovate.yml` is copied verbatim, so any difference from
-`templates/renovate/renovate.yml` is drift, with one exception: the
-value of `PINNED_RENOVATE_VERSION`. Renovate bumps that pin in each
-copy on its own schedule, so a copy whose Renovate is ahead of or
-behind the template's still matches.
+`templates/renovate/renovate.yml` is drift, except the versions
+Renovate bumps in each copy on its own schedule: the value of
+`PINNED_RENOVATE_VERSION`, and the ref after `@` on each `uses:` line
+(with the version comment digest pinning leaves after it). A copy
+whose Renovate or whose actions are ahead of or behind the template's
+still matches; the action's name still has to. `node-version` is not
+among them: the template's `renovate.json` stops Renovate bumping it,
+and it is the line the check exists to hold.
 
 The drift that prompted this was Node. Renovate proposed Node 26 for
 the workflow's `setup-node` step, the pull request merged in eleven

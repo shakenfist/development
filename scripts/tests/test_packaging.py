@@ -433,11 +433,49 @@ class RenovateWorkflowDriftTest(CheckTestCase):
         self.assertNotEqual(pinned, RENOVATE_WORKFLOW)
         self.assert_pass(self._repo(pinned))
 
+    def test_other_action_refs_pass(self):
+        """Renovate bumps the actions in each copy on its own schedule."""
+        for ref in ('actions/checkout@v7', 'actions/setup-node@v7',
+                    'dtolnay/rust-toolchain@stable'):
+            self.assertIn(f'uses: {ref}\n', RENOVATE_WORKFLOW)
+        bumped = RENOVATE_WORKFLOW.replace(
+            'actions/checkout@v7', 'actions/checkout@v8').replace(
+            'actions/setup-node@v7', 'actions/setup-node@v6.1.0').replace(
+            'dtolnay/rust-toolchain@stable', 'dtolnay/rust-toolchain@1.92.0')
+        self.assertNotEqual(bumped, RENOVATE_WORKFLOW)
+        self.assert_pass(self._repo(bumped))
+
+    def test_a_digest_pinned_action_passes(self):
+        """Renovate's pinDigests leaves the version as a comment."""
+        pinned = RENOVATE_WORKFLOW.replace(
+            'actions/checkout@v7\n',
+            'actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v7.0.0\n')
+        self.assertNotEqual(pinned, RENOVATE_WORKFLOW)
+        self.assert_pass(self._repo(pinned))
+
+    def test_another_action_fails(self):
+        """Only the ref is Renovate's; the action named is the template's."""
+        result = self._repo(RENOVATE_WORKFLOW.replace(
+            'actions/checkout@v7', 'someone/checkout@v7'))
+        self.assert_fail(
+            result,
+            containing='is `uses: someone/checkout` where the template '
+                       'has `uses: actions/checkout`')
+
     def test_another_node_fails(self):
         """kerbside-patches and visual-digest-rust after their Node 26 bump."""
         self.assertIn('node-version: 24\n', RENOVATE_WORKFLOW)
-        result = self._repo(RENOVATE_WORKFLOW.replace('node-version: 24\n', 'node-version: 26\n'))
-        self.assert_fail(result, containing='is `node-version: 26` where the template has `node-version: 24`')
+        result = self._repo(RENOVATE_WORKFLOW.replace(
+            'node-version: 24\n', 'node-version: 26\n'))
+        self.assert_fail(
+            result,
+            containing='is `node-version: 26` where the template has '
+                       '`node-version: 24`')
+
+    def test_line_endings_and_a_missing_final_newline_pass(self):
+        self.assertTrue(RENOVATE_WORKFLOW.endswith('\n'))
+        self.assert_pass(self._repo(RENOVATE_WORKFLOW.replace('\n', '\r\n')))
+        self.assert_pass(self._repo(RENOVATE_WORKFLOW.rstrip('\n')))
 
     def test_an_added_line_fails(self):
         self.assert_fail(self._repo(RENOVATE_WORKFLOW + '# local tweak\n'),
@@ -446,11 +484,22 @@ class RenovateWorkflowDriftTest(CheckTestCase):
     def test_a_removed_line_fails(self):
         comment = '          # renovate: datasource=npm depName=renovate\n'
         self.assertIn(comment, RENOVATE_WORKFLOW)
-        self.assert_fail(self._repo(RENOVATE_WORKFLOW.replace(comment, '')),
-                         containing='`# renovate: datasource=npm depName=renovate` is missing')
+        line = RENOVATE_WORKFLOW.splitlines().index(comment.rstrip('\n')) + 1
+        self.assert_fail(
+            self._repo(RENOVATE_WORKFLOW.replace(comment, '')),
+            containing='`# renovate: datasource=npm depName=renovate` is '
+                       f'missing before line {line}')
+
+    def test_a_removed_last_line_is_missing_at_the_end(self):
+        """No line number past the copy's last."""
+        lines = RENOVATE_WORKFLOW.splitlines(keepends=True)
+        self.assertIn('run: npx', lines[-1])
+        self.assert_fail(self._repo(''.join(lines[:-1])),
+                         containing='is missing at the end')
 
     def test_every_place_is_named_with_the_copys_line(self):
-        result = self._repo('# header\n' + RENOVATE_WORKFLOW.replace('node-version: 24\n', 'node-version: 26\n'))
+        result = self._repo('# header\n' + RENOVATE_WORKFLOW.replace(
+            'node-version: 24\n', 'node-version: 26\n'))
         line = RENOVATE_WORKFLOW.splitlines().index('          node-version: 24') + 2
         self.assertIn('line 1, `# header`, is not in the template', result['details'])
         self.assertIn(f'line {line} is `node-version: 26`', result['details'])
@@ -470,9 +519,11 @@ class RenovateWorkflowDriftTest(CheckTestCase):
         self.assertNotIn('differs from', result['details'])
 
     def test_an_unreadable_template_is_a_tool_failure(self):
-        with mock.patch.object(packaging, 'RENOVATE_WORKFLOW_TEMPLATE', 'templates/renovate/no-such.yml'):
-            self.assert_tool_failure(lambda: self._repo(RENOVATE_WORKFLOW),
-                                     containing='Could not read templates/renovate/no-such.yml')
+        with mock.patch.object(packaging, 'RENOVATE_WORKFLOW_TEMPLATE',
+                               'templates/renovate/no-such.yml'):
+            self.assert_tool_failure(
+                lambda: self._repo(RENOVATE_WORKFLOW),
+                containing='Could not read templates/renovate/no-such.yml')
 
     def test_developments_own_copy_passes(self):
         """This repository runs the template too."""
