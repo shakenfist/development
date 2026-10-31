@@ -5,6 +5,10 @@
       "sha": "da73cad9f9e2a81aca7aff32d644c0197d747ec2",
       "date": "2026-09-06"
     },
+    ".claude/skills/review-tracking-adoption/SKILL.md": {
+      "sha": "6a0659820e860cb6b21c8da36fca873811e72f7f",
+      "date": "2026-11-01"
+    },
     ".claude/skills/standards-alignment/SKILL.md": {
       "sha": "3eb61107b6d97f32b6a51d55d9f2bcdb6b18e05e",
       "date": "2026-10-05"
@@ -60,6 +64,10 @@
     ".github/workflows/pr-retest.yml": {
       "sha": "189610eb241bbecbf11c6459f874c97ff80c0359",
       "date": "2026-10-20"
+    },
+    ".github/workflows/prune-reviews.yml": {
+      "sha": "0c0cfe362b24e6bc67ccf1ddd09dacc722a0524f",
+      "date": "2026-11-01"
     },
     ".github/workflows/renovate.yml": {
       "sha": "d80459b0a415576de106c1a06e4b1d33abf20ca7",
@@ -273,6 +281,10 @@
       "sha": "c58fa988567ea392014294842ae64989649a56f4",
       "date": "2026-10-19"
     },
+    "docs/audits/renovate.md": {
+      "sha": "3122ae1c27a89b43f530d77a4ec00b3dad1edb7b",
+      "date": "2026-11-01"
+    },
     "docs/audits/reusable-workflow-secrets.md": {
       "sha": "2ebc5177a729dd8b6025ea36afdd1b305f7b536f",
       "date": "2026-10-05"
@@ -341,6 +353,10 @@
       "sha": "2e1d83cb3523df735fb92e24200923afab65ad4f",
       "date": "2026-10-19"
     },
+    "docs/code-review-tracking.md": {
+      "sha": "1ee271d86e8ce08b67f8632508b8386453b37c38",
+      "date": "2026-11-01"
+    },
     "docs/consistency-audits.md": {
       "sha": "7c53572c0cd705f4261f680acadc4553a27c7e9e",
       "date": "2026-10-31"
@@ -408,6 +424,10 @@
     "scripts/audit/checks/npm_dependencies.py": {
       "sha": "943ce339c00aa725090b244fb7037cc55791a388",
       "date": "2026-10-19"
+    },
+    "scripts/audit/checks/packaging.py": {
+      "sha": "5e62f6a90ee8db6a254bb805c4851d9c5c9955b7",
+      "date": "2026-11-01"
     },
     "scripts/audit/checks/plans.py": {
       "sha": "f944e5fa461aa7becf648439a7aeb13a285b9dc9",
@@ -549,6 +569,10 @@
       "sha": "11da7b42360c4037b712cc5111b19ce1fd3d1383",
       "date": "2026-10-21"
     },
+    "scripts/tests/test_ci_prune_reviews.py": {
+      "sha": "8fd9ff71011430fca813a7ec26d62408445dc4b9",
+      "date": "2026-11-01"
+    },
     "scripts/tests/test_ci_workflows.py": {
       "sha": "5faeedf2abf5f340bb0c6e3c6a516e352ccc8f7b",
       "date": "2026-10-31"
@@ -596,6 +620,10 @@
     "scripts/tests/test_npm_dependencies.py": {
       "sha": "0896f21e5074d0d68ff9107e53f34fe454fb3873",
       "date": "2026-10-21"
+    },
+    "scripts/tests/test_packaging.py": {
+      "sha": "fe8860dddab5bcc385450d8b35cf1de47331b740",
+      "date": "2026-11-01"
     },
     "scripts/tests/test_patterns.py": {
       "sha": "4477ff162d7fd9a3ffb14e31b5979850e23e514f",
@@ -765,6 +793,10 @@
       "sha": "f33f521f70ad6e8f398627a4ca8a7af2fd240084",
       "date": "2026-10-20"
     },
+    "templates/renovate/README.md": {
+      "sha": "dfab2674e99aad7854693a304339de5f0c816be0",
+      "date": "2026-11-01"
+    },
     "templates/renovate/renovate.json": {
       "sha": "c91385eb8cc7717ff9f3c5dbebad3de2ee8b70b2",
       "date": "2026-10-31"
@@ -772,6 +804,18 @@
     "templates/renovate/renovate.yml": {
       "sha": "d80459b0a415576de106c1a06e4b1d33abf20ca7",
       "date": "2026-10-31"
+    },
+    "templates/review-tracking/README.md": {
+      "sha": "267b478c30fea696f20ac28e0b0cc39e08f35146",
+      "date": "2026-11-01"
+    },
+    "templates/review-tracking/ci-prune-reviews.sh": {
+      "sha": "3c00a9489c0b571bfdd0d1f1170344cfc33b44ff",
+      "date": "2026-11-01"
+    },
+    "templates/review-tracking/prune-reviews.yml": {
+      "sha": "0c0cfe362b24e6bc67ccf1ddd09dacc722a0524f",
+      "date": "2026-11-01"
     },
     "templates/review-tracking/review-tracking.sh": {
       "sha": "fcadd30b9cea7aec8c747c7f43ef1864bc01bbef",
@@ -880,6 +924,10 @@
     "tools/check-audit-read-token.sh": {
       "sha": "e07ef1adf5539a4a2fad3817489faf207b999ffd",
       "date": "2026-10-28"
+    },
+    "tools/ci-prune-reviews.sh": {
+      "sha": "3c00a9489c0b571bfdd0d1f1170344cfc33b44ff",
+      "date": "2026-11-01"
     },
     "tools/mermaid-lint.sh": {
       "sha": "22f14bf915f76875950bb5589212b55ab0a91db1",
