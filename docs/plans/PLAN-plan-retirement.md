@@ -219,7 +219,7 @@ human merging the pull request.
 | Phase | Status | Merged |
 |-------|--------|--------|
 | 1. Retirement convention | Complete | f7b1219 (#333) |
-| 2. `retire-plans` helper and skill | In progress | |
+| 2. `retire-plans` helper and skill | Complete | 8010a22 (#342); llm-setup 3a9f268 (!20) |
 | 3. Pilot | Not started | |
 | 4. `plan-retirement` criterion | Not started | |
 | 5. Push audit | Not started | |
@@ -776,6 +776,12 @@ shape and a merge request. This shell has no credentials for
 `gitlab.home.stillhq.com`, so the llm-setup branch was cut from the
 local main (`cf613af`) and Mikal pushes it and opens the merge
 request; the `Merged` cell records it once merged.
+
+That hand-off was lost: #342 merged on this side while the
+llm-setup branch was still unpushed, so for two days the plan read
+as further along than the fleet was. It merged as `3a9f268` (!20)
+on 2026-10-31, after `next-phase` found the skill missing from
+`~/.claude/skills`.
 
 llm-setup branch `retire-plans`:
 
