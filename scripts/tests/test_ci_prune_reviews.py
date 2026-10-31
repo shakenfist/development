@@ -579,19 +579,65 @@ class CiPruneReviewsTest(unittest.TestCase):
             lines = [line for line in f.read().splitlines() if not line.lstrip().startswith('#')]
         text = '\n'.join(lines) + '\n'
         steps = {step.split('\n', 1)[0]: step for step in text.split(WORKFLOW_STEP_SEPARATOR)[1:]}
-        self.assertEqual(sorted(steps), ['Fetch the prune script', 'Prune and import review marks'])
+        self.assertEqual(sorted(steps), ['Fetch the prune script', 'Mint the push token',
+                                         'Prune and import review marks'])
         return text, steps
 
     def test_the_workflow_never_checks_out_the_workspace(self):
-        """A hook left in the reused workspace would run during a checkout and could rewrite the script."""
+        """No checkout, and the key and push token reach only the steps that need them.
+
+        A runner left dirty by an earlier job, as a static one can be, then has no hook
+        through which to rewrite the script, and no step but the push sees the token.
+        """
         text, steps = self.workflow_steps()
         self.assertNotIn('actions/checkout', text)
-        for step in steps.values():
-            self.assertIn('\n        working-directory: ${{ runner.temp }}\n', step)
-        self.assertNotIn('token', steps['Fetch the prune script'])
-        self.assertIn('\n          PUSH_TOKEN: ${{ secrets.DEPENDENCIES_TOKEN || github.token }}\n',
-                      steps['Prune and import review marks'])
-        self.assertEqual(text.count('secrets.'), 1)
+        for name, step in steps.items():
+            if name == 'Mint the push token':
+                # A uses: step runs no shell, so it has no directory to run in.
+                self.assertNotIn('working-directory', step)
+            else:
+                self.assertIn('\n        working-directory: ${{ runner.temp }}\n', step)
+
+        # The key is named twice, by the presence guard and by the step
+        # that mints from it, and no other secret is named at all.
+        key_guard = "\n      HAS_REVIEW_MARKS_KEY: ${{ secrets.REVIEW_MARKS_APP_KEY != '' }}\n"
+        key_input = '\n          private-key: ${{ secrets.REVIEW_MARKS_APP_KEY }}\n'
+        self.assertEqual(text.count('secrets.REVIEW_MARKS_APP_KEY'), 2)
+        self.assertEqual(text.count('secrets.'), 2)
+        self.assertIn(key_guard, text.split(WORKFLOW_STEP_SEPARATOR)[0])
+        self.assertIn(key_input, steps['Mint the push token'])
+
+        # The push token reaches the script step alone, through PUSH_TOKEN.
+        push_token = '\n          PUSH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}\n'
+        self.assertIn(push_token, steps['Prune and import review marks'])
+        for name in ('Fetch the prune script', 'Prune and import review marks'):
+            step = steps[name].replace(push_token, '\n').lower()
+            self.assertNotIn('secrets.', step, name)
+            self.assertNotIn('token', step, name)
+
+    def test_the_push_token_is_minted_from_the_app_on_a_vm_runner(self):
+        """Only the default branch can read the key, and only where it is present is a token minted."""
+        text, steps = self.workflow_steps()
+        job = text.split(WORKFLOW_STEP_SEPARATOR)[0]
+        self.assertEqual(list(steps), ['Fetch the prune script', 'Mint the push token',
+                                       'Prune and import review marks'])
+
+        self.assertIn('\n    runs-on: [self-hosted, vm, debian-13, s]\n', job)
+        self.assertEqual(job.count('runs-on:'), 1)
+        self.assertIn('\n    environment:\n      name: review-marks\n      deployment: false\n', job)
+        self.assertIn('\n    permissions:\n      contents: write\n', job)
+        self.assertIn('\n    timeout-minutes: 30\n', job)
+
+        mint = steps['Mint the push token']
+        self.assertIn('\n        id: app-token\n', mint)
+        self.assertIn("\n        if: env.HAS_REVIEW_MARKS_KEY == 'true'\n", mint)
+        self.assertRegex(mint, r'\n        uses: actions/create-github-app-token@[0-9a-f]{40} # v\d+\.\d+\.\d+\n')
+        self.assertIn('\n          client-id: ${{ vars.REVIEW_MARKS_APP_CLIENT_ID }}\n', mint)
+        self.assertIn('\n          permission-contents: write\n', mint)
+        # Naming the owner, or repositories, would widen the token to
+        # every repository the App is installed on.
+        self.assertNotRegex(mint, r'\n\s+(owner|repositories):')
+        self.assertNotIn('app-id:', mint)
 
     def test_the_workflow_steps_land_the_review_state(self):
         """Run as the workflow runs them: fetch the script into RUNNER_TEMP, then run it from there."""

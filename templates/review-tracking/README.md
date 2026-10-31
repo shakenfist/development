@@ -4,9 +4,12 @@ The CI half of whole-codebase review tracking, for a repository that
 has adopted it. On the default branch, after every push and once a
 day, the workflow prunes review marks made stale by a change and
 imports reviews of byte-identical files from this repository, then
-commits both back as shakenfist-bot in one commit,
-`Prune and import review marks.`. The design, and the argument for
-why an unsigned bot commit may do either, is in
+commits both back in one commit, `Prune and import review marks.`.
+The commit is shakenfist-bot's; the push is made by the
+`shakenfist-review-marks` GitHub App where the default branch's
+ruleset requires a pull request, and by `GITHUB_TOKEN` elsewhere.
+The design, and the argument for why an unsigned bot commit may do
+either, is in
 [code review tracking](https://github.com/shakenfist/development/blob/main/docs/code-review-tracking.md).
 
 ## Files
@@ -46,59 +49,81 @@ the workflow does not work without them.
 - **The `paths-ignore` block** in the code-shaped workflows (step 8),
   so that the bot's commit does not start the expensive CI lanes. It
   lists the review state only, never `.vscode/review-scope.toml`.
-- **Optionally, a `DEPENDENCIES_TOKEN` secret.** A repository whose
-  default branch ruleset requires a pull request needs it: GitHub
-  does not accept the built-in Actions app as a bypass actor, so the
-  push authenticates as shakenfist-bot with that token instead. A
-  repository without the secret pushes with `GITHUB_TOKEN`, for which
-  the job asks `contents: write`. The workflow passes
-  `secrets.DEPENDENCIES_TOKEN || github.token` to the script as
-  `PUSH_TOKEN`, so one file serves both; the script gives it to its
-  `git push` and nothing else (see "Runner isolation" below).
+- **A `review-marks` environment with the default-branch policy**,
+  before the workflow's first run, in every adopting repository,
+  whether or not it will hold a key. The job names the environment,
+  and GitHub creates one it cannot find on first reference, with no
+  branch policy: a key added to it later would be readable by a
+  workflow on any branch. The default-branch policy means exactly
+  this, and nothing looser: the environment's
+  `deployment_branch_policy` is `{"protected_branches": false,
+  "custom_branch_policies": true}`, and its
+  `deployment-branch-policies` hold exactly one entry, with
+  `type: branch` and `name` equal to the default branch, containing
+  no glob characters. "Admits the default branch" is not the test. A
+  `protected_branches: true` policy admits any protected branch, a
+  branch name is a glob, and a policy can be `type: tag`, so a set
+  such as {`develop`, tag `*`} admits the default branch and also
+  lets any writer push a tag at a commit with an edited workflow and
+  read the key. A branch policy rather than required reviewers,
+  unlike the pin-indirect-dependencies template, because this job
+  runs unattended and a reviewer gate would stall every run.
+- **Where the default branch's ruleset requires a pull request, the
+  App, its key and the bypass**, created in this order after the
+  environment:
 
-  That fallback is silent. If `DEPENDENCIES_TOKEN` exists in a
-  repository, or is ever added at the organisation level, the job
-  uses the PAT without saying so, and the workflow's `permissions:`
-  block constrains only `GITHUB_TOKEN`, not a PAT: the job then holds
-  whatever the token's owner can do, in every repository the PAT
-  reaches. Add the secret only where the ruleset needs it, and keep
-  it out of organisation-level secrets.
+  1. the `shakenfist-review-marks` GitHub App installed on the
+     repository;
+  2. the App's private key as the secret `REVIEW_MARKS_APP_KEY` of
+     the `review-marks` environment;
+  3. the App added to that ruleset's bypass actors.
 
-  A repository secret is also readable by any workflow run that is
-  not from a fork, whether from a push to any branch or from a pull
-  request from such a branch, including a workflow a writer adds on
-  a branch of their own; the job's default-branch guard does not
-  stop that. For the check-skipping push alone that would be no new
-  boundary: these repositories' rulesets require no approving
-  review, so a writer can already land a change through a pull
-  request. But the token carries its owner's rights wherever its
-  scopes allow, and `shakenfist-bot` is an organisation owner, and
-  so has `admin` on every repository in the organisation. A writer
-  who reads the token can therefore push to other repositories, and
-  rewrite or delete the rulesets and environment policies that bound
-  it, not merely skip checks. That is a real exposure, accepted for
-  now, as it is for the pin-indirect-dependencies template's use of
-  the same secret, only because `PLAN-bot-bypass-identity.md`
-  replaces the PAT with an App holding `contents: write` alone and
-  demotes the bot. Until then, keep the token's reach to the
-  repositories that need it.
+  The App's client id is the organisation variable
+  `REVIEW_MARKS_APP_CLIENT_ID`, which every repository already sees.
+  A repository without such a ruleset needs none of the three:
+  GitHub does not accept the built-in Actions app as a bypass actor,
+  which is the only reason for the App, and everywhere else the push
+  is made with `GITHUB_TOKEN`, for which the job asks
+  `contents: write`. Step 7 of
+  [Adopting a repository](https://github.com/shakenfist/development/blob/main/docs/code-review-tracking.md#adopting-a-repository)
+  has the commands.
 
-  An environment is optional hardening, not a bound. Holding the
-  secret in one whose deployment branches are the default branch
-  alone, with the repository secret of the same name deleted and the
-  job given that `environment:`, stops workflows on other branches
-  reading it casually; it does not stop a holder of the token, which
-  can widen the policy. Use a branch policy here, unlike the
-  required reviewers the pin-indirect-dependencies template names,
-  because this job runs unattended and a reviewer gate would stall
-  every run.
+  The key is only ever an environment secret, never a repository or
+  organisation one. `secrets.REVIEW_MARKS_APP_KEY` resolves at all
+  three levels, and the workflow would mint from a key held at any
+  of them just as quietly, but a repository or organisation secret
+  is readable by a workflow on any branch, which is what the
+  environment's policy exists to prevent.
+
+  The workflow's `Mint the push token` step runs only where the
+  environment holds the key. It mints an installation token with
+  `actions/create-github-app-token`, pinned to a commit: one per run,
+  scoped to the repository, carrying `contents: write` alone, and
+  revoked when the job ends. The script step is given
+  `steps.app-token.outputs.token || github.token` as `PUSH_TOKEN`,
+  so one file serves both kinds of repository; the script gives it to
+  its `git push` and nothing else (see "Runner isolation" below). The
+  job's `permissions:` block is for `GITHUB_TOKEN` only: the App's
+  token carries its own permissions, which that block does not
+  constrain. The job's `environment:` sets `deployment: false`, which
+  keeps its runs out of the repository's Deployments view while still
+  resolving the environment's secrets; should the environment ever
+  gain a custom deployment protection rule, the job fails at once.
+
+  The fallback to `GITHUB_TOKEN` says nothing about itself. Where
+  that is wrong, it fails rather than landing: a repository whose
+  ruleset requires a pull request but whose environment holds no key
+  mints nothing and pushes with `GITHUB_TOKEN`, the ruleset refuses
+  that push, and the run fails with the refusal in the rule-suite
+  history. That failed run is the only signal that the key is
+  missing, and nothing lands until the key is added.
 
 ## gitsign
 
 `import` verifies the signature on each source commit it points at,
 and without gitsign on `PATH` it imports nothing (by design; it warns
-and still exits zero). The static runners do not carry gitsign, so
-the script downloads a pinned `sigstore/gitsign` release's
+and still exits zero). No runner image is relied on to carry gitsign,
+so the script downloads a pinned `sigstore/gitsign` release's
 `linux_amd64` binary into `RUNNER_TEMP` on every run. It checks the
 download twice before running it: the release's `checksums.txt` must
 list the digest pinned beside the version in the script, and the
@@ -122,13 +147,21 @@ The workflow never passes `--no-verify`.
 
 ## Runner isolation
 
-The static runners are long-lived, share one home directory across
-jobs and repositories, and run pull request code, so anything an
-earlier job could write is treated as hostile. The script therefore:
+The job runs on the fleet's ephemeral vm runners
+(`[self-hosted, vm, debian-13, s]`), a fresh machine per job, so
+nothing an earlier job ran is still there while it holds the App's
+key and the token minted from it. The design below assumes a
+runner that is long-lived, shares one home directory across jobs and
+repositories, and runs pull request code, as the static runners do,
+and treats anything an earlier job could write as hostile. On a vm
+runner none of that holds, and the design is kept anyway: as defence
+in depth, and because the runner is one line of the workflow, after
+which every threat below would be live. The script therefore:
 
-- **never touches the workspace.** The workspace is reused, `.git`
-  included, so hooks an earlier job left in `.git/hooks` would run on
-  any git command there -- `actions/checkout`'s own included, which
+- **never touches the workspace.** On a static runner the
+  workspace is reused, `.git` included, so hooks an earlier job left
+  in `.git/hooks` would run on any git command there --
+  `actions/checkout`'s own included, which
   could rewrite the script before it ran -- and keys left in
   `.git/config` -- `core.fsmonitor`, an `include.path`, a `pushurl` or
   `url.<x>.insteadOf` -- would run commands or redirect the push. So
@@ -215,8 +248,9 @@ run against this repository is a no-op that says so and exits zero.
 
 ## Prerequisites
 
-- Self-hosted runners with the `static` label, `x86_64`, with `curl`
-  and egress to github.com.
+- Self-hosted ephemeral vm runners with the labels `vm`, `debian-13`
+  and `s`, `x86_64`, with `curl`, `git` and `python3`, and egress to
+  github.com.
 - Repositories adopted into review tracking; see the steps above.
 
 ## Projects using these templates
@@ -228,13 +262,13 @@ fails any of them whose copies are not byte-identical to these files,
 so a template change is not finished until every row below is
 re-synced.
 
-| Project | Default branch | Token |
-|---------|----------------|-------|
+| Project | Default branch | Pushes as |
+|---------|----------------|-----------|
 | [actions](https://github.com/shakenfist/actions) | `main` | `GITHUB_TOKEN` |
-| [andris](https://github.com/shakenfist/andris) | `develop` | `DEPENDENCIES_TOKEN` |
+| [andris](https://github.com/shakenfist/andris) | `develop` | App |
 | [development](https://github.com/shakenfist/development) | `main` | `GITHUB_TOKEN` |
-| [hunkydory](https://github.com/shakenfist/hunkydory) | `develop` | `DEPENDENCIES_TOKEN` |
-| [kerbside](https://github.com/shakenfist/kerbside) | `develop` | `DEPENDENCIES_TOKEN` |
+| [hunkydory](https://github.com/shakenfist/hunkydory) | `develop` | App |
+| [kerbside](https://github.com/shakenfist/kerbside) | `develop` | App |
 | [kerbside-client](https://github.com/shakenfist/kerbside-client) | `develop` | `GITHUB_TOKEN` |
-| [ryll](https://github.com/shakenfist/ryll) | `develop` | `DEPENDENCIES_TOKEN` |
+| [ryll](https://github.com/shakenfist/ryll) | `develop` | App |
 | [sfui](https://github.com/shakenfist/sfui) | `develop` | `GITHUB_TOKEN` |
