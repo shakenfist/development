@@ -493,7 +493,7 @@ class RenovateWorkflowDriftTest(CheckTestCase):
     def test_a_removed_last_line_is_missing_at_the_end(self):
         """No line number past the copy's last."""
         lines = RENOVATE_WORKFLOW.splitlines(keepends=True)
-        self.assertIn('run: npx', lines[-1])
+        self.assertIn('node_modules/.bin/renovate', lines[-1])
         self.assert_fail(self._repo(''.join(lines[:-1])),
                          containing='is missing at the end')
 

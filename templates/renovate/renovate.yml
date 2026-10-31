@@ -56,14 +56,33 @@ jobs:
         if: hashFiles('**/Cargo.lock') != ''
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Self-hosted Renovate
+      # Installed in a step of its own, with no secret in its
+      # environment. The pin covers Renovate alone: npm resolves its
+      # dependency tree from the registry on every run, so an install
+      # script in that tree would otherwise run with RENOVATE_TOKEN,
+      # which writes to every repository Renovate manages. The step
+      # that holds the token runs only what this one installed.
+      #
+      # --ignore-scripts skips every install script in the tree; re2 is
+      # then rebuilt by name, because it is the one Renovate uses (its
+      # RE2 regex engine, without which it falls back to RegExp and
+      # warns on every run). It still runs without the token.
+      - name: Install Renovate
         env:
           # renovate: datasource=npm depName=renovate
           PINNED_RENOVATE_VERSION: 44.192.2
+        run: |
+          rm -rf "${RUNNER_TEMP}/renovate-bin"
+          npm install --prefix "${RUNNER_TEMP}/renovate-bin" --ignore-scripts --no-audit --no-fund \
+              "renovate@${PINNED_RENOVATE_VERSION}"
+          npm rebuild --prefix "${RUNNER_TEMP}/renovate-bin" re2
+
+      - name: Self-hosted Renovate
+        env:
           RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
           RENOVATE_AUTODISCOVER: "true"
           RENOVATE_AUTODISCOVER_FILTER: ${{ github.repository }}
           # A clone and cache per job, so a long-lived runner behaves
           # like an ephemeral one.
           RENOVATE_BASE_DIR: ${{ runner.temp }}/renovate
-        run: npx --yes "renovate@${PINNED_RENOVATE_VERSION}"
+        run: "${RUNNER_TEMP}/renovate-bin/node_modules/.bin/renovate"
