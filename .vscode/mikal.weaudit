@@ -781,10 +781,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_registry.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_review_tracking.py",
       "author": "mikal"
     },
@@ -965,10 +961,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_packaging.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_ci_prune_reviews.py",
       "author": "mikal"
     },
@@ -993,43 +985,11 @@
       "author": "mikal"
     },
     {
-      "path": "templates/renovate/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/packaging.py",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/prune-reviews.yml",
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
-      "author": "mikal"
-    },
-    {
       "path": ".pre-commit-config.yaml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     }
   ],

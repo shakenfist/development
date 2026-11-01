@@ -69,10 +69,6 @@
       "sha": "0c0cfe362b24e6bc67ccf1ddd09dacc722a0524f",
       "date": "2026-11-01"
     },
-    ".github/workflows/renovate.yml": {
-      "sha": "7480d088733b509c81a99bc0b3a05797a8665091",
-      "date": "2026-11-02"
-    },
     ".github/workflows/secret-scan.yml": {
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
       "date": "2026-08-24"
@@ -425,10 +421,6 @@
       "sha": "943ce339c00aa725090b244fb7037cc55791a388",
       "date": "2026-10-19"
     },
-    "scripts/audit/checks/packaging.py": {
-      "sha": "5e62f6a90ee8db6a254bb805c4851d9c5c9955b7",
-      "date": "2026-11-01"
-    },
     "scripts/audit/checks/plans.py": {
       "sha": "f944e5fa461aa7becf648439a7aeb13a285b9dc9",
       "date": "2026-10-28"
@@ -621,10 +613,6 @@
       "sha": "0896f21e5074d0d68ff9107e53f34fe454fb3873",
       "date": "2026-10-21"
     },
-    "scripts/tests/test_packaging.py": {
-      "sha": "fe8860dddab5bcc385450d8b35cf1de47331b740",
-      "date": "2026-11-01"
-    },
     "scripts/tests/test_patterns.py": {
       "sha": "4477ff162d7fd9a3ffb14e31b5979850e23e514f",
       "date": "2026-10-21"
@@ -640,10 +628,6 @@
     "scripts/tests/test_python_source.py": {
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",
       "date": "2026-09-04"
-    },
-    "scripts/tests/test_registry.py": {
-      "sha": "9fb8cb54d2291ba02112f8de83400e8b22d1dfcd",
-      "date": "2026-10-28"
     },
     "scripts/tests/test_release.py": {
       "sha": "150cc97f0a03011407dbe46234ff791ae8ea97b6",
@@ -793,17 +777,9 @@
       "sha": "f33f521f70ad6e8f398627a4ca8a7af2fd240084",
       "date": "2026-10-20"
     },
-    "templates/renovate/README.md": {
-      "sha": "dfab2674e99aad7854693a304339de5f0c816be0",
-      "date": "2026-11-01"
-    },
     "templates/renovate/renovate.json": {
       "sha": "c91385eb8cc7717ff9f3c5dbebad3de2ee8b70b2",
       "date": "2026-10-31"
-    },
-    "templates/renovate/renovate.yml": {
-      "sha": "7480d088733b509c81a99bc0b3a05797a8665091",
-      "date": "2026-11-02"
     },
     "templates/review-tracking/README.md": {
       "sha": "267b478c30fea696f20ac28e0b0cc39e08f35146",
