@@ -97,8 +97,10 @@ RENOVATE_VERSION_COMMENT_PRESETS = (
 RENOVATE_WORKFLOW_TEMPLATE = 'templates/renovate/renovate.yml'
 RENOVATE_PIN_RE = re.compile(r'(?m)^(\s*PINNED_RENOVATE_VERSION:).*$')
 # The ref after @, and the version comment that digest pinning leaves
-# after the ref. The action's name still has to match.
-RENOVATE_USES_RE = re.compile(r'(?m)^(\s*(?:-\s+)?uses:\s*[^@\s]+)@\S+(\s+#.*)?$')
+# after the ref. The action's name still has to match. The comment is
+# [ \t]+ rather than \s+, which would cross the newline and swallow a
+# comment on the lines after.
+RENOVATE_USES_RE = re.compile(r'(?m)^(\s*(?:-\s+)?uses:\s*[^@\s]+)@\S+([ \t]+#.*)?$')
 # Each keeps what the audit compares in group 1.
 RENOVATE_BUMPED_RES = (RENOVATE_PIN_RE, RENOVATE_USES_RE)
 

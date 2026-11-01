@@ -453,6 +453,15 @@ class RenovateWorkflowDriftTest(CheckTestCase):
         self.assertNotEqual(pinned, RENOVATE_WORKFLOW)
         self.assert_pass(self._repo(pinned))
 
+    def test_a_comment_after_a_uses_line_is_compared(self):
+        """The digest comment is on the uses: line, not the lines after."""
+        comment = '      # Installed in a step of its own, with no secret in its\n'
+        self.assertIn('uses: dtolnay/rust-toolchain@stable\n\n' + comment, RENOVATE_WORKFLOW)
+        line = RENOVATE_WORKFLOW.splitlines().index(comment.rstrip('\n')) + 1
+        self.assert_fail(
+            self._repo(RENOVATE_WORKFLOW.replace(comment, '      # A local comment\n')),
+            containing=f'line {line} is `# A local comment`')
+
     def test_another_action_fails(self):
         """Only the ref is Renovate's; the action named is the template's."""
         result = self._repo(RENOVATE_WORKFLOW.replace(
@@ -493,7 +502,7 @@ class RenovateWorkflowDriftTest(CheckTestCase):
     def test_a_removed_last_line_is_missing_at_the_end(self):
         """No line number past the copy's last."""
         lines = RENOVATE_WORKFLOW.splitlines(keepends=True)
-        self.assertIn('run: npx', lines[-1])
+        self.assertIn('node_modules/.bin/renovate', lines[-1])
         self.assert_fail(self._repo(''.join(lines[:-1])),
                          containing='is missing at the end')
 

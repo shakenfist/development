@@ -26,7 +26,8 @@ from audit_common import AUDIT_METADATA, ISSUE_TITLES  # noqa: E402
 from audit.checks import ci_workflows  # noqa: E402
 from audit.text.workflows import (  # noqa: E402
     indented_block, job_level_keys, job_outputs, mapping_entries, step_action,
-    step_keys, step_with_inputs, workflow_job_blocks, workflow_step_blocks,
+    step_keys, step_with_inputs, strip_yaml_comments, workflow_job_blocks,
+    workflow_step_blocks,
 )
 from tests.base import REPO_ROOT  # noqa: E402
 
@@ -1285,6 +1286,25 @@ class ConvergedTemplatesTest(unittest.TestCase):
             '.github/workflows/renovate.yml must be byte-identical to '
             'templates/renovate/renovate.yml: the template README tells '
             'the fleet to copy it unmodified')
+
+    def test_renovate_installs_without_the_token(self):
+        # shakenfist/development#322. npm resolves Renovate's tree afresh
+        # on every run, and an install script anywhere in it runs in the
+        # step doing the install. So that step holds no secret and runs
+        # no install scripts, and the step holding RENOVATE_TOKEN fetches
+        # nothing from the registry.
+        content = self._read('templates/renovate/renovate.yml')
+        steps = [strip_yaml_comments(step)
+                 for _, body in workflow_job_blocks(content)
+                 for step in workflow_step_blocks(body)]
+        installs = [step for step in steps
+                    if re.search(r'\bnpm\s+(?:install|ci|exec)\b|\bnpx\b', step)]
+        holders = [step for step in steps if 'RENOVATE_TOKEN' in step]
+        self.assertEqual(len(installs), 1, 'expected one step that installs Renovate')
+        self.assertEqual(len(holders), 1, 'expected one step that holds RENOVATE_TOKEN')
+        self.assertNotIn('secrets.', installs[0])
+        self.assertIn('--ignore-scripts', installs[0])
+        self.assertNotRegex(holders[0], r'\bnp[mx]\b')
 
     def test_pin_indirect_does_not_read_the_event_repository(self):
         # A schedule event's payload has no repository object, so on

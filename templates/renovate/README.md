@@ -33,8 +33,9 @@ lets Renovate see its own version pin (below).
 runs Renovate as the `ghcr.io/renovatebot/renovate` container, so it
 needs a Docker daemon on the runner, and the static pool is gaining
 ephemeral runner pods on a Kubernetes cluster that have none. Instead
-the workflow installs Node with `actions/setup-node` and runs a pinned
-Renovate with `npx`. That works the same on a VM and on a pod.
+the workflow installs Node with `actions/setup-node`, installs a
+pinned Renovate with `npm`, and runs it. That works the same on a VM
+and on a pod.
 
 The environment is what the action passed into its container:
 `RENOVATE_TOKEN` (the action's `token:` input set exactly that),
@@ -98,11 +99,35 @@ configuration.
 
 The action floated on the image's `44` tag, so it picked up every new
 release unasked. An exact pin trades that for a pull request. It pins
-Renovate itself, not its dependency tree: with no lockfile, `npx`
+Renovate itself, not its dependency tree: with no lockfile, `npm`
 resolves Renovate's dependencies within their declared ranges on each
-fresh install, and their install scripts run in the step that holds
-`RENOVATE_TOKEN`. The container image was a fixed tree per tag,
-although the floating tag moved it anyway.
+fresh install. The container image was a fixed tree per tag, although
+the floating tag moved it anyway.
+
+### Installing without the token
+
+`RENOVATE_TOKEN` can write to every repository Renovate manages, so
+the workflow keeps it out of the install. The "Install Renovate" step
+holds no secret: it runs `npm install --ignore-scripts` into a
+directory under `runner.temp`, so no package in the freshly resolved
+tree runs an install script at all, and then `npm rebuild re2`. `re2`
+is the one native dependency Renovate uses. It is Renovate's RE2
+regular expression engine, and without its build Renovate falls back
+to `RegExp` and warns on every run. The rebuild runs only that
+package's scripts, still without the token. The "Self-hosted
+Renovate" step holds the token and runs the installed binary, so it
+fetches nothing from the registry.
+
+This was `npx --yes renovate@<pin>` in one step that held the token
+(shakenfist/development#322). An install script anywhere in the tree,
+from a dependency Renovate pulls in within its declared ranges, would
+have run with write access to the fleet on the next hourly run.
+
+The split closes install time, not run time. Code from the tree that
+Renovate imports still runs in the step that holds the token, so a
+compromised dependency release can still reach it that way until the
+tree is fixed by a lockfile. `minimumReleaseAge` does not help here:
+it governs the pull requests Renovate opens, not what `npm` installs.
 
 `node-version` follows Renovate's `engines.node` (`^24.11.0` for
 44.x), and `renovate.json` keeps the two in step with two
