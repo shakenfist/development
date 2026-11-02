@@ -91,11 +91,12 @@ RENOVATE_VERSION_COMMENT_PRESETS = (
 
 # Every repository copies the template's renovate.yml verbatim, apart
 # from the versions Renovate bumps in each copy on its own schedule:
-# the Renovate it pins, and the ref of each action it uses. Anything
+# each tool it pins in a PINNED_*_VERSION variable (Renovate itself and
+# hashin), and the ref of each action it uses. Anything
 # else that differs is drift; docs/audits/renovate.md has the Node 26
 # bump that showed why it matters.
 RENOVATE_WORKFLOW_TEMPLATE = 'templates/renovate/renovate.yml'
-RENOVATE_PIN_RE = re.compile(r'(?m)^(\s*PINNED_RENOVATE_VERSION:).*$')
+RENOVATE_PIN_RE = re.compile(r'(?m)^(\s*PINNED_[A-Z0-9_]+_VERSION:).*$')
 # The ref after @, and the version comment that digest pinning leaves
 # after the ref. The action's name still has to match. The comment is
 # [ \t]+ rather than \s+, which would cross the newline and swallow a
@@ -112,9 +113,9 @@ RENOVATE_DRIFT_SHOWN = 3
 def renovate_workflow_drift(content, template):
     """Where renovate.yml departs from the template, or None.
 
-    Both are compared with the versions Renovate bumps blanked (the
-    PINNED_RENOVATE_VERSION value and the ref of each uses: action), so
-    a copy whose Renovate or actions are ahead of or behind the
+    Both are compared with the versions Renovate bumps blanked (each
+    PINNED_*_VERSION value and the ref of each uses: action), so a
+    copy whose pinned tools or actions are ahead of or behind the
     template's still matches. Returns the places that differ, each
     named by its first line with the copy's text and the template's,
     for the issue to quote: every place, so that one fix closes the

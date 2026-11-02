@@ -16,8 +16,8 @@ in Shaken Fist projects.
 autodiscover filter is `${{ github.repository }}`, which the runtime
 supplies, so nothing changes per repository. The audit holds every
 copy to the template apart from the versions Renovate bumps in each
-repository: the `PINNED_RENOVATE_VERSION` value and the ref of each
-action it uses.
+repository: the value of each `PINNED_*_VERSION` variable (Renovate's
+and hashin's) and the ref of each action it uses.
 
 `renovate.json` is a per-repository adaptation, not expected to be
 byte-identical between repositories. It is copied as a starting point
@@ -65,7 +65,7 @@ fleet has:
 |-----------|--------------------|-------------|
 | `package-lock.json` | `npm` | `actions/setup-node`, always |
 | `Cargo.lock` | `cargo update` | `dtolnay/rust-toolchain@stable`, only when the repository has a `Cargo.lock` |
-| `requirements*.txt` | nothing | Renovate edits the pins as text. Only a file with `--hash` lines needs a tool (`hashin`), and the fleet has none |
+| `requirements*.txt` | `hashin`, for a file with `--hash` lines | A venv under `runner.temp`, only when the repository has a `requirements*.txt` |
 
 The Rust step installs stable with rustup's minimal profile (`rustc`,
 `cargo` and the standard library, no clippy, rustfmt or docs) and
@@ -73,6 +73,28 @@ makes it rustup's default. It sets no override, so a repository with a
 `rust-toolchain.toml` still gets the toolchain it names: rustup reads
 that file from the directory Renovate runs `cargo` in, and installs
 the toolchain on first use.
+
+A requirements file without `--hash` lines needs no tool: Renovate
+edits the pins as text. One with them needs `hashin`, which Renovate
+runs to replace the old version's hashes with every hash PyPI
+publishes for the new one. andris's `.devcontainer/wheel/requirements.txt`
+was the first such file in the fleet, and its first bump
+(shakenfist/andris#69) carried the new pin with the old hashes and an
+artifact update problem whose stderr was empty: Renovate runs its
+tools without a shell, so a missing `hashin` fails to spawn rather
+than printing "not found". `hashFiles()` cannot tell whether a file
+has hashes, so the step runs for any `requirements*.txt`; it costs a
+venv and a few seconds. Only the `hashin` script is put on `PATH`,
+through a directory of its own, so the venv's `python3` and `pip` do
+not shadow the runner's for the other tools Renovate runs.
+
+`hashin` is pinned with a `# renovate:` comment like Renovate itself,
+so it is bumped the same way. The install step holds no secret, and
+Renovate passes its tools only an allowlist of environment variables
+(`PATH`, `HOME`, proxy and certificate settings), not
+`RENOVATE_TOKEN`, so `hashin` and its dependencies never see the
+token. Those dependencies (`packaging` and `pip`) are resolved within
+their declared ranges on each run, as Renovate's npm tree is.
 
 A repository that adds another kind of lock file -- `uv.lock`,
 `poetry.lock`, `go.sum`, `pnpm-lock.yaml` and so on -- needs a step of
