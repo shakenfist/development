@@ -941,10 +941,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/renovate.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/review-tracking/prune-reviews.yml",
       "author": "mikal"
     },

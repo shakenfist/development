@@ -277,10 +277,6 @@
       "sha": "c58fa988567ea392014294842ae64989649a56f4",
       "date": "2026-10-19"
     },
-    "docs/audits/renovate.md": {
-      "sha": "3122ae1c27a89b43f530d77a4ec00b3dad1edb7b",
-      "date": "2026-11-01"
-    },
     "docs/audits/reusable-workflow-secrets.md": {
       "sha": "2ebc5177a729dd8b6025ea36afdd1b305f7b536f",
       "date": "2026-10-05"
