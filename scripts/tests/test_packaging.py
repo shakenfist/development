@@ -433,6 +433,20 @@ class RenovateWorkflowDriftTest(CheckTestCase):
         self.assertNotEqual(pinned, RENOVATE_WORKFLOW)
         self.assert_pass(self._repo(pinned))
 
+    def test_a_different_hashin_pin_passes(self):
+        """hashin is pinned for Renovate to bump like Renovate itself."""
+        self.assertIn('PINNED_HASHIN_VERSION: 1.0.5\n', RENOVATE_WORKFLOW)
+        bumped = RENOVATE_WORKFLOW.replace(
+            'PINNED_HASHIN_VERSION: 1.0.5\n', 'PINNED_HASHIN_VERSION: 1.1.0\n')
+        self.assert_pass(self._repo(bumped))
+
+    def test_a_pin_is_not_a_line_it_does_not_name(self):
+        """Only the value of a PINNED_*_VERSION key is blanked."""
+        self.assert_fail(
+            self._repo(RENOVATE_WORKFLOW.replace(
+                'PINNED_HASHIN_VERSION: 1.0.5\n', 'HASHIN_VERSION: 1.0.5\n')),
+            containing='`HASHIN_VERSION: 1.0.5`')
+
     def test_other_action_refs_pass(self):
         """Renovate bumps the actions in each copy on its own schedule."""
         for ref in ('actions/checkout@v7', 'actions/setup-node@v7',
@@ -455,7 +469,7 @@ class RenovateWorkflowDriftTest(CheckTestCase):
 
     def test_a_comment_after_a_uses_line_is_compared(self):
         """The digest comment is on the uses: line, not the lines after."""
-        comment = '      # Installed in a step of its own, with no secret in its\n'
+        comment = '      # A requirements file pinned with --hash lines needs hashin, which\n'
         self.assertIn('uses: dtolnay/rust-toolchain@stable\n\n' + comment, RENOVATE_WORKFLOW)
         line = RENOVATE_WORKFLOW.splitlines().index(comment.rstrip('\n')) + 1
         self.assert_fail(
