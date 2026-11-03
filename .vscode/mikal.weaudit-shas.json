@@ -197,10 +197,6 @@
       "sha": "820c00c1669077d5e07e65439a01cdc3986c7178",
       "date": "2026-10-19"
     },
-    "docs/audits/npm-pin-indirect-dependencies.md": {
-      "sha": "33ce6a82ede2e64352d6a9718d6bdf380fb9cc8c",
-      "date": "2026-10-05"
-    },
     "docs/audits/npm-undeclared-direct-dependency.md": {
       "sha": "5db1892a6da069b1c7dd391e5c7027f54a38b0d7",
       "date": "2026-10-05"
@@ -421,10 +417,6 @@
       "sha": "833e40cc0de6afb4aa4fbe580cec3b545c513b51",
       "date": "2026-10-19"
     },
-    "scripts/audit/checks/npm_dependencies.py": {
-      "sha": "943ce339c00aa725090b244fb7037cc55791a388",
-      "date": "2026-10-19"
-    },
     "scripts/audit/checks/packaging.py": {
       "sha": "878b7e61e42ae3c44283743a962083b28c51fcf5",
       "date": "2026-11-04"
@@ -616,10 +608,6 @@
     "scripts/tests/test_metadata.py": {
       "sha": "8901e339373ef8774ce56472a2aa32ad338b2926",
       "date": "2026-10-31"
-    },
-    "scripts/tests/test_npm_dependencies.py": {
-      "sha": "0896f21e5074d0d68ff9107e53f34fe454fb3873",
-      "date": "2026-10-21"
     },
     "scripts/tests/test_packaging.py": {
       "sha": "82bb9ee56ab41f3b22a4c1f466176273edb93918",

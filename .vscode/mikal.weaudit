@@ -305,10 +305,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/npm-pin-indirect-dependencies.md",
-      "author": "mikal"
-    },
-    {
       "path": ".claude/skills/standards-alignment/SKILL.md",
       "author": "mikal"
     },
@@ -517,10 +513,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/npm_dependencies.py",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/pr-re-review.yml",
       "author": "mikal"
     },
@@ -602,10 +594,6 @@
     },
     {
       "path": "scripts/tests/test_markdown.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_npm_dependencies.py",
       "author": "mikal"
     },
     {
