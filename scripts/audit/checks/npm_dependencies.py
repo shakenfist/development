@@ -145,6 +145,19 @@ RUN_KEY_RE = re.compile(r'^(?P<lead>[ \t]*(?:-[ \t]+)?)run:(?P<rest>.*)$')
 #: install".
 NPM_RESOLVING_RE = re.compile(r'(?:^|[|&;]\s*)npm\s+(?:install|i|add)\b')
 
+#: `--prefix <dir>` and `--prefix=<dir>`, the flag that points npm at a
+#: package root other than the working directory's. With it, the
+#: install reads and writes the manifest and lockfile under `<dir>`, not
+#: the project's.
+NPM_PREFIX_RE = re.compile(r'(?:^|\s)--prefix(?:=\S+|\s+\S+)')
+
+#: A global install and a lockfile refresh, neither of which touches the
+#: project's lockfile. `-g`/`--global` puts a tool on the runner's path;
+#: `--package-lock-only` resolves and rewrites the lockfile without
+#: installing anything, which is how a lockfile is deliberately
+#: refreshed before it is reviewed and merged.
+NPM_GLOBAL_RE = re.compile(r'(?:^|\s)(?:-g|--global)(?:\s|$)')
+
 #: A specifier carrying a URI scheme -- `node:`, `bun:`, `data:`,
 #: `https:` -- is never a package name.
 SCHEME_RE = re.compile(r'^[a-z][a-z0-9+.\-]*:')
@@ -708,6 +721,14 @@ def run_commands(content):
     library alone. The shapes it does not follow -- a quoted scalar
     spanning lines, an anchor -- are shapes no workflow in the fleet
     writes a command in.
+
+    A command continued across lines with a trailing backslash is one
+    command, and it is read as one: the backslash is dropped and the
+    next line joined on. Reading only the first physical line would put
+    the arguments after the backslash out of reach, so a package named
+    on a continuation line -- which is how the renovate workflow spells
+    its tool install -- would be invisible to anything reading these
+    commands.
     """
     commands = []
     key_column = None
@@ -730,7 +751,29 @@ def run_commands(content):
             key_column = len(match.group('lead'))
         elif rest and not rest.startswith('#'):
             commands.append(rest)
-    return commands
+    return _join_continuations(commands)
+
+
+def _join_continuations(commands):
+    """Fold backslash-continued lines into the command they continue.
+
+    A `run:` body that ends a line with `\\` carries the command on:
+    the shell joins the two, and so does this. The accumulator holds the
+    part before each backslash and the next command is appended to it,
+    which folds a run of continuations into one line as the shell would.
+    """
+    joined = []
+    buffer = ''
+    for command in commands:
+        piece = f'{buffer} {command}' if buffer else command
+        if piece.endswith('\\'):
+            buffer = piece[:-1].rstrip()
+        else:
+            buffer = ''
+            joined.append(piece)
+    if buffer:
+        joined.append(buffer)
+    return joined
 
 
 def workspace_reason(manifest):
@@ -861,7 +904,7 @@ class NpmPinIndirectDependencies(NpmPackageCheck):
             for command in run_commands(repo.workflow(name) or ''):
                 if not NPM_RESOLVING_RE.search(command):
                     continue
-                if re.search(r'(?:^|\s)(?:-g|--global)(?:\s|$)', command):
+                if NPM_GLOBAL_RE.search(command):
                     continue
                 # --package-lock-only resolves and writes the lockfile
                 # without installing anything, which is how a lockfile
@@ -870,12 +913,58 @@ class NpmPinIndirectDependencies(NpmPackageCheck):
                 # and merged, so it is the opposite of the problem.
                 if '--package-lock-only' in command:
                     continue
+                if self._is_tool_install_elsewhere(command):
+                    continue
                 found.append(
                     f'.github/workflows/{name} runs "{command}" rather '
                     f'than "npm ci", which re-resolves the declared '
                     f'ranges and rewrites the lockfile')
                 break
         return found
+
+    def _is_tool_install_elsewhere(self, command):
+        """A named package installed into a prefix outside the project.
+
+        `npm install --prefix "${RUNNER_TEMP}/renovate-bin" renovate@x`
+        is the renovate workflow installing a pinned Renovate into a
+        scratch directory. Like `-g`, it names a package and a package
+        root that is not the project's, so it resolves nothing in the
+        project's package.json and rewrites no lockfile the project
+        ships -- npm reads and writes the manifest and lockfile under
+        the prefix instead.
+
+        Both halves are required. A bare `npm install --prefix
+        packages/app`, with no package named, resolves that
+        sub-project's declared ranges and rewrites its lockfile, which
+        is the very failure this criterion exists to find; naming no
+        package there would exempt it. And `--prefix` is what moves the
+        write off the project: a named install without it (`npm install
+        left-pad`) adds to the project's own manifest and lockfile.
+        """
+        if not NPM_PREFIX_RE.search(command):
+            return False
+        match = NPM_RESOLVING_RE.search(command)
+        tokens = command[match.end():].split()
+        skip_next = False
+        for token in tokens:
+            if skip_next:
+                skip_next = False
+                continue
+            if token == '--prefix':
+                # The following token is the prefix path, not a package.
+                skip_next = True
+                continue
+            if token.startswith('-'):
+                continue
+            if token == '\\':
+                # A lone backslash is a line continuation, not a
+                # package. It only survives this far when run_commands
+                # has not folded the continuation in; reading it as the
+                # package would exempt the install on the strength of
+                # the continuation alone.
+                continue
+            return True
+        return False
 
 
 class NpmUnusedDeclaredDependency(NpmPackageCheck):
