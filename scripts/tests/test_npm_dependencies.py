@@ -253,6 +253,62 @@ class NpmPinIndirectDependenciesTest(NpmFixtureMixin, CheckTestCase):
             '      - run: npm install --package-lock-only\n')
         self.assert_pass(self.check())
 
+    def test_a_prefixed_tool_install_is_not_a_project_install(self):
+        """A named package installed into a prefix outside the project.
+
+        The renovate workflow installs a pinned Renovate into a scratch
+        directory with `npm install --prefix "${RUNNER_TEMP}/..."
+        renovate@x`, naming the package on a backslash continuation.
+        Like `-g`, it reads and writes a manifest and lockfile under the
+        prefix, not the project's, so it must not be reported. hunkydory
+        is the one fleet repository with a root package.json, so it is
+        the only place this template and this criterion meet.
+        """
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'])
+        self.fixture.workflow(
+            'renovate.yml',
+            'jobs:\n  b:\n    steps:\n'
+            '      - name: Install Renovate\n'
+            '        run: |\n'
+            '          npm install --prefix "${RUNNER_TEMP}/renovate-bin" '
+            '--ignore-scripts --no-audit --no-fund \\\n'
+            '              "renovate@44.192.2"\n')
+        self.assert_pass(self.check())
+
+    def test_a_prefixed_install_without_a_package_still_fails(self):
+        """`--prefix` alone does not make an install a tool install.
+
+        `npm install --prefix packages/app` with no package named
+        resolves that sub-project's declared ranges and rewrites its
+        lockfile -- the failure this criterion looks for, reached
+        through a subdirectory. Exempting every `--prefix` would hide
+        it, so the exemption needs a package named too.
+        """
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'])
+        self.fixture.workflow(
+            'ci.yml',
+            'jobs:\n  b:\n    steps:\n'
+            '      - run: npm install --prefix packages/app\n')
+        self.assert_fail(self.check(), containing='npm install')
+
+    def test_a_named_install_without_a_prefix_still_fails(self):
+        """A package added to the project's own tree is not exempt.
+
+        `npm install left-pad` without `--prefix` resolves and writes
+        the project's own lockfile, so naming a package is not on its
+        own enough to clear it: the prefix is what moves the write
+        elsewhere.
+        """
+        self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
+        self.lockfile(['left-pad'])
+        self.fixture.workflow(
+            'ci.yml',
+            'jobs:\n  b:\n    steps:\n'
+            '      - run: npm install left-pad\n')
+        self.assert_fail(self.check(), containing='npm install')
+
     def test_a_commented_out_install_is_not_an_install(self):
         self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
         self.lockfile(['left-pad'])
