@@ -1972,9 +1972,36 @@ Time (UTC+11). To capture:
 
 #### Execution notes
 
-Filled in as departures from the plan happen -- a step run out of
-order, a decision changed, a token supplied differently, a CI run's
-link and result, each with its date and timezone.
+- 2026-11-04 AEDT: back brief answered. Mikal chose to implement 3c
+  this session and to prepare 3a for him to run (it needs `admin:org`
+  and the bot PATs, which no sub-agent holds), holding 3b until the
+  workflow-ref-trust phase-3 branch lands (decision 5). He confirmed
+  3c ships without the team rule while open question 3 is open
+  (decision 3). Steps therefore ran out of the table's order: 3c
+  first, 3a and 3b to follow.
+- 2026-11-04 AEDT: 3c built by one opus sub-agent at high effort. It
+  ran in the phase worktree rather than a separate one -- the plan's
+  "worktree" isolation guards against contention between steps, and
+  3c was the only code step this session, so there was none; the
+  agent also had to read this phase section, which lives only on the
+  phase branch. It left its work uncommitted and the management
+  session reviewed the diff, reproduced the tests (157 pass) and the
+  live verdict (`bypass-actor-identity` -> pass on development:
+  "admits only the default branch main"), and committed. Two edits
+  beyond the deliverable list were kept because a network check must
+  appear in both derived sets or their tests fail:
+  `audit_snapshot.NETWORK_CHECKS`, and the contract test's expected
+  tool-failure set for an empty directory. One interpretive choice
+  the brief left open: a repository with a pull-request ruleset but
+  no `review-marks` environment is a pass (failing closed, open
+  question 4), not a fail. not_applicable is returned from `run()`
+  via `skip()`, as the other API checks do, not from `applies()`,
+  since the decision needs API data.
+- 2026-11-04 AEDT: 3a materials prepared for Mikal (a throwaway
+  hunkydory probe workflow and the operator readings); the team
+  removal and the two authenticated pushes are his to run. 3b held:
+  the workflow-ref-trust phase-3 branch still rewrites the file 3b
+  edits.
 
 #### Risks and mitigations
 
