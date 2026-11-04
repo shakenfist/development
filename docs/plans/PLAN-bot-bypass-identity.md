@@ -412,7 +412,7 @@ Out of scope:
 |-------|--------|--------|
 | 1. Operator inventory and App creation | Complete | 2a24d00 (#348) |
 | 2. `prune-reviews` mints an App token | Complete | 9f080cd (#354), b3ff906 (#356), 55f554e (#357), 9d1301b (#368) |
-| 3. Move the bypass and enforce it | Not started | |
+| 3. Move the bypass and enforce it | In progress | |
 | 4. Push audit | Not started | |
 
 <!-- shared-block: plan-status-vocabulary v1 -->
@@ -1811,9 +1811,134 @@ follow are opened on that evidence alone.
 
 ### Phase 3: move the bypass and enforce it
 
-Planning effort: high. Steps 3a and 3b change who can push to seven
-default branches, and a mistake either locks out review marks or
-leaves the old path open without anything saying so.
+Planning effort: high, as the master plan set it. Review effort:
+high: steps 3a and 3b change who can push to seven default branches,
+and a mistake either locks out review marks or leaves the old path
+open without anything saying so. Planned on 2026-11-04 against
+`9d1301b`, on the branch `bot-bypass-identity-phase-03-enforce`. This
+section replaces the three-row sketch the master plan carried for
+phase 3; the step briefs below are unchanged in substance.
+
+#### Scope
+
+In: removing `shakenfist-bot` from `sf-can-skip-merge-queue` and
+proving both halves of the enforcement (3a); the edits to
+`PLAN-workflow-ref-trust.md` that point its open question 1 at this
+plan's App and strike #211 from it (3b); the `bypass-actor-identity`
+criterion, its spec, its audit page and its tests (3c); closing
+#211.
+
+Out: anything about `sfconductor`'s own bypass beyond what open
+question 3 settled (the team rule waits on it, decision 3); widening
+`AUDIT_READ_TOKEN` so the audit can read `bypass_actors` (#352,
+decision 2); narrowing the `shakenfist-k3s-ci-arc` App's
+`administration: write` on hunkydory (33fl's k3s CI plan, its phase
+5); the push audit (phase 4).
+
+#### What the survey found
+
+Read on 2026-11-04 (Australian Eastern Daylight Time) against the
+tree at `9d1301b` and the GitHub API. Every factual premise the
+master plan's phase 3 sketch rests on still holds, so nothing in the
+sketch was corrected at source. Seven things are worth knowing
+before the step briefs are read.
+
+1. **The bypass is exactly two actors on all four rulesets.** andris
+   (ruleset 24700229), hunkydory (23805020), kerbside (20252051) and
+   ryll (18708684) each bypass `Integration:5538020` (the
+   `shakenfist-review-marks` App) and `Team:11722172`
+   (`sf-can-skip-merge-queue`), both `always`, and nothing else. So
+   3a takes the bot out of the team and the App keeps the only
+   automation bypass; 3c's team rule would flag `Team:11722172` on
+   all seven (decision 3).
+2. **`shakenfist-bot` is already demoted.** It is an organisation
+   *member*, not an owner (only `mikalstill` owns the org), and
+   carries `write`, not admin, on hunkydory, development and andris
+   (spot-checked; 3a re-records all eleven). Open question 5 is
+   settled as its default, so 3a's role check confirms nothing
+   restored the bot rather than changing anything.
+3. **The bot is still in the bypass team.** Membership of
+   `sf-can-skip-merge-queue` is `mikalstill`, `shakenfist-bot`,
+   `sfconductor`. Removing the bot leaves the two accounts open
+   question 3 is about, and the team itself stays a bypass actor.
+4. **Phase 2's App path is live on all four key-holders.** andris,
+   hunkydory, kerbside and ryll each push `prune-reviews` as
+   `shakenfist-review-marks[bot]` (phase 2 record), so phase 2's
+   "Order matters" precondition -- phase 3 must not start until those
+   four have merged and pushed as the App -- is met.
+5. **3c's targets all exist and the check does not.**
+   `scripts/audit/checks/github_config.py` carries
+   `DeleteBranchOnMerge`; `scripts/audit/registry.py` has `CHECKS`;
+   `scripts/tests/test_metadata.py` has `FROZEN_METADATA` and
+   `FROZEN_ISSUE_TITLES`; `scripts/tests/test_github_config.py` has
+   `CheckTestCase`; `docs/audits/README.md` and
+   `docs/audits/merge-queue-config.md` exist. Nothing named
+   `bypass-actor-identity` is in `scripts/` or `docs/audits/` yet,
+   so 3c adds, never edits.
+6. **#352 and #211 are both open.** #352 (a read-only App identity
+   for the audit) being open is what keeps 3c on the fallback shape:
+   `AUDIT_READ_TOKEN` cannot read `bypass_actors`, so the actor-type
+   rules live in the spec's reviewer-confirmed half, not in code
+   (decision 2). #211, reopened in step 1a, is still open and 3c
+   closes it.
+7. **No live ruleset names the admin `RepositoryRole`.** The four
+   rulesets bypass only the App and the team, so 3c's instruction to
+   "confirm its `actor_id` against a real ruleset GET" cannot be met
+   from the fleet. The implementer sources the id another way -- a
+   scratch ruleset GET, or GitHub's documented repository-role ids --
+   and says which in the commit and the test (decision 4).
+
+**One hazard, not a false premise.** 3b edits
+`PLAN-workflow-ref-trust.md`, and an active worktree
+(`development-wt-wrt-p3`, branch
+`workflow-ref-trust-phase-03-third-party-pinning`) is rewriting that
+same file by +315/-32 lines. The four passages 3b edits exist today
+-- open question 1's default (~line 225), the #211 residual (~241),
+step 2a's `actions` brief (~518) and step 2b's "documented set"
+(~504) -- but that branch may move or reword them. 3b re-verifies its
+targets at implementation time and lands after that branch has
+merged or is confirmed not to touch them (risk 5, decision 5).
+
+#### Decisions
+
+1. **3a is one operator action, not a sub-agent.** Removing a team
+   member needs `admin:org`, which no sub-agent carries (as in phase
+   1 and the 3a brief). The management session does it with the
+   operator and records the result; only the probe half (the
+   throwaway rejection workflow) could be a sub-agent, and it is
+   cheaper run inline with the operator watching the ruleset.
+2. **3c lands on the fallback shape.** #352 is open (survey item 6),
+   so `AUDIT_READ_TOKEN` cannot see `bypass_actors`. The criterion
+   measures only the `review-marks` environment and its branch
+   policy in code; the actor-type rules and the repository-level key
+   check are the spec's reviewer-confirmed half, as
+   `PLAN-workflow-ref-trust.md` step 2b does it. Phase 1 and Mikal
+   (phase 2 decision 8) already settled that #352 does not hold this
+   work; it is restated because it shapes every test 3c writes.
+3. **3c lands without the team rule.** Open question 3 (sfconductor)
+   is unresolved and `Team:11722172` is still a bypass actor on all
+   seven, so a team rule would file seven issues this plan cannot
+   close. The criterion reports team bypass actors in the spec's
+   reviewer-confirmed half without failing on them, and the commit
+   message states that and how many repositories it newly fails (the
+   prediction: none, if phases 1 and 2 did their job). The team rule
+   is a later follow-up, when open question 3 has an outcome, not
+   part of this phase.
+4. **The admin role's `actor_id` is sourced off the fleet.** No live
+   ruleset bypasses the admin role (survey item 7), so the
+   implementer confirms the id from a scratch ruleset GET or
+   GitHub's documented role ids, not from a fleet ruleset, and
+   records which in the commit and the test.
+5. **3b runs last and lands after the workflow-ref-trust phase-3
+   branch settles.** That branch rewrites the file 3b edits (survey
+   hazard). 3b is the cheapest step and the one whose targets most
+   need to be stable, so it runs after 3a and 3c, re-reads its four
+   target passages against the then-current file, and is held while
+   the other branch is still open and touching them. If that branch
+   has already repointed open question 1 at the App, 3b confirms it
+   and only strikes #211.
+
+#### Steps
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
@@ -1821,13 +1946,122 @@ leaves the old path open without anything saying so.
 | 3b | medium | sonnet | none | In this repository, amend `docs/plans/PLAN-workflow-ref-trust.md`: open question 1's default becomes the App from this plan rather than a team of one, with a sentence saying the residual it described is closed; step 2a's brief installs the App on `actions`, adds the key to the `review-marks` environment that phase 1 step 1b already created in `actions` (as an environment secret, never a repository one), and names the App as the only bypass actor; the "documented set" that step 2b's criterion compares `bypass_actors` against is that App. Step 2a's question of whether the audit token sees `bypass_actors` cites this plan's step 1a record (and 1b's, if it re-ran the probe) rather than measuring again. Remove the #211 entry from that plan's Future work and its related-issues list, citing this plan. Touch nothing else in that plan. |
 | 3c | high | opus | worktree | **Phase 1 measured the shape (record, 1a and 1b): `AUDIT_READ_TOKEN` sees neither `bypass_actors` nor a repository's secret list, under the security manager role too, so build the fallback shape described at the end of this brief: the check measures the `review-marks` environment and its branch policies only, and the bypass-actor rules and the repository-level key check live in the spec's reviewer-confirmed half, with the actor-type cases below as rows of the spec's table rather than tests of code, until a read identity that sees `bypass_actors` exists (#352).** Add a criterion `bypass-actor-identity` in `scripts/audit/checks/github_config.py`, following `DeleteBranchOnMerge` for the API-call shape, with id `bypass-actor-identity`, its `spec` and its `issue_title` (`Bypass actor identity`). For each ruleset that applies to the default branch and carries a `pull_request` rule, it judges every bypass actor by its `actor_type`, and reports each one that fails. `Team` fails. `RepositoryRole` passes only for the admin role (confirm its `actor_id` against a real ruleset GET rather than assuming it) and fails for any other. `OrganizationAdmin` passes. `Integration` passes only if it is the review-marks App (a module constant holding its id). `DeployKey` fails: a deploy key with write access is an automation credential, like the PATs this plan removes. Any other `actor_type` is an error, never a pass. The admin-role and `OrganizationAdmin` passes rest on 1b having left no automation identity as an owner or an admin, and in particular as an admin of any repository the App is installed on, where it could widen the environment's policy. The check cannot see that, so the spec puts it in its "Required, but confirmed by a reviewer" half. That half also records the residual phase 1 accepted on hunkydory (execution notes, 2026-10-30 18:15): the runner-controller App `shakenfist-k3s-ci-arc` holds `administration: write` there until 33fl's k3s CI plan narrows it at its phase 5, and whoever holds its key could widen hunkydory's `review-marks` policy, read the review-marks key from a branch workflow, and mint push tokens for all four repositories the App is installed on. Separately, in every repository whether or not it has a pull-request ruleset, the check reads `repos/{org}/{repo}/environments/review-marks`. Where the environment exists, it fails unless the policy is exactly open question 4's default-branch policy: `protected_branches` false, `custom_branch_policies` true, and one policy, `type: branch`, named for the default branch with no glob characters. It also fails if `REVIEW_MARKS_APP_KEY` appears in `repos/{org}/{repo}/actions/secrets` (names only), since a repository-level copy is readable from any branch. `AUDIT_READ_TOKEN` cannot list secrets (phase 1's record), so that half moves to the spec's reviewer-confirmed half, beside the organisation-level check, which the audit cannot make either way. A ruleset response without `bypass_actors` is an error, never a pass, as in `PLAN-workflow-ref-trust.md`'s phase 2. A repository with no pull-request ruleset and no `review-marks` environment reports `not_applicable` with that reason. **Step 1b recorded that `AUDIT_READ_TOKEN` cannot see `bypass_actors`, under the security manager role too**, so do not widen the token. Instead, the check measures only the environment and secret half above. The spec moves the bypass list to its reviewer-confirmed half, as `PLAN-workflow-ref-trust.md` step 2b does, and the actor-type tests below become tests of the spec's table rather than of code. Register it in `CHECKS` in `scripts/audit/registry.py`, write `docs/audits/bypass-actor-identity.md` following `docs/audits/README.md`, add its row there, add its lines to `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`, and add pass, fail and not-applicable tests to `scripts/tests/test_github_config.py` using `CheckTestCase` and a stubbed GitHub client, including a team bypass, a non-admin repository role, an `OrganizationAdmin` actor (a pass), a `DeployKey` actor, an unrecognised `actor_type` (an error), a missing `bypass_actors` key, an unknown App, an environment with no branch policy in a repository with no pull-request ruleset, an environment whose policies add a tag policy beside the default branch, one whose branch policy is a wildcard, one with `protected_branches: true` (each a fail), a repository-level `REVIEW_MARKS_APP_KEY`, and a repository with neither a pull-request ruleset nor the environment (`not_applicable`). Before writing the team rule, decide with the operator what `sfconductor`'s bypass becomes (open question 3). If it stays a team, the spec says the check is expected to fail there and why, rather than exempting it in code. But then 3c's first weekly run files seven issues that nothing in this plan can close. So 3c does not land with the team rule until open question 3 has an outcome. Until then, land the criterion without the team rule, reporting team bypass actors in the spec's reviewer-confirmed half, and say so in the commit message. State in the commit message how many repositories it newly fails, including this one, against this prediction. If open question 3 leaves `sf-can-skip-merge-queue` in place for `mikalstill` and `sfconductor`, all seven repositories in Situation fail on the team rule. This repository, actions (until `PLAN-workflow-ref-trust.md` step 2a), sfui and kerbside-client carry only the "Protect default branch history" ruleset, with no `pull_request` rule. They pass on the environment half, because 1b gave each one its policy. So seven newly fail, none of them this one. On the fallback shape, the team rule is not measured, and if 1b and 2b did their job nothing newly fails. |
 
-**Definition of done.** `shakenfist-bot` is not a member of
-`sf-can-skip-merge-queue`, and its role is what open question 5
-settled; a push to a protected default branch with either bot PAT is
-rejected; `bypass-actor-identity` runs in the
-weekly audit and its results match what step 3a recorded; #211, reopened in
-step 1a, is closed from the pull request that lands 3c, with a link to this
-plan.
+#### Record
+
+Filled in as the steps run; every cell cites the run, pull request,
+command or ruleset GET it came from and the date, and a cell that
+could not be read says so. Dates are Australian Eastern Daylight
+Time (UTC+11). To capture:
+
+- 3a: the eleven
+  `repos/shakenfist/<r>/collaborators/shakenfist-bot/permission`
+  reads (write, not admin); `sf-can-skip-merge-queue` membership
+  after the removal; both rejection probes on hunkydory's `develop`
+  (the `DEPENDENCIES_TOKEN` push and the `RENOVATE_TOKEN` push, each
+  refused by hunkydory's ruleset) with their rule-suite ids and the
+  deletion of the probe workflow and branch; and each of
+  andris/hunkydory/kerbside/ryll's `bypass_actors` after the removal
+  (the App, plus the team for the human accounts).
+- 3c: how many repositories the criterion newly fails on its first
+  weekly run, against the prediction of none; the source of the
+  admin-role `actor_id` (decision 4); the audit run that reports the
+  new criterion.
+- 3b: the workflow-ref-trust pull request or commit this rides
+  behind, and which of its four target passages the phase-3 branch
+  had already changed.
+
+#### Execution notes
+
+Filled in as departures from the plan happen -- a step run out of
+order, a decision changed, a token supplied differently, a CI run's
+link and result, each with its date and timezone.
+
+#### Risks and mitigations
+
+1. **Removing the bot from the team restores a grant it needed.**
+   Open question 5 demoted the bot to write-only, and survey item 2
+   confirms it stayed there; its credentials push branches and open
+   pull requests, which `write` and the org's `write` base
+   permission already allow. 3a re-records all eleven permissions to
+   prove no grant was restored. If one was, stop and report.
+2. **The bypass is removed but the App's is not proven.** 3a's
+   second half reads the next `prune-reviews` run in all four
+   key-holders: each must land or find nothing to do, pushing as the
+   App. A run that now fails means the removal took the App's bypass
+   too, not just the bot's -- stop and restore from the rule-suite
+   history.
+3. **The rejection probe pushes to a real branch.** It pushes an
+   empty commit on the tip of hunkydory's `develop` from a throwaway
+   workflow on its own branch, deleted afterwards, and each probe
+   step fails the run if its secret resolves empty, so an unset
+   secret can never read as a rejection. An accepted push means the
+   bypass is still there: stop, open a revert at once, do not go on.
+4. **3c's first weekly run files issues this plan cannot close.**
+   Only if the team rule lands -- decision 3 keeps it out -- or if a
+   repository's environment has drifted. The commit states the
+   prediction (none newly fail); a run that files more is a real
+   finding about an environment, triaged then, not suppressed.
+5. **3b conflicts with the workflow-ref-trust phase-3 branch.** Both
+   edit `PLAN-workflow-ref-trust.md` (survey hazard). Decision 5
+   sequences 3b last and re-verifies its targets; the check is that
+   the four target passages still read as the brief expects before
+   3b edits them, and the mitigation is to land after that branch.
+
+#### Definition of done
+
+Every item is checked by the management session from the API, the
+tree and the record, not from a sub-agent's summary.
+
+* `gh api
+  orgs/shakenfist/teams/sf-can-skip-merge-queue/memberships/shakenfist-bot`
+  returns 404 (not a member), and
+  `repos/shakenfist/<r>/collaborators/shakenfist-bot/permission` is
+  `write` for all eleven repositories.
+* A push to a protected default branch authenticated with
+  `DEPENDENCIES_TOKEN`, and again with `RENOVATE_TOKEN`, is rejected
+  by the ruleset; the rejection is in the rule-suite history, and
+  the probe workflow and branch are gone.
+* The next `prune-reviews` run in andris, hunkydory, kerbside and
+  ryll lands or finds nothing to do, pushing as
+  `shakenfist-review-marks[bot]`, and each ruleset's `bypass_actors`
+  is the App plus the team.
+* `grep -rn 'bypass-actor-identity' scripts/ docs/audits/` shows the
+  criterion registered in `CHECKS`, its page in `docs/audits/`, its
+  row in `docs/audits/README.md`, and its lines in `FROZEN_METADATA`
+  and `FROZEN_ISSUE_TITLES`.
+* `python3 -m pytest scripts/tests/test_github_config.py
+  scripts/tests/test_metadata.py` passes, including the
+  pass/fail/not-applicable cases the 3c brief enumerates (team,
+  non-admin role, `OrganizationAdmin`, `DeployKey`, unknown
+  `actor_type` as error, missing `bypass_actors` as error, unknown
+  App, the environment-policy cases, a repository-level
+  `REVIEW_MARKS_APP_KEY`, and the `not_applicable` case).
+* The first scheduled weekly audit after 3c lands reports
+  `bypass-actor-identity` with the verdicts step 3a recorded, and
+  the count of newly-failing repositories matches the commit's
+  prediction.
+* #211 is closed from the pull request that lands 3c, with a link to
+  this plan.
+* In `PLAN-workflow-ref-trust.md`, open question 1's default names
+  this plan's App rather than a team of one, and #211 appears
+  nowhere in its Future work or related-issues list.
+* `pre-commit run --all-files` passes, and `python3
+  scripts/audit-check.py --repo-path . --repo-name development`
+  reports the same verdicts as on `9d1301b` for the existing checks,
+  plus the new `bypass-actor-identity` row.
+
+#### Back brief
+
+Before 3a, back brief Mikal on decision 1 (3a is his operator
+action, with the probe run inline), decision 3 (3c lands without the
+team rule and open question 3 stays open), and decision 5 (3b
+sequenced behind the workflow-ref-trust phase-3 branch). 3a is cheap
+to propose and expensive to undo: removing the team membership and
+proving the rejection is the gate, so show him each ruleset's
+`bypass_actors` before and after. 3c is the large step, and its
+shape -- the fallback, no team rule -- is fixed by #352 and open
+question 3, so the back brief confirms those have not changed rather
+than reopening them.
 
 ### Phase 4: push audit
 
