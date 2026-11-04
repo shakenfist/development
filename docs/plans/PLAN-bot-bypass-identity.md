@@ -411,7 +411,7 @@ Out of scope:
 | Phase | Status | Merged |
 |-------|--------|--------|
 | 1. Operator inventory and App creation | Complete | 2a24d00 (#348) |
-| 2. `prune-reviews` mints an App token | In progress | |
+| 2. `prune-reviews` mints an App token | Complete | 9f080cd (#354), b3ff906 (#356), 55f554e (#357), 9d1301b (#368) |
 | 3. Move the bypass and enforce it | Not started | |
 | 4. Push audit | Not started | |
 
