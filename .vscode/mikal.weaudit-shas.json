@@ -69,6 +69,10 @@
       "sha": "0c0cfe362b24e6bc67ccf1ddd09dacc722a0524f",
       "date": "2026-11-01"
     },
+    ".github/workflows/renovate.yml": {
+      "sha": "018e1de7dbd662b136af864557bf74a7301f465e",
+      "date": "2026-11-05"
+    },
     ".github/workflows/secret-scan.yml": {
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
       "date": "2026-08-24"
@@ -192,6 +196,10 @@
     "docs/audits/mermaid-lint-ci.md": {
       "sha": "820c00c1669077d5e07e65439a01cdc3986c7178",
       "date": "2026-10-19"
+    },
+    "docs/audits/npm-pin-indirect-dependencies.md": {
+      "sha": "38d030fe3fc547238a6109e280051312e4585532",
+      "date": "2026-11-05"
     },
     "docs/audits/npm-undeclared-direct-dependency.md": {
       "sha": "5db1892a6da069b1c7dd391e5c7027f54a38b0d7",
@@ -413,6 +421,10 @@
       "sha": "833e40cc0de6afb4aa4fbe580cec3b545c513b51",
       "date": "2026-10-19"
     },
+    "scripts/audit/checks/npm_dependencies.py": {
+      "sha": "f38312108bb0aa28e9f19f691c13c76552ef0f33",
+      "date": "2026-11-05"
+    },
     "scripts/audit/checks/packaging.py": {
       "sha": "878b7e61e42ae3c44283743a962083b28c51fcf5",
       "date": "2026-11-04"
@@ -605,6 +617,10 @@
       "sha": "8901e339373ef8774ce56472a2aa32ad338b2926",
       "date": "2026-10-31"
     },
+    "scripts/tests/test_npm_dependencies.py": {
+      "sha": "9a3e2120c3f46dfea2787b13856ef264f805ca3d",
+      "date": "2026-11-05"
+    },
     "scripts/tests/test_packaging.py": {
       "sha": "82bb9ee56ab41f3b22a4c1f466176273edb93918",
       "date": "2026-11-04"
@@ -784,6 +800,10 @@
     "templates/renovate/renovate.json": {
       "sha": "c91385eb8cc7717ff9f3c5dbebad3de2ee8b70b2",
       "date": "2026-10-31"
+    },
+    "templates/renovate/renovate.yml": {
+      "sha": "018e1de7dbd662b136af864557bf74a7301f465e",
+      "date": "2026-11-05"
     },
     "templates/review-tracking/README.md": {
       "sha": "267b478c30fea696f20ac28e0b0cc39e08f35146",
