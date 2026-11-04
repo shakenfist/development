@@ -311,6 +311,10 @@ FROZEN_METADATA = {
         'spec': 'docs/audits/release-environment-protection.md',
         'template': None,
     },
+    'bypass-actor-identity': {
+        'spec': 'docs/audits/bypass-actor-identity.md',
+        'template': None,
+    },
     'eol-distro': {
         'spec': 'docs/audits/eol-distro.md',
         'template': None,
@@ -349,6 +353,7 @@ FROZEN_ISSUE_TITLES = {
     'merge-queue-config': 'Merge queue reasonability',
     'release-merge-queue': 'Release merge queue',
     'release-environment-protection': 'Release environment protection',
+    'bypass-actor-identity': 'Bypass actor identity',
     'workflow-permissions': 'Workflow standards',
     'pre-commit-config': 'Workflow standards (linting)',
     'review-marks-pre-commit': 'Workflow standards (review marks)',
@@ -656,6 +661,7 @@ class ContractTest(unittest.TestCase):
         failed = sorted(check.id for check, result in self.results(self.repo())
                         if result['status'] == self.TOOL_FAILURE)
         self.assertEqual([
+            'bypass-actor-identity',
             'default-branch-naming', 'delete-branch-on-merge',
             'github-security', 'header-sanitization', 'llm-doc-naming',
             'merge-queue-config', 'mermaid-lint-ci',

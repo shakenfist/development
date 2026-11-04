@@ -781,6 +781,74 @@ jobs:
         }), containing='expected a list of rules')
 
 
+class BypassActorIdentityTest(GithubConfigTestCase):
+    """The environment half; the actor-type rules are the spec's to confirm."""
+
+    check_class = github_config.BypassActorIdentity
+
+    DEFAULT_POLICY = {'protected_branches': False, 'custom_branch_policies': True}
+
+    def environment(self):
+        return f'api {self.REPO_PATH}/environments/review-marks'
+
+    def policies(self):
+        return (f'api {self.REPO_PATH}/environments/review-marks'
+                '/deployment-branch-policies?per_page=100')
+
+    def answers(self, rules=None, deployment_policy=None, branch_policies=None,
+                branch='develop'):
+        """The four scripted answers, defaulting to a compliant repository."""
+        if rules is None:
+            rules = [{'type': 'pull_request'}, {'type': 'merge_queue'}]
+        if deployment_policy is None:
+            deployment_policy = self.DEFAULT_POLICY
+        if branch_policies is None:
+            branch_policies = [{'name': branch, 'type': 'branch'}]
+        return {
+            self.api('.default_branch'): CompletedCommand(stdout=f'{branch}\n'),
+            self.rules(branch): CompletedCommand(stdout=json.dumps(rules)),
+            self.environment(): CompletedCommand(stdout=json.dumps({
+                'name': 'review-marks',
+                'deployment_branch_policy': deployment_policy})),
+            self.policies(): CompletedCommand(stdout=json.dumps({
+                'total_count': len(branch_policies),
+                'branch_policies': branch_policies})),
+        }
+
+    def test_the_default_branch_policy_passes(self):
+        result = self.assert_pass(self.run_with(self.answers()))
+        self.assertIn('review-marks', result['details'])
+
+    def test_no_branch_policy_fails(self):
+        result = self.run_with(self.answers(branch_policies=[]))
+        self.assert_fail(result, containing='defines none')
+
+    def test_a_tag_policy_beside_the_branch_policy_fails(self):
+        result = self.run_with(self.answers(branch_policies=[
+            {'name': 'develop', 'type': 'branch'},
+            {'name': '*', 'type': 'tag'}]))
+        self.assert_fail(result, containing='2 deployment policies')
+
+    def test_a_wildcard_branch_name_fails(self):
+        result = self.run_with(self.answers(branch_policies=[
+            {'name': 'develop*', 'type': 'branch'}]))
+        self.assert_fail(result, containing='wildcard')
+
+    def test_protected_branches_true_fails(self):
+        result = self.run_with(self.answers(deployment_policy={
+            'protected_branches': True, 'custom_branch_policies': False}))
+        self.assert_fail(result, containing='protected_branches is True')
+
+    def test_no_ruleset_and_no_environment_is_not_applicable(self):
+        result = self.run_with({
+            self.api('.default_branch'): CompletedCommand(stdout='develop\n'),
+            self.rules('develop'): CompletedCommand(stdout='[]'),
+            self.environment(): CompletedCommand(
+                returncode=1, stderr='gh: Not Found (HTTP 404)'),
+        })
+        self.assert_skip(result, containing='no "review-marks" environment')
+
+
 class ScopeCoverageTest(CheckTestCase):
     """The criterion that measures the fleet rather than one repository."""
 
