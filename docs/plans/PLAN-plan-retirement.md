@@ -1053,8 +1053,8 @@ nearly deleting something.
 | Repository | Plans retired | Plans left, and why | Issues | Review | Skill revision |
 |------------|---------------|---------------------|--------|--------|----------------|
 | divergulent, #143, `c7a980c` | 3: `full-machine-run`, `faster-full-run`, `generated-marking` | none; 0 eligible after | #139-#142 | 3 rounds | !21, `956b2fa` |
-| kerbside, #686, `d2971e6` | 4: `test-harness`, `rust-proxy`, `host-subject`, `kerbside-vdi-tokens` | none; 1 cross-repository row (Shaken Fist's deployer plan) stays by design | #677-#685 | asked for nothing | !22, `dfebae1` |
-| ryll, #700, `0c42528` | 6 of 23, decision 2's batch: `initial`, `pip-distribution`, `hamburger-menu`, `pr31-followup`, `deferred-debt`, `crate-extraction` | 17 eligible, for phase 4's audit issue; 12 further finished plans sit in a table with no Status column and can never be eligible | #684, #693, #694, #697-#699; #706 and #707 from the review | 3 rounds, 1 `fix` declined | !23, pending |
+| kerbside, #686, `d2971e6` | 4: `test-harness`, `rust-proxy`, `host-subject`, `kerbside-vdi-tokens` | none; 1 cross-repository row (Shaken Fist's deployer plan) stays by design | #677-#685 here, and ryll#684 | asked for nothing | !22, `dfebae1` |
+| ryll, #700, `0c42528` | 6 of 23, decision 2's batch: `initial`, `pip-distribution`, `hamburger-menu`, `pr31-followup`, `deferred-debt`, `crate-extraction` | 17 eligible, for phase 4's audit issue; 12 further finished plans sit in a table with no Status column and can never be eligible | #693, #694, #697-#699 from this pilot, #706 and #707 from its review; ryll#684 is kerbside's | 3 rounds, 1 `fix` declined | !23, pending |
 
 Each pull request's body names the plans it left and the items it
 dropped, and each commit carries its own plan's reasoning, so the
@@ -1164,6 +1164,13 @@ counts, first:
   `(retired)` marker and the preamble `rewrite-index` now writes; and
   that a local convention for finished plans is reconciled by the
   retirement that contradicts it.
+
+* **An issue count is not per repository.** The definition of done
+  compares each repository's `from-retired-plan` issues with what its
+  pull request body claims, and ryll holds six while its own pilot
+  filed five: kerbside's pilot filed ryll#684 there, as the skill
+  tells it to. Phase 4's criterion should count where an issue was filed
+  from, not where it landed.
 
 * **divergulent's three and kerbside's four retired rows predate the
   marker,** so `retire-plans check` fails them on
