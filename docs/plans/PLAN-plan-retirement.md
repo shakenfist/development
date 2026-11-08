@@ -222,7 +222,7 @@ human merging the pull request.
 |-------|--------|--------|
 | 1. Retirement convention | Complete | f7b1219 (#333) |
 | 2. `retire-plans` helper and skill | Complete | 8010a22 (#342); llm-setup 3a9f268 (!20) |
-| 3. Pilot | In progress | |
+| 3. Pilot | Complete | divergulent c7a980c (#143), kerbside d2971e6 (#686), ryll 0c42528 (#700); llm-setup 956b2fa (!21), dfebae1 (!22), !23 pending |
 | 4. `plan-retirement` criterion | Not started | |
 | 5. Push audit | Not started | |
 
@@ -1037,7 +1037,139 @@ pull request). Both are cheap to change before the pilots start and
 expensive after: the batch is the ryll review's size, and the audits
 are a sub-agent pass per repository.
 
-Merged: (one line per pilot pull request and per skill revision)
+Merged: divergulent `c7a980c` (#143); kerbside `d2971e6` (#686);
+ryll `0c42528` (#700); llm-setup `956b2fa` (!21), `dfebae1` (!22)
+and the ryll revision (!23, pending).
+
+#### Phase 3 execution notes
+
+2026-10-31 to 2026-11-08 (AEDT). Three pilots, 13 plans retired,
+22,000 lines of plan deleted and 19 issues filed. The skill survived
+all three, and what it got wrong was almost never mechanical: the
+helper's gaps were found by using it (a build input it had never
+seen, an order computed over the wrong set), and the skill's by
+nearly deleting something.
+
+| Repository | Plans retired | Plans left, and why | Issues | Review | Skill revision |
+|------------|---------------|---------------------|--------|--------|----------------|
+| divergulent, #143, `c7a980c` | 3: `full-machine-run`, `faster-full-run`, `generated-marking` | none; 0 eligible after | #139-#142 | 3 rounds | !21, `956b2fa` |
+| kerbside, #686, `d2971e6` | 4: `test-harness`, `rust-proxy`, `host-subject`, `kerbside-vdi-tokens` | none; 1 cross-repository row (Shaken Fist's deployer plan) stays by design | #677-#685 | asked for nothing | !22, `dfebae1` |
+| ryll, #700, `0c42528` | 6 of 23, decision 2's batch: `initial`, `pip-distribution`, `hamburger-menu`, `pr31-followup`, `deferred-debt`, `crate-extraction` | 17 eligible, for phase 4's audit issue; 12 further finished plans sit in a table with no Status column and can never be eligible | #684, #693, #694, #697-#699; #706 and #707 from the review | 3 rounds, 1 `fix` declined | !23, pending |
+
+Each pull request's body names the plans it left and the items it
+dropped, and each commit carries its own plan's reasoning, so the
+table above is an index rather than the record.
+
+**What the pilots nearly lost.** All four are the same shape --
+reasoning whose only copy was in the plan, in a section that does not
+read like a decision -- and three of the four were caught by
+something other than the person doing the migration.
+
+* Two security passages in kerbside, both in a phase's *Discoveries
+  during execution*: a publishing token scoped to three crate names
+  and passed by environment variable, where `docs/releasing.md`
+  described a broader credential and called the narrow one a fault to
+  fix. Found by decision 5's push audit, which earned its cost here.
+
+* A back-brief correction in ryll: while a workspace member sits at
+  `0.0.0`, the `version =` half of a dual dependency spec must be
+  left off, because Cargo will not resolve `^0.1` against `0.0.0`.
+  The plan recorded it as "the plan's recommendation was wrong on
+  this point"; the docs still said the pre-correction version. Found
+  by the review.
+
+* Two dependency caveats in the same retirement, condensed past: the
+  small unconditional set every consumer pays for, and the per-
+  platform JPEG backends that are deliberately not feature-gated.
+  Found by the review, twice, since the first narrowing was still
+  incomplete.
+
+* An inverted conclusion, the worst of the four. `docs/design-
+  decisions.md` was given the three causes of a cross-frame
+  corruption bug as where a hunt should start; the plan's own last
+  status update is headed "three original bugs fixed, symptom
+  persists" and ranks five surviving hypotheses. Reading the plan
+  front to back put its superseded opening into the docs as current.
+  Found by the review, and now `docs/plans/OPEN-QUESTIONS.md` Q6.
+
+**The reviewer earned its rounds.** divergulent took three, ryll
+three, kerbside none. Of ryll's rounds, three of the ten actionable
+items were the losses above; the rest were a `completed/README.md`
+that said plans "are kept (rather than deleted)", a
+`docs/plans/index.md` that did not say what a pinned link means, and
+prose about code the earlier rounds had added. The third round was
+the stopping point: two of its five actionable items were about text
+rounds one and two wrote, and its only `fix` item was a third request
+for a permalink verification already performed and reported twice.
+Stopping on the trajectory rather than on an empty item list is the
+rule that held.
+
+**Fifteen gaps, and where they went.** ryll's pilot recorded R1-R15.
+Eleven became the helper and skill changes in !23; R6 and part of R7
+are phase 4's, below. The two most general: a plan's dated status
+updates are read newest first, because the correction is at the end
+and the superseded text is at the front; and a repository's own
+convention for finished plans is reconciled in the retirement, not
+left for the review to find.
+
+**The skill's size, which Mikal asked 3f to settle.** SKILL.md had
+reached 354 lines and was still growing a case per pilot. It is now
+the procedure, and the case law lives in `references/reasoning.md`
+and `references/pointers.md`, which the steps that need them say to
+read. Thirteen new items went in and the skill lost 32 lines. The
+rule for the next pilot: a new case goes in a reference unless it
+changes the procedure.
+
+**Bulk mode: not needed.** *Future work* asked whether ryll's
+`PLAN-deferred-debt.md` pattern -- one sweep of future work across
+many finished plans -- should become a mode of the skill. The only
+problem it would solve is one item deferred by two plans in a run,
+and !22 already handles that by triaging it once with the plan whose
+docs own the area; the six-plan ryll run hit no duplicate at all. A
+bulk mode would also have to give up one commit per plan, which is
+what lets a reviewer read each deleted passage against its new home.
+The bullet is struck from *Future work*. ryll's own sweep was a
+paying-down exercise, not a retirement, and it is what made those
+plans retirable.
+
+**Corrections phase 4's brief needs.** Which rows the criterion
+counts, first:
+
+* **Count** a row with a terminal status, a local plan link, and a
+  status-change clock older than the threshold. **Do not count** a
+  row whose Plan link is a permalink into this repository (retired
+  already), a row linking a plan elsewhere or by branch (kerbside has
+  one, by design), or a row the index reader cannot parse -- those
+  are reported, not counted.
+
+* **A table with no Status column needs its own finding.** ryll holds
+  twelve finished plans that way, four of them the source plans
+  `PLAN-deferred-debt.md` harvested, and they can never be eligible
+  because eligibility reads a column they do not have. As the
+  criterion stands, a repository can keep finished plans indefinitely
+  by holding them in a statusless table and still be reported clean.
+
+* **`eligible` reads `origin/<default>`,** so it answers what is
+  eligible in the repository and not what a branch has done: on a
+  retirement branch it still reports every plan eligible and none
+  retired. Phase 3's own definition of done asks that kerbside report
+  "0 already retired", which was true before its retirement and is
+  now 4. Do not write a brief that asks for an `eligible` count as
+  on-branch confirmation; `check` is what reads the worktree.
+
+* **The rules document is behind the helper** on three points, all of
+  them things the criterion will want to assert:
+  `docs/plans/order.yml` and any other build input under
+  `docs/plans/`, whose entry is deleted rather than pinned; the
+  `(retired)` marker and the preamble `rewrite-index` now writes; and
+  that a local convention for finished plans is reconciled by the
+  retirement that contradicts it.
+
+* **divergulent's three and kerbside's four retired rows predate the
+  marker,** so `retire-plans check` fails them on
+  `retired-row-markers` until each index is marked and given the
+  preamble. Two one-line documentation changes, and they should land
+  before the criterion starts filing issues.
 
 ### Phase 4: `plan-retirement` criterion
 
@@ -1334,10 +1466,6 @@ chosen to defer to here, so that we do not forget them.
 
 * A `docs/plans/` size or count signal in the audit, if retirement
   turns out not to be enough on its own.
-* Folding ryll's `PLAN-deferred-debt.md` pattern -- a sweep of
-  future work across many finished plans -- into the skill as a
-  bulk mode, if the first fleet-wide round shows per-plan triage
-  missing cross-plan duplicates.
 
 ### Bugs fixed during this work
 
