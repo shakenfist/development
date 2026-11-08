@@ -222,7 +222,7 @@ human merging the pull request.
 |-------|--------|--------|
 | 1. Retirement convention | Complete | f7b1219 (#333) |
 | 2. `retire-plans` helper and skill | Complete | 8010a22 (#342); llm-setup 3a9f268 (!20) |
-| 3. Pilot | Blocked | divergulent c7a980c (#143), kerbside d2971e6 (#686), ryll 0c42528 (#700); llm-setup 956b2fa (!21), dfebae1 (!22); waiting on private/claude!24 |
+| 3. Pilot | Blocked | divergulent c7a980c (#143), kerbside d2971e6 (#686), ryll 0c42528 (#700); llm-setup 956b2fa (!21), dfebae1 (!22) |
 | 4. `plan-retirement` criterion | Not started | |
 | 5. Push audit | Not started | |
 
@@ -475,7 +475,7 @@ Checked against the tree on 2026-10-28, at `1426131`:
    `PlanIndexTest.test_a_link_to_another_repository_does_not_register_a_local_plan`
    (`scripts/tests/test_plans.py:1155`) already pins URL handling;
    `PlanAuditPhaseTest.test_a_plan_linked_by_absolute_url_is_not_judged`
-   (`:2077`) shows `plan-audit-phase` skips such rows too. The
+   (`:2095`) shows `plan-audit-phase` skips such rows too. The
    master plan's step 1c assumed a gap here; what is missing is a
    test whose fixture *is* a retired row (a permalink, a terminal
    status, no local file), named for the case it protects.
@@ -1019,12 +1019,19 @@ phase 5's text (decision 5).
   the batch (plus any that have newly qualified, named in the notes).
 * For each repository, `gh issue list -R shakenfist/<repo> --label
   from-retired-plan --state all --json number -q length` equals the
-  number of issues the pull request body says were filed.
-* The 2026-11 compliance page shows all three still passing
-  `plan-index`, `plan-source-references`, `plan-phase-references` and
-  `docs-external-links`.
-* `retire-plans eligible ~/src/shakenfist/kerbside` reports 0 already
-  retired.
+  number of issues filed **into** it, which is not the number its own
+  pull request filed: a retirement files an item's issue in the
+  repository the work is in, so kerbside's pilot filed one of ryll's
+  six (amended: see the execution notes).
+* `retire-plans check` passes the four criteria on each merged
+  default branch (amended: the 2026-11 compliance page carries the
+  same four verdicts, but it is generated weekly and the one current
+  here predates two of the three retirements).
+* `retire-plans check` is also the branch's own verification
+  (amended: this bullet asked that `eligible` report 0 already
+  retired on kerbside, which was true before its retirement and is 4
+  after it; `eligible` surveys `origin/<default>`, so it answers what
+  is eligible in a repository and never what a branch did).
 * Each skill revision is merged in llm-setup and has a `Merged:` line
   here, or the notes say that pilot needed none.
 * *Phase 3 execution notes* exists with a row per repository.
@@ -1039,15 +1046,19 @@ are a sub-agent pass per repository.
 
 Merged: divergulent `c7a980c` (#143); kerbside `d2971e6` (#686);
 ryll `0c42528` (#700); llm-setup `956b2fa` (!21), `dfebae1` (!22).
-The ryll skill revision is private/claude!24, still open; its line is
-completed when Mikal merges it.
+The ryll skill revision is private/claude!24, still open. Phase 4's
+first commit adds its merge sha here and sets phase 3 to `Complete`,
+as `plan-phase-landing` has a phase closed out by the next phase.
 
 #### Phase 3 execution notes
 
 2026-10-31 to 2026-11-08 (AEDT). Three pilots, 13 plans retired,
 23,600 deletions across the three pull requests' diffstats, and 19
-`from-retired-plan` issues filed by the retirements themselves (4, 10
-and 5), plus two more that ryll's review asked for. The skill
+`from-retired-plan` issues: 4, 10 and 5 counted by the pilot that
+filed them, and 4, 9 and 6 counted by the repository they landed in,
+since kerbside's pilot filed one of ryll's six. ryll's review asked
+for two more, #706 and #707, which carry no label and are in neither
+count. The skill
 survived all three, and what it got wrong was almost never
 mechanical: the helper's gaps were found by using it (a build input
 it had never seen, an order computed over the wrong set), and the
@@ -1057,7 +1068,7 @@ skill's by nearly deleting something.
 |------------|---------------|---------------------|--------|--------|----------------|
 | divergulent, #143, `c7a980c` | 3: `full-machine-run`, `faster-full-run`, `generated-marking` | none; 0 eligible after | #139-#142 | 3 rounds | !21, `956b2fa` |
 | kerbside, #686, `d2971e6` | 4: `test-harness`, `rust-proxy`, `host-subject`, `kerbside-vdi-tokens` | none; 1 cross-repository row (Shaken Fist's deployer plan) stays by design | #677-#685 here, and ryll#684 | asked for nothing | !22, `dfebae1` |
-| ryll, #700, `0c42528` | 6 of 23, decision 2's batch: `initial`, `pip-distribution`, `hamburger-menu`, `pr31-followup`, `deferred-debt`, `crate-extraction` | 17 eligible, for phase 4's audit issue; 12 further finished plans sit in a table with no Status column and can never be eligible | #693, #694, #697-#699 from this pilot, #706 and #707 from its review; ryll#684 is kerbside's | 3 rounds, 1 `fix` declined | !24, open |
+| ryll, #700, `0c42528` | 6 of 23, decision 2's batch: `initial`, `pip-distribution`, `hamburger-menu`, `pr31-followup`, `deferred-debt`, `crate-extraction` | 17 eligible, for phase 4's audit issue; 12 further finished plans sit in a table with no Status column and can never be eligible | #693, #694, #697-#699 from this pilot, #706 and #707 from its review, unlabelled; ryll#684 is kerbside's | 3 rounds, 1 `fix` declined | !24, open |
 
 Each pull request's body names the plans it left and the items it
 dropped, and each commit carries its own plan's reasoning, so the
@@ -1076,15 +1087,18 @@ than the fleet was for two days -- and the installed
 of the 13 retired plans, on its repository's merged default branch,
 `git grep -n -e '<stem>' | grep -v 'blob/[0-9a-f]\{40\}/'` prints
 nothing: only permalinks remain. `retire-plans check` passes all four
-audit criteria on all three merged default branches, with
-`permalink-ancestry` confirming 4, 21 and 14 pinned commits are
-ancestors of their default branch. The 2026-11 compliance page
-records all three compliant on the four criteria, but it was
-generated on 2026-11-01 and so predates the kerbside and ryll
-retirements; `check` runs the same criteria through the same
-`audit-check.py`, which is why it is quoted here instead. The
-`retired-row-markers` failure on divergulent and kerbside is a helper
-check rather than an audit criterion, so it moves no compliance cell.
+audit criteria on all three merged default branches, and
+`permalink-ancestry` confirms that the 4, 21 and 14 distinct commits
+pinned by permalinks in each tree are ancestors of its default
+branch. The 2026-11 compliance page records all three compliant on
+the four criteria, but it was generated on 2026-11-01 and so predates
+the kerbside and ryll retirements; `check` runs the same criteria
+through the same `audit-check.py`, which is why it is quoted here
+instead. On divergulent and kerbside `check` additionally reports
+`retired-row-markers` and **exits 1**, until step 4d marks their
+rows. A helper check has counted towards the exit status since !21
+added `permalink-ancestry`, which decision 3's wording predates; it
+is not an audit criterion, so it moves no compliance cell.
 
 **Per pilot, as decision 6 asks.** What the review agreed was missing
 from `docs/`, what the skill got wrong, and the change it led to:
@@ -1146,11 +1160,10 @@ R10, R11, R12 and R14. R7 is split -- that `eligible` surveys the
 default branch went into the skill, and that no brief should ask for
 an `eligible` count as on-branch confirmation is below. R6, the
 statusless table, is phase 4's alone. None was declined. The two most
-general: a plan's dated status
-updates are read newest first, because the correction is at the end
-and the superseded text is at the front; and a repository's own
-convention for finished plans is reconciled in the retirement, not
-left for the review to find.
+general: a plan's dated status updates are read newest first, because
+the correction is at the end and the superseded text is at the front;
+and a repository's own convention for finished plans is reconciled in
+the retirement, not left for the review to find.
 
 **The skill's size, which Mikal asked 3f to settle.** SKILL.md had
 reached 354 lines and was still growing a case per pilot. It is now
@@ -1232,10 +1245,10 @@ about the check.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 4a | high | opus | none | Add a `PlanRetirement` class to `scripts/audit/checks/plans.py`: id `plan-retirement`, spec `docs/audits/plan-retirement.md`, `issue_title = 'Completed plans awaiting retirement'`. N/A without `docs/plans/index.md`. Read the index with `iter_markdown_table_rows` and `plan_table_columns` as `PlanIndex` does; for each row with a local link and a terminal status, date the commit where its row last changed into a terminal status (open question 2). That needs the index's history, which the audit's `--depth 1` clone lacks: phase 4 planning decides between cloning with `--filter=blob:none` (full history, blobs fetched on demand) and walking `repos/shakenfist/<repo>/commits?path=docs/plans/index.md` through `repo.github.api_answer()`, and must say what either costs across the matrix. Fail listing each plan over `RETIREMENT_AGE_DAYS = 90` with its age, as `findings`; phase files play no part in the age. GitHub not answering raises `ToolFailure` (status `error`), never `fail` or `not_applicable`. Register in `CHECKS` in `scripts/audit/registry.py` beside the plan checks; write the spec following `docs/audits/README.md`, naming the `retire-plans` skill and linking `docs/plan-retirement.md`; add its row to `docs/audits/README.md`; add `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` lines in `scripts/tests/test_metadata.py`; tests in `scripts/tests/test_plans.py` covering pass, fail, N/A, a retirement permalink row (a `blob/<40-hex>/docs/plans/` link into this repository: already retired, so not counted), a cross-repository row (any other absolute link, including `blob/<branch>`: reported, never counted as retired -- kerbside's index has one), a table with no `Status` column, which is a finding of its own and not silently skipped, since ryll holds twelve finished plans that way and they can never be eligible, a row that went terminal long ago although its files were touched recently (eligible), a plan reopened and finished again (the clock restarts), a terminal-to-terminal change such as `Complete` to `Superseded` (the clock does not restart), an index rename, and API failure, using `FakeGitHub`. |
+| 4a | high | opus | none | Add a `PlanRetirement` class to `scripts/audit/checks/plans.py`: id `plan-retirement`, spec `docs/audits/plan-retirement.md`, `issue_title = 'Completed plans awaiting retirement'`. N/A without `docs/plans/index.md`. Read the index with `iter_markdown_table_rows` and `plan_table_columns` as `PlanIndex` does; for each row with a local link and a terminal status, date the commit where its row last changed into a terminal status (open question 2). That needs the index's history, which the audit's `--depth 1` clone lacks: phase 4 planning decides between cloning with `--filter=blob:none` (full history, blobs fetched on demand) and walking `repos/shakenfist/<repo>/commits?path=docs/plans/index.md` through `repo.github.api_answer()`, and must say what either costs across the matrix. Fail listing each plan over `RETIREMENT_AGE_DAYS = 90` with its age, as `findings`; phase files play no part in the age. GitHub not answering raises `ToolFailure` (status `error`), never `fail` or `not_applicable`. Register in `CHECKS` in `scripts/audit/registry.py` beside the plan checks; write the spec following `docs/audits/README.md`, naming the `retire-plans` skill and linking `docs/plan-retirement.md`; add its row to `docs/audits/README.md`; add `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` lines in `scripts/tests/test_metadata.py`; tests in `scripts/tests/test_plans.py` covering pass, fail, N/A, a retirement permalink row (a `blob/<40-hex>/docs/plans/` link into this repository: already retired, so not counted), a cross-repository row (any other absolute link, including `blob/<branch>`: reported, never counted as retired -- kerbside's index has one), a table with no `Status` column, which is reported in `findings` on an otherwise passing result and never fails under this check's title, since `issue_title` is frozen fleet-wide and 'Completed plans awaiting retirement' does not describe a table-shape defect -- phase 4 planning decides whether `plan-index`, which already judges the index's shape, should fail it under its own title, and the execution notes say why it matters that something does: ryll holds twelve finished plans that way and they can never be eligible, a row that went terminal long ago although its files were touched recently (eligible), a plan reopened and finished again (the clock restarts), a terminal-to-terminal change such as `Complete` to `Superseded` (the clock does not restart), an index rename, and API failure, using `FakeGitHub`. |
 | 4b | medium | sonnet | none | Decide, with the pilot results, whether the rule in `docs/plan-retirement.md` should also become a shared block in every `PLAN-TEMPLATE.md` (added to `PLAN_TEMPLATE_BLOCKS`). If yes, it reaches the fleet through the issues `plan-template` files, as `plan-phase-landing` did. |
 | 4c | medium | sonnet | none | Run the new check with `--dry-run` across the matrix and record here how many repositories it newly fails, including this one, before merging. |
-| 4d | low | sonnet | none | Bring `docs/plan-retirement.md` up to what the helper now does, on the three points phase 3's notes list: a build input under `docs/plans/` (`order.yml`) has its entry deleted rather than pinned; `rewrite-index` marks a retired row `(retired)` and writes the index preamble, which needs reconciling with the page's "Retired is not a status"; and a repository's local convention for finished plans is reconciled by the retirement that contradicts it. Then mark the already-retired rows in divergulent's and kerbside's indexes and add the preamble to each, one small pull request per repository, so `retire-plans check` passes fleet-wide. Land before 4c's dry run, so the criterion is measured against a fleet the rule describes. |
+| 4d | low | sonnet | none | Bring `docs/plan-retirement.md` up to what the helper now does, on the three points phase 3's notes list: a build input under `docs/plans/` (`order.yml`) has its entry deleted rather than pinned; `rewrite-index` marks a retired row `(retired)` and writes the index preamble, which needs reconciling with the page's "Retired is not a status"; and a repository's local convention for finished plans is reconciled by the retirement that contradicts it. Add the rule 4a asserts about a table with no `Status` column, which the page does not state today. Keep the page free of phase numbers, as phase 1's definition of done greps for. Then mark the already-retired rows in divergulent's and kerbside's indexes and add the preamble to each, one small pull request per repository, each running that repository's push audit as decision 5 requires and recorded in phase 4's `Merged` cell; the marker goes in the `Plan` cell, after the link, which is where `rewrite-index` puts it, although `check` accepts it anywhere on the row. Those two are why `retire-plans check` exits 1 on divergulent and kerbside today. Land before 4c's dry run, so the criterion is measured against a fleet the rule describes. |
 
 ### Phase 5: push audit
 
