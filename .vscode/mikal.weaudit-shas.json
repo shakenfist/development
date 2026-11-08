@@ -101,10 +101,6 @@
       "sha": "ef9028068ca302a5cd3fa21d9804df2f71590b57",
       "date": "2026-10-30"
     },
-    "docs/audits/README.md": {
-      "sha": "5804e56839aacb8a832a3ee1b489e84d05f5e856",
-      "date": "2026-10-31"
-    },
     "docs/audits/ci-review-automation.md": {
       "sha": "ceb7b6ba2ae57439dc519581f22e8e98530816a8",
       "date": "2026-10-19"
@@ -409,10 +405,6 @@
       "sha": "d23aace6aa4bf6e1db54ade3bd446fb2995ac32e",
       "date": "2026-10-19"
     },
-    "scripts/audit/checks/github_config.py": {
-      "sha": "ab2345f8c2b4caec488330716c8fb1af11333487",
-      "date": "2026-10-28"
-    },
     "scripts/audit/checks/llm_docs.py": {
       "sha": "833e40cc0de6afb4aa4fbe580cec3b545c513b51",
       "date": "2026-10-19"
@@ -457,10 +449,6 @@
       "sha": "ef1d4a20156613830ec787fde806cbf955e9501e",
       "date": "2026-09-02"
     },
-    "scripts/audit/registry.py": {
-      "sha": "216c738dce91ff0080ec528d829d72149d6d08f1",
-      "date": "2026-10-31"
-    },
     "scripts/audit/repo.py": {
       "sha": "b37e1300f9cc490d75ebd3889cba16c7d25a241a",
       "date": "2026-10-28"
@@ -504,10 +492,6 @@
     "scripts/audit_common.py": {
       "sha": "46e35a9bc799f7b392ca9394edcc266a4bdb5b35",
       "date": "2026-10-18"
-    },
-    "scripts/audit_snapshot.py": {
-      "sha": "dbfa6ecf8e6dd4c68db32d2723e802536c362a0d",
-      "date": "2026-10-31"
     },
     "scripts/check-audit-smoke.py": {
       "sha": "016f302a2d95f8b6a35e50b677ca86429711886a",
@@ -585,10 +569,6 @@
       "sha": "5aa2c2a84fb6bc3a7a024e3d695ea27eb2741d9a",
       "date": "2026-10-28"
     },
-    "scripts/tests/test_github_config.py": {
-      "sha": "a6d4d4a97de08482caa3cff516bd55bab53ea3f7",
-      "date": "2026-10-28"
-    },
     "scripts/tests/test_hooks.py": {
       "sha": "f87b63fadcf25dccf18d7350d57863e2a7e1f6c7",
       "date": "2026-09-22"
@@ -608,10 +588,6 @@
     "scripts/tests/test_markdown.py": {
       "sha": "732418e9457f543d3f9cea5e7dd5f8ec917d0ef4",
       "date": "2026-10-21"
-    },
-    "scripts/tests/test_metadata.py": {
-      "sha": "8901e339373ef8774ce56472a2aa32ad338b2926",
-      "date": "2026-10-31"
     },
     "scripts/tests/test_npm_dependencies.py": {
       "sha": "9a3e2120c3f46dfea2787b13856ef264f805ca3d",

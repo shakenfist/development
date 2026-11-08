@@ -725,10 +725,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/github_config.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/plans.py",
       "author": "mikal"
     },
@@ -762,10 +758,6 @@
     },
     {
       "path": "scripts/tests/test_docs_content.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_github_config.py",
       "author": "mikal"
     },
     {
@@ -881,10 +873,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/registry.py",
-      "author": "mikal"
-    },
-    {
       "path": "docs/consistency-audits.md",
       "author": "mikal"
     },
@@ -905,19 +893,7 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/pre-commit-node-version.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit_snapshot.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_metadata.py",
       "author": "mikal"
     },
     {
