@@ -2058,21 +2058,42 @@ push is the proof that the removal took the bot's bypass and not the
 App's. The other three had nothing to push, which is the weaker but
 still correct outcome the step allows.
 
-**3c, measured locally rather than from a weekly run.** The criterion
-has not merged, so there is no scheduled run to cite yet.
+**3c, measured locally and then fleet-wide.** Before the merge there
+was no scheduled run to cite, so the criterion was measured here.
 `python3 scripts/audit-check.py --repo-path . --repo-name development`
 on this branch reports `bypass-actor-identity` as a pass ("The
 "review-marks" environment admits only the default branch
 "main""), with the rest of the suite unchanged: 68 criteria, 38
 pass, 29 not applicable, 0 error and the one pre-existing
 `review-coverage` failure (#247, 227 of 236 files reviewed at HEAD).
-So the prediction holds locally -- nothing newly fails -- and the
-fleet-wide count is still to be read off the first scheduled run after
-this merges. The admin role's `actor_id` is `5`, from GitHub's
+So the prediction held locally: nothing newly fails. Fleet-wide, the
+first scheduled run after the merge, 42525240642 (queued 2026-11-08
+21:26 UTC on `ea741dd`, all 27 jobs successful), reports
+`bypass-actor-identity` compliant in 19 repositories and
+`not_applicable` in five (cloudgood, images, private-ci,
+uncalibrated-sextant, visual-digest-rust), nothing non-compliant, and
+no `Bypass actor identity` issue filed in any repository. The
+compliance page it regenerated is `a0f5319`. The prediction therefore
+holds fleet-wide too. The admin role's `actor_id` is `5`, from GitHub's
 documented predefined repository base-role ids (read 1, triage 2, write
 3, maintain 4, admin 5), not from a live ruleset: no ruleset in the
 organisation bypasses the admin role, so there was none to read
 (decision 4).
+
+**3b ran on 2026-11-09 AEDT**, on the branch
+`bot-bypass-identity-phase-03-ref-trust`. It rides behind no
+workflow-ref-trust pull request or commit. Decision 5's first
+condition was not met -- that plan's phase-3 branch is still unpushed,
+at `333ef57` in the worktree `development-wt-wrt-p3` -- so 3b landed
+on the second, that the branch is confirmed not to touch its target
+passages. The branch's own diff against its base `41a4c92`, where
+`PLAN-workflow-ref-trust.md` is byte-identical to `main`, changes only
+that one file, in hunks at lines 283, 445, 463, 476, 524 and 1158.
+None of 3b's four passages falls inside a hunk, and each is present
+verbatim in the branch's version of the file: open question 1's
+default (225), step 2b's documented set (502), step 2a's brief (518),
+and the two #211 entries (1151 and 1167). So the phase-3 branch had
+changed none of the four, and the two changes do not overlap.
 
 #### Execution notes
 
@@ -2187,6 +2208,18 @@ organisation bypasses the admin role, so there was none to read
   `deployment_branch_policy` is null -- so they gained one each. Both
   were mutation-checked: inverting each branch fails exactly its own
   test.
+- 2026-11-09 AEDT: 3b ran, which was the whole of what phase 3 had
+  left. `/next-phase` resolved phase 3 as incomplete for the second
+  time; Mikal was offered the fork and chose to run 3b before phase 4
+  is planned. Decision 5's hold was released on its "or is confirmed
+  not to touch them" clause rather than by the other branch merging
+  (record above). One sonnet sub-agent at medium effort made the edit,
+  as the row specifies, and the management session corrected two things
+  in it: the `review-marks` environment admits the repository's default
+  branch, which is `develop` in the four repositories that hold the
+  key rather than `main`, and one line ran over the file's wrap width.
+  The plan-blockers note `n27` said that branch rewrites the same four
+  passages. It does not, and the record above is the correction.
 
 #### Risks and mitigations
 
