@@ -1970,6 +1970,110 @@ Time (UTC+11). To capture:
   behind, and which of its four target passages the phase-3 branch
   had already changed.
 
+**3a ran on 2026-11-08 between 13:20 and 14:15 AEDT.**
+
+*Pre-flight, before the removal.* The rule-suite history of all seven
+pull-request rulesets over the previous month, which is 1a item 7
+re-run on the day the bypass was taken away: in each of the four
+repositories the App pushes in, `shakenfist-bot`'s last bypass
+predates the App's first, and the three repositories without the App
+show no bot bypass at all. Nothing live still depended on the bot's
+bypass.
+
+| Repository | Ruleset | Bypasses | By the bot | Last bot bypass | First App bypass |
+|------------|---------|----------|------------|-----------------|------------------|
+| shakenfist | 2681531 | 66 | 0 | none | none (no App) |
+| kerbside | 20252051 | 48 | 37 | 2026-11-03 19:39 | 2026-11-04 06:07 |
+| ryll | 18708684 | 74 | 61 | 2026-11-01 08:55 | 2026-11-02 06:21 |
+| instar | 20783686 | 4 | 0 | none | none (no App) |
+| hunkydory | 23805020 | 42 | 28 | 2026-11-03 10:47 | 2026-11-04 06:46 |
+| client-python-k3s | 20595671 | 5 | 0 | none | none (no App) |
+| andris | 24700229 | 12 | 2 | 2026-10-30 07:14 | 2026-11-01 11:39 |
+
+The three repositories with no App are bypassed through the team by
+`sfconductor` (shakenfist, all 66; client-python-k3s, 3 of 5) and
+`mikalstill` (instar, all 4), which is what the team's remaining
+membership is for.
+
+*The removal.* `gh api -X DELETE
+orgs/shakenfist/teams/sf-can-skip-merge-queue/memberships/shakenfist-bot`.
+That endpoint now answers 404 for the bot, and the team's members are
+`mikalstill` and `sfconductor`.
+
+*Nothing else moved.* The same set of readings, taken before and after
+the removal, differ in exactly one line: the bot's team membership.
+`orgs/shakenfist/memberships/shakenfist-bot` is `member`, and
+`repos/shakenfist/<r>/collaborators/shakenfist-bot/permission` is
+`write`, not `admin`, in all eleven of shakenfist, kerbside, ryll,
+instar, hunkydory, client-python-k3s, actions, development, sfui,
+kerbside-client and andris. Each of the seven rulesets' `bypass_actors`
+is unchanged by the removal: `Team:11722172` on all seven, with
+`Integration:5538020` (the App) beside it on andris, hunkydory,
+kerbside and ryll. Taking an account out of the team changes who the
+team's bypass admits, not the ruleset.
+
+*The rejection probes.* Run 42438929941 in hunkydory, from a throwaway
+`bypass-probe.yml` on the branch `bbi-phase3-bypass-probe`: one job on
+`[self-hosted, vm, debian-13, s]`, queued 13:31 and run at 13:58 AEDT
+(a 27-minute wait for a vm runner, the pool's queue rather than its
+boot, as in phase 2's record; then 5 seconds of work). Each step read
+its secret, failed the run if it resolved empty, recorded which account
+the credential authenticates as, and pushed an empty commit on the tip
+of `develop`.
+
+| Secret | Authenticates as | Result | Rule suite |
+|--------|------------------|--------|------------|
+| `DEPENDENCIES_TOKEN` | `shakenfist-bot` | rejected, `GH013` | 4975726839 |
+| `RENOVATE_TOKEN` | `shakenfist-bot` | rejected, `GH013` | 4975727110 |
+
+Both rejections read "Changes must be made through a pull request",
+"6 of 6 required status checks are expected" and "Changes must be made
+through the merge queue". The probe tells a ruleset rejection from an
+authentication failure and would have failed the run on the latter, so
+these are the ruleset refusing the bot rather than a token that no
+longer works. `develop` is still at `22cd841`, the commit the probe
+cloned, so neither push changed a thing. The probe run, the skipped
+`prune-reviews` run the branch push also started, and the branch itself
+are deleted: `gh run list --branch bbi-phase3-bypass-probe` and
+`git ls-remote refs/heads/bbi-phase3-bypass-probe` are both empty.
+
+*The App still lands.* The four key-holders' `prune-reviews` runs
+after the removal, dispatched rather than waited for: a dispatch runs
+on the default branch, so the job's guard passes and the run is a real
+one, and waiting for each repository's own cron would have spread the
+proof across a day.
+
+| Repository | Run | Mint step | Outcome |
+|------------|-----|-----------|---------|
+| andris | 42439145838 | ran | nothing to do |
+| hunkydory | 42439148648 | ran | nothing to do |
+| kerbside | 42439151631 | ran | pushed `17a31eb..69b378d` as `shakenfist-review-marks[bot]` (350161744), rule suite 4975585417 |
+| ryll | 42439154250 | ran | nothing to do |
+
+`Mint the push token` ran in all four, so each read the key from its
+`review-marks` environment and minted a token. kerbside had marks to
+prune and its push landed on a `develop` that refuses a pull request's
+own token, at 13:37 AEDT, after the bot's bypass was gone: that single
+push is the proof that the removal took the bot's bypass and not the
+App's. The other three had nothing to push, which is the weaker but
+still correct outcome the step allows.
+
+**3c, measured locally rather than from a weekly run.** The criterion
+has not merged, so there is no scheduled run to cite yet.
+`python3 scripts/audit-check.py --repo-path . --repo-name development`
+on this branch reports `bypass-actor-identity` as a pass ("The
+"review-marks" environment admits only the default branch
+"main""), with the rest of the suite unchanged: 68 criteria, 38
+pass, 29 not applicable, 0 error and the one pre-existing
+`review-coverage` failure (#247, 227 of 236 files reviewed at HEAD).
+So the prediction holds locally -- nothing newly fails -- and the
+fleet-wide count is still to be read off the first scheduled run after
+this merges. The admin role's `actor_id` is `5`, from GitHub's
+documented predefined repository base-role ids (read 1, triage 2, write
+3, maintain 4, admin 5), not from a live ruleset: no ruleset in the
+organisation bypasses the admin role, so there was none to read
+(decision 4).
+
 #### Execution notes
 
 - 2026-11-04 AEDT: back brief answered. Mikal chose to implement 3c
@@ -2002,6 +2106,45 @@ Time (UTC+11). To capture:
   removal and the two authenticated pushes are his to run. 3b held:
   the workflow-ref-trust phase-3 branch still rewrites the file 3b
   edits.
+- 2026-11-08 AEDT: 3a ran, in this session rather than Mikal's own.
+  He was back briefed on decisions 1, 3 and 5 and chose to have the
+  session run both halves with its own `gh` (which carries
+  `admin:org`) rather than run them himself, so decision 1's "the
+  management session does it with the operator" became the session
+  doing it on his explicit yes. The 2026-11-04 materials were gone
+  with that session's scratchpad, so the probe workflow was rebuilt.
+  Before the removal, 1a item 7 was re-run as a pre-flight across all
+  seven rulesets (record): nothing live still depended on the bot's
+  bypass. Afterwards the before and after readings differed in exactly
+  one line.
+- 2026-11-08 AEDT: two things the probe needed that the 3a brief did
+  not say. First, `prune-reviews` in hunkydory triggers on
+  `push: branches: ['**']`, so pushing the probe branch started a run
+  of it; its job guard (`github.ref == default branch`) skipped it, and
+  no other hunkydory workflow fires on an arbitrary branch push, which
+  was checked before the branch was pushed. Second, the probe
+  distinguishes a ruleset rejection from an authentication failure: a
+  revoked or expired PAT is refused too, and would have read as a
+  rejection and proved nothing. Both probe steps therefore grep the
+  push output and fail the run on an authentication failure or an
+  unrecognised reason.
+- 2026-11-08 AEDT: 3b still held. The workflow-ref-trust phase-3
+  branch is unpushed and unmerged (`origin/main` does not carry its
+  two commits), so decision 5's condition has not been met and the
+  four passages 3b edits may still move. Phase 3 therefore lands
+  without 3b and stays `In progress`; 3b is the whole of what is left.
+- 2026-11-08 AEDT: two additions beyond 3c, made by the management
+  session when it reviewed 3c for landing. The audit page's
+  reviewer-confirmed half gained a paragraph recording the team bypass
+  as a known exception: the table says a `Team` actor fails, and
+  without that paragraph a reviewer reads seven fresh findings rather
+  than one known state whose end condition is written down. And two
+  branches of the check had no test -- a repository with a
+  pull-request ruleset but no environment (the pass the 2026-11-04
+  note calls an interpretive choice), and an environment whose
+  `deployment_branch_policy` is null -- so they gained one each. Both
+  were mutation-checked: inverting each branch fails exactly its own
+  test.
 
 #### Risks and mitigations
 
