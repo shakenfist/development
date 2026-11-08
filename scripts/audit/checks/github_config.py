@@ -535,6 +535,11 @@ class BypassActorIdentity(Check):
     #: environment admits. Mirrors ReleaseEnvironmentProtection.
     POLICY_PAGE = 100
 
+    #: More environments than this on one repository is a page that may
+    #: have been cut, and review-marks could be the entry that fell off
+    #: it -- which would read as absence. A cut page is an error instead.
+    LISTING_PAGE = 100
+
     def run(self, repo):
         """Check the review-marks environment admits only the default branch.
 
@@ -620,7 +625,7 @@ class BypassActorIdentity(Check):
         """
         what = f'the environments of {repo.org}/{repo.name}'
         result = repo.github.api_answer(
-            f'repos/{repo.org}/{repo.name}/environments?per_page={self.POLICY_PAGE}', what)
+            f'repos/{repo.org}/{repo.name}/environments?per_page={self.LISTING_PAGE}', what)
         answer = parse_json_answer(result, what)
         environments = answer.get('environments')
         if not isinstance(environments, list) or not all(

@@ -928,6 +928,34 @@ class BypassActorIdentityTest(GithubConfigTestCase):
             }, **self.absent(names=['review-marks']))),
             containing='the listing names it but reading it answered 404')
 
+    def test_a_forbidden_environment_read_is_a_tool_failure(self):
+        """Not every failed read is a 404, and only a 404 can mean absence.
+
+        If this branch ever returned None, a token whose environment
+        read had been revoked would report the whole fleet compliant,
+        which is the failure the 404 resolution exists to prevent.
+        """
+        self.assert_tool_failure(
+            lambda: self.run_with({
+                self.api('.default_branch'): CompletedCommand(stdout='develop\n'),
+                self.environment(): CompletedCommand(
+                    returncode=1, stderr='gh: Forbidden (HTTP 403)'),
+            }),
+            containing='Could not query GitHub for the review-marks environment')
+
+    def test_a_cut_environment_listing_page_is_a_tool_failure(self):
+        """review-marks could be the entry that fell off the page."""
+        self.assert_tool_failure(
+            lambda: self.run_with({
+                self.api('.default_branch'): CompletedCommand(stdout='develop\n'),
+                self.environment(): CompletedCommand(
+                    returncode=1, stderr='gh: Not Found (HTTP 404)'),
+                self.listing(): CompletedCommand(stdout=json.dumps({
+                    'total_count': 101,
+                    'environments': [{'name': 'release'}]})),
+            }),
+            containing='101 environments, but 1 on the page')
+
     def test_an_unreadable_environment_listing_is_a_tool_failure(self):
         self.assert_tool_failure(
             lambda: self.run_with({

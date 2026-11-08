@@ -2137,8 +2137,12 @@ organisation bypasses the admin role, so there was none to read
   1 fix, 3 document, 4 consider, 2 none. Seven taken. The fix (two
   untested branches of `policy_problems`) was swept rather than
   patched: every branch of the criterion now has a test, and a
-  mutation script covering all fourteen of them lives with the round
-  rather than being re-improvised. Three of the four `consider` items
+  mutation script covering all of them was run once, from the session
+  scratchpad rather than the tree: there is no precedent here for
+  committing a per-criterion mutation script, and the run is
+  reproducible without the file because the mutants are simply each
+  guard in `run`, `read_environment`, `confirm_absence` and
+  `policy_problems` inverted in turn. Three of the four `consider` items
   were defects in code this phase added and were taken too. The one
   that mattered: a 404 on the environment read meant "absent"
   unconditionally, and GitHub answers 404 both for an environment that
@@ -2153,6 +2157,24 @@ organisation bypasses the admin role, so there was none to read
   extraction would edit a criterion that passes fleet-wide today. The
   duplication did bite once, in the mutation script, where two patterns
   matched both copies; the script now mutates inside the class body.
+- 2026-11-08 AEDT: #377's second review: 2 fix, 2 document, 4 consider,
+  4 none. Six taken, two declined, one needed nothing. Both fix items
+  were fair hits on the previous round's own work: the non-404 branch of
+  `read_environment` had no test, which is the branch whose regression
+  would re-open the fleet-wide blind spot that round closed, and the
+  specification still described the old call order after the calls were
+  reordered. The round also caught a false claim in the note above --
+  it said the mutation script lived with the round when it lived in a
+  session scratchpad -- which is now reworded to say what was mutated,
+  so the run is reproducible without the file. Declined twice:
+  measuring environment drift from the checkout's `prune-reviews.yml`
+  (a behaviour change, not a correction, as in round 1), and turning
+  `policy_problems` into a single-value return (a signature change that
+  would stop it mirroring `environment_problems`, for no behavioural
+  gain). Eighteen tests, sixteen mutants, all killed. Stopping here:
+  no fix item is open, and both rounds' items have been about the code
+  the previous round added, which is where this reviewer stops being
+  informative.
 - 2026-11-08 AEDT: two additions beyond 3c, made by the management
   session when it reviewed 3c for landing. The audit page's
   reviewer-confirmed half gained a paragraph recording the team bypass
@@ -2224,10 +2246,11 @@ tree and the record, not from a sub-agent's summary.
   policy; the fails for no policy, two policies, a tag-only policy, a
   wildcard name, the wrong branch name, `protected_branches` true and a
   null `deployment_branch_policy`; the errors for a policy with no name
-  or no type, an unreadable policy list, a cut policy page, an
-  unreadable environment listing and a 404 on an environment the
-  listing names; the pull-request-ruleset-without-environment pass; and
-  the `not_applicable` case. Each is mutation-checked: inverting its
+  or no type, an unreadable policy list, a cut policy page, a
+  non-404 failure reading the environment, an unreadable environment
+  listing, a cut environment listing page and a 404 on an environment
+  the listing names; the pull-request-ruleset-without-environment pass;
+  and the `not_applicable` case. Each is mutation-checked: inverting its
   branch in `BypassActorIdentity` fails a test.
 * The actor-type rules the 3c brief enumerates (team, non-admin role,
   `OrganizationAdmin`, `DeployKey`, unknown `actor_type`, a ruleset

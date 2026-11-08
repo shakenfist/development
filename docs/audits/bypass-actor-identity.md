@@ -58,12 +58,16 @@ GitHub recreates it with no policy the first time a job references it
 environment with its policy. The loud signal for that is the failing
 push in the repository itself, not this criterion.
 
-The check reads `GET /repos/shakenfist/<repo>/rules/branches/<branch>`
-for the default branch's effective rules, then
+The check reads the default branch name, then
 `GET /repos/shakenfist/<repo>/environments/review-marks` and, where the
 environment exists,
-`GET .../environments/review-marks/deployment-branch-policies`. It never
-asks for `bypass_actors`: `rules/branches/<branch>` returns effective
+`GET .../environments/review-marks/deployment-branch-policies`. Only
+where the environment is absent does it read
+`GET /repos/shakenfist/<repo>/rules/branches/<branch>`, to decide
+between a pass and `not_applicable`: a repository with a compliant
+environment never reads the rules at all, so a hiccup on that endpoint
+cannot turn its verdict into an error. It never asks for
+`bypass_actors`: `rules/branches/<branch>` returns effective
 rules and carries no bypass list, and the actor rules are the
 reviewer's half below.
 
@@ -166,6 +170,13 @@ EOF
 gh api -X POST repos/shakenfist/<repo>/environments/review-marks/deployment-branch-policies \
     -f name='<default branch>' -f type=branch
 ```
+
+A `PUT` replaces the environment's configuration rather than merging
+into it, so anything omitted from the body is cleared: an environment
+that holds required reviewers or a wait timer loses them. `review-marks`
+deliberately holds neither -- its protection is the branch policy alone
+-- so the body above is complete for it, but any environment that does
+hold a protection rule must carry it in the body too.
 
 Read both back afterwards. To add the review-marks App as a bypass
 actor, fetch the ruleset, append the App to `bypass_actors` preserving
