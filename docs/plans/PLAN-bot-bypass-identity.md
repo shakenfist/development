@@ -2133,6 +2133,26 @@ organisation bypasses the admin role, so there was none to read
   two commits), so decision 5's condition has not been met and the
   four passages 3b edits may still move. Phase 3 therefore lands
   without 3b and stays `In progress`; 3b is the whole of what is left.
+- 2026-11-08 AEDT: #377's first automated review, on the current head:
+  1 fix, 3 document, 4 consider, 2 none. Seven taken. The fix (two
+  untested branches of `policy_problems`) was swept rather than
+  patched: every branch of the criterion now has a test, and a
+  mutation script covering all fourteen of them lives with the round
+  rather than being re-improvised. Three of the four `consider` items
+  were defects in code this phase added and were taken too. The one
+  that mattered: a 404 on the environment read meant "absent"
+  unconditionally, and GitHub answers 404 both for an environment that
+  does not exist and for one the token may not read, so a future
+  permission lapse would have reported the whole fleet compliant at
+  once -- the exact failure this criterion exists to prevent. The check
+  now resolves the 404 against `GET /repos/{org}/{repo}/environments`
+  and errors if the listing names the environment or cannot be read.
+  Declined: extracting the ~30 lines shared with
+  `ReleaseEnvironmentProtection` into common helpers, because the two
+  callers deliberately disagree about what a 404 means and the
+  extraction would edit a criterion that passes fleet-wide today. The
+  duplication did bite once, in the mutation script, where two patterns
+  matched both copies; the script now mutates inside the class body.
 - 2026-11-08 AEDT: two additions beyond 3c, made by the management
   session when it reviewed 3c for landing. The audit page's
   reviewer-confirmed half gained a paragraph recording the team bypass
@@ -2199,13 +2219,24 @@ tree and the record, not from a sub-agent's summary.
   criterion registered in `CHECKS`, its page in `docs/audits/`, its
   row in `docs/audits/README.md`, and its lines in `FROZEN_METADATA`
   and `FROZEN_ISSUE_TITLES`.
-* `python3 -m pytest scripts/tests/test_github_config.py
-  scripts/tests/test_metadata.py` passes, including the
-  pass/fail/not-applicable cases the 3c brief enumerates (team,
-  non-admin role, `OrganizationAdmin`, `DeployKey`, unknown
-  `actor_type` as error, missing `bypass_actors` as error, unknown
-  App, the environment-policy cases, a repository-level
-  `REVIEW_MARKS_APP_KEY`, and the `not_applicable` case).
+* `python3 -m unittest discover -s scripts/tests -t scripts` passes,
+  including every case the fallback shape can test: the compliant
+  policy; the fails for no policy, two policies, a tag-only policy, a
+  wildcard name, the wrong branch name, `protected_branches` true and a
+  null `deployment_branch_policy`; the errors for a policy with no name
+  or no type, an unreadable policy list, a cut policy page, an
+  unreadable environment listing and a 404 on an environment the
+  listing names; the pull-request-ruleset-without-environment pass; and
+  the `not_applicable` case. Each is mutation-checked: inverting its
+  branch in `BypassActorIdentity` fails a test.
+* The actor-type rules the 3c brief enumerates (team, non-admin role,
+  `OrganizationAdmin`, `DeployKey`, unknown `actor_type`, a ruleset
+  with no `bypass_actors`, an unknown App) and the
+  repository-level-`REVIEW_MARKS_APP_KEY` rule are rows of the audit
+  page's reviewer-confirmed table rather than tests, because decision
+  2's fallback shape keeps them out of code. They become code, with
+  tests, when #352 gives the audit a read identity that can see
+  `bypass_actors` and a repository's secret names.
 * The first scheduled weekly audit after 3c lands reports
   `bypass-actor-identity` with the verdicts step 3a recorded, and
   the count of newly-failing repositories matches the commit's

@@ -47,16 +47,38 @@ bypass and no key to protect. A repository that has the environment is
 judged on the policy above whether or not it also has a pull-request
 ruleset, because the key is worth protecting wherever it is held.
 
+A repository with a pull-request ruleset and no `review-marks`
+environment passes: no environment is no key, so no branch can reach
+one, and a review-marks push falls back to `github.token`, which that
+ruleset refuses. The state is fail-closed, which is why it is a pass
+rather than a failure. It is still drift in a repository that runs
+`prune-reviews`, because that workflow names the environment and
+GitHub recreates it with no policy the first time a job references it
+-- so review marks stop landing there until an operator restores the
+environment with its policy. The loud signal for that is the failing
+push in the repository itself, not this criterion.
+
 The check reads `GET /repos/shakenfist/<repo>/rules/branches/<branch>`
 for the default branch's effective rules, then
 `GET /repos/shakenfist/<repo>/environments/review-marks` and, where the
 environment exists,
-`GET .../environments/review-marks/deployment-branch-policies`. A 404 on
-the environment is the environment not existing. Any other error from
-any call -- including a ruleset reply with no `bypass_actors` where a
-reviewer's token would see one, or a null where a value is required --
-is a check error rather than a failure: it says the audit could not
-ask, not that the configuration is wrong.
+`GET .../environments/review-marks/deployment-branch-policies`. It never
+asks for `bypass_actors`: `rules/branches/<branch>` returns effective
+rules and carries no bypass list, and the actor rules are the
+reviewer's half below.
+
+A 404 on the environment is ambiguous -- GitHub answers it both for an
+environment that does not exist and for one the token may not read --
+and the two mean opposite things here, so the check resolves it against
+`GET /repos/shakenfist/<repo>/environments`. A listing that answers
+without naming `review-marks` is absence. A listing that names it, or
+that does not answer at all, is a check error: a token whose
+environment read had regressed would otherwise report every repository
+in the fleet compliant at once. Any other error from any call, or a null
+where a value is required -- a deployment policy with no name or no
+type, a policy list that is not a list, a `total_count` past the page
+-- is likewise a check error rather than a failure: it says the audit
+could not ask, not that the configuration is wrong.
 
 ### Required, but confirmed by a reviewer
 

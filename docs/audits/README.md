@@ -202,7 +202,7 @@ attached rather than quietly disappearing from the table.
 | [merge-queue-config.md](merge-queue-config.md) | Merge queues process entries serially, without speculative stacking or merge batching |
 | [release-merge-queue.md](release-merge-queue.md) | A repository that releases from its default branch merges to it through a merge queue |
 | [release-environment-protection.md](release-environment-protection.md) | Every environment a release job names exists, has a required reviewer, and deploys only from tags |
-| [bypass-actor-identity.md](bypass-actor-identity.md) | The review-marks environment admits only the default branch, and every default-branch bypass actor is an identity only reviewed code can use |
+| [bypass-actor-identity.md](bypass-actor-identity.md) | The review-marks environment admits only the default branch (measured), and every default-branch bypass actor is an identity only reviewed code can use (confirmed by a reviewer) |
 | [merge-group-cancellation.md](merge-group-cancellation.md) | Superseded merge group runs are cancelled, not left building clouds |
 | [security-sanitization.md](security-sanitization.md) | HTTP header and file path sanitization |
 | [workflow-standards.md](workflow-standards.md) | Permissions, naming, self-hosted runners, static runner tags, vm runner size, devpi cache fallback, devpi cache address, linting, review marks, review scope, PIPESTATUS, flake8wrap |
