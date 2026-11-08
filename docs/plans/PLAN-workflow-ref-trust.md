@@ -224,40 +224,45 @@ Out of scope:
    through and is not acceptable.
    *Default:* a GitHub App, as the only bypass actor, rather than a
    team of one. `PLAN-bot-bypass-identity.md` built it:
-   `shakenfist-review-marks` has `contents: write` and nothing else,
-   and its key is an environment secret in a `review-marks`
-   environment that admits only the repository's default branch. A
-   token for it is minted per run, scoped to the one repository, and
-   revoked when the job ends. `shakenfist-bot` has left the team
-   that used to bypass, so its PATs bypass nothing; that plan's
-   phase 3 record has two refused pushes as proof. Step 2a installs
-   the App on `actions`, puts the key in the `review-marks`
-   environment that already exists there, and names the App as the
-   only bypass actor on the `actions` ruleset. The bypass is not
-   narrowed to the review-tracking paths: a ruleset's bypass list
-   covers the whole ruleset, branch rulesets have no per-path
-   condition, and a file-path restriction is a push rule that binds
-   every push, pull request merges included. Write
-   phase 2's success criterion for an unnarrowed bypass. The spec
-   states the residual risk the old default carried accurately: a
-   `DEPENDENCIES_TOKEN` bypass moved the boundary from "can push to
-   main" to "can run a workflow that has `DEPENDENCIES_TOKEN` in
-   scope", which is wider than one setting in one repository. That
-   residual is closed once step 2a has installed the App on `actions`
-   and set the key: the mechanism is proven on andris, hunkydory,
-   kerbside and ryll, and after 2a no long-lived credential bypasses
-   the `actions` ruleset. The App's key is long-lived too; what bounds
-   it is the `review-marks` environment's default-branch policy, and
-   the residuals that remain are the ones
-   `docs/audits/bypass-actor-identity.md` keeps in its
-   reviewer-confirmed half. This is the work #211 tracked, and it was
-   done by `PLAN-bot-bypass-identity.md` phase 3 rather than here. The
-   `|| github.token` fallback stays harmless, because `github.token`
-   is not a bypass actor and its push is simply refused; nobody
-   should add the Actions app as a bypass actor to "fix" that
-   refusal. `PLAN-review-import.md` does not move prune to pull
-   requests, so that alternative remains a template change this plan
-   does not make.
+   `shakenfist-review-marks` carries `contents: write` and the
+   implicit `metadata: read`, and nothing more. Its key is an
+   environment secret in a `review-marks` environment that admits
+   only the repository's default branch. A token for it is minted
+   per run, scoped to the one repository, and revoked when the job
+   ends. `shakenfist-bot` has left the team that used to bypass, so
+   its PATs bypass nothing; that plan's phase 3 record has two
+   refused pushes as proof. Step 2a installs the App on `actions`,
+   puts the key in the `review-marks` environment that already
+   exists there, and names the App as the only bypass actor on the
+   `actions` ruleset. The bypass is not narrowed to the
+   review-tracking paths: a ruleset's bypass list covers the whole
+   ruleset, branch rulesets have no per-path condition, and a
+   file-path restriction is a push rule that binds every push, pull
+   request merges included. Write phase 2's success criterion for
+   an unnarrowed bypass. The spec states the residual risk the old
+   default carried accurately: a `DEPENDENCIES_TOKEN` bypass moved
+   the boundary from "can push to main" to "can run a workflow that
+   has `DEPENDENCIES_TOKEN` in scope", which is wider than one
+   setting in one repository. What closed that bypass residual is
+   `PLAN-bot-bypass-identity.md` phase 3a taking `shakenfist-bot`
+   out of `sf-can-skip-merge-queue` on 2026-11-08 (the refused
+   pushes above); this is the work #211 tracked, done there rather
+   than here. Step 2a's job is to install the App so the
+   review-mark path keeps landing without re-opening it. After 2a
+   the credential that bypasses the ruleset is a per-run App token,
+   minted and revoked inside the job; the key that mints it is
+   long-lived, and what bounds it is the `review-marks`
+   environment's default-branch policy. The residuals that remain
+   are the ones `docs/audits/bypass-actor-identity.md` keeps in its
+   reviewer-confirmed half, and `DEPENDENCIES_TOKEN` itself is
+   still in the scope of `pull_request`-triggered workflows in
+   shakenfist, client-python and kerbside, which is why 2a's scope
+   survey below stands. The `|| github.token` fallback stays
+   harmless, because `github.token` is not a bypass actor and its
+   push is simply refused; nobody should add the Actions app as a
+   bypass actor to "fix" that refusal. `PLAN-review-import.md` does
+   not move prune to pull requests, so that alternative remains a
+   template change this plan does not make.
 2. **What does "a pull request is required" mean with one
    maintainer?** A required approval count of one cannot be met by
    the author. *Default:* require a pull request with zero required
@@ -534,7 +539,7 @@ and it touches GitHub settings that this repository cannot test.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 2a | high | opus | none | Operator step, done by the management session with the operator, not by a sub-agent. Install the `shakenfist-review-marks` App (`PLAN-bot-bypass-identity.md`; it is installed on andris, hunkydory, kerbside and ryll but not yet on `actions`) on `actions`, add its key as `REVIEW_MARKS_APP_KEY` to the `review-marks` environment that already exists in `actions` (an *environment* secret, never a repository or organisation one, because those resolve from any branch and would defeat the design), and name the App as the only bypass actor on the `actions` ruleset; the bypass cannot be path-narrowed (open question 1). Do all three before the pull-request rule is enforced, not after: `actions` holds no key today, so its `prune-reviews` pushes with `github.token`, which the rule refuses the moment it is active, and the only sign is a failing push in `actions` itself -- the audit cannot see it (`docs/audits/bypass-actor-identity.md`). Record `repos/shakenfist/actions/rulesets/21132503`'s `bypass_actors` before and after: read on 2026-11-09 it is empty, so the App becomes the only entry, and if anything else is already there, report it rather than removing it, because the team bypass is open question 3's business. Settle which check contexts open question 2 requires, then apply the ruleset change. Then prove it on a throwaway branch: a direct push to main is rejected, and a `prune-reviews` run still lands as `shakenfist-review-marks[bot]` in the rule-suite history, the way `PLAN-bot-bypass-identity.md`'s phase 3 record proves it for kerbside (or opens its pull request, per open question 1). Open a review-only throwaway pull request too, and confirm that every required check resolves: `ci.yml` filters at job level through `Check paths`, and a skipped job reports success, but a trigger-level `paths:` or `paths-ignore:` would never report and would wedge every such pull request. Record which token the audit runs with, and take whether it sees `bypass_actors` in `repos/shakenfist/actions/rulesets/{id}` from `PLAN-bot-bypass-identity.md`'s phase 1 record (steps 1a and 1b) rather than measuring again: it cannot, even under the security manager role, and the audit token is not widened to make it. So 2b drops the `bypass_actors` comparison and measures only the two rules and `enforcement`, and the spec moves the bypass list to its "Required, but confirmed by a reviewer" half. Record in this phase that 2b takes that shape. For the residual in open question 1, record which repositories put `DEPENDENCIES_TOKEN` in a workflow's scope, and whether any of those workflows runs on a trigger that someone other than a maintainer can fire (`pull_request_target`, `issue_comment`, `workflow_run`). |
+| 2a | high | opus | none | Operator step, done by the management session with the operator, not by a sub-agent. Install the `shakenfist-review-marks` App (`PLAN-bot-bypass-identity.md`; it is installed on andris, hunkydory, kerbside and ryll but not yet on `actions`) on `actions`, add its key as `REVIEW_MARKS_APP_KEY` to the `review-marks` environment that already exists in `actions` (an *environment* secret, never a repository or organisation one, because those resolve from any branch and would defeat the design), and name the App as the only bypass actor on the `actions` ruleset; the bypass cannot be path-narrowed (open question 1). Do all three before the pull-request rule is enforced, not after: `actions` holds no key today, so its `prune-reviews` pushes with `github.token`, which the rule refuses the moment it is active, and the only sign is a failing push in `actions` itself -- the audit cannot see it (`docs/audits/bypass-actor-identity.md`). Record `repos/shakenfist/actions/rulesets/21132503`'s `bypass_actors` before and after: read on 2026-11-09 AEDT with the operator's own admin credential, the key is present and `[]` (an omitted key is an error, never an empty set, so the reading only counts from a caller that can edit the ruleset), so the App becomes the only entry. If anything else is there by then, add the App beside it and report it rather than removing it: taking the team bypass away is open question 3's business, and 2b's documented set is then that pair until it is settled. Settle which check contexts open question 2 requires, then apply the ruleset change. Then prove it on a throwaway branch: a direct push to main is rejected, and a `prune-reviews` run still lands as `shakenfist-review-marks[bot]` in the rule-suite history, the way `PLAN-bot-bypass-identity.md`'s phase 3 record proves it for kerbside (or opens its pull request, per open question 1). Open a review-only throwaway pull request too, and confirm that every required check resolves: `ci.yml` filters at job level through `Check paths`, and a skipped job reports success, but a trigger-level `paths:` or `paths-ignore:` would never report and would wedge every such pull request. Record which token the audit runs with, and take whether it sees `bypass_actors` in `repos/shakenfist/actions/rulesets/{id}` from `PLAN-bot-bypass-identity.md`'s phase 1 record (steps 1a and 1b) rather than measuring again: it cannot, even under the security manager role, and the audit token is not widened to make it. So 2b drops the `bypass_actors` comparison and measures only the two rules and `enforcement`, and the spec moves the bypass list to its "Required, but confirmed by a reviewer" half. Record in this phase that 2b takes that shape. For the residual in open question 1, record which repositories put `DEPENDENCIES_TOKEN` in a workflow's scope, and whether any of those workflows runs on a trigger that someone other than a maintainer can fire (`pull_request_target`, `issue_comment`, `workflow_run`). |
 | 2b | high | opus | worktree | Add a `MovingRefSourceProtection` class to `scripts/audit/checks/github_config.py`, with the id `moving-ref-source-protection`, its `spec` and its `issue_title` (`Moving ref source protection`), following `DeleteBranchOnMerge` at line 213 for the API-call shape. Register it in `CHECKS` in `scripts/audit/registry.py`. Write `docs/audits/moving-ref-source-protection.md`, following the structure in `docs/audits/README.md`; its Why section cites the landing counts from this plan's Situation. Add the file to `docs/audits/README.md`, and add its lines to `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`. Add pass, fail and not-applicable tests to `scripts/tests/test_github_config.py`, using `CheckTestCase` and a stubbed GitHub client, including fail cases for a missing status-check rule and `enforcement: evaluate`. Do not write the `bypass_actors` comparison, or the extra-bypass-actor and missing-key cases that would test it: the audit's read token cannot see the key (open question 1, and phase 1 of `PLAN-bot-bypass-identity.md`), so the spec carries the one-actor documented set in its reviewer-confirmed half instead, and says why. |
 
 ### Phase 3: pin third-party actions to a sha
