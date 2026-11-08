@@ -77,6 +77,16 @@ the ruleset) and judges every actor by its type:
 | `DeployKey` | Fails: a deploy key with write access is an automation credential, like a personal access token. |
 | any other value | An error, never a pass: an actor type the audit does not recognise has not been judged. |
 
+**One known team bypass.** `sf-can-skip-merge-queue` (`Team`, actor id
+`11722172`) is a bypass actor on all seven of the organisation's
+pull-request rulesets, so by the table above all seven fail this half
+today. Its automation member was removed on 2026-11-08, leaving
+`mikalstill` and `sfconductor`, and `sfconductor` pushes to the default
+branches of shakenfist, ryll and client-python-k3s through it. A
+reviewer records the team as a known exception, with what `sfconductor`
+pushes with still to be settled, rather than as a new finding; the
+exception ends when the team stops being a bypass actor.
+
 The admin-role and `OrganizationAdmin` passes rest on no automation
 identity holding an organisation-owner or repository-admin role -- in
 particular on any repository where the review-marks App is installed,
