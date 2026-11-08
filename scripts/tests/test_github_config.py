@@ -781,6 +781,201 @@ jobs:
         }), containing='expected a list of rules')
 
 
+class BypassActorIdentityTest(GithubConfigTestCase):
+    """The environment half; the actor-type rules are the spec's to confirm."""
+
+    check_class = github_config.BypassActorIdentity
+
+    DEFAULT_POLICY = {'protected_branches': False, 'custom_branch_policies': True}
+
+    def environment(self):
+        return f'api {self.REPO_PATH}/environments/review-marks'
+
+    def listing(self):
+        return f'api {self.REPO_PATH}/environments?per_page=100'
+
+    def absent(self, names=()):
+        """The environment answering 404, with a listing that agrees."""
+        return {
+            self.environment(): CompletedCommand(
+                returncode=1, stderr='gh: Not Found (HTTP 404)'),
+            self.listing(): CompletedCommand(stdout=json.dumps({
+                'total_count': len(names),
+                'environments': [{'name': n} for n in names]})),
+        }
+
+    def policies(self):
+        return (f'api {self.REPO_PATH}/environments/review-marks'
+                '/deployment-branch-policies?per_page=100')
+
+    def answers(self, rules=None, deployment_policy=None, branch_policies=None,
+                branch='develop'):
+        """The four scripted answers, defaulting to a compliant repository."""
+        if rules is None:
+            rules = [{'type': 'pull_request'}, {'type': 'merge_queue'}]
+        if deployment_policy is None:
+            deployment_policy = self.DEFAULT_POLICY
+        if branch_policies is None:
+            branch_policies = [{'name': branch, 'type': 'branch'}]
+        return {
+            self.api('.default_branch'): CompletedCommand(stdout=f'{branch}\n'),
+            self.rules(branch): CompletedCommand(stdout=json.dumps(rules)),
+            self.environment(): CompletedCommand(stdout=json.dumps({
+                'name': 'review-marks',
+                'deployment_branch_policy': deployment_policy})),
+            self.policies(): CompletedCommand(stdout=json.dumps({
+                'total_count': len(branch_policies),
+                'branch_policies': branch_policies})),
+        }
+
+    def test_the_default_branch_policy_passes(self):
+        result = self.assert_pass(self.run_with(self.answers()))
+        self.assertIn('review-marks', result['details'])
+
+    def test_no_branch_policy_fails(self):
+        result = self.run_with(self.answers(branch_policies=[]))
+        self.assert_fail(result, containing='defines none')
+
+    def test_a_tag_policy_beside_the_branch_policy_fails(self):
+        result = self.run_with(self.answers(branch_policies=[
+            {'name': 'develop', 'type': 'branch'},
+            {'name': '*', 'type': 'tag'}]))
+        self.assert_fail(result, containing='2 deployment policies')
+
+    def test_a_wildcard_branch_name_fails(self):
+        result = self.run_with(self.answers(branch_policies=[
+            {'name': 'develop*', 'type': 'branch'}]))
+        self.assert_fail(result, containing='wildcard')
+
+    def test_protected_branches_true_fails(self):
+        result = self.run_with(self.answers(deployment_policy={
+            'protected_branches': True, 'custom_branch_policies': False}))
+        self.assert_fail(result, containing='protected_branches is True')
+
+    def test_no_ruleset_and_no_environment_is_not_applicable(self):
+        result = self.run_with(dict({
+            self.api('.default_branch'): CompletedCommand(stdout='develop\n'),
+            self.rules('develop'): CompletedCommand(stdout='[]'),
+        }, **self.absent()))
+        self.assert_skip(result, containing='no "review-marks" environment')
+
+    def test_a_pull_request_ruleset_with_no_environment_passes(self):
+        """No environment is no key, so there is nothing a branch can reach.
+
+        The push falls back to github.token, which the ruleset refuses,
+        so the repository fails closed rather than quietly holding a key
+        somewhere a pull-request job could read it.
+        """
+        result = self.run_with(dict({
+            self.api('.default_branch'): CompletedCommand(stdout='develop\n'),
+            self.rules('develop'): CompletedCommand(
+                stdout=json.dumps([{'type': 'pull_request'}])),
+        }, **self.absent(names=['release'])))
+        self.assert_pass(result)
+        self.assertIn('refused', result['details'])
+
+    def test_a_tag_policy_as_the_only_policy_fails(self):
+        result = self.run_with(self.answers(branch_policies=[
+            {'name': 'v*', 'type': 'tag'}]))
+        self.assert_fail(result, containing='not a branch policy')
+
+    def test_a_branch_policy_for_the_wrong_branch_fails(self):
+        result = self.run_with(self.answers(branch_policies=[
+            {'name': 'main', 'type': 'branch'}]))
+        self.assert_fail(result, containing='deploys from "main"')
+
+    def test_a_policy_with_no_name_is_a_tool_failure(self):
+        """The docstring promises an error for a null where a value is needed."""
+        self.assert_tool_failure(
+            lambda: self.run_with(self.answers(branch_policies=[
+                {'name': None, 'type': 'branch'}])),
+            containing='a deployment policy with no name')
+
+    def test_a_policy_with_no_type_is_a_tool_failure(self):
+        self.assert_tool_failure(
+            lambda: self.run_with(self.answers(branch_policies=[
+                {'name': 'develop'}])),
+            containing='has no type')
+
+    def test_an_unreadable_policy_list_is_a_tool_failure(self):
+        self.assert_tool_failure(
+            lambda: self.run_with(dict(self.answers(), **{
+                self.policies(): CompletedCommand(stdout=json.dumps({
+                    'total_count': 1, 'branch_policies': 'develop'})),
+            })),
+            containing='expected a list of policies')
+
+    def test_a_cut_policy_page_is_a_tool_failure(self):
+        """A total_count past the page means a policy nobody read."""
+        self.assert_tool_failure(
+            lambda: self.run_with(dict(self.answers(), **{
+                self.policies(): CompletedCommand(stdout=json.dumps({
+                    'total_count': 2,
+                    'branch_policies': [{'name': 'develop', 'type': 'branch'}]})),
+            })),
+            containing='2 policies, but 1 on the page')
+
+    def test_an_environment_the_listing_names_is_a_tool_failure(self):
+        """A 404 on an environment the listing names is invisibility, not absence.
+
+        That is the case that would otherwise report every repository in
+        the fleet compliant at once, on a token whose environment read
+        had regressed.
+        """
+        self.assert_tool_failure(
+            lambda: self.run_with(dict({
+                self.api('.default_branch'): CompletedCommand(stdout='develop\n'),
+            }, **self.absent(names=['review-marks']))),
+            containing='the listing names it but reading it answered 404')
+
+    def test_a_forbidden_environment_read_is_a_tool_failure(self):
+        """Not every failed read is a 404, and only a 404 can mean absence.
+
+        If this branch ever returned None, a token whose environment
+        read had been revoked would report the whole fleet compliant,
+        which is the failure the 404 resolution exists to prevent.
+        """
+        self.assert_tool_failure(
+            lambda: self.run_with({
+                self.api('.default_branch'): CompletedCommand(stdout='develop\n'),
+                self.environment(): CompletedCommand(
+                    returncode=1, stderr='gh: Forbidden (HTTP 403)'),
+            }),
+            containing='Could not query GitHub for the review-marks environment')
+
+    def test_a_cut_environment_listing_page_is_a_tool_failure(self):
+        """review-marks could be the entry that fell off the page."""
+        self.assert_tool_failure(
+            lambda: self.run_with({
+                self.api('.default_branch'): CompletedCommand(stdout='develop\n'),
+                self.environment(): CompletedCommand(
+                    returncode=1, stderr='gh: Not Found (HTTP 404)'),
+                self.listing(): CompletedCommand(stdout=json.dumps({
+                    'total_count': 101,
+                    'environments': [{'name': 'release'}]})),
+            }),
+            containing='101 environments, but 1 on the page')
+
+    def test_an_unreadable_environment_listing_is_a_tool_failure(self):
+        self.assert_tool_failure(
+            lambda: self.run_with({
+                self.api('.default_branch'): CompletedCommand(stdout='develop\n'),
+                self.environment(): CompletedCommand(
+                    returncode=1, stderr='gh: Not Found (HTTP 404)'),
+                self.listing(): CompletedCommand(stdout=json.dumps({
+                    'total_count': 0, 'environments': None})),
+            }),
+            containing='expected a list of environments')
+
+    def test_an_environment_with_no_deployment_policy_fails(self):
+        """A null deployment_branch_policy admits every branch and tag."""
+        result = self.run_with(dict(self.answers(), **{
+            self.environment(): CompletedCommand(stdout=json.dumps({
+                'name': 'review-marks', 'deployment_branch_policy': None})),
+        }))
+        self.assert_fail(result, containing='any branch or tag')
+
+
 class ScopeCoverageTest(CheckTestCase):
     """The criterion that measures the fleet rather than one repository."""
 

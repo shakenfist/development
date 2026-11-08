@@ -38,6 +38,9 @@ NETWORK_CHECKS = frozenset({
     'merge-queue-config',
     'release-environment-protection',
     'release-merge-queue',
+    # Reads the review-marks environment and its branch policy, which
+    # an operator can change between runs.
+    'bypass-actor-identity',
     'merge-group-cancellation',
     'sfui-vendor',
     # Reads run history, which moves every time a workflow fires.

@@ -32,21 +32,26 @@ def merge_queue_rules(rules):
     return [r for r in rules if r.get('type') == 'merge_queue']
 
 
-def default_branch_rules(repo):
-    """The default branch's name and its effective rules, as a tuple.
+def default_branch(repo):
+    """The repository's default branch name.
 
-    Reads /repos/{org}/{repo} for the default branch, then
-    /repos/{org}/{repo}/rules/branches/{branch}. A branch with no rules
-    answers an empty list rather than an error, so every failure here
-    is GitHub not answering, and is a ToolFailure.
+    Reads /repos/{org}/{repo}. Every failure here is GitHub not
+    answering, and is a ToolFailure.
     """
-    client = repo.github
-    result = client.api_answer(
+    result = repo.github.api_answer(
         f'repos/{repo.org}/{repo.name}', 'the default branch',
         jq='.default_branch')
-    branch = result.stdout.strip()
+    return result.stdout.strip()
 
-    result = client.api_answer(
+
+def branch_rules(repo, branch):
+    """The effective rules on one branch.
+
+    Reads /repos/{org}/{repo}/rules/branches/{branch}. A branch with no
+    rules answers an empty list rather than an error, so every failure
+    here is GitHub not answering, and is a ToolFailure.
+    """
+    result = repo.github.api_answer(
         f'repos/{repo.org}/{repo.name}/rules/branches/{branch}',
         'branch rules')
     try:
@@ -57,7 +62,13 @@ def default_branch_rules(repo):
     if not isinstance(rules, list) or not all(isinstance(r, dict) for r in rules):
         raise ToolFailure(
             'Could not parse the branch rules response: expected a list of rules')
-    return branch, rules
+    return rules
+
+
+def default_branch_rules(repo):
+    """The default branch's name and its effective rules, as a tuple."""
+    branch = default_branch(repo)
+    return branch, branch_rules(repo, branch)
 
 
 def evaluate_merge_queue_rules(rules):
@@ -498,6 +509,195 @@ def describe_failure(result):
         return f'HTTP {status}'
     lines = (result.stderr or '').strip().splitlines()
     return lines[0] if lines else 'no error reported'
+
+
+#: The characters GitHub reads as a wildcard in a deployment branch
+#: policy name. A name holding any of them matches more than the single
+#: branch it spells, so a policy that admits only the default branch can
+#: hold none of them.
+GLOB_CHARACTERS = frozenset('*?[]')
+
+
+class BypassActorIdentity(Check):
+    id = 'bypass-actor-identity'
+    spec = 'docs/audits/bypass-actor-identity.md'
+    template = None
+    issue_title = 'Bypass actor identity'
+
+    #: The environment that holds the review-marks App's private key.
+    #: Its deployment branch policy is the only thing that keeps a job
+    #: on a pull-request ref from reading that key and minting a token
+    #: that bypasses the default-branch ruleset.
+    ENVIRONMENT = 'review-marks'
+
+    #: More deployment policies than this on one environment is a page
+    #: that may have been cut, and an unread policy could widen what the
+    #: environment admits. Mirrors ReleaseEnvironmentProtection.
+    POLICY_PAGE = 100
+
+    #: More environments than this on one repository is a page that may
+    #: have been cut, and review-marks could be the entry that fell off
+    #: it -- which would read as absence. A cut page is an error instead.
+    LISTING_PAGE = 100
+
+    def run(self, repo):
+        """Check the review-marks environment admits only the default branch.
+
+        The key in this environment can mint a token that bypasses the
+        default-branch ruleset, so the branch policy is what decides
+        whether a pull-request job -- one that edits the workflow, say --
+        can read it. The policy must admit exactly the default branch:
+        one custom branch policy, named for the default branch, with no
+        wildcard in the name. Anything looser lets another ref reach the
+        key.
+
+        The read token cannot see a ruleset's bypass actors or list a
+        repository's secrets, so those are confirmed by a reviewer
+        against the specification rather than measured here. What is
+        measured is the environment, which this token can read.
+
+        Not applicable only where there is nothing to protect: no
+        pull-request ruleset on the default branch, and no review-marks
+        environment. A missing answer, or a null where a value is
+        required, is the audit failing to ask rather than a verdict, so
+        it is a ToolFailure.
+        """
+        branch = default_branch(repo)
+        environment = self.read_environment(repo)
+        if environment is not None:
+            problems = self.policy_problems(repo, branch, environment)
+            if problems:
+                return self.fail('; '.join(problems))
+            return self.ok(
+                f'The "{self.ENVIRONMENT}" environment admits only the default '
+                f'branch "{branch}"')
+
+        # Only the environment-absent path needs to know whether the
+        # default branch requires a pull request, so the rules are read
+        # here rather than up front. A repository whose environment is
+        # in order does not need them, and a GitHub hiccup on that
+        # endpoint should not turn its verdict into an error.
+        if any(isinstance(rule, dict) and rule.get('type') == 'pull_request'
+               for rule in branch_rules(repo, branch)):
+            return self.ok(
+                f'No "{self.ENVIRONMENT}" environment, and the default '
+                f'branch "{branch}" has a pull-request ruleset, so a '
+                f'review-marks push that fell back to github.token would '
+                f'be refused')
+        return self.skip(
+            f'No pull-request ruleset on the default branch "{branch}" '
+            f'and no "{self.ENVIRONMENT}" environment')
+
+    def read_environment(self, repo):
+        """The review-marks environment object, or None if it is absent.
+
+        GitHub answers 404 both for an environment that does not exist
+        and for one the token may not read, and here the two mean
+        opposite things: absence is evidence a verdict rests on, while
+        invisibility would quietly report every repository in the fleet
+        compliant at once, which is the failure this criterion exists to
+        prevent. So a 404 is confirmed against the environment listing,
+        which any token that can read the repository can fetch: a
+        listing that answers without naming the environment is absence,
+        and a listing that does not answer, or that names it, is the
+        audit failing to ask.
+        """
+        path = f'repos/{repo.org}/{repo.name}/environments/{self.ENVIRONMENT}'
+        what = f'the {self.ENVIRONMENT} environment'
+        try:
+            result = repo.github.api(path)
+        except subprocess.TimeoutExpired as e:
+            raise ToolFailure(f'Could not query GitHub for {what}: timed out') from e
+        except OSError as e:
+            raise ToolFailure(f'Could not query GitHub for {what}: {e}') from e
+        if result.returncode != 0:
+            if http_status(result.stderr) == 404:
+                self.confirm_absence(repo)
+                return None
+            raise ToolFailure(f'Could not query GitHub for {what}: {describe_failure(result)}')
+        return parse_json_answer(result, what)
+
+    def confirm_absence(self, repo):
+        """Raise unless the environment listing agrees the environment is gone.
+
+        The listing is what tells a 404 that means "there is no such
+        environment" from one that means "this token cannot see it".
+        """
+        what = f'the environments of {repo.org}/{repo.name}'
+        result = repo.github.api_answer(
+            f'repos/{repo.org}/{repo.name}/environments?per_page={self.LISTING_PAGE}', what)
+        answer = parse_json_answer(result, what)
+        environments = answer.get('environments')
+        if not isinstance(environments, list) or not all(
+                isinstance(e, dict) for e in environments):
+            raise ToolFailure(f'Could not parse {what}: expected a list of environments')
+        if answer.get('total_count', len(environments)) != len(environments):
+            raise ToolFailure(
+                f'Could not read {what}: {answer.get("total_count")} environments, but '
+                f'{len(environments)} on the page')
+        if any(e.get('name') == self.ENVIRONMENT for e in environments):
+            raise ToolFailure(
+                f'Could not read the "{self.ENVIRONMENT}" environment of {repo.org}/'
+                f'{repo.name}: the listing names it but reading it answered 404, so the '
+                f'audit cannot see what it admits')
+
+    def policy_problems(self, repo, branch, environment):
+        """The ways the environment's branch policy falls short, as strings."""
+        env = self.ENVIRONMENT
+        policy = environment.get('deployment_branch_policy')
+        if not isinstance(policy, dict):
+            return [f'the "{env}" environment can be deployed from any branch or tag']
+        protected = policy.get('protected_branches')
+        custom = policy.get('custom_branch_policies')
+        if protected is not False or custom is not True:
+            return [
+                f'the "{env}" environment does not restrict deployments to one custom branch '
+                f'policy: protected_branches is {protected!r}, custom_branch_policies is '
+                f'{custom!r}, expected False and True']
+
+        path = f'repos/{repo.org}/{repo.name}/environments/{env}'
+        what = f'the deployment policies of the {env} environment'
+        result = repo.github.api_answer(
+            f'{path}/deployment-branch-policies?per_page={self.POLICY_PAGE}', what)
+        answer = parse_json_answer(result, what)
+        policies = answer.get('branch_policies')
+        if not isinstance(policies, list) or not all(isinstance(p, dict) for p in policies):
+            raise ToolFailure(f'Could not parse {what}: expected a list of policies')
+        if answer.get('total_count', len(policies)) != len(policies):
+            raise ToolFailure(
+                f'Could not read {what}: {answer.get("total_count")} policies, but '
+                f'{len(policies)} on the page')
+
+        if len(policies) != 1:
+            if not policies:
+                return [f'the "{env}" environment allows custom branch policies but defines '
+                        f'none, so no branch can deploy']
+            names = ', '.join(sorted(str(p.get('name')) for p in policies))
+            return [f'the "{env}" environment has {len(policies)} deployment policies ({names}), '
+                    f'expected exactly one branch policy for the default branch "{branch}"']
+
+        entry = policies[0]
+        entry_type = entry.get('type')
+        name = entry.get('name')
+        # The docstring and the specification both promise that a null
+        # where a value is required is an error rather than a verdict,
+        # and coercing these with str() would spell a fail about a
+        # policy named "None" instead.
+        if not isinstance(name, str) or not name:
+            raise ToolFailure(f'Could not read {what}: a deployment policy with no name')
+        if not isinstance(entry_type, str) or not entry_type:
+            raise ToolFailure(
+                f'Could not read {what}: the deployment policy "{name}" has no type')
+        if entry_type != 'branch':
+            return [f'the "{env}" environment\'s only deployment policy is a {entry_type} policy '
+                    f'named "{name}", not a branch policy for "{branch}"']
+        if set(name) & GLOB_CHARACTERS:
+            return [f'the "{env}" environment\'s branch policy "{name}" contains wildcard '
+                    f'characters, so it can match more than the default branch "{branch}"']
+        if name != branch:
+            return [f'the "{env}" environment deploys from "{name}", not the default branch '
+                    f'"{branch}"']
+        return []
 
 
 #: How many repositories to ask for. `gh repo list` returns 30 by
