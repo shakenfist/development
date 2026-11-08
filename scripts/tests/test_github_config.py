@@ -848,6 +848,31 @@ class BypassActorIdentityTest(GithubConfigTestCase):
         })
         self.assert_skip(result, containing='no "review-marks" environment')
 
+    def test_a_pull_request_ruleset_with_no_environment_passes(self):
+        """No environment is no key, so there is nothing a branch can reach.
+
+        The push falls back to github.token, which the ruleset refuses,
+        so the repository fails closed rather than quietly holding a key
+        somewhere a pull-request job could read it.
+        """
+        result = self.run_with({
+            self.api('.default_branch'): CompletedCommand(stdout='develop\n'),
+            self.rules('develop'): CompletedCommand(
+                stdout=json.dumps([{'type': 'pull_request'}])),
+            self.environment(): CompletedCommand(
+                returncode=1, stderr='gh: Not Found (HTTP 404)'),
+        })
+        self.assert_pass(result)
+        self.assertIn('refused', result['details'])
+
+    def test_an_environment_with_no_deployment_policy_fails(self):
+        """A null deployment_branch_policy admits every branch and tag."""
+        result = self.run_with(dict(self.answers(), **{
+            self.environment(): CompletedCommand(stdout=json.dumps({
+                'name': 'review-marks', 'deployment_branch_policy': None})),
+        }))
+        self.assert_fail(result, containing='any branch or tag')
+
 
 class ScopeCoverageTest(CheckTestCase):
     """The criterion that measures the fleet rather than one repository."""
