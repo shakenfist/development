@@ -62,6 +62,10 @@ optionally naming a specific issue.
   after the fix is produced: if the non-test diff exceeds
   `max_diff_lines` (default 400), no PR is created; the branch is
   pushed and a comment on the issue asks for human judgment.
+  Files marked `linguist-generated` in the base branch's
+  `.gitattributes` are not counted, so a repository with generated
+  code (protobuf stubs, say) should mark it there -- which also
+  collapses those files in GitHub's diff view.
 - **Only issues authored by users with write access are eligible**,
   and only issue comments from such users are fed to the model.
   Issue text is untrusted input to an agent with push access;
