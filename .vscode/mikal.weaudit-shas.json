@@ -357,10 +357,6 @@
       "sha": "b37670e4bd39ee31bb843a2f682c712c0930d6f4",
       "date": "2026-11-04"
     },
-    "docs/release-automation.md": {
-      "sha": "f1b68accf5c567d979be2004064ac2cd285f9025",
-      "date": "2026-10-20"
-    },
     "renovate.json": {
       "sha": "b0c50aa381d99d1a83554044fc3dad3110c07642",
       "date": "2026-10-31"
@@ -760,10 +756,6 @@
     "templates/release-automation/RELEASE-SETUP.md": {
       "sha": "7b880ebda6d241915e8e4fd5e3283c2e0dee6a04",
       "date": "2026-10-22"
-    },
-    "templates/release-automation/release.yml": {
-      "sha": "f33f521f70ad6e8f398627a4ca8a7af2fd240084",
-      "date": "2026-10-20"
     },
     "templates/renovate/README.md": {
       "sha": "9f3d1b4bcf854ca36aa6773475192c86b0914af8",

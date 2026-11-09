@@ -529,15 +529,7 @@
       "author": "mikal"
     },
     {
-      "path": "docs/release-automation.md",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/github.py",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/release-automation/release.yml",
       "author": "mikal"
     },
     {
@@ -826,10 +818,6 @@
     },
     {
       "path": "templates/release-automation/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/release-automation",
       "author": "mikal"
     },
     {
