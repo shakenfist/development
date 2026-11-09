@@ -77,11 +77,12 @@ use them rather than argue with the block.
 Every repository that plans the current way keeps every plan it has
 ever written in `docs/plans/`, forever. Nothing removes a finished
 one, so the directory only grows. A survey of the local clones on
-2026-10-28 (the age is the last commit of `docs/plans/index.md`
-in which the plan's row changed into a terminal status from one
-that was not; the
-instar clone is from 2026-08-17 and its index still holds prose
-statuses, so its row is a file count only):
+2026-10-28 (the age is the last commit of `docs/plans/index.md` in
+which the plan's row changed into a terminal status from one that was
+not; the instar clone was from 2026-08-17 and its index still held
+prose statuses, so its row is a file count only. By 2026-11-09
+instar's index carries a `Status` column, and it has 1 plan eligible
+and 29 terminal inside the window):
 
 | Repository | Files in `docs/plans/` | Lines | Terminal (`Complete`, `Superseded`, `Abandoned`) | Terminal for over 90 days |
 |------------|-----------------------:|------:|------------------:|--------------------------:|
@@ -223,13 +224,13 @@ human merging the pull request.
 | 1. Retirement convention | Complete | f7b1219 (#333) |
 | 2. `retire-plans` helper and skill | Complete | 8010a22 (#342); llm-setup 3a9f268 (!20) |
 | 3. Pilot | Complete | divergulent c7a980c (#143), kerbside d2971e6 (#686), ryll 0c42528 (#700); llm-setup 956b2fa (!21), dfebae1 (!22), c8a79de (!24) |
-| 4. `plan-retirement` criterion | Not started | |
+| 4. `plan-retirement` criterion | In progress | |
 | 5. Push audit | Not started | |
 
 The criterion lands after the pilot on purpose. It files issues the
-day it merges, in every repository with an eligible plan -- by the
-survey, at least four -- and an issue pointing at a skill nobody has
-run is an issue nobody can act on.
+day it merges, in every repository with an eligible plan -- five of
+the 24, by phase 4's survey, naming 34 plans -- and an issue pointing
+at a skill nobody has run is an issue nobody can act on.
 
 <!-- shared-block: plan-status-vocabulary v1 -->
 Plan status vocabulary (shared block; do not edit -- the canonical
@@ -1015,8 +1016,9 @@ phase 5's text (decision 5).
   `git grep -n -e '<stem>' | grep -v 'blob/[0-9a-f]\{40\}/'` prints
   nothing (only permalinks remain).
 * `retire-plans eligible` on divergulent and kerbside lists none of
-  the retired plans, and on ryll lists exactly the seventeen not in
-  the batch (plus any that have newly qualified, named in the notes).
+  the retired plans, and on ryll lists the seventeen not in the
+  batch, plus `PLAN-two-stage-ci.md`, which crossed 90 days on
+  2026-11-08: eighteen.
 * For each repository, `gh issue list -R shakenfist/<repo> --label
   from-retired-plan --state all --json number -q length` equals the
   number of issues filed **into** it, which is not the number its own
@@ -1069,7 +1071,7 @@ skill's by nearly deleting something.
 |------------|---------------|---------------------|--------|--------|----------------|
 | divergulent, #143, `c7a980c` | 3: `full-machine-run`, `faster-full-run`, `generated-marking` | none; 0 eligible after | #139-#142 | 3 rounds | !21, `956b2fa` |
 | kerbside, #686, `d2971e6` | 4: `test-harness`, `rust-proxy`, `host-subject`, `kerbside-vdi-tokens` | none; 1 cross-repository row (Shaken Fist's deployer plan) stays by design | #677-#685 here, and ryll#684 | asked for nothing | !22, `dfebae1` |
-| ryll, #700, `0c42528` | 6 of 23, decision 2's batch: `initial`, `pip-distribution`, `hamburger-menu`, `pr31-followup`, `deferred-debt`, `crate-extraction` | 17 eligible, for phase 4's audit issue; 12 further finished plans sit in a table with no Status column and can never be eligible | #693, #694, #697-#699 from this pilot, #706 and #707 from its review, unlabelled; ryll#684 is kerbside's | 3 rounds, 1 `fix` declined | !24, `c8a79de` |
+| ryll, #700, `0c42528` | 6 of 23, decision 2's batch: `initial`, `pip-distribution`, `hamburger-menu`, `pr31-followup`, `deferred-debt`, `crate-extraction` | 17 eligible when #700 merged, and 18 from 2026-11-08, when `PLAN-two-stage-ci.md` crossed 90 days; all of them for phase 4's audit issue. 12 further finished plans sit in a table with no Status column and can never be eligible | #693, #694, #697-#699 from this pilot, #706 and #707 from its review, unlabelled; ryll#684 is kerbside's | 3 rounds, 1 `fix` declined | !24, `c8a79de` |
 
 Each pull request's body names the plans it left and the items it
 dropped, and each commit carries its own plan's reasoning, so the
@@ -1210,6 +1212,10 @@ criterion counts, first:
   because eligibility reads a column they do not have. As the
   criterion stands, a repository can keep finished plans indefinitely
   by holding them in a statusless table and still be reported clean.
+  Phase 4's survey found a second and larger instance, private-ci's
+  twenty-four, where the absent column is a written decision rather
+  than an omission; phase 4 decision 3 reports both and fails
+  neither.
 
 * **`eligible` reads `origin/<default>`,** so it answers what is
   eligible in the repository and not what a branch has done: on a
@@ -1245,18 +1251,330 @@ criterion counts, first:
 Planning effort: high. It reaches `audit-manage-issues.py`.
 
 Read *Corrections phase 4's brief needs* in phase 3's execution notes
-before planning this phase. The two findings that change what the
-criterion does are folded into 4a below, and the two documentation
-ones are step 4d; the rest are about how to write the briefs, not
-about the check.
+before starting. The two findings that change what the criterion does
+are folded into step 4a and into decisions 2 and 3 below; the two
+documentation ones are step 4d.
+
+#### Scope
+
+In: a `plan-retirement` criterion in this repository's audit, with
+its specification page and its row in the criteria index; the change
+to the audit's clone that gives the criterion the index's history;
+the four rules `docs/plan-retirement.md` is behind the helper on; and
+marking the already-retired rows in divergulent's and kerbside's
+indexes.
+
+Out: retiring any plan -- the criterion files an issue and the
+`retire-plans` skill acts on it; ryll's eighteen and shakenfist's
+thirteen eligible plans, which those issues are what tracks; the push
+audit (phase 5); and any change to the helper or the skill in
+llm-setup, which phase 3 finished.
+
+#### What the survey found
+
+Checked on 2026-11-09 against development `ea741dd`, llm-setup
+`c8a79de`, and each matrix repository's freshly fetched
+`origin/<default>`.
+
+Every premise the phase's original text stated about this
+repository's code holds. `scripts/audit/checks/plans.py` has
+`PlanIndex` (line 1295), `plan_table_columns` (line 378) and
+`PLAN_TERMINAL_STATUSES` (line 405); `iter_markdown_table_rows` is at
+`scripts/audit/text/markdown.py:127`; `ToolFailure` at
+`scripts/audit/check.py:37`; `api_answer` and `FakeGitHub` at
+`scripts/audit/github.py:111` and `:129`; `PLAN_TEMPLATE_BLOCKS` at
+`plans.py:1120`; `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` at
+`scripts/tests/test_metadata.py:59` and `:328`, holding 68 titles for
+68 registered criteria; `docs/audits/plan-retirement.md` does not
+exist; and the audit still clones each target with `--depth 1`
+(`.github/workflows/consistency-audit.yml:126`). Seven things it did
+not say:
+
+1. **What the criterion will do on the day it merges, measured.** The
+   helper at `c8a79de` reads the same index and applies the same
+   clock the criterion will, so `eligible` over all 24 matrix
+   repositories is step 4c's dry run a phase early:
+
+   | Verdict | Repositories | Plans |
+   |---------|--------------|------:|
+   | fail | instar 1, kerbside 1, ryll 18, shakenfist 13,
+   uncalibrated-sextant 1 | 34 |
+   | pass | actions, andris, client-python, client-python-k3s,
+   client-python-ova, development, divergulent, images,
+   kerbside-patches, library-utilities, occystrap, private-ci, sfui |
+   0 |
+   | not applicable | agent-python, clingwrap, cloudgood, hunkydory,
+   kerbside-client, visual-digest-rust: no `docs/plans/index.md` | --
+   |
+
+   Five repositories, not the Execution preamble's "at least four",
+   and 34 plans. development has 0 eligible and 16 terminal inside
+   the window, so it will not fail its own criterion on day one; the
+   first of its own plans qualifies on 2026-11-20, as phase 3's scope
+   said.
+
+2. **An API route would cost the check the audit's own regression
+   net.** `audit_snapshot.py` compares two runs' details strings byte
+   for byte, because those strings reach `docs/audits/compliance.md`
+   and the bodies of issues filed in 24 repositories. Checks that
+   reach the network are excused from that comparison, and
+   `NETWORK_CHECKS` is not a list a check can opt out of by hand:
+   `NetworkCheckListTest` re-derives it by scanning each check's
+   source for `repo.github`, `_github(`, `GhCli(` or `'clone'`
+   (`scripts/tests/test_audit_snapshot.py:248`) and fails if the two
+   disagree. So reading the index's history through `api_answer()`
+   does not merely cost requests -- it moves `plan-retirement` out of
+   the net that protects the one thing it publishes. Reading it from
+   the clone does not: `git` run against `repo.path` matches none of
+   those patterns, which is why `packaging.py`'s `git check-ignore`
+   check is not in `NETWORK_CHECKS`.
+
+3. **What each history route costs, measured on the two worst
+   repositories.** `docs/plans/index.md` has 1,202 revisions across
+   the 18 matrix repositories that have one; shakenfist alone has
+   356, instar 204 and kerbside 193.
+
+   | Route | shakenfist | ryll |
+   |-------|------------|------|
+   | `--depth 1`, today | 2.8s, 59MB, 1 revision visible | 1.5s,
+   14MB, 1 revision |
+   | `--filter=blob:none` | 13.1s, 83MB | 2.2s, 17MB |
+   | ... then reading every index revision | +179.1s (356 revisions)
+   | +58.4s (117) |
+   | ... bounded at the threshold (decision 2) | +~120s (242) | +~26s
+   (51) |
+   | full clone | 68.8s, 1,256MB, then 0.1s to walk | not measured |
+   | `commits?path=` through `api_answer()` | ~360 requests | ~121
+   requests |
+
+   The promisor fetch is one round trip per revision, about 0.5s, and
+   nothing batches it: piping all 356 `<sha>:docs/plans/index.md`
+   revisions through a single `git cat-file --batch` took 174.5s
+   against 179.1s for 356 separate `git show` calls (git 2.47.3). The
+   blob:none clone costs no other check anything, because `clone`
+   checks out HEAD and fetches its blobs in that one request: in the
+   blob:none clone of shakenfist all 1,908 tracked files are present,
+   and `git grep` across them with `GIT_NO_LAZY_FETCH=1` succeeds, so
+   no check but this one can reach the network through the clone.
+
+4. **A statusless table is not one repository's omission, and the
+   larger one is deliberate.** Phase 3's correction named ryll's
+   twelve. private-ci has twenty-four, at `docs/plans/index.md:19`,
+   and four lines of prose above them saying why: "a status here
+   would be inferred rather than recorded -- and an inferred status
+   in the one page people read to decide what wants attention is
+   worse than none. The column goes in as those plans are revisited
+   and their real state confirmed." So the fleet has 36
+   finished-looking plans that eligibility cannot see, in two tables,
+   one an omission and one a documented choice. `plan-index` passes
+   both: it selects tables by their lead columns
+   (`PLAN_INDEX_LEAD_COLUMNS`), and a `Date | Plan | Intent` table is
+   a legal one it simply has no status to judge.
+
+5. **The `(retired)` marker does not gate detection**, so step 4d is
+   independent of step 4a rather than a precondition for it. On
+   divergulent, `eligible` reports "0 eligible; 3 already retired"
+   while `check` fails `retired-row-markers` on the same three rows:
+   a row is recognised as retired by its permalink, and the marker is
+   for the human reading the page. 4d still lands before 4c, because
+   4c is the record of the finished state, but 4a does not wait on
+   it.
+
+6. **Step 4c's command does not exist as written.** `audit-check.py`
+   takes `--repo-path` and `--repo-name` and has no `--dry-run`;
+   `--dry-run` belongs to `audit-manage-issues.py --results-dir`,
+   which decides what issues to file from the JSON `audit-check.py`
+   prints. The dry run is therefore two commands, and
+   `tools/audit-snapshot.sh <clones-dir> <out-dir>` is the first of
+   them over a whole directory of clones.
+
+7. **Two Situation claims have gone stale.** instar's index now
+   carries a `Status` column, so its row is no longer a file count
+   only: it has 1 eligible plan and 29 terminal inside the window.
+   And `eligible` refuses a clone whose `origin/HEAD` is unset, which
+   was eight of the 24 local clones; `gh repo clone` sets it, so this
+   reaches a person running the skill locally and never the
+   criterion. Both corrected below; the second is recorded as *Future
+   work* rather than fixed here, since the helper is llm-setup's.
+
+Corrected at source: the Execution preamble's "at least four"; the
+Situation note on instar's prose statuses; phase 3's per-repository
+notes row and definition-of-done bullet, which said ryll has
+seventeen eligible plans left (`PLAN-two-stage-ci.md` qualified on
+2026-11-08, making eighteen); and phase 3's statusless- table
+correction, which named only ryll's twelve.
+
+#### Decisions
+
+1. **The index's history comes from a `--filter=blob:none` clone, not
+   from the API.** Finding 2 is why, and finding 3 is the price: one
+   line in `consistency-audit.yml`, about ten seconds and 24MB more
+   on the worst repository, and nothing at all for the other 67
+   criteria. The API route's ~1,250 requests across the matrix would
+   be survivable on their own; losing the byte-for-byte snapshot
+   comparison on a check whose details become issue bodies in 24
+   repositories is not, and no amount of request budget buys it back.
+   This is the decision that is cheap now and expensive later,
+   because it changes the clone step every matrix leg shares.
+
+2. **The history walk stops at the threshold, not at the first
+   revision.** A row that is terminal in the oldest revision examined
+   and terminal now has been terminal at least that long, so a row
+   still unresolved at a revision older than `RETIREMENT_AGE_DAYS` is
+   eligible without an exact date. The finding reports an exact age
+   where the transition was found and a lower bound ("at least N
+   days") where it was not, and never an unlabelled number. This
+   makes the cost proportional to how much the index churned inside
+   the window rather than to the repository's age: 242 revisions
+   instead of 356 on shakenfist, 51 instead of 117 on ryll, 11
+   instead of 77 on divergulent.
+
+3. **A table with no `Status` column is reported and never failed,
+   and nothing else fails it either.** Step 4a already said the
+   criterion reports it; the open question it left to this phase was
+   whether `plan-index` should fail it under its own title. The
+   answer is no. Finding 4 is why: the larger of the two instances is
+   a written decision not to record a status that would be invented,
+   which is a better answer than an invented status, and a criterion
+   cannot tell that apart from an omission. What the two cases have
+   in common is not a defect but invisibility -- 36 plans that
+   eligibility cannot see -- and a `findings` entry in every audit
+   run, on a result that is not a `fail`, is what fixes invisibility.
+   `docs/plan-retirement.md` gains the rule (step 4d) so the
+   behaviour is written down rather than implied by a check. This is
+   the decision most likely to be argued with: it leaves a repository
+   able to hold finished plans out of retirement indefinitely by not
+   giving them a status. The reason to take it anyway is that the
+   alternative is an audit demanding a status somebody will make up
+   to clear an issue, and open question 3 already settled that an
+   opt-out is acceptable when it is written down and visible, which
+   this is.
+
+4. **There is no step 4b: the rule does not become a
+   `PLAN-TEMPLATE.md` shared block.** The original step asked whether
+   it should. It should not. A shared block changes how a plan is
+   *written*, which is what `plan-phase-landing` and
+   `plan-closeout-sections` do; retirement happens ninety days after
+   a plan's last phase lands, when nobody is reading the template.
+   Copying the rule into 24 templates would put it where it is never
+   read at the moment it applies, and the criterion's issue arrives
+   in the repository at exactly that moment instead. The step is
+   dropped rather than renumbered, because phase 3's execution notes
+   and this plan's corrections section both cite "step 4a" and "step
+   4d" by letter.
+
+5. **The criterion's own repository is not exempt.** It is registered
+   for development like any other, and development passes it today
+   with 0 eligible and 16 terminal inside the window (finding 1). The
+   first plan here qualifies on 2026-11-20, which is after this phase
+   lands, so the criterion files its first issue against this
+   repository without anybody having to decide to let it.
+
+#### Steps
+
+The letters are not alphabetical, and 4b is absent: both are decision
+4. Execution order is the table's order.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 4a | high | opus | none | Add a `PlanRetirement` class to `scripts/audit/checks/plans.py`: id `plan-retirement`, spec `docs/audits/plan-retirement.md`, `issue_title = 'Completed plans awaiting retirement'`. N/A without `docs/plans/index.md`. Read the index with `iter_markdown_table_rows` and `plan_table_columns` as `PlanIndex` does; for each row with a local link and a terminal status, date the commit where its row last changed into a terminal status (open question 2). That needs the index's history, which the audit's `--depth 1` clone lacks: phase 4 planning decides between cloning with `--filter=blob:none` (full history, blobs fetched on demand) and walking `repos/shakenfist/<repo>/commits?path=docs/plans/index.md` through `repo.github.api_answer()`, and must say what either costs across the matrix. Fail listing each plan over `RETIREMENT_AGE_DAYS = 90` with its age, as `findings`; phase files play no part in the age. GitHub not answering raises `ToolFailure` (status `error`), never `fail` or `not_applicable`. Register in `CHECKS` in `scripts/audit/registry.py` beside the plan checks; write the spec following `docs/audits/README.md`, naming the `retire-plans` skill and linking `docs/plan-retirement.md`; add its row to `docs/audits/README.md`; add `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` lines in `scripts/tests/test_metadata.py`; tests in `scripts/tests/test_plans.py` covering pass, fail, N/A, a retirement permalink row (a `blob/<40-hex>/docs/plans/` link into this repository: already retired, so not counted), a cross-repository row (any other absolute link, including `blob/<branch>`: reported, never counted as retired -- kerbside's index has one), a table with no `Status` column, which is reported in `findings` on an otherwise passing result and never fails under this check's title, since `issue_title` is frozen fleet-wide and 'Completed plans awaiting retirement' does not describe a table-shape defect -- phase 4 planning decides whether `plan-index`, which already judges the index's shape, should fail it under its own title, and the execution notes say why it matters that something does: ryll holds twelve finished plans that way and they can never be eligible, a row that went terminal long ago although its files were touched recently (eligible), a plan reopened and finished again (the clock restarts), a terminal-to-terminal change such as `Complete` to `Superseded` (the clock does not restart), an index rename, and API failure, using `FakeGitHub`. |
-| 4b | medium | sonnet | none | Decide, with the pilot results, whether the rule in `docs/plan-retirement.md` should also become a shared block in every `PLAN-TEMPLATE.md` (added to `PLAN_TEMPLATE_BLOCKS`). If yes, it reaches the fleet through the issues `plan-template` files, as `plan-phase-landing` did. |
-| 4c | medium | sonnet | none | Run the new check with `--dry-run` across the matrix and record here how many repositories it newly fails, including this one, before merging. |
-| 4d | low | sonnet | none | Bring `docs/plan-retirement.md` up to what the helper now does, on the three points phase 3's notes list: a build input under `docs/plans/` (`order.yml`) has its entry deleted rather than pinned; `rewrite-index` marks a retired row `(retired)` and writes the index preamble, which needs reconciling with the page's "Retired is not a status"; and a repository's local convention for finished plans is reconciled by the retirement that contradicts it. Add the rule 4a asserts about a table with no `Status` column, which the page does not state today. Keep the page free of phase numbers, as phase 1's definition of done greps for. Then mark the already-retired rows in divergulent's and kerbside's indexes and add the preamble to each, one small pull request per repository, each running that repository's push audit as decision 5 requires and recorded in phase 4's `Merged` cell; the marker goes in the `Plan` cell, after the link, which is where `rewrite-index` puts it, although `check` accepts it anywhere on the row. Those two are why `retire-plans check` exits 1 on divergulent and kerbside today. Land before 4c's dry run, so the criterion is measured against a fleet the rule describes. |
+| 4a | high | opus | none | Add a `PlanRetirement` class to `scripts/audit/checks/plans.py`: id `plan-retirement`, spec `docs/audits/plan-retirement.md`, `issue_title = 'Completed plans awaiting retirement'`. N/A without `docs/plans/index.md`. Read the index with `iter_markdown_table_rows` and `plan_table_columns` as `PlanIndex` does, and reuse `PLAN_TERMINAL_STATUSES` (`plans.py:405`). For each row with a local plan link and a terminal status, date the commit where that row last changed into a terminal status from one that was not (open question 2), by walking `docs/plans/index.md` newest-first in the clone and stopping at the first revision older than `RETIREMENT_AGE_DAYS = 90` (decision 2): a row still terminal there is eligible with a lower-bound age. The history comes from the clone, not from GitHub (decision 1), so this step also changes `.github/workflows/consistency-audit.yml:126` from `--depth 1` to `--filter=blob:none` and says in a comment why. Do not touch `repo.github` or run a `clone` from inside the check: that would put `plan-retirement` in `NETWORK_CHECKS` and out of the snapshot net (finding 2), and `NetworkCheckListTest` enforces the list either way. Fail listing each plan over the threshold with its age, as `findings`; phase files play no part in the age. git failing to answer raises `ToolFailure` (status `error`), never `fail` or `not_applicable`. **Do not count**: a row whose plan link is a permalink into this repository (`blob/<40-hex>/docs/plans/`: retired already), a row linking a plan elsewhere or by branch (any other absolute link -- kerbside's index has one, by design), or a row the index reader cannot parse; report each of those instead. A table with no `Status` column is reported in `findings` on an otherwise passing result and never fails (decision 3). Register in `CHECKS` in `scripts/audit/registry.py` beside the plan checks; write the spec following `docs/audits/README.md`, naming the `retire-plans` skill and linking `docs/plan-retirement.md`; add its row to `docs/audits/README.md`; add `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` lines in `scripts/tests/test_metadata.py`. Tests in `scripts/tests/test_plans.py` over a synthetic index history, not a single mocked diff, covering: pass, fail, N/A, a retirement permalink row, a cross-repository row, a statusless table, a row that went terminal long ago although its files were touched recently (eligible), a plan reopened and finished again (the clock restarts), a terminal-to-terminal change such as `Complete` to `Superseded` (the clock does not restart), a row resolved only at the threshold boundary (lower-bound age), an index rename, and git failing. Prove them with the `mutation-check` skill: inverting the clock comparison, dropping the terminal-to-terminal guard and dropping the permalink exclusion must each fail a named test. |
+| 4d | low | sonnet | none | Bring `docs/plan-retirement.md` up to what the helper now does, on the three points phase 3's notes list: a build input under `docs/plans/` (`order.yml`) has its entry deleted rather than pinned; `rewrite-index` marks a retired row `(retired)` and writes the index preamble, which needs reconciling with the page's "Retired is not a status" -- the marker sits in the `Plan` cell and is not a status, which is the reconciliation; and a repository's local convention for finished plans is reconciled by the retirement that contradicts it. Add decision 3's rule, which the page does not state today: a table with no `Status` column makes its plans ineligible, the audit reports them rather than failing, and a repository keeping one should say why, as private-ci does. Keep the page free of phase numbers, as phase 1's definition of done greps for. Then mark the already-retired rows in divergulent's and kerbside's indexes and add the preamble to each, one small pull request per repository, each running that repository's push audit as phase 3 decision 5 requires, and recorded in phase 4's `Merged` cell; `rewrite-index` puts the marker in the `Plan` cell after the link, although `check` accepts it anywhere on the row. Those two are why `retire-plans check` exits 1 on divergulent and kerbside today. This does not change what 4a detects (finding 5), so the two may run in either order; both land before 4c. |
+| 4c | medium | sonnet | none | The dry run, in two commands, not one (finding 6): `tools/audit-snapshot.sh <clones-dir> <out-dir>` over fresh clones of all 24 matrix repositories, then `scripts/audit-manage-issues.py --results-dir <out-dir> --dry-run` to see the issues it would file. Record here the verdict for every repository, the plans each fail names, and the wall-clock time the new check spent per repository, and compare the verdicts against this phase's survey table and against `retire-plans eligible` on the same clones: a disagreement is a defect in the check or in the helper, and the notes say which. Also capture a snapshot before and after 4a's clone change and diff them with `tools/audit-snapshot.sh --diff`: nothing but `plan-retirement` may move. Land before merging. |
 
+#### Risks and mitigations
+
+* **The clone change breaks or slows a criterion that relied on
+  shallowness.** 67 other checks share that clone. Mitigated by the
+  audit's own regression net, which is what 4c's before-and-after
+  snapshot diff is for, and by the measurement behind decision 1: a
+  blob:none clone holds every blob at HEAD, so no other check can
+  reach the network through it. The failure mode to watch for is the
+  opposite of slow -- a check that silently starts reading history
+  because it now can.
+
+* **The walk costs more than the measurement suggests, because an
+  index churns more than shakenfist's.** The cost is revisions inside
+  the 90-day window, which is a number nobody controls. Mitigated by
+  4c recording per-repository time, by the 30-minute leg timeout
+  being the backstop, and by the walk being bounded at the threshold
+  rather than at the repository's first commit (decision 2). If a leg
+  does approach the timeout, the fix is a smaller window, not a
+  deeper clone.
+
+* **34 plans' worth of retirement arrives in five repositories at
+  once.** Mitigated by what the pilot measured: six plans is one pull
+  request a person can read deletion by deletion, so shakenfist's
+  thirteen are three and ryll's eighteen are four, and the helper
+  prints the retirement order that chooses the batches. The threshold
+  is a constant and open question 5 revisits it after the first
+  fleet-wide round; the issue is a backlog, not a deadline, and its
+  body should say so.
+
+* **The clock is subtly wrong on a shape the fixtures do not have.**
+  1,202 real index revisions exist across the matrix, and the clock
+  rule has four edge cases (reopened, terminal-to-terminal,
+  boundary-resolved, renamed index). Mitigated by 4a's synthetic
+  histories, by the mutation check it names, and by 4c cross-checking
+  every verdict against the helper, which reached the same answers by
+  different code.
+
+* **A finding names a plan whose reasoning has nowhere to go.** Phase
+  3 exercised the skill's refusal path, so this is expected rather
+  than a defect; the criterion's issue stays open and the pull
+  request that retires the rest names the plan it left. The risk is
+  only that an issue nobody can fully close reads as a failure of the
+  criterion; the spec page should say that a partially retired
+  repository keeps the issue open on purpose.
+
+#### Definition of done
+
+* `plan-retirement` is in `CHECKS`, in `FROZEN_METADATA` and in
+  `FROZEN_ISSUE_TITLES`, `docs/audits/plan-retirement.md` exists, and
+  `docs/audits/README.md` has its row.
+
+* `plan-retirement` is **not** in `NETWORK_CHECKS`, and
+  `NetworkCheckListTest` passes: the criterion reads the index's
+  history from the clone and never from GitHub.
+
+* `tools/audit-snapshot.sh --diff` between snapshots captured before
+  and after the clone change reports differences in
+  `plan-retirement`'s rows and in nothing else.
+
+* Over all 24 matrix repositories the criterion fails exactly instar,
+  kerbside, ryll, shakenfist and uncalibrated-sextant, reports
+  `not_applicable` for exactly agent-python, clingwrap, cloudgood,
+  hunkydory, kerbside-client and visual-digest-rust, and passes the
+  other thirteen. Any difference from this phase's survey table is
+  explained in the execution notes, naming the commit that caused it.
+
+* The fail details name 34 plans in total, and every age is either an
+  exact day count or a stated lower bound.
+
+* ryll's twelve-plan and private-ci's twenty-four-plan statusless
+  tables both appear in `findings`, on results that are not `fail`
+  for that reason.
+
+* `$HOME/bin/retire-plans check` exits 0 on divergulent and kerbside.
+
+* `docs/plan-retirement.md` states all four rules from step 4d, and
+  `grep -niE 'phase [0-9]' docs/plan-retirement.md` prints nothing.
+
+* `pre-commit run --all-files` passes, and the three mutations step
+  4a names each fail a named test.
+
+* The execution notes record the new check's wall-clock cost per
+  repository from 4c, and no matrix leg exceeds its 30-minute
+  timeout.
+
+#### Back brief
+
+Before step 4a, back brief Mikal on decision 1 (the audit clones with
+`--filter=blob:none` instead of `--depth 1`, which every matrix leg
+shares) and decision 3 (a statusless table is reported and never
+failed, by this criterion or by `plan-index`). The first is one line
+to write and expensive to reverse once 67 criteria have been
+snapshotted against it; the second decides whether 36 finished plans
+in two repositories can stay out of retirement indefinitely.
 ### Phase 5: push audit
 
 Runs `PUSH-AUDIT.md` over every range recorded above, in this
@@ -1542,6 +1860,14 @@ chosen to defer to here, so that we do not forget them.
 
 * A `docs/plans/` size or count signal in the audit, if retirement
   turns out not to be enough on its own.
+* `retire-plans eligible` refuses a local clone whose `origin/HEAD`
+  is unset, with the right remedy in the message, but it was unset in
+  eight of the 24 clones on this host, so a fleet-wide survey stops
+  eight times before it starts. It could run `git remote set-head
+  origin --auto` itself, as it already fetches. The helper is
+  llm-setup's, so this is a merge request there rather than work in
+  this plan, and the criterion is unaffected: the audit's `gh repo
+  clone` sets `origin/HEAD`.
 
 ### Bugs fixed during this work
 
