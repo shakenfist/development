@@ -207,10 +207,32 @@ jobs:
         with:
           subject-path: 'dist/*'
 
+      # skip-existing is what makes a release re-runnable. PyPI answers
+      # an upload of a version it already holds with a hard
+      # "400 File already exists", and github-release below has
+      # publish-pypi in its needs list, so without this a release that
+      # got as far as a successful PyPI upload and then failed could
+      # never be completed: every later run failed in this job and
+      # github-release skipped behind it.
+      #
+      # This is only reached when the version already on PyPI is the one
+      # being published. The recovery for a genuinely failed publish is
+      # to burn the version and tag the next one, so the same version is
+      # never deliberately re-tagged with different contents -- the one
+      # case where skipping an existing file would ship a release whose
+      # PyPI artifact is not the one just built.
+      #
+      # Adopters that add publish steps after this one need it most,
+      # because they have more ways to half-publish: kerbside reached
+      # the same conclusion independently for its two sequential
+      # packages, and shakenfist/client-python-k3s#168 is a release that
+      # wedged with the plugin on PyPI and the collection never
+      # published, unfixable by re-running.
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
+          skip-existing: true
 
   github-release:
     name: Create GitHub Release
