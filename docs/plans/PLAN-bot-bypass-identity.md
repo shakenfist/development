@@ -412,7 +412,7 @@ Out of scope:
 |-------|--------|--------|
 | 1. Operator inventory and App creation | Complete | 2a24d00 (#348) |
 | 2. `prune-reviews` mints an App token | Complete | 9f080cd (#354), b3ff906 (#356), 55f554e (#357), 9d1301b (#368) |
-| 3. Move the bypass and enforce it | In progress | |
+| 3. Move the bypass and enforce it | Complete | e460a2b (#377), 38f15f1 (#380) |
 | 4. Push audit | Not started | |
 
 <!-- shared-block: plan-status-vocabulary v1 -->
