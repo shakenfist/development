@@ -222,7 +222,7 @@ human merging the pull request.
 |-------|--------|--------|
 | 1. Retirement convention | Complete | f7b1219 (#333) |
 | 2. `retire-plans` helper and skill | Complete | 8010a22 (#342); llm-setup 3a9f268 (!20) |
-| 3. Pilot | Blocked | divergulent c7a980c (#143), kerbside d2971e6 (#686), ryll 0c42528 (#700); llm-setup 956b2fa (!21), dfebae1 (!22) |
+| 3. Pilot | Complete | divergulent c7a980c (#143), kerbside d2971e6 (#686), ryll 0c42528 (#700); llm-setup 956b2fa (!21), dfebae1 (!22), c8a79de (!24) |
 | 4. `plan-retirement` criterion | Not started | |
 | 5. Push audit | Not started | |
 
@@ -1045,10 +1045,11 @@ expensive after: the batch is the ryll review's size, and the audits
 are a sub-agent pass per repository.
 
 Merged: divergulent `c7a980c` (#143); kerbside `d2971e6` (#686);
-ryll `0c42528` (#700); llm-setup `956b2fa` (!21), `dfebae1` (!22).
-The ryll skill revision is private/claude!24, still open. Phase 4's
-first commit adds its merge sha here and sets phase 3 to `Complete`,
-as `plan-phase-landing` has a phase closed out by the next phase.
+ryll `0c42528` (#700); llm-setup `956b2fa` (!21), `dfebae1` (!22),
+`c8a79de` (!24). The ryll skill revision merged on 2026-11-08, which
+released the hold this phase was held open under; phase 4's first
+commit set the status to `Complete`, as `plan-phase-landing` has a
+phase closed out by the next phase.
 
 #### Phase 3 execution notes
 
@@ -1068,20 +1069,26 @@ skill's by nearly deleting something.
 |------------|---------------|---------------------|--------|--------|----------------|
 | divergulent, #143, `c7a980c` | 3: `full-machine-run`, `faster-full-run`, `generated-marking` | none; 0 eligible after | #139-#142 | 3 rounds | !21, `956b2fa` |
 | kerbside, #686, `d2971e6` | 4: `test-harness`, `rust-proxy`, `host-subject`, `kerbside-vdi-tokens` | none; 1 cross-repository row (Shaken Fist's deployer plan) stays by design | #677-#685 here, and ryll#684 | asked for nothing | !22, `dfebae1` |
-| ryll, #700, `0c42528` | 6 of 23, decision 2's batch: `initial`, `pip-distribution`, `hamburger-menu`, `pr31-followup`, `deferred-debt`, `crate-extraction` | 17 eligible, for phase 4's audit issue; 12 further finished plans sit in a table with no Status column and can never be eligible | #693, #694, #697-#699 from this pilot, #706 and #707 from its review, unlabelled; ryll#684 is kerbside's | 3 rounds, 1 `fix` declined | !24, open |
+| ryll, #700, `0c42528` | 6 of 23, decision 2's batch: `initial`, `pip-distribution`, `hamburger-menu`, `pr31-followup`, `deferred-debt`, `crate-extraction` | 17 eligible, for phase 4's audit issue; 12 further finished plans sit in a table with no Status column and can never be eligible | #693, #694, #697-#699 from this pilot, #706 and #707 from its review, unlabelled; ryll#684 is kerbside's | 3 rounds, 1 `fix` declined | !24, `c8a79de` |
 
 Each pull request's body names the plans it left and the items it
 dropped, and each commit carries its own plan's reasoning, so the
 table above is an index rather than the record.
 
-**The row says `Blocked`, not `Complete`.** Every pilot has run and
-merged, so the phase is finished as work; what it waits on is !24,
-the ryll skill revision, which is recorded as a plan-blocker against
-this plan along with this pull request, as decision 4 requires. Phase
-2 recorded the opposite mistake about itself -- a merged plan change
-and an unpushed llm-setup branch, so the plan read as further along
-than the fleet was for two days -- and the installed
-`~/.claude/skills/retire-plans` is the !22 version until !24 lands.
+**The row was held at `Blocked` until !24 merged.** Every pilot had
+run and merged, so the phase was finished as work; what it waited on
+was the ryll skill revision, recorded as a plan-blocker against this
+plan along with this pull request, as decision 4 requires. !24 merged
+as `c8a79de` on 2026-11-08, nine minutes after #378, and phase 4's
+first commit set the row to `Complete`. Phase 2 recorded the opposite
+mistake about itself -- a merged plan change and an unpushed
+llm-setup branch, so the plan read as further along than the fleet
+was for two days. The installed `~/.claude/skills/retire-plans` is
+still the !22 version: the llm-setup checkout it resolves into
+carries an unrelated local commit and cannot fast-forward, so a
+retirement run on this host should check that
+`references/reasoning.md` exists before trusting the skill to be
+current.
 
 **The two definition-of-done verifications the notes owe.** For each
 of the 13 retired plans, on its repository's merged default branch,
