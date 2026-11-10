@@ -340,18 +340,19 @@ class ExtractionTest(unittest.TestCase):
             'the appended "Fixes #NNNN" must come before the model '
             'description, not after it')
 
-    def test_the_workflow_runs_the_scripts_from_head(self):
+    def test_the_workflow_runs_the_scripts_from_the_base(self):
         # The fix under test may have edited these files -- the
         # extractor's own header calls that out as a plausible subject
         # for an automated fix. Copying them out of the workspace after
         # Claude has exited copies whatever Claude wrote, so the
         # workflow would parse its own output with the untested version.
-        # Nothing is committed until the publish step, so HEAD is the
-        # pre-fix tree.
+        # They are read from the commit recorded before the model ran,
+        # not from HEAD, which a model that committed would have moved.
         with open(WORKFLOW) as f:
             workflow = f.read()
 
-        self.assertIn('git show "HEAD:tools/${script}"', workflow)
+        self.assertIn('git show "${BASE_SHA}:tools/${script}"', workflow)
+        self.assertNotIn('git show "HEAD:', workflow)
         for script in ('extract-model-block.sh', 'neutralise-pr-body.sh'):
             self.assertNotIn(
                 'cp tools/%s' % script, workflow,

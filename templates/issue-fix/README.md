@@ -20,6 +20,7 @@ optionally naming a specific issue.
 | `claude-model-fallback.sh` | `tools/claude-model-fallback.sh` | Model fallback wrapper (needs `chmod +x`) |
 | `extract-model-block.sh` | `tools/extract-model-block.sh` | Marker block extraction (needs `chmod +x`) |
 | `neutralise-pr-body.sh` | `tools/neutralise-pr-body.sh` | Defuses mentions and closing keywords (needs `chmod +x`) |
+| `measure-change-size.sh` | `tools/measure-change-size.sh` | Counts the lines the size cap applies to (needs `chmod +x`) |
 
 ## How it works
 
@@ -62,10 +63,14 @@ optionally naming a specific issue.
   after the fix is produced: if the non-test diff exceeds
   `max_diff_lines` (default 400), no PR is created; the branch is
   pushed and a comment on the issue asks for human judgment.
-  Files marked `linguist-generated` in the base branch's
-  `.gitattributes` are not counted, so a repository with generated
-  code (protobuf stubs, say) should mark it there -- which also
-  collapses those files in GitHub's diff view.
+  Files marked `linguist-generated` (or `linguist-generated=true`)
+  in the base branch's `.gitattributes` are not counted, so a
+  repository with generated code (protobuf stubs, say) should mark
+  it there -- which also collapses those files in GitHub's diff
+  view. The attributes are read from the base commit, so a fix
+  cannot mark its own code generated. This needs git 2.41 or later
+  on the runner; older git counts generated files and says so in
+  the log.
 - **Only issues authored by users with write access are eligible**,
   and only issue comments from such users are fed to the model.
   Issue text is untrusted input to an agent with push access;
@@ -129,6 +134,21 @@ optionally naming a specific issue.
   used a `sed` address range and did exactly that; the second
   embedded awk in the workflow, which had to be lifted back out
   with a regular expression to be testable at all.
+- **The size cap is measured by a script, pinned by a test, and
+  fails closed.** `measure-change-size.sh` counts lines changed
+  between the base commit and the index, less tests and generated
+  files. Inline, it was `git diff | awk` without `pipefail`, so a
+  `git` which failed -- an unsupported option, a bad pathspec --
+  left `awk` to print 0 and published the fix however large it was.
+  It measures from the commit the workflow records before the model
+  runs, not from HEAD, and reads `.gitattributes` from there too:
+  the prompt tells the model not to commit, but a commit would move
+  HEAD onto the work being measured. The extraction scripts are read
+  from that recorded commit for the same reason.
+  `scripts/tests/test_issue_fix_measurement.py` builds throwaway
+  repositories to pin each rule, including both spellings of the
+  attribute, which git's `attr:` pathspec magic treats as different
+  states.
 - **The description is passed to `gh` with `--body-file`.** It is
   model output, so interpolating it into a shell string -- an
   unquoted heredoc in particular -- would execute any `$(...)` or
