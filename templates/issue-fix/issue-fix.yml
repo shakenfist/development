@@ -100,7 +100,7 @@ on:
         default: '200'
         type: string
       max_diff_lines:
-        description: 'Maximum non-test lines changed before the fix is too large for an automated PR'
+        description: 'Maximum non-test, non-generated lines changed before the fix is too large for an automated PR'
         required: false
         default: '400'
         type: string
@@ -134,7 +134,9 @@ concurrency:
 
 env:
   # Regular expression matching paths that are test changes. Lines
-  # changed in matching files do not count against max_diff_lines.
+  # changed in matching files do not count against max_diff_lines,
+  # and nor do files marked linguist-generated (see "Measure change
+  # size").
   # {{TEST_PATH_PATTERN}}
   TEST_PATH_PATTERN: '^tests/'
   RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -371,10 +373,18 @@ jobs:
 
           The \`automated-fix-attempted\` label has been applied; remove it to allow a future re-attempt."
 
+      # The base is recorded as a step output before the model runs.
+      # Later steps read the trusted scripts, and the attributes the
+      # size cap honours, from this commit rather than from HEAD: the
+      # prompt tells the model not to commit, but a commit would move
+      # HEAD onto the model's own work, and a step output is the one
+      # place a later step cannot rewrite.
       - name: Create working branch
+        id: branch
         run: |
           git branch -D "issue-fix-${ISSUE_NUMBER}" 2>/dev/null || true
           git checkout -b "issue-fix-${ISSUE_NUMBER}"
+          echo "base_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
       # {{INSTALL_DEPENDENCIES}}
       # Add project-specific dependency installation steps here.
@@ -704,6 +714,8 @@ jobs:
       - name: Extract commit summary and PR description
         id: extract_summary
         if: steps.assess.outputs.has_changes == 'true'
+        env:
+          BASE_SHA: ${{ steps.branch.outputs.base_sha }}
         run: |
           # Both blocks are pulled out by extract-model-block.sh, which
           # is pinned by scripts/tests/test_issue_fix_extraction.py. The
@@ -713,19 +725,21 @@ jobs:
           # actionlint nor shellcheck sees anything wrong with an
           # extraction which silently mangles its input.
           #
-          # These come from HEAD rather than from the workspace, which
-          # is NOT the reason the model wrapper above is copied. That
-          # one is copied before Claude runs, because bash reads a
-          # script lazily and an edit mid-run would corrupt it. Here
-          # Claude has already exited and the danger is the opposite:
-          # the fix under test may have edited these very files -- the
-          # extractor's own header calls that out as a plausible
-          # subject for an automated fix -- and the workflow must not
-          # parse the model's output with the untested version the
-          # model just wrote. Nothing is committed until the "Commit
-          # changes" step below, so HEAD is still the pre-fix tree.
+          # These come from the base commit rather than from the
+          # workspace, which is NOT the reason the model wrapper above
+          # is copied. That one is copied before Claude runs, because
+          # bash reads a script lazily and an edit mid-run would
+          # corrupt it. Here Claude has already exited and the danger
+          # is the opposite: the fix under test may have edited these
+          # very files -- the extractor's own header calls that out as
+          # a plausible subject for an automated fix -- and the
+          # workflow must not parse the model's output with the
+          # untested version the model just wrote. The base is the
+          # commit recorded in "Create working branch", not HEAD,
+          # because a model which committed despite being told not to
+          # would have moved HEAD onto its own edits.
           for script in extract-model-block.sh neutralise-pr-body.sh; do
-            git show "HEAD:tools/${script}" \
+            git show "${BASE_SHA}:tools/${script}" \
               > "${{ runner.temp }}/${script}"
             chmod +x "${{ runner.temp }}/${script}"
           done
@@ -771,15 +785,37 @@ jobs:
       # The triage estimate of fix size is only an estimate. This is
       # the hard cap: an over-budget fix is never published as a PR,
       # but the branch is pushed for human inspection.
+      #
+      # Files the base commit's .gitattributes marks linguist-generated
+      # are not counted: regenerated protobuf stubs, for one, rewrite
+      # every serialized offset when a single field is added, and once
+      # held back a ~200 line fix as 1800. The count is made by
+      # tools/measure-change-size.sh, read from the base commit like
+      # the extraction scripts above and pinned by
+      # scripts/tests/test_issue_fix_measurement.py in the template
+      # repository; its header explains why each of its rules exists.
+      # It fails closed: a measurement which cannot be made stops this
+      # step rather than reading as zero lines.
       - name: Measure change size
         id: measure
         if: steps.assess.outputs.has_changes == 'true'
+        env:
+          BASE_SHA: ${{ steps.branch.outputs.base_sha }}
         run: |
+          git show "${BASE_SHA}:tools/measure-change-size.sh" \
+            > "${{ runner.temp }}/measure-change-size.sh"
+          chmod +x "${{ runner.temp }}/measure-change-size.sh"
+
           git add -A
-          nontest=$(git diff --cached --numstat | \
-            awk -v pat="${TEST_PATH_PATTERN}" \
-              '$3 !~ pat { if ($1 != "-") s += $1 + $2 } END { print s + 0 }')
-          echo "Non-test lines changed: ${nontest} (cap: ${MAX_DIFF_LINES})"
+          nontest=$(${{ runner.temp }}/measure-change-size.sh \
+            "${BASE_SHA}" "${TEST_PATH_PATTERN}")
+          case "${nontest}" in
+            ''|*[!0-9]*)
+              echo "Could not measure the change (got '${nontest}')." >&2
+              exit 1
+              ;;
+          esac
+          echo "Non-test, non-generated lines changed: ${nontest} (cap: ${MAX_DIFF_LINES})"
           echo "nontest_lines=${nontest}" >> $GITHUB_OUTPUT
 
           if [ "${nontest}" -le "${MAX_DIFF_LINES}" ]; then
@@ -915,7 +951,7 @@ jobs:
 
           gh issue comment "${ISSUE_NUMBER}" \
             --repo ${{ github.repository }} \
-            --body "An automated fix was produced and passes tests, but it changes ${{ steps.measure.outputs.nontest_lines }} non-test lines (cap: ${MAX_DIFF_LINES}), which is too large to propose automatically.
+            --body "An automated fix was produced and passes tests, but it changes ${{ steps.measure.outputs.nontest_lines }} lines (cap: ${MAX_DIFF_LINES}), which is too large to propose automatically. Test files and files marked \`linguist-generated\` in \`.gitattributes\` are not counted, so the pushed diff may be larger than that.
 
           The changes have been pushed to the \`issue-fix-${ISSUE_NUMBER}\` branch for human review. No PR was created.
 
