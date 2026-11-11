@@ -187,7 +187,12 @@ repos:
         # shape of every other clause here: the suite reaches into
         # tools/ and the next thing it reaches for should not need a
         # pattern edit nobody remembers to make.
-        files: ^(scripts/.*\.py|tools/.*|.*\.md|templates/.*|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml)$
+        # And renovate-fleet.json, because the packaging tests load the
+        # real preset and assert that each Renovate check's helper accepts
+        # it on its own. The audit trusts that preset by name for every
+        # repository in the fleet, so the commit that guts it must be the
+        # commit that fails.
+        files: ^(scripts/.*\.py|tools/.*|.*\.md|templates/.*|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml|renovate-fleet\.json)$
 
       - id: review-tracking-tests
         name: review tracking tests

@@ -43,17 +43,30 @@ def uses_remote_pre_commit_hooks(repo):
     )
 
 
-def renovate_manages_pre_commit(repo):
-    """True when renovate.json enables the pre-commit manager.
+# Every repository's renovate.json is meant to extend this preset, which
+# lives in this repository and carries the fleet policy: the pre-commit
+# manager and customManagers:githubActionsVersions among it. The name is
+# matched here and nowhere else, so the two checks below that accept it
+# cannot pass a repository on a string alone. What the preset keeps is
+# held by tests that load the real file and run each check's own helper
+# over it, because a local> preset takes effect fleet-wide the moment an
+# edit to it merges.
+RENOVATE_FLEET_PRESET = 'local>shakenfist/development:renovate-fleet'
+
+
+def extends_fleet_preset(config):
+    """True when a parsed renovate.json extends the fleet preset."""
+    extends = config.get('extends')
+    return isinstance(extends, list) and RENOVATE_FLEET_PRESET in extends
+
+
+def renovate_config_manages_pre_commit(config):
+    """True when a parsed Renovate config enables the pre-commit manager.
 
     Renovate ships the pre-commit manager disabled, so it has to be
     turned on deliberately. There are three supported ways to do that
     and all of them count.
     """
-    config = renovate_config(repo)
-    if config is None:
-        return False
-
     manager = config.get('pre-commit')
     if isinstance(manager, dict) and manager.get('enabled') is True:
         return True
@@ -70,6 +83,19 @@ def renovate_manages_pre_commit(repo):
             ):
                 return True
     return False
+
+
+def renovate_manages_pre_commit(repo):
+    """True when renovate.json enables the pre-commit manager.
+
+    Either in one of the three local forms, or by extending the fleet
+    preset, which carries it for every repository.
+    """
+    config = renovate_config(repo)
+    if config is None:
+        return False
+    return (renovate_config_manages_pre_commit(config)
+            or extends_fleet_preset(config))
 
 
 # renovatebot/github-action runs Renovate as a container, so it needs a
@@ -170,16 +196,26 @@ def renovate_workflow_runs_container(content):
     )
 
 
-def renovate_reads_version_comments(repo):
-    """True when renovate.json extends the version comment preset."""
-    config = renovate_config(repo)
-    if config is None:
-        return False
+def renovate_config_reads_version_comments(config):
+    """True when a parsed Renovate config extends the version comment preset."""
     extends = config.get('extends')
     if not isinstance(extends, list):
         return False
     return any(preset in RENOVATE_VERSION_COMMENT_PRESETS
                for preset in extends)
+
+
+def renovate_reads_version_comments(repo):
+    """True when renovate.json extends the version comment preset.
+
+    Either directly, or by extending the fleet preset, which does it
+    for every repository.
+    """
+    config = renovate_config(repo)
+    if config is None:
+        return False
+    return (renovate_config_reads_version_comments(config)
+            or extends_fleet_preset(config))
 
 
 # A project is in scope for indirect dependency pinning when it already

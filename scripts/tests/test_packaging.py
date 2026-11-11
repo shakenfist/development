@@ -334,6 +334,88 @@ class RenovatePreCommitManagerTest(CheckTestCase):
         self.assertIn('renovate.json', result['missing'])
 
 
+class RenovateFleetPresetTest(CheckTestCase):
+    """A repository that extends the fleet preset inherits what it holds.
+
+    The audit trusts the preset by name, so what it vouches for is proved
+    here against the real file: a local> preset takes effect fleet-wide the
+    moment an edit to it merges, and an edit that dropped the pre-commit
+    manager or the version comment extend would otherwise leave every
+    repository passing on a promise the preset no longer keeps.
+    """
+
+    check_class = packaging.Renovate
+
+    PRESET_NAME = 'local>shakenfist/development:renovate-fleet'
+
+    REMOTE_HOOKS = RenovatePreCommitManagerTest.REMOTE_HOOKS
+
+    def _preset(self):
+        with open(os.path.join(REPO_ROOT, 'renovate-fleet.json')) as f:
+            return json.load(f)
+
+    def _repo(self, renovate):
+        self.fixture.workflow('renovate.yml', RENOVATE_WORKFLOW)
+        self.fixture.write('renovate.json', json.dumps(renovate))
+        self.fixture.write('.pre-commit-config.yaml', self.REMOTE_HOOKS)
+        return self.check()
+
+    def test_the_real_preset_enables_the_pre_commit_manager(self):
+        # The helper, not the public function: no name is trusted here.
+        self.assertTrue(
+            packaging.renovate_config_manages_pre_commit(self._preset()))
+
+    def test_the_real_preset_reads_version_comments(self):
+        self.assertTrue(
+            packaging.renovate_config_reads_version_comments(self._preset()))
+
+    def test_extending_the_preset_passes(self):
+        self.assert_pass(self._repo({'extends': [self.PRESET_NAME]}))
+
+    def test_extending_the_preset_satisfies_each_check_alone(self):
+        config = {'extends': [self.PRESET_NAME]}
+        self.assertTrue(packaging.extends_fleet_preset(config))
+        self.assertFalse(packaging.renovate_config_manages_pre_commit(config))
+        self.assertFalse(
+            packaging.renovate_config_reads_version_comments(config))
+
+    def test_a_similar_name_is_not_the_preset(self):
+        self.assert_fail(self._repo(
+            {'extends': ['local>shakenfist/development:renovate']}))
+
+    def test_a_longer_name_is_not_the_preset(self):
+        self.assertFalse(packaging.extends_fleet_preset(
+            {'extends': [self.PRESET_NAME + '-other']}))
+
+    def test_a_non_list_extends_is_not_the_preset(self):
+        self.assertFalse(
+            packaging.extends_fleet_preset({'extends': self.PRESET_NAME}))
+        self.assertFalse(packaging.extends_fleet_preset({}))
+
+
+class RenovateVersionCommentsTest(CheckTestCase):
+    """Renovate can only bump the pinned Renovate if it reads the comments."""
+
+    check_class = packaging.Renovate
+
+    def _repo(self, renovate):
+        self.fixture.workflow('renovate.yml', RENOVATE_WORKFLOW)
+        self.fixture.write('renovate.json', json.dumps(renovate))
+        return self.check()
+
+    def test_the_local_preset_passes(self):
+        self.assert_pass(self._repo(
+            {'extends': ['customManagers:githubActionsVersions']}))
+
+    def test_a_config_without_it_fails(self):
+        self.assert_fail(self._repo({'extends': [':enablePreCommit']}),
+                         containing='customManagers:githubActionsVersions')
+
+    def test_the_fleet_preset_passes(self):
+        self.assert_pass(self._repo(
+            {'extends': ['local>shakenfist/development:renovate-fleet']}))
+
+
 class RenovateWithoutDockerTest(CheckTestCase):
     """renovate.yml runs Renovate from npm, and Renovate can see the pin.
 
