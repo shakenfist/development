@@ -2389,9 +2389,10 @@ was wrong; it is corrected at source rather than only here.
    all. The convention in `plan-push-audit-phase` was not followed
    when those pull requests landed, and nothing can now be cited for
    them. Decision 2 says what this phase does instead.
-2. **kerbside-client has no runbook.** `repos/shakenfist/<r>/contents/PUSH-AUDIT.md`
-   answers 404 for kerbside-client and returns a file for andris,
-   hunkydory, ryll, kerbside, actions and sfui. So even in principle
+2. **kerbside-client has no runbook.** A read of
+   `repos/shakenfist/<r>/contents/PUSH-AUDIT.md` answers 404 for
+   kerbside-client and returns a file for andris, hunkydory, ryll,
+   kerbside, actions and sfui. So even in principle
    seven of the eight could have been audited and the eighth could
    not.
 3. **Every rollout copy is byte-identical to the template this
@@ -2455,9 +2456,9 @@ was wrong; it is corrected at source rather than only here.
    each other. After merging there is no single range that spans the
    plan without also spanning unrelated work, so wave 2 is given both
    halves: the seven per-range diffs, which keep each change
-   attributable, and one net-effect diff restricted to the seventeen
+   attributable, and one net-effect diff restricted to the nineteen
    paths the plan touched,
-   `git diff 2a24d00^1..e6e5b31 -- <the seventeen paths>`, which shows
+   `git diff 2a24d00^1..e6e5b31 -- <the nineteen paths>`, which shows
    the state those files ended in. A defect that only exists once two
    phases have landed appears in the second.
 2. **The eight out-of-repository landings are audited here against
@@ -2570,14 +2571,27 @@ by hand instead: the check's `issue_title` and
 actor identity'` are the same string, and the fleet-wide idempotency
 key is therefore intact.
 
+One zero is worth a sentence too, because it is the surprising one.
+The added-import check reports nothing in `e460a2b^1..e460a2b`, the
+range that added a criterion, its registration and eighteen test cases
+across nine files. It is a true zero rather than a grep that matched
+the wrong thing: the check and its tests went into
+`scripts/audit/checks/github_config.py` and
+`scripts/tests/test_github_config.py`, which both already existed, and
+that module already imports everything the new check uses -- `json`,
+`re`, `subprocess`, `urllib.parse`, `audit.scope`, and `Check` with
+`ToolFailure`. The criterion adds no dependency, which is what the
+check is there to notice.
+
 **Wave 2 (4b to 4e).** Four read-only agents, run in parallel because
 none of them writes to the tree. Every brief named its seven ranges
 literally and carried the net-effect diff as a written-out command; no
 brief, as sent, contained the name of the range variable, which is the
 failure the runbook warns about at most length. Each agent was
 required to report the insertion and deletion totals it measured. All
-four matched survey item 4 range for range, and the three that
-measured it also matched the net-effect total, so none was re-run.
+four matched survey item 4 range for range; 4b and 4e matched the
+nineteen-path net-effect total as well, and 4c matched the narrower
+test-and-script net effect it was given. None was re-run.
 
 | Step | Section | Model | Effort | Totals | Findings |
 |------|---------|-------|--------|--------|----------|
@@ -2604,9 +2618,10 @@ request under decision 4.
    to the default branches of shakenfist, ryll and client-python-k3s
    through it". Two things are wrong with that sentence. The
    repository list does not match either measurement in this plan:
-   phase 1's bypass table counts `sfconductor` bypasses in six
-   repositories (shakenfist 52, kerbside 7, ryll 1, instar 1,
-   client-python-k3s 2, and andris and hunkydory at zero), and phase
+   phase 1's bypass table has seven rows and five non-zero
+   `sfconductor` cells (shakenfist 52, kerbside 7, ryll 1, instar 1
+   and client-python-k3s 2, with andris and hunkydory at zero), so it
+   names two repositories the specification leaves out, and phase
    3a's pre-flight names two for the no-App set, "shakenfist, all 66;
    client-python-k3s, 3 of 5", with ryll listed among the repositories
    that hold the App. And the verb is wrong: phase 1 records that
@@ -2648,9 +2663,10 @@ request under decision 4.
    and say why in a line of comment. Advisory.
 
 4. **Two touched files are past the length threshold.**
-   `scripts/audit/checks/github_config.py` is 964 lines, up about 222
-   in `e460a2b`, and `scripts/tests/test_github_config.py` is 1386, up
-   195. Both are over 800 and under 1500, so the block asks the
+   `scripts/audit/checks/github_config.py` is 964 lines, up 200 from
+   764 on 211 added and 11 removed in `e460a2b`, and
+   `scripts/tests/test_github_config.py` is 1386, up 195 from 1191.
+   Both are over 800 and under 1500, so the block asks the
    question rather than wanting an answer. A seam exists and is the
    obvious one: one check and its tests per module. Advisory, and a
    question rather than a defect.
@@ -2684,10 +2700,12 @@ request under decision 4.
    and a listing that names the environment, or that does not answer,
    raises rather than reporting absence -- which is the "token
    regressed, whole fleet green" failure this criterion exists to
-   prevent. All 4160 added and removed diff lines were scanned for
-   key, token, JWT and cloud-credential shapes, for added e-mail
-   addresses, and for RFC1918 addresses and private hostnames: no
-   hits.
+   prevent. Every added and removed line was scanned for key, token,
+   JWT and cloud-credential shapes, for added e-mail addresses, and
+   for RFC1918 addresses and private hostnames, with no hits: 3368
+   lines across the seven ranges and 3277 in the net-effect diff, both
+   reconciling with survey item 4's table and with the net-effect
+   total above.
 
 **Declined in writing.** Five things were raised and are not findings
 against this change. The criterion does not measure a ruleset's
@@ -2753,8 +2771,9 @@ since marks going stale unnoticed is what its review-coverage
 criterion measures.
 
 **Item 3, no secret or private hostname.** The two files are
-byte-identical to the template audited in wave 1 and wave 2, where all
-4160 diff lines were scanned for credential shapes with no hits.
+byte-identical to the template audited in wave 1 and wave 2, where
+every added and removed line was scanned for credential shapes with no
+hits.
 Neither file contains an RFC1918 address, a `.home`, `.local` or
 `.internal` name, or any hostname: the only identifiers in them are
 secret and variable names, which is what a workflow is supposed to
@@ -2815,13 +2834,14 @@ and confirmed the floor, the byte-identity proof, and recording this
 as a deviation rather than filing an issue for it.
 
 **Still open after this phase.** Four things this plan deferred rather
-than finished, all recorded in Future work and none of them a finding
-of this audit: #352, a read-only App identity for the audit's own
-reads; the team rule behind open question 3, which is what
-`sfconductor` should push with; narrowing `DEPENDENCIES_TOKEN` and
-`RENOVATE_TOKEN`, whose six remaining workflow consumers item 4 above
-names; and the b9 item, the bot's token list, which is the one cell of
-phase 1's record still pending an operator paste.
+than finished, none of them a finding of this audit: #352, a read-only
+App identity for the audit's own reads; the team rule behind open
+question 3, which is what `sfconductor` should push with; narrowing
+`DEPENDENCIES_TOKEN` and `RENOVATE_TOKEN`, whose six remaining
+workflow consumers item 4 above names. The first three are Future work
+entries. The fourth is not: the bot's token list is the one cell of
+phase 1's record still pending an operator paste, plan-blocker b2, and
+it is recorded there rather than in Future work.
 
 This phase closes itself out, so its `Status` is `Complete` with no
 `Merged` cell, as the `plan-phase-landing` block allows for exactly
@@ -2855,6 +2875,20 @@ commit.
   `.claude/skills/review-tracking-adoption/SKILL.md`, which phase 2a
   changed and which is documentation. It was added to that step's
   scope rather than left out.
+
+- Two figures reached the record from a sub-agent's report without
+  being derived first, and the review of this phase's own pull request
+  caught one of them. 2d gave the size of its credential scan as 4160
+  diff lines, which reconciles with nothing here: the seven ranges
+  hold 3368 added and removed lines and the net-effect diff 3277. 2a
+  gave the growth of `scripts/audit/checks/github_config.py` as 222
+  lines, where `git diff --numstat` says 211 added and 11 removed, so
+  200 net from 764. Both now state what was measured here. That makes
+  three times in this plan that a number from a report or a review was
+  written down before being derived -- the first was a review's claim
+  about which commits were reachable from this repository -- which is
+  why the reconciliation was swept rather than fixed one figure at a
+  time.
 
 - 4b, 4c, 4d and 4e ran in parallel, which the step table allows
   because all four are read-only. 4c was the only one to write
@@ -2901,9 +2935,9 @@ commit.
 Every item is checked by the management session from the commands
 and the record, not from a sub-agent's summary.
 
-* Wave 1 has run once per range for all seven ranges in survey item
-  4, and the Record holds one row per range per command, including
-  the ones that matched nothing.
+* * Wave 1 has run once per range for all seven ranges in survey item
+  4, and the Record holds a count for every range and command pair,
+  including the pairs that matched nothing, as rows or as a matrix.
 * `pre-commit run --all-files` passes on the branch, and `python3 -m
   unittest discover -s scripts/tests -t scripts` passes.
 * Each of 4b, 4c, 4d and 4e has reported, and each report's measured
@@ -2926,8 +2960,10 @@ and the record, not from a sub-agent's summary.
   or declined in writing in this section.
 * The deviation in decision 2 is recorded in this section, and the
   deferrals still open (#352, the team rule behind open question 3,
-  the `DEPENDENCIES_TOKEN` and `RENOVATE_TOKEN` narrowing, the b9
-  token list) are named where the next reader will find them.
+  the `DEPENDENCIES_TOKEN` and `RENOVATE_TOKEN` narrowing, and the
+  bot's token list, which is phase 1's pending record cell under
+  plan-blocker b2 rather than a Future work entry) are named where the
+  next reader will find them.
 
 #### Back brief
 
