@@ -1359,15 +1359,15 @@ not say:
 
 4. **A statusless table is not one repository's omission, and the
    larger one is deliberate.** Phase 3's correction named ryll's
-   twelve. private-ci has twenty-four, at `docs/plans/index.md:19`,
-   and four lines of prose above them saying why: "a status here
-   would be inferred rather than recorded -- and an inferred status
-   in the one page people read to decide what wants attention is
-   worse than none. The column goes in as those plans are revisited
-   and their real state confirmed." So the fleet has 36
-   finished-looking plans that eligibility cannot see, in two tables,
-   one an omission and one a documented choice. `plan-index` passes
-   both: it selects tables by their lead columns
+   twelve. private-ci has twenty-five across two tables, the first at
+   `docs/plans/index.md:19`, with four lines of prose above them
+   saying why: "a status here would be inferred rather than recorded
+   -- and an inferred status in the one page people read to decide
+   what wants attention is worse than none. The column goes in as
+   those plans are revisited and their real state confirmed." So the
+   fleet has 37 finished-looking plans that eligibility cannot see,
+   in three tables, one an omission and two a documented choice.
+   `plan-index` passes both: it selects tables by their lead columns
    (`PLAN_INDEX_LEAD_COLUMNS`), and a `Date | Plan | Intent` table is
    a legal one it simply has no status to judge.
 
@@ -1540,19 +1540,25 @@ The letters are not alphabetical, and 4b is absent: both are decision
   and after the clone change reports differences in
   `plan-retirement`'s rows and in nothing else.
 
-* Over all 24 matrix repositories the criterion fails exactly instar,
-  kerbside, ryll, shakenfist and uncalibrated-sextant, reports
-  `not_applicable` for exactly agent-python, clingwrap, cloudgood,
-  hunkydory, kerbside-client and visual-digest-rust, and passes the
-  other thirteen. Any difference from this phase's survey table is
-  explained in the execution notes, naming the commit that caused it.
+* Over all 24 matrix repositories the criterion fails exactly
+  instar, kerbside, ryll, shakenfist and uncalibrated-sextant,
+  reports `not_applicable` for exactly agent-python, clingwrap,
+  cloudgood, hunkydory, images, kerbside-client and
+  visual-digest-rust, and passes the other twelve. images is not
+  applicable because `only_checks` scopes it to `eol-distro` alone,
+  which is a different reason from the other six and the reason its
+  verdict is a sentence about scope rather than about plans. Any
+  difference from this phase's survey table is explained in the
+  execution notes, naming the commit that caused it.
 
 * The fail details name 34 plans in total, and every age is either an
   exact day count or a stated lower bound.
 
-* ryll's twelve-plan and private-ci's twenty-four-plan statusless
-  tables both appear in `findings`, on results that are not `fail`
-  for that reason.
+* ryll's twelve-plan table and private-ci's two tables of
+  twenty-five plans between them all appear in `findings` and in
+  `details`, on results that are not `fail` for that reason.
+  private-ci is measured at all only because this phase added
+  `plan-retirement` to its `only_checks`.
 
 * `$HOME/bin/retire-plans check` exits 0 on divergulent and kerbside.
 
@@ -1573,8 +1579,129 @@ Before step 4a, back brief Mikal on decision 1 (the audit clones with
 shares) and decision 3 (a statusless table is reported and never
 failed, by this criterion or by `plan-index`). The first is one line
 to write and expensive to reverse once 67 criteria have been
-snapshotted against it; the second decides whether 36 finished plans
+snapshotted against it; the second decides whether 37 finished plans
 in two repositories can stay out of retirement indefinitely.
+#### Phase 4 execution notes
+
+Back brief answered on 2026-11-11, all three gates as planned:
+decision 1 stands, so the audit clones with `--filter=blob:none`;
+decision 3 stands, so a statusless table is reported and never
+failed, by this criterion or by `plan-index`; and step 4d's two
+index-marking pull requests are prepared and held rather than
+pushed, which leaves the definition of done's `retire-plans check`
+item verified in their branches and not yet on their default
+branches.
+
+The steps ran in the table's order, one sub-agent each: 4a at opus
+and high effort, 4d at sonnet and low, 4c at sonnet and medium. 4a
+and 4d are independent, as finding 5 said, but they share a worktree
+and both run `pre-commit`, so they ran in sequence rather than
+together.
+
+Corrected at source while executing, each in the commit that found
+it:
+
+* `run_tool` is in `scripts/audit/check.py`, not in
+  `scripts/audit/files.py` as the survey said.
+* `findings` is read only when an issue is filed, so a report on a
+  passing result reaches nobody through it. Decision 3's statusless
+  tables, and the other kinds of row reported rather than counted,
+  are therefore in the `details` string as well: `details` is the
+  only field published on a result that is not a `fail`, and the
+  only one `audit_snapshot.py` compares.
+* Every eligible row's age is a lower bound, not sometimes an exact
+  count. Because the walk stops where eligibility starts, an exact
+  date only ever dates a row too recent to be eligible, so decision
+  2's "exact age where the transition was found" describes the
+  ineligible half. For an index that churns, every eligible row
+  reads "at least 90 days", which is true and uninformative; a
+  reader who wants the real age runs the helper, which walks the
+  whole history.
+* `private-ci` was scoped out of the criterion altogether by
+  `only_checks`, so the definition of done's statusless-table item
+  could not have been met: the criterion would never have run there.
+  It is in scope as of this phase, and it holds 25 plans in two
+  tables with no `Status` column rather than the twenty-four in one
+  the survey recorded, which makes the fleet's invisible total 37.
+* `images` is scoped to `eol-distro` alone, so the criterion reports
+  `not_applicable` there, with the scope as its reason rather than
+  an absent index. That is a seventh not-applicable repository and a
+  twelfth passing one, and the definition of done's lists are
+  corrected to match. The scope decision is deliberate and is not
+  reopened here: `images` is excluded from the conventions so that
+  the audit does not file work outward at a repository that did not
+  ask for them.
+* kerbside's index carries four unmarked retired rows, not three,
+  and both pilot repositories' default branch is `develop`.
+* The installed `retire-plans` skill is now the merged `c8a79de`
+  version -- `references/reasoning.md` is present and the helper is
+  1,296 lines -- so the stale-install warning recorded when phase 3
+  was closed out no longer applies.
+* `tools/audit-snapshot.sh` does not clone. It reads a directory of
+  clones, so the dry run makes its own; a snapshot taken over
+  shallow clones reports this criterion as `error` everywhere, which
+  is the before half of its own regression check.
+* `FixtureRepo` already had `init_git()` and `commit()`. 4a added
+  `commit_files()` beside them rather than adding git support.
+
+The criterion and the helper disagree about one row on purpose: a
+terminal row whose plan file has already been deleted without its
+link becoming a permalink is counted here and reported as unreadable
+by the helper. The row is what retirement has to turn into a
+permalink, and the helper has no reasoning left to move. No clone on
+this host has such a row, so the dry run cannot see the difference;
+`docs/audits/plan-retirement.md` records it so that a later reader
+does not take it for a defect.
+
+The two index-marking changes each had their repository's
+`PUSH-AUDIT.md` applied as a read of the diff rather than a full
+walk of its waves, because both are a one-cell edit to a markdown
+table with no code, dependency, test or security surface. Neither
+found anything. Phase 3 decision 5 asks what each push audit found,
+and that is the answer; the pull request bodies say the same.
+
+The dry run, on 2026-11-11, over fresh clones of all 24 matrix
+repositories, in the two shapes the clone change is between:
+
+| Verdict | Repositories | Plans |
+|---------|--------------|------:|
+| fail | instar 1, kerbside 1, ryll 18, shakenfist 13,
+uncalibrated-sextant 1 | 34 |
+| pass | actions, andris, client-python, client-python-k3s,
+client-python-ova, development, divergulent, kerbside-patches,
+library-utilities, occystrap, private-ci, sfui | 0 |
+| not applicable | agent-python, clingwrap, cloudgood, hunkydory,
+kerbside-client, visual-digest-rust: no index. images: scoped to
+`eol-distro` | -- |
+
+`tools/audit-snapshot.sh --diff` between the two snapshots reported
+fourteen differences, every one of them `plan-retirement`: nine
+`error -> pass` and five `error -> fail`, the `error` side being the
+shallow-checkout refusal. No other criterion moved, which is the
+whole of what decision 1's risk turned on.
+`audit-manage-issues.py --dry-run` would create five issues, one per
+failing repository, and close none.
+
+Wall-clock cost of the criterion per repository, measured on cold
+clones: shakenfist 120.0s, kerbside 73.6s, development 61.7s, instar
+46.4s, ryll 21.3s, client-python-k3s 13.1s, kerbside-patches 6.5s,
+divergulent 5.2s, client-python 3.0s, uncalibrated-sextant 1.0s,
+occystrap 0.6s, client-python-ova 0.5s, and under a tenth of a second
+for the rest; 355s across the matrix. The slowest leg is a fortieth
+of its thirty-minute timeout. The first measurement was taken on the
+clones the snapshot run had already used and read 0.0 to 0.8s
+throughout, because the promisor fetches were already cached -- a
+cost measured after paying it is not the cost, and the figures above
+are from a third, untouched clone set.
+
+The criterion and `retire-plans eligible` name the same plans in
+every repository, and agree about the retired and cross-repository
+rows as well. Where they differ is the age: the helper walks the
+whole history and prints 213 days for ryll's oldest, where the
+criterion stops at the threshold and prints "at least 90". Nothing
+newly qualified in the two days since the survey; the two plans that
+crossed 90 days on 2026-11-08, kerbside's `PLAN-two-tier-ci.md` and
+ryll's `PLAN-two-stage-ci.md`, were already in it.
 ### Phase 5: push audit
 
 Runs `PUSH-AUDIT.md` over every range recorded above, in this
