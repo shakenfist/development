@@ -165,10 +165,6 @@
       "sha": "47dc9572d8e3a651392f06ff3ce1ac0ea2023bff",
       "date": "2026-10-19"
     },
-    "docs/audits/merge-queue-config.md": {
-      "sha": "6f361c1122db0b18d4e15bc0f0cd6b9635d9def7",
-      "date": "2026-10-28"
-    },
     "docs/audits/mermaid-lint-ci.md": {
       "sha": "820c00c1669077d5e07e65439a01cdc3986c7178",
       "date": "2026-10-19"
@@ -700,10 +696,6 @@
     "templates/renovate/renovate.json": {
       "sha": "c91385eb8cc7717ff9f3c5dbebad3de2ee8b70b2",
       "date": "2026-10-31"
-    },
-    "templates/review-tracking/README.md": {
-      "sha": "267b478c30fea696f20ac28e0b0cc39e08f35146",
-      "date": "2026-11-01"
     },
     "templates/review-tracking/ci-prune-reviews.sh": {
       "sha": "3c00a9489c0b571bfdd0d1f1170344cfc33b44ff",

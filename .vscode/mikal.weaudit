@@ -645,10 +645,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/merge-queue-config.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/plan-history-in-source.md",
       "author": "mikal"
     },
@@ -853,10 +849,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/review-tracking/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ci-prune-reviews.sh",
       "author": "mikal"
     },
@@ -866,10 +858,6 @@
     },
     {
       "path": "templates/review-tracking/ci-prune-reviews.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/review-tracking",
       "author": "mikal"
     },
     {
