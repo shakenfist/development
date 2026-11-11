@@ -230,6 +230,7 @@ attached rather than quietly disappearing from the table.
 | [plan-audit-phase.md](plan-audit-phase.md) | Master plans end with a phase that runs PUSH-AUDIT.md over the whole plan's work |
 | [push-audit.md](push-audit.md) | PUSH-AUDIT.md naming, versioned shared blocks, and an AGENTS.md reference to it |
 | [plan-template.md](plan-template.md) | PLAN-TEMPLATE.md shared blocks, including the sub-agent model roster and the push-audit phase |
+| [plan-retirement.md](plan-retirement.md) | Plans whose index row went terminal more than 90 days ago have been retired |
 | [test-coverage.md](test-coverage.md) | Unit and functional test coverage |
 | [secret-handling.md](secret-handling.md) | Secret scanner in CI, credentials kept out of logs |
 | [review-coverage.md](review-coverage.md) | Human review backlog stays under threshold in repos with review tracking |

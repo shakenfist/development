@@ -121,9 +121,20 @@ jobs:
       # every other job on one: a leg's clean-up could remove another
       # leg's clone mid-audit, and a venv an earlier job left behind
       # would run its code in an interpreter holding the token.
+      #
+      # --filter=blob:none rather than --depth 1, because the
+      # plan-retirement criterion dates a plan's status change from the
+      # history of docs/plans/index.md, and a shallow checkout has no
+      # history to read: it refuses to answer rather than report that
+      # nothing is eligible. A filtered checkout holds every commit and
+      # fetches a blob when something reads it, which for every other
+      # criterion is no fetch at all -- the checkout step brings the
+      # blobs at HEAD in that one request, so nothing they read is
+      # missing. It costs about ten seconds and 24MB more on the
+      # largest repository in the matrix.
       - name: Clone target repo
         run: |
-          gh repo clone "shakenfist/${{ matrix.repo }}" "${RUNNER_TEMP}/audit-target" -- --depth 1
+          gh repo clone "shakenfist/${{ matrix.repo }}" "${RUNNER_TEMP}/audit-target" -- --filter=blob:none
         env:
           GH_TOKEN: ${{ secrets.AUDIT_READ_TOKEN }}
 

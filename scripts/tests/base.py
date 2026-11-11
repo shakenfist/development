@@ -146,10 +146,11 @@ class FixtureRepo:
             for name, content in files.items()
         })
 
-    def git(self, *args):
+    def git(self, *args, env=None):
         return subprocess.run(
             ['git'] + list(args), cwd=self.path,
             check=True, capture_output=True, text=True,
+            env=None if env is None else dict(os.environ, **env),
         )
 
     def init_git(self):
@@ -159,9 +160,33 @@ class FixtureRepo:
         self.git('config', 'user.name', 'Test User')
         self.git('config', 'commit.gpgsign', 'false')
 
-    def commit(self, message='fixture'):
+    def commit(self, message='fixture', when=None):
+        """Commit everything in the fixture, dated `when` if given.
+
+        `when` is any date git accepts, including its raw
+        `<seconds> <offset>` form, and sets the author and the
+        committer date together. A check that reads an age out of the
+        history needs a fixture whose commits are not all a moment
+        old, and setting only one of the two dates leaves whichever
+        the check reads at now.
+        """
         self.git('add', '-A')
-        self.git('commit', '-m', message)
+        env = None if when is None else {
+            'GIT_AUTHOR_DATE': when, 'GIT_COMMITTER_DATE': when}
+        self.git('commit', '-m', message, env=env)
+
+    def commit_files(self, files, message='fixture', when=None):
+        """Write a {path: content} mapping and commit it as one revision.
+
+        The shape a synthetic history is written in: a list of
+        revisions, each a mapping and a date. write_all() and commit()
+        do the halves, and a caller building a history out of them
+        separately puts the content of a revision and the date of the
+        same revision in different statements, which is where a
+        fixture starts describing a history nobody meant to write.
+        """
+        self.write_all(files)
+        self.commit(message, when=when)
 
 
 class CheckTestCase(unittest.TestCase):

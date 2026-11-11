@@ -126,6 +126,10 @@ FROZEN_METADATA = {
         'spec': 'docs/audits/plan-template.md',
         'template': 'templates/shared-blocks/',
     },
+    'plan-retirement': {
+        'spec': 'docs/audits/plan-retirement.md',
+        'template': None,
+    },
     'release-process': {
         'spec': 'docs/audits/release-process.md',
         'template': 'templates/release-automation/',
@@ -383,6 +387,7 @@ FROZEN_ISSUE_TITLES = {
     'plan-audit-phase': 'Push audit phase in master plans',
     'push-audit': 'Pre-push audit file',
     'plan-template': 'Plan template',
+    'plan-retirement': 'Completed plans awaiting retirement',
     'secret-scanning-ci': 'Secret scanning in CI',
     'fuzz-nightly-reporting': 'Fuzz nightly reporting',
     'scheduled-workflow-health': 'Scheduled workflow health',

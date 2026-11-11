@@ -15,8 +15,9 @@ shared-block consumers, and could move together to their own module.
 
 import os
 import re
+import time
 
-from audit.check import Check
+from audit.check import Check, ToolFailure, run_tool
 from audit.repo import READ_MAX_BYTES, path_is_within
 from audit.files import check_file_contains, iter_doc_content_files, require_tracked_paths
 from audit.text.markdown import (
@@ -342,27 +343,41 @@ PLAN_LINK_TITLE_RE = re.compile(r"""\s+(?:"[^"]*"|'[^']*')$""")
 PLAN_INDEX_MAX_SHOWN = 5
 
 
-def plan_link_path(target):
-    """The path a link target names, or None if it leaves this repository.
+def plan_link_target(target):
+    """A link's destination, with the markdown around it removed.
 
     What PLAN_LINK_RE captured is the whole of the parenthesised part,
-    which markdown lets carry more than the path: the destination may
-    be wrapped in angle brackets, a quoted title may follow it, and a
-    `#fragment` may trail the path. Every reader of an index's links
-    comes through here, so that two of them cannot disagree about which
-    file a link names.
+    which markdown lets carry more than the destination: it may be
+    wrapped in angle brackets, a quoted title may follow it, and a
+    `#fragment` may trail it.
 
-    None for a target carrying a URL scheme, which names a file in
-    another repository (see PLAN_LINK_SCHEME_RE). The directory part of
-    a relative path is kept: callers that match by filename take the
-    basename themselves.
+    Split out of plan_link_path() for the one reader that wants the
+    destinations that function answers None for. An absolute link in a
+    plan index is either a retired plan's permalink or a plan in
+    another repository, and telling those two apart means reading the
+    URL; a second copy of this cleanup would be free to disagree with
+    this one about where a link points.
     """
     path = target.strip()
     if path.startswith('<'):
         path = path[1:].split('>')[0]
     else:
         path = PLAN_LINK_TITLE_RE.sub('', path)
-    path = path.split('#')[0].strip()
+    return path.split('#')[0].strip()
+
+
+def plan_link_path(target):
+    """The path a link target names, or None if it leaves this repository.
+
+    Every reader of an index's links comes through here, so that two of
+    them cannot disagree about which file a link names.
+
+    None for a target carrying a URL scheme, which names a file in
+    another repository (see PLAN_LINK_SCHEME_RE). The directory part of
+    a relative path is kept: callers that match by filename take the
+    basename themselves.
+    """
+    path = plan_link_target(target)
     if PLAN_LINK_SCHEME_RE.match(path):
         return None
     return path
@@ -1782,3 +1797,425 @@ class PlanTemplate(Check):
         if problems:
             return self.fail('; '.join(problems))
         return self.ok('PLAN-TEMPLATE.md carries current shared blocks')
+
+
+# Plan retirement. The constants, the index reader and the history
+# walk sit together here, below the rest of the module's helpers,
+# because this is the one criterion in the file that measures a
+# repository's past rather than its present: everything above reads
+# the tree as it stands, and everything below reads what the index
+# said on earlier days. The convention is docs/plan-retirement.md and
+# the criterion is docs/audits/plan-retirement.md.
+
+
+#: Where a repository's plan index lives. Named once because the
+#: criterion reads the file and then reads its history, and the two
+#: spellings cannot be allowed to drift apart.
+PLAN_INDEX_PATH = 'docs/plans/index.md'
+
+
+#: How long a row must have carried a terminal status before its plan
+#: is eligible for retirement. docs/plan-retirement.md sets ninety
+#: days and the retire-plans skill's helper applies the same number;
+#: changing it here changes which plans the audit names, not what the
+#: convention says, so the two are changed together or not at all.
+RETIREMENT_AGE_DAYS = 90
+
+
+#: A day, in seconds. The clock is compared in seconds and reported in
+#: whole days, as the helper does, so that the criterion naming a plan
+#: and the skill retiring it agree about a row sitting within hours of
+#: the threshold.
+PLAN_RETIREMENT_DAY = 86400
+
+
+#: How long git is given to answer. The log is one command for the
+#: whole walk; a revision of the index is one command each, and in a
+#: checkout filtered of blobs each of those may fetch the blob it
+#: reads, so the per-revision allowance is the one that has to cover a
+#: round trip to the server.
+PLAN_RETIREMENT_LOG_TIMEOUT = 120
+PLAN_RETIREMENT_SHOW_TIMEOUT = 60
+
+
+#: A retired plan's row: the link in its Plan cell is a permalink into
+#: this repository, pinning the commit that holds the plan's final
+#: text (docs/plan-retirement.md, "The index row stays"). Owner and
+#: name are matched without regard to case, as GitHub matches them.
+#: Any other absolute link names a plan somewhere else, which this
+#: repository's history cannot date and this repository's pull request
+#: cannot retire.
+PLAN_RETIREMENT_PERMALINK_RE = re.compile(
+    r'^https://github\.com/([^/]+)/([^/]+)/blob/[0-9a-f]{40}'
+    r'/docs/plans/\S+\.md$', re.IGNORECASE)
+
+
+def plan_retirement_index(content, repository=None):
+    """How each row of a plan index bears on retirement.
+
+    Returns a dict:
+
+    * `statuses`: {plan file name: (status, line number)} for every row
+      whose Plan cell links a plan in this repository and whose table
+      records a status. The first row naming a plan wins, so a plan
+      named twice is dated once.
+    * `retired`: the file name of each plan whose row is already
+      retired -- its link is a permalink into `repository`, the
+      (owner, name) pair of the repository under audit. Without a
+      `repository` nothing is a permalink into it, which is the right
+      answer for a revision of the index read out of history: the walk
+      only wants the statuses.
+    * `cross_repository`: one 'line N' per row whose Plan link leaves
+      this repository by any other route.
+    * `unreadable`: one 'line N (why)' per row with a Plan cell this
+      cannot read.
+    * `unstatused`: {header line number: [plan file names]} for the
+      tables that have a Plan column and no Status column.
+
+    One function reads the index as it stands and the index as it stood
+    at every revision the clock examines, which is why the statuses
+    come back beside the accounting rather than from a second reader. A
+    second reader would be free to conclude that a row is terminal
+    today and that the same row was not terminal in the revision
+    before, out of nothing but a disagreement about how to read a cell,
+    and that difference is a plan retired ninety days early.
+
+    Rows are sorted into the same five buckets the retire-plans helper
+    sorts them into, and in the same order, because the criterion that
+    names a plan and the skill that retires it have to agree about
+    which rows are in play. A table with no Plan column is not read at
+    all: that is plan-index's finding, under its own title.
+    """
+    found = {}
+    retired = []
+    cross_repository = []
+    unreadable = []
+    unstatused = {}
+    known = {status.lower() for status in PLAN_STATUSES}
+    header_lineno = 0
+
+    for offset, _line, is_header, header, cells in iter_markdown_table_rows(
+            content.splitlines(), columns=plan_table_columns):
+        lineno = offset + 1
+        if is_header:
+            header_lineno = lineno
+            continue
+        if cells is None or not header or 'plan' not in header:
+            continue
+
+        column = header.index('plan')
+        targets = (PLAN_LINK_RE.findall(cells[column])
+                   if column < len(cells) else [])
+        if not targets:
+            # A plan nothing links cannot be retired by a tool that
+            # finds its files through the index, so the row is reported
+            # rather than passed over in silence.
+            unreadable.append(f'line {lineno} (its Plan cell links nothing)')
+            continue
+
+        local = [path for path in
+                 (plan_link_path(target) for _, target in targets) if path]
+        if not local:
+            url = plan_link_target(targets[0][1])
+            match = PLAN_RETIREMENT_PERMALINK_RE.match(url)
+            if (match and repository
+                    and match.group(1).lower() == repository[0].lower()
+                    and match.group(2).lower() == repository[1].lower()):
+                retired.append(os.path.basename(url))
+            else:
+                cross_repository.append(f'line {lineno}')
+            continue
+
+        name = os.path.basename(local[0])
+        if 'status' not in header:
+            unstatused.setdefault(header_lineno, []).append(name)
+            continue
+
+        index = header.index('status')
+        status = plan_cell_text(cells[index]) if index < len(cells) else ''
+        if status.lower() not in known:
+            unreadable.append(
+                f'line {lineno} (its status "{plan_quote(status, limit=40)}" '
+                f'is not in the shared vocabulary)')
+            continue
+        found.setdefault(name, (status, lineno))
+
+    return {
+        'statuses': found,
+        'retired': retired,
+        'cross_repository': cross_repository,
+        'unreadable': unreadable,
+        'unstatused': unstatused,
+    }
+
+
+def plan_retirement_clocks(repo_path, names, threshold):
+    """When each named plan's row last changed into a terminal status.
+
+    {plan file name: timestamp} for the commit where the row changed
+    into a terminal status from one that was not -- or, for a row still
+    terminal at the oldest revision examined, that revision's
+    timestamp, which is a lower bound and is all eligibility needs: a
+    row terminal at a revision older than `threshold` has been terminal
+    for longer than the threshold, however much longer it really is.
+
+    A name the walk cannot date at all is absent from the result rather
+    than given a date. The index's own history does not reach back to
+    that row's status change, which is what a repository whose index
+    was created or renamed into place inside the window looks like, and
+    dating such a row by the commit that moved the file would retire a
+    plan on the strength of a rename. Absent therefore reads as "not
+    eligible", which is the conservative half of the two mistakes
+    available: a plan named late costs a reader nothing, and a plan
+    named wrongly costs a repository a pull request deleting a document
+    somebody is still using.
+
+    The walk is newest-first and stops at the first revision older than
+    `threshold`, so what it costs is how much the index churned inside
+    the window rather than how old the repository is. The reading is:
+    still terminal here, keep looking further back; not terminal here,
+    so the row changed in the revision after this one. Because the walk
+    stops where eligibility starts, an exact date is only ever found
+    for a row that turns out to be too recent -- every eligible row's
+    age is a lower bound, and is reported as one.
+
+    The date read is the committer date (%ct), not the author date. A
+    rebase, a cherry-pick or a patch applied from elsewhere keeps the
+    author date of the original work, so an author date can be older
+    than the repository it sits in; what is being measured is how long
+    the row has said terminal here, which is when the commit landed.
+
+    Only a change from a non-terminal status starts the clock, which is
+    why each revision's status is tested for terminality rather than
+    compared with the status the row carries now. A move from one
+    terminal status to another -- Complete to Superseded -- and a row
+    rewritten without its status being touched are not a plan
+    finishing, and a clock that restarted on either would never run out
+    for a row the fleet's maintenance sweeps keep editing
+    (docs/plan-retirement.md, "Eligibility").
+
+    Raises ToolFailure when git cannot answer, and for a shallow
+    checkout, whose history cannot reach back to the threshold: a
+    truncated history answers "nothing is eligible" for every
+    repository on earth, and a verdict built on nothing is worse than
+    none at all.
+    """
+    if not names:
+        return {}
+
+    shallow = run_tool(
+        ['git', '-C', repo_path, 'rev-parse', '--is-shallow-repository'],
+        'git rev-parse', timeout=PLAN_RETIREMENT_LOG_TIMEOUT)
+    if shallow.returncode != 0:
+        raise ToolFailure(
+            f'Could not read the history of {PLAN_INDEX_PATH}: '
+            f'{shallow.stderr.strip()}')
+    if shallow.stdout.strip() == 'true':
+        raise ToolFailure(
+            f'The checkout is shallow, so the history of '
+            f'{PLAN_INDEX_PATH} does not reach {RETIREMENT_AGE_DAYS} '
+            f'days back (fetch it with --filter=blob:none rather than '
+            f'--depth 1)')
+
+    log = run_tool(
+        ['git', '-C', repo_path, 'log', '--format=%H %ct', 'HEAD',
+         '--', PLAN_INDEX_PATH],
+        'git log', timeout=PLAN_RETIREMENT_LOG_TIMEOUT)
+    if log.returncode != 0:
+        raise ToolFailure(
+            f'Could not read the history of {PLAN_INDEX_PATH}: '
+            f'{log.stderr.strip()}')
+
+    fields = log.stdout.split()
+    revisions = [(sha, int(when))
+                 for sha, when in zip(fields[0::2], fields[1::2])]
+
+    clocks = {}
+    pending = set(names)
+    # The revision the pending rows were last seen terminal in, which
+    # is where the clock lands as soon as one of them is found not to
+    # have been terminal in the revision before it. None until the
+    # first revision has been read, so that a row terminal only in the
+    # working tree -- an uncommitted edit -- is left undated rather
+    # than dated by a commit that does not say it.
+    previous = None
+
+    for sha, when in revisions:
+        if not pending:
+            break
+        shown = run_tool(
+            ['git', '-C', repo_path, 'show', f'{sha}:{PLAN_INDEX_PATH}'],
+            'git show', timeout=PLAN_RETIREMENT_SHOW_TIMEOUT)
+        if shown.returncode != 0:
+            # The commit deleted the index, so it says nothing about
+            # any row's status and is not where a clock can land: the
+            # commit that brought the index back dates nothing either,
+            # because the revision before the deletion is the one the
+            # rows are compared with.
+            continue
+
+        statuses = plan_retirement_index(shown.stdout)['statuses']
+        for name in sorted(pending):
+            entry = statuses.get(name)
+            if plan_status_is_terminal(entry[0] if entry else None):
+                continue
+            if previous is not None:
+                clocks[name] = previous
+            pending.discard(name)
+
+        if when < threshold:
+            # Older than the threshold and these rows are terminal in
+            # it, so they have been terminal for longer than the
+            # threshold. Reading further back would only establish by
+            # how much, which no decision here turns on.
+            for name in pending:
+                clocks[name] = when
+            pending.clear()
+            break
+        previous = when
+
+    return clocks
+
+
+class PlanRetirement(Check):
+    id = 'plan-retirement'
+    spec = 'docs/audits/plan-retirement.md'
+    template = None
+    issue_title = 'Completed plans awaiting retirement'
+
+    def applies(self, repo):
+        """Only a repository with an index this can read is measured.
+
+        Read rather than stat'ed, because read() is what absence means
+        to a criterion: a docs/plans/index.md that is a directory, a
+        dangling link or a link out of the checkout is not an index.
+        The read is cached, so asking the question here costs the run
+        nothing when the answer is yes.
+        """
+        if repo.read(PLAN_INDEX_PATH) is None:
+            return f'No {PLAN_INDEX_PATH}'
+        return None
+
+    def run(self, repo):
+        """Name the finished plans whose retirement is overdue.
+
+        A plan nobody retires is not a tidiness problem. What a
+        finished plan holds that the documentation does not -- why the
+        code is the shape it is, which designs were tried and
+        rejected, the work it deferred -- is never read again once the
+        plan stops being current, so it is lost while still sitting in
+        the tree, and every session that searches the repository reads
+        it as a description of software that has since been rewritten.
+        docs/plan-retirement.md is the convention; the retire-plans
+        skill does the work, one reviewed pull request per repository.
+
+        The clock is the index row's change into a terminal status,
+        read from the history of docs/plans/index.md, and never the
+        last commit to touch the plan's files. Finished plans are
+        edited all the time by changes that are not about them -- a
+        sweep making links absolute, a template fix, retirement itself
+        rewriting pointers in other plans -- so a clock that restarted
+        on every touch would never run out, and the plans most worth
+        retiring are exactly the ones those sweeps keep touching.
+
+        Four kinds of row are reported rather than counted, because
+        each is a plan this criterion cannot speak for and silence
+        about them reads as approval. A row already retired, whose
+        link is a permalink into this repository. A row naming a plan
+        in another repository, which neither this history can date nor
+        this repository's pull request can retire. A row whose Plan
+        cell this cannot read. And the plans in a table with no Status
+        column, which can never become eligible: that is reported on a
+        passing result and never failed, because a repository may have
+        decided deliberately not to record a status it would have to
+        invent, and nothing here can tell that apart from an omission.
+        A repository keeping such a table should say in the index why.
+
+        The issue this files is a backlog rather than a deadline, and
+        it stays open while any eligible plan remains: a repository
+        that retires three of its eleven has made the page better and
+        is not finished, and the issue saying so is the record of
+        what is left.
+        """
+        index = plan_retirement_index(
+            repo.read(PLAN_INDEX_PATH), repository=(repo.org, repo.name))
+        terminal = {
+            name: entry for name, entry in index['statuses'].items()
+            if plan_status_is_terminal(entry[0])
+        }
+
+        now = time.time()
+        threshold = now - RETIREMENT_AGE_DAYS * PLAN_RETIREMENT_DAY
+        clocks = plan_retirement_clocks(repo.path, set(terminal), threshold)
+
+        overdue = []
+        findings = []
+        undated = []
+        waiting = 0
+        for name in sorted(terminal):
+            status, lineno = terminal[name]
+            when = clocks.get(name)
+            if when is None:
+                undated.append(name)
+                continue
+            if when >= threshold:
+                waiting += 1
+                continue
+            days = int((now - when) // PLAN_RETIREMENT_DAY)
+            overdue.append(f'{name} ({status}, at least {days} days)')
+            findings.append(
+                f'{PLAN_INDEX_PATH}:{lineno}: {name} is {status} and has '
+                f'been terminal for at least {days} days')
+
+        unstatused = sorted(
+            name for names in index['unstatused'].values() for name in names)
+        reports = [
+            (f'{len(index["retired"])} row(s) already retired',
+             'its link is a permalink into this repository',
+             sorted(index['retired'])),
+            (f'{len(index["cross_repository"])} row(s) naming a plan in '
+             f'another repository',
+             'its link leaves this repository',
+             index['cross_repository']),
+            (f'{len(index["unreadable"])} row(s) not read',
+             'the index reader could not read it',
+             index['unreadable']),
+            (f'{len(unstatused)} plan(s) in '
+             f'{len(index["unstatused"])} table(s) with no Status column, '
+             f'which can never become eligible',
+             'its table records no status',
+             unstatused),
+            (f'{len(undated)} terminal row(s) the history does not date',
+             f'no revision of {PLAN_INDEX_PATH} inside the window shows '
+             f'its status changing',
+             undated),
+        ]
+
+        # Everything reported goes into details as well as into
+        # findings, bounded and in a fixed order. findings is read only
+        # when an issue is filed, so on a passing result details is the
+        # only place a report is published at all -- and it is the
+        # string the audit's own regression net compares byte for byte.
+        parts = []
+        if overdue:
+            parts.append(plan_index_summarise(
+                f'{len(overdue)} plan(s) terminal for more than '
+                f'{RETIREMENT_AGE_DAYS} days', overdue))
+        else:
+            parts.append(
+                f'No plan has been terminal for more than '
+                f'{RETIREMENT_AGE_DAYS} days')
+        if waiting:
+            parts.append(f'{waiting} terminal plan(s) not yet eligible')
+        for label, why, items in reports:
+            if not items:
+                continue
+            parts.append(plan_index_summarise(label, items))
+            findings.extend(f'{item}: {why}' for item in items)
+
+        details = '; '.join(parts)
+        if overdue:
+            return self.fail(details, findings=findings)
+        if findings:
+            return self.ok(details, findings=findings)
+        return self.ok(details)
