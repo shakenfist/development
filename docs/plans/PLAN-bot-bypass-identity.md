@@ -2643,9 +2643,14 @@ request under decision 4.
    `scripts/audit/checks/github_config.py` leave all 133 tests in
    `test_github_config.py` passing. Each was reproduced independently
    in this session on a `git archive` copy, never in the worktree.
-   Narrowing `GLOB_CHARACTERS` from `*?[]` to `*` survives, because
-   the only wildcard case is a policy named `develop*`, so a policy
-   named `develop?` or `dev[a-z]` would pass the audit unnoticed.
+   Each consequence below is what the mutated code would do rather
+   than what the audit does today: the shipped `GLOB_CHARACTERS` is
+   `*?[]` and the shipped rule test admits only `pull_request`, so
+   none of this is a live mis-report on the compliance page. Narrowing
+   `GLOB_CHARACTERS` from `*?[]` to `*` survives, and under that
+   mutation a policy named `develop?` or `dev[a-z]` would pass
+   unnoticed, because the only wildcard case is a policy named
+   `develop*`.
    Dropping the `protected_branches is not False` half of the policy
    condition survives, because `test_protected_branches_true_fails`
    also sets `custom_branch_policies` to False and the other half
@@ -2890,23 +2895,24 @@ marks the plan `Complete`.
   scope rather than left out.
 
 - Four claims reached the record before being derived, and the two
-review rounds on this phase's own pull request caught three of them.
-2d gave the size of its credential scan as 4160 diff lines, which
-reconciles with nothing here: the seven ranges hold 3368 added and
-removed lines and the net-effect diff 3277. 2a gave the growth of
-`scripts/audit/checks/github_config.py` as 222 lines, where `git diff
---numstat` says 211 added and 11 removed, so 200 net from 764. The
-record then explained one surviving mutation by saying the
-environment-absent fixture carries both rule types, which it does not:
-that default belongs to a helper only the environment-present tests
-use. And finding 1 said the specification carries a human review mark,
-where `REVIEWS.md` has no row for a page added on 2026-11-08. Two came
-from sub-agent reports and two were the management session's own, so
-the pattern is not that agents are unreliable: it is that a figure or
-a mechanism is cheap to restate and costly to check, and this record
-restated several before checking them. All four now say what was
-measured, and the first instance in this plan was a review's claim
-about which commits were reachable from this repository.
+  review rounds on this phase's own pull request caught three of them.
+  2d gave the size of its credential scan as 4160 diff lines, which
+  reconciles with nothing here: the seven ranges hold 3368 added and
+  removed lines and the net-effect diff 3277. 2a gave the growth of
+  `scripts/audit/checks/github_config.py` as 222 lines, where `git
+  diff --numstat` says 211 added and 11 removed, so 200 net from 764.
+  The record then explained one surviving mutation by saying the
+  environment-absent fixture carries both rule types, which it does
+  not: that default belongs to a helper only the environment-present
+  tests use. And finding 1 said the specification carries a human
+  review mark, where `REVIEWS.md` has no row for a page added on
+  2026-11-08. Two came from sub-agent reports and two were the
+  management session's own, so the pattern is not that agents are
+  unreliable: it is that a figure or a mechanism is cheap to restate
+  and costly to check, and this record restated several before
+  checking them. All four now say what was measured, and the first
+  instance in this plan was a review's claim about which commits were
+  reachable from this repository.
 
 - 4b, 4c, 4d and 4e ran in parallel, which the step table allows
   because all four are read-only. 4c was the only one to write
@@ -2947,17 +2953,20 @@ about which commits were reachable from this repository.
    Mitigation: 4g records findings; fixes land in a follow-up pull
    request (decision 4), and a finding that is only a preference is
    declined in writing rather than actioned.
-
-5. 5. **The follow-up pull request never lands.** Six findings, this
+5. **The follow-up pull request never lands.** Six findings, this
    phase's `Merged` cell and the plan's path to `Complete` all depend
    on a pull request that does not exist when this one merges.
    Mitigation, and it is deliberately outside the plan file, because a
-   plan cannot remind anyone to read it: the index row stays `In
-   progress` while the findings are unresolved, which is what the
-   `plan-index` criterion and a retirement review both read; and the
-   next action is recorded with `plan-blockers` against this plan,
-   which is shown at session start in this repository. Neither depends
-   on someone reopening this section.
+   plan cannot remind anyone to read it: the plan's index row stays
+   `In progress` while the findings are unresolved, which keeps it out
+   of the retirement candidates, since those are the plans whose
+   status is terminal; and the next action is recorded with
+   `plan-blockers` against this plan, which is what surfaces at
+   session start in this repository. The `plan-index` criterion is not
+   a guard here -- it polices the status vocabulary rather than
+   whether the status is true, and would accept this row flipped to
+   `Complete` with every finding still open. Neither mitigation
+   depends on someone reopening this section.
 
 #### Definition of done
 
