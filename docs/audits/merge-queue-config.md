@@ -63,9 +63,17 @@ and PUT it back, preserving everything else including `bypass_actors`:
 ```bash
 gh api repos/shakenfist/<repo>/rulesets --jq \
     '.[] | select(.target == "branch") | {id, name}'
+# Stop unless this credential is shown the bypass list. GitHub omits
+# bypass_actors for one it is not, and the PUT below would then send
+# an empty list and silently remove every bypass actor the ruleset
+# has. A false answer means the credential is wrong for this job, not
+# that the ruleset has no bypass actors -- which is why the field is
+# carried over below without a default.
+gh api repos/shakenfist/<repo>/rulesets/<id> \
+    | jq -e 'has("bypass_actors")' > /dev/null || exit 1
 gh api repos/shakenfist/<repo>/rulesets/<id> | jq \
     '{name, target, enforcement, conditions,
-      bypass_actors: (.bypass_actors // []),
+      bypass_actors,
       rules: (.rules | map(
         if .type == "merge_queue"
         then .parameters.max_entries_to_build = 1
