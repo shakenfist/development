@@ -168,7 +168,7 @@ have to learn to accept a sha.
 
 ## Mission and problem statement
 
-Close #153 with a settled fleet policy on which workflow references
+Answer #153 with a settled fleet policy on which workflow references
 may move, enforced by the audit wherever it can be decided
 mechanically. In brief, the policy is:
 
@@ -304,11 +304,18 @@ Out of scope:
 | Phase | Status | Merged |
 |-------|--------|--------|
 | 1. Finish the inherit rollout | Complete | development 8df8179 (#209); instar bdc8905 (#617); shakenfist e4c7726 (#4404); occystrap c583d68 (#152); client-python 68f295f (#415); agent-python 4bf7763 (#148); client-python-k3s 03998e0 (#83); clingwrap 125eb20 (#141); divergulent 8a2852e (#125); library-utilities 832d82d (#67); sfui ad0d6a2 (#44) |
-| 2. Make `actions` main require a pull request | Not started | |
+| 2. Make `actions` main require a pull request | In progress | |
 | 3. Pin third-party actions to a sha | Not started | |
-| 4. Record the policy and close #153 | Not started | |
+| 4. Record the policy | Not started | |
 | 5. Shared workflows instead of copied templates | Not started | |
 | 6. Push audit | Not started | |
+
+Phase 2 was planned on 2026-11-11, once
+`PLAN-bot-bypass-identity.md` phase 3 had merged (e460a2b and
+38f15f1) and made the review-marks App the bypass actor its open
+question 1 names. Nothing in this plan's phase 3 depends on phase
+2, so the two can run in either order; the table keeps the phases
+in the order the plan reasons about them.
 
 ### Phase 1: finish the inherit rollout
 
@@ -516,45 +523,307 @@ This covers everything `actions` serves at `@main`: reusable
 workflows and composite actions alike. Composite actions are the
 stronger case for it, since they run inside the caller's job.
 
-Change the existing "Protect default branch history" ruleset on
-`shakenfist/actions` (or add a second ruleset beside it) to:
-
-- require a pull request, with the approval count from open
-  question 2;
-- require the status check contexts named in open question 2;
-- give only the bypass decided in open question 1.
-
-Do this by hand, as an operator, and record the ruleset JSON in the
-phase. Then add a criterion so that this does not quietly regress.
-The criterion is `moving-ref-source-protection`, in
-`scripts/audit/checks/github_config.py`. It applies to the
-repositories that the fleet consumes at a moving ref, named in a
-module constant (today only `actions`). Everywhere else it reports
-`not_applicable` with that reason. It reads
-`repos/{org}/{repo}/rules/branches/{default}` and fails unless a
-`pull_request` rule and a `required_status_checks` rule are both
-present. That endpoint does not list bypass actors, so comparing the
-bypass list would mean reading each contributing ruleset
-(`repos/{org}/{repo}/rulesets/{id}`), and the audit's read token
-cannot: GitHub returns `bypass_actors` only to a caller that can edit
-the ruleset and omits the key otherwise, which phase 1 of
-`PLAN-bot-bypass-identity.md` (steps 1a and 1b) measured, under the
-security manager role too. The token is not widened to make it fit,
-so the check measures those two rules and `enforcement` only. The
-documented set -- one actor, the `shakenfist-review-marks` App, app
-id 5538020 -- goes in the spec's "Required, but confirmed by a
-reviewer" half, and becomes code when #352 gives the audit a read
-identity that can see `bypass_actors`; then a missing key is an
-error, never an empty set. A ruleset inherited from the organisation
-is read from the organisation's endpoint.
-
 Planning effort: high. This is what decides what the fleet trusts,
 and it touches GitHub settings that this repository cannot test.
 
+**Scope.** In: the operator change to `shakenfist/actions`' one
+branch ruleset, 21132503 -- a pull-request rule, required status
+checks, and the review-marks App as its only bypass actor (2a); and
+the `moving-ref-source-protection` criterion, its specification and
+its tests, so that the change cannot quietly regress (2b). Out:
+pinning third-party references, which is phase 3; the policy
+write-up, which is phase 4; any change to `actions`' `ci.yml`,
+including the job names the ruleset will require and the path filter
+that skips two of them; comparing the ruleset's bypass list in code,
+which waits on #352 giving the audit a read identity that can see
+it; narrowing `DEPENDENCIES_TOKEN`, which
+`PLAN-bot-bypass-identity.md` owns; and an organisation-level
+"require workflows" rule (decision 6).
+
+**What the survey found** (2026-11-11, against this checkout at
+bcd768d and the GitHub API with the operator's own credential. The
+master plan's text for this phase was corrected where it was stale,
+and a later step need not redo that.)
+
+- Nothing of this phase has shipped: `moving-ref-source-protection`
+  appears nowhere under `scripts/` or `docs/`.
+- The ruleset has not drifted from what the 2a brief recorded on
+  2026-11-09. `shakenfist/actions` has exactly one ruleset, 21132503,
+  "Protect default branch history", `enforcement: active`, condition
+  `~DEFAULT_BRANCH`, and two rules, `deletion` and
+  `non_fast_forward`. There is no `pull_request` rule and no
+  `required_status_checks` rule. Read with an admin credential the
+  `bypass_actors` key is present and `[]`, so the App becomes the
+  only entry, as the brief provides. No organisation ruleset reaches
+  the branch.
+- `actions` already carries the whole workflow half of the review
+  mark path. Its `.github/workflows/prune-reviews.yml` has the
+  App-token step
+  (`actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510`,
+  v3.3.0) guarded by `HAS_REVIEW_MARKS_KEY`, and pushes with
+  `steps.app-token.outputs.token || github.token`. The `review-marks`
+  environment exists, with exactly one custom branch policy, `main`.
+  What is missing is the key: that environment holds no secret and
+  `actions` holds no repository secret at all, which is why the push
+  falls back to `github.token` today.
+- So 2a adds the key and nothing else of that shape.
+  `REVIEW_MARKS_APP_CLIENT_ID` is an **organisation** variable with
+  `visibility: all`, so `actions` already resolves
+  `vars.REVIEW_MARKS_APP_CLIENT_ID`; no repository or environment
+  copy of it exists in andris, hunkydory, kerbside, ryll or actions.
+- The App is as `PLAN-bot-bypass-identity.md` describes it:
+  `shakenfist-review-marks`, app id 5538020, installation 176803138,
+  permissions exactly `contents: write` and `metadata: read`,
+  `repository_selection: selected`. Which repositories that
+  installation covers cannot be listed from a personal access token
+  -- `user/installations/176803138/repositories` answers 403, "You
+  must authenticate with an access token authorized to a GitHub
+  App" -- so that `actions` is not among them is read from the
+  organisation's GitHub Apps page, or inferred from the environment
+  secret listings: andris, hunkydory, kerbside and ryll each hold
+  `REVIEW_MARKS_APP_KEY` and `actions` does not. 2a installs through
+  that page rather than the API.
+- **`ci.yml` has five jobs, not the three open question 2 names.**
+  `Check paths` (line 63), `Lint` (121), `Unit tests` (180),
+  `gitleaks` (231) and `Automated reviewer` (266). The trigger is
+  `on: pull_request` with no `paths:` or `paths-ignore:`, so the
+  brief's reasoning holds: the filter is `check_paths`' output,
+  consumed by `Lint` and `Unit tests` through
+  `needs.check_paths.outputs.code_changed != 'false'`, and a job
+  skipped that way reports success to a required check. `Lint`,
+  `Unit tests` and `gitleaks` additionally skip a fork pull request.
+  `gitleaks` has no `check_paths` dependency, so it already runs on
+  every pull request, a review-only one included. Decision 1 settles
+  the contexts.
+- **A non-active ruleset is already absent from the effective
+  rules.** instar's ruleset 19389569 is `enforcement: disabled`,
+  targets `~DEFAULT_BRANCH` and carries a `copilot_code_review`
+  rule, and `repos/shakenfist/instar/rules/branches/develop` returns
+  only ruleset 20783686's five rules. Of the twelve audited
+  repositories that have any ruleset, that is the only one not
+  `active`. So `disabled` needs no measurement, and the enforcement
+  read in decision 2 is there for `evaluate`, which nothing in the
+  fleet uses and which the endpoint's documentation does not settle.
+- **The helpers the criterion needs already exist, and the brief
+  named the wrong model.** `branch_rules(repo, branch)` and
+  `default_branch_rules(repo)` are at
+  `scripts/audit/checks/github_config.py:46` and `:68`, and
+  `MergeQueueConfig` (line 302) and `ReleaseMergeQueue` (line 321)
+  read through them. `ReleaseMergeQueue` is the model: it is the one
+  that pairs `default_branch_rules` with an `applies()` returning a
+  reason. `DeleteBranchOnMerge` is at line 269 rather than 213, and
+  is the wrong shape anyway -- it asks GraphQL for a repository
+  setting. The brief was corrected.
+- **The repository list belongs in a class constant, not a module
+  one.** `ScopeCoverage` (line 710) is the existing pattern for a
+  criterion that can only be measured somewhere particular:
+  `SCOPE_REPO = 'development'` as a documented class attribute, with
+  the reason returned from `applies()`. The brief said "a module
+  constant"; corrected.
+- Nothing in the audit reads `required_status_checks` today, so this
+  criterion is the first. `BypassActorIdentity` (line 521) does read
+  the default branch's `pull_request` rules, at line 580, but only
+  on the path where the `review-marks` environment is absent.
+  `actions` has that environment, so it is already measured on the
+  other path and 2a does not change its verdict.
+- **Adding a criterion is a documented six-file procedure**:
+  `docs/consistency-audits.md`, "Adding a criterion" (line 458),
+  which `PUSH-AUDIT.md` and `AGENTS.md` link to rather than copy.
+  The 2b brief now cites it instead of carrying its own list. Two of
+  its rules the brief had not carried: the applicability test goes
+  in `applies(repo)` rather than at the top of `run()`, because the
+  scheduler asks the cheap question first; and a specification page
+  must carry no `consistency-audit` marker block, which
+  `test_audit_update_docs.py` fails on.
+- **The pinned tool-failure list does not change.**
+  `test_an_empty_directory_is_a_tool_failure_exactly_where_expected`
+  (`scripts/tests/test_metadata.py:650`) pins an exact list of the
+  criteria that cannot reach a verdict without git or GitHub. Its
+  fixture repository is named `testrepo` (`repo()`, line 535), so a
+  criterion applying only to `actions` skips before any API call and
+  does not join the list -- which is why `scope-coverage` is absent
+  from it too.
+- **The audit's read token can read a ruleset object; only
+  `bypass_actors` is withheld.** `PLAN-bot-bypass-identity.md`'s
+  phase 1 record has `AUDIT_READ_TOKEN` answering `has
+  bypass_actors: False` for
+  `repos/shakenfist/hunkydory/rulesets/23805020` on 2026-10-31 under
+  the security manager role, run 41130157778. It answered, which is
+  what decision 2 needs: `enforcement` is readable. Taken from that
+  record rather than measured again, as the brief requires.
+- **The `DEPENDENCIES_TOKEN` residual is narrower than open question
+  1 implies.** An organisation-wide code search puts the token in
+  six workflows in three repositories: shakenfist
+  (`code-formatting.yml`, `functional-tests.yml`,
+  `pin-indirect-dependencies.yml`, `sync-external-docs.yml`),
+  client-python (`code-formatting.yml`) and kerbside
+  (`pin-indirect-dependencies.yml`). Their triggers are
+  `pull_request`, `workflow_dispatch`, `schedule` and `merge_group`;
+  none uses `pull_request_target`, `issue_comment` or
+  `workflow_run`, and a fork's `pull_request` run is handed no
+  secrets. So the token reaches a job only for someone who can
+  already push a branch to one of those three repositories.
+  Recorded here so that 2a does not survey it again.
+- **#153 is already closed**, on 2026-10-03, the day
+  development#209 landed phase 1. Phase 4's brief still said to
+  close it from its pull request body, and the Related issues list
+  still called it the issue this plan closes; both were corrected.
+  What phase 4 writes is unaffected.
+- #352, the audit's read identity, is open, so 2b's shape is the
+  fallback one this section describes.
+
+Everything else the section claimed held: `actions` does serve
+composite actions at `@main`, the key must be an environment secret
+rather than a repository or organisation one, and a ruleset bypass
+cannot be narrowed to a path.
+
+**Decisions.**
+
+1. **The required contexts are `Check paths`, `Lint`, `Unit tests`
+   and `gitleaks`, and `Automated reviewer` is not one.** The first
+   four either report or skip for every pull request this repository
+   will see, and a skipped job satisfies a required check, so none
+   of them wedges a review-only or a fork pull request. `gitleaks`
+   is included although open question 2 did not name it: it is the
+   secret scan, it already runs on every pull request, so requiring
+   it costs nothing and not requiring it would be the odd choice.
+   `Automated reviewer` is excluded deliberately. It `needs` the
+   other three, it writes to the pull request it is reviewing, and
+   it is the one lane whose outcome depends on a service outside
+   this fleet, so requiring it would let an outage there hold every
+   merge. Required approvals stay at zero, per open question 2: with
+   one maintainer a count of one cannot be met by the author.
+2. **The criterion measures the two rules from the effective-rules
+   endpoint, and `enforcement` from each ruleset that contributed
+   them.** `repos/{org}/{repo}/rules/branches/{default}` is the only
+   endpoint that resolves organisation and repository rulesets
+   together, and the survey measured that it already excludes a
+   `disabled` ruleset. It does not settle `evaluate`, where a rule
+   is reported on but does not block, so the check collects the
+   `ruleset_id` of each rule it matched, reads
+   `repos/{org}/{repo}/rulesets/{id}`, and fails unless every one is
+   `active`. The read token can do that (survey). A ruleset whose
+   `source_type` is `Organization` is read from the organisation's
+   endpoint.
+3. **The repositories the fleet consumes at a moving ref are a class
+   constant, `MOVING_REF_REPOS = ('actions',)`, with the reason
+   returned from `applies()`.** Follows `ScopeCoverage.SCOPE_REPO`.
+   Everywhere else the criterion reports `not_applicable` naming the
+   repository, which is what keeps it from paying for an API call on
+   23 repositories that cannot fail it.
+4. **The bypass list stays confirmed by a reviewer rather than
+   measured**, and this rests on a measurement rather than an
+   assumption: the audit's read token answers the ruleset endpoint
+   but is not given `bypass_actors`, measured twice in
+   `PLAN-bot-bypass-identity.md`'s phase 1, the second time under
+   the security manager role. The token is not widened to make the
+   check fit. The documented set -- one actor, the
+   `shakenfist-review-marks` App, app id 5538020 -- goes in the
+   specification's "Required, but confirmed by a reviewer" half, and
+   becomes code when #352 lands, at which point a missing key is an
+   error and never an empty set.
+5. **2b lands in its own pull request, after 2a has been applied and
+   proved.** The criterion fails `actions` until the ruleset change
+   is in place, and it applies to no other repository, so landing it
+   second means the first scheduled audit after it reports one more
+   compliant row and files no issue. That is the inverse of phase
+   3's problem (its decision 4), and it is cheap here because only
+   one repository is measured.
+6. **An organisation "require workflows" rule is out of scope**, and
+   recorded as future work. Open question 2 names it as the stronger
+   form, and it is one: a required check whose workflow the pull
+   request can edit is a check the pull request can make pass. But
+   it wants a ruleset on a protected ref to source the workflow
+   from, which is what this phase creates rather than something it
+   can assume; the audit's token could not read the organisation
+   ruleset endpoint on 2026-10-29
+   (`PLAN-bot-bypass-identity.md`, step 1a), so no criterion could
+   measure it yet; and the residual it would close is bounded by the
+   edit being visible in a pull request, which is the gain open
+   question 2 claims. Phase 4 states that limit rather than implying
+   more.
+7. **The order inside 2a is install, key, bypass, then rule.** The
+   brief already says so; it is restated as a decision because
+   getting it wrong is silent. `actions` holds no key today, so the
+   moment the pull-request rule is active its `prune-reviews` push
+   with `github.token` is refused, and nothing outside `actions`
+   reports that: `bypass-actor-identity` measures the environment,
+   not the push.
+
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 2a | high | opus | none | Operator step, done by the management session with the operator, not by a sub-agent. Install the `shakenfist-review-marks` App (`PLAN-bot-bypass-identity.md`; it is installed on andris, hunkydory, kerbside and ryll but not yet on `actions`) on `actions`, add its key as `REVIEW_MARKS_APP_KEY` to the `review-marks` environment that already exists in `actions` (an *environment* secret, never a repository or organisation one, because those resolve from any branch and would defeat the design), and name the App as the only bypass actor on the `actions` ruleset; the bypass cannot be path-narrowed (open question 1). Do all three before the pull-request rule is enforced, not after: `actions` holds no key today, so its `prune-reviews` pushes with `github.token`, which the rule refuses the moment it is active, and the only sign is a failing push in `actions` itself -- the audit cannot see it (`docs/audits/bypass-actor-identity.md`). Record `repos/shakenfist/actions/rulesets/21132503`'s `bypass_actors` before and after: read on 2026-11-09 AEDT with the operator's own admin credential, the key is present and `[]` (an omitted key is an error, never an empty set, so the reading only counts from a caller that can edit the ruleset), so the App becomes the only entry. If anything else is there by then, add the App beside it and report it rather than removing it: taking the team bypass away is open question 3's business, and 2b's documented set is then that pair until it is settled. Settle which check contexts open question 2 requires, then apply the ruleset change. Then prove it on a throwaway branch: a direct push to main is rejected, and a `prune-reviews` run still lands as `shakenfist-review-marks[bot]` in the rule-suite history, the way `PLAN-bot-bypass-identity.md`'s phase 3 record proves it for kerbside (or opens its pull request, per open question 1). Open a review-only throwaway pull request too, and confirm that every required check resolves: `ci.yml` filters at job level through `Check paths`, and a skipped job reports success, but a trigger-level `paths:` or `paths-ignore:` would never report and would wedge every such pull request. Record which token the audit runs with, and take whether it sees `bypass_actors` in `repos/shakenfist/actions/rulesets/{id}` from `PLAN-bot-bypass-identity.md`'s phase 1 record (steps 1a and 1b) rather than measuring again: it cannot, even under the security manager role, and the audit token is not widened to make it. So 2b drops the `bypass_actors` comparison and measures only the two rules and `enforcement`, and the spec moves the bypass list to its "Required, but confirmed by a reviewer" half. Record in this phase that 2b takes that shape. For the residual in open question 1, record which repositories put `DEPENDENCIES_TOKEN` in a workflow's scope, and whether any of those workflows runs on a trigger that someone other than a maintainer can fire (`pull_request_target`, `issue_comment`, `workflow_run`). |
-| 2b | high | opus | worktree | Add a `MovingRefSourceProtection` class to `scripts/audit/checks/github_config.py`, with the id `moving-ref-source-protection`, its `spec` and its `issue_title` (`Moving ref source protection`), following `DeleteBranchOnMerge` at line 213 for the API-call shape. Register it in `CHECKS` in `scripts/audit/registry.py`. Write `docs/audits/moving-ref-source-protection.md`, following the structure in `docs/audits/README.md`; its Why section cites the landing counts from this plan's Situation. Add the file to `docs/audits/README.md`, and add its lines to `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` in `scripts/tests/test_metadata.py`. Add pass, fail and not-applicable tests to `scripts/tests/test_github_config.py`, using `CheckTestCase` and a stubbed GitHub client, including fail cases for a missing status-check rule and `enforcement: evaluate`. Do not write the `bypass_actors` comparison, or the extra-bypass-actor and missing-key cases that would test it: the audit's read token cannot see the key (open question 1, and phase 1 of `PLAN-bot-bypass-identity.md`), so the spec carries the one-actor documented set in its reviewer-confirmed half instead, and says why. |
+| 2a | high | opus | none | Operator step, done by the management session with the operator, not by a sub-agent. Four changes, in this order (decision 7), each read back before the next is made. (1) Install `shakenfist-review-marks` (app id 5538020, installation 176803138) on `shakenfist/actions` from the organisation's GitHub Apps settings page, since a personal access token can neither list nor change an installation's repositories (survey). (2) `gh secret set REVIEW_MARKS_APP_KEY --repo shakenfist/actions --env review-marks` from the key file -- never without `--env`, never at organisation level. The `review-marks` environment and its `main`-only custom branch policy already exist and are not recreated, and `REVIEW_MARKS_APP_CLIENT_ID` is already an organisation variable visible to all repositories, so nothing is added for it. Record `repos/shakenfist/actions/environments/review-marks/secrets` and `gh secret list --repo shakenfist/actions`, which must name no repository-level copy. (3) Add the App as the only bypass actor on ruleset 21132503, with the GET-then-PUT shape under "Template" in `docs/audits/merge-queue-config.md`, appending `{"actor_id": 5538020, "actor_type": "Integration", "bypass_mode": "always"}`. Assert `has("bypass_actors")` on the GET first and stop if it is false: that recipe's `(.bypass_actors // [])` is right for a caller who can see the key and silently destructive for one who cannot (risk 1). The key was present and `[]` on 2026-11-11; if anything else is in it by then, add the App beside it and report it rather than removing it -- taking a team bypass away is open question 3's business, and 2b's documented set is that pair until it is settled. (4) Only then add the `pull_request` rule, with `required_approving_review_count: 0`, and the `required_status_checks` rule with exactly the four contexts from decision 1 and the GitHub Actions `integration_id`, preserving the existing `deletion` and `non_fast_forward` rules and the `~DEFAULT_BRANCH` condition. Record the whole ruleset JSON in this phase. Then prove it, recording each: a direct push of a trivial commit to main from the operator's own credential is refused; the next `prune-reviews` run on main has `Mint the push token` running rather than skipped, its push attributed to `shakenfist-review-marks[bot]` in `repos/shakenfist/actions/rulesets/rule-suites?time_period=day&rule_suite_result=bypass` (the way `PLAN-bot-bypass-identity.md`'s phase 3 record proves it for kerbside), and `repos/shakenfist/actions/deployments?environment=review-marks` empty; and a throwaway review-only pull request reaches a mergeable state with all four contexts reported success or skipped, after which it and its branch are deleted. Do not measure whether the audit token sees `bypass_actors`: it does not, and 2b takes the fallback shape (decision 4). The `DEPENDENCIES_TOKEN` scope survey the brief used to ask for is done and recorded above; do not repeat it. |
+| 2b | high | opus | worktree | Add a `MovingRefSourceProtection` class to `scripts/audit/checks/github_config.py`: id `moving-ref-source-protection`, `issue_title` `Moving ref source protection`, `spec` `docs/audits/moving-ref-source-protection.md`, `template` None, no `column`. Follow the six-file procedure in `docs/consistency-audits.md`, "Adding a criterion" (line 458) -- it is the one list of what a criterion touches, so read it rather than working from a list in this brief. Model the check on `ReleaseMergeQueue` (`github_config.py:321`) and not on `DeleteBranchOnMerge`: read through the module's own `default_branch_rules(repo)` (line 68), and put the applicability test in `applies(repo)`, returning a reason that names the repository. The repositories are a class constant, `MOVING_REF_REPOS = ('actions',)`, documented with a `#:` comment (decision 3). Fail unless both a `pull_request` rule and a `required_status_checks` rule are in the effective rules; then, for each distinct `ruleset_id` those two rules came from, read `repos/{org}/{repo}/rulesets/{id}` and fail unless every one is `enforcement: active` (decision 2), reading a ruleset whose `source_type` is `Organization` from the organisation's endpoint. GitHub not answering is a `ToolFailure`, never a verdict. Write no `bypass_actors` comparison and no test of one: the audit's read token is not given the key (decision 4), so the one-actor documented set goes in the specification's "Required, but confirmed by a reviewer" half, with the measurement that says why. Tests in `scripts/tests/test_github_config.py`, with `CheckTestCase` (`scripts/tests/base.py:167`) and a stubbed client: pass; fail on a missing `pull_request` rule; fail on a missing `required_status_checks` rule; fail on a contributing ruleset in `enforcement: evaluate`; and not-applicable for a repository outside `MOVING_REF_REPOS`. In `scripts/tests/test_metadata.py` add the criterion's lines to `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` only, and leave `test_an_empty_directory_is_a_tool_failure_exactly_where_expected`'s list alone: its fixture repository is `testrepo`, so this check skips before any API call (survey). The specification follows the structure in `docs/audits/README.md`, links `compliance.md#moving-ref-source-protection` under `## Projects`, carries no `consistency-audit` marker block, and cites this plan's Situation for the landing counts; add its line to the criterion index in `docs/audits/README.md`. Open the pull request only once 2a is applied and proved, so that the criterion passes on the day it lands (decision 5), and say in the commit what it measured against `actions`. |
+
+**Risks and mitigations.**
+
+- **A ruleset PUT built from a read that could not see
+  `bypass_actors` empties the bypass list silently.** The
+  GET-then-PUT recipe in `docs/audits/merge-queue-config.md`
+  defaults the field with `(.bypass_actors // [])`, which is right
+  for a caller who can see it and destructive for one who cannot.
+  The operator checks `has("bypass_actors")` on the GET before
+  editing and re-reads the list afterwards; their credential saw the
+  key on 2026-11-11.
+- **A required context that never reports wedges every pull
+  request.** The operator opens a throwaway review-only pull request
+  before trusting the rule, and confirms each of the four contexts
+  resolves to success or skipped and that the merge button is
+  offered. If one does not report, the rule comes off again rather
+  than being left to wedge the next review-only pull request.
+- **Renaming a job in `ci.yml` breaks the required context, and this
+  criterion will not notice.** It measures that a
+  `required_status_checks` rule exists, not that its contexts match
+  the workflow's job names. Recorded as future work. The symptom is
+  loud -- every pull request stops offering a merge -- and the fix is
+  one ruleset edit.
+- **Installing the App on `actions` widens what one key reaches**,
+  from four repositories to five. The mitigations are unchanged from
+  `PLAN-bot-bypass-identity.md`: the permission is `contents: write`
+  only, the key is an environment secret whose branch policy admits
+  only `main`, and the token is minted per run and revoked when the
+  job ends. 2a adds no repository-level or organisation-level copy,
+  and the definition of done reads the listings to show it.
+
+**Definition of done.**
+
+- `repos/shakenfist/actions/rules/branches/main` returns a
+  `pull_request` rule and a `required_status_checks` rule, and that
+  rule's contexts are exactly `Check paths`, `Lint`, `Unit tests`
+  and `gitleaks`.
+- `repos/shakenfist/actions/rulesets/21132503` reads `enforcement:
+  active`, and its `bypass_actors` holds exactly one entry:
+  `actor_id` 5538020, `actor_type` `Integration`.
+- `repos/shakenfist/actions/environments/review-marks/secrets` names
+  `REVIEW_MARKS_APP_KEY`, and `gh secret list --repo
+  shakenfist/actions` names no copy of it.
+- A direct push of a trivial commit to `actions` main from the
+  operator's own credential is refused, and the refusal is recorded
+  here.
+- The first `prune-reviews` run on `actions` main after 2a shows
+  `Mint the push token` running rather than skipped;
+  `rulesets/rule-suites?time_period=day&rule_suite_result=bypass`
+  names `shakenfist-review-marks[bot]` as the actor of its push; and
+  `deployments?environment=review-marks` is empty.
+- A review-only pull request opened on `actions` reaches a mergeable
+  state with all four required contexts reported.
+- `python3 -m unittest discover -s scripts/tests -t scripts` passes,
+  and `scripts/tests/test_metadata.py` passes without its pinned
+  tool-failure list having been edited.
+- The first scheduled consistency audit after 2b reports
+  `moving-ref-source-protection` compliant on `actions` and
+  not_applicable everywhere else, files no issue, and the commit
+  that landed 2b states that prediction, following "Before and after
+  a change to a check" in `docs/consistency-audits.md`.
+- `docs/audits/moving-ref-source-protection.md` exists, is linked
+  from `docs/audits/README.md`, carries no `consistency-audit`
+  marker block, and its reviewer-confirmed half names the one bypass
+  actor and says why it is not measured.
+
+**Back brief gate.** 2a changes a live setting the whole fleet
+depends on, by hand, in an order whose mistakes are silent. Before
+touching GitHub, back brief the four changes, their order, and what
+will be read to prove each one. 2b needs no gate.
 
 ### Phase 3: pin third-party actions to a sha
 
@@ -590,14 +859,14 @@ count across the first of a month and report it as grouped pull
 requests, which is the number that matters once the preset governs
 the fleet.
 
-### Phase 4: record the policy and close #153
+### Phase 4: record the policy
 
 Planning effort: medium. It documents a policy that phases 2 and 3
 have already decided.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 4a | medium | sonnet | none | In `docs/audits/reusable-workflow-secrets.md`, replace "What this does not cover" with the settled policy: first-party refs move, and the `moving-ref-source-protection` criterion is what makes that acceptable; third-party refs are pinned, under `third-party-action-pinning`. Include the upper bound of 14 pull requests a day this avoids, what a moving ref can reach (Situation: the runner's filesystem, and the caller's job for composite actions), the "pull request and CI, not a second reviewer" limit from open question 2, and the residual from open question 1. Link both new specs. In the Why section, put the instar#617 sentences in the past tense, describing what actually landed if review changed it. Close #153 from the pull request body, and link phase 1's landings. |
+| 4a | medium | sonnet | none | In `docs/audits/reusable-workflow-secrets.md`, replace "What this does not cover" with the settled policy: first-party refs move, and the `moving-ref-source-protection` criterion is what makes that acceptable; third-party refs are pinned, under `third-party-action-pinning`. Include the upper bound of 14 pull requests a day this avoids, what a moving ref can reach (Situation: the runner's filesystem, and the caller's job for composite actions), the "pull request and CI, not a second reviewer" limit from open question 2, and the residual from open question 1. Link both new specs. In the Why section, put the instar#617 sentences in the past tense, describing what actually landed if review changed it. Do not close #153: phase 1 closed it on 2026-10-03, when development#209 landed. Link phase 1's landings instead. |
 
 ### Phase 5: shared workflows instead of copied templates
 
@@ -1128,8 +1397,10 @@ Specific to this plan:
 * No third-party `uses:` in this repository or under `templates/`
   is unpinned. `third-party-action-pinning` has filed its issues
   fleet-wide, and the plan records how many.
-* #153 is closed, and the specs say why first-party refs move and
-  third-party refs do not.
+* The specs say why first-party refs move and third-party refs do
+  not. #153 itself closed on 2026-10-03 with phase 1, before the
+  policy it asked for was written, so the specs rather than the
+  issue state are what this criterion reads.
 
 ### Documentation index maintenance
 
@@ -1190,7 +1461,9 @@ intend to do aligns with that plan.
 - `scripts/audit-check.py` appears to write more than its JSON
   document to stdout when redirected to a file, so `json.load` of
   its output fails. Reproduce and file it.
-- `visual-digest-rust` and `private-ci` have no `renovate.json`.
+- `visual-digest-rust` and `private-ci` have no `renovate.json`, so
+  phase 3's pins would rot in those two repositories. The
+  `renovate` criterion already owns that.
 - Phase 1's post-merge `pr-fix-tests` trigger in instar, occystrap
   and shakenfist was never run (close-out, 2026-10-31). The first
   maintainer-triggered run in each is the check: in instar, its
@@ -1198,12 +1471,26 @@ intend to do aligns with that plan.
   `GITLAB_TESTDATA_TOKEN`; in the other two, the run must get past
   its token-using steps. Read the step log when one happens, and
   record it here.
-  Phase 3's pins would rot in those two repositories. The
-  `renovate` criterion already owns that.
+- `moving-ref-source-protection` measures that a
+  `required_status_checks` rule exists, not that its contexts still
+  name jobs `ci.yml` defines. Renaming a job in `actions` would
+  break every pull request there and the criterion would report
+  compliant. The workflow-reading helpers it would need
+  (`workflow_job_blocks`) are already imported by
+  `scripts/audit/checks/github_config.py`; it is a second criterion,
+  not a widening of this one.
+- An organisation-level "require workflows" rule, sourced from a
+  protected ref, is the stronger form of what phase 2 does (its
+  decision 6). It wants a protected ref to source from, which phase
+  2 creates, and an audit token that can read
+  `orgs/{org}/rulesets`, which #352 is about. Revisit once both
+  hold.
 
 Related issues, as of writing:
 
-- #153 is the issue this plan closes.
+- #153 is the issue this plan answers. It was closed on
+  2026-10-03 by phase 1 (development#209), ahead of the policy
+  write-up in phase 4, so no phase closes it.
 - #151 (templates/mermaid-lint/ has no staleness mechanism) is
   closed by phase 5: 5b stops the fleet carrying a copy of
   `mermaid-lint.sh`, and 5c makes "a caller, or a README saying
