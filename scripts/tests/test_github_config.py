@@ -842,25 +842,23 @@ class BypassActorIdentityTest(GithubConfigTestCase):
             {'name': '*', 'type': 'tag'}]))
         self.assert_fail(result, containing='2 deployment policies')
 
-    def test_a_wildcard_branch_name_fails(self):
-        result = self.run_with(self.answers(branch_policies=[
-            {'name': 'develop*', 'type': 'branch'}]))
-        self.assert_fail(result, containing='wildcard')
-
     def test_protected_branches_true_fails(self):
         result = self.run_with(self.answers(deployment_policy={
             'protected_branches': True, 'custom_branch_policies': False}))
         self.assert_fail(result, containing='protected_branches is True')
 
-    def test_the_other_wildcard_characters_also_fail(self):
+    def test_a_wildcard_character_in_a_branch_name_fails(self):
         """The asterisk is not the only character GitHub reads as a glob.
 
         A check that looked for "*" alone would pass a policy named
         "develop?" or "dev[a-z]", each of which admits a branch the
-        default-branch policy exists to exclude, so there is one case per
-        remaining character in GLOB_CHARACTERS.
+        default-branch policy exists to exclude. The names are built
+        from GLOB_CHARACTERS rather than listed beside it, so a
+        character added there arrives with a case of its own, and a
+        bracket expression is tried whole as well.
         """
-        for name in ('develop?', 'develop[', 'develop]', 'dev[a-z]'):
+        names = ['develop' + c for c in sorted(github_config.GLOB_CHARACTERS)]
+        for name in names + ['dev[a-z]']:
             with self.subTest(name=name):
                 result = self.run_with(self.answers(branch_policies=[
                     {'name': name, 'type': 'branch'}]))
