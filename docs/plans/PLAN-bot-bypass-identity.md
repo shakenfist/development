@@ -413,7 +413,7 @@ Out of scope:
 | 1. Operator inventory and App creation | Complete | 2a24d00 (#348) |
 | 2. `prune-reviews` mints an App token | Complete | 9f080cd (#354), b3ff906 (#356), 55f554e (#357), 9d1301b (#368) |
 | 3. Move the bypass and enforce it | Complete | e460a2b (#377), 38f15f1 (#380) |
-| 4. Push audit | Complete | |
+| 4. Push audit | Complete | b6c315a (#385) |
 
 <!-- shared-block: plan-status-vocabulary v1 -->
 Plan status vocabulary (shared block; do not edit -- the canonical
@@ -2866,6 +2866,35 @@ that cell empty for good belongs to an audit that finds nothing, where
 there is no carrier; this one found six things, so the follow-up pull
 request that fixes them is the carrier, and it fills the cell and
 marks the plan `Complete`.
+
+**What the follow-up fixed.** This pull request, which is that
+carrier. Finding 1: the specification now states what was measured --
+the team's two remaining members merge pull requests past the queue
+rather than pushing to a default branch, with `sfconductor` bypassing
+in five of the seven repositories in the month to 2026-10-29 and
+`mikalstill` in all seven. Finding 2: three cases in
+`BypassActorIdentityTest`, one per surviving mutation, each mutation
+re-run on a copy of the tree and now failing the case written for it;
+the wildcard case covers `?`, `[` and `]` beside the asterisk the
+shipped case already covered. Finding 3: a paragraph in `run()`'s
+docstring saying why the applicability test is there rather than in
+`applies(repo)`, which is that answering it needs the same two reads
+the verdict needs. Finding 5: the mint-step assertions now match a key
+and its value at any indentation, with parent and child matched
+together where the nesting is the claim, and only the exact allowed
+`PUSH_TOKEN` line is struck out before the sweep for a token in the
+wrong step. Five mutations of the template confirm they still catch a
+dropped input, an input pointed at another secret, a token in the
+fetch step and a `PUSH_TOKEN` widened to a secret, while a template
+reindented throughout now passes.
+
+Finding 4 is answered rather than fixed, which is what a question
+gets: neither file is split. Both are over the 800 lines that ask the
+question and well short of the 1500 that wants a reason, and the seam
+-- one check and its tests per module -- would scatter checks that
+share this module's GitHub helpers across files. The two files past
+1500 lines are backlog no range in this plan touches, as the declined
+list above says.
 
 #### Execution notes
 
