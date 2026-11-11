@@ -223,9 +223,9 @@ human merging the pull request.
 |-------|--------|--------|
 | 1. Retirement convention | Complete | f7b1219 (#333) |
 | 2. `retire-plans` helper and skill | Complete | 8010a22 (#342); llm-setup 3a9f268 (!20) |
-| 3. Pilot | Complete | divergulent c7a980c (#143), kerbside d2971e6 (#686), ryll 0c42528 (#700); llm-setup 956b2fa (!21), dfebae1 (!22), c8a79de (!24) |
-| 4. `plan-retirement` criterion | In progress | |
-| 5. Push audit | Not started | |
+| 3. Pilot | Complete | 623d72b (#364), ea741dd (#378); divergulent c7a980c (#143), kerbside d2971e6 (#686), ryll 0c42528 (#700); llm-setup 956b2fa (!21), dfebae1 (!22), c8a79de (!24) |
+| 4. `plan-retirement` criterion | Complete | 4f7f587 (#386); divergulent 04a4eb1 (#152), kerbside 8330c3f (#712) |
+| 5. Push audit | In progress | |
 
 The criterion lands after the pilot on purpose. It files issues the
 day it merges, in every repository with an eligible plan -- five of
