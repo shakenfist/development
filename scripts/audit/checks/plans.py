@@ -281,6 +281,12 @@ PLAN_STATUSES = (
 )
 
 
+#: Where a repository's plan index lives. Named once because three
+#: criteria read it and the retirement clock reads the file and then
+#: its history, and those spellings cannot be allowed to drift apart.
+PLAN_INDEX_PATH = 'docs/plans/index.md'
+
+
 # The leading columns every docs/plans/index.md table must carry, in
 # this order. Chronological order is the reading order for a plan
 # index, and a fixed column order is what lets tooling find the status
@@ -1339,12 +1345,12 @@ class PlanIndex(Check):
             and not PLAN_PHASE_FILE_RE.search(name)
             and repo.isfile(f'docs/plans/{name}')
         )
-        content = repo.read('docs/plans/index.md')
+        content = repo.read(PLAN_INDEX_PATH)
         if content is None:
             if not masters:
                 return self.skip('No plans in docs/plans/')
             return self.fail(
-                f'docs/plans/index.md is missing, so none of the '
+                f'{PLAN_INDEX_PATH} is missing, so none of the '
                 f'{len(masters)} plan(s) in docs/plans/ are registered')
 
         linked = set()
@@ -1471,7 +1477,7 @@ class PlanIndex(Check):
         if problems:
             return self.fail('; '.join(problems))
         return self.ok(
-            f'docs/plans/index.md lists {len(masters)} plan(s) in date '
+            f'{PLAN_INDEX_PATH} lists {len(masters)} plan(s) in date '
             f'order with statuses from the shared vocabulary')
 
 
@@ -1537,9 +1543,9 @@ class PlanAuditPhase(Check):
         every project should plan this way is a separate decision,
         made by plan-index rather than here.
         """
-        index = repo.read('docs/plans/index.md')
+        index = repo.read(PLAN_INDEX_PATH)
         if index is None:
-            return self.skip('No docs/plans/index.md')
+            return self.skip(f'No {PLAN_INDEX_PATH}')
 
         plans_dir = repo.join('docs', 'plans')
         # Built once rather than per link: the by-name fallback fires
@@ -1599,9 +1605,9 @@ class PlanAuditPhase(Check):
         if not judged and not terminal and not unphased and not statusless:
             if unresolved:
                 return self.skip(plan_index_summarise(
-                    'docs/plans/index.md links no master plan file that '
-                    'resolves', unresolved))
-            return self.skip('docs/plans/index.md links no master plans')
+                    f'{PLAN_INDEX_PATH} links no master plan file that '
+                    f'resolves', unresolved))
+            return self.skip(f'{PLAN_INDEX_PATH} links no master plans')
 
         # The unjudged plans are named on both paths. A plan whose
         # phases this check cannot find is not the same thing as a
@@ -1808,12 +1814,6 @@ class PlanTemplate(Check):
 # the criterion is docs/audits/plan-retirement.md.
 
 
-#: Where a repository's plan index lives. Named once because the
-#: criterion reads the file and then reads its history, and the two
-#: spellings cannot be allowed to drift apart.
-PLAN_INDEX_PATH = 'docs/plans/index.md'
-
-
 #: How long a row must have carried a terminal status before its plan
 #: is eligible for retirement. docs/plan-retirement.md sets ninety
 #: days and the retire-plans skill's helper applies the same number;
@@ -1830,12 +1830,29 @@ PLAN_RETIREMENT_DAY = 86400
 
 
 #: How long git is given to answer. The log is one command for the
-#: whole walk; a revision of the index is one command each, and in a
-#: checkout filtered of blobs each of those may fetch the blob it
-#: reads, so the per-revision allowance is the one that has to cover a
-#: round trip to the server.
+#: whole walk, and listing a revision's tree is one command each;
+#: both are answered out of the object store, which a checkout
+#: filtered of blobs holds in full for trees and commits, so they get
+#: the local allowance. Reading a revision of the index is a command
+#: each too, and each of those may fetch the blob it reads, so the
+#: per-revision allowance is the one that has to cover a round trip to
+#: the server.
 PLAN_RETIREMENT_LOG_TIMEOUT = 120
 PLAN_RETIREMENT_SHOW_TIMEOUT = 60
+
+
+#: How long the whole walk is given, across every revision it reads.
+#: The per-revision timeout bounds one read, and a remote answering
+#: every read slowly rather than not at all stays inside it while the
+#: walk as a whole runs for as long as the index churned. The audit's
+#: matrix leg is given thirty minutes, so a walk that overran would
+#: take down the other criteria's verdicts for that repository along
+#: with its own; five minutes is far past any real walk -- the
+#: repositories with the most churn inside the window read their
+#: revisions in under a second from a checkout that has the blobs --
+#: so what it catches is a remote that has stopped answering usefully,
+#: and one error row is a better outcome than a dead leg.
+PLAN_RETIREMENT_WALK_BUDGET = 300
 
 
 #: A retired plan's row: the link in its Plan cell is a permalink into
@@ -1994,15 +2011,38 @@ def plan_retirement_clocks(repo_path, names, threshold):
     for a row the fleet's maintenance sweeps keep editing
     (docs/plan-retirement.md, "Eligibility").
 
-    Raises ToolFailure when git cannot answer, and for a shallow
-    checkout, whose history cannot reach back to the threshold: a
-    truncated history answers "nothing is eligible" for every
-    repository on earth, and a verdict built on nothing is worse than
-    none at all.
-    """
-    if not names:
-        return {}
+    Each revision is read in two steps, because in a checkout
+    filtered of blobs one exit status would otherwise mean two things.
+    `git show` fails both for a commit that does not carry the index
+    and for a blob the promisor remote would not hand over, and
+    reading the second as the first skips the revision -- which, since
+    the walk stops at the first revision where a row is not terminal,
+    is how a plan somebody is still working on gets declared eligible.
+    So the revision's tree is listed first, out of the trees a
+    filtered checkout holds in full: no output means the commit
+    genuinely does not have the index, and output means the revision
+    has it, so a read that then fails is a read failure and says so.
 
+    A revision larger than READ_MAX_BYTES is refused rather than
+    parsed, which is the bound repo.read() puts on the index as it
+    stands. It cannot be applied before the read the way that one is:
+    `git cat-file -s <sha>:<path>` wants the blob's object info, and
+    for a blob filtered out of the checkout that is precisely what the
+    fetch would bring, so a historical blob's size cannot be learned
+    without fetching the blob. The refusal raises rather than skipping
+    the revision, for the same reason a read failure does.
+
+    Raises ToolFailure when git cannot answer, when the walk has spent
+    its budget, and for a shallow checkout, whose history cannot reach
+    back to the threshold: a truncated history answers "nothing is
+    eligible" for every repository on earth, and a verdict built on
+    nothing is worse than none at all. The shallow question is asked
+    before anything else, the shortcut for an index with no terminal
+    rows included: a checkout whose history cannot be read has not
+    established that it would have found a terminal row to measure
+    either, and a pass on those grounds is the same unearned verdict
+    wherever it is reached.
+    """
     shallow = run_tool(
         ['git', '-C', repo_path, 'rev-parse', '--is-shallow-repository'],
         'git rev-parse', timeout=PLAN_RETIREMENT_LOG_TIMEOUT)
@@ -2016,6 +2056,9 @@ def plan_retirement_clocks(repo_path, names, threshold):
             f'{PLAN_INDEX_PATH} does not reach {RETIREMENT_AGE_DAYS} '
             f'days back (fetch it with --filter=blob:none rather than '
             f'--depth 1)')
+
+    if not names:
+        return {}
 
     log = run_tool(
         ['git', '-C', repo_path, 'log', '--format=%H %ct', 'HEAD',
@@ -2039,20 +2082,50 @@ def plan_retirement_clocks(repo_path, names, threshold):
     # working tree -- an uncommitted edit -- is left undated rather
     # than dated by a commit that does not say it.
     previous = None
+    # Measured rather than counted, because what runs long here is one
+    # read waiting on a remote rather than a repository with many
+    # revisions to read.
+    started = time.monotonic()
+    read = 0
 
     for sha, when in revisions:
         if not pending:
             break
-        shown = run_tool(
-            ['git', '-C', repo_path, 'show', f'{sha}:{PLAN_INDEX_PATH}'],
-            'git show', timeout=PLAN_RETIREMENT_SHOW_TIMEOUT)
-        if shown.returncode != 0:
+        if time.monotonic() - started > PLAN_RETIREMENT_WALK_BUDGET:
+            raise ToolFailure(
+                f'Reading the history of {PLAN_INDEX_PATH} did not finish '
+                f'within {PLAN_RETIREMENT_WALK_BUDGET} seconds, after '
+                f'{read} revision(s)')
+
+        listed = run_tool(
+            ['git', '-C', repo_path, 'ls-tree', '--name-only', sha,
+             '--', PLAN_INDEX_PATH],
+            'git ls-tree', timeout=PLAN_RETIREMENT_LOG_TIMEOUT)
+        if listed.returncode != 0:
+            raise ToolFailure(
+                f'Could not list {PLAN_INDEX_PATH} in {sha}: '
+                f'{listed.stderr.strip()}')
+        if not listed.stdout.strip():
             # The commit deleted the index, so it says nothing about
             # any row's status and is not where a clock can land: the
             # commit that brought the index back dates nothing either,
             # because the revision before the deletion is the one the
             # rows are compared with.
             continue
+
+        shown = run_tool(
+            ['git', '-C', repo_path, 'show', f'{sha}:{PLAN_INDEX_PATH}'],
+            'git show', timeout=PLAN_RETIREMENT_SHOW_TIMEOUT)
+        if shown.returncode != 0:
+            raise ToolFailure(
+                f'Could not read {PLAN_INDEX_PATH} at {sha}, which that '
+                f'revision carries: {shown.stderr.strip()}')
+        size = len(shown.stdout.encode('utf-8'))
+        if size > READ_MAX_BYTES:
+            raise ToolFailure(
+                f'{PLAN_INDEX_PATH} at {sha} is {size} bytes, over the '
+                f'{READ_MAX_BYTES} byte cap a file is read under')
+        read += 1
 
         statuses = plan_retirement_index(shown.stdout)['statuses']
         for name in sorted(pending):
@@ -2177,8 +2250,12 @@ class PlanRetirement(Check):
              f'another repository',
              'its link leaves this repository',
              index['cross_repository']),
+            # No reason of its own: every item in this bucket already
+            # carries the one the index reader gave, in parentheses,
+            # and a generic second reason suffixed onto it says less
+            # than the first did.
             (f'{len(index["unreadable"])} row(s) not read',
-             'the index reader could not read it',
+             None,
              index['unreadable']),
             (f'{len(unstatused)} plan(s) in '
              f'{len(index["unstatused"])} table(s) with no Status column, '
@@ -2186,8 +2263,8 @@ class PlanRetirement(Check):
              'its table records no status',
              unstatused),
             (f'{len(undated)} terminal row(s) the history does not date',
-             f'no revision of {PLAN_INDEX_PATH} inside the window shows '
-             f'its status changing',
+             'no revision of it inside the window shows its status '
+             'changing',
              undated),
         ]
 
@@ -2207,11 +2284,18 @@ class PlanRetirement(Check):
                 f'{RETIREMENT_AGE_DAYS} days')
         if waiting:
             parts.append(f'{waiting} terminal plan(s) not yet eligible')
+        # A finding is a line in an issue body, read next to the
+        # overdue ones above, so each says which file it is about
+        # before it says anything else. The item keeps the form it has
+        # in details -- a plan's file name, or the line its row is on
+        # -- because details is compared byte for byte between runs.
         for label, why, items in reports:
             if not items:
                 continue
             parts.append(plan_index_summarise(label, items))
-            findings.extend(f'{item}: {why}' for item in items)
+            findings.extend(
+                f'{PLAN_INDEX_PATH}: {item}' + (f': {why}' if why else '')
+                for item in items)
 
         details = '; '.join(parts)
         if overdue:

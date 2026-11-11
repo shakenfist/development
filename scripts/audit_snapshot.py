@@ -17,6 +17,7 @@ scope and sit permanently stale in the review queue.
 import argparse
 import json
 import os
+import re
 import sys
 
 
@@ -77,6 +78,25 @@ def github_did_not_answer(check):
 VOLATILE_FIELDS = ('timestamp',)
 
 
+# An age in a details string, counted from the clock rather than from
+# anything in the tree. plan-retirement says how long each plan's row
+# has been terminal -- "at least 97 days" -- which is the number a
+# person reading the issue needs in order to decide whether the
+# finding is right, so it stays in what the check says. But it is a
+# different number tomorrow for the same repository and the same code,
+# and a comparison that counted that as a difference would report one
+# for every repository with an eligible plan, which is the whole of
+# the net this tool is. Normalised on both sides instead, so that what
+# is compared is what the audit said and not when it said it.
+CLOCK_AGE_RE = re.compile(r'at least \d+ days')
+CLOCK_AGE_PLACEHOLDER = 'at least N days'
+
+
+def comparable_details(check):
+    """A check's details with the ages that move with the clock fixed."""
+    return CLOCK_AGE_RE.sub(CLOCK_AGE_PLACEHOLDER, check.get('details', ''))
+
+
 def normalise(results):
     """Strip the fields that move on every run.
 
@@ -134,7 +154,7 @@ def compare_repo(old, new):
                 f'      - {before.get("details", "")}\n'
                 f'      + {after.get("details", "")}',
             ))
-        elif before.get('details') != after.get('details'):
+        elif comparable_details(before) != comparable_details(after):
             differences.append((
                 check_id,
                 f'details changed ({before["status"]} either way)\n'

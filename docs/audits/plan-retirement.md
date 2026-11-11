@@ -34,6 +34,13 @@ finished again starts a new clock. A move from one terminal status to
 another, such as `Complete` to `Superseded`, does not, and neither
 does an edit that leaves the status alone.
 
+A row is identified by its plan file's name, so renaming the file and
+its index link together is a row the earlier revisions do not have,
+and its clock starts at the rename. That is the direction to err in:
+a rename delays a retirement rather than causing one, and the row
+becomes eligible again on its own once the rename is older than the
+threshold.
+
 The history is walked newest first and the walk stops at the first
 revision older than the threshold, so it costs what the index churned
 inside the 90 days rather than what the repository has done since it

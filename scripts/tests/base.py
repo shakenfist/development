@@ -160,7 +160,7 @@ class FixtureRepo:
         self.git('config', 'user.name', 'Test User')
         self.git('config', 'commit.gpgsign', 'false')
 
-    def commit(self, message='fixture', when=None):
+    def commit(self, message='fixture', when=None, author_when=None):
         """Commit everything in the fixture, dated `when` if given.
 
         `when` is any date git accepts, including its raw
@@ -169,13 +169,27 @@ class FixtureRepo:
         history needs a fixture whose commits are not all a moment
         old, and setting only one of the two dates leaves whichever
         the check reads at now.
+
+        `author_when` pulls the author date away from the committer
+        date, and is how a case says which of the two a check reads.
+        A commit rebased, cherry-picked or applied as a patch keeps
+        the author date of the original work and takes the committer
+        date of the day it landed, so a check reading the wrong one
+        measures somebody else's history; with both dates set
+        together, as every other fixture here sets them, the two
+        readings are the same number and neither can be told from the
+        other.
         """
         self.git('add', '-A')
-        env = None if when is None else {
-            'GIT_AUTHOR_DATE': when, 'GIT_COMMITTER_DATE': when}
-        self.git('commit', '-m', message, env=env)
+        env = {}
+        if when is not None:
+            env = {'GIT_AUTHOR_DATE': when, 'GIT_COMMITTER_DATE': when}
+        if author_when is not None:
+            env['GIT_AUTHOR_DATE'] = author_when
+        self.git('commit', '-m', message, env=env or None)
 
-    def commit_files(self, files, message='fixture', when=None):
+    def commit_files(self, files, message='fixture', when=None,
+                     author_when=None):
         """Write a {path: content} mapping and commit it as one revision.
 
         The shape a synthetic history is written in: a list of
@@ -186,7 +200,7 @@ class FixtureRepo:
         fixture starts describing a history nobody meant to write.
         """
         self.write_all(files)
-        self.commit(message, when=when)
+        self.commit(message, when=when, author_when=author_when)
 
 
 class CheckTestCase(unittest.TestCase):

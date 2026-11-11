@@ -3740,6 +3740,22 @@ class PlanRetirementTest(CheckTestCase):
             fixture.commit_files(files, 'touch the plans', when=self.days_ago(1))
         return fixture
 
+    def unreadable_revision(self, ref='HEAD'):
+        """Delete the blob holding the index at `ref`, keeping its tree.
+
+        What a checkout filtered of blobs looks like when the promisor
+        remote will not hand a blob over: the commit and its trees are
+        there and say the index is in the revision, and the content is
+        not. Written by deleting the loose object rather than by
+        filtering a clone, because a filtered clone fetches on demand
+        from a remote this suite would then have to break, and the two
+        are the same thing to everything that reads the object store.
+        """
+        blob = self.fixture.git(
+            'rev-parse', f'{ref}:docs/plans/index.md').stdout.strip()
+        os.remove(os.path.join(self.fixture.path, '.git', 'objects',
+                               blob[:2], blob[2:]))
+
     def test_a_repository_with_no_plan_index_is_not_applicable(self):
         self.fixture.write('README.md', 'Fixture.\n')
         self.assert_skip(self.check(), 'No docs/plans/index.md')
@@ -3790,8 +3806,8 @@ class PlanRetirementTest(CheckTestCase):
         result = self.assert_pass(self.check())
         self.assertIn('1 row(s) already retired: PLAN-old.md',
                       result['details'])
-        self.assertIn('PLAN-old.md: its link is a permalink into this '
-                      'repository', result['findings'])
+        self.assertIn('docs/plans/index.md: PLAN-old.md: its link is a '
+                      'permalink into this repository', result['findings'])
 
     def test_a_permalink_into_another_repository_is_cross_repository(self):
         # Same shape, pinned in somebody else's repository, which is
@@ -3835,8 +3851,8 @@ class PlanRetirementTest(CheckTestCase):
             '2 plan(s) in 1 table(s) with no Status column, which can '
             'never become eligible: PLAN-a.md, PLAN-b.md',
             result['details'])
-        self.assertIn('PLAN-a.md: its table records no status',
-                      result['findings'])
+        self.assertIn('docs/plans/index.md: PLAN-a.md: its table records '
+                      'no status', result['findings'])
 
     def test_a_status_outside_the_vocabulary_is_reported_not_read(self):
         self.history([(200, self.index(self.row('PLAN-a.md', 'all done')))])
@@ -3844,6 +3860,13 @@ class PlanRetirementTest(CheckTestCase):
         self.assertIn(
             '1 row(s) not read: line 7 (its status "all done" is not in '
             'the shared vocabulary)', result['details'])
+        # The item carries the reason the index reader gave, so the
+        # finding says the file, the row and that reason, and no
+        # generic second reason after it.
+        self.assertEqual(
+            ['docs/plans/index.md: line 7 (its status "all done" is not '
+             'in the shared vocabulary)'],
+            result['findings'])
 
     def test_a_plan_whose_files_moved_recently_is_still_eligible(self):
         # The case the clock exists for: the row went terminal long
@@ -3942,7 +3965,7 @@ class PlanRetirementTest(CheckTestCase):
             '1 terminal row(s) the history does not date: PLAN-a.md',
             result['details'])
         self.assertIn(
-            'PLAN-a.md: no revision of docs/plans/index.md inside the '
+            'docs/plans/index.md: PLAN-a.md: no revision of it inside the '
             'window shows its status changing', result['findings'])
 
     def test_a_commit_that_deleted_the_index_dates_nothing(self):
@@ -3983,6 +4006,147 @@ class PlanRetirementTest(CheckTestCase):
                     'file://' + self.fixture.path, shallow.path)
         self.fixture = shallow
         self.assert_tool_failure(self.check, 'The checkout is shallow')
+
+    def test_a_revision_the_history_has_but_git_cannot_read_raises(self):
+        # The distinction the two-step read exists for. This row was
+        # reopened ten days ago and finished again, and the revision
+        # that reopened it is the one whose content cannot be read.
+        # Read as "the commit deleted the index" it is skipped, the
+        # walk goes on to the revision where the row had been Complete
+        # for two hundred days, and a plan finished last week is named
+        # as overdue for retirement.
+        self.history([
+            (300, self.index(self.row('PLAN-a.md', 'In progress'))),
+            (200, self.index(self.row('PLAN-a.md', 'Complete'))),
+            (10, self.index(self.row('PLAN-a.md', 'In progress'))),
+            (1, self.index(self.row('PLAN-a.md', 'Complete'))),
+        ])
+        self.unreadable_revision('HEAD~1')
+        failure = self.assert_tool_failure(
+            self.check, 'Could not read docs/plans/index.md at ')
+        self.assertIn('which that revision carries', str(failure))
+
+    def test_a_commit_that_never_had_the_index_is_still_skipped(self):
+        # The other half of the same distinction, which the two-step
+        # read must not turn into a failure: a commit the index is
+        # absent from says nothing about any row and is passed over.
+        # The history of the path holds such a commit because the
+        # deletion itself touched it.
+        self.history([
+            (300, self.index(self.row('PLAN-a.md', 'In progress'))),
+            (120, self.index(self.row('PLAN-a.md', 'Complete'))),
+        ])
+        self.fixture.git('rm', '-q', 'docs/plans/index.md')
+        self.fixture.commit('drop the index', when=self.days_ago(20))
+        self.fixture.commit_files(
+            {'docs/plans/index.md': self.index(
+                self.row('PLAN-a.md', 'Complete'))},
+            'restore the index', when=self.days_ago(10))
+        result = self.assert_fail(self.check())
+        self.assertIn('PLAN-a.md (Complete, at least 120 days)',
+                      result['details'])
+
+    def test_an_oversize_revision_is_refused_rather_than_parsed(self):
+        # The size bound repo.read() puts on the index as it stands,
+        # applied to a revision of it -- after the read, because the
+        # size of a blob that may still have to be fetched cannot be
+        # learned without fetching it. Refused rather than skipped:
+        # skipping it is the mistake the read failure above makes.
+        padding = 'A paragraph nobody wrote.\n' * 90000
+        self.assertGreater(len(padding), READ_MAX_BYTES)
+        self.history([
+            (300, self.index(self.row('PLAN-a.md', 'In progress'))),
+            (10, self.index(self.row('PLAN-a.md', 'Complete')) + padding),
+            (1, self.index(self.row('PLAN-a.md', 'Complete'))),
+        ])
+        self.assert_tool_failure(
+            self.check, 'byte cap a file is read under')
+
+    def test_a_walk_that_spends_its_budget_is_a_tool_failure(self):
+        # A remote answering every read slowly rather than not at all
+        # sits inside the per-revision timeout however long the walk
+        # takes, and the audit's own leg is what runs out: one error
+        # row here beats losing every other criterion's verdict for
+        # the repository. The budget is set to nothing so that the
+        # case does not have to wait for one.
+        self.history([
+            (300, self.index(self.row('PLAN-a.md', 'In progress'))),
+            (120, self.index(self.row('PLAN-a.md', 'Complete'))),
+        ])
+        original = plans.PLAN_RETIREMENT_WALK_BUDGET
+        plans.PLAN_RETIREMENT_WALK_BUDGET = 0
+        self.addCleanup(
+            setattr, plans, 'PLAN_RETIREMENT_WALK_BUDGET', original)
+        failure = self.assert_tool_failure(
+            self.check, 'did not finish within 0 seconds')
+        self.assertIn('after 0 revision(s)', str(failure))
+
+    def test_a_shallow_checkout_is_refused_with_nothing_to_date(self):
+        # The refusal is about the history the criterion reads, not
+        # about what the index happens to hold today: a shallow
+        # checkout of a repository with no terminal row would
+        # otherwise pass without ever establishing that the history it
+        # would have measured could be read at all.
+        self.history([
+            (300, self.index(self.row('PLAN-a.md', 'In progress'))),
+        ])
+        shallow = FixtureRepo(self.tempdir())
+        shallow.git('clone', '--quiet', '--depth', '1',
+                    'file://' + self.fixture.path, shallow.path)
+        self.fixture = shallow
+        self.assert_tool_failure(self.check, 'The checkout is shallow')
+
+    def test_the_clock_reads_the_committer_date_not_the_author_date(self):
+        # A row made terminal by a commit applied from elsewhere: the
+        # author date is ten months back, the day the work was
+        # written, and the committer date is ten days back, the day it
+        # landed here. What is measured is how long the row has said
+        # terminal in this repository, so this plan is not eligible.
+        fixture = self.fresh_fixture()
+        fixture.init_git()
+        fixture.commit_files({'README.md': 'Fixture.\n'}, 'base',
+                             when=self.days_ago(400))
+        fixture.commit_files(
+            {'docs/plans/index.md': self.index(
+                self.row('PLAN-a.md', 'In progress'))},
+            'the plan is open', when=self.days_ago(310))
+        fixture.commit_files(
+            {'docs/plans/index.md': self.index(
+                self.row('PLAN-a.md', 'Complete'))},
+            'the plan is finished, applied from a branch written then',
+            when=self.days_ago(10), author_when=self.days_ago(300))
+        result = self.assert_pass(self.check())
+        self.assertIn('1 terminal plan(s) not yet eligible',
+                      result['details'])
+        self.assertNotIn('PLAN-a.md (Complete', result['details'])
+
+    def test_a_renamed_plan_file_starts_a_new_clock(self):
+        # Rows are keyed by the plan file's name, so renaming the file
+        # and the index link together is a row the earlier revisions
+        # do not have, and its clock starts at the rename. That errs
+        # towards not retiring, which is the safe direction, and
+        # docs/audits/plan-retirement.md says so.
+        self.history([
+            (300, self.index(self.row('PLAN-a.md', 'In progress'))),
+            (200, self.index(self.row('PLAN-a.md', 'Complete'))),
+            (10, self.index(self.row('PLAN-renamed.md', 'Complete'))),
+        ])
+        result = self.assert_pass(self.check())
+        self.assertIn('1 terminal plan(s) not yet eligible',
+                      result['details'])
+
+    def test_a_rename_older_than_the_threshold_is_eligible_again(self):
+        # The other end of the same behaviour: the new clock runs out
+        # like any other, so a rename delays a retirement rather than
+        # preventing one.
+        self.history([
+            (300, self.index(self.row('PLAN-a.md', 'In progress'))),
+            (200, self.index(self.row('PLAN-a.md', 'Complete'))),
+            (100, self.index(self.row('PLAN-renamed.md', 'Complete'))),
+        ])
+        result = self.assert_fail(self.check())
+        self.assertIn('PLAN-renamed.md (Complete, at least 100 days)',
+                      result['details'])
 
     def test_the_specification_states_the_threshold(self):
         # The page people read to decide whether a finding is right has
