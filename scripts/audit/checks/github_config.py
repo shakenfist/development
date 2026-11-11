@@ -561,6 +561,14 @@ class BypassActorIdentity(Check):
         environment. A missing answer, or a null where a value is
         required, is the audit failing to ask rather than a verdict, so
         it is a ToolFailure.
+
+        That test is here rather than in applies(), which is where
+        docs/consistency-audits.md asks for one, because the convention
+        is about keeping the cheap question cheap and this question is
+        not cheap: answering it needs the same environment and
+        branch-rules reads the verdict needs, so an applies() would
+        either make those calls a second time or cache them for a run()
+        that may never ask.
         """
         branch = default_branch(repo)
         environment = self.read_environment(repo)
