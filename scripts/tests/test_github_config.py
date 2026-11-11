@@ -860,7 +860,7 @@ class BypassActorIdentityTest(GithubConfigTestCase):
         default-branch policy exists to exclude, so there is one case per
         remaining character in GLOB_CHARACTERS.
         """
-        for name in ('develop?', 'develop[', 'develop]'):
+        for name in ('develop?', 'develop[', 'develop]', 'dev[a-z]'):
             with self.subTest(name=name):
                 result = self.run_with(self.answers(branch_policies=[
                     {'name': name, 'type': 'branch'}]))
@@ -878,6 +878,18 @@ class BypassActorIdentityTest(GithubConfigTestCase):
         result = self.run_with(self.answers(deployment_policy={
             'protected_branches': True, 'custom_branch_policies': True}))
         self.assert_fail(result, containing='protected_branches is True')
+
+    def test_custom_branch_policies_false_fails(self):
+        """And the mirror, so that neither half rests on the other.
+
+        Whether GitHub can answer with both flags false is beside the
+        point: the check's condition has two halves, and with only the
+        cases above, removing the custom_branch_policies half changes
+        no verdict in this class. This case is what that half holds up.
+        """
+        result = self.run_with(self.answers(deployment_policy={
+            'protected_branches': False, 'custom_branch_policies': False}))
+        self.assert_fail(result, containing='custom_branch_policies is False')
 
     def test_no_ruleset_and_no_environment_is_not_applicable(self):
         result = self.run_with(dict({

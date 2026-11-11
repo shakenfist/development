@@ -480,7 +480,13 @@ so a step added to it reaches both.
    what lets a repository scoped by `only_checks` skip a criterion
    without paying for it -- several of them query the GitHub API, and
    on a private repository those calls fail for reasons that say
-   nothing about compliance.
+   nothing about compliance. The exception is a criterion whose
+   applicability costs what its verdict costs: `BypassActorIdentity`
+   decides in `run()`, because answering the question needs the same
+   environment and branch-rules reads the verdict needs, so an
+   `applies()` would either make those calls twice or cache them for a
+   `run()` that may never ask. Say so in the docstring where that is
+   the case, as it does.
 
    Read the audited repository through the helpers rather than around
    them. `audit.files.tracked_paths(path, *pathspec)` is how to ask git

@@ -2867,26 +2867,42 @@ there is no carrier; this one found six things, so the follow-up pull
 request that fixes them is the carrier, and it fills the cell and
 marks the plan `Complete`.
 
-**What the follow-up fixed.** This pull request, which is that
-carrier. Finding 1: the specification now states what was measured --
-the team's two remaining members merge pull requests past the queue
-rather than pushing to a default branch, with `sfconductor` bypassing
-in five of the seven repositories in the month to 2026-10-29 and
-`mikalstill` in all seven. Finding 2: three cases in
+**What the follow-up fixed.** This pull request is that carrier.
+Finding 1: the specification now states what was measured, and
+attributes it where it was measured -- `sfconductor`'s bypasses are
+pull request merges that skip the queue rather than pushes to a
+default branch, in five of the seven repositories, with `mikalstill`'s
+counted but not classified -- and it gives the date the rule-suite
+history was read, 2026-10-29, which is before the team's automation
+member was removed. Finding 2: three cases in
 `BypassActorIdentityTest`, one per surviving mutation, each mutation
 re-run on a copy of the tree and now failing the case written for it;
-the wildcard case covers `?`, `[` and `]` beside the asterisk the
-shipped case already covered. Finding 3: a paragraph in `run()`'s
-docstring saying why the applicability test is there rather than in
-`applies(repo)`, which is that answering it needs the same two reads
-the verdict needs. Finding 5: the mint-step assertions now match a key
-and its value at any indentation, with parent and child matched
-together where the nesting is the claim, and only the exact allowed
-`PUSH_TOKEN` line is struck out before the sweep for a token in the
-wrong step. Five mutations of the template confirm they still catch a
-dropped input, an input pointed at another secret, a token in the
-fetch step and a `PUSH_TOKEN` widened to a secret, while a template
-reindented throughout now passes.
+the wildcard case covers `?`, `[`, `]` and a bracket expression beside
+the asterisk the shipped case already covered. Finding 3: a paragraph
+in `run()`'s docstring saying why the applicability test is there
+rather than in `applies(repo)`, which is that answering it needs the
+same two reads the verdict needs, and a sentence naming that exception
+in `docs/consistency-audits.md`, where the convention is stated and
+where the next author will otherwise read the check as breaking it.
+Finding 5: the mint-step assertions now match a key and its value at
+any indentation, with parent and child matched together where the
+nesting is the claim; the exact allowed `PUSH_TOKEN` line is struck
+out before the sweep for a token in the wrong step, and only from the
+step entitled to carry it. Finding 6 asked for nothing, being the
+security pass's nil return.
+
+This pull request's own review then found four things in those fixes,
+all of them taken: the strike-out ran on both steps, so the allowed
+line copied into the fetch step would have passed; the specification
+generalised `sfconductor`'s verb to `mikalstill` as well; the
+indentation class was `\s`, which matches a newline and so would have
+admitted a key at column zero; and the mirror of finding 2's policy
+case was still unpinned, so one half of that condition held the other
+up. Six mutations of the template and four of the criterion are now
+killed between them, and a test re-runs the mint-step assertions
+against a copy of the template with every line's indentation doubled,
+so the durability those assertions claim is checked rather than
+promised.
 
 Finding 4 is answered rather than fixed, which is what a question
 gets: neither file is split. Both are over the 800 lines that ask the

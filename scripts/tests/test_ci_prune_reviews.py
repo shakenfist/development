@@ -53,7 +53,8 @@ DEVELOPMENT_URL = 'https://github.com/shakenfist/development'
 REPOSITORY = 'shakenfist/adopted'
 TARGET_URL = 'https://github.com/' + REPOSITORY
 TOKEN = 'test-push-token-1d2e3f'
-WORKFLOW_STEP_SEPARATOR = r'\n\s+- name: '
+WORKFLOW_STEP_RE = re.compile(r'\n +- name: ')
+JOB = 'prune-and-import:'
 COMMIT_MESSAGE = 'Prune and import review marks.\n\nAutomated commit by the prune-reviews workflow.'
 
 # Stands in for tools/review-tracking.sh. It logs each subcommand with
@@ -568,22 +569,34 @@ class CiPruneReviewsTest(unittest.TestCase):
         self.assertEqual([line.split()[1] for line in self.read_log('env')], ['TUF_ROOT=' + tuf_root] * 2)
         self.assertEqual(os.listdir(tuf_root), [])
 
-    def workflow_steps(self):
-        """The template workflow's steps, by name, with comments dropped.
+    def workflow_steps(self, text=None):
+        """The template workflow as its whole text, its job block and its steps.
 
         Split on the step separator rather than parsed, since nothing
-        else here needs a YAML library; the exact set of names asserted
-        below is what stops a format change passing silently. The
-        separator is matched at any indentation, so reflowing the
-        template moves these tests rather than breaking them.
+        else here needs a YAML library; the exact set of step names
+        asserted below is what stops a format change passing silently.
+        Nothing in the split depends on how far anything is indented,
+        which is what lets test_the_assertions_survive_a_reindented
+        _template run the same assertions over a reindented copy -- the
+        text argument is for that copy.
+
+        The job block runs from the job's own line to the first step, so
+        a key asserted against it is the job's: what comes before that
+        line is the workflow's, including a permissions block of its
+        own.
         """
-        with open(TEMPLATE_WORKFLOW) as f:
-            lines = [line for line in f.read().splitlines() if not line.lstrip().startswith('#')]
+        if text is None:
+            with open(TEMPLATE_WORKFLOW) as f:
+                text = f.read()
+        lines = [line for line in text.splitlines() if not line.lstrip().startswith('#')]
         text = '\n'.join(lines) + '\n'
-        steps = {step.split('\n', 1)[0]: step for step in re.split(WORKFLOW_STEP_SEPARATOR, text)[1:]}
+        blocks = WORKFLOW_STEP_RE.split(text)
+        steps = {step.split('\n', 1)[0]: step for step in blocks[1:]}
         self.assertEqual(sorted(steps), ['Fetch the prune script', 'Mint the push token',
                                          'Prune and import review marks'])
-        return text, steps
+        start = re.search(r'(?m)^ +%s$' % re.escape(JOB), blocks[0])
+        self.assertIsNotNone(start, 'no job named %s' % JOB)
+        return text, blocks[0][start.start():], steps
 
     def assert_entry(self, block, key, value, where=None):
         """Assert the block holds `key: value` on a line, at any indentation.
@@ -597,8 +610,13 @@ class CiPruneReviewsTest(unittest.TestCase):
         which block it belongs to -- and stops a reindented template
         failing a test about behaviour. Where the nesting itself is the
         claim, the test matches parent and child together instead.
+
+        The indentation class is spaces alone, not \\s: \\s matches a
+        newline, so `^\\s+` would anchor on a blank line and accept a
+        key at column zero. YAML indents with spaces by definition, so
+        nothing is given up by saying so.
         """
-        self.assertRegex(block, r'(?m)^\s+%s: %s$' % (re.escape(key), re.escape(value)), where)
+        self.assertRegex(block, r'(?m)^ +%s: %s$' % (re.escape(key), re.escape(value)), where)
 
     def test_the_workflow_never_checks_out_the_workspace(self):
         """No checkout, and the key and push token reach only the steps that need them.
@@ -606,7 +624,10 @@ class CiPruneReviewsTest(unittest.TestCase):
         A runner left dirty by an earlier job, as a static one can be, then has no hook
         through which to rewrite the script, and no step but the push sees the token.
         """
-        text, steps = self.workflow_steps()
+        self.assert_token_containment(*self.workflow_steps())
+
+    def assert_token_containment(self, text, job, steps):
+        """The body of the test above, over whatever workflow_steps() read."""
         self.assertNotIn('actions/checkout', text)
         for name, step in steps.items():
             if name == 'Mint the push token':
@@ -619,7 +640,6 @@ class CiPruneReviewsTest(unittest.TestCase):
         # that mints from it, and no other secret is named at all.
         self.assertEqual(text.count('secrets.REVIEW_MARKS_APP_KEY'), 2)
         self.assertEqual(text.count('secrets.'), 2)
-        job = re.split(WORKFLOW_STEP_SEPARATOR, text)[0]
         self.assert_entry(job, 'HAS_REVIEW_MARKS_KEY', "${{ secrets.REVIEW_MARKS_APP_KEY != '' }}")
         self.assert_entry(steps['Mint the push token'], 'private-key',
                           '${{ secrets.REVIEW_MARKS_APP_KEY }}')
@@ -628,20 +648,26 @@ class CiPruneReviewsTest(unittest.TestCase):
         self.assert_entry(steps['Prune and import review marks'], 'PUSH_TOKEN',
                           '${{ steps.app-token.outputs.token || github.token }}')
         # Only that exact line is struck out before the sweep below, and
-        # only from the step entitled to it: a PUSH_TOKEN carrying
-        # anything else, or carried by another step, has to still trip
-        # the sweep.
-        allowed = (r'(?m)^\s+PUSH_TOKEN: \$\{\{ steps\.app-token\.outputs\.token'
+        # only from the step entitled to it, so that the same line
+        # copied into the fetch step -- the edit a future hand would
+        # actually make -- still trips the sweep, as a PUSH_TOKEN
+        # carrying anything else does.
+        allowed = (r'(?m)^ +PUSH_TOKEN: \$\{\{ steps\.app-token\.outputs\.token'
                    r' \|\| github\.token \}\}$')
         for name in ('Fetch the prune script', 'Prune and import review marks'):
-            step = re.sub(allowed, '', steps[name]).lower()
+            step = steps[name]
+            if name == 'Prune and import review marks':
+                step = re.sub(allowed, '', step)
+            step = step.lower()
             self.assertNotIn('secrets.', step, name)
             self.assertNotIn('token', step, name)
 
     def test_the_push_token_is_minted_from_the_app_on_a_vm_runner(self):
         """Only the default branch can read the key, and only where it is present is a token minted."""
-        text, steps = self.workflow_steps()
-        job = re.split(WORKFLOW_STEP_SEPARATOR, text)[0]
+        self.assert_mint_step(*self.workflow_steps())
+
+    def assert_mint_step(self, text, job, steps):
+        """The body of the test above, over whatever workflow_steps() read."""
         self.assertEqual(list(steps), ['Fetch the prune script', 'Mint the push token',
                                        'Prune and import review marks'])
 
@@ -650,28 +676,55 @@ class CiPruneReviewsTest(unittest.TestCase):
         # Parent and child together where the nesting is the claim: the
         # environment's two settings are the environment's, and
         # contents: write is the job's permissions block entire.
-        self.assertRegex(job, r'(?m)^(\s+)environment:\n\1(\s+)name: review-marks\n\1\2deployment: false$')
-        self.assertRegex(job, r'(?m)^(\s+)permissions:\n\1\s+contents: write$')
+        self.assertRegex(job, r'(?m)^( +)environment:\n\1( +)name: review-marks\n\1\2deployment: false$')
+        self.assertRegex(job, r'(?m)^( +)permissions:\n\1 +contents: write$')
         self.assert_entry(job, 'timeout-minutes', '30')
 
         mint = steps['Mint the push token']
         self.assert_entry(mint, 'id', 'app-token')
         self.assert_entry(mint, 'if', "env.HAS_REVIEW_MARKS_KEY == 'true'")
-        self.assertRegex(mint, r'(?m)^\s+uses: actions/create-github-app-token@[0-9a-f]{40} # v\d+\.\d+\.\d+$')
+        self.assertRegex(mint, r'(?m)^ +uses: actions/create-github-app-token@[0-9a-f]{40} # v\d+\.\d+\.\d+$')
         self.assert_entry(mint, 'client-id', '${{ vars.REVIEW_MARKS_APP_CLIENT_ID }}')
         self.assert_entry(mint, 'permission-contents', 'write')
         # The vm runners set a proxy, and the action will not start
         # behind one unless Node.js is told to use it.
-        self.assertRegex(mint, r"(?m)^(\s+)env:\n\1\s+NODE_USE_ENV_PROXY: '1'$")
+        self.assertRegex(mint, r"(?m)^( +)env:\n\1 +NODE_USE_ENV_PROXY: '1'$")
         # Naming the owner, or repositories, would widen the token to
         # every repository the App is installed on.
         self.assertNotRegex(mint, r'\n\s+(owner|repositories):')
         self.assertNotIn('app-id:', mint)
 
+    def test_the_assertions_survive_a_reindented_template(self):
+        """The durability claim, run rather than promised.
+
+        The two tests above read a key and its value without pinning
+        the column it sits at, so reindenting the template should move
+        them rather than break them. That is only true while it stays
+        true: a literal assertion added later would pass against the
+        shipped file and fail here. The copy doubles every line's
+        indentation, so the nesting the backreference patterns match is
+        two spaces deep in the original and four in the copy.
+
+        The last assertion is about the helper rather than the
+        template: a reindented copy passing means nothing if
+        assert_entry has stopped looking at the value.
+        """
+        with open(TEMPLATE_WORKFLOW) as f:
+            original = f.read()
+        reindented = ''.join(
+            ' ' * 2 * (len(line) - len(line.lstrip(' '))) + line.lstrip(' ')
+            for line in original.splitlines(keepends=True))
+        self.assertNotEqual(reindented, original)
+        blocks = self.workflow_steps(reindented)
+        self.assert_token_containment(*blocks)
+        self.assert_mint_step(*blocks)
+        with self.assertRaises(AssertionError):
+            self.assert_entry(blocks[2]['Mint the push token'], 'permission-contents', 'read')
+
     def test_the_workflow_steps_land_the_review_state(self):
         """Run as the workflow runs them: fetch the script into RUNNER_TEMP, then run it from there."""
         before = self.make_repository()
-        _, steps = self.workflow_steps()
+        _, _, steps = self.workflow_steps()
         fetch = steps['Fetch the prune script'].split('run: >-\n', 1)[1]
         fetch = ' '.join(line.strip() for line in fetch.splitlines() if line.strip())
         run = steps['Prune and import review marks'].split('run: ', 1)[1].split('\n', 1)[0]
