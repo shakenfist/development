@@ -268,10 +268,14 @@ Out of scope:
    the author. *Default:* require a pull request with zero required
    approvals, plus required status checks. Rulesets require check
    contexts by job name, not workflow file, so step 2a names them
-   from `actions`' `ci.yml` (today `Check paths`, `Lint` and
-   `Unit tests`, the latter two skipped by its path filter on
-   review-only changes). The gain is that nothing lands without CI
-   and a visible record. It is not gated on a second person. And a
+   from `actions`' `ci.yml`. Decision 1 settles them as `Check
+   paths`, `Lint`, `Unit tests` and `gitleaks`, with `Automated
+   reviewer` deliberately not required; read the decision rather
+   than this default, which named three before the survey found
+   five jobs. `Lint` and `Unit tests` skip on a review-only change,
+   which 2a measured is enough to satisfy the rule. The gain is
+   that nothing lands without CI and a visible record. It is not
+   gated on a second person. And a
    required check that runs workflow code from the pull request
    itself can be edited by that pull request to pass, so step 2a
    also looks at an organisation "require workflows" rule, sourced
@@ -607,7 +611,7 @@ and a later step need not redo that.)
 - **The helpers the criterion needs already exist, and the brief
   named the wrong model.** `branch_rules(repo, branch)` and
   `default_branch_rules(repo)` are at
-  `scripts/audit/checks/github_config.py:46` and `:68`, and
+  `scripts/audit/checks/github_config.py:47` and `:68`, and
   `MergeQueueConfig` (line 302) and `ReleaseMergeQueue` (line 321)
   read through them. `ReleaseMergeQueue` is the model: it is the one
   that pairs `default_branch_rules` with an `applies()` returning a
@@ -627,7 +631,7 @@ and a later step need not redo that.)
   `actions` has that environment, so it is already measured on the
   other path and 2a does not change its verdict.
 - **Adding a criterion is a documented six-file procedure**:
-  `docs/consistency-audits.md`, "Adding a criterion" (line 458),
+  `docs/consistency-audits.md`, "Adding a criterion" (line 465),
   which `PUSH-AUDIT.md` and `AGENTS.md` link to rather than copy.
   The 2b brief now cites it instead of carrying its own list. Two of
   its rules the brief had not carried: the applicability test goes
@@ -637,9 +641,9 @@ and a later step need not redo that.)
   `test_audit_update_docs.py` fails on.
 - **The pinned tool-failure list does not change.**
   `test_an_empty_directory_is_a_tool_failure_exactly_where_expected`
-  (`scripts/tests/test_metadata.py:650`) pins an exact list of the
+  (`scripts/tests/test_metadata.py:656`) pins an exact list of the
   criteria that cannot reach a verdict without git or GitHub. Its
-  fixture repository is named `testrepo` (`repo()`, line 535), so a
+  fixture repository is named `testrepo` (`repo()`, line 540), so a
   criterion applying only to `actions` skips before any API call and
   does not join the list -- which is why `scope-coverage` is absent
   from it too.
@@ -703,8 +707,15 @@ cannot be narrowed to a path.
    `ruleset_id` of each rule it matched, reads
    `repos/{org}/{repo}/rulesets/{id}`, and fails unless every one is
    `active`. The read token can do that (survey). A ruleset whose
-   `source_type` is `Organization` is read from the organisation's
-   endpoint.
+   `ruleset_source_type` is `Organization` -- the field is spelled
+   that way on the effective-rules response, beside `ruleset_source`
+   and `ruleset_id`, not `source_type` -- is read from
+   `orgs/{org}/rulesets/{id}`. Under today's read token that read
+   does not answer (decision 6's measurement), so an
+   organisation-sourced ruleset is a `ToolFailure` rather than a
+   verdict until #352 lands. Nothing in the fleet reaches that path:
+   the survey measured that no organisation ruleset contributes a
+   rule to `actions`' default branch.
 3. **The repositories the fleet consumes at a moving ref are a class
    constant, `MOVING_REF_REPOS = ('actions',)`, with the reason
    returned from `applies()`.** Follows `ScopeCoverage.SCOPE_REPO`.
@@ -752,8 +763,8 @@ cannot be narrowed to a path.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 2a | high | opus | none | Operator step, done by the management session with the operator, not by a sub-agent. Four changes, in this order (decision 7), each read back before the next is made. (1) Install `shakenfist-review-marks` (app id 5538020, installation 176803138) on `shakenfist/actions` from the organisation's GitHub Apps settings page, since a personal access token can neither list nor change an installation's repositories (survey). (2) `gh secret set REVIEW_MARKS_APP_KEY --repo shakenfist/actions --env review-marks` from the key file -- never without `--env`, never at organisation level. The `review-marks` environment and its `main`-only custom branch policy already exist and are not recreated, and `REVIEW_MARKS_APP_CLIENT_ID` is already an organisation variable visible to all repositories, so nothing is added for it. Record `repos/shakenfist/actions/environments/review-marks/secrets` and `gh secret list --repo shakenfist/actions`, which must name no repository-level copy. (3) Add the App as the only bypass actor on ruleset 21132503, with the GET-then-PUT shape under "Template" in `docs/audits/merge-queue-config.md`, appending `{"actor_id": 5538020, "actor_type": "Integration", "bypass_mode": "always"}`. Assert `has("bypass_actors")` on the GET first and stop if it is false: that recipe's `(.bypass_actors // [])` is right for a caller who can see the key and silently destructive for one who cannot (risk 1). The key was present and `[]` on 2026-11-11; if anything else is in it by then, add the App beside it and report it rather than removing it -- taking a team bypass away is open question 3's business, and 2b's documented set is that pair until it is settled. (4) Only then add the `pull_request` rule, with `required_approving_review_count: 0`, and the `required_status_checks` rule with exactly the four contexts from decision 1 and the GitHub Actions `integration_id`, preserving the existing `deletion` and `non_fast_forward` rules and the `~DEFAULT_BRANCH` condition. Record the whole ruleset JSON in this phase. Then prove it, recording each: a direct push of a trivial commit to main from the operator's own credential is refused; the next `prune-reviews` run on main has `Mint the push token` running rather than skipped, its push attributed to `shakenfist-review-marks[bot]` in `repos/shakenfist/actions/rulesets/rule-suites?time_period=day&rule_suite_result=bypass` (the way `PLAN-bot-bypass-identity.md`'s phase 3 record proves it for kerbside), and `repos/shakenfist/actions/deployments?environment=review-marks` empty; and a throwaway review-only pull request reaches a mergeable state with all four contexts reported success or skipped, after which it and its branch are deleted. Do not measure whether the audit token sees `bypass_actors`: it does not, and 2b takes the fallback shape (decision 4). The `DEPENDENCIES_TOKEN` scope survey the brief used to ask for is done and recorded above; do not repeat it. |
-| 2b | high | opus | worktree | Add a `MovingRefSourceProtection` class to `scripts/audit/checks/github_config.py`: id `moving-ref-source-protection`, `issue_title` `Moving ref source protection`, `spec` `docs/audits/moving-ref-source-protection.md`, `template` None, no `column`. Follow the six-file procedure in `docs/consistency-audits.md`, "Adding a criterion" (line 458) -- it is the one list of what a criterion touches, so read it rather than working from a list in this brief. Model the check on `ReleaseMergeQueue` (`github_config.py:321`) and not on `DeleteBranchOnMerge`: read through the module's own `default_branch_rules(repo)` (line 68), and put the applicability test in `applies(repo)`, returning a reason that names the repository. The repositories are a class constant, `MOVING_REF_REPOS = ('actions',)`, documented with a `#:` comment (decision 3). Fail unless both a `pull_request` rule and a `required_status_checks` rule are in the effective rules; then, for each distinct `ruleset_id` those two rules came from, read `repos/{org}/{repo}/rulesets/{id}` and fail unless every one is `enforcement: active` (decision 2), reading a ruleset whose `source_type` is `Organization` from the organisation's endpoint. GitHub not answering is a `ToolFailure`, never a verdict. Write no `bypass_actors` comparison and no test of one: the audit's read token is not given the key (decision 4), so the one-actor documented set goes in the specification's "Required, but confirmed by a reviewer" half, with the measurement that says why. Tests in `scripts/tests/test_github_config.py`, with `CheckTestCase` (`scripts/tests/base.py:167`) and a stubbed client: pass; fail on a missing `pull_request` rule; fail on a missing `required_status_checks` rule; fail on a contributing ruleset in `enforcement: evaluate`; and not-applicable for a repository outside `MOVING_REF_REPOS`. In `scripts/tests/test_metadata.py` add the criterion's lines to `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` only, and leave `test_an_empty_directory_is_a_tool_failure_exactly_where_expected`'s list alone: its fixture repository is `testrepo`, so this check skips before any API call (survey). The specification follows the structure in `docs/audits/README.md`, links `compliance.md#moving-ref-source-protection` under `## Projects`, carries no `consistency-audit` marker block, and cites this plan's Situation for the landing counts; add its line to the criterion index in `docs/audits/README.md`. Open the pull request only once 2a is applied and proved, so that the criterion passes on the day it lands (decision 5), and say in the commit what it measured against `actions`. |
+| 2a | high | opus | none | Operator step, done by the management session with the operator, not by a sub-agent. Four changes, in this order (decision 7), each read back before the next is made. (1) Install `shakenfist-review-marks` (app id 5538020, installation 176803138) on `shakenfist/actions` from the organisation's GitHub Apps settings page, since a personal access token can neither list nor change an installation's repositories (survey). (2) `gh secret set REVIEW_MARKS_APP_KEY --repo shakenfist/actions --env review-marks` from the key file -- never without `--env`, never at organisation level. The `review-marks` environment and its `main`-only custom branch policy already exist and are not recreated, and `REVIEW_MARKS_APP_CLIENT_ID` is already an organisation variable visible to all repositories, so nothing is added for it. Record `repos/shakenfist/actions/environments/review-marks/secrets` and `gh secret list --repo shakenfist/actions`, which must name no repository-level copy. Adding a repository is a key rotation and not a new key for that repository alone: `docs/code-review-tracking.md` step 7.3 says to generate one key, set it in `actions`' environment and again in every environment that already holds the key, read each back, then delete the old key so the App keeps exactly one. This brief did not say so and the step did not do it; the record below says what the state is instead. (3) Add the App as the only bypass actor on ruleset 21132503, with the GET-then-PUT shape under "Template" in `docs/audits/merge-queue-config.md`, appending `{"actor_id": 5538020, "actor_type": "Integration", "bypass_mode": "always"}`. Assert `has("bypass_actors")` on the GET first and stop if it is false: that recipe's `(.bypass_actors // [])` is right for a caller who can see the key and silently destructive for one who cannot (risk 1). The key was present and `[]` on 2026-11-11; if anything else is in it by then, add the App beside it and report it rather than removing it -- taking a team bypass away would be `PLAN-bot-bypass-identity.md`'s open question 3 rather than this plan's, whose open question 3 is about sha-pinning exemptions. In the event the GET found the list empty, so this did not arise. (4) Only then add the `pull_request` rule, with `required_approving_review_count: 0`, and the `required_status_checks` rule with exactly the four contexts from decision 1 and the GitHub Actions `integration_id`, preserving the existing `deletion` and `non_fast_forward` rules and the `~DEFAULT_BRANCH` condition. Record the whole ruleset JSON in this phase. Then prove it, recording each: a direct push of a trivial commit to main from the operator's own credential is refused; the next `prune-reviews` run on main has `Mint the push token` running rather than skipped, its push attributed to `shakenfist-review-marks[bot]` in `repos/shakenfist/actions/rulesets/rule-suites?time_period=day&rule_suite_result=bypass` (the way `PLAN-bot-bypass-identity.md`'s phase 3 record proves it for kerbside), and `repos/shakenfist/actions/deployments?environment=review-marks` empty; and a throwaway review-only pull request reaches a mergeable state with all four contexts reported success or skipped, after which it and its branch are deleted. Do not measure whether the audit token sees `bypass_actors`: it does not, and 2b takes the fallback shape (decision 4). The `DEPENDENCIES_TOKEN` scope survey the brief used to ask for is done and recorded above; do not repeat it. |
+| 2b | high | opus | worktree | Add a `MovingRefSourceProtection` class to `scripts/audit/checks/github_config.py`: id `moving-ref-source-protection`, `issue_title` `Moving ref source protection`, `spec` `docs/audits/moving-ref-source-protection.md`, `template` None, no `column`. Follow the six-file procedure in `docs/consistency-audits.md`, under "Adding a criterion" -- it is the one list of what a criterion touches, so read it rather than working from a list in this brief. Model the check on `ReleaseMergeQueue` (`github_config.py:321`) and not on `DeleteBranchOnMerge`: read through the module's own `default_branch_rules(repo)` (line 68), and put the applicability test in `applies(repo)`, returning a reason that names the repository. The repositories are a class constant, `MOVING_REF_REPOS = ('actions',)`, documented with a `#:` comment (decision 3). Fail unless both a `pull_request` rule and a `required_status_checks` rule are in the effective rules; then, for each distinct `ruleset_id` those two rules came from, read `repos/{org}/{repo}/rulesets/{id}` and fail unless every one is `enforcement: active` (decision 2), reading a ruleset whose `ruleset_source_type` is `Organization` (that spelling, beside `ruleset_source` and `ruleset_id`) from `orgs/{org}/rulesets/{id}`, which under today's read token does not answer and so is a `ToolFailure`, as decision 2 now says. GitHub not answering is a `ToolFailure`, never a verdict. Write no `bypass_actors` comparison and no test of one: the audit's read token is not given the key (decision 4), so the one-actor documented set goes in the specification's "Required, but confirmed by a reviewer" half, with the measurement that says why. Tests in `scripts/tests/test_github_config.py`, with `CheckTestCase` (in `scripts/tests/base.py`) and a stubbed client: pass; fail on a missing `pull_request` rule; fail on a missing `required_status_checks` rule; fail on a contributing ruleset in `enforcement: evaluate`; not-applicable for a repository outside `MOVING_REF_REPOS`; and two tool-failure cases with `assert_tool_failure()`, one where the `rules/branches` read does not answer and one where the per-ruleset `rulesets/{id}` read does not answer. The second path is new to the audit, so no existing test covers its shape, and `AGENTS.md` treats the tool-failure distinction as the one a criterion must never get wrong: a fail files an issue for our own outage and a not_applicable closes one. Cite symbols rather than line numbers when reading this brief -- the citations above were corrected once already between planning and execution. In `scripts/tests/test_metadata.py` add the criterion's lines to `FROZEN_METADATA` and `FROZEN_ISSUE_TITLES` only, and leave `test_an_empty_directory_is_a_tool_failure_exactly_where_expected`'s list alone: its fixture repository is `testrepo`, so this check skips before any API call (survey). The specification follows the structure in `docs/audits/README.md`, links `compliance.md#moving-ref-source-protection` under `## Projects`, carries no `consistency-audit` marker block, and cites this plan's Situation for the landing counts; add its line to the criterion index in `docs/audits/README.md`. Open the pull request only once 2a is applied and proved, so that the criterion passes on the day it lands (decision 5), and say in the commit what it measured against `actions`. |
 
 **Risks and mitigations.**
 
@@ -770,7 +781,17 @@ cannot be narrowed to a path.
   before trusting the rule, and confirms each of the four contexts
   resolves to success or skipped and that the merge button is
   offered. If one does not report, the rule comes off again rather
-  than being left to wedge the next review-only pull request.
+  than being left to wedge the next review-only pull request. The
+  `pull_request` rule's
+  `require_extra_approval_for_unattributed_changes` has the same
+  symptom from a different cause -- it asks for one approving review
+  on a pull request carrying a commit GitHub cannot attribute to an
+  account, which is the approval decision 1 says cannot be obtained
+  here. It is left `true` because every other ruleset in the fleet
+  pairs it with zero required approvals (measured on andris,
+  hunkydory, instar, kerbside and ryll, 2026-11-11) and none has
+  wedged; the escape, if one ever does, is an admin edit to the
+  ruleset, since the operator holds no bypass.
 - **Renaming a job in `ci.yml` breaks the required context, and this
   criterion will not notice.** It measures that a
   `required_status_checks` rule exists, not that its contexts match
@@ -804,7 +825,10 @@ cannot be narrowed to a path.
   `Mint the push token` running rather than skipped;
   `rulesets/rule-suites?time_period=day&rule_suite_result=bypass`
   names `shakenfist-review-marks[bot]` as the actor of its push; and
-  `deployments?environment=review-marks` is empty.
+  `deployments?environment=review-marks` is empty. The first and
+  third are met; the second is **not met as of 2026-11-11** -- the
+  run had nothing to push, so the listing is empty. Deferred to
+  Future work; see "Not proved: the push attribution".
 - A review-only pull request opened on `actions` reaches a mergeable
   state with all four required contexts reported.
 - `python3 -m unittest discover -s scripts/tests -t scripts` passes,
@@ -884,6 +908,32 @@ management session made changes 3 and 4 through the API.
    requires `Can enqueue` and `Can merge` because it has a merge
    queue; `actions` has none, so the four contexts here are job
    names.
+
+**Departure from the documented key procedure.** Change 2 did half
+of what `docs/code-review-tracking.md` step 7.3 requires. That step
+exists because the App is meant to hold exactly one private key, the
+one every repository's environment carries, so adding a repository
+is a rotation: generate a key, set it in the new environment *and in
+every environment that already holds the key*, read each back, then
+delete the old key. Only the new environment was set. The App should
+now hold two valid private keys -- the older one, carried by andris,
+hunkydory, kerbside and ryll, and this one, carried only by
+`actions` -- so the property `PLAN-bot-bypass-identity.md` phase 1
+closed on, "the App's page lists exactly one private key", is
+currently false. What the operator shredded was the downloaded file,
+which is not the same as deleting the old key.
+
+This is a hygiene regression rather than an exposure: both keys are
+environment secrets behind a default-branch-only policy, both mint
+per-run tokens that are revoked at job end, and the App's
+permissions are unchanged. What is lost is the ability to invalidate
+a leaked key by deleting it, because deleting either one now breaks
+a working repository. Nothing measures it, and nothing can through
+the API: `bypass-actor-identity` reads the environment and its
+branch policy, and an App's key list is visible only on its settings
+page. Completing the rotation is one pass over five repositories and
+is tracked as #389, not deferred to a later phase of this plan,
+because it is fleet state rather than plan state.
 
 The whole ruleset as read back afterwards, with `_links` removed:
 
@@ -979,6 +1029,24 @@ rules, all sourced from ruleset 21132503, and its
 `required_status_checks` contexts are exactly `Check paths`, `Lint`,
 `Unit tests` and `gitleaks`.
 
+One parameter in that JSON deserves its own note, because it reads
+against decision 1. `require_extra_approval_for_unattributed_changes`
+is `true` while `required_approving_review_count` is `0`, and the
+first asks for an approving review on a pull request carrying a
+commit GitHub cannot attribute to an account -- the very approval
+decision 1 says one maintainer cannot obtain. It came in with the
+parameter set copied from instar. It is kept rather than cleared
+because it is the fleet's settled shape, not an instar quirk: the
+`pull_request` rule on andris, hunkydory, instar, kerbside and ryll
+pairs the same `true` with the same zero count, measured on
+2026-11-11, and none of those repositories has wedged. Clearing it
+on `actions` alone would make it the one repository configured
+differently. The symptom if it ever bites is the one this phase is
+otherwise careful about -- a pull request that will not offer a
+merge, for no visible reason -- and the escape is an admin edit to
+the ruleset, since `current_user_can_bypass` is `never`. Risk 2
+records it beside the other cause of that symptom.
+
 **What 2a proved, and the one thing it did not.** Each proof is
 recorded with the reading that establishes it rather than a verdict.
 
@@ -1017,6 +1085,18 @@ recorded with the reading that establishes it rather than a verdict.
   throwaway branch started run 43081548196, which skipped: the
   workflow triggers on any branch push, and its default-branch guard
   is what stops it running there.
+
+**`prune-reviews` is the only automation that pushes to `actions`
+main.** Decision 7 reasons about that one workflow; the question was
+not asked of the others until this review, and the answer is in the
+repository rather than in this one. `actions` holds four pushes:
+`tools/ci-prune-reviews.sh` pushes `HEAD:${DEFAULT_BRANCH}`, and
+`tools/ci_sync_docs.sh`, `tools/ci_code_formatting.sh` and
+`.github/workflows/export-repo-config.yml` each force-push a named
+side branch and open a pull request from it. The ruleset's condition
+is `~DEFAULT_BRANCH`, so only the first is subject to it, and it is
+the one that mints the App token. Recorded so the next reader does
+not re-derive it.
 
 **Not proved: the push attribution.** The definition of done also
 asks that
@@ -1682,6 +1762,11 @@ intend to do aligns with that plan.
   `GITLAB_TESTDATA_TOKEN`; in the other two, the run must get past
   its token-using steps. Read the step log when one happens, and
   record it here.
+- #389: the `shakenfist-review-marks` App holds two private keys
+  after 2a, because change 2 set the new key only in `actions`'
+  environment rather than rotating all five. Completing it is one
+  pass over the five repositories, and the one-key property can only
+  be confirmed by eye on the App's settings page.
 - Phase 2 exercised the `actions` bypass but never observed it. Run
   43081577539 minted the App token and ran to success, but had no
   review marks to prune, so it never pushed and
