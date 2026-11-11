@@ -1704,13 +1704,407 @@ crossed 90 days on 2026-11-08, kerbside's `PLAN-two-tier-ci.md` and
 ryll's `PLAN-two-stage-ci.md`, were already in it.
 ### Phase 5: push audit
 
-Runs `PUSH-AUDIT.md` over every range recorded above, in this
-repository and `llm-setup`. The pilot pull requests in divergulent,
-kerbside and ryll each ran their own repository's `PUSH-AUDIT.md`
-before landing (phase 3, decision 5); cite those rather than
-re-running them. In addition to the runbook: confirm, by reading
-the pilot pull requests, that no retirement deleted reasoning that
-`AGENTS.md` or another plan still pointed at.
+Planning effort: medium, as the master plan set it. Review effort:
+medium -- the phase changes no code, and its one real risk is an
+audit that reads the wrong range and so reports a clean result over
+an empty diff. Planned on 2026-11-12 (Australian Eastern Daylight
+Time) against `3c73bc4`, on the branch
+`plan-retirement-phase-05-push-audit`. This section replaces the
+sketch the master plan carried for phase 5, two of whose three
+sentences the survey found false.
+
+#### Scope
+
+In: running `PUSH-AUDIT.md` over the five landings this plan made in
+this repository; auditing llm-setup's five landings against the
+floor the `plan-push-audit-phase` block defines for a repository
+with no runbook; the extra check phase 3 decision 5 reserved for
+this phase, that no retirement deleted reasoning something still
+pointed at; citing the three pilot audits and the two marker reads
+rather than re-running them; the record of what the audit found; and
+this phase's own close-out.
+
+Out: re-running the three pilot repositories' runbooks, which phase
+3 decision 5 and the block both forbid -- a runbook is written for
+one repository's blast radius, and each pilot ran its own before
+landing; fixing what the audit finds, which lands as its own pull
+request after this one merges; the two Future work deferrals, which
+are recorded deferrals rather than findings; the fleet's use of
+the private GitLab hostname in public repositories, which survey
+item 7 measures and which predates this plan in five other
+repositories;
+and the six fixture plan references survey item 11 found, which
+decision 9 leaves to the follow-up pull request.
+
+#### What the survey found
+
+Read on 2026-11-12 AEDT against `3c73bc4`, the llm-setup clone at
+`6e60cfc`, and the three pilot repositories' default branches. The
+sketch for this phase was three sentences and two of them were
+wrong; both are corrected at source rather than only here.
+
+1. **llm-setup has no `PUSH-AUDIT.md`,** so the sketch's "runs
+   `PUSH-AUDIT.md` over every range recorded above, in this
+   repository and `llm-setup`" cannot be done as written. Its root
+   holds `AGENTS.md`, `ARCHITECTURE.md` and `README.md` and no
+   runbook. The `plan-push-audit-phase` block
+   (`templates/shared-blocks/plan-push-audit-phase.md`, v4) covers
+   this case directly: such a repository still carries the phase,
+   the phase says the runbook does not exist and what was done
+   instead, and the floor is the block's own five-item checklist.
+   The same passage forbids the obvious shortcut -- "Do not borrow
+   another repository's runbook instead: a runbook is written for
+   one repository's blast radius." Decision 2 follows it.
+
+2. **"Every range recorded above" did not cover this repository's
+   phase 3 work.** The Execution table's phase 3 cell recorded the
+   three pilot pull requests and the three llm-setup merge
+   requests, and none of this repository's own landings: `623d72b`
+   (#364, phase 2's close-out and the phase 3 plan) and `ea741dd`
+   (#378, phase 3's execution notes). Both are first-parent merges
+   on `main` and both touch the plan file, so an audit taking the
+   table literally would have read three of this repository's five
+   landings. Corrected at source in this phase's close-out commit.
+
+3. **Three landings arrived after the sketch was written.** Phase 4
+   merged as `4f7f587` (#386) and its step 4d landed in two other
+   repositories: divergulent `04a4eb1` (#152), eight insertions to
+   one markdown table, and kerbside `8330c3f` (#712), nine. Phase
+   4's execution notes record that each had its own repository's
+   `PUSH-AUDIT.md` applied as a read of the diff rather than a walk
+   of its waves, because neither touches code, dependencies, tests
+   or a security surface, and that neither found anything. That is
+   the citation the block asks for, and phase 4's `Merged` cell now
+   carries all three.
+
+4. **The three pilot audits are citable, as decision 5 required.**
+   Each pilot repository has its own `PUSH-AUDIT.md`, and each pull
+   request body records what its audit found: divergulent#143 ran
+   the runbook in full, wave 1 clean, one blocking item fixed (two
+   stale step citations in a tool README) and two security
+   boundaries restored that had survived only in deleted text;
+   kerbside#686 found one documentation error, now fixed, and no
+   lost security constraint; ryll#700 ran wave 1 green and all four
+   wave 2 agents, and the push audit changed the author's mind
+   about one judgement. Nothing here needs re-running.
+
+5. **A net-effect diff is only honest over twelve of the twenty
+   paths.** The block wants the accumulated diff of every phase,
+   not the last phase alone, but this plan's window on `main` is
+   two weeks long and some of the files it touches are the fleet's
+   busiest. Of the twenty paths the five landings touch, twelve
+   have no unrelated first-parent commit in `f7b1219^1..3c73bc4`
+   and eight do:
+
+   | Path | Unrelated commits |
+   |------|------------------:|
+   | `docs/plans/index.md` | 8 |
+   | `scripts/tests/test_metadata.py` | 2 |
+   | `scripts/audit_snapshot.py` | 2 |
+   | `scripts/audit/registry.py` | 2 |
+   | `docs/consistency-audits.md` | 2 |
+   | `docs/audits/README.md` | 2 |
+   | `scripts/tests/test_registry.py` | 1 |
+   | `README.md` | 1 |
+
+   Decision 1 restricts the net-effect read to the clean twelve and
+   names the eight, so that an agent reading a shared file does not
+   attribute someone else's commit to this plan.
+
+6. **Phase 4's definition of done holds on `main`,** including the
+   one item its notes left verified only in branches.
+   `plan-retirement` is registered (`scripts/audit/registry.py:52`)
+   and frozen (`scripts/tests/test_metadata.py:129` and `:390`),
+   `docs/audits/plan-retirement.md` exists with its row at
+   `docs/audits/README.md:240`,
+   `grep -niE 'phase [0-9]' docs/plan-retirement.md` prints
+   nothing, and `NetworkCheckListTest` passes, so the criterion is
+   still outside `NETWORK_CHECKS`. With the two marker pull
+   requests merged, `$HOME/bin/retire-plans check` now exits 0 on
+   all three pilots' default branches, `retired-row-markers`
+   included: three marked rows in divergulent, four in kerbside,
+   six in ryll.
+
+7. **The private GitLab hostname is in this public repository three
+   times, and all three lines are this plan's.**
+   `gitlab.home.stillhq.com` appears at
+   `docs/plans/PLAN-plan-retirement.md:605`, `:779` and `:908`,
+   added by `8010a22` and `623d72b`. The block's floor item 3 names
+   exactly this shape -- "no private hostname or IP address entered
+   a repository more public than the one it came from" -- so the
+   audit owes it a verdict. The measurement that decides the
+   verdict is that five other public repositories in the
+   organisation already carry the same hostname: `actions`,
+   `instar`, `shakenfist`, `client-python-ova` and
+   `kerbside-patches`. Scrubbing three lines here would not change
+   what is disclosed, so this is a fleet question rather than a
+   finding of this plan, and it is out of scope above. The audit
+   records the measurement so the next reader does not have to
+   repeat it.
+
+8. **llm-setup carries a fifth landing this plan caused and no
+   phase recorded.** `3707d70` (!23, `unpushed-branch-hygiene`,
+   four files, 48 insertions) makes the session-start hook report
+   branches whose commits are on no remote. It exists because phase
+   3 lost an unpushed branch, as note n10 in the plan's blocker
+   entry records; that note says it does not block the plan, which
+   is not the same as saying it was audited. Nothing has audited
+   it, and no other plan will ever record it. Decision 3 brings it
+   into the llm-setup leg.
+
+9. **Two conditions change how llm-setup's ranges must be read.**
+   The clone's working tree is dirty (` M bin/mutation-check`,
+   carried since phase 3 and reported in note n15), so a bare
+   `$AUDIT_RANGE` there diffs uncommitted work rather than nothing;
+   and `c8a79de` is an ancestor of `origin/main` but not on its
+   first-parent path, so a first-parent walk does not list it. Both
+   are reasons the five ranges are named explicitly per merge below
+   rather than derived at audit time.
+
+10. **One declined review item from #386 is recorded outside the
+    plan.** Two rounds of automated review produced 21 items, 18
+    taken; the one open disagreement -- whether a promisor fetch
+    failure should surface inside the criterion as an `error`, as
+    it does, or be moved into the authenticated clone step -- is in
+    that commit's message and in the pull request comment, and not
+    in the plan. The block says a declined finding says why "in the
+    plan, where the next reader will find it". Step 5h writes it
+    in.
+
+11. **This plan has already failed one of the fleet's own criteria in
+    this repository.** `plan-source-references` reports `fail` for
+    `development`: six unresolvable plan references, all in
+    `scripts/tests/test_audit_snapshot.py` lines 100 to 131, where
+    phase 4's first review round (`08b7c0b`) wrote the fixture names
+    `PLAN-a.md` and `PLAN-b.md` into expected `details` strings. They
+    are fixtures rather than pointers, and the criterion's spec names
+    the remedy for exactly that: `audit-ok: plan-reference` on each
+    line, or `audit-ok: plan-reference-file` once at the top of a
+    file whose plan paths are all fixtures. The audit runs weekly
+    and last ran on 2026-11-08, before #386 merged, so the next run
+    on
+    2026-11-15 files `Consistency: Plan references in source` against
+    this repository alongside the five retirement issues. No issue
+    needs filing by hand -- the criterion is the filer. Decision 9
+    says who fixes it. The only other `fail` on this branch,
+    `review-coverage` at 29 files needing review, is byte-identical
+    on `main` and belongs to #247.
+
+#### Decisions
+
+1. **Wave 1 runs once per range; wave 2 reads all five ranges and a
+   net-effect diff over the twelve clean paths.** The block wants
+   what the phases did to each other, which no single post-merge
+   range spans without also spanning unrelated work. So wave 2 gets
+   both halves: the five per-range diffs, which keep each change
+   attributable, and
+   `git diff f7b1219^1..3c73bc4 -- <the twelve paths>`, which shows
+   the state those files ended in. Survey item 5's eight shared
+   paths are read per range only, and each brief names them and
+   their unrelated commit counts, so a reviewer of a shared file
+   knows which commits are not this plan's.
+
+2. **llm-setup is audited against the block's five-item floor, not
+   against this repository's runbook.** Survey item 1. The floor is
+   applied to each of its five ranges, and the phase records that
+   llm-setup has no runbook, which is the thing the block says
+   silently omitting let happen for too long. Writing llm-setup a
+   runbook is a merge request there, not work in this plan.
+
+3. **!23 is audited as llm-setup's fifth range, flagged as caused
+   by this plan rather than a phase of it.** Survey item 8. This is
+   the decision a reviewer is most likely to disagree with, and the
+   counter-argument is real: the block scopes the audit to the
+   plan's phases, !23 is not one, and auditing it widens the phase
+   past its own plan. The reason to do it anyway is that the change
+   exists only because this plan lost a branch, it alters a hook
+   that runs at the start of every session on this host, it is 48
+   insertions over four files, and it rides no plan of its own --
+   so the choice is between auditing it here for almost nothing and
+   it never being audited at all. The record says plainly that it
+   was audited outside the plan's phases and why.
+
+4. **The three pilot audits and the two marker reads are cited, not
+   re-run.** Phase 3 decision 5 and survey items 3 and 4. Each
+   citation names what that audit found, not merely that it ran: a
+   citation a reader cannot evaluate is no better than an
+   assertion.
+
+5. **Findings land in a follow-up pull request.** The block and the
+   `plan-phase-landing` block agree. Where the audit finds nothing,
+   this phase's own pull request sets phase 5 to `Complete` with no
+   `Merged` cell -- the one row permitted to omit one -- and marks
+   the plan `Complete`. Where it finds something, the follow-up
+   pull request records this phase's merge commit and marks the
+   plan `Complete`, and this phase says what is outstanding.
+
+6. **Wave 2 briefs carry concrete ranges, substituted by the
+   management session.** The runbook's own warning: a sub-agent
+   inherits no environment, so a brief handed over with
+   `${AUDIT_RANGE:-origin/main...HEAD}` in it expands to the empty
+   diff against already-landed work, and an empty diff reads as a
+   clean review. Every agent is told which ranges it is reading and
+   must report the insertion and deletion totals it measured; a
+   report whose totals do not match is re-run rather than triaged.
+   The totals to match are, per range: `f7b1219` 6 files +1077,
+   `8010a22` 2 files +260/-33, `623d72b` 2 files +227/-20,
+   `ea741dd` 1 file +213/-16, `4f7f587` 18 files +2007/-115.
+
+7. **The reserved check greps the fleet, not just the pilot pull
+   requests.** The sketch asked for it "by reading the pilot pull
+   requests". Reading them is necessary and not sufficient:
+   `retire-plans check` only looks inside one repository, and a
+   pointer to a retired plan can sit in any of the other 23 --
+   which is precisely why the criterion has a cross-repository
+   bucket at all. So the check reads the three pull requests and
+   greps every clone on this host for the thirteen retired plans'
+   names, resolving each hit rather than counting it. llm-setup is
+   one of those clones and is private, so its share of the grep is
+   step 5g's rather than step 5f's, for decision 8's reason.
+
+8. **The llm-setup leg runs in the management session, not in a
+   sub-agent.** llm-setup is private and its diffs carry private
+   hostnames and paths. The phase's record is public, so the leg
+   that reads private content is read by the session that writes
+   the record, and no sub-agent report carries it. This follows the
+   precedent of `PLAN-bot-bypass-identity.md`'s phase 4, which ran
+   its out-of-repository leg inline for the same reason.
+
+9. **The `plan-source-references` failure is fixed in the follow-up
+   pull request, not on this branch.** Survey item 11. The six lines
+   sit inside `4f7f587`, one of the five ranges this phase audits,
+   and decision 1 pins the net-effect read to `f7b1219^1..3c73bc4`.
+   Fixing them here would make the tree the audit reports on differ
+   from every range it recorded, which is the one thing a push audit
+   cannot afford. So the finding is recorded, the weekly run files
+   its own issue, and the follow-up pull request carries both the
+   six markers and whatever else the audit turns up.
+
+#### Steps
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 5a | medium | opus | none | Management session, inline, no sub-agent: wave 1 of `PUSH-AUDIT.md`. `git fetch origin` first, then every wave 1 command once per range with `AUDIT_RANGE` exported to each of `f7b1219^1..f7b1219`, `8010a22^1..8010a22`, `623d72b^1..623d72b`, `ea741dd^1..ea741dd` and `4f7f587^1..4f7f587`, plus `pre-commit run --all-files` and `python3 -m unittest discover -s scripts/tests -t scripts` once on the branch. Record each command's result per range in a table rather than as a summary: a grep that matched nothing is a result. Wave 2 is only worth running if wave 1 passes, so stop and report if it does not. |
+| 5b | medium | sonnet | none | Section 2a of `PUSH-AUDIT.md`, code quality, read-only. Substitute the five concrete ranges and decision 1's net-effect diff into the brief; do not leave `${AUDIT_RANGE:-origin/main...HEAD}` in it. Name survey item 5's eight shared paths and their unrelated commit counts so that another plan's commit is not read as this one's. The code this plan added is one criterion in `scripts/audit/checks/plans.py` -- `PlanRetirement`, `plan_retirement_index()` and `plan_retirement_clocks()` -- which walks git history under a time budget; the questions are whether any of its early returns can produce the same value as a legitimate empty answer, and whether the budget and the 2 MB cap fail loudly. Report the insertion and deletion totals measured per range. |
+| 5c | medium | sonnet | none | Section 2b of `PUSH-AUDIT.md`, test review, read-only, same substitution, same shared-path warning and same totals requirement. The tests this plan added are `scripts/tests/test_plans.py`'s `PlanRetirementTest` (about thirty cases over synthetic git histories) and `scripts/tests/base.py`'s `commit_files()`; phase 4 also ran fifteen mutants, all killed. The question is which properties would survive a regression, not whether the suite passes: in particular whether anything fails if the clock reads the author date instead of the committer date, if the threshold walk stops one revision early, or if a shallow clone is treated as an empty history rather than refused. |
+| 5d | medium | sonnet | none | Section 2c of `PUSH-AUDIT.md`, documentation review, read-only, same substitution and totals. In scope: `docs/plan-retirement.md`, `docs/audits/plan-retirement.md`, `docs/audits/README.md`, `docs/consistency-audits.md`, `ARCHITECTURE.md`, `PLAN-TEMPLATE.md`, `README.md` and this plan. The specific question this plan raises is whether any fact about the ninety-day clock, which date it reads, what a statusless table does, or what the audit's clone can and cannot read is stated differently on two pages -- the criterion's spec page and `docs/plan-retirement.md` are the pair most likely to have drifted, since one describes the measurement and the other the convention. |
+| 5e | high | opus | none | Section 2d of `PUSH-AUDIT.md`, security review, read-only, same substitution and totals. This plan deletes plan files across the fleet and added a criterion that walks git history in a clone the audit makes, so the brief adds: whether the criterion can be made to read or publish content from outside the index it measures; whether a repository name, plan name or index line reaches a shell, a `gh` argument or an issue body unquoted, given that `audit-manage-issues.py` writes `details` and `findings` into issue bodies in 24 repositories; whether the change from `--depth 1` to `--filter=blob:none` in `.github/workflows/consistency-audit.yml` widens what a workflow run can read or costs an unbounded number of promisor fetches; and whether any secret, token, private hostname or private path entered this public repository, measured against survey item 7 rather than from scratch. |
+| 5f | medium | sonnet | none | Decision 7's reserved check, read-only, no writes to any clone. The thirteen plans retired by the pilots are the `(retired)` rows of `docs/plans/index.md` in divergulent (3), kerbside (4) and ryll (6); list them from those files rather than from this plan. For each, grep every repository clone under `/srv/kasm_profiles/mikal/vscode/src/shakenfist/` for the plan's name with and without `.md`, and for its phase files' names, excluding `.git`. Resolve every hit: a permalink in an index row is correct; a link in another plan is correct if it is a permalink; a bare name in `AGENTS.md`, `ARCHITECTURE.md`, a `README.md`, a `blob/main` URL or source is a dangling pointer and a finding. Then read the three pilot pull request bodies (divergulent#143, kerbside#686, ryll#700) and say, for each, whether anything they report deleting was reasoning that one of those surviving pointers wanted. Report one verdict per retired plan and the greps you ran. Do not read or grep anything under `src/private/`: llm-setup's share of this check is step 5g's, because it is a private repository. Do not fix anything. |
+| 5g | medium | opus | none | Management session, inline: decision 2's floor over llm-setup's five ranges -- `3a9f268^1..3a9f268` (!20, 7 files +1586/-3), `956b2fa^1..956b2fa` (!21, 4 files +476/-49), `dfebae1^1..dfebae1` (!22, 4 files +352/-9), `c8a79de^1..c8a79de` (!24, 6 files +830/-151) and `3707d70^1..3707d70` (!23, 4 files +48/-4, decision 3). For each: the form of the recorded landing; whether anything it added runs unattended and reports its own failure where a human sees it; that no secret or token entered any repository and no private hostname reached a more public one; that nothing it removed or renamed has a consumer left, with the greps stated; and whether a broken change fails closed. `python3 -m unittest discover tests` is llm-setup's suite, per its `AGENTS.md`. Also do llm-setup's share of step 5f's reserved check: grep the clone for the thirteen retired plans' names and resolve each hit. Run it inline because llm-setup is private (decision 8), and keep the record to verdicts, paths, commands and counts. |
+| 5h | medium | opus | none | Management session, inline: the record and the close-out. Write what each wave and each leg found into the Record below, including "nothing" where that is the result, which the block says is worth one sentence. Record the deviation in decision 3 and the declined review item in survey item 10. Then set phase 5's `Status` in the Execution table and the plan's row in `docs/plans/index.md` as decision 5 directs, and run the private-data probe set over the text this phase adds before committing. |
+
+#### Record
+
+Written by step 5h at execution time: what each wave 1 command
+returned per range, what each wave 2 agent found, the floor's five
+verdicts for each of llm-setup's five ranges, the reserved check's
+verdict for each of the thirteen retired plans, and the citations
+for the three pilot audits and the two marker reads.
+
+#### Risks and mitigations
+
+* **The audit reads an empty or wrong range and reports a clean
+  result.** The failure the runbook was written to prevent, and the
+  reason it keeps the range in one variable. Mitigation: decision 6
+  -- concrete ranges substituted into every brief, the expected
+  file and line totals stated in the plan, and every report
+  required to state the totals it measured. The management session
+  re-runs a mismatched report rather than triaging it.
+
+* **Another plan's commit is read as this plan's.** Eight of the
+  twenty paths carry unrelated work in the window. Mitigation:
+  decision 1 keeps the net-effect read to the clean twelve, and
+  each brief names the eight with their counts. The management
+  session checks any finding against a shared path with
+  `git log --first-parent f7b1219^1..3c73bc4 -- <path>` before
+  accepting it.
+
+* **Private content reaches the public record.** llm-setup is
+  private, and this phase reads five of its diffs. Mitigation:
+  decision 8 runs that leg inline, the record holds verdicts,
+  paths, commands and counts only, and step 5h runs the
+  private-data probe set over the text the phase adds before the
+  commit.
+
+* **The reserved check over-reports.** `retire-plans check` already
+  passes in all three pilots, so most hits will be correct
+  permalinks. Mitigation: decision 7 requires each hit to be
+  resolved rather than counted, and the step reports one verdict
+  per retired plan, so a clean result is visibly clean rather than
+  an absence of output.
+
+* **The audit finds something large.** Mitigation: decision 5 --
+  findings land in a follow-up pull request, so a finding does not
+  grow this phase. A finding that changes the criterion is also a
+  finding about an audit that has already filed issues in five
+  repositories, so the record says whether anything already filed
+  is wrong.
+
+#### Definition of done
+
+* Wave 1 has a recorded result for every command against every one
+  of the five ranges, including the greps that matched nothing, and
+  `pre-commit run --all-files` and
+  `python3 -m unittest discover -s scripts/tests -t scripts` pass
+  on the branch.
+
+* Each wave 2 report states insertion and deletion totals that
+  match decision 6's table for the ranges it was given.
+
+* The record carries, for each of llm-setup's five ranges, a
+  verdict or a stated reason for not applying it, for all five of
+  the block's floor items -- twenty-five cells, none blank.
+
+* The record cites divergulent#143, kerbside#686 and ryll#700 by
+  what each audit found, and the two marker reads from phase 4's
+  notes, rather than by the fact that they ran.
+
+* Every one of the thirteen retired plans has a stated verdict on
+  whether anything still points at it, and the greps behind those
+  verdicts are named. `$HOME/bin/retire-plans check` exits 0 on
+  divergulent, kerbside and ryll at audit time.
+
+* `grep -niE 'phase [0-9]' docs/plan-retirement.md` still prints
+  nothing, and no text this phase adds contains a token, a private
+  hostname beyond survey item 7's measurement, or a path under
+  `src/private/`.
+
+* The plan states why the #386 review item named in survey item 10
+  was declined.
+
+* The record states, for `plan-source-references` and
+  `review-coverage`, whether each `fail` on this branch is this
+  plan's or pre-existing, measured against `main` rather than
+  asserted.
+
+* Phase 5's Execution row reads `Complete` with an empty `Merged`
+  cell and the plan's index row reads `Complete`, if the audit
+  found nothing; otherwise both say what is outstanding and the
+  follow-up pull request is named.
+
+#### Back brief
+
+Before step 5a, back brief Mikal on three points.
+
+Decision 3 widens the audit to !23, a change this plan caused but no
+phase of it owns. Agreeing now is one extra range in a leg that is
+already running; disagreeing later means the leg is re-run or the
+change stays unaudited for good.
+
+Decision 1 restricts the net-effect diff to the twelve paths no
+unrelated commit touched, which means the net effect of the plan on
+`docs/plans/index.md`, `docs/audits/README.md`,
+`docs/consistency-audits.md` and five other shared files is read per
+range only. The alternative is a wider net-effect diff with other
+plans' work in it, judged by an agent that cannot tell the
+difference.
+
+Survey item 7 found this plan put the private GitLab hostname into
+this public repository three times, and that five other public
+repositories already carry it. The audit's verdict as planned is to
+record the measurement and leave it, because scrubbing three lines
+changes nothing disclosed. Whether to scrub anyway, or to open a
+fleet-wide question, is his call and not the audit's.
 
 ## Agent guidance
 
