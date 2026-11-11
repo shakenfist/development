@@ -33,27 +33,29 @@ which lets Renovate see its own version pin (below).
 
 ### The fleet preset
 
-The preset holds the author and assignee Renovate uses, the
-dependency dashboard, rollback pull requests, a three day
+The preset carries the whole fleet policy, so a repository that
+extends it needs nothing of its own: the author and assignee
+Renovate uses, the dependency dashboard, rollback pull requests,
 `minimumReleaseAge`, the `pre-commit` manager,
-`customManagers:githubActionsVersions`, the `Australia/Sydney`
-timezone, and the cadence: ordinary updates `on saturday`, majors and
-the CI tooling group `on the first day of the month`, with at most 2
-pull requests an hour and 10 open at once (Renovate's own defaults,
-written down rather than inherited). Minor, patch and digest updates
-are never merged automatically. The CI tooling group puts GitHub
-Actions and pre-commit hook revisions, every update type, digests
-included, into one monthly pull request. The two rules that keep
+`customManagers:githubActionsVersions`, the timezone and the cadence,
+the rule that merges nothing automatically, the two rules that keep
 `node-version` and the pinned Renovate in step, and the
-`shellcheck-py/shellcheck-py` versioning rule, are in it too. It sets
-no `vulnerabilityAlerts`: Renovate's defaults already drop the
-schedule, `minimumReleaseAge` and grouping for a security fix, so a
-fix for a vulnerability Dependabot reports arrives at once rather than
-waiting for Saturday. One rule is an exception to that. A
-`packageRules` entry with `enabled: false` suppresses even a
-vulnerability fix, and the preset's Node-major disable rule is one, so
-Node majors in the Renovate workflows are the one update type the
-immediate security path does not reach.
+`shellcheck-py/shellcheck-py` versioning rule. What each of those is
+set to is listed once, in the
+[audit spec](https://github.com/shakenfist/development/blob/main/docs/audits/renovate.md),
+and deliberately not repeated here: a policy written out twice drifts,
+and the copy that drifts unnoticed is the one in a template.
+
+One part of it is worth stating twice, because it is the one place
+the cadence can cost a repository a security fix. The preset sets no
+`vulnerabilityAlerts`, so Renovate's defaults apply: a fix for a
+vulnerability Dependabot reports ignores the schedule,
+`minimumReleaseAge` and grouping, and arrives at once rather than
+waiting for Saturday. One rule is an exception. A `packageRules` entry
+with `enabled: false` suppresses even a vulnerability fix, and the
+preset's Node-major disable rule is one, so Node majors in the
+Renovate workflows are the one update type the immediate security
+path does not reach.
 
 Renovate reads the preset from the default branch of
 shakenfist/development, so a change to it cannot be tried from a pull

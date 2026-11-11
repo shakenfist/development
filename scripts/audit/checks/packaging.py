@@ -521,7 +521,8 @@ class Renovate(Check):
                     f'the template verbatim')
         if not renovate_reads_version_comments(repo):
             issues.append(
-                'renovate.json does not extend '
+                'renovate.json extends neither '
+                f'{RENOVATE_FLEET_PRESET} nor '
                 'customManagers:githubActionsVersions, so the Renovate '
                 'version pinned in renovate.yml is never bumped')
         if uses_remote_pre_commit_hooks(repo) and not (
@@ -529,7 +530,8 @@ class Renovate(Check):
         ):
             issues.append(
                 'renovate.json does not enable the pre-commit manager, '
-                'so the hook revisions in .pre-commit-config.yaml are '
+                f'itself or by extending {RENOVATE_FLEET_PRESET}, so '
+                'the hook revisions in .pre-commit-config.yaml are '
                 'unmanaged and drift silently')
 
         if issues:

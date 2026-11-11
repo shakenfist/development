@@ -60,16 +60,15 @@ Renovate bumps in each copy on its own schedule: the value of each
 (with the version comment digest pinning leaves after it). A copy
 whose Renovate or whose actions are ahead of or behind the template's
 still matches; the action's name still has to. `node-version` is not
-among them: the fleet preset stops Renovate bumping it, and it is
-the line the check exists to hold.
+among them: the fleet preset stops Renovate bumping it, and it is the
+line the check exists to hold.
 
 The drift that prompted this was Node. Renovate proposed Node 26 for
 the workflow's `setup-node` step, the pull request merged in eleven
 repositories, and each one's Renovate, which needs Node `^24.11.0`,
 then failed on every hourly run. The fleet preset now stops Renovate
-proposing that bump, but a copy can still drift by
-hand, and the workflow is where Node has to match the Renovate it
-runs.
+proposing that bump, but a copy can still drift by hand, and the
+workflow is where Node has to match the Renovate it runs.
 
 The finding names each place the copy differs, up to three, with the
 copy's line and the template's, and counts the rest. A copy still on
@@ -114,7 +113,10 @@ fleet the moment it merges. The only check before that is
 pre-commit's `renovate-config-validator`. Its default `files:`
 pattern matches `renovate.json` but not `renovate-fleet.json`, and a
 hook that silently skips the file it was added for still passes, so
-the hook's pattern is overridden to name the preset. It also runs with
+the hook's pattern is overridden with one that covers any Renovate
+configuration or `renovate-*.json` preset in any directory, rather
+than the files that happen to exist; `scripts/tests/test_hooks.py`
+holds it to every such file in the tree. It also runs with
 `--no-global`: given a file as an argument the validator treats it as
 a global self-hosted configuration, which accepts a self-hosted-only
 key such as `onboarding` in a file that is meant to be a repository

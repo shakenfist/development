@@ -392,6 +392,153 @@ class RenovateFleetPresetTest(CheckTestCase):
             packaging.extends_fleet_preset({'extends': self.PRESET_NAME}))
         self.assertFalse(packaging.extends_fleet_preset({}))
 
+    def _rule(self, **match):
+        """The one packageRules entry whose keys are exactly `match`."""
+        found = [rule for rule in self._preset()['packageRules']
+                 if all(rule.get(key) == value
+                        for key, value in match.items())]
+        self.assertEqual(
+            len(found), 1,
+            'expected exactly one packageRules entry matching %r, found %d'
+            % (match, len(found)))
+        return found[0]
+
+    def test_the_real_preset_keeps_the_shellcheck_versioning_rule(self):
+        # Without this the github-tags lookup behind the pre-commit hook
+        # fails with "Can't find version matching" and no update is ever
+        # proposed -- visible on a dashboard and nowhere else. The build
+        # group name and the four-component anchor are both load-bearing;
+        # see the rule's own description.
+        rule = self._rule(matchPackageNames=['shellcheck-py/shellcheck-py'])
+        self.assertEqual(
+            rule['versioning'],
+            'regex:^v?(?<major>\\d+)\\.(?<minor>\\d+)'
+            '\\.(?<patch>\\d+)\\.(?<build>\\d+)$')
+
+    def test_the_real_preset_disables_node_majors_in_the_workflows(self):
+        # The one update type the immediate security path does not reach,
+        # so its scope is checked rather than only its existence.
+        rule = self._rule(matchDepNames=['node'], enabled=False)
+        self.assertEqual(rule['matchUpdateTypes'], ['major'])
+        self.assertEqual(rule['matchManagers'], ['github-actions'])
+        self.assertEqual(sorted(rule['matchFileNames']),
+                         ['.github/workflows/renovate.yml',
+                          'templates/renovate/renovate.yml'])
+
+    def test_the_real_preset_merges_nothing_automatically(self):
+        rule = self._rule(automerge=False)
+        self.assertEqual(sorted(rule['matchUpdateTypes']),
+                         ['digest', 'minor', 'patch'])
+
+    def test_the_real_preset_groups_ci_tooling_monthly(self):
+        rule = self._rule(groupName='CI tooling')
+        self.assertEqual(sorted(rule['matchManagers']),
+                         ['github-actions', 'pre-commit'])
+        self.assertEqual(rule['schedule'], ['on the first day of the month'])
+        # No matchUpdateTypes: the group covers every one, digests
+        # included, which is what both pages promise.
+        self.assertNotIn('matchUpdateTypes', rule)
+
+    def test_the_real_preset_keeps_the_renovate_major_note(self):
+        rule = self._rule(matchDepNames=['renovate'])
+        self.assertEqual(rule['matchUpdateTypes'], ['major'])
+        self.assertIn('engines.node', rule['prBodyNotes'][0])
+
+    def test_the_real_preset_sets_the_documented_cadence(self):
+        preset = self._preset()
+        self.assertEqual(preset['schedule'], ['on saturday'])
+        self.assertEqual(preset['timezone'], 'Australia/Sydney')
+        self.assertEqual(preset['prHourlyLimit'], 2)
+        self.assertEqual(preset['prConcurrentLimit'], 10)
+        self.assertEqual(preset['minimumReleaseAge'], '3 days')
+        # The all-majors rule is the one not narrowed to a dependency;
+        # the other two major rules name renovate and node.
+        majors = [rule for rule in preset['packageRules']
+                  if rule.get('matchUpdateTypes') == ['major']
+                  and 'matchDepNames' not in rule]
+        self.assertEqual(len(majors), 1)
+        self.assertEqual(majors[0]['schedule'],
+                         ['on the first day of the month'])
+
+    def test_the_real_preset_leaves_security_fixes_on_the_defaults(self):
+        # Both pages say a security fix ignores the schedule, the release
+        # age and grouping because the preset overrides none of that. An
+        # override added here would make that claim false fleet-wide.
+        preset = self._preset()
+        self.assertNotIn('vulnerabilityAlerts', preset)
+        self.assertNotIn('osvVulnerabilityAlerts', preset)
+
+    def test_the_real_preset_sets_the_fleet_identity(self):
+        preset = self._preset()
+        self.assertEqual(preset['gitAuthor'],
+                         'shakenfist-bot <bot@shakenfist.com>')
+        self.assertEqual(preset['assignees'], ['mikalstill'])
+        self.assertTrue(preset['dependencyDashboard'])
+        self.assertTrue(preset['rollbackPrs'])
+
+
+class RenovateReducedConfigTest(unittest.TestCase):
+    """Neither shipped renovate.json restates what the preset carries.
+
+    `templates/renovate/renovate.json` is what the fleet copies, so a
+    fleet key re-introduced here is a per-repository override of fleet
+    policy shipped to every repository that takes the template -- and a
+    local `schedule` or `prHourlyLimit` silently wins over the preset's.
+    The definition of done checked this by reading the two files once;
+    this keeps it true.
+
+    This repository's own root config is allowed the two sections that
+    exist only here, which reach the templates/ directory the rest of
+    the fleet does not have.
+    """
+
+    PRESET_NAME = 'local>shakenfist/development:renovate-fleet'
+
+    #: Sections that apply only to this repository, which ships the
+    #: workflow templates. Everything else in the preset is fleet-wide.
+    ROOT_LOCAL_KEYS = frozenset({'github-actions', 'customManagers'})
+
+    STRUCTURAL_KEYS = frozenset({'$schema', 'extends'})
+
+    def _config(self, *parts):
+        with open(os.path.join(REPO_ROOT, *parts)) as f:
+            return json.load(f)
+
+    def _preset(self):
+        return self._config('renovate-fleet.json')
+
+    def _fleet_keys(self):
+        keys = set(self._preset()) - self.STRUCTURAL_KEYS
+        # Guard the derivation: an empty set would pass everything.
+        self.assertIn('schedule', keys)
+        self.assertIn('packageRules', keys)
+        return keys
+
+    def test_the_template_extends_the_preset(self):
+        config = self._config('templates', 'renovate', 'renovate.json')
+        self.assertEqual(config['extends'], [self.PRESET_NAME])
+
+    def test_the_root_config_extends_the_preset(self):
+        self.assertEqual(self._config('renovate.json')['extends'],
+                         [self.PRESET_NAME])
+
+    def test_the_template_holds_nothing_but_the_extend(self):
+        config = self._config('templates', 'renovate', 'renovate.json')
+        self.assertEqual(set(config), self.STRUCTURAL_KEYS)
+
+    def test_neither_config_restates_a_fleet_key(self):
+        fleet = self._fleet_keys()
+        for parts, allowed in (
+                (('renovate.json',), self.ROOT_LOCAL_KEYS),
+                (('templates', 'renovate', 'renovate.json'), frozenset())):
+            config = self._config(*parts)
+            restated = sorted((set(config) & fleet) - allowed)
+            self.assertEqual(
+                restated, [],
+                os.path.join(*parts) + ' restates fleet policy the preset '
+                'already carries, which overrides it locally: '
+                + ', '.join(restated))
+
 
 class RenovateVersionCommentsTest(CheckTestCase):
     """Renovate can only bump the pinned Renovate if it reads the comments."""

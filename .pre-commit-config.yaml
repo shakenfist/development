@@ -99,7 +99,11 @@ repos:
   # files: is overridden because the hook's default pattern matches
   # renovate.json but not renovate-fleet.json, so the preset would be
   # skipped while the hook still passed, which is exactly the failure
-  # it is here to prevent. All three configs are listed by name.
+  # it is here to prevent. The replacement is derived rather than a
+  # list of the files that exist today: any renovate config or
+  # renovate-*.json preset, in any directory, is covered, so the next
+  # one added is validated without anyone remembering to widen this.
+  # test_hooks.py holds the pattern to every such file in the tree.
   #
   # --no-global because a file given as an argument is otherwise
   # validated as a global self-hosted configuration, and that mode
@@ -109,7 +113,7 @@ repos:
     rev: 44.227.4
     hooks:
       - id: renovate-config-validator
-        files: ^(renovate-fleet\.json|renovate\.json|templates/renovate/renovate\.json)$
+        files: ^(.*/)?(\.renovaterc|\.?renovate[^/]*\.json[c5]?)$
         args: ['--no-global']
 
   # The automation's own unit tests. They used to run only here, because

@@ -207,11 +207,10 @@ roughly twice the Situation's figure): about 4 bumps of the npm
 requests, which stay one per pull request and which a weekly window
 barely folds. Phase 4 measures the before and the after with one
 method, because the Situation's number predates both the move to npm
-and the drift audit. Runtime dependencies are therefore
-most of what remains, and the lever that would cut further is
-grouping them, which this plan declines for the bisection reason
-below. The Renovate
-share of CI time is recorded alongside it, but it is not the target,
+and the drift audit. Runtime dependencies are therefore most of what
+remains, and the lever that would cut further is grouping them, which
+this plan declines for the bisection reason below. The Renovate share
+of CI time is recorded alongside it, but it is not the target,
 because the runs API's 1,000-run cap gives each repository a
 different window. Three changes do this:
 
@@ -1020,6 +1019,24 @@ its own `renovate` criterion at the next scheduled audit run.
 (2026-11-12), choosing `prHourlyLimit: 2` and
 `prConcurrentLimit: 10` over the step's recommendation of `0` and
 `10`. The Record's limits entry has the reasoning on both sides.
+
+**Decision 1's nested merge was measured, not assumed** (2026-11-12).
+The review round asked what happens now that
+`customManagers:githubActionsVersions` arrives through the preset
+while this repository keeps a local `customManagers` entry: if
+Renovate replaced the array rather than concatenating it, the pinned
+Renovate in `templates/renovate/renovate.yml` would stop being
+bumped, which is the defect the local entry exists to prevent, and
+neither the validator nor any criterion would see it. Renovate
+44.227.4 flags `customManagers` `mergeable` with type `array`, and
+`mergeChildConfig` concatenates such an option parent-first, at every
+level of preset resolution. Confirmed against the real files by
+registering `renovate-fleet.json` in the resolver's internal preset
+registry and resolving this repository's `renovate.json` through it:
+two entries come back, the built-in first and the `templates/` one
+second, with all six `packageRules`, the schedule and the timezone
+intact. Not left as a test, because reproducing it needs Node and the
+`renovate` package, which the audit suite does not have.
 
 #### Risks and mitigations
 
