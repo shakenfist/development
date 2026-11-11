@@ -225,7 +225,7 @@ human merging the pull request.
 | 2. `retire-plans` helper and skill | Complete | 8010a22 (#342); llm-setup 3a9f268 (!20) |
 | 3. Pilot | Complete | 623d72b (#364), ea741dd (#378); divergulent c7a980c (#143), kerbside d2971e6 (#686), ryll 0c42528 (#700); llm-setup 956b2fa (!21), dfebae1 (!22), c8a79de (!24) |
 | 4. `plan-retirement` criterion | Complete | 4f7f587 (#386); divergulent 04a4eb1 (#152), kerbside 8330c3f (#712) |
-| 5. Push audit | In progress | |
+| 5. Push audit | Complete | |
 
 The criterion lands after the pilot on purpose. It files issues the
 day it merges, in every repository with an eligible plan -- five of
@@ -1995,11 +1995,235 @@ wrong; both are corrected at source rather than only here.
 
 #### Record
 
-Written by step 5h at execution time: what each wave 1 command
-returned per range, what each wave 2 agent found, the floor's five
-verdicts for each of llm-setup's five ranges, the reserved check's
-verdict for each of the thirteen retired plans, and the citations
-for the three pilot audits and the two marker reads.
+Run on 2026-11-12 AEDT from the branch, against the five ranges in
+decision 6 and the net-effect diff in decision 1, with `3c73bc4` as
+the endpoint. Every reader measured the file and line totals the plan
+predicted, so no report was re-run. Two readers substituted reading
+the twelve clean paths as they stand for running the net-effect diff
+as a command; the state they read is the same, and the shared-path
+attribution neither did was done in the management session instead
+(`git log --first-parent f7b1219^1..3c73bc4 -- <path>`): on each of
+the eight, this plan's only commits are `f7b1219` in `README.md` and
+`4f7f587` in the other three, and every other commit belongs to
+`PLAN-bot-bypass-identity.md` or the pre-commit node version work.
+
+**Wave 1.** `pre-commit run --all-files` clean and `python3 -m
+unittest discover -s scripts/tests -t scripts` 2601 tests OK, both on
+the branch. Thirteen greps over five ranges: no hits in forty-nine of
+the sixty-five cells. The hits, all looked at and accepted: three
+fixture plan names in `f7b1219` and ninety-eight in `4f7f587`, which
+are `test_plans.py` fixtures under a file-level `audit-ok:
+plan-reference-file` marker and references to the two
+`plan-retirement.md` documentation pages, whose names the grep's
+case-insensitive `PLAN-*.md` pattern matches; four new imports in
+`4f7f587`, all standard library (`time`, `re`, `locale`) plus the
+package's own `audit.check`; one new `issue_title`, which matches its
+frozen line; and three files over 800 lines, which wave 2 judged.
+Neither the frozen-issue-title nor the retired-title grep fired,
+which is correct: both are written to catch a rename or a removal,
+and this plan only added an entry.
+
+**Wave 2 and the reserved check.** Six findings, none critical. Each
+was reproduced in the management session before being recorded here;
+one claim in a reader's report did not survive that and is corrected
+below.
+
+| Finding | Where it goes |
+|---------|---------------|
+| F1 A tool failure in this criterion is not excused, though its git reads are the only ones in the audit package that touch the network | follow-up pull request |
+| F2 `docs/audits/plan-retirement.md` claims three `error` paths where the code has eight | follow-up pull request |
+| F3 An unreadable index at HEAD reads as no index, which closes the backlog issue | follow-up pull request |
+| F4 kerbside's `PLAN-test-harness.md` retirement deleted decisions four repositories still point at | work in kerbside, ryll and visual-digest-rust |
+| F5 Bare cross-repository plan names and dead `blob/develop` links left behind by two retirements | work in shakenfist and ryll |
+| F6 `plan-source-references` fails for this repository, as survey item 11 found before the run | follow-up pull request |
+
+**F1, the finding that justified the phase.** `plan-retirement` is
+not in `NETWORK_CHECKS`, so `github_did_not_answer()` in
+`scripts/audit_snapshot.py` returns false for it, and
+`scripts/audit-raised.py` exits 1 on any error it does not excuse --
+failing that repository's matrix leg and holding back the compliance
+page. That function's own docstring says a tool failure from any
+other check "is the runner's own git, skillsaw or review-tracking.py
+not answering, which the next run would meet too". For this criterion
+the premise is false: its `git show` is the only history read in the
+whole audit package, every other criterion's git call being
+`ls-files`, `check-ignore` or `review.py`'s own clone, and in a
+blob-filtered clone that read fetches from the promisor remote. A
+transient network failure is therefore classified as a broken check.
+The fix is not a line: `NetworkCheckListTest` asserts that the
+derived set equals `NETWORK_CHECKS` exactly, deriving it by scanning
+each check's source for a GitHub call or a clone, and decision 1 of
+phase 4 needs this criterion outside that set to keep it under
+`audit_snapshot.py`'s byte-for-byte net. This is also the item two
+rounds of review on #386 left open, and it settles it against the
+decline: the argument there was about where a fetch failure should
+surface, and the defect is that it is misclassified when it does.
+
+**F4, the loss the reserved check was reserved for.** Seven pointers
+in four repositories name kerbside's retired `PLAN-test-harness.md`
+or its phase 1 file: `ryll/AGENTS.md:187`,
+`ryll/docs/control-socket-protocol.md:1680`,
+`visual-digest-rust/AGENTS.md:108` and `:111`,
+`visual-digest-rust/README.md:107-108`, and
+`uncalibrated-sextant/AGENTS.md:103`. Two of them say what they
+wanted from it: ryll's protocol page says "the design rationale for
+the control socket and the v1.1 additions lives in" that plan, and
+visual-digest-rust's agent context calls the phase plan
+authoritative. The retirement commit `kerbside 1ca6355` says those
+decisions were "deliberately not kept: the visual-digest-rust crate
+decisions and ryll's control-socket and Cargo-feature decisions
+(phases 1, 3 and 6), which belong to those repositories and are
+documented there". They are not: `visual-digest-rust/docs/` holds
+only `visual-digest-format.md`, a wire-format specification, and
+`ryll/docs/design-decisions.md` has no control-socket or digest entry
+at all. Nothing in the pilot could have caught this -- the pointers
+are in other repositories, which is why `retire-plans check` passes
+in all three pilots and why decision 7 widened the check to the
+fleet. The text is recoverable behind the index permalink.
+
+**F3, and the class it belongs to.** `PlanRetirement.applies()`
+treats an index it cannot read as an index that is not there, and
+`scripts/audit-manage-issues.py` closes an open backlog issue on a
+`not_applicable` verdict with "not applicable to this project". An
+index over the 2 MB read cap, a symlink out of the checkout or a
+directory therefore retires the issue rather than raising. The
+direction is the benign one -- it hides a backlog rather than filing
+work outward -- and the largest index in the fleet is 62 KB, three
+per cent of the cap, so only the symlink and directory cases are
+reachable in practice. What makes it worth recording is that phase
+4's own first review round drew exactly this distinction for a
+historical revision, in the commit "Tell a deleted index from an
+unreadable one", and left the same conflation at HEAD. The class was
+swept one level deep.
+
+**What was reported and did not hold.** A reader grouped the `pass`
+branch with F3, on the grounds that a verdict of `pass` also closes
+the issue and this repository reports `pass` with "1 terminal row(s)
+the history does not date: PLAN-llm-doc-structure.md". That row is
+not a defect: the oldest revision of this repository's own
+`docs/plans/index.md` is 81 days old against a 90-day threshold, so
+the history cannot establish that the row has been terminal for long
+enough, and the criterion reports it rather than counting it. The
+report reaches the compliance page because it is in `details`. The
+same reader's hypothesis that the row exercises the untested
+working-tree branch below is also wrong, for the same reason.
+
+**Test coverage.** Twenty-five mutants on copies of `scripts/`, each
+under `timeout`, script at `scratchpad/p05/5c/mutate.py`. Every
+property the plan named is killed: the committer date, the early
+stop, the shallow refusal, the 2 MB cap in four variants, the walk
+budget in two, the terminal-to-terminal clock, and the statusless
+table in three. Three gaps survive, all in the follow-up pull
+request's scope: a row that is terminal only in an uncommitted edit
+is left undated by design and asserted nowhere; a walk that stops one
+revision late changes only the lower-bound figure, which no test
+asserts with two old revisions; and `PLAN_RETIREMENT_WALK_BUDGET`'s
+value of 300 is asserted nowhere, because the budget test sets it to
+zero.
+
+**Security.** No critical or high finding. Nothing in the five ranges
+widens a workflow's `permissions:`, adds a trigger, touches a
+privileged workflow or ships a template. The criterion runs no shell:
+every git call is an argv list whose only non-constant is a commit
+sha, it makes no GitHub call at all, and a link's path becomes a
+basename used as a dictionary key and quoted text, so a traversal
+attempt publishes a word and reads nothing. Published length is
+bounded by `plan_quote` and item count by `PLAN_INDEX_MAX_SHOWN`;
+markdown structure is removed by `defuse()` on the page and by
+`render_details` in an issue body. `gh repo clone --filter=blob:none`
+was measured to leave only the remote URL, `promisor` and the filter
+in `.git/config` -- no credential helper and no token -- so a lazy
+fetch can only reach the audited repository's own origin. Whether the
+runner carries a global credential helper is unestablished and does
+not widen anything: the step's token is already read-only over that
+history. Fail-closed was tested rather than reasoned, against three
+clones: shallow gives `error`, filtered with an unreachable promisor
+remote gives `error`, normal gives `pass`, and an `error` leaves
+every issue untouched. Two informational notes: an error's details
+carry git's stderr verbatim, which stays in the workflow log and
+artifact because only a `fail` reaches the compliance page; and where
+a plan is listed twice, the first row wins.
+
+**Code quality.** No finding. `scripts/audit/checks/plans.py` at 2331
+lines sits below `ci_workflows.py` at 2605 and `packaging.py` at
+2375, which are the same shape, so the size is the cost of 69
+criteria living in families rather than a defect; there is an
+optional 535-line seam at the retirement block, which reads history
+where everything above it reads the tree. Three advisories, none
+taken here: no CI path exercises a filtered clone's lazy fetch,
+because the smoke job was deliberately made hermetic in phase 4's
+second review round; one `git show` per revision is a sequential
+round trip where `git cat-file --batch` after one fetch would be
+cheaper, which phase 4 measured and declined; and the 2 MB cap is
+applied to the re-encoded string, so a revision of mangled bytes can
+trip it slightly early.
+
+**Documentation.** F2 above, plus one gap F1 subsumes: no page says
+what an `error` from this criterion costs the audit leg. The six
+facts the plan asked about agree across every page that states them
+-- the ninety-day clock and what starts it, the committer date and
+why, a statusless table, what the clone can read, that "retired" is
+not a status, and the one place the criterion and the helper disagree
+on purpose. `grep -niE 'phase [0-9]' docs/plan-retirement.md` prints
+nothing. Two lines of the criterion's spec page run to 71 columns
+against a 70-column file, which is a nit and is left.
+
+**llm-setup, against the five-item floor.** llm-setup has no
+`PUSH-AUDIT.md`, so decision 2's floor was applied to its five
+ranges, inline, because the repository is private. All twenty-five
+cells have a verdict. Item 1: all five landings are two-parent merge
+commits and ancestors of `origin/main`, read against their first
+parents. Item 2: nothing the ranges add runs unattended; the one
+thing that runs on its own schedule is a session-start hook, whose
+output goes into a session a person reads, and whose new block
+suppresses git's stderr, so a git failure makes it under-report a
+branch rather than complain -- worth knowing in a safety net added
+because a branch was lost. Item 3: no token, key or credential in any
+range, and nothing travelled from the private repository to a more
+public one. Item 4: three functions changed signature rather than
+being removed, all three still present, with no consumer left naming
+a gone symbol in the helper, its tests, the skills or this
+repository's documentation. Item 5: not applicable, llm-setup
+publishes nothing -- no workflow, no package, no release; it is
+installed by symlink. Its suite is 773 tests, OK. Its working tree
+carries one unrelated uncommitted edit, which was left alone. The
+reserved check over the clone found one hit for the thirteen retired
+plans, an illustrative plan name in a skill reference page rather
+than a pointer, left as an advisory.
+
+**The citations this phase owes rather than re-runs.**
+divergulent#143 ran its runbook in full: wave 1 clean, one blocking
+item fixed (two stale step citations in a tool README), two security
+boundaries restored that had survived only in deleted text, and one
+advisory declined. kerbside#686: wave 1 and the mechanical half of
+wave 2 green, one documentation error fixed, no lost security
+constraint, with fail-closed host subject, ticket and token handling
+checked. ryll#700: wave 1 green, all four wave 2 agents, and the
+audit changed the author's mind about one judgement. Phase 4's two
+index-marking changes, divergulent#152 and kerbside#712, each had
+their repository's runbook applied as a read of the diff, which is
+proportionate to an eight- and a nine-line edit of one markdown
+table, and found nothing. `$HOME/bin/retire-plans check` exits 0 on
+all three pilots' default branches, `retired-row-markers` included.
+
+**The declined review item from #386.** Phase 4's two review rounds
+raised 21 items and took 18. The one left open was whether a promisor
+fetch failure should surface inside the criterion, where it does, or
+move to the authenticated clone step; it was declined on the grounds
+that the two measurable alternatives cost more than they saved, and
+that record was a commit message and a pull request comment rather
+than this plan. F1 is that item, found from the other end, and the
+follow-up pull request takes it.
+
+**What is outstanding.** Decision 5 holds: this phase closes itself
+out, and the plan is not complete until the findings are resolved or
+declined in writing. F1, F2, F3 and F6 and the three test gaps are
+one follow-up pull request against this repository, which records
+this phase's merge commit and marks the plan `Complete`. F4 and F5
+are work in kerbside, ryll, visual-digest-rust and shakenfist, so
+they are filed there rather than fixed here; F4 is a deletion to
+undo from history rather than a pointer to rewrite, and it is the
+one a reader should look at first.
 
 #### Risks and mitigations
 
