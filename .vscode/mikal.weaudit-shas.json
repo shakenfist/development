@@ -505,10 +505,6 @@
       "sha": "11da7b42360c4037b712cc5111b19ce1fd3d1383",
       "date": "2026-10-21"
     },
-    "scripts/tests/test_ci_prune_reviews.py": {
-      "sha": "8fd9ff71011430fca813a7ec26d62408445dc4b9",
-      "date": "2026-11-01"
-    },
     "scripts/tests/test_ci_workflows.py": {
       "sha": "5faeedf2abf5f340bb0c6e3c6a516e352ccc8f7b",
       "date": "2026-10-31"

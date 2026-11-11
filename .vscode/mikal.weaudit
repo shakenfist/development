@@ -853,10 +853,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_ci_prune_reviews.py",
-      "author": "mikal"
-    },
-    {
       "path": "templates/review-tracking/README.md",
       "author": "mikal"
     },
