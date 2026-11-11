@@ -34,6 +34,14 @@ finished again starts a new clock. A move from one terminal status to
 another, such as `Complete` to `Superseded`, does not, and neither
 does an edit that leaves the status alone.
 
+A revision in which the row cannot be read as terminal, for any
+reason, reads as "not terminal" there, and the clock starts after it.
+That covers a live status, but equally a status outside the shared
+vocabulary and a table reshaped so that the row no longer parses. This
+is the conservative direction, because it delays a retirement rather
+than causing one, and it means an index-wide reformat resets every
+row's clock.
+
 A row is identified by its plan file's name, so renaming the file and
 its index link together is a row the earlier revisions do not have,
 and its clock starts at the rename. That is the direction to err in:
@@ -57,7 +65,17 @@ in *this* repository.
 The checkout the audit reads must carry that history. A shallow one
 does not, so the criterion refuses to answer rather than report that
 nothing is eligible; the audit workflow clones with
-`--filter=blob:none` for this reason.
+`--filter=blob:none` for this reason. A filtered clone fetches a
+historical blob at the moment the criterion reads it, and the clone
+leaves no credential behind, so that fetch is anonymous: the criterion
+can only read the history of a repository the audit can read
+anonymously.
+
+There are three ways the criterion reports `error` rather than a
+verdict: a shallow checkout, a revision of the index larger than the
+2 MB cap a file is read under, and a walk that exceeds its five-minute
+budget. Each is a statement about the audit rather than a finding about
+the repository, which is why it files no issue and closes none.
 
 ### Rows that are reported rather than counted
 
@@ -99,7 +117,9 @@ the work it does.
 A plan listed in a table that has no `Status` column records no
 status, so it can never become eligible. The criterion reports those
 plans and never fails for them, on a passing result as much as on a
-failing one.
+failing one. The `findings` list carries every such plan, while the
+`details` string carries a bounded summary of the same list, so a
+passing result has `findings` on purpose.
 
 That is deliberate, and it is the rule most likely to be argued with,
 because it leaves a repository able to hold finished plans out of

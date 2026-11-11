@@ -18,6 +18,7 @@ Run with: python3 scripts/tests/test_plans.py
 # are made of plan-shaped fixtures, and their docstrings cite
 # real plans as the shapes those fixtures copy.
 
+import locale
 import os
 import re
 import subprocess
@@ -4042,6 +4043,34 @@ class PlanRetirementTest(CheckTestCase):
             {'docs/plans/index.md': self.index(
                 self.row('PLAN-a.md', 'Complete'))},
             'restore the index', when=self.days_ago(10))
+        result = self.assert_fail(self.check())
+        self.assertIn('PLAN-a.md (Complete, at least 120 days)',
+                      result['details'])
+
+    def test_a_non_ascii_revision_is_read_under_an_ascii_locale(self):
+        # git's output is decoded as UTF-8 whatever the runner's
+        # locale is. The fleet's indexes carry check marks and em
+        # dashes, and a runner on the C locale would otherwise raise
+        # while decoding a historical revision. The locale is set to
+        # C around the check so that the case fails without the
+        # decoding rather than passing because this machine happens to
+        # run in UTF-8; the content is written as UTF-8 bytes, not
+        # through the fixture's locale-encoded writer.
+        self.history([
+            (300, self.index(self.row('PLAN-a.md', 'In progress'))),
+            (120, self.index(self.row('PLAN-a.md', 'Complete'))),
+        ])
+        non_ascii = self.index(self.row(
+            'PLAN-a.md', 'Complete', name='A plan \u2014 \u2713'))
+        with open(os.path.join(self.fixture.path, 'docs/plans/index.md'),
+                  'wb') as f:
+            f.write(non_ascii.encode('utf-8'))
+        self.fixture.commit('reword the row', when=self.days_ago(60))
+
+        previous = locale.setlocale(locale.LC_CTYPE)
+        self.addCleanup(locale.setlocale, locale.LC_CTYPE, previous)
+        locale.setlocale(locale.LC_CTYPE, 'C')
+
         result = self.assert_fail(self.check())
         self.assertIn('PLAN-a.md (Complete, at least 120 days)',
                       result['details'])

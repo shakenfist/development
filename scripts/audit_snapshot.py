@@ -90,11 +90,19 @@ VOLATILE_FIELDS = ('timestamp',)
 # is compared is what the audit said and not when it said it.
 CLOCK_AGE_RE = re.compile(r'at least \d+ days')
 CLOCK_AGE_PLACEHOLDER = 'at least N days'
+CLOCK_AGE_CHECK = 'plan-retirement'
 
 
 def comparable_details(check):
-    """A check's details with the ages that move with the clock fixed."""
-    return CLOCK_AGE_RE.sub(CLOCK_AGE_PLACEHOLDER, check.get('details', ''))
+    """A check's details with the ages that move with the clock fixed.
+
+    Only for the check that emits them: the same words in another
+    check's details would be text the comparison is meant to see.
+    """
+    details = check.get('details', '')
+    if check.get('id') != CLOCK_AGE_CHECK:
+        return details
+    return CLOCK_AGE_RE.sub(CLOCK_AGE_PLACEHOLDER, details)
 
 
 def normalise(results):

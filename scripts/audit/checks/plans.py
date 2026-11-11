@@ -1855,6 +1855,19 @@ PLAN_RETIREMENT_SHOW_TIMEOUT = 60
 PLAN_RETIREMENT_WALK_BUDGET = 300
 
 
+#: How git's output is decoded. run_tool() would otherwise decode it
+#: with the runner's locale under errors='strict', and this is the
+#: first criterion to push whole markdown documents through it: the
+#: fleet's plan indexes carry check marks and em dashes, so on a runner
+#: whose locale is C or POSIX a historical revision would raise
+#: UnicodeDecodeError instead of reaching a verdict. UTF-8 with
+#: replacement is what Repo.read() does to the index as it stands, so a
+#: revision of it is read the same way. Applied to the listing and the
+#: log as well as the content, because a path or a ref can carry
+#: non-ASCII too.
+PLAN_RETIREMENT_GIT_TEXT = {'encoding': 'utf-8', 'errors': 'replace'}
+
+
 #: A retired plan's row: the link in its Plan cell is a permalink into
 #: this repository, pinning the commit that holds the plan's final
 #: text (docs/plan-retirement.md, "The index row stays"). Owner and
@@ -2063,15 +2076,21 @@ def plan_retirement_clocks(repo_path, names, threshold):
     log = run_tool(
         ['git', '-C', repo_path, 'log', '--format=%H %ct', 'HEAD',
          '--', PLAN_INDEX_PATH],
-        'git log', timeout=PLAN_RETIREMENT_LOG_TIMEOUT)
+        'git log', timeout=PLAN_RETIREMENT_LOG_TIMEOUT,
+        **PLAN_RETIREMENT_GIT_TEXT)
     if log.returncode != 0:
         raise ToolFailure(
             f'Could not read the history of {PLAN_INDEX_PATH}: '
             f'{log.stderr.strip()}')
 
-    fields = log.stdout.split()
-    revisions = [(sha, int(when))
-                 for sha, when in zip(fields[0::2], fields[1::2])]
+    # One revision per line, so that a change to the format fails here
+    # on the unpacking rather than pairing shas with the wrong dates.
+    revisions = []
+    for line in log.stdout.splitlines():
+        if not line.strip():
+            continue
+        sha, when = line.split()
+        revisions.append((sha, int(when)))
 
     clocks = {}
     pending = set(names)
@@ -2100,7 +2119,8 @@ def plan_retirement_clocks(repo_path, names, threshold):
         listed = run_tool(
             ['git', '-C', repo_path, 'ls-tree', '--name-only', sha,
              '--', PLAN_INDEX_PATH],
-            'git ls-tree', timeout=PLAN_RETIREMENT_LOG_TIMEOUT)
+            'git ls-tree', timeout=PLAN_RETIREMENT_LOG_TIMEOUT,
+            **PLAN_RETIREMENT_GIT_TEXT)
         if listed.returncode != 0:
             raise ToolFailure(
                 f'Could not list {PLAN_INDEX_PATH} in {sha}: '
@@ -2115,7 +2135,8 @@ def plan_retirement_clocks(repo_path, names, threshold):
 
         shown = run_tool(
             ['git', '-C', repo_path, 'show', f'{sha}:{PLAN_INDEX_PATH}'],
-            'git show', timeout=PLAN_RETIREMENT_SHOW_TIMEOUT)
+            'git show', timeout=PLAN_RETIREMENT_SHOW_TIMEOUT,
+            **PLAN_RETIREMENT_GIT_TEXT)
         if shown.returncode != 0:
             raise ToolFailure(
                 f'Could not read {PLAN_INDEX_PATH} at {sha}, which that '
@@ -2235,17 +2256,22 @@ class PlanRetirement(Check):
                 waiting += 1
                 continue
             days = int((now - when) // PLAN_RETIREMENT_DAY)
-            overdue.append(f'{name} ({status}, at least {days} days)')
+            # A file name is the repository's to choose the length of,
+            # like any other cell this quotes, so it is bounded where
+            # it is published; the full name stays the key above.
+            shown = plan_quote(name)
+            overdue.append(f'{shown} ({status}, at least {days} days)')
             findings.append(
-                f'{PLAN_INDEX_PATH}:{lineno}: {name} is {status} and has '
+                f'{PLAN_INDEX_PATH}:{lineno}: {shown} is {status} and has '
                 f'been terminal for at least {days} days')
 
         unstatused = sorted(
-            name for names in index['unstatused'].values() for name in names)
+            plan_quote(name) for names in index['unstatused'].values()
+            for name in names)
         reports = [
             (f'{len(index["retired"])} row(s) already retired',
              'its link is a permalink into this repository',
-             sorted(index['retired'])),
+             sorted(plan_quote(name) for name in index['retired'])),
             (f'{len(index["cross_repository"])} row(s) naming a plan in '
              f'another repository',
              'its link leaves this repository',
@@ -2265,7 +2291,7 @@ class PlanRetirement(Check):
             (f'{len(undated)} terminal row(s) the history does not date',
              'no revision of it inside the window shows its status '
              'changing',
-             undated),
+             [plan_quote(name) for name in undated]),
         ]
 
         # Everything reported goes into details as well as into

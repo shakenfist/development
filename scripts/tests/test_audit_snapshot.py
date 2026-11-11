@@ -110,6 +110,18 @@ class CompareRepoTest(unittest.TestCase):
             [],
         )
 
+    def test_the_age_phrase_is_only_normalised_for_plan_retirement(self):
+        # The same words in another check's details are text the
+        # comparison is meant to see, so a future check that happens
+        # to use them does not lose them from the byte-for-byte net.
+        differences = audit_snapshot.compare_repo(
+            result('ryll', [check('other-check', 'fail',
+                                  'stale for at least 97 days')]),
+            result('ryll', [check('other-check', 'fail',
+                                  'stale for at least 98 days')]))
+        self.assertEqual(len(differences), 1)
+        self.assertIn('details changed', differences[0][1])
+
     def test_a_different_plan_list_is_still_a_difference(self):
         # The normalisation is of the count alone. Which plans the
         # check names is what the snapshot is kept for, and an age
