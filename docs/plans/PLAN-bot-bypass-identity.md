@@ -2628,9 +2628,14 @@ request under decision 4.
    "`sfconductor`'s bypasses are pull request merges that skip the
    queue", not pushes to a default branch. The fix is to drop the list
    and the verb in favour of what was measured, or to quote the table.
-   Introduced by `e460a2b`; the file is new in that range. This is a
-   published specification that carries a human review mark, which is
-   why it leads.
+   Introduced by `e460a2b`; the file is new in that range. It leads
+   because it is a published specification stating a measured fact
+   wrongly, which is the kind of defect this audit exists to find. It
+   carries no human review mark yet -- the page is in scope for
+   whole-file review and has no `REVIEWS.md` row, having been added on
+   2026-11-08 -- so the follow-up's edit stales nothing, and fixing it
+   before anyone reads it for a mark is strictly cheaper than fixing
+   it after.
 
 2. **Three properties of the new criterion are not pinned by its
    tests.** `BypassActorIdentityTest` has eighteen cases and the suite
@@ -2646,10 +2651,15 @@ request under decision 4.
    also sets `custom_branch_policies` to False and the other half
    catches it, leaving True with True unexercised. And widening the
    rule-type test from `pull_request` to also admit `merge_queue`
-   survives, because the fixture for the environment-absent path
-   carries both rule types; a default branch with a merge-queue rule
-   and no pull-request rule, with no environment, is untested and
-   would be reported as protected rather than skipped. The three are
+   survives, because no fixture reaches the rules read with a
+   merge-queue rule and no pull-request rule: the two
+   environment-absent cases answer `[]` and `[{"type":
+   "pull_request"}]`, built by hand, and the `answers()` helper that
+   does default to both rule types is only used by tests that take the
+   environment-present path, which never reads the rules at all. A
+   default branch with a merge-queue rule and no pull-request rule,
+   with no environment, is therefore untested, and would be reported
+   as protected rather than skipped. The three are
    one class of gap -- each fixture carries the whole happy-path
    shape, so a predicate weakened to accept a superset is not caught
    -- and the fix is three cases, not three rewrites.
@@ -2843,11 +2853,14 @@ entries. The fourth is not: the bot's token list is the one cell of
 phase 1's record still pending an operator paste, plan-blocker b2, and
 it is recorded there rather than in Future work.
 
-This phase closes itself out, so its `Status` is `Complete` with no
-`Merged` cell, as the `plan-phase-landing` block allows for exactly
-this row. The plan reaches `Complete` in the follow-up pull request
-that fixes the six findings above and records this phase's merge
-commit.
+This phase closes itself out, so it sets its own `Status` to
+`Complete`. Its `Merged` cell is empty in this pull request for the
+ordinary reason rather than the special one: a phase cannot record its
+own merge commit. The `plan-phase-landing` block's permission to leave
+that cell empty for good belongs to an audit that finds nothing, where
+there is no carrier; this one found six things, so the follow-up pull
+request that fixes them is the carrier, and it fills the cell and
+marks the plan `Complete`.
 
 #### Execution notes
 
@@ -2876,19 +2889,24 @@ commit.
   changed and which is documentation. It was added to that step's
   scope rather than left out.
 
-- Two figures reached the record from a sub-agent's report without
-  being derived first, and the review of this phase's own pull request
-  caught one of them. 2d gave the size of its credential scan as 4160
-  diff lines, which reconciles with nothing here: the seven ranges
-  hold 3368 added and removed lines and the net-effect diff 3277. 2a
-  gave the growth of `scripts/audit/checks/github_config.py` as 222
-  lines, where `git diff --numstat` says 211 added and 11 removed, so
-  200 net from 764. Both now state what was measured here. That makes
-  three times in this plan that a number from a report or a review was
-  written down before being derived -- the first was a review's claim
-  about which commits were reachable from this repository -- which is
-  why the reconciliation was swept rather than fixed one figure at a
-  time.
+- Four claims reached the record before being derived, and the two
+review rounds on this phase's own pull request caught three of them.
+2d gave the size of its credential scan as 4160 diff lines, which
+reconciles with nothing here: the seven ranges hold 3368 added and
+removed lines and the net-effect diff 3277. 2a gave the growth of
+`scripts/audit/checks/github_config.py` as 222 lines, where `git diff
+--numstat` says 211 added and 11 removed, so 200 net from 764. The
+record then explained one surviving mutation by saying the
+environment-absent fixture carries both rule types, which it does not:
+that default belongs to a helper only the environment-present tests
+use. And finding 1 said the specification carries a human review mark,
+where `REVIEWS.md` has no row for a page added on 2026-11-08. Two came
+from sub-agent reports and two were the management session's own, so
+the pattern is not that agents are unreliable: it is that a figure or
+a mechanism is cheap to restate and costly to check, and this record
+restated several before checking them. All four now say what was
+measured, and the first instance in this plan was a review's claim
+about which commits were reachable from this repository.
 
 - 4b, 4c, 4d and 4e ran in parallel, which the step table allows
   because all four are read-only. 4c was the only one to write
@@ -2930,12 +2948,23 @@ commit.
    request (decision 4), and a finding that is only a preference is
    declined in writing rather than actioned.
 
+5. 5. **The follow-up pull request never lands.** Six findings, this
+   phase's `Merged` cell and the plan's path to `Complete` all depend
+   on a pull request that does not exist when this one merges.
+   Mitigation, and it is deliberately outside the plan file, because a
+   plan cannot remind anyone to read it: the index row stays `In
+   progress` while the findings are unresolved, which is what the
+   `plan-index` criterion and a retirement review both read; and the
+   next action is recorded with `plan-blockers` against this plan,
+   which is shown at session start in this repository. Neither depends
+   on someone reopening this section.
+
 #### Definition of done
 
 Every item is checked by the management session from the commands
 and the record, not from a sub-agent's summary.
 
-* * Wave 1 has run once per range for all seven ranges in survey item
+* Wave 1 has run once per range for all seven ranges in survey item
   4, and the Record holds a count for every range and command pair,
   including the pairs that matched nothing, as rows or as a matrix.
 * `pre-commit run --all-files` passes on the branch, and `python3 -m
@@ -2952,9 +2981,10 @@ and the record, not from a sub-agent's summary.
   `tools/ci-prune-reviews.sh`, and the Record cites that run.
 * The Record says what the audit found, or in one sentence that it
   found nothing.
-* This phase's `Status` is `Complete` in the Execution table and in
-  the plan's row in `docs/plans/index.md`, and its `Merged` cell is
-  empty, as the only row permitted to omit one.
+* This phase's `Status` is `Complete` in the Execution table, the
+  plan's index row describes phase 4 as complete, and this phase's
+  `Merged` cell is empty in this pull request because a phase cannot
+  record its own merge commit. The follow-up pull request fills it.
 * Every finding is either fixed in a follow-up pull request, which
   records this phase's merge commit and marks the plan `Complete`,
   or declined in writing in this section.
