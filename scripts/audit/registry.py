@@ -49,6 +49,7 @@ CHECKS = [
     plans.PlanAuditPhase(),
     plans.PushAudit(),
     plans.PlanTemplate(),
+    plans.PlanRetirement(),
     release.ReleaseProcess(),
     packaging.Renovate(),
     packaging.PinIndirectDependencies(),

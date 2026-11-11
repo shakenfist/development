@@ -87,6 +87,56 @@ class CompareRepoTest(unittest.TestCase):
         self.assertIn('renovate.json found', differences[0][1])
         self.assertIn('renovate.json ok', differences[0][1])
 
+    def test_an_age_that_moves_with_the_clock_is_not_a_difference(self):
+        """plan-retirement's ages, which a second day's run recomputes.
+
+        The details string says how long each plan's row has been
+        terminal, because that is what a person reading the issue
+        needs in order to decide whether the finding is right. It is
+        also a different number tomorrow for the same tree, and
+        counting that as a difference would leave this tool reporting
+        one for every repository with an eligible plan.
+        """
+        before = ('2 plan(s) terminal for more than 90 days: PLAN-a.md '
+                  '(Complete, at least 97 days), PLAN-b.md (Complete, at '
+                  'least 91 days)')
+        after = ('2 plan(s) terminal for more than 90 days: PLAN-a.md '
+                 '(Complete, at least 98 days), PLAN-b.md (Complete, at '
+                 'least 92 days)')
+        self.assertEqual(
+            audit_snapshot.compare_repo(
+                result('ryll', [check('plan-retirement', 'fail', before)]),
+                result('ryll', [check('plan-retirement', 'fail', after)])),
+            [],
+        )
+
+    def test_the_age_phrase_is_only_normalised_for_plan_retirement(self):
+        # The same words in another check's details are text the
+        # comparison is meant to see, so a future check that happens
+        # to use them does not lose them from the byte-for-byte net.
+        differences = audit_snapshot.compare_repo(
+            result('ryll', [check('other-check', 'fail',
+                                  'stale for at least 97 days')]),
+            result('ryll', [check('other-check', 'fail',
+                                  'stale for at least 98 days')]))
+        self.assertEqual(len(differences), 1)
+        self.assertIn('details changed', differences[0][1])
+
+    def test_a_different_plan_list_is_still_a_difference(self):
+        # The normalisation is of the count alone. Which plans the
+        # check names is what the snapshot is kept for, and an age
+        # written over cannot be allowed to take a name with it.
+        before = ('1 plan(s) terminal for more than 90 days: PLAN-a.md '
+                  '(Complete, at least 97 days)')
+        after = ('1 plan(s) terminal for more than 90 days: PLAN-b.md '
+                 '(Complete, at least 97 days)')
+        differences = audit_snapshot.compare_repo(
+            result('ryll', [check('plan-retirement', 'fail', before)]),
+            result('ryll', [check('plan-retirement', 'fail', after)]),
+        )
+        self.assertEqual(len(differences), 1)
+        self.assertIn('details changed', differences[0][1])
+
     def test_a_dropped_check_is_a_difference(self):
         differences = audit_snapshot.compare_repo(
             result('ryll', [check('renovate'), check('llm-tooling')]),

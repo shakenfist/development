@@ -46,7 +46,8 @@ projects consistent. It contains no application code.
 The weekly `consistency-audit.yml` workflow turns "are the projects
 consistent" into a measurement, in four stages:
 
-1. A matrix job per target repository shallow-clones it and runs
+1. A matrix job per target repository clones it filtered of blobs, so
+   that the history of its plan index is readable, and runs
    `scripts/audit-check.py`, uploading its `audit-result-<repo>.json`
    as the artifact `audit-<repo>`. Checks are file-based where
    possible; a few query the GitHub API through `gh`, and the

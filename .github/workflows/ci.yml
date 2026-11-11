@@ -87,9 +87,22 @@ jobs:
     steps:
       # As in consistency-audit.yml: nothing here pushes, and skillsaw's
       # unpinned dependencies run below.
+      #
+      # With history, because this job runs the audit against this
+      # checkout and plan-retirement dates a plan from the history of
+      # docs/plans/index.md. A shallow checkout makes it refuse to
+      # answer rather than report that nothing is eligible, and a
+      # criterion that raises is what this job exists to catch. No
+      # blob filter, unlike the scheduled workflow's clone: this
+      # repository is 5.8 MB, so the whole history is cheap, and it
+      # keeps the job hermetic -- a filtered checkout would fetch each
+      # historical index revision from github.com while the job
+      # deliberately runs without a token. The scheduled workflow
+      # keeps its filter, where 24 repositories make clone size matter.
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       # The same floor consistency-audit.yml asserts, for the same
       # reason: the audit runs under the runner's python3, not a venv's.
