@@ -127,8 +127,8 @@ REPO_OVERRIDES = {
     'private-ci': {
         'only_checks': [
             'plan-phase-references', 'plan-source-references',
-            'plan-index', 'plan-template', 'eol-producers',
-            'sfui-vendor',
+            'plan-index', 'plan-template', 'plan-retirement',
+            'eol-producers', 'sfui-vendor',
         ],
     },
     # images publishes guest images and has been excluded from the

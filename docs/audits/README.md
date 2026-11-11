@@ -96,23 +96,30 @@ Two projects are in scope for part of the audit only:
 
 - private-ci is audited for the `plan-phase-references`,
   `plan-source-references`, `plan-index`, `plan-template`,
-  `eol-producers` and `sfui-vendor` checks, and nothing else. It is
-  internal tooling and excluded from the conventions, but it vendors
-  sfui and a vendored copy drifts silently: nothing in the consumer
-  fails when the copy falls behind, or when someone edits it in place
-  and the next sync discards the edit. It also owns the runner-label
-  producer definitions `eol-producers` checks against the end-of-life
-  table, so that applies too. It plans like the rest of the fleet too,
-  so the four criteria that report a defect in a plan as written
-  apply. The three that do not are `plan-audit-phase`, because the
-  plans written there before it adopted the template track progress
-  as checkpoint sections rather than as a phase table and enabling it
-  would file an issue for a retrofit nobody has decided to do;
-  `push-audit`, which has no `PUSH-AUDIT.md` to read until that
-  changes; and `plan-history-in-source`, which comes in with
-  `push-audit`, since that runbook carries the rule it measures. It is
-  not expected to grow a `pyproject.toml`, a renovate config,
-  release workflows, or a `develop` branch.
+  `plan-retirement`, `eol-producers` and `sfui-vendor` checks, and
+  nothing else. It is internal tooling and excluded from the
+  conventions, but it vendors sfui and a vendored copy drifts
+  silently: nothing in the consumer fails when the copy falls behind,
+  or when someone edits it in place and the next sync discards the
+  edit. It also owns the runner-label producer definitions
+  `eol-producers` checks against the end-of-life table, so that
+  applies too. It plans like the rest of the fleet too, so the four
+  criteria that report a defect in a plan as written apply, and
+  `plan-retirement` with them: a plan index is maintained here like
+  anywhere else, and retirement maintains that page rather than
+  changing how a plan is written. Its table records no status, so
+  nothing in it is eligible and the criterion reports those plans on a
+  passing result instead -- which is the only place the fleet's
+  largest statusless table is visible at all. The three that do not
+  are `plan-audit-phase`, because the plans written there before it
+  adopted the template track progress as checkpoint sections rather
+  than as a phase table and enabling it would file an issue for a
+  retrofit nobody has decided to do; `push-audit`, which has no
+  `PUSH-AUDIT.md` to read until that changes; and
+  `plan-history-in-source`, which comes in with `push-audit`, since
+  that runbook carries the rule it measures. It is not expected to
+  grow a `pyproject.toml`, a renovate config, release workflows, or a
+  `develop` branch.
 
 - images is audited for the `eol-distro` check, and nothing else. It
   is built fresh every night and the fleet's CI boots on its output,

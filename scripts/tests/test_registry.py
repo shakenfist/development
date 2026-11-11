@@ -533,8 +533,14 @@ class RepoOverridesTest(unittest.TestCase):
         self.assertEqual(
             props['only_checks'],
             ['plan-phase-references', 'plan-source-references',
-             'plan-index', 'plan-template', 'eol-producers',
-             'sfui-vendor'])
+             'plan-index', 'plan-template', 'plan-retirement',
+             'eol-producers', 'sfui-vendor'])
+        # plan-retirement is present although the conventions do not
+        # otherwise apply here: its index is maintained like the
+        # fleet's, retirement maintains that page rather than changing
+        # how a plan is written, and its statusless table is reported
+        # by nothing else. It cannot fail while that table records no
+        # status, since nothing in it can become eligible.
         # plan-audit-phase and push-audit are deliberately absent: the
         # plans written there before it adopted the template do not
         # carry a push audit phase, so enabling plan-audit-phase would
@@ -605,12 +611,12 @@ class CheckScopeTest(unittest.TestCase):
 
         reason = ('private-ci is audited for eol-producers, '
                   'plan-index, plan-phase-references, '
-                  'plan-source-references, plan-template, '
-                  'sfui-vendor only')
+                  'plan-retirement, plan-source-references, '
+                  'plan-template, sfui-vendor only')
         scoped = {
             'plan-phase-references', 'plan-source-references',
-            'plan-index', 'plan-template', 'eol-producers',
-            'sfui-vendor',
+            'plan-index', 'plan-template', 'plan-retirement',
+            'eol-producers', 'sfui-vendor',
         }
         by_id = {c['id']: c for c in results['checks']}
         self.assertEqual(len(by_id), len(ISSUE_TITLES))
