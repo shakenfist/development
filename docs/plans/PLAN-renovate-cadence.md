@@ -811,12 +811,10 @@ if step 1b lands without 1c.
 
 #### Record
 
-Filled in as the steps run. Every entry cites the command or file
-it came from, and one that could not be read says so. Dates are
-Australian Eastern Daylight Time (UTC+11). To capture:
+Every entry cites the command or file it came from, and one that
+could not be read says so. Dates are Australian Eastern Daylight
+Time (UTC+11).
 
-- 1d: that both pages were read against each other, and any fact
-  that had to be reconciled.
 **Security schedule (1a).** Ran 2026-11-12. `vulnerabilityAlerts`
 drops all three of `schedule`, `minimumReleaseAge` and `groupName`
 by default, so the preset needs no `vulnerabilityAlerts` object at
@@ -961,8 +959,35 @@ test was added for it. The management session re-ran the substring
 and dropped-manager mutants on copies of the tree and confirms both
 fail.
 
-- Open questions settled: 2 (`Australia/Sydney`) and 5 (no OSV); 3
-  stands as planned, confirmed by the operator on 2026-11-12.
+**The documentation (1d).** Done 2026-11-12.
+`docs/audits/renovate.md` and `templates/renovate/README.md` each
+gained a section on the preset, and the inverted `renovate.json`
+story --- the schema and one `extends`, with a repository adding only
+what is particular to it --- replaced the per-repository adaptation
+both pages described. The five facts that appear on both pages were
+compared mechanically rather than by reading: the cadence, the
+limits, the CI-tooling group's coverage, the security paragraph and
+the `enabled: false` exception each appear exactly once on each page
+and are identical. Nothing had to be reconciled, and neither page's
+verbatim-copy claim for `renovate.yml` was touched, which survey
+item 4 is the reason for.
+
+Three corrections by the management session rather than the step.
+The specification's "What we check" list had come to say that
+`renovate.json` extends the preset, which the check does not verify
+--- a repository keeping the policy locally still passes --- and a
+criterion page that overstates its own check misleads the one reader
+who consults it, the person working out what their repository is
+measured on. The new section described the audit's preset handling
+in terms of "tests" where the code has helper functions, which also
+risks this repository's own documentation test holding prose that
+names a test to naming one that exists. The rest were rewraps and
+one sentence in which "the preset" meant both the built-in
+`customManagers:githubActionsVersions` and the local fleet preset in
+the same breath.
+
+**Open questions settled.** 2 (`Australia/Sydney`) and 5 (no OSV);
+3 stands as planned, confirmed by the operator on 2026-11-12.
 
 #### Execution notes
 
