@@ -825,6 +825,217 @@ depends on, by hand, in an order whose mistakes are silent. Before
 touching GitHub, back brief the four changes, their order, and what
 will be read to prove each one. 2b needs no gate.
 
+**Back brief outcome.** Four answers, all recorded here because
+later steps read them. The browser half of 2a -- installing the App
+and generating a key -- is the operator's, because this session's
+token can neither list nor change an installation's repositories,
+and the key is handled only by them. The key is a freshly generated
+one rather than a reuse: the original was shredded in
+`PLAN-bot-bypass-identity.md` step 1b, which the brief did not
+account for. Decision 5's two pull requests stand as written, with
+2a's record first and 2b off updated `main`, although the ruleset
+change itself never passes through a pull request -- what the first
+one lands is the record of it. And this session may push and open
+both pull requests for this phase.
+
+**Step 2a record (2026-11-11, UTC throughout; GitHub renders the
+ruleset's own `updated_at` in +11:00).** The four changes were made
+in decision 7's order, each read back before the next. The operator
+made changes 1 and 2 in the browser and with `gh secret set`; the
+management session made changes 3 and 4 through the API.
+
+1. **Installed** `shakenfist-review-marks` on `shakenfist/actions`
+   from the organisation's GitHub Apps page, taking the installation
+   from four repositories to five. This is the one change nothing in
+   this session can read back directly: a personal access token
+   cannot list an installation's repositories (survey), and
+   `user/installations/176803138/repositories` answers 403 to this
+   session's token. It is attested twice instead, both indirectly:
+   GitHub accepted app id 5538020 as an `Integration` bypass actor
+   in change 3, and the `prune-reviews` run below minted a token
+   from the key, which an App that is not installed cannot do.
+2. **Set the key** as an environment secret.
+   `repos/shakenfist/actions/environments/review-marks/secrets`
+   names `REVIEW_MARKS_APP_KEY` with `created_at` and `updated_at`
+   both `2026-11-11T18:48:11Z` -- equal, so this is a new secret
+   rather than an overwrite, which is the reading that confirms
+   `actions` held no key before (decision 7). `gh secret list --repo
+   shakenfist/actions` prints nothing at all: there is no
+   repository-level copy of this or any other secret.
+   `REVIEW_MARKS_APP_CLIENT_ID` remains an organisation variable
+   with `ALL` visibility, unchanged since 2026-10-30, and nothing
+   was added for it. The operator shredded the key file afterwards.
+   `repos/shakenfist/actions/environments/review-marks` still
+   carries exactly one protection rule, `branch_policy`, whose one
+   policy is the branch `main`; no reviewers and no wait timer were
+   added, so a run on `main` is admitted without an approval and a
+   run on any other ref is not admitted at all.
+3. **Added the bypass actor.** The GET answered `has
+   bypass_actors: true` with the list `[]`, so risk 1's guard passed
+   and nothing was removed; the App was appended rather than
+   substituted. The script that made the change refuses to continue
+   when that assertion fails, which is the mitigation risk 1 asks
+   for rather than a promise of care.
+4. **Added the two rules**, preserving `deletion`,
+   `non_fast_forward` and the `~DEFAULT_BRANCH` condition. The
+   parameter sets were copied from instar's live ruleset rather than
+   composed from the API reference, which is also where
+   `integration_id: 15368` for GitHub Actions comes from. instar
+   requires `Can enqueue` and `Can merge` because it has a merge
+   queue; `actions` has none, so the four contexts here are job
+   names.
+
+The whole ruleset as read back afterwards, with `_links` removed:
+
+```json
+{
+  "id": 21132503,
+  "name": "Protect default branch history",
+  "target": "branch",
+  "source_type": "Repository",
+  "source": "shakenfist/actions",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "exclude": [],
+      "include": [
+        "~DEFAULT_BRANCH"
+      ]
+    }
+  },
+  "rules": [
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": true,
+        "required_reviewers": [],
+        "require_code_owner_review": false,
+        "dismissal_restriction": {
+          "enabled": false,
+          "allowed_actors": []
+        },
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": false,
+        "require_extra_approval_for_unattributed_changes": true,
+        "allowed_merge_methods": [
+          "merge",
+          "squash",
+          "rebase"
+        ]
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {
+            "context": "Check paths",
+            "integration_id": 15368
+          },
+          {
+            "context": "Lint",
+            "integration_id": 15368
+          },
+          {
+            "context": "Unit tests",
+            "integration_id": 15368
+          },
+          {
+            "context": "gitleaks",
+            "integration_id": 15368
+          }
+        ]
+      }
+    }
+  ],
+  "node_id": "RRS_lACqUmVwb3NpdG9yec41biqPzgFCdNc",
+  "created_at": "2026-08-21T17:25:43.123+10:00",
+  "updated_at": "2026-11-12T05:49:25.598+11:00",
+  "bypass_actors": [
+    {
+      "actor_id": 5538020,
+      "actor_type": "Integration",
+      "bypass_mode": "always"
+    }
+  ],
+  "current_user_can_bypass": "never"
+}
+```
+
+`current_user_can_bypass: "never"` is worth noting: the operator's
+own credential has no bypass, so the only identity that can push to
+`actions` main is the App's per-run token.
+`repos/shakenfist/actions/rules/branches/main` reports the four
+rules, all sourced from ruleset 21132503, and its
+`required_status_checks` contexts are exactly `Check paths`, `Lint`,
+`Unit tests` and `gitleaks`.
+
+**What 2a proved, and the one thing it did not.** Each proof is
+recorded with the reading that establishes it rather than a verdict.
+
+- **A direct push to main is refused.** A trivial empty commit pushed
+  from the operator's own credential was declined with `GH013`,
+  naming both new rules: "Changes must be made through a pull
+  request" and "4 of 4 required status checks are expected".
+  `rulesets/rule-suites?time_period=day` records it as
+  `actor_name: mikalstill`, `refs/heads/main`, `result: fail`.
+- **A review-only pull request still merges.** actions#250 added one
+  file under `docs/`, which the `Check paths` filter excludes from
+  `code`. `Check paths` and `gitleaks` succeeded; `Lint` and `Unit
+  tests` skipped, as their `needs.check_paths.outputs.code_changed
+  != 'false'` condition intends; `Automated reviewer` skipped
+  because its dependencies did. The pull request then read
+  `mergeable: MERGEABLE`, `mergeStateStatus: CLEAN`. That is
+  decision 1's load-bearing premise -- that a skipped job satisfies
+  a required check -- measured rather than assumed, and it is the
+  reason `Lint` and `Unit tests` can be required at all. The pull
+  request was closed unmerged and its branch deleted; `actions` main
+  is still c057113, unchanged by anything in 2a.
+- **The App's token mints, which is also the only direct evidence
+  the App is installed.** Run 43081577539, `workflow_dispatch` on
+  `main`: `HAS_REVIEW_MARKS_KEY: true`, so the environment secret
+  reached the job; `Mint the push token` ran and succeeded rather
+  than skipping, reporting "Creating token for this repository
+  (shakenfist/actions)"; and the post-job step logged "Token
+  revoked". An App that is not installed on a repository cannot mint
+  a token for it, so this closes change 1, which no API reading
+  available to this session could confirm directly.
+- **`deployments?environment=review-marks` is empty** (length 0).
+  Reading an environment secret does not create a deployment record,
+  so the environment's branch policy is acting as an access boundary
+  and nothing else.
+- **The job guard on other branches still holds.** Pushing the
+  throwaway branch started run 43081548196, which skipped: the
+  workflow triggers on any branch push, and its default-branch guard
+  is what stops it running there.
+
+**Not proved: the push attribution.** The definition of done also
+asks that
+`rulesets/rule-suites?time_period=day&rule_suite_result=bypass` name
+`shakenfist-review-marks[bot]` as the actor of the push. That
+listing is empty, because the run had nothing to push: it logged
+"review-import: imported 0 file(s), removed 0 import(s)" and "No
+review marks to prune or import", so it never reached a push and no
+rule suite was evaluated. The bypass is therefore exercised but not
+yet observed. This is the same gap `PLAN-bot-bypass-identity.md`
+step 2b recorded for kerbside, and it takes the same answer: wait
+for a run with real work rather than manufacture one, since
+manufacturing it would mean landing review-mark data through a pull
+request for the sole purpose of giving the next run something to
+delete. It is listed in Future work, and the first prune run that
+does prune answers it. The bypass itself is not in doubt -- without
+it that push would be refused exactly as the operator's was -- but
+the reading that would show it has not been taken.
+
 ### Phase 3: pin third-party actions to a sha
 
 Planning effort: high for 3a, which decides the rollout. Medium for
@@ -1471,6 +1682,13 @@ intend to do aligns with that plan.
   `GITLAB_TESTDATA_TOKEN`; in the other two, the run must get past
   its token-using steps. Read the step log when one happens, and
   record it here.
+- Phase 2 exercised the `actions` bypass but never observed it. Run
+  43081577539 minted the App token and ran to success, but had no
+  review marks to prune, so it never pushed and
+  `rulesets/rule-suites?rule_suite_result=bypass` stayed empty. The
+  first prune run on `actions` main that actually prunes answers it:
+  read that listing and confirm it names
+  `shakenfist-review-marks[bot]`, then record it in phase 2.
 - `moving-ref-source-protection` measures that a
   `required_status_checks` rule exists, not that its contexts still
   name jobs `ci.yml` defines. Renaming a job in `actions` would
