@@ -271,7 +271,7 @@ re-synced.
 
 | Project | Default branch | Pushes as |
 |---------|----------------|-----------|
-| [actions](https://github.com/shakenfist/actions) | `main` | `GITHUB_TOKEN` |
+| [actions](https://github.com/shakenfist/actions) | `main` | App |
 | [andris](https://github.com/shakenfist/andris) | `develop` | App |
 | [development](https://github.com/shakenfist/development) | `main` | `GITHUB_TOKEN` |
 | [hunkydory](https://github.com/shakenfist/hunkydory) | `develop` | App |
