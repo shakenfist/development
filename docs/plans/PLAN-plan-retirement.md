@@ -1724,17 +1724,16 @@ pointed at; citing the three pilot audits and the two marker reads
 rather than re-running them; the record of what the audit found; and
 this phase's own close-out.
 
-Out: re-running the three pilot repositories' runbooks, which phase
-3 decision 5 and the block both forbid -- a runbook is written for
-one repository's blast radius, and each pilot ran its own before
-landing; fixing what the audit finds, which lands as its own pull
-request after this one merges; the two Future work deferrals, which
-are recorded deferrals rather than findings; the fleet's use of
-the private GitLab hostname in public repositories, which survey
-item 7 measures and which predates this plan in five other
-repositories;
-and the six fixture plan references survey item 11 found, which
-decision 9 leaves to the follow-up pull request.
+Out: re-running the three pilot repositories' runbooks, which phase 3
+decision 5 and the block both forbid -- a runbook is written for one
+repository's blast radius, and each pilot ran its own before landing;
+fixing what the audit finds, which lands as its own pull request
+after this one merges; the two Future work deferrals, which are
+recorded deferrals rather than findings; the fleet's use of the
+private GitLab hostname in public repositories, which survey item 7
+measures and which predates this plan in five other repositories; and
+the six fixture plan references survey item 11 found, which decision
+9 leaves to the follow-up pull request.
 
 #### What the survey found
 
@@ -1826,8 +1825,7 @@ wrong; both are corrected at source rather than only here.
    six in ryll.
 
 7. **The private GitLab hostname is in this public repository three
-   times, and all three lines are this plan's.**
-   `gitlab.home.stillhq.com` appears at
+   times, and all three lines are this plan's.** It appears at
    `docs/plans/PLAN-plan-retirement.md:605`, `:779` and `:908`,
    added by `8010a22` and `623d72b`. The block's floor item 3 names
    exactly this shape -- "no private hostname or IP address entered
@@ -1972,13 +1970,16 @@ wrong; both are corrected at source rather than only here.
 
 9. **The `plan-source-references` failure is fixed in the follow-up
    pull request, not on this branch.** Survey item 11. The six lines
-   sit inside `4f7f587`, one of the five ranges this phase audits,
-   and decision 1 pins the net-effect read to `f7b1219^1..3c73bc4`.
-   Fixing them here would make the tree the audit reports on differ
-   from every range it recorded, which is the one thing a push audit
-   cannot afford. So the finding is recorded, the weekly run files
-   its own issue, and the follow-up pull request carries both the
-   six markers and whatever else the audit turns up.
+   sit inside `4f7f587`, one of the five ranges this phase audits.
+   A new commit on this branch would not alter those ranges, which
+   are merge commits and immutable, so the honest reason is the
+   weaker one: the block says findings land as their own pull
+   request, and an audit that edits what it is auditing makes its
+   own record harder to check against the tree a reader has. The
+   fix is six comment markers and nobody is pretending otherwise.
+   So the finding is recorded, the weekly run files its own issue,
+   and the follow-up pull request carries the markers with whatever
+   else the audit turned up.
 
 #### Steps
 
@@ -2009,16 +2010,38 @@ the eight, this plan's only commits are `f7b1219` in `README.md` and
 
 **Wave 1.** `pre-commit run --all-files` clean and `python3 -m
 unittest discover -s scripts/tests -t scripts` 2601 tests OK, both on
-the branch. Thirteen greps over five ranges: no hits in forty-nine of
-the sixty-five cells. The hits, all looked at and accepted: three
-fixture plan names in `f7b1219` and ninety-eight in `4f7f587`, which
-are `test_plans.py` fixtures under a file-level `audit-ok:
-plan-reference-file` marker and references to the two
+the branch. Fourteen greps over five ranges is seventy cells, of
+which fifty-nine were empty. A dash is a grep that matched nothing,
+which is a result rather than an absence of one:
+
+| Grep | `f7b1219` | `8010a22` | `623d72b` | `ea741dd` | `4f7f587` |
+|------|----------:|----------:|----------:|----------:|----------:|
+| Python lines over 120 characters | - | - | - | - | - |
+| Touched files over 800 lines | 1 | - | - | - | 3 |
+| New imports | - | - | - | - | 4 |
+| Hand-edited `compliance.md` | - | - | - | - | - |
+| Generated block in a spec page | - | - | - | - | - |
+| `FROZEN_ISSUE_TITLES` changed | - | - | - | - | - |
+| `issue_title` declared | - | - | - | - | 1 |
+| Retired issue title | - | - | - | - | - |
+| Shared block touched | - | - | - | - | - |
+| Shared block version bumped | - | - | - | - | - |
+| TODO, FIXME, HACK, XXX | - | - | - | - | - |
+| New suppression | - | - | - | - | - |
+| Plan reference in code | 3 | - | - | - | 98 |
+| Documentation touched | 5 | 2 | 2 | 1 | 7 |
+
+The eleven cells with hits, each looked at and accepted. The three
+fixture plan names in `f7b1219` and ninety-eight in `4f7f587` are
+`test_plans.py` fixtures under a file-level `audit-ok:
+plan-reference-file` marker, and references to the two
 `plan-retirement.md` documentation pages, whose names the grep's
-case-insensitive `PLAN-*.md` pattern matches; four new imports in
-`4f7f587`, all standard library (`time`, `re`, `locale`) plus the
-package's own `audit.check`; one new `issue_title`, which matches its
-frozen line; and three files over 800 lines, which wave 2 judged.
+case-insensitive `PLAN-*.md` pattern also matches -- except six of
+them, in `scripts/tests/test_audit_snapshot.py` lines 100 to 131,
+which carry no marker and are F6 below. The four new imports in
+`4f7f587` are all standard library (`time`, `re`, `locale`) plus the
+package's own `audit.check`; the one new `issue_title` matches its
+frozen line; and the files over 800 lines are what wave 2 judged.
 Neither the frozen-issue-title nor the retired-title grep fired,
 which is correct: both are written to catch a rename or a removal,
 and this plan only added an entry.
@@ -2033,7 +2056,7 @@ below.
 | F1 A tool failure in this criterion is not excused, though its git reads are the only ones in the audit package that touch the network | follow-up pull request |
 | F2 `docs/audits/plan-retirement.md` claims three `error` paths where the code has eight | follow-up pull request |
 | F3 An unreadable index at HEAD reads as no index, which closes the backlog issue | follow-up pull request |
-| F4 kerbside's `PLAN-test-harness.md` retirement deleted decisions four repositories still point at | work in kerbside, ryll and visual-digest-rust |
+| F4 kerbside's `PLAN-test-harness.md` retirement deleted decisions five repositories still point at | work in kerbside, ryll and visual-digest-rust |
 | F5 Bare cross-repository plan names and dead `blob/develop` links left behind by two retirements | work in shakenfist and ryll |
 | F6 `plan-source-references` fails for this repository, as survey item 11 found before the run | follow-up pull request |
 
@@ -2059,13 +2082,23 @@ rounds of review on #386 left open, and it settles it against the
 decline: the argument there was about where a fetch failure should
 surface, and the defect is that it is misclassified when it does.
 
-**F4, the loss the reserved check was reserved for.** Seven pointers
-in four repositories name kerbside's retired `PLAN-test-harness.md`
-or its phase 1 file: `ryll/AGENTS.md:187`,
+**F4, the loss the reserved check was reserved for.** Fifteen lines
+in ten files across five repositories name kerbside's retired
+`PLAN-test-harness.md` or its phase 1 file: `ryll/AGENTS.md:187`,
 `ryll/docs/control-socket-protocol.md:1680`,
-`visual-digest-rust/AGENTS.md:108` and `:111`,
-`visual-digest-rust/README.md:107-108`, and
-`uncalibrated-sextant/AGENTS.md:103`. Two of them say what they
+`ryll/ryll/Cargo.toml:28` and
+`ryll/shakenfist-spice-renderer/Cargo.toml:135` (both `blob/develop`
+URLs, which now return 404), `visual-digest-rust/AGENTS.md:108` and
+`:111`, `visual-digest-rust/README.md:107-108`,
+`uncalibrated-sextant/AGENTS.md:103`,
+`uncalibrated-sextant-spice-repro/AGENTS.md:103`, and two in
+`shakenfist/docs/components/`, which mirrors other repositories'
+pages, so ryll's dangling line is duplicated there and a fix to ryll
+reaches it only when the mirror is regenerated. The reserved check
+reported seven in four repositories; the management session's own
+grep found the Cargo comments, the second sextant repository and the
+mirror, and the larger number is the one recorded. Two of them say
+what they
 wanted from it: ryll's protocol page says "the design rationale for
 the control socket and the v1.1 additions lives in" that plan, and
 visual-digest-rust's agent context calls the phase plan
@@ -2104,7 +2137,9 @@ not a defect: the oldest revision of this repository's own
 `docs/plans/index.md` is 81 days old against a 90-day threshold, so
 the history cannot establish that the row has been terminal for long
 enough, and the criterion reports it rather than counting it. The
-report reaches the compliance page because it is in `details`. The
+report travels in `details`, which reaches the published results and
+`audit_snapshot.py`'s comparison; it does not reach the compliance
+page, which carries a criterion's details only on a `fail`. The
 same reader's hypothesis that the row exercises the untested
 working-tree branch below is also wrong, for the same reason.
 
@@ -2158,7 +2193,15 @@ cheaper, which phase 4 measured and declined; and the 2 MB cap is
 applied to the re-encoded string, so a revision of mangled bytes can
 trip it slightly early.
 
-**Documentation.** F2 above, plus one gap F1 subsumes: no page says
+**Documentation.** F2 is `docs/audits/plan-retirement.md:74`, "There
+are three ways the criterion reports `error`", against seven `raise
+ToolFailure` sites in `plan_retirement_clocks()` -- the shallow
+check's own failure, a shallow checkout, a failed `git log`, the
+spent budget, a failed `ls-tree`, a failed `git show` and the 2 MB
+cap -- plus `run_tool` raising on a timeout or an `OSError`, which
+is the eighth path and the one that cannot be read off the function.
+The code's own docstring is accurate where the page is not: it says
+"when git cannot answer". Plus one gap F1 subsumes: no page says
 what an `error` from this criterion costs the audit leg. The six
 facts the plan asked about agree across every page that states them
 -- the ninety-day clock and what starts it, the committer date and
@@ -2215,15 +2258,68 @@ that record was a commit message and a pull request comment rather
 than this plan. F1 is that item, found from the other end, and the
 follow-up pull request takes it.
 
+**The reserved check, plan by plan.** Ten of the thirteen are clean:
+every pointer to them that survives is a permalink, and nothing they
+deleted is wanted by a pointer that is still there.
+
+| Retired plan | Repository | Verdict |
+|--------------|------------|---------|
+| `PLAN-full-machine-run.md` | divergulent | clean |
+| `PLAN-faster-full-run.md` | divergulent | clean |
+| `PLAN-generated-marking.md` | divergulent | clean; one orphaned prose citation at `tools/generated-marking/README.md:35`, whose answer is now in `docs/deterministic-rules.md`, so it reads oddly rather than pointing nowhere |
+| `PLAN-host-subject.md` | kerbside | clean |
+| `PLAN-rust-proxy.md` | kerbside | clean |
+| `PLAN-test-harness.md` | kerbside | **F4**: reasoning deleted that fifteen lines in five repositories still want |
+| `PLAN-kerbside-vdi-tokens.md` | kerbside | **F5**: bare phase names in `shakenfist/docs/plans/PLAN-kerbside-vdi-tokens.md:379-383`, `:579` and `:595` |
+| `PLAN-initial.md` | ryll | clean |
+| `PLAN-pip-distribution.md` | ryll | **F5**: a bare name at `shakenfist/docs/plans/PLAN-kerbside-vdi-tokens.md:377` |
+| `PLAN-hamburger-menu.md` | ryll | clean |
+| `PLAN-pr31-followup.md` | ryll | clean |
+| `PLAN-deferred-debt.md` | ryll | clean |
+| `PLAN-crate-extraction.md` | ryll | clean |
+
+The greps behind those verdicts: the thirteen names and their
+forty-one phase-file names, with and without `.md`, recovered from
+each retirement commit with `git log --diff-filter=D --name-only`;
+`grep -rnE -I` over every clone under `~/src/shakenfist/`, excluding
+`.git`, `target`, `node_modules` and `.venv`, each directory under
+`timeout 120`; a `git grep` pass over each non-worktree clone's
+default branch, so that an uncommitted edit could not mask a hit; and
+a third pass for the bare slugs and for prose citations such as "step
+S3" and "the findings doc" outside `docs/plans/`. Deliberately out of
+scope: the private clone, whose share ran inline, and the stale
+`-wt-` worktree directories, two of which still carry pre-rewrite
+pointers on unmerged branches. Vendored third-party copies under a
+cargo cache were ignored as snapshots.
+
 **What is outstanding.** Decision 5 holds: this phase closes itself
 out, and the plan is not complete until the findings are resolved or
-declined in writing. F1, F2, F3 and F6 and the three test gaps are
-one follow-up pull request against this repository, which records
-this phase's merge commit and marks the plan `Complete`. F4 and F5
-are work in kerbside, ryll, visual-digest-rust and shakenfist, so
-they are filed there rather than fixed here; F4 is a deletion to
-undo from history rather than a pointer to rewrite, and it is the
-one a reader should look at first.
+declined in writing.
+
+F1, F2, F3 and F6 and the three test gaps are one follow-up pull
+request against this repository. It records this phase's merge commit
+in its own close-out text and marks the plan `Complete`; phase 5's
+`Merged` cell stays empty, which the push-audit block permits for
+this row alone, so the follow-up must not be read as owing that cell
+a value.
+
+F4 and F5 are work in kerbside, ryll, visual-digest-rust,
+uncalibrated-sextant and shakenfist. Neither has an issue yet:
+filing outward is the operator's call and was put to him with
+the
+record, so until he answers, this paragraph is their only tracked
+home. F4 is a deletion to undo from history rather than a pointer to
+rewrite, and it is the one a reader should look at first.
+
+F4 also has a systemic cause worth fixing above the instance.
+`retire-plans pointers` greps the repository being retired from, and
+`docs/plan-retirement.md` tells the operator to rewrite "every
+pointer" that reports -- which is every pointer the helper can see.
+Nothing in the convention or the helper looks at the other
+twenty-three repositories, so a plan whose readers are elsewhere can
+pass every check in its own repository and still lose its reasoning.
+That is what happened here, and it is a change to the convention and
+the helper rather than to this repository.
 
 #### Risks and mitigations
 
@@ -2289,9 +2385,10 @@ one a reader should look at first.
   divergulent, kerbside and ryll at audit time.
 
 * `grep -niE 'phase [0-9]' docs/plan-retirement.md` still prints
-  nothing, and no text this phase adds contains a token, a private
-  hostname beyond survey item 7's measurement, or a path under
-  `src/private/`.
+  nothing, and no text this phase adds contains a token, the private
+  GitLab hostname, or a path to a file under `src/private/`. Naming
+  that directory as the scope a step must not read is the rule
+  itself, not a breach of it.
 
 * The plan states why the #386 review item named in survey item 10
   was declined.
