@@ -303,7 +303,7 @@ Out of scope:
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. Finish the inherit rollout | In progress | |
+| 1. Finish the inherit rollout | Complete | development 8df8179 (#209); instar bdc8905 (#617); shakenfist e4c7726 (#4404); occystrap c583d68 (#152); client-python 68f295f (#415); agent-python 4bf7763 (#148); client-python-k3s 03998e0 (#83); clingwrap 125eb20 (#141); divergulent 8a2852e (#125); library-utilities 832d82d (#67); sfui ad0d6a2 (#44) |
 | 2. Make `actions` main require a pull request | Not started | |
 | 3. Pin third-party actions to a sha | Not started | |
 | 4. Record the policy and close #153 | Not started | |
@@ -465,15 +465,15 @@ when each pull request merges. Step 1a is the only step that adds
 rather than deletes, and its shape (declared, optional, described)
 is the pattern phase 4 documents.
 
-**Pull requests.** Opened 2026-10-02. The `Merged` cell is filled
-from this list at close-out. States are as of 2026-10-03. The
-`reusable-workflow-secrets` spec describes the merged pull requests
-in the past tense and instar#617 as proposed, so the spec and this
-table move together.
+**Pull requests.** Opened 2026-10-02. The `Merged` cell was filled
+from this list at close-out on 2026-10-31. The
+`reusable-workflow-secrets` spec still describes instar#617 as
+proposed; step 4a puts it in the past tense. The development#209 merge
+also carried this plan itself, so its diff is wider than step 1f.
 
 | Step | Pull request | Closes | State |
 |------|--------------|--------|-------|
-| 1a | instar#617 | #600, #610 | Open |
+| 1a | instar#617 | #600, #610 | Merged as bdc8905 (2026-10-04) |
 | 1b | shakenfist#4404 | #4380 | Merged as e4c7726 |
 | 1c | occystrap#152 | #148, #150 | Merged as c583d68 |
 | 1d | client-python#415 | #409, #410 | Merged as 68f295f |
@@ -483,7 +483,7 @@ table move together.
 | 1e | divergulent#125 | #121 | Merged as 8a2852e |
 | 1e | library-utilities#67 | #63 | Merged as 832d82d |
 | 1e | sfui#44 | #38 | Merged as ad0d6a2 |
-| 1f | this branch | -- | -- |
+| 1f | development#209 | -- | Merged as 8df8179 (2026-10-03) |
 
 Step 1f landed differently from its brief, deliberately. Rather than
 updating the docstring's dated claim about the fleet's callees, it
@@ -495,6 +495,20 @@ In review, divergulent#125 and library-utilities#67 also replaced a
 comment that called the deleted `secrets: inherit` necessary, with
 the template's comment. The comment was wrong: the callee reads no
 secret.
+
+**Close-out (2026-10-31).** Checked against the default branches
+through the GitHub API: the definition of done's fleet script prints
+one `checked` line per repository and no finding; the 13 issues are
+closed; instar's `test-drift-fix.yml` reads exactly
+`secrets.GITLAB_TESTDATA_TOKEN`. One item was not met and is
+deferred rather than dropped: the post-merge `pr-fix-tests` trigger
+was never run in instar, occystrap or shakenfist. Every run of that
+workflow in the three repositories since 2026-10-04 was skipped,
+because it runs only on a maintainer's comment and nobody has asked
+for a fix since. It is the only proof that instar's named token
+reaches its "Prepare instar-testdata" step, so it stays in Future
+work until the first real trigger, whose "Prepare instar-testdata"
+step log answers it.
 
 ### Phase 2: make `actions` main require a pull request
 
@@ -1177,6 +1191,13 @@ intend to do aligns with that plan.
   document to stdout when redirected to a file, so `json.load` of
   its output fails. Reproduce and file it.
 - `visual-digest-rust` and `private-ci` have no `renovate.json`.
+- Phase 1's post-merge `pr-fix-tests` trigger in instar, occystrap
+  and shakenfist was never run (close-out, 2026-10-31). The first
+  maintainer-triggered run in each is the check: in instar, its
+  "Prepare instar-testdata" step must authenticate with the named
+  `GITLAB_TESTDATA_TOKEN`; in the other two, the run must get past
+  its token-using steps. Read the step log when one happens, and
+  record it here.
   Phase 3's pins would rot in those two repositories. The
   `renovate` criterion already owns that.
 
