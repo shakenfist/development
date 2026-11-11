@@ -53,7 +53,7 @@ DEVELOPMENT_URL = 'https://github.com/shakenfist/development'
 REPOSITORY = 'shakenfist/adopted'
 TARGET_URL = 'https://github.com/' + REPOSITORY
 TOKEN = 'test-push-token-1d2e3f'
-WORKFLOW_STEP_SEPARATOR = '\n      - name: '
+WORKFLOW_STEP_SEPARATOR = r'\n\s+- name: '
 COMMIT_MESSAGE = 'Prune and import review marks.\n\nAutomated commit by the prune-reviews workflow.'
 
 # Stands in for tools/review-tracking.sh. It logs each subcommand with
@@ -573,15 +573,32 @@ class CiPruneReviewsTest(unittest.TestCase):
 
         Split on the step separator rather than parsed, since nothing
         else here needs a YAML library; the exact set of names asserted
-        below is what stops a format change passing silently.
+        below is what stops a format change passing silently. The
+        separator is matched at any indentation, so reflowing the
+        template moves these tests rather than breaking them.
         """
         with open(TEMPLATE_WORKFLOW) as f:
             lines = [line for line in f.read().splitlines() if not line.lstrip().startswith('#')]
         text = '\n'.join(lines) + '\n'
-        steps = {step.split('\n', 1)[0]: step for step in text.split(WORKFLOW_STEP_SEPARATOR)[1:]}
+        steps = {step.split('\n', 1)[0]: step for step in re.split(WORKFLOW_STEP_SEPARATOR, text)[1:]}
         self.assertEqual(sorted(steps), ['Fetch the prune script', 'Mint the push token',
                                          'Prune and import review marks'])
         return text, steps
+
+    def assert_entry(self, block, key, value, where=None):
+        """Assert the block holds `key: value` on a line, at any indentation.
+
+        The column these assertions used to spell out pinned less than
+        it looked: workflow_steps() has already cut the file into the
+        job and its steps, so being in this block is what places the
+        key, and two keys at the same column inside one step can still
+        sit under different parents. Leaving the column out of the
+        pattern keeps what the test is about -- the key, its value and
+        which block it belongs to -- and stops a reindented template
+        failing a test about behaviour. Where the nesting itself is the
+        claim, the test matches parent and child together instead.
+        """
+        self.assertRegex(block, r'(?m)^\s+%s: %s$' % (re.escape(key), re.escape(value)), where)
 
     def test_the_workflow_never_checks_out_the_workspace(self):
         """No checkout, and the key and push token reach only the steps that need them.
@@ -596,47 +613,56 @@ class CiPruneReviewsTest(unittest.TestCase):
                 # A uses: step runs no shell, so it has no directory to run in.
                 self.assertNotIn('working-directory', step)
             else:
-                self.assertIn('\n        working-directory: ${{ runner.temp }}\n', step)
+                self.assert_entry(step, 'working-directory', '${{ runner.temp }}', name)
 
         # The key is named twice, by the presence guard and by the step
         # that mints from it, and no other secret is named at all.
-        key_guard = "\n      HAS_REVIEW_MARKS_KEY: ${{ secrets.REVIEW_MARKS_APP_KEY != '' }}\n"
-        key_input = '\n          private-key: ${{ secrets.REVIEW_MARKS_APP_KEY }}\n'
         self.assertEqual(text.count('secrets.REVIEW_MARKS_APP_KEY'), 2)
         self.assertEqual(text.count('secrets.'), 2)
-        self.assertIn(key_guard, text.split(WORKFLOW_STEP_SEPARATOR)[0])
-        self.assertIn(key_input, steps['Mint the push token'])
+        job = re.split(WORKFLOW_STEP_SEPARATOR, text)[0]
+        self.assert_entry(job, 'HAS_REVIEW_MARKS_KEY', "${{ secrets.REVIEW_MARKS_APP_KEY != '' }}")
+        self.assert_entry(steps['Mint the push token'], 'private-key',
+                          '${{ secrets.REVIEW_MARKS_APP_KEY }}')
 
         # The push token reaches the script step alone, through PUSH_TOKEN.
-        push_token = '\n          PUSH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}\n'
-        self.assertIn(push_token, steps['Prune and import review marks'])
+        self.assert_entry(steps['Prune and import review marks'], 'PUSH_TOKEN',
+                          '${{ steps.app-token.outputs.token || github.token }}')
+        # Only that exact line is struck out before the sweep below, and
+        # only from the step entitled to it: a PUSH_TOKEN carrying
+        # anything else, or carried by another step, has to still trip
+        # the sweep.
+        allowed = (r'(?m)^\s+PUSH_TOKEN: \$\{\{ steps\.app-token\.outputs\.token'
+                   r' \|\| github\.token \}\}$')
         for name in ('Fetch the prune script', 'Prune and import review marks'):
-            step = steps[name].replace(push_token, '\n').lower()
+            step = re.sub(allowed, '', steps[name]).lower()
             self.assertNotIn('secrets.', step, name)
             self.assertNotIn('token', step, name)
 
     def test_the_push_token_is_minted_from_the_app_on_a_vm_runner(self):
         """Only the default branch can read the key, and only where it is present is a token minted."""
         text, steps = self.workflow_steps()
-        job = text.split(WORKFLOW_STEP_SEPARATOR)[0]
+        job = re.split(WORKFLOW_STEP_SEPARATOR, text)[0]
         self.assertEqual(list(steps), ['Fetch the prune script', 'Mint the push token',
                                        'Prune and import review marks'])
 
-        self.assertIn('\n    runs-on: [self-hosted, vm, debian-13, s]\n', job)
+        self.assert_entry(job, 'runs-on', '[self-hosted, vm, debian-13, s]')
         self.assertEqual(job.count('runs-on:'), 1)
-        self.assertIn('\n    environment:\n      name: review-marks\n      deployment: false\n', job)
-        self.assertIn('\n    permissions:\n      contents: write\n', job)
-        self.assertIn('\n    timeout-minutes: 30\n', job)
+        # Parent and child together where the nesting is the claim: the
+        # environment's two settings are the environment's, and
+        # contents: write is the job's permissions block entire.
+        self.assertRegex(job, r'(?m)^(\s+)environment:\n\1(\s+)name: review-marks\n\1\2deployment: false$')
+        self.assertRegex(job, r'(?m)^(\s+)permissions:\n\1\s+contents: write$')
+        self.assert_entry(job, 'timeout-minutes', '30')
 
         mint = steps['Mint the push token']
-        self.assertIn('\n        id: app-token\n', mint)
-        self.assertIn("\n        if: env.HAS_REVIEW_MARKS_KEY == 'true'\n", mint)
-        self.assertRegex(mint, r'\n        uses: actions/create-github-app-token@[0-9a-f]{40} # v\d+\.\d+\.\d+\n')
-        self.assertIn('\n          client-id: ${{ vars.REVIEW_MARKS_APP_CLIENT_ID }}\n', mint)
-        self.assertIn('\n          permission-contents: write\n', mint)
+        self.assert_entry(mint, 'id', 'app-token')
+        self.assert_entry(mint, 'if', "env.HAS_REVIEW_MARKS_KEY == 'true'")
+        self.assertRegex(mint, r'(?m)^\s+uses: actions/create-github-app-token@[0-9a-f]{40} # v\d+\.\d+\.\d+$')
+        self.assert_entry(mint, 'client-id', '${{ vars.REVIEW_MARKS_APP_CLIENT_ID }}')
+        self.assert_entry(mint, 'permission-contents', 'write')
         # The vm runners set a proxy, and the action will not start
         # behind one unless Node.js is told to use it.
-        self.assertIn("\n        env:\n          NODE_USE_ENV_PROXY: '1'\n", mint)
+        self.assertRegex(mint, r"(?m)^(\s+)env:\n\1\s+NODE_USE_ENV_PROXY: '1'$")
         # Naming the owner, or repositories, would widen the token to
         # every repository the App is installed on.
         self.assertNotRegex(mint, r'\n\s+(owner|repositories):')
