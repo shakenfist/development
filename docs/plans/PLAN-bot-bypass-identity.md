@@ -413,7 +413,7 @@ Out of scope:
 | 1. Operator inventory and App creation | Complete | 2a24d00 (#348) |
 | 2. `prune-reviews` mints an App token | Complete | 9f080cd (#354), b3ff906 (#356), 55f554e (#357), 9d1301b (#368) |
 | 3. Move the bypass and enforce it | Complete | e460a2b (#377), 38f15f1 (#380) |
-| 4. Push audit | In progress | |
+| 4. Push audit | Complete | |
 
 <!-- shared-block: plan-status-vocabulary v1 -->
 Plan status vocabulary (shared block; do not edit -- the canonical
@@ -2417,8 +2417,9 @@ was wrong; it is corrected at source rather than only here.
    | 3a and 3c | `e460a2b^1..e460a2b` (#377) | 9 | +1090 -24 |
    | 3b | `38f15f1^1..38f15f1` (#380) | 2 | +122 -47 |
 
-   Seventeen distinct paths across the seven, which decision 1 uses
-   to build the net-effect diff.
+   Nineteen distinct paths across the seven, which decision 1 uses
+   to build the net-effect diff. The count read seventeen when this
+   phase was planned; 4a measured it again and it is nineteen.
 5. **Phase 1 landed documentation only**, as the sketch said:
    `2a24d00` touches `docs/consistency-audits.md`,
    `docs/plans/PLAN-bot-bypass-identity.md` and
@@ -2510,19 +2511,362 @@ was wrong; it is corrected at source rather than only here.
 
 #### Record
 
-Filled in as the steps run. Every cell cites the command, range or
-run it came from, and a cell that could not be read says so. Dates
-are Australian Eastern Daylight Time (UTC+11). To capture:
+Read on 2026-11-09 (planning) and 2026-11-11 (execution) AEDT against
+this branch, whose base `e6e5b31` is the endpoint every range below is
+measured to. Nothing that landed on `main` between `e6e5b31` and the
+audit touches any of the plan's nineteen paths -- `git log
+e6e5b31..origin/main` restricted to them is empty -- so the pinned
+endpoint is still the state the plan left behind, and the audit is not
+reading a stale tree.
 
-- 4a: one row per range per wave 1 command, with the count each
-  produced; the `pre-commit` and unittest results.
-- 4b to 4e: each agent's findings with its measured insertion and
-  deletion totals, and whether those matched the ranges it was
-  given.
-- 4f: the five checklist verdicts for each of the eight
-  out-of-repository landings.
-- 4g: what the audit found overall, or that it found nothing; the
-  follow-up pull request, if there is one.
+**Wave 1 (4a).** `git fetch origin` ran first. Each of the runbook's
+fourteen grep checks then ran once per range, with the range written
+into the command rather than left to a variable, from one generated
+script holding the seven ranges as a literal list. The matrix below
+holds one cell per range per check -- the same coverage as a row per
+range per command, in a form a reader can scan -- and each cell is the
+number of output lines that check produced. A zero is a result: the
+check ran and matched nothing.
+
+| Range | >120 | >800 | imp | compl | spec | froz | title | retd | blk | blkv | todo | supp | plan | docs |
+|-------|------|------|-----|-------|------|------|-------|------|-----|------|------|------|------|------|
+| `2a24d00^1..2a24d00` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
+| `9f080cd^1..9f080cd` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 5 |
+| `b3ff906^1..b3ff906` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
+| `55f554e^1..55f554e` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
+| `9d1301b^1..9d1301b` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
+| `e460a2b^1..e460a2b` | 0 | 2 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 4 |
+| `38f15f1^1..38f15f1` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
+
+The columns, in the runbook's order: added Python lines over 120
+characters; touched source files over 800 lines; added `import` or
+`from` lines; added lines in the generated compliance page; a
+generated block or status table in a criterion spec; the frozen
+issue-title list; `issue_title` in a check; the retired-title list;
+shared-block files touched; shared-block version headers added; TODO,
+FIXME, HACK or XXX; new `noqa` or `type: ignore`; plan references
+added outside markdown; and documentation touched at all, which warns
+when it is zero and never was.
+
+`pre-commit run --all-files` passes on the branch: actionlint over the
+workflows and over the shipped templates, the template lint,
+shellcheck, flake8, skillsaw, the audit package and script tests, and
+the review tracking tests, every hook `Passed`. `python3 -m unittest
+discover -s scripts/tests -t scripts` runs 2545 tests in 65s, `OK`.
+
+Two cells are not zero, and both were looked at rather than accepted.
+In `e460a2b^1..e460a2b`, the file-length check names
+`scripts/tests/test_github_config.py` at 1386 lines and
+`scripts/audit/checks/github_config.py` at 964 -- both past the
+`source-file-size` block's 800-line "ask the question" threshold and
+well short of the 1500 that wants a stated reason, which is what the
+check exists to surface; 4b's judgement on them is below. The same
+range adds one `issue_title`, `'Bypass actor identity'`, which is a
+new criterion's title rather than a rename, so it orphans nothing. The
+frozen-list check reports zero there because its pattern catches a
+renamed or removed entry and not an added one, so the pairing was read
+by hand instead: the check's `issue_title` and
+`scripts/tests/test_metadata.py`'s `'bypass-actor-identity': 'Bypass
+actor identity'` are the same string, and the fleet-wide idempotency
+key is therefore intact.
+
+**Wave 2 (4b to 4e).** Four read-only agents, run in parallel because
+none of them writes to the tree. Every brief named its seven ranges
+literally and carried the net-effect diff as a written-out command; no
+brief, as sent, contained the name of the range variable, which is the
+failure the runbook warns about at most length. Each agent was
+required to report the insertion and deletion totals it measured. All
+four matched survey item 4 range for range, and the three that
+measured it also matched the net-effect total, so none was re-run.
+
+| Step | Section | Model | Effort | Totals | Findings |
+|------|---------|-------|--------|--------|----------|
+| 4b | 2a code quality | sonnet | medium | all 7 ranges and the net effect matched | 0 blocking, 3 advisory |
+| 4c | 2b test review | sonnet | medium | all 7 ranges matched; net effect over the 6 test and script paths, 6 files +521 -53 | 0 blocking, 3 advisory (one per surviving mutation) |
+| 4d | 2c documentation | sonnet | medium | all 7 ranges matched | 0 blocking, 1 advisory |
+| 4e | 2d security | opus | high | all 7 ranges and the net effect matched | none at any severity |
+
+The net-effect diff is `git diff 2a24d00^1..e6e5b31` restricted to the
+nineteen paths: 19 files, +2977 -300. 4d's documentation scope gained
+`.claude/skills/review-tracking-adoption/SKILL.md`, which step 4d's
+brief in the step table omits and which phase 2a changed; the step's
+own list was otherwise followed.
+
+**What the audit found.** Six findings, none blocking, all in work
+this plan added. They are listed in the order a reader should care
+about them, each verified in this session against the tree rather than
+taken from an agent's report, and all six land in the follow-up pull
+request under decision 4.
+
+1. **The specification states a fact the plan's own measurement
+   contradicts.** `docs/audits/bypass-actor-identity.md` says, of the
+   `sf-can-skip-merge-queue` team bypass, that `sfconductor` "pushes
+   to the default branches of shakenfist, ryll and client-python-k3s
+   through it". Two things are wrong with that sentence. The
+   repository list does not match either measurement in this plan:
+   phase 1's bypass table counts `sfconductor` bypasses in six
+   repositories (shakenfist 52, kerbside 7, ryll 1, instar 1,
+   client-python-k3s 2, and andris and hunkydory at zero), and phase
+   3a's pre-flight names two for the no-App set, "shakenfist, all 66;
+   client-python-k3s, 3 of 5", with ryll listed among the repositories
+   that hold the App. And the verb is wrong: phase 1 records that
+   "`sfconductor`'s bypasses are pull request merges that skip the
+   queue", not pushes to a default branch. The fix is to drop the list
+   and the verb in favour of what was measured, or to quote the table.
+   Introduced by `e460a2b`; the file is new in that range. This is a
+   published specification that carries a human review mark, which is
+   why it leads.
+
+2. **Three properties of the new criterion are not pinned by its
+   tests.** `BypassActorIdentityTest` has eighteen cases and the suite
+   passes, but three single-edit mutations of
+   `scripts/audit/checks/github_config.py` leave all 133 tests in
+   `test_github_config.py` passing. Each was reproduced independently
+   in this session on a `git archive` copy, never in the worktree.
+   Narrowing `GLOB_CHARACTERS` from `*?[]` to `*` survives, because
+   the only wildcard case is a policy named `develop*`, so a policy
+   named `develop?` or `dev[a-z]` would pass the audit unnoticed.
+   Dropping the `protected_branches is not False` half of the policy
+   condition survives, because `test_protected_branches_true_fails`
+   also sets `custom_branch_policies` to False and the other half
+   catches it, leaving True with True unexercised. And widening the
+   rule-type test from `pull_request` to also admit `merge_queue`
+   survives, because the fixture for the environment-absent path
+   carries both rule types; a default branch with a merge-queue rule
+   and no pull-request rule, with no environment, is untested and
+   would be reported as protected rather than skipped. The three are
+   one class of gap -- each fixture carries the whole happy-path
+   shape, so a predicate weakened to accept a superset is not caught
+   -- and the fix is three cases, not three rewrites.
+
+3. **The criterion decides not-applicable in `run()` rather than in
+   `applies(repo)`.** `docs/consistency-audits.md` line 471 asks for
+   the applicability test in `applies(repo)`, and the sibling checks
+   in the same module do that. Here the verdict needs the branch-rules
+   API call, so moving it would mean calling that endpoint twice or
+   caching it; the reasonable resolution is to leave it where it is
+   and say why in a line of comment. Advisory.
+
+4. **Two touched files are past the length threshold.**
+   `scripts/audit/checks/github_config.py` is 964 lines, up about 222
+   in `e460a2b`, and `scripts/tests/test_github_config.py` is 1386, up
+   195. Both are over 800 and under 1500, so the block asks the
+   question rather than wanting an answer. A seam exists and is the
+   obvious one: one check and its tests per module. Advisory, and a
+   question rather than a defect.
+
+5. **The mint-step tests assert on exact YAML text.** The
+   `test_the_push_token_is_minted_*` cases in
+   `scripts/tests/test_ci_prune_reviews.py` match literal strings
+   including indentation rather than parsing the workflow, so
+   reflowing the YAML breaks them without any behaviour changing. They
+   do cover the properties that matter -- no `owner` or `repositories`
+   input, no `app-id` left in the clear, the secret named exactly
+   twice -- so this is about their durability, not their reach.
+   Advisory.
+
+6. **Security found nothing.** 2d looked for a privileged trigger, a
+   widened `permissions:`, a token in a command line or a file,
+   attacker-controlled text reaching a shell or `gh`, a template
+   weakness propagating fleet-wide, a change to the issue-filing path,
+   and a path built from external data; none of those classes is
+   touched by any range. `review-marks` is named by exactly one
+   workflow in the fleet and its byte-identical template; the triggers
+   are `push`, `schedule` and `workflow_dispatch`, with no
+   `pull_request`, `pull_request_target` or `workflow_run` anywhere,
+   so the fork and privileged-trigger classes do not arise. The token
+   is minted per run, repository-scoped with no `owner` or
+   `repositories` input, `contents: write` only, from an action pinned
+   to a commit sha, and reaches `git` solely through a config value
+   rather than a command line. Every ambiguity in the criterion is an
+   error rather than a verdict, including the one that matters most: a
+   404 on the environment is resolved against the environment listing,
+   and a listing that names the environment, or that does not answer,
+   raises rather than reporting absence -- which is the "token
+   regressed, whole fleet green" failure this criterion exists to
+   prevent. All 4160 added and removed diff lines were scanned for
+   key, token, JWT and cloud-credential shapes, for added e-mail
+   addresses, and for RFC1918 addresses and private hostnames: no
+   hits.
+
+**Declined in writing.** Five things were raised and are not findings
+against this change. The criterion does not measure a ruleset's
+`bypass_actors` at all, which 2b and 2d both noticed and the
+specification states twice as a deliberate limit: the audit's read
+token cannot see that field, so actor types are confirmed by a
+reviewer instead. The runner-controller App `shakenfist-k3s-ci-arc`
+holding `administration: write` on hunkydory, which could widen that
+environment's policy, is already recorded as an accepted residual in
+the specification; the plan raised what it is worth without creating
+it. `GET /rules/branches/<branch>` omits rules the caller can bypass,
+so the pass-versus-not-applicable split on one path depends on the
+read token holding no bypass -- both outcomes there are non-failing,
+so it cannot produce a false compliant on the dangerous side.
+`tools/review-tracking.sh`'s drift from its template predates the
+plan, as survey item 7 recorded. And `ci_workflows.py` and
+`packaging.py` being over 1500 lines is backlog that no range in this
+plan touches.
+
+**The out-of-repository floor (4f).** Decision 2's floor, the
+five-item checklist in the `plan-push-audit-phase` block, applied to
+the eight landings in phase 2's rollout table that are in other
+repositories. The columns are the block's items in order.
+
+| Landing | 1 form | 2 unattended | 3 secrets | 4 consumers | 5 fails closed |
+|---------|--------|--------------|-----------|-------------|----------------|
+| andris#65, `dcdee41` | merge, 2 parents | pass | pass | pass | pass, demonstrated |
+| andris#66, `d7f6d42d` | merge, 2 parents | pass | pass | pass | pass |
+| hunkydory#146, `a901d7a9` | merge, 2 parents | pass | pass | pass | pass |
+| ryll#677, `c3253fa5` | merge, 2 parents, bundled | pass | pass | pass | pass |
+| kerbside#693, `d96b2a25` | merge, 2 parents | pass | pass | pass | pass |
+| actions#233, `ff0edf18` | merge, 2 parents, bundled | pass | pass | pass | pass |
+| sfui#66, `e902e7aa` | merge, 2 parents, bundled | pass | pass | pass | pass |
+| kerbside-client#15, `3837549f` | merge, 2 parents | pass | pass | pass | n/a |
+
+**Item 1, the form of the landing.** All eight `Merged` cells hold a
+commit that `gh api repos/shakenfist/<r>/commits/<sha>` reports with
+two parents, so each reads as `<sha>^1..<sha>` with no caret
+ambiguity, and none of them records a branch commit where a merge
+belongs -- the mistake the block warns about and an earlier plan's
+audit found. andris#65's cell carries two extra shas, `eb5278f` and
+`003665c`; both are single-parent commits on the branch, and the
+`Merged` sha `dcdee41` is the merge, so the record is right and the
+parenthetical is context. Three landings bundled unrelated work:
+ryll#677 came in with consistency fixes touching seven files,
+actions#233 and sfui#66 each with a Renovate workflow change. Their
+recorded range is therefore wider than this plan's change, which is
+worth knowing before anyone audits those ranges as if they were this
+plan's. kerbside#693's merge commit returns no file list from the
+commits endpoint, so its two files were read from
+`repos/shakenfist/kerbside/pulls/693/files` instead.
+
+**Item 2, unattended work reporting its own failure.** The workflow
+each landing installs runs on a push to the default branch, on a daily
+`schedule` at 04:23, and on `workflow_dispatch`. It carries no
+`continue-on-error`, so a failure is a red run against the commit that
+caused it and on the repository's Actions tab, and nothing pages
+anyone. That it is enough is not an assumption here: andris's first
+run, 41183486988, answers `failure` from the API today, and the plan's
+own phase 2 record shows that failure being found and fixed by
+andris#66 within a day. The daily consistency audit is the backstop,
+since marks going stale unnoticed is what its review-coverage
+criterion measures.
+
+**Item 3, no secret or private hostname.** The two files are
+byte-identical to the template audited in wave 1 and wave 2, where all
+4160 diff lines were scanned for credential shapes with no hits.
+Neither file contains an RFC1918 address, a `.home`, `.local` or
+`.internal` name, or any hostname: the only identifiers in them are
+secret and variable names, which is what a workflow is supposed to
+hold. The runner is selected by the labels `self-hosted, vm,
+debian-13, s`, which name a pool rather than a host.
+
+**Item 4, nothing removed has a consumer left.** Six of the eight
+landings remove the same line, `PUSH_TOKEN: ${{
+secrets.DEPENDENCIES_TOKEN || github.token }}`, replacing the bot's
+personal access token with the App token and a `github.token`
+fallback; andris#66 is the small re-sync that followed andris#65, and
+kerbside#693's patch was read through the pull request's file list.
+The grep the block asks for, rather than the assumption: `gh search
+code --owner shakenfist "DEPENDENCIES_TOKEN"` returns no
+`prune-reviews.yml` in any repository, so no copy of the workflow
+still asks for the secret. The secret itself keeps six live consumers
+in three repositories -- `code-formatting.yml` in shakenfist and
+client-python, `pin-indirect-dependencies.yml` in shakenfist and
+kerbside, and `functional-tests.yml` and `sync-external-docs.yml` in
+shakenfist -- which is the narrowing this plan deferred rather than a
+loose end it left. The search indexes default branches and can lag,
+which is the limit of that evidence.
+
+**Item 5, a broken change fails closed.** None of the eight landings
+touches a release, package or image path; what the change publishes is
+a commit of review marks to the default branch. A broken one pushes
+nothing rather than pushing something wrong: the mint step is guarded
+on the key being present, the fallback is `github.token`, and a
+refused push leaves the branch as it was. That is demonstrated rather
+than argued -- andris#65's first run failed at the token step and the
+plan's record reads "none: nothing pushed". kerbside-client#15 is
+marked not applicable because that repository keeps the `github.token`
+path and mints nothing, so there is no failure mode of this change to
+fail closed on.
+
+**The deviation, recorded as decision 2 requires.** The
+`plan-push-audit-phase` block says a phase landing in another
+repository is audited there and cited here. That did not happen for
+any of the eight: `gh pr view` on each of andris#65, andris#66,
+hunkydory#146, ryll#677, kerbside#693, actions#233, sfui#66 and
+kerbside-client#15 mentions no push audit in its body or comments, and
+kerbside-client has no `PUSH-AUDIT.md` to have run, so even in
+principle seven of the eight could have been audited and the eighth
+could not. The convention was missed when those pull requests landed,
+and nothing can now be cited for them. What was done instead is the
+floor above, plus the byte-identity proof: `template-resync status
+review-tracking`, run on 2026-11-11 against `origin/main` at
+`bcd768d`, reports actions, andris, hunkydory, kerbside,
+kerbside-client, ryll and sfui all `in sync` on
+`.github/workflows/prune-reviews.yml` and `tools/ci-prune-reviews.sh`,
+so the content of those eight landings is the template that wave 1 and
+wave 2 read directly here; and each repository's first `prune-reviews`
+run, recorded in phase 2's rollout table with the push actor it
+produced, is the behavioural proof. The counter-argument stands as
+decision 2 stated it: a floor was chosen where the convention asked
+for a runbook. Mikal was back briefed on exactly that on 2026-11-11
+and confirmed the floor, the byte-identity proof, and recording this
+as a deviation rather than filing an issue for it.
+
+**Still open after this phase.** Four things this plan deferred rather
+than finished, all recorded in Future work and none of them a finding
+of this audit: #352, a read-only App identity for the audit's own
+reads; the team rule behind open question 3, which is what
+`sfconductor` should push with; narrowing `DEPENDENCIES_TOKEN` and
+`RENOVATE_TOKEN`, whose six remaining workflow consumers item 4 above
+names; and the b9 item, the bot's token list, which is the one cell of
+phase 1's record still pending an operator paste.
+
+This phase closes itself out, so its `Status` is `Complete` with no
+`Merged` cell, as the `plan-phase-landing` block allows for exactly
+this row. The plan reaches `Complete` in the follow-up pull request
+that fixes the six findings above and records this phase's merge
+commit.
+
+#### Execution notes
+
+- 2026-11-09 AEDT: planned, and phase 3 closed out in the same
+  branch's first commit.
+
+- 2026-11-11 AEDT: back brief answered. Decision 2 stands -- the floor
+  plus the byte-identity proof, not six runbooks after the fact -- and
+  so do decisions 3 and 4. This session was given permission to push
+  the branch and open the pull request without asking again, so it
+  did.
+
+- Wave 1's record is a matrix of range against check rather than one
+  row per range per command. It holds the same cell for every pair; a
+  ninety-eight-row list would hold no more and be read by nobody.
+
+- Survey item 4 undercounted the paths the plan touches. It said
+  seventeen; `git diff --name-only` over the seven ranges, sorted
+  unique, is nineteen. Corrected at the source, with the old count
+  named so a reader who saw it is not left wondering. The net-effect
+  diff was built from the measured nineteen, so nothing downstream
+  read the wrong number.
+
+- Step 4d's brief in the step table omits
+  `.claude/skills/review-tracking-adoption/SKILL.md`, which phase 2a
+  changed and which is documentation. It was added to that step's
+  scope rather than left out.
+
+- 4b, 4c, 4d and 4e ran in parallel, which the step table allows
+  because all four are read-only. 4c was the only one to write
+  anything at all, a `git archive` copy in its own scratch directory,
+  and the worktree was confirmed clean after each.
+
+- The three surviving mutations 4c reported were reproduced in the
+  management session before being recorded, on a separate copy of the
+  tree, because a mutation result is the one part of a test review
+  that is cheap to get wrong and expensive to believe. All three
+  survived again. 4d's one contradiction and 4b's convention finding
+  were likewise checked against the files and the lines they name.
 
 #### Risks and mitigations
 
