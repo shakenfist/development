@@ -537,19 +537,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/base.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_audit_clis.py",
       "author": "mikal"
     },
     {
       "path": "scripts/tests/test_audit_seams.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_audit_snapshot.py",
       "author": "mikal"
     },
     {
@@ -645,18 +637,6 @@
       "author": "mikal"
     },
     {
-      "path": "ARCHITECTURE.md",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/ci.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/consistency-audit.yml",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/mermaid-lint.yml",
       "author": "mikal"
     },
@@ -701,10 +681,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/plans.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/checks/release.py",
       "author": "mikal"
     },
@@ -714,10 +690,6 @@
     },
     {
       "path": "scripts/audit/text/shared_blocks.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/repo.py",
       "author": "mikal"
     },
     {
@@ -785,10 +757,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_plans.py",
-      "author": "mikal"
-    },
-    {
       "path": "templates/release-automation-rust/sign-release-tag.sh",
       "author": "mikal"
     },
@@ -842,10 +810,6 @@
     },
     {
       "path": "templates/renovate/renovate.json",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/consistency-audits.md",
       "author": "mikal"
     },
     {
@@ -925,15 +889,7 @@
       "author": "mikal"
     },
     {
-      "path": "docs/plan-retirement.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/renovate/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_registry.py",
       "author": "mikal"
     },
     {

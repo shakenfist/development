@@ -33,17 +33,9 @@
       "sha": "63b5043da65a8228e4c56540364b6a253ef14cbe",
       "date": "2026-09-01"
     },
-    ".github/workflows/ci.yml": {
-      "sha": "c2aa066633d845856f5a8991d88cde7c90bc3141",
-      "date": "2026-10-28"
-    },
     ".github/workflows/codeql-analysis.yml": {
       "sha": "975f656d8135aefe12ba2f2094d8671460ef1a8a",
       "date": "2026-10-01"
-    },
-    ".github/workflows/consistency-audit.yml": {
-      "sha": "3f37406fe6d9df801734c3683014186b4789ed2a",
-      "date": "2026-10-28"
     },
     ".github/workflows/export-repo-config.yml": {
       "sha": "b9b3936053b8685ef0ae47f656b2f35aa62ba637",
@@ -80,10 +72,6 @@
     "AGENTS.md": {
       "sha": "dd4e9bcf06e4ee7957cc38b980b9ca11ef8c240e",
       "date": "2026-10-18"
-    },
-    "ARCHITECTURE.md": {
-      "sha": "92ea1a0c5605ce77aad663e70be3e2880917584e",
-      "date": "2026-10-22"
     },
     "PLAN-TEMPLATE.md": {
       "sha": "2586a6e49881abcb8c0a00414eac30364bd53da7",
@@ -345,14 +333,6 @@
       "sha": "1ee271d86e8ce08b67f8632508b8386453b37c38",
       "date": "2026-11-01"
     },
-    "docs/consistency-audits.md": {
-      "sha": "7c53572c0cd705f4261f680acadc4553a27c7e9e",
-      "date": "2026-10-31"
-    },
-    "docs/plan-retirement.md": {
-      "sha": "b37670e4bd39ee31bb843a2f682c712c0930d6f4",
-      "date": "2026-11-04"
-    },
     "renovate.json": {
       "sha": "b0c50aa381d99d1a83554044fc3dad3110c07642",
       "date": "2026-10-31"
@@ -409,10 +389,6 @@
       "sha": "878b7e61e42ae3c44283743a962083b28c51fcf5",
       "date": "2026-11-04"
     },
-    "scripts/audit/checks/plans.py": {
-      "sha": "f944e5fa461aa7becf648439a7aeb13a285b9dc9",
-      "date": "2026-10-28"
-    },
     "scripts/audit/checks/release.py": {
       "sha": "33db8dee30d497d39a070a5465bf597c0031c5a0",
       "date": "2026-10-28"
@@ -440,10 +416,6 @@
     "scripts/audit/markers.py": {
       "sha": "ef1d4a20156613830ec787fde806cbf955e9501e",
       "date": "2026-09-02"
-    },
-    "scripts/audit/repo.py": {
-      "sha": "b37e1300f9cc490d75ebd3889cba16c7d25a241a",
-      "date": "2026-10-28"
     },
     "scripts/audit/scope.py": {
       "sha": "8963b56866f597ff5c8c10ef91b274b766643e42",
@@ -501,10 +473,6 @@
       "sha": "531d26fbe639291831bc7dff3a4959a702b09fe8",
       "date": "2026-09-04"
     },
-    "scripts/tests/base.py": {
-      "sha": "143ed6cfc9a271930b5e618372ed4e394238b774",
-      "date": "2026-10-21"
-    },
     "scripts/tests/fake_issues.py": {
       "sha": "10460b6ae248872a437175ef41c04844a8d319a3",
       "date": "2026-10-18"
@@ -519,10 +487,6 @@
     },
     "scripts/tests/test_audit_seams.py": {
       "sha": "5b4eeabd4341bf97e0a3d76c2cc6df559bfe894c",
-      "date": "2026-10-21"
-    },
-    "scripts/tests/test_audit_snapshot.py": {
-      "sha": "36a200ac54365cbad66c30a3ed85263b0284b814",
       "date": "2026-10-21"
     },
     "scripts/tests/test_audit_update_docs.py": {
@@ -589,10 +553,6 @@
       "sha": "4477ff162d7fd9a3ffb14e31b5979850e23e514f",
       "date": "2026-10-21"
     },
-    "scripts/tests/test_plans.py": {
-      "sha": "797590b39276266726da7b06b3275b4aa826235d",
-      "date": "2026-10-28"
-    },
     "scripts/tests/test_pre_commit.py": {
       "sha": "0111894d5b9d552062558ecb4beae6bb906d2cc0",
       "date": "2026-10-31"
@@ -600,10 +560,6 @@
     "scripts/tests/test_python_source.py": {
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",
       "date": "2026-09-04"
-    },
-    "scripts/tests/test_registry.py": {
-      "sha": "a86d14751fa7fb10a3069afb1b09926e327bb610",
-      "date": "2026-11-04"
     },
     "scripts/tests/test_release.py": {
       "sha": "150cc97f0a03011407dbe46234ff791ae8ea97b6",
