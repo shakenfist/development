@@ -104,15 +104,16 @@ the ruleset) and judges every actor by its type:
 | any other value | An error, never a pass: an actor type the audit does not recognise has not been judged. |
 
 **One known team bypass.** `sf-can-skip-merge-queue` (`Team`, actor id
-`11722172`) is a bypass actor on fifteen of the organisation's sixteen
-pull-request rulesets, so by the table above those fifteen fail this
-half today. The sixteenth is `actions`, whose ruleset `21132503` gained
-a pull-request rule on 2026-11-11 and carries the review-marks App as
-its only bypass actor, so it is the one repository that passes this
-half. Counted across the organisation on 2026-11-11; three private
-repositories answer 403 to the rulesets endpoint and hold no rulesets
-at all. The count moves as repositories are standardised, so read it as
-"every one but `actions`" rather than as a number.
+`11722172`) is a bypass actor on every one of the organisation's
+pull-request rulesets except `actions`' `21132503`, so by the table
+above all of those fail this half today. `actions` is the exception
+because its ruleset carries the review-marks App as its only bypass
+actor; it gained its pull-request rule on 2026-11-11. Stated without a
+count deliberately: the previous wording here named a number, which
+went stale as repositories were standardised and then read as a verdict
+about the ones it no longer covered. (Checked across the organisation
+on 2026-11-11. Three private repositories answer 403 to the rulesets
+endpoint and hold no rulesets at all.)
 
 The team's automation member was removed on 2026-11-08, leaving
 `mikalstill` and `sfconductor`. `sfconductor`'s bypasses are pull
@@ -218,16 +219,21 @@ every other field, and PUT it back:
 ```bash
 gh api repos/shakenfist/<repo>/rulesets --jq \
     '.[] | select(.target == "branch") | {id, name}'
-gh api repos/shakenfist/<repo>/rulesets/<id> > /tmp/ruleset.json
-# Stop here unless the bypass list is visible. GitHub omits
-# bypass_actors from this response for a credential it does not show
-# it to, and appending to a field that is not there -- or defaulting
-# it to [] -- empties the list for everyone. A false answer means the
-# credential is wrong for this job, not that the ruleset has no
-# bypass actors.
-jq -e 'has("bypass_actors")' < /tmp/ruleset.json > /dev/null || exit 1
-# Append {"actor_id": 5538020, "actor_type": "Integration",
-#         "bypass_mode": "always"} to .bypass_actors, then:
+# The guard is inside the transform rather than before it. GitHub
+# omits bypass_actors for a credential it does not show it to, so
+# appending to a field that is not there would drop every actor the
+# ruleset has. error() says so on stderr and exits non-zero, which a
+# check pasted in as a separate command would not. The map() drops
+# any existing entry for the App first, so running this twice leaves
+# one entry rather than two.
+gh api repos/shakenfist/<repo>/rulesets/<id> | jq \
+    '{name, target, enforcement, conditions, rules,
+      bypass_actors: (if has("bypass_actors")
+                      then [.bypass_actors[] | select(.actor_id != 5538020)]
+                           + [{actor_id: 5538020, actor_type: "Integration",
+                               bypass_mode: "always"}]
+                      else error("bypass_actors not visible to this credential: "
+                             + "use one that can edit the ruleset") end)}' > /tmp/ruleset.json
 gh api -X PUT repos/shakenfist/<repo>/rulesets/<id> --input /tmp/ruleset.json
 ```
 

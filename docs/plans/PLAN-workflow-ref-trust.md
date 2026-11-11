@@ -597,8 +597,9 @@ and a later step need not redo that.)
   skipped that way reports success to a required check. `Lint`,
   `Unit tests` and `gitleaks` additionally skip a fork pull request.
   `gitleaks` has no `check_paths` dependency, so it already runs on
-  every pull request, a review-only one included. Decision 1 settles
-  the contexts.
+  every non-fork pull request, a review-only one included -- the
+  fork guard above still applies to it. Decision 1 settles the
+  contexts.
 - **A non-active ruleset is already absent from the effective
   rules.** instar's ruleset 19389569 is `enforcement: disabled`,
   targets `~DEFAULT_BRANCH` and carries a `copilot_code_review`
@@ -696,7 +697,12 @@ cannot be narrowed to a path.
    fork pull request it skips and the skip satisfies the required
    check. `secret-scan.yml` and the organisation's push protection
    are what cover forks, and a required check that could not run on
-   one would wedge every fork pull request.
+   one would wedge every fork pull request. Taken together with the
+   fork guards on `Lint` and `Unit tests`, this means only `Check
+   paths` actually reports on a fork pull request and the other
+   three are satisfied by skipping: the required checks are a
+   first-party gate, and phase 4 says so rather than describing them
+   as the enforcement point for every contributor.
    `Automated reviewer` is excluded deliberately. It `needs` the
    other three, it writes to the pull request it is reviewing, and
    it is the one lane whose outcome depends on a service outside
@@ -728,6 +734,19 @@ cannot be narrowed to a path.
    verdict until #352 lands. Nothing in the fleet reaches that path:
    the survey measured that no organisation ruleset contributes a
    rule to `actions`' default branch.
+
+   One thing the endpoint does *not* do, measured because the review
+   of this phase asserted the opposite: it does not hide rules the
+   calling credential can bypass. On instar's ruleset 20783686 the
+   operator's own credential reads `current_user_can_bypass:
+   "always"`, through the `sf-can-skip-merge-queue` team, and
+   `repos/shakenfist/instar/rules/branches/develop` still returns
+   all five of its rules including `pull_request` and
+   `required_status_checks` (2026-11-11). So the criterion's fail
+   verdict does not depend on the audit identity holding no bypass,
+   and needs no fail-closed path for that case. Nothing in this
+   repository ever recorded such a behaviour; the claim was
+   checked rather than taken.
 3. **The repositories the fleet consumes at a moving ref are a class
    constant, `MOVING_REF_REPOS = ('actions',)`, with the reason
    returned from `applies()`.** Follows `ScopeCoverage.SCOPE_REPO`.
@@ -879,6 +898,13 @@ cannot be narrowed to a path.
   from `docs/audits/README.md`, carries no `consistency-audit`
   marker block, and its reviewer-confirmed half names the one bypass
   actor and says why it is not measured.
+- #389 is closed: the App holds exactly one private key again,
+  confirmed from its settings page. Added after the fact, because
+  2a broke that property rather than finding it broken. It gates
+  this phase's close-out rather than 2b, since 2b measures the
+  ruleset and not the key, and until it is done the fleet cannot
+  revoke a leaked key without breaking a working repository.
+  Nothing in the API can measure it, so the reading is a person's.
 
 **Back brief gate.** 2a changes a live setting the whole fleet
 depends on, by hand, in an order whose mistakes are silent. Before
@@ -1243,7 +1269,7 @@ have already decided.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 4a | medium | sonnet | none | In `docs/audits/reusable-workflow-secrets.md`, replace "What this does not cover" with the settled policy: first-party refs move, and the `moving-ref-source-protection` criterion is what makes that acceptable; third-party refs are pinned, under `third-party-action-pinning`. Include the upper bound of 14 pull requests a day this avoids, what a moving ref can reach (Situation: the runner's filesystem, and the caller's job for composite actions), the "pull request and CI, not a second reviewer" limit from open question 2, and the residual from open question 1. State one more limit, which phase 2's risk list records: the review-marks App is installed on `actions` as of 2a, and `bypass-actor-identity`'s accepted residual -- `shakenfist-k3s-ci-arc` holding `administration: write` on hunkydory -- therefore reaches a bypass of `actions`' own ruleset. Say so plainly rather than describing the ruleset as the boundary. Link both new specs. In the Why section, put the instar#617 sentences in the past tense, describing what actually landed if review changed it. Do not close #153: phase 1 closed it on 2026-10-03, when development#209 landed. Link phase 1's landings instead. |
+| 4a | medium | sonnet | none | In `docs/audits/reusable-workflow-secrets.md`, replace "What this does not cover" with the settled policy: first-party refs move, and the `moving-ref-source-protection` criterion is what makes that acceptable; third-party refs are pinned, under `third-party-action-pinning`. Include the upper bound of 14 pull requests a day this avoids, what a moving ref can reach (Situation: the runner's filesystem, and the caller's job for composite actions), the "pull request and CI, not a second reviewer" limit from open question 2, and the residual from open question 1. State two more limits. The required status checks are a first-party gate: `Lint`, `Unit tests` and `gitleaks` all carry a fork guard, so on a fork pull request only `Check paths` reports and the other three are satisfied by skipping; `secret-scan.yml` and the organisation's push protection are what cover forks. And, which phase 2's risk list records: the review-marks App is installed on `actions` as of 2a, and `bypass-actor-identity`'s accepted residual -- `shakenfist-k3s-ci-arc` holding `administration: write` on hunkydory -- therefore reaches a bypass of `actions`' own ruleset. Say so plainly rather than describing the ruleset as the boundary. Link both new specs. In the Why section, put the instar#617 sentences in the past tense, describing what actually landed if review changed it. Do not close #153: phase 1 closed it on 2026-10-03, when development#209 landed. Link phase 1's landings instead. |
 
 ### Phase 5: shared workflows instead of copied templates
 
@@ -1858,9 +1884,32 @@ intend to do aligns with that plan.
 - `actions` exports no `.github/exported-config/`, so a ruleset
   change there is captured nowhere in the repository it applies to,
   and `merge-queue-config.md`'s closing instruction to trigger
-  `export-repo-config` cannot be followed. Decide whether `actions`
-  should call the reusable workflow it ships, under the
-  `export-repo-config` criterion.
+  `export-repo-config` cannot be followed. The fleet's moving-ref
+  source is thus the one repository whose configuration drift
+  nothing detects. The decision belongs to the `export-repo-config`
+  criterion and has two admissible answers: `actions` calls the
+  reusable workflow it ships, or that criterion records `actions`
+  as a stated exception with this reason. Whoever next touches that
+  criterion picks one; leaving it unstated is not an answer.
+- The count of files a criterion touches is stated three different
+  ways: `PLAN-TEMPLATE.md`'s shared success-criteria block says
+  five, `AGENTS.md` says six, and `docs/consistency-audits.md` says
+  six plus a seventh line for a criterion that reaches the network.
+  The 2b brief works around it by telling its executor not to trust
+  the template, which protects 2b and leaves the next criterion's
+  author reading the same stale count. Make the block and
+  `AGENTS.md` non-numeric -- "every file the *Adding a criterion*
+  list names, plus `NETWORK_CHECKS` for a criterion that reaches
+  the network" -- which is a fleet-wide sweep, since the block is
+  embedded in four plans.
+- `actions` has no contributor-facing note about the one shape that
+  cannot merge there: a maintainer-authored branch carrying a
+  commit whose author email is linked to no GitHub account asks for
+  an approving review the sole maintainer cannot give. The person
+  who hits it will be in `actions` with a pull request that will
+  not merge, while the diagnosis sits in this plan in another
+  repository. One sentence in that repository's `AGENTS.md`, with
+  re-authoring the commit as the fix.
 - #389: the `shakenfist-review-marks` App holds two private keys
   after 2a, because change 2 set the new key only in `actions`'
   environment rather than rotating all five. Completing it is one
