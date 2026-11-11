@@ -842,15 +842,52 @@ class BypassActorIdentityTest(GithubConfigTestCase):
             {'name': '*', 'type': 'tag'}]))
         self.assert_fail(result, containing='2 deployment policies')
 
-    def test_a_wildcard_branch_name_fails(self):
-        result = self.run_with(self.answers(branch_policies=[
-            {'name': 'develop*', 'type': 'branch'}]))
-        self.assert_fail(result, containing='wildcard')
-
     def test_protected_branches_true_fails(self):
         result = self.run_with(self.answers(deployment_policy={
             'protected_branches': True, 'custom_branch_policies': False}))
         self.assert_fail(result, containing='protected_branches is True')
+
+    def test_a_wildcard_character_in_a_branch_name_fails(self):
+        """The asterisk is not the only character GitHub reads as a glob.
+
+        A check that looked for "*" alone would pass a policy named
+        "develop?" or "dev[a-z]", each of which admits a branch the
+        default-branch policy exists to exclude. The names are built
+        from GLOB_CHARACTERS rather than listed beside it, so a
+        character added there arrives with a case of its own, and a
+        bracket expression is tried whole as well.
+        """
+        names = ['develop' + c for c in sorted(github_config.GLOB_CHARACTERS)]
+        for name in names + ['dev[a-z]']:
+            with self.subTest(name=name):
+                result = self.run_with(self.answers(branch_policies=[
+                    {'name': name, 'type': 'branch'}]))
+                self.assert_fail(result, containing='wildcard')
+
+    def test_protected_branches_true_with_custom_policies_true_fails(self):
+        """Both halves of the policy condition have to be load-bearing.
+
+        An environment can admit its protected branches and its custom
+        policies at once, which admits every protected branch beside the
+        default one. The case above sets custom_branch_policies to False
+        as well, so the custom half catches it on its own; this one is
+        what the protected_branches half is there for.
+        """
+        result = self.run_with(self.answers(deployment_policy={
+            'protected_branches': True, 'custom_branch_policies': True}))
+        self.assert_fail(result, containing='protected_branches is True')
+
+    def test_custom_branch_policies_false_fails(self):
+        """And the mirror, so that neither half rests on the other.
+
+        Whether GitHub can answer with both flags false is beside the
+        point: the check's condition has two halves, and with only the
+        cases above, removing the custom_branch_policies half changes
+        no verdict in this class. This case is what that half holds up.
+        """
+        result = self.run_with(self.answers(deployment_policy={
+            'protected_branches': False, 'custom_branch_policies': False}))
+        self.assert_fail(result, containing='custom_branch_policies is False')
 
     def test_no_ruleset_and_no_environment_is_not_applicable(self):
         result = self.run_with(dict({
@@ -873,6 +910,22 @@ class BypassActorIdentityTest(GithubConfigTestCase):
         }, **self.absent(names=['release'])))
         self.assert_pass(result)
         self.assertIn('refused', result['details'])
+
+    def test_a_merge_queue_ruleset_with_no_environment_is_not_applicable(self):
+        """A merge-queue rule is not a pull-request rule.
+
+        The pass above rests on the ruleset refusing a push that fell
+        back to github.token, which is what requiring a pull request
+        does. A merge-queue rule governs how pull requests merge and
+        refuses no push, so a repository carrying one and no environment
+        has nothing measured here rather than something proven.
+        """
+        result = self.run_with(dict({
+            self.api('.default_branch'): CompletedCommand(stdout='develop\n'),
+            self.rules('develop'): CompletedCommand(
+                stdout=json.dumps([{'type': 'merge_queue'}])),
+        }, **self.absent()))
+        self.assert_skip(result, containing='No pull-request ruleset')
 
     def test_a_tag_policy_as_the_only_policy_fails(self):
         result = self.run_with(self.answers(branch_policies=[
