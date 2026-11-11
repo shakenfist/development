@@ -815,11 +815,6 @@ Filled in as the steps run. Every entry cites the command or file
 it came from, and one that could not be read says so. Dates are
 Australian Eastern Daylight Time (UTC+11). To capture:
 
-- 1b: the preset's final key list, and the `pre-commit run
-  renovate-config-validator --all-files` output from the
-  deliberate break, including the file name it reported.
-- 1c: the `audit-check.py` verdict for `renovate` on the branch,
-  the test count, and the mutation-check result for the new tests.
 - 1d: that both pages were read against each other, and any fact
   that had to be reconciled.
 **Security schedule (1a).** Ran 2026-11-12. `vulnerabilityAlerts`
@@ -896,8 +891,110 @@ does a consumer config whose only `extends` is the `local>` preset
 --- no preset resolution is attempted, so the hook needs no network
 beyond its own install.
 
+**The preset (1b).** Written 2026-11-12. Top-level keys, in file
+order: `$schema`, `extends` (`customManagers:githubActionsVersions`),
+`gitAuthor`, `dependencyDashboard`, `assignees`, `timezone`
+(`Australia/Sydney`), `schedule` (`on saturday`), `prHourlyLimit`
+(2), `prConcurrentLimit` (10), `pre-commit` (enabled, with its
+description), `packageRules`, `minimumReleaseAge` (`3 days`),
+`rollbackPrs`. No `vulnerabilityAlerts` and no
+`osvVulnerabilityAlerts`, per 1a. Six `packageRules`, in order: the
+no-automerge rule; majors on the monthly window; the CI-tooling
+group (`matchManagers: ["github-actions", "pre-commit"]`,
+`groupName: "CI tooling"`, no `matchUpdateTypes` so every type
+including `digest`, monthly); the Renovate-major `prBodyNotes`
+rule; the Node-major disable rule, now naming
+`templates/renovate/renovate.yml` as well; and the shellcheck-py
+versioning rule. Checked by the management session against the
+template config the preset replaces: no policy key was lost, and
+the preset adds exactly `timezone` and the two limits. The
+shellcheck rule compares equal to the template's parsed rule, with
+the `build` group and the `$` anchor intact.
+
+Two rules the plan named a schedule for but no rule: majors, and
+the CI-tooling group's name. Both were the step's judgement and
+both were kept.
+
+**The validator proof (1b).** With `"notARealRenovateKey": true`
+added to the preset, `pre-commit run renovate-config-validator
+--all-files` failed as follows, naming the file, which is the whole
+point of the override:
+
+```
+renovate-config-validator................................................Failed
+- hook id: renovate-config-validator
+- exit code: 1
+
+INFO: Validating renovate-fleet.json as repo config
+ERROR: Found errors in configuration
+       "file": "renovate-fleet.json",
+       "errors": [
+         {
+           "topic": "Configuration Error",
+           "message": "Invalid configuration option: notARealRenovateKey"
+         }
+       ]
+```
+
+`as repo config` in that output is `--no-global` taking effect; the
+default mode says `as global config` and is what would have let a
+self-hosted-only key through. The preset was restored from a copy
+and the hook passes again.
+
+**The audit change (1c).** Done 2026-11-12. `extends_fleet_preset`
+is the only place the preset's name is matched, by exact membership
+of `extends`; `renovate_config_manages_pre_commit` and
+`renovate_config_reads_version_comments` take the parsed dict and
+know nothing of any preset; each public function is the helper or
+the predicate. 2579 tests pass, up from 2569, and
+`python3 scripts/audit-check.py --repo-path . --repo-name
+development` reports `renovate` as `pass`, "Renovate workflow and
+config exist", with both findings gone.
+
+Mutation check: seven mutants, seven killed, none surviving and
+none timing out. The preset losing `pre-commit.enabled`, losing the
+`pre-commit` key, and losing the version-comment extend; each of the
+two call sites losing its predicate; the predicate loosened to
+substring matching; and a per-check helper taught the preset's name.
+The substring mutant survived the step's first set of tests and a
+test was added for it. The management session re-ran the substring
+and dropped-manager mutants on copies of the tree and confirms both
+fail.
+
 - Open questions settled: 2 (`Australia/Sydney`) and 5 (no OSV); 3
   stands as planned, confirmed by the operator on 2026-11-12.
+
+#### Execution notes
+
+Dates are Australian Eastern Daylight Time (UTC+11).
+
+**Step 1c touched three files, not the two it was scoped to**
+(2026-11-12). `scripts/tests/test_hooks.py` holds every suite hook
+in `.pre-commit-config.yaml` to firing on everything its suite
+reads, and decision 3's test reads `renovate-fleet.json`, so the
+`audit-package-tests` hook's `files:` pattern had to name the
+preset. The step was fenced off from that file and reported the
+failure rather than reaching for it; the management session made
+the one-line change. The invariant is right and the step's scope
+was wrong: the preset is trusted fleet-wide by name, so a commit
+that guts it has to be a commit that fails, including one that
+touches nothing else.
+
+**The survey's item 5 was demonstrated, not merely argued**
+(2026-11-12). With 1b landed and 1c not yet, `audit-check.py`
+against this repository reported both findings --- the
+version-comment extend and the pre-commit manager --- and the unit
+suite failed on `test_the_template_itself_passes` for the
+version-comment extend alone, because that fixture has no
+`.pre-commit-config.yaml` for the manager check to apply to. Had
+step 1c shipped as the master plan first wrote it, covering only
+the pre-commit manager, this repository would have started failing
+its own `renovate` criterion at the next scheduled audit run.
+
+**The operator overrode step 1a on the pull request limits**
+(2026-11-12), choosing `prHourlyLimit: 2` and
+`prConcurrentLimit: 10` over the step's recommendation of `0` and
+`10`. The Record's limits entry has the reasoning on both sides.
 
 #### Risks and mitigations
 
