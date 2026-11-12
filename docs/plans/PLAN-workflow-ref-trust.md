@@ -752,7 +752,11 @@ cannot be narrowed to a path.
    returned from `applies()`.** Follows `ScopeCoverage.SCOPE_REPO`.
    Everywhere else the criterion reports `not_applicable` naming the
    repository, which is what keeps it from paying for an API call on
-   23 repositories that cannot fail it.
+   23 repositories that cannot fail it. (The literal shape was
+   revised when the step ran: it is one table keyed `org/name` with
+   each repository's expected contexts beside it, for the reasons in
+   the step 2b record below. The decision stands as written; only its
+   literal is out of date.)
 4. **The bypass list stays confirmed by a reviewer rather than
    measured**, and this rests on a measurement rather than an
    assumption: the audit's read token answers the ruleset endpoint
@@ -1336,6 +1340,57 @@ changing a live ruleset). The page says the second read is the
 conservative choice rather than a known necessity, and that the
 organisation-sourced error rests on the same unsettled question. The
 mutation set is seventeen now, all killed, six of them new this round.
+
+*What the second review round changed.* One `fix` item, and it was
+about the sentence this criterion publishes most. `applies()` returned
+"Nothing in the fleet consumes <repo> at a moving ref", which is a
+claim about the fleet rather than about the table, and the same pull
+request had just proved it false for `development`. That string is the
+whole of what the compliance page shows for this criterion on 28
+repositories. It now states membership -- what the criterion measures,
+that this repository is not among them, and that the specification
+lists the sources it does not yet measure -- and a test asserts it does
+not make the stronger claim.
+
+Three of that round's `consider` items were defects rather than
+preferences, and were taken. The criterion failed only when the
+context list was entirely empty, so clearing two of four contexts
+passed, while every pull request still offered a merge: the one shape
+nothing else would report. It now compares against the table it
+already prints into the finding, and the rationale in both the comment
+and the specification was corrected, because the reason given --
+"that needs the workflow read as well" -- was about comparing against
+`ci.yml`'s job names, which is a different comparison and still not
+made. An `Enterprise`-sourced rule fell through the `Organization`
+test into a repository read that 404s, so the right answer arrived by
+accident with a message naming the wrong endpoint; anything other than
+`Repository`, and a rule naming no source at all, is now raised with
+the source it saw. And the empty-context fail returned before the
+enforcement reads, so an operator whose contexts were cleared *and*
+whose ruleset only evaluated was told to restore four contexts into a
+ruleset that refuses nothing; every repair is now collected into one
+finding.
+
+One `consider` item exposed an assumption worth recording rather than
+fixing. The verdict for a cleared context list rests on GitHub
+returning `{"required_status_checks": []}` rather than omitting the
+key, which nobody measured and which cannot be measured without
+clearing the contexts on a live ruleset. Had the key been omitted and
+read as unreadable, the criterion would have reported an error for
+exactly the configuration the verdict exists to catch. An absent key
+is now the empty list, a wrong-typed value is still unreadable, and
+the specification says so beside the `disabled`/`evaluate` split it
+already carried.
+
+The `document` items: the specification no longer sources its
+93-reference count and its keep-the-moving-ref reasoning to this plan,
+because plan retirement deletes plan files and neither
+`docs-external-links` nor `plan-source-references` catches a prose
+citation in markdown -- so nothing would have failed when it rotted.
+Both now live on the page. The other asked whether #393 is the issue
+rather than a pull request, since the two share one number sequence;
+`issues/393` reports `pull_request: false`, so both references are
+right.
 
 *Unrelated, and not this phase's to fix.* `plan-source-references`
 fails on this repository, on six `PLAN-a.md`/`PLAN-b.md` fixture

@@ -6,10 +6,17 @@ A repository the rest of the fleet consumes at a moving ref has no
 private default branch. `shakenfist/actions` serves the shared reusable
 workflows and composite actions at `@main`, so what a caller runs is
 whatever that branch holds at the moment its job starts, and the caller
-reviewed none of it. Local clones of the fleet's default branches on
-2026-10-02 held 93 such references, in 14 repositories; the count is
-recorded in `PLAN-workflow-ref-trust.md`, which is also where the
-decision to keep the moving ref rather than pin it is argued.
+reviewed none of it. Local clones of the fleet's default branches held
+93 such references across 14 repositories when they were counted on
+2026-10-02.
+
+The moving ref is kept rather than pinned, deliberately. Pinning every
+caller to a sha moves the trust problem instead of solving it: each of
+those references would need updating on every change to the shared
+workflows, by a bot with write access to 14 repositories, and a fleet
+that updates pins automatically is trusting the updater rather than
+the branch. Protecting the one branch every caller reads is the
+smaller surface, and it is the surface this criterion measures.
 
 A composite action is the stronger case. A reusable workflow runs as
 its own job with the secrets its caller named, while a composite action
@@ -62,16 +69,44 @@ organisation-sourced rule is an error below rather than a `pass`: the
 argument that reaching the endpoint at all implies the rule is active
 depends on exactly the behaviour that has not been established.
 
+One more shape is unmeasured, and this page says which way it is
+resolved. Whether GitHub returns `{"required_status_checks": []}` for a
+rule whose contexts have been cleared, or omits the key, was not
+established -- doing so means clearing the contexts on a live ruleset.
+The check reads an absent key as the empty list, so the verdict below
+is reached under either behaviour. The alternative, treating an absent
+key as unreadable, would report a check error for exactly the
+configuration the verdict exists to catch, and would make that verdict
+unreachable outside the tests. A `required_status_checks` value of the
+wrong type is still unreadable, because no reading of it is a cleared
+list.
+
 It also fails a `required_status_checks` rule whose context list is
 empty. That is the shape an operator leaves behind by clearing the
 contexts instead of removing the rule: it satisfies "the rule is
 there" while requiring nothing, and a pull request merges as soon as
 it is opened. The finding names the checks that belong there -- `Check
 paths`, `Lint`, `Unit tests` and `gitleaks` -- so that the issue says
-what to put back. Whether the contexts still match the workflow's job
-names is deliberately not measured: that needs the workflow read as
-well, and the symptom of a renamed job is loud, because every pull
-request stops offering a merge at once.
+what to put back.
+
+It also fails when some of those contexts are missing rather than all
+of them. An operator who deletes two of the four leaves a rule that
+still exists and a branch where every pull request still offers a
+merge, so nothing but this criterion would report it. The comparison
+is against the table on the check, which is the same set the finding
+tells an operator to restore: holding the expected contexts and
+declining to compare against them would be trusting them exactly as
+far as it is convenient.
+
+What is *not* compared is those names against the workflow's job
+names. That needs `ci.yml` read out of another repository, which this
+criterion does not do, so a context renamed in both the workflow and
+the ruleset leaves the table stale and this criterion reporting a
+finding until the table is updated. That is why the finding asks an
+operator to confirm each context still names a job rather than
+asserting that it does. The symptom of getting it wrong in the other
+direction is loud: a required context that never reports stops every
+pull request offering a merge at once.
 
 Everywhere else the criterion reports `not_applicable`, naming the
 repository, and asks GitHub nothing. The table of moving-ref sources
@@ -115,11 +150,16 @@ Anything the audit could not ask is a check error rather than a
 verdict. That covers the branch-rules read and each ruleset read
 failing or answering something unparseable, a ruleset that reports no
 `enforcement`, and a matched rule that names no `ruleset_id` -- with no
-id there is nothing to read the enforcement from. It also covers one
-case where every read answered: a rule whose `ruleset_source_type` is
-`Organization` came from an organisation ruleset, whose enforcement is
-only on `GET /orgs/shakenfist/rulesets/<id>`, and the audit's
-read-only token is refused that endpoint. The rule may be refusing
+id there is nothing to read the enforcement from. It also covers the
+cases where every read answered but the question could not be put: a
+matched rule whose `ruleset_source_type` is anything other than
+`Repository`, or which names no source at all. `Repository` is the
+only source whose enforcement is at
+`repos/<org>/<repo>/rulesets/<id>`; an `Enterprise` ruleset is not
+reachable by this audit at all, a rule naming no source would be read
+from this repository on an assumption, and an `Organization` ruleset's
+enforcement is only on `GET /orgs/shakenfist/rulesets/<id>`, which the
+audit's read-only token is refused. The rule may be refusing
 pushes or merely reporting on them, and the audit cannot tell which, so
 it says so instead of guessing. Nothing in the fleet is configured that
 way today; it becomes measurable when the audit has a read identity

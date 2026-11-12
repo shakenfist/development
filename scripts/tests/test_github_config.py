@@ -1161,6 +1161,20 @@ class MovingRefSourceProtectionTest(GithubConfigTestCase):
                            name='kerbside', github=RefusingGitHub())
         self.assert_skip(result, containing='shakenfist/kerbside')
 
+    def test_the_skip_reason_claims_only_what_the_table_knows(self):
+        """It is published for every repository the table omits.
+
+        Saying nothing consumes the repository at a moving ref would be
+        a claim about the fleet, and a false one: the specification's
+        known gap names a repository that is consumed that way and is
+        not in the table. The reason states membership instead.
+        """
+        result = run_check(self.check_class(), self.fixture.path,
+                           name='kerbside', github=RefusingGitHub())
+        self.assertNotIn('Nothing in the fleet', result['details'])
+        self.assertIn('measures', result['details'])
+        self.assertIn('specification', result['details'])
+
     def test_each_contributing_ruleset_is_read_once(self):
         """Two rules from one ruleset are one read, two rulesets are two."""
         github = FakeGitHub(self.answers())
@@ -1244,12 +1258,17 @@ class MovingRefSourceProtectionTest(GithubConfigTestCase):
             containing='no readable parameters object')
 
     def test_an_unreadable_context_list_is_a_tool_failure(self):
+        """A value of the wrong type, as against a key that is absent.
+
+        The absent key is the cleared-contexts verdict; a string where
+        a list belongs is a response nobody can read.
+        """
         rule = self.status_checks_rule()
         rule['parameters'] = {'required_status_checks': 'all of them'}
         self.assert_tool_failure(
             lambda: self.run_with(self.answers(
                 rules=[self.pull_request_rule(), rule])),
-            containing='no readable required_status_checks list')
+            containing='is not a list')
 
     def test_an_entry_naming_no_context_is_a_tool_failure(self):
         """One malformed entry is not three contexts and a shrug."""
@@ -1260,6 +1279,71 @@ class MovingRefSourceProtectionTest(GithubConfigTestCase):
             lambda: self.run_with(self.answers(
                 rules=[self.pull_request_rule(), rule])),
             containing='names no context')
+
+    def test_a_partly_cleared_context_list_fails_naming_what_went(self):
+        """Two of four cleared is not loud anywhere else.
+
+        A renamed job wedges every pull request, which announces
+        itself. Deleting contexts leaves every pull request mergeable
+        with the gate two-thirds gone, so this is the case nothing but
+        the audit would report.
+        """
+        result = self.run_with(self.answers(
+            rules=[self.pull_request_rule(),
+                   self.status_checks_rule(contexts=('Check paths', 'Lint'))]))
+        self.assert_fail(result, containing='no longer requires')
+        self.assertIn('Unit tests', result['details'])
+        self.assertIn('gitleaks', result['details'])
+        self.assertNotIn('Check paths', result['details'])
+
+    def test_an_absent_context_list_is_a_verdict_not_an_error(self):
+        """Nobody measured which shape an emptied rule comes back as.
+
+        If GitHub omits the key rather than returning an empty list,
+        treating the absence as unreadable would report an error for
+        precisely the configuration this criterion exists to catch.
+        """
+        rule = self.status_checks_rule()
+        del rule['parameters']['required_status_checks']
+        result = self.run_with(self.answers(
+            rules=[self.pull_request_rule(), rule]))
+        self.assert_fail(result, containing='requires no check at all')
+
+    def test_an_enterprise_sourced_rule_is_a_tool_failure(self):
+        """Repository is the only source whose enforcement is readable.
+
+        Testing for `Organization` alone let this fall through to a
+        repository read that 404s: the safe answer by accident, with a
+        message that named the wrong endpoint.
+        """
+        exception = self.assert_tool_failure(lambda: self.run_with(
+            self.answers(rules=[
+                self.pull_request_rule(source='Enterprise'),
+                self.status_checks_rule()])))
+        self.assertIn('"Enterprise"', str(exception))
+
+    def test_a_rule_naming_no_source_is_a_tool_failure(self):
+        """Reading it from this repository would be an assumption."""
+        rule = self.pull_request_rule()
+        del rule['ruleset_source_type']
+        self.assert_tool_failure(
+            lambda: self.run_with(self.answers(
+                rules=[rule, self.status_checks_rule()])),
+            containing='names no ruleset_source_type')
+
+    def test_two_repairs_are_reported_in_one_finding(self):
+        """An issue that lists half the work is half an issue.
+
+        Cleared contexts and a ruleset that only evaluates are both
+        fails, and an operator handed only the first would restore four
+        contexts into a ruleset that still refuses nothing.
+        """
+        result = self.run_with(self.answers(
+            rules=[self.pull_request_rule(),
+                   self.status_checks_rule(contexts=())],
+            enforcement={self.RULESET: 'evaluate'}))
+        self.assert_fail(result, containing='requires no check at all')
+        self.assertIn('enforcement "evaluate"', result['details'])
 
     def test_the_same_name_in_another_organisation_is_not_applicable(self):
         """`actions` elsewhere is somebody else's repository.
@@ -1287,12 +1371,13 @@ class MovingRefSourceProtectionSpecTest(unittest.TestCase):
     check = github_config.MovingRefSourceProtection
 
     def setUp(self):
-        self.spec = repo_text('docs', 'audits',
-                              'moving-ref-source-protection.md')
         # Prose wraps, so a two-word context can straddle a newline.
-        # That is formatting rather than drift, and a test that reads
-        # it as drift would be worked around rather than fixed.
-        self.flat = ' '.join(self.spec.split())
+        # That is formatting rather than drift, and a test that read it
+        # as drift would be worked around rather than fixed. Every
+        # assertion here reads this one normalisation, so there is no
+        # choosing whichever happens to pass.
+        self.flat = ' '.join(repo_text(
+            'docs', 'audits', 'moving-ref-source-protection.md').split())
 
     def test_every_moving_ref_repository_is_named(self):
         for slug in self.check.MOVING_REF_REPOS:
@@ -1307,8 +1392,8 @@ class MovingRefSourceProtectionSpecTest(unittest.TestCase):
 
     def test_the_page_records_what_was_measured_about_enforcement(self):
         """The second read rests on this, so the page carries its basis."""
-        self.assertIn('19389569', self.spec)
-        self.assertIn('evaluate', self.spec)
+        self.assertIn('19389569', self.flat)
+        self.assertIn('evaluate', self.flat)
 
     def test_the_page_carries_the_known_gap(self):
         """A moving-ref source this criterion does not measure yet.
@@ -1317,8 +1402,8 @@ class MovingRefSourceProtectionSpecTest(unittest.TestCase):
         every adopted repository clones unpinned and executes, so the
         page says so rather than leaving the table looking complete.
         """
-        self.assertIn('Known gap', self.spec)
-        self.assertIn('shakenfist/development', self.spec)
+        self.assertIn('Known gap', self.flat)
+        self.assertIn('shakenfist/development', self.flat)
 
 
 class ScopeCoverageTest(CheckTestCase):

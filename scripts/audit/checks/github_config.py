@@ -729,12 +729,15 @@ class MovingRefSourceProtection(Check):
     #: The contexts sit beside the repository rather than in a
     #: constant of their own, so that a repository joining this table
     #: has to bring its own job names instead of inheriting another
-    #: repository's into a finding filed against it. They are named in
-    #: the finding when the rule carries no context at all, so the
-    #: issue says what to put back. They are not compared against the
-    #: rule's contexts: that needs the workflow read as well, and a
-    #: context list this criterion did not check is still a context
-    #: list.
+    #: repository's into a finding filed against it.
+    #:
+    #: They are compared against the rule's own contexts, and a missing
+    #: one is a finding: clearing two of four leaves every pull request
+    #: still offering a merge, so nothing else would notice. What is
+    #: *not* compared is these names against the workflow's job names,
+    #: which would need the workflow of another repository read; that
+    #: is why the finding tells an operator to confirm each context
+    #: still names a job rather than asserting that it does.
     #:
     #: This table is not the whole set of moving-ref sources in the
     #: fleet; see the specification's "Known gap" section.
@@ -750,11 +753,18 @@ class MovingRefSourceProtection(Check):
     #: request nobody looked at, or a push nobody opened one for.
     REQUIRED_RULES = ('pull_request', 'required_status_checks')
 
-    #: The spelling the effective-rules response uses for a rule that
-    #: came from an organisation ruleset rather than the repository's
-    #: own. It sits beside `ruleset_source` and `ruleset_id`, and it is
-    #: `ruleset_source_type` rather than `source_type`, which is what
-    #: the ruleset object itself calls the same idea.
+    #: The only rule source whose enforcement this check can read, and
+    #: the spelling the effective-rules response uses for it. The field
+    #: is `ruleset_source_type`, beside `ruleset_source` and
+    #: `ruleset_id`, rather than `source_type`, which is what the
+    #: ruleset object itself calls the same idea.
+    REPOSITORY_SOURCE = 'Repository'
+
+    #: GitHub's other sources. `Organization` has an endpoint this
+    #: token is refused; `Enterprise` is not reachable at all. Both are
+    #: raised rather than guessed at, and so is a rule that names no
+    #: source, because the repository read it implies would be an
+    #: assumption.
     ORGANISATION_SOURCE = 'Organization'
 
     def applies(self, repo):
@@ -765,8 +775,10 @@ class MovingRefSourceProtection(Check):
         about this criterion.
         """
         if self.slug(repo) not in self.MOVING_REF_REPOS:
-            return (f'Nothing in the fleet consumes {repo.org}/{repo.name} at a moving ref, so '
-                    f'its default branch is not code that runs in another repository\'s jobs')
+            return (f'This criterion measures {", ".join(sorted(self.MOVING_REF_REPOS))}, and '
+                    f'{repo.org}/{repo.name} is not among them, so no default branch is read '
+                    f'here; the specification lists the moving-ref sources it does not yet '
+                    f'measure')
         return None
 
     def slug(self, repo):
@@ -810,16 +822,25 @@ class MovingRefSourceProtection(Check):
                 f'moving ref, but its rules carry no {" rule and no ".join(missing)} rule: '
                 f'anything that lands there runs in every caller\'s job unreviewed')
 
+        expected = set(self.MOVING_REF_REPOS[self.slug(repo)])
         contexts = sorted({context
                            for rule in matched['required_status_checks']
                            for context in self.rule_contexts(rule, branch)})
-        if not contexts:
-            return self.fail(
-                f'The required_status_checks rule on "{branch}" requires no check at all, so a '
-                f'pull request merges without CI having reported: restore the contexts '
-                f'{", ".join(self.MOVING_REF_REPOS[self.slug(repo)])}')
 
         problems = []
+        if not contexts:
+            problems.append(
+                f'its required_status_checks rule requires no check at all, so a pull request '
+                f'merges without CI having reported: restore {", ".join(sorted(expected))}, '
+                f'confirming each still names a job in the repository\'s ci.yml')
+        else:
+            dropped = sorted(expected.difference(contexts))
+            if dropped:
+                problems.append(
+                    f'its required_status_checks rule no longer requires '
+                    f'{", ".join(dropped)}, so that much of the gate is gone while every pull '
+                    f'request still offers a merge')
+
         for ruleset_id, kinds in self.contributing_rulesets(repo, branch, matched).items():
             enforcement = self.ruleset_enforcement(repo, ruleset_id)
             if enforcement != 'active':
@@ -827,8 +848,11 @@ class MovingRefSourceProtection(Check):
                     f'ruleset {ruleset_id}, which contributes the {" and ".join(kinds)} rule on '
                     f'"{branch}", has enforcement "{enforcement}" rather than "active", so its '
                     f'rules are reported on without refusing anything')
+
         if problems:
-            return self.fail('; '.join(problems))
+            return self.fail(
+                f'The default branch "{branch}" of {repo.org}/{repo.name} is consumed at a '
+                f'moving ref, but {"; ".join(problems)}')
 
         return self.ok(
             f'The default branch "{branch}" requires a pull request, and requires '
@@ -846,20 +870,29 @@ class MovingRefSourceProtection(Check):
         A payload this cannot read is not that verdict. Reading an
         unparseable shape as "no contexts" would file an issue telling
         an operator to restore checks that may well be in place, about a
-        branch that may well be protected, so every shape other than a
-        list of entries carrying a context is the audit failing to ask.
+        branch that may well be protected, so a value of the wrong type
+        is the audit failing to ask.
+
+        An absent key is read as the empty list, which is the one place
+        this leans on a shape nobody measured: whether GitHub returns
+        `{"required_status_checks": []}` for a rule whose contexts have
+        been cleared, or omits the key. Were the key omitted and treated
+        as unreadable, the criterion would report an error for exactly
+        the configuration it exists to catch, and the verdict below
+        would be unreachable outside the tests. The specification says
+        so rather than leaving the choice to be rediscovered.
         """
         parameters = rule.get('parameters')
         if not isinstance(parameters, dict):
             raise ToolFailure(
                 f'The required_status_checks rule on "{branch}" carries no readable '
                 f'parameters object, so the checks it requires cannot be established')
-        entries = parameters.get('required_status_checks')
+        entries = parameters.get('required_status_checks', [])
         if not isinstance(entries, list):
             raise ToolFailure(
-                f'The required_status_checks rule on "{branch}" carries no readable '
-                f'required_status_checks list, so the checks it requires cannot be '
-                f'established')
+                f'The required_status_checks rule on "{branch}" carries a '
+                f'required_status_checks value that is not a list, so the checks it requires '
+                f'cannot be established')
         contexts = []
         for entry in entries:
             context = entry.get('context') if isinstance(entry, dict) else None
@@ -886,20 +919,37 @@ class MovingRefSourceProtection(Check):
         for kind in self.REQUIRED_RULES:
             for rule in matched[kind]:
                 ruleset_id = rule.get('ruleset_id')
-                if rule.get('ruleset_source_type') == self.ORGANISATION_SOURCE:
+                source = rule.get('ruleset_source_type')
+                if source != self.REPOSITORY_SOURCE:
                     raise ToolFailure(
-                        f'The {kind} rule on "{branch}" comes from organisation ruleset '
-                        f'{ruleset_id}, whose enforcement can only be read from '
-                        f'orgs/{repo.org}/rulesets/{ruleset_id}; the audit\'s read token is '
-                        f'refused that endpoint, so whether the rule refuses a push or only '
-                        f'reports on one cannot be established (see '
-                        f'shakenfist/development issue 352)')
+                        self.unreadable_source(repo, branch, kind, source, ruleset_id))
                 if not isinstance(ruleset_id, int):
                     raise ToolFailure(
                         f'The {kind} rule on "{branch}" names no ruleset it came from, so the '
                         f'enforcement that decides whether it refuses anything cannot be read')
                 contributing.setdefault(ruleset_id, []).append(kind)
         return contributing
+
+    def unreadable_source(self, repo, branch, kind, source, ruleset_id):
+        """Why a rule's enforcement cannot be read from this repository.
+
+        Three cases, each saying what it saw rather than reporting a
+        failed read of an endpoint that was never the right one.
+        """
+        if source == self.ORGANISATION_SOURCE:
+            return (f'The {kind} rule on "{branch}" comes from organisation ruleset '
+                    f'{ruleset_id}, whose enforcement can only be read from '
+                    f'orgs/{repo.org}/rulesets/{ruleset_id}; the audit\'s read token is '
+                    f'refused that endpoint, so whether the rule refuses a push or only '
+                    f'reports on one cannot be established (see shakenfist/development '
+                    f'issue 352)')
+        if source is None:
+            return (f'The {kind} rule on "{branch}" names no ruleset_source_type, so reading '
+                    f'its enforcement from this repository\'s own rulesets would be an '
+                    f'assumption rather than a measurement')
+        return (f'The {kind} rule on "{branch}" comes from a "{source}" ruleset rather than '
+                f'this repository\'s own, so its enforcement is not at '
+                f'repos/{repo.org}/{repo.name}/rulesets/{ruleset_id} and cannot be read here')
 
     def ruleset_enforcement(self, repo, ruleset_id):
         """The enforcement of one of the repository's own rulesets."""
