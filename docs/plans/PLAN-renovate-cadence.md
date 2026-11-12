@@ -307,8 +307,8 @@ Out of scope:
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. Shared preset and its validation | In progress | |
-| 2. Central runner and cutover | Not started | |
+| 1. Shared preset and its validation | Complete | `47086db` |
+| 2. Central runner and cutover | In progress | |
 | 3. Fleet sweep and audit change | Not started | |
 | 4. Re-measure | Not started | |
 | 5. Push audit | Not started | |
