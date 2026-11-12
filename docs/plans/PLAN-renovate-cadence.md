@@ -1459,6 +1459,79 @@ the fleet.
 
 #### Record
 
+**Both validator modes were proved against a broken file, not
+read** (2026-11-13). With an unknown key added to
+`renovate-runner.json`, the global-mode hook fails and names the
+file:
+
+```
+Validate Renovate global configuration...................................Failed
+- hook id: renovate-config-validator
+- exit code: 1
+
+INFO: Validating renovate-runner.json as global config
+ERROR: Found errors in configuration
+       "file": "renovate-runner.json",
+       "errors": [
+         {
+           "topic": "Configuration Error",
+           "message": "Invalid configuration option: notARealRenovateKey"
+         }
+       ]
+```
+
+And with `"autodiscover": true` placed in the root `renovate.json`,
+the repository-mode hook still rejects it, which is the property
+`--no-global` was added for and the one the split had to preserve:
+
+```
+Validate Renovate repository configuration...............................Failed
+- hook id: renovate-config-validator
+- exit code: 1
+
+INFO: Validating renovate.json as repo config
+ WARN: Found errors in configuration
+       "file": "renovate.json",
+       "warnings": [
+         {
+           "topic": "Configuration Error",
+           "message": "The \"autodiscover\" option is a global option
+             reserved only for Renovate's global configuration and
+             cannot be configured within a repository's config file."
+         }
+       ]
+```
+
+Both files were restored from copies and verified byte-identical
+afterwards.
+
+**Mutation testing, 29 mutants and 29 killed** (2026-11-13). Each
+step kept a runnable script under this session's scratchpad rather
+than improvising: `step-2a/mutate.py` for the push probe (12,
+including the two defects its first run found -- an assertion reading
+the wrong stream, and the bytecode cache serving a previous
+same-length mutant), `step-2b/mutate.py` for the hook split (4: the
+exclude removed, the global pattern widened, the global hook deleted,
+and the global hook given `--no-global`), and `step-2c/mutate.py` for
+the preset and the local rule (10: three file drops from the Node
+rule, three from the note, and four ways of breaking the local rule).
+The management session killed three more by hand, one per step, to
+check the scripts rather than trust them: disabling the probe's
+empty-set guard fails `test_a_token_that_finds_nothing_to_manage_fails`
+with "the token can push to all 0 repositories", removing the hook's
+`exclude:` makes the runner config matched by both hooks, and dropping
+`renovate-fleet.yml` from the Node rule fails the whole-set assertion.
+No mutant timed out.
+
+**The probe answers its own question, but not open question 1 yet**
+(2026-11-13). Run read-only against the organisation with an operator
+token rather than `RENOVATE_TOKEN`, it reported 23 of the
+organisation's repositories as managed and named exactly the 23 in
+*Cutover* above, then reported the token could push to all of them.
+That confirms the derivation and the 23, and says nothing about what
+`RENOVATE_TOKEN` is or can reach: the probe's first real run, in
+cutover step 1, is what answers that.
+
 The cutover's four steps each produce a measurement that phase 3 and
 phase 4 depend on, so they are recorded here as they happen: the dry
 run's discovered repository list and duration, the push-permission
