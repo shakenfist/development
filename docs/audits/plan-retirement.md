@@ -71,11 +71,35 @@ leaves no credential behind, so that fetch is anonymous: the criterion
 can only read the history of a repository the audit can read
 anonymously.
 
-There are three ways the criterion reports `error` rather than a
-verdict: a shallow checkout, a revision of the index larger than the
-2 MB cap a file is read under, and a walk that exceeds its five-minute
-budget. Each is a statement about the audit rather than a finding about
-the repository, which is why it files no issue and closes none.
+The criterion reports `error` rather than a verdict whenever git
+cannot answer for the history it has to read, which is eight paths:
+the shallowness question itself failing, a shallow checkout, a failed
+`git log` of the index, a walk that exceeds its five-minute budget, a
+failed `git ls-tree` of a revision, a failed `git show` of a revision
+whose tree says the index is in it, a revision of the index larger
+than the 2 MB cap a file is read under, and a git call that times out
+or cannot be started at all. Each is a statement about the audit
+rather than a finding about the repository, which is why it files no
+issue and closes none.
+
+Such an error does not fail that repository's leg of the scheduled
+run. Reading a historical index is a fetch from the promisor remote in
+the `--filter=blob:none` clone the workflow makes, so a transient
+failure here is excused the way a network check's is: the leg prints a
+workflow warning, the compliance page shows the cell as a check error
+saying what could not be asked, and the criterion's issue is left
+exactly as it was. An outage that lasts is not hidden by this, because
+the cell says so on every run.
+
+An index that is *there* and is not a file the audit will read -- a
+directory, a link out of the checkout, a dangling link, or a file over
+the same 2 MB cap -- is the one unreadable shape that is a finding
+rather than an error. The repository put it there, so it is the
+repository's to fix, and [plan-index](plan-index.md) reports the same
+shape as its own finding. What this criterion adds is that it does not
+read it as an index that is not there: that answer closes the
+retirement backlog issue of a repository that keeps plans, telling it
+the criterion is not applicable to the project.
 
 ### Rows that are reported rather than counted
 
@@ -156,13 +180,13 @@ its last work lands, when nobody is reading the template.
 
 The fix is the `retire-plans` skill, in the private `llm-setup`
 repository. It lists the eligible plans, moves each one's reasoning
-into the documentation that will be maintained, files the deferred work
-still worth doing as issues labelled `from-retired-plan`, rewrites
-every pointer to the plan, turns its index row's link into a permalink
-and deletes its files -- one commit per plan, one pull request per
-repository. The parts with one right answer are its `retire-plans`
-helper; deciding where a plan's reasoning belongs is not one of them,
-which is why retirement is never automatic.
+into the documentation that will be maintained, files the deferred
+work still worth doing as issues labelled `from-retired-plan`,
+rewrites every pointer to the plan, turns its index row's link into a
+permalink and deletes its files -- one commit per plan, one pull
+request per repository. The parts with one right answer are its
+`retire-plans` helper; deciding where a plan's reasoning belongs is
+not one of them, which is why retirement is never automatic.
 
 A plan whose reasoning has no sensible home in `docs/` is not retired.
 It is left where it is and reported, so that a person can decide:
