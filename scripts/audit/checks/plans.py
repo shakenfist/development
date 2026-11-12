@@ -1349,9 +1349,14 @@ class PlanIndex(Check):
         if content is None:
             if not masters:
                 return self.skip('No plans in docs/plans/')
+            # "or could not be read" because read() answers None for
+            # both, and a repository told its index is missing when a
+            # directory or a dangling link is sitting at the path
+            # looks for the wrong problem.
             return self.fail(
-                f'{PLAN_INDEX_PATH} is missing, so none of the '
-                f'{len(masters)} plan(s) in docs/plans/ are registered')
+                f'{PLAN_INDEX_PATH} is missing or could not be read, so '
+                f'none of the {len(masters)} plan(s) in docs/plans/ are '
+                f'registered')
 
         linked = set()
         statuses = {s.lower() for s in PLAN_STATUSES}
@@ -1541,8 +1546,16 @@ class PlanAuditPhase(Check):
 
         Repositories with no docs/plans/index.md are N/A -- whether
         every project should plan this way is a separate decision,
-        made by plan-index rather than here.
+        made by plan-index rather than here. An index that is there
+        and cannot be read is a finding, not an N/A: closing this
+        criterion's issue as not applicable on the strength of a file
+        the audit could not open is the same conflation the retirement
+        criterion below had.
         """
+        detail = plan_index_unreadable_detail(repo)
+        if detail is not None:
+            return self.fail(detail)
+
         index = repo.read(PLAN_INDEX_PATH)
         if index is None:
             return self.skip(f'No {PLAN_INDEX_PATH}')
@@ -1671,6 +1684,22 @@ def unreadable_file_detail(repo, name):
         f'{READ_MAX_BYTES // (1024 * 1024)} MB read limit, a link out '
         f'of the repository, or not a regular file)'
     )
+
+
+def plan_index_unreadable_detail(repo):
+    """Why docs/plans/index.md is there and cannot be read, or None.
+
+    unreadable_file_detail() for the plan index, with one thing added:
+    the question is only asked when docs/plans is the repository's own
+    directory. A docs/plans that is itself a link out of the clone is
+    not a directory this audit has, which is what plan-index decides
+    when it skips with "No docs/plans/ directory" -- so an index
+    inside one is absent rather than unreadable, and the two criteria
+    reading the same index say the same thing about it.
+    """
+    if not repo.exists('docs/plans'):
+        return None
+    return unreadable_file_detail(repo, PLAN_INDEX_PATH)
 
 
 class PushAudit(Check):
@@ -2047,7 +2076,10 @@ def plan_retirement_clocks(repo_path, names, threshold):
 
     Raises ToolFailure when git cannot answer, when the walk has spent
     its budget, and for a shallow checkout, whose history cannot reach
-    back to the threshold: a truncated history answers "nothing is
+    back to the threshold. Only the blob read and the spent budget are
+    marked transient, because only those two can be a remote rather
+    than this runner; see audit_snapshot.transient_tool_failure(). The
+    shallow refusal is the one that matters: a truncated history answers "nothing is
     eligible" for every repository on earth, and a verdict built on
     nothing is worse than none at all. The shallow question is asked
     before anything else, the shortcut for an index with no terminal
@@ -2114,7 +2146,8 @@ def plan_retirement_clocks(repo_path, names, threshold):
             raise ToolFailure(
                 f'Reading the history of {PLAN_INDEX_PATH} did not finish '
                 f'within {PLAN_RETIREMENT_WALK_BUDGET} seconds, after '
-                f'{read} revision(s)')
+                f'{read} revision(s)',
+                transient=True)
 
         listed = run_tool(
             ['git', '-C', repo_path, 'ls-tree', '--name-only', sha,
@@ -2133,14 +2166,23 @@ def plan_retirement_clocks(repo_path, names, threshold):
             # rows are compared with.
             continue
 
+        # The only read in the audit package that a promisor remote
+        # has to satisfy, so the only one whose failure is marked
+        # transient: in the filtered clone the workflow makes, the
+        # blob is not in the object store and this fetches it. Every
+        # other failure in this function -- the shallow check, the
+        # log, the ls-tree of a tree a filtered clone holds in full,
+        # the read cap -- is local, and stays unmarked so that it
+        # fails the repository's leg.
         shown = run_tool(
             ['git', '-C', repo_path, 'show', f'{sha}:{PLAN_INDEX_PATH}'],
             'git show', timeout=PLAN_RETIREMENT_SHOW_TIMEOUT,
-            **PLAN_RETIREMENT_GIT_TEXT)
+            transient=True, **PLAN_RETIREMENT_GIT_TEXT)
         if shown.returncode != 0:
             raise ToolFailure(
                 f'Could not read {PLAN_INDEX_PATH} at {sha}, which that '
-                f'revision carries: {shown.stderr.strip()}')
+                f'revision carries: {shown.stderr.strip()}',
+                transient=True)
         size = len(shown.stdout.encode('utf-8'))
         if size > READ_MAX_BYTES:
             raise ToolFailure(
@@ -2185,23 +2227,22 @@ class PlanRetirement(Check):
         asked here has to be the one that justifies closing it: the
         repository keeps no plan index, and never had a backlog this
         could be counting. A repository that does keep one, but keeps
-        something at the path that read() will not read -- a
-        directory, a link out of the checkout, a dangling link, a
-        revision over the read cap -- has not answered that question,
-        and run() reports that as its own finding rather than
-        retiring the issue.
+        something at the path that read() will not read, has not
+        answered that question, and run() names it as a finding
+        instead -- which is what unreadable_file_detail() is for, and
+        what push-audit and plan-template already do with it.
 
         The walk below already draws that line for a historical
         revision: a commit that does not carry the index is skipped,
         and a revision that does carry it but cannot be read raises
         rather than being treated as a revision without it. HEAD is
-        held to the same rule here. The read is cached, so asking
-        twice costs the run nothing.
+        held to the same rule here.
         """
-        if (repo.read(PLAN_INDEX_PATH) is None
-                and not repo.occupied(PLAN_INDEX_PATH)):
-            return f'No {PLAN_INDEX_PATH}'
-        return None
+        if repo.isfile(PLAN_INDEX_PATH):
+            return None
+        if plan_index_unreadable_detail(repo) is not None:
+            return None
+        return f'No {PLAN_INDEX_PATH}'
 
     def run(self, repo):
         """Name the finished plans whose retirement is overdue.
@@ -2244,30 +2285,24 @@ class PlanRetirement(Check):
         is not finished, and the issue saying so is the record of
         what is left.
         """
-        content = repo.read(PLAN_INDEX_PATH)
-        if content is None:
-            # applies() let this through: there is something at the
-            # path and it is not a file this will read. A finding
-            # rather than an error, because the repository put it
-            # there -- it is that repository's to fix, not a statement
-            # about the audit -- and because a check that errors on a
-            # shape an audited repository chose is what
-            # tests/test_containment.py exists to forbid. Not a pass
-            # or a not_applicable either: both close this criterion's
-            # backlog issue, and telling a repository that keeps plans
-            # that the criterion is "not applicable to this project"
-            # is the defect this replaced.
+        # applies() let this through: there is something at the path
+        # and it is not a file this will read. A finding rather than
+        # an error, because the repository put it there -- it is that
+        # repository's to fix, not a statement about the audit -- and
+        # because a check that errors on a shape an audited repository
+        # chose is what tests/test_containment.py forbids. Not a pass
+        # or a not_applicable either: both close this criterion's
+        # backlog issue, and telling a repository that keeps plans
+        # that the criterion is "not applicable to this project" is
+        # the defect this replaced.
+        detail = plan_index_unreadable_detail(repo)
+        if detail is not None:
             return self.fail(
-                f'{PLAN_INDEX_PATH} is not a file the audit can read: a '
-                f'directory, a link out of the checkout, a dangling '
-                f'link, or a file over the {READ_MAX_BYTES} byte cap a '
-                f'file is read under. Until it is one, whether any plan '
-                f'is overdue for retirement cannot be established '
-                f'(plan-index reports the same shape as its own '
-                f'finding).')
+                f'{detail}, so whether any plan here is overdue for '
+                f'retirement cannot be established')
 
         index = plan_retirement_index(
-            content, repository=(repo.org, repo.name))
+            repo.read(PLAN_INDEX_PATH), repository=(repo.org, repo.name))
         terminal = {
             name: entry for name, entry in index['statuses'].items()
             if plan_status_is_terminal(entry[0])

@@ -157,6 +157,13 @@ def run_check(check, repo):
     check-audit-smoke.py, running without a token, tells a network
     check that could not ask from one that is broken.
 
+    A ToolFailure the raise site marked `transient` carries that
+    through to the result, because only the raise site knows whether a
+    remote was in the way. audit-raised.py excuses those rather than
+    failing the leg; see audit_snapshot.transient_tool_failure(). The
+    field is set only when true, so the results of a run in which
+    nothing was transient are byte for byte what they were.
+
     Exception rather than BaseException: an interrupt or a
     SystemExit is a request to stop, not a broken check.
     """
@@ -168,11 +175,13 @@ def run_check(check, repo):
     except ToolFailure as e:
         print(f'audit: {check.id} could not measure {repo.name}: {e}',
               file=sys.stderr)
+        extra = {'transient': True} if getattr(e, 'transient', False) else {}
         return check.result(
             ERROR,
             f'{sentence(e)} The audit could not measure this criterion, '
             f'so this is not a finding about {repo.name}.',
             tool_failure=True,
+            **extra,
         )
     except Exception as e:
         print(f'audit: {check.id} raised against {repo.name}:',

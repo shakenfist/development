@@ -82,24 +82,41 @@ or cannot be started at all. Each is a statement about the audit
 rather than a finding about the repository, which is why it files no
 issue and closes none.
 
-Such an error does not fail that repository's leg of the scheduled
-run. Reading a historical index is a fetch from the promisor remote in
-the `--filter=blob:none` clone the workflow makes, so a transient
-failure here is excused the way a network check's is: the leg prints a
-workflow warning, the compliance page shows the cell as a check error
-saying what could not be asked, and the criterion's issue is left
-exactly as it was. An outage that lasts is not hidden by this, because
-the cell says so on every run.
+Two of those eight do not fail that repository's leg of the scheduled
+run: the `git show` of a historical index, and the walk budget it can
+exhaust. Reading a historical index is a fetch from the promisor
+remote in the `--filter=blob:none` clone the workflow makes, so either
+can be the remote rather than this runner, and the criterion raises
+them marked transient. The leg prints a workflow warning instead, the
+compliance page shows the cell as a check error saying what could not
+be asked, and the criterion's issue is left exactly as it was. An
+outage that lasts is not hidden by this, because the cell says so on
+every run.
+
+The other six do fail the leg, and that is the point of marking only
+two. A shallow checkout, a failed `git log`, a failed tree listing and
+a revision over the read cap are this runner's clone step or this
+repository's own content, not a remote declining to answer. Excusing
+them all would mean a clone step regressing to `--depth 1` warned and
+passed on every leg of every run while this criterion reported `error`
+for all 24 repositories.
 
 An index that is *there* and is not a file the audit will read -- a
 directory, a link out of the checkout, a dangling link, or a file over
 the same 2 MB cap -- is the one unreadable shape that is a finding
 rather than an error. The repository put it there, so it is the
-repository's to fix, and [plan-index](plan-index.md) reports the same
-shape as its own finding. What this criterion adds is that it does not
+repository's to fix, and [plan-index](plan-index.md) and
+[plan-audit-phase](plan-audit-phase.md) report it too -- the first as
+an index that is missing or could not be read, and only when
+`docs/plans/` also holds a master plan. What this criterion adds is
+that it does not
 read it as an index that is not there: that answer closes the
 retirement backlog issue of a repository that keeps plans, telling it
-the criterion is not applicable to the project.
+the criterion is not applicable to the project. The exception is a
+`docs/plans` that is itself a link out of the clone, which
+[plan-index](plan-index.md) already decides is not a directory this
+audit has -- an index inside one is absent rather than unreadable, and
+the criteria reading it agree about that.
 
 ### Rows that are reported rather than counted
 

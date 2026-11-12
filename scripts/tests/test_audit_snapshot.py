@@ -20,6 +20,17 @@ import audit_snapshot  # noqa: E402
 from audit.registry import CHECKS  # noqa: E402
 
 
+# Fixture plan names for the details strings below, standing in for
+# whatever plan-retirement found rather than being pointers a reader
+# follows -- so plan-source-references is told to skip these two lines
+# and goes on auditing the rest of this suite. The line marker rather
+# than the file-scope one on purpose: this file is about the snapshot
+# comparison, and a plan pointer in it that really had rotted should
+# still be found.
+PLAN_A = 'PLAN-a.md'  # audit-ok: plan-reference
+PLAN_B = 'PLAN-b.md'  # audit-ok: plan-reference
+
+
 def result(repo, checks, timestamp='2026-09-01T06:00:00+00:00'):
     """Build a result document of the shape audit-check.py emits."""
     return {
@@ -97,18 +108,12 @@ class CompareRepoTest(unittest.TestCase):
         counting that as a difference would leave this tool reporting
         one for every repository with an eligible plan.
         """
-        # The plan names below are fixtures standing in for whatever
-        # plan-retirement found, not pointers a reader follows, so
-        # each line carrying one is marked for plan-source-references.
-        # The line marker rather than the file-scope one: this suite
-        # is about the snapshot comparison and would otherwise stop
-        # being audited for a pointer that really had rotted.
-        before = ('2 plan(s) terminal for more than 90 days: PLAN-a.md '  # audit-ok: plan-reference
-                  '(Complete, at least 97 days), PLAN-b.md (Complete, at '  # audit-ok: plan-reference
-                  'least 91 days)')
-        after = ('2 plan(s) terminal for more than 90 days: PLAN-a.md '  # audit-ok: plan-reference
-                 '(Complete, at least 98 days), PLAN-b.md (Complete, at '  # audit-ok: plan-reference
-                 'least 92 days)')
+        before = (f'2 plan(s) terminal for more than 90 days: {PLAN_A} '
+                  f'(Complete, at least 97 days), {PLAN_B} (Complete, '
+                  f'at least 91 days)')
+        after = (f'2 plan(s) terminal for more than 90 days: {PLAN_A} '
+                 f'(Complete, at least 98 days), {PLAN_B} (Complete, '
+                 f'at least 92 days)')
         self.assertEqual(
             audit_snapshot.compare_repo(
                 result('ryll', [check('plan-retirement', 'fail', before)]),
@@ -132,10 +137,10 @@ class CompareRepoTest(unittest.TestCase):
         # The normalisation is of the count alone. Which plans the
         # check names is what the snapshot is kept for, and an age
         # written over cannot be allowed to take a name with it.
-        before = ('1 plan(s) terminal for more than 90 days: PLAN-a.md '  # audit-ok: plan-reference
-                  '(Complete, at least 97 days)')
-        after = ('1 plan(s) terminal for more than 90 days: PLAN-b.md '  # audit-ok: plan-reference
-                 '(Complete, at least 97 days)')
+        before = (f'1 plan(s) terminal for more than 90 days: {PLAN_A} '
+                  f'(Complete, at least 97 days)')
+        after = (f'1 plan(s) terminal for more than 90 days: {PLAN_B} '
+                 f'(Complete, at least 97 days)')
         differences = audit_snapshot.compare_repo(
             result('ryll', [check('plan-retirement', 'fail', before)]),
             result('ryll', [check('plan-retirement', 'fail', after)]),
@@ -225,7 +230,7 @@ class ReportTest(unittest.TestCase):
 
 
 class NetworkCheckListTest(unittest.TestCase):
-    """Both hand-written lists must match what the checker does.
+    """The advisory list must match what the checker actually does.
 
     NETWORK_CHECKS is written by hand, and a check that grows a
     GitHub call later would otherwise silently become a source of
@@ -238,13 +243,6 @@ class NetworkCheckListTest(unittest.TestCase):
     Matching on the client rather than on a literal `gh` is what makes
     this survive the client seam: no check spawns `gh` itself, they
     all go through audit/github.py.
-
-    TRANSIENT_FAILURE_CHECKS is derived the same way from a different
-    question: which checks read a blob out of history, which in the
-    `--filter=blob:none` clone the scheduled run makes is a fetch from
-    the promisor remote. That set is hand-written too, because nothing
-    in a result says which git call produced a tool failure, and the
-    two lists go stale in the same way.
     """
 
     def _sources(self):
@@ -273,7 +271,7 @@ class NetworkCheckListTest(unittest.TestCase):
 
         The tables are keyed by bare name across every module, so two
         same-named top-level symbols would silently overwrite each
-        other and the reachability walk would examine the wrong body
+        other and `_reaches_network` would examine the wrong body --
         a wrong answer rather than a missing one, which the `unread`
         assertion cannot see. Returns the collisions so the caller can
         fail on them; there are none today.
@@ -308,53 +306,22 @@ class NetworkCheckListTest(unittest.TestCase):
                 bodies[name] = '\n'.join(body)
         return bodies, bases, sorted(duplicates)
 
-    # The GitHub client, or a clone from it. Matched on the client
-    # rather than on a literal `gh` for the reason the class docstring
-    # gives.
-    NETWORK = r"_github\(|repo\.github|GhCli\(|'clone'"
-
-    # A git subcommand that materialises a blob out of history, which
-    # is the read a promisor remote has to answer. `ls-files`,
-    # `check-ignore`, `rev-parse` and a `log` of commit metadata do
-    # not: a clone filtered of blobs still holds every commit and
-    # every tree. `cat-file` is matched whatever it is asked for,
-    # because the one call of it today is in a check that already
-    # reaches the network and a future one asked for a blob would not
-    # be.
-    HISTORY_BLOB = r"'(?:show|cat-file|archive)'"
-
-    def _reaches(self, pattern, bodies, bases, name, seen=None):
-        """Does name, or anything it reaches, match pattern?
-
-        The call-graph walk both derivations share: the symbol's own
-        body, then its base classes, then every other top-level symbol
-        its body calls. Only the pattern differs between them.
-        """
+    def _reaches_network(self, bodies, bases, name, seen=None):
         seen = seen if seen is not None else set()
         if name in seen:
             return False
         seen.add(name)
         body = bodies.get(name, '')
-        if re.search(pattern, body):
+        if re.search(r"_github\(|repo\.github|GhCli\(|'clone'", body):
             return True
         for other in bases.get(name, []):
-            if self._reaches(pattern, bodies, bases, other, seen):
+            if self._reaches_network(bodies, bases, other, seen):
                 return True
         for other in bodies:
             if other != name and re.search(rf'\b{other}\s*\(', body):
-                if self._reaches(pattern, bodies, bases, other, seen):
+                if self._reaches_network(bodies, bases, other, seen):
                     return True
         return False
-
-    def _scheduled(self):
-        """Check id to implementing class name, from the registry.
-
-        Taken from CHECKS rather than matched out of the source, for
-        the reason test_network_checks_matches_the_checker gives.
-        That test asserts the map is complete and unambiguous, so a
-        derivation here that went blind fails there first.
-        """
-        return {check.id: type(check).__name__ for check in CHECKS}
 
     def test_network_checks_matches_the_checker(self):
         bodies, bases, duplicates = self._symbols(self._sources())
@@ -404,7 +371,7 @@ class NetworkCheckListTest(unittest.TestCase):
 
         derived = {
             check_id for check_id, symbol in scheduled.items()
-            if self._reaches(self.NETWORK, bodies, bases, symbol)
+            if self._reaches_network(bodies, bases, symbol)
         }
         self.assertEqual(
             derived, set(audit_snapshot.NETWORK_CHECKS),
@@ -412,52 +379,49 @@ class NetworkCheckListTest(unittest.TestCase):
             'checks that actually reach the network',
         )
 
-    def test_transient_failure_checks_matches_the_checker(self):
-        # The set audit-raised.py excuses is every check that asks
-        # GitHub plus every check that reads a blob out of history.
-        # Asserted as that union rather than as a literal list, so a
-        # criterion added to either side is covered without a second
-        # place to remember.
-        bodies, bases, _ = self._symbols(self._sources())
-        scheduled = self._scheduled()
+    def test_a_marked_tool_failure_is_excused_and_others_are_not(self):
+        # The amnesty audit-raised.py applies. A criterion whose
+        # verdict comes from the tree says that one of its reads went
+        # to a remote by marking the failure, because nothing in the
+        # result could tell afterwards which git call raised. Keying
+        # it off the check id instead excused every failure path the
+        # criterion has, so a clone step regressing to --depth 1 would
+        # have warned and passed on every leg while plan-retirement
+        # errored fleet-wide.
+        def failure(**extra):
+            return dict({'status': 'error', 'tool_failure': True,
+                         'id': 'plan-retirement'}, **extra)
 
-        reads_history = {
-            check_id for check_id, symbol in scheduled.items()
-            if self._reaches(self.HISTORY_BLOB, bodies, bases, symbol)
-        }
-        self.assertEqual(
-            set(audit_snapshot.TRANSIENT_FAILURE_CHECKS),
-            set(audit_snapshot.NETWORK_CHECKS) | reads_history,
-            'TRANSIENT_FAILURE_CHECKS in audit_snapshot.py disagrees '
-            'with the checks whose tooling reaches a remote',
-        )
+        self.assertTrue(
+            audit_snapshot.transient_tool_failure(failure(transient=True)))
+        self.assertFalse(
+            audit_snapshot.transient_tool_failure(failure()))
 
-        # The finding this list was split out for: plan-retirement is
-        # excused as transient without being a network check, because
-        # its verdict is held to the byte-for-byte comparison while
-        # its `git show` of a historical index is not.
-        self.assertIn('plan-retirement', reads_history)
-        self.assertIn('plan-retirement',
-                      audit_snapshot.TRANSIENT_FAILURE_CHECKS)
-        self.assertNotIn('plan-retirement', audit_snapshot.NETWORK_CHECKS)
-
-    def test_the_two_questions_are_asked_of_different_sets(self):
-        # github_did_not_answer() is the smoke run's question and
-        # transient_tool_failure() is the scheduled run's. A
-        # plan-retirement tool failure is transient, but it is not
-        # GitHub declining to answer a run that has no token, and
-        # collapsing the two is what failed the leg before.
-        failure = {'status': 'error', 'tool_failure': True,
-                   'id': 'plan-retirement'}
-        self.assertTrue(audit_snapshot.transient_tool_failure(failure))
-        self.assertFalse(audit_snapshot.github_did_not_answer(failure))
+        # A network check needs no mark: asking GitHub is how it
+        # reaches a verdict at all, so there is no other tooling in it
+        # to fail.
+        self.assertTrue(audit_snapshot.transient_tool_failure(
+            {'status': 'error', 'tool_failure': True,
+             'id': 'github-security'}))
 
         # Neither excuses a check that broke, or a verdict.
-        broken = {'status': 'error', 'id': 'plan-retirement'}
-        self.assertFalse(audit_snapshot.transient_tool_failure(broken))
-        verdict = {'status': 'fail', 'tool_failure': True,
-                   'id': 'plan-retirement'}
-        self.assertFalse(audit_snapshot.transient_tool_failure(verdict))
+        self.assertFalse(audit_snapshot.transient_tool_failure(
+            {'status': 'error', 'id': 'plan-retirement', 'transient': True}))
+        self.assertFalse(audit_snapshot.transient_tool_failure(
+            {'status': 'fail', 'tool_failure': True,
+             'id': 'plan-retirement', 'transient': True}))
+
+    def test_the_two_questions_are_asked_of_different_results(self):
+        # github_did_not_answer() is the smoke run's question and
+        # transient_tool_failure() is the scheduled run's. The smoke
+        # run's clone is unfiltered and it has no token, so a marked
+        # failure is still a check that broke as far as it is
+        # concerned, and collapsing the two is what failed the leg
+        # before.
+        marked = {'status': 'error', 'tool_failure': True,
+                  'id': 'plan-retirement', 'transient': True}
+        self.assertTrue(audit_snapshot.transient_tool_failure(marked))
+        self.assertFalse(audit_snapshot.github_did_not_answer(marked))
 
 
 if __name__ == '__main__':

@@ -29,9 +29,10 @@ import sys
 # regression, but it is not nothing either.
 #
 # This is not the same question as whether a *tool failure* in a check
-# is transient; TRANSIENT_FAILURE_CHECKS below is that one, and it is
-# the wider set. A criterion can read a remote without its verdict
-# depending on one.
+# is transient; transient_tool_failure() below is that one, and it
+# answers yes to more than this set. A criterion can read a remote
+# without its verdict depending on one, and it says so by marking the
+# failure rather than by appearing here.
 #
 # Written by hand. NetworkCheckListTest in test_audit_snapshot.py
 # re-derives it from the checks under audit/ -- every check that
@@ -66,26 +67,6 @@ NETWORK_CHECKS = frozenset({
 })
 
 
-# Checks whose tooling reaches a remote, so an `error` marked
-# `tool_failure` from one is an outage rather than a broken check.
-# Every NETWORK_CHECK qualifies, because asking GitHub is how it
-# reaches its verdict at all.
-#
-# plan-retirement is here without being a NETWORK_CHECK, which is the
-# distinction this set exists to draw. Its verdict comes from the tree
-# and from this repository's own history, so it is held to the
-# byte-for-byte comparison like any other local check. But its
-# `git show` of a historical docs/plans/index.md is the audit
-# package's only read of a blob out of history -- every other git call
-# under audit/ is `ls-files`, `check-ignore`, `rev-parse`, a metadata
-# `log`, or sfui-vendor's own clone -- and the consistency audit clones
-# with `--filter=blob:none`, where reading such a blob fetches it from
-# the promisor remote. A 502 or a reset between two legs of one run is
-# therefore a failure here, and failing the leg for it holds back the
-# compliance page for the whole fleet.
-TRANSIENT_FAILURE_CHECKS = NETWORK_CHECKS | frozenset({'plan-retirement'})
-
-
 def github_did_not_answer(check):
     """Is this result a network check whose tooling could not ask?
 
@@ -109,14 +90,34 @@ def transient_tool_failure(check):
 
     The question audit-raised.py asks, which must not let one
     transient 502 hold back the compliance page for every repository
-    in the fleet. A tool failure from a check outside this set is the
-    runner's own git, skillsaw or review-tracking.py not answering,
-    which the next run would meet too, and an unmarked error is a
-    check that broke: both fail the leg.
+    in the fleet. Two ways to qualify, and the difference between them
+    is how much the result can be trusted to say.
+
+    A check in NETWORK_CHECKS qualifies whatever it was doing: asking
+    GitHub is how it reaches its verdict at all, so there is no other
+    kind of tooling in it to fail.
+
+    Any check qualifies for a failure its raise site marked
+    `transient`, which is the only way a criterion whose verdict comes
+    from the tree can say that one of its reads went to a remote.
+    plan-retirement is the case: its `git show` of a historical
+    docs/plans/index.md fetches a blob from the promisor remote in the
+    `--filter=blob:none` clone the workflow makes, while the shallow
+    check beside it, its `git log` and its read cap are local and fail
+    the leg as they should. Keying this off the check's id instead
+    would have excused all eight of its failure paths, so a clone step
+    regressing to `--depth 1` would have warned and passed on every
+    leg of every run while the criterion errored fleet-wide.
+
+    Everything else is the runner's own git, skillsaw or
+    review-tracking.py not answering, which the next run would meet
+    too, and an unmarked error is a check that broke: both fail the
+    leg.
     """
     return (check.get('status') == 'error'
             and bool(check.get('tool_failure'))
-            and check.get('id') in TRANSIENT_FAILURE_CHECKS)
+            and (bool(check.get('transient'))
+                 or check.get('id') in NETWORK_CHECKS))
 
 
 # Fields that move on every run regardless of what the checker does.

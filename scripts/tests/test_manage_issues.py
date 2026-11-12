@@ -460,9 +460,10 @@ class IssueLifecycleTest(IssueLifecycleCase):
         # Nothing is known about the repository, so closing the issue
         # would read as the repository having fixed what the audit
         # never measured, and filing one would be a finding the audit
-        # cannot support. Every criterion can reach this state --
-        # plan-retirement's git reads raise ToolFailure, which
-        # run_check() turns into one -- and nothing asserted it.
+        # cannot support. The not_applicable branch used to be a bare
+        # else, so any status it did not recognise -- which `error`
+        # would have been -- closed the repository's open issue as
+        # though the check no longer applied.
         self.tracker.add(REPO, title_for('eol-distro'))
         self.process(('eol-distro', 'error'))
         self.assertEqual(self.tracker.writes, [])

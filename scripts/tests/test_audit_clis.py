@@ -80,6 +80,40 @@ class AuditRaisedTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn('testrepo: llm-context-lint: skillsaw could not run', result.stderr)
 
+    def test_a_marked_transient_failure_is_a_warning_not_a_failed_leg(self):
+        # The amnesty a criterion whose verdict comes from the tree
+        # can reach: plan-retirement's read of a historical index is a
+        # fetch from the promisor remote in the filtered clone this
+        # workflow makes, and the raise site marks it. Asserted at the
+        # CLI boundary because that is where the exit code and the
+        # annotation actually decide whether the leg fails.
+        result = self.run_on([
+            {'id': 'eol-distro', 'status': 'pass', 'details': 'ok'},
+            {'id': 'plan-retirement', 'status': 'error',
+             'tool_failure': True, 'transient': True,
+             'details': 'Could not read docs/plans/index.md at abc123.'},
+        ])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('::warning::testrepo: plan-retirement: Could not read',
+                      result.stdout)
+        self.assertEqual(result.stderr, '')
+
+    def test_an_unmarked_failure_from_the_same_check_still_fails(self):
+        # The case marking per check id got wrong. A shallow checkout
+        # is this runner's clone step, not a remote, so the leg has to
+        # fail for it -- otherwise a clone regressing to --depth 1
+        # warns and passes on every leg of every run while the
+        # criterion reports error fleet-wide.
+        result = self.run_on([
+            {'id': 'plan-retirement', 'status': 'error',
+             'tool_failure': True,
+             'details': 'The checkout is shallow.'},
+        ])
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('testrepo: plan-retirement: The checkout is shallow.',
+                      result.stderr)
+        self.assertEqual(result.stdout, '')
+
     def test_a_network_check_that_raised_still_fails(self):
         result = self.run_on([
             {'id': 'merge-queue-config', 'status': 'error',
