@@ -1228,6 +1228,75 @@ does prune answers it. The bypass itself is not in doubt -- without
 it that push would be refused exactly as the operator's was -- but
 the reading that would show it has not been taken.
 
+**Step 2b record (2026-11-12).** The criterion landed as
+`moving-ref-source-protection` in a second pull request off `main`
+with 2a's record already merged, as decision 5 requires, so it was
+measurable against the live repository on the day it was written. Run
+against `shakenfist/actions` it passes, with the details string
+naming the branch and all four contexts; run against this repository
+it reports `not_applicable` with the reason naming the repository and
+asks GitHub nothing. Seven files, the seventh being the
+`NETWORK_CHECKS` line the step brief singled out.
+
+Verified in the management session rather than taken from the
+sub-agent's report: 2618 tests pass, `pre-commit run --all-files`
+passes, and the step's eleven mutants were re-run from its own
+specification against a fresh copy of the tree, all eleven killed
+with none surviving. One of them removes the `NETWORK_CHECKS` line
+and is killed by `test_network_checks_matches_the_checker`, so that
+line is now held by a test rather than by this plan's warning about
+it. The pass verdict was also confirmed against the live repository,
+which the brief had only asked to be reasoned about offline.
+
+The before-and-after snapshot that *Before and after a change to a
+check* asks for was run too, which the step's own report had skipped:
+captures from a pristine checkout of `main` at 951fef7 and from this
+branch, over the 29 audited checkouts. No firm differences, and the
+whole of the advisory difference is this criterion appearing -- pass
+on `actions`, not_applicable on the other 28. That is the check no
+unit test performs, because a reworded `details` string is published
+to `docs/audits/compliance.md` and into every issue body filed
+fleet-wide, and nothing fails on it.
+
+*Departure from the step table.* The table marks 2b `worktree`
+isolation. That was satisfied with a worktree created in the
+management session off updated `main`, rather than with the agent
+tool's own isolation, because the latter bases its copy on the shared
+clone's checked-out `HEAD` -- which was still `main` before #388
+merged. The criterion would then have been written against a tree in
+which 2a's record and ruleset did not exist, and its central claim
+could not have been measured. The isolation the column asks for is
+from the shared clone, and that is what it got.
+
+*Two tests beyond the brief, kept.* The brief enumerated three
+tool-failure cases; the criterion has five. The additions are a
+matched rule that names no `ruleset_id`, and a ruleset that answers
+without an `enforcement` field -- the second being the one that
+would otherwise have become a `fail`, which is the error this
+repository's conventions treat as the one a criterion must never
+make, since a fail files an issue about our own outage. Both kill a
+mutant no other test kills.
+
+*The six-file count was left alone, deliberately.* This step's brief
+warns that `AGENTS.md` says six files and `PLAN-TEMPLATE.md`'s
+success criteria say five, while this criterion needed seven. Neither
+was edited, because `AGENTS.md` does not keep its own list: it names
+six and points at *Adding a criterion* in
+`docs/consistency-audits.md`, which carries the conditional seventh
+line for a criterion that reaches the network. The authoritative list
+is right, and the warning in the brief is what a reader needs rather
+than a correction to the summaries.
+
+*Unrelated, and not this phase's to fix.* `plan-source-references`
+fails on this repository, on six `PLAN-a.md`/`PLAN-b.md` fixture
+names in `scripts/tests/test_audit_snapshot.py` that arrived with the
+plan-retirement work. It fails identically on a pristine checkout of
+`main`, so it predates this step; the audit files its own issues, so
+the next scheduled run raises it without help. It is in Future work
+as a pointer rather than fixed here, because mixing it into a
+criterion pull request would hide it.
+
+
 ### Phase 3: pin third-party actions to a sha
 
 Planning effort: high for 3a, which decides the rollout. Medium for
@@ -1936,6 +2005,18 @@ intend to do aligns with that plan.
   2 creates, and an audit token that can read
   `orgs/{org}/rulesets`, which #352 is about. Revisit once both
   hold.
+- `plan-source-references` fails on this repository, on six
+  `PLAN-a.md`/`PLAN-b.md` fixture names in
+  `scripts/tests/test_audit_snapshot.py`. They are expected-output
+  strings for the plan-retirement criterion rather than references
+  anybody can follow, so the criterion is right that they do not
+  resolve and wrong that they are references. Confirmed failing on a
+  pristine checkout of `main` at 951fef7, so it predates this phase
+  and 2b did not cause it. The audit files its own issues, so the
+  next scheduled run raises it; the fix is either naming the
+  fixtures something the criterion does not read as a plan
+  reference, or teaching it to skip a string that is a test's
+  expected output.
 
 Related issues, as of writing:
 
