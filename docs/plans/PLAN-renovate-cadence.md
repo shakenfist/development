@@ -1468,6 +1468,69 @@ open question 1 -- what `RENOVATE_TOKEN` actually is and what it can
 reach -- is recorded here too, since the probe is the first thing in
 this plan that establishes it rather than assuming it.
 
+#### Execution notes
+
+Dates are Australian Eastern Daylight Time (UTC+11).
+
+**The back brief's four answers** (2026-11-13). Decision 2 stands: the
+runner is an ephemeral VM in the `renovate-write` environment, with
+the operator creating the environment himself, since it is a
+repository setting rather than a file in a pull request. The workflow
+references it and is inert until it exists.
+
+**Phase 2 lands in two pull requests, not one** (2026-11-13). GitHub
+offers `workflow_dispatch` only for a workflow that exists on the
+default branch, so none of the four cutover steps can run from the
+phase branch. This pull request is steps 2a to 2d; the cutover runs
+against `main` afterwards and its measurements land as a second pull
+request on this phase. Four Definition of done items -- the dry run's
+discovered list, the probe's output, the canary and the watch day --
+are therefore unreachable in the first pull request and are checked
+in the second.
+
+**The probe derives its repository set rather than reading the dry
+run's** (2026-11-13, step 2a). The phase's cutover text said the
+probe checks "every repository the dry run discovered", which it
+cannot know: the probe runs before Renovate, on every run. It
+instead applies the rule `requireConfig: "required"` applies --
+every unarchived repository in the organisation whose default branch
+carries a `renovate.json` -- so it stays correct as repositories are
+added and retired, where a list of 23 names would be a second copy
+of the fleet. It reads only `renovate.json` of the longer list
+Renovate accepts, and says so: covering that list partway would buy
+confidence it has not earned, and the `renovate` audit criterion is
+what keeps a repository from configuring Renovate another way
+unnoticed.
+
+**Two departures from the template in `renovate-fleet.yml`**
+(2026-11-13, step 2a). The Rust and `hashin` setup steps are
+unconditional, where the per-repository template guards each with
+`hashFiles()`. The condition asks whether the workspace holds a
+`Cargo.lock` or a `requirements*.txt`, and the repositories this
+workflow manages are not in the workspace at all -- Renovate clones
+them later -- so the guards would never fire and lock file refreshes
+would fail at cutover for the fleet's Rust and hashed-requirements
+repositories. The cost is a rustup install and a venv on every
+hourly run. The probe also lives in `scripts/` rather than the
+`tools/` the phase text named, because every Python file in this
+repository is in `scripts/` and every shell script in `tools/`.
+
+**`timeout-minutes` is bounded by the cadence, not the work**
+(2026-11-13, step 2a). 50 minutes, because GitHub keeps one pending
+run per concurrency group: a pass that regularly ran past the hour
+would quietly halve the schedule rather than fail anything, and
+timing out under the hour makes it loud. The number is provisional
+until the cutover's dry run measures a full pass.
+
+**The validator hook fails between 2a and 2b, by design**
+(2026-11-13). `renovate-runner.json` is a global configuration and
+phase 1's hook validates every Renovate file as a repository
+configuration under `--no-global`, so the hook fails from the moment
+2a creates the file until 2b splits it in two. Measured and recorded
+rather than worked around: renaming the file to dodge the hook's
+derived pattern would have left the fleet's most privileged
+configuration the one file nobody validates.
+
 #### Risks and mitigations
 
 * **The VM image may not have what Renovate needs.** The

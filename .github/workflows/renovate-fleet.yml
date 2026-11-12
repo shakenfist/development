@@ -1,0 +1,182 @@
+# Runs Renovate hourly over every repository in the organisation, from
+# here, with its global configuration in renovate-runner.json.
+#
+# The fleet's per-repository copies of templates/renovate/renovate.yml
+# each run Renovate over the one repository they live in. This runs it
+# over all of them in one pass, so the schedule costs one runner rather
+# than one per repository, and the global configuration -- which
+# repositories are discovered, and what is suppressed fleet-wide -- is
+# in one file instead of being implied by where the copies are
+# installed. docs/audits/renovate.md is the specification.
+
+name: Renovate fleet runner
+
+# Nothing here uses the job's own token: this repository arrives through
+# the checkout, and every other repository through RENOVATE_TOKEN.
+permissions:
+  contents: read
+
+on:
+  schedule:
+    # Hourly at minute 23 rather than on the hour. GitHub delays and
+    # sometimes drops scheduled events at the top of the hour, when
+    # everybody else's cron fires too, and with one central runner a
+    # dropped run delays every repository in the fleet at once rather
+    # than one of them.
+    - cron: '23 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Renovate dryRun: extract, lookup or full. Empty writes for real.'
+        required: false
+        default: ''
+        type: string
+      autodiscover_filter:
+        description: 'Autodiscover filter, e.g. shakenfist/development. Empty uses the runner config.'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  renovate:
+    name: Renovate the fleet
+    # An ephemeral VM, not the static pool the per-repository copies
+    # run on. RENOVATE_TOKEN pushes branches to every repository in the
+    # organisation, and the static runners share one user and one home
+    # directory between jobs, so code another job ran could leave a
+    # .pth file or a ~/.gitconfig hook there for this job to run with
+    # that token. A VM starts from the image and is thrown away after
+    # one job. These are the labels, and the reasoning, that
+    # consistency-audit.yml already uses for its token-holding jobs.
+    runs-on: [self-hosted, vm, debian-13, s]
+    # The environment is what keeps RENOVATE_TOKEN off a branch: it
+    # deploys only from main, so a branch that has edited this file
+    # cannot dispatch itself and run with the organisation's push
+    # token. The condition below is defence in depth rather than the
+    # control -- a branch can edit a condition out of its own copy, but
+    # it cannot grant itself the environment -- and it makes a branch
+    # dispatch show up as skipped rather than failed.
+    environment: renovate-write
+    if: ${{ github.ref == 'refs/heads/main' }}
+    # Provisional, until a dry run has measured a full pass over the
+    # fleet. The ceiling is the cadence rather than the work: GitHub
+    # keeps one pending run per concurrency group, so a pass that
+    # regularly ran past the hour would quietly halve the schedule
+    # instead of failing anything. Timing out under the hour makes that
+    # loud instead. Renovate resumes where it left off on the next run,
+    # so a killed pass costs an hour rather than any state.
+    timeout-minutes: 50
+    # timeout-minutes does not cover queue time: the run can sit waiting
+    # for a VM, so an hourly cron can fire while the previous run is
+    # still queued, and workflow_dispatch can collide with either. Two
+    # Renovate instances over the same repository race on branch
+    # creation and produce duplicate or half-written pull requests --
+    # across the whole fleet here, not one repository.
+    #
+    # Not cancel-in-progress: killing Renovate mid-push is worse than
+    # skipping an hour, and the next cron is an hour away.
+    concurrency:
+      group: renovate-fleet
+      cancel-in-progress: false
+    steps:
+      # This repository, for the global configuration and the probe
+      # below, and nothing else: Renovate clones each repository it
+      # manages into RENOVATE_BASE_DIR with RENOVATE_TOKEN, so no job
+      # credential is left in a .git/config anywhere.
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # Before anything is installed, because a token that cannot write
+      # is a failure that should cost ten seconds rather than a Node
+      # and npm install. It derives the repository set the way Renovate
+      # does and names every repository it cannot push to; the script
+      # says why that set is derived rather than listed. Python 3 and
+      # the standard library only, which is what the image has.
+      - name: Check the push token reaches every managed repository
+        env:
+          RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+        run: python3 scripts/renovate-check-push.py --org shakenfist
+
+      # Renovate runs from npm rather than through
+      # renovatebot/github-action, which runs it as a container and so
+      # needs a Docker daemon this runner does not have. node-version is
+      # the major Renovate's package.json declares in engines.node; read
+      # templates/renovate/README.md before bumping either.
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      # Renovate refreshes lock files with the runner's own tools, which
+      # a container used to install for it. Cargo is the one the fleet
+      # needs that the image lacks. Unconditionally, unlike the
+      # per-repository template: there, hashFiles() asks whether the one
+      # repository being managed has a Cargo.lock, and here the
+      # repositories being managed are not in the workspace at all --
+      # they are cloned later, by Renovate. Several of them are Rust, so
+      # the tool is installed on every run. A rust-toolchain.toml in a
+      # repository still wins: this only sets rustup's default.
+      - name: Set up Rust for Cargo.lock
+        uses: dtolnay/rust-toolchain@stable
+
+      # A requirements file pinned with --hash lines needs hashin, which
+      # Renovate runs to rewrite the hashes when it bumps a pin. Without
+      # it the pull request keeps the old version's hashes and carries
+      # an "artifact update problem". Unconditional for the reason given
+      # above: the repositories that have such a file are not in this
+      # workspace to be looked at. Only hashin goes on PATH, so the
+      # venv's python and pip do not shadow the runner's.
+      - name: Set up hashin for hashed requirements
+        env:
+          # renovate: datasource=pypi depName=hashin
+          PINNED_HASHIN_VERSION: 1.0.5
+        run: |
+          python3 -m venv --clear "${RUNNER_TEMP}/hashin-venv"
+          "${RUNNER_TEMP}/hashin-venv/bin/pip" install --quiet --disable-pip-version-check \
+              "hashin==${PINNED_HASHIN_VERSION}"
+          mkdir -p "${RUNNER_TEMP}/hashin-bin"
+          ln -sf "${RUNNER_TEMP}/hashin-venv/bin/hashin" "${RUNNER_TEMP}/hashin-bin/hashin"
+          echo "${RUNNER_TEMP}/hashin-bin" >> "${GITHUB_PATH}"
+
+      # Installed in a step of its own, with no secret in its
+      # environment. The pin covers Renovate alone: npm resolves its
+      # dependency tree from the registry on every run, so an install
+      # script in that tree would otherwise run with RENOVATE_TOKEN,
+      # which here writes to every repository in the organisation. The
+      # step that holds the token runs only what this one installed.
+      #
+      # --ignore-scripts skips every install script in the tree; re2 is
+      # then rebuilt by name, because it is the one Renovate uses (its
+      # RE2 regex engine, without which it falls back to RegExp and
+      # warns on every run). It still runs without the token.
+      - name: Install Renovate
+        env:
+          # renovate: datasource=npm depName=renovate
+          PINNED_RENOVATE_VERSION: 44.222.2
+        run: |
+          rm -rf "${RUNNER_TEMP}/renovate-bin"
+          npm install --prefix "${RUNNER_TEMP}/renovate-bin" --ignore-scripts --no-audit --no-fund \
+              "renovate@${PINNED_RENOVATE_VERSION}"
+          npm rebuild --prefix "${RUNNER_TEMP}/renovate-bin" re2
+
+      # The two dispatch inputs are empty on a scheduled run, and
+      # Renovate ignores an empty environment variable, so the file's
+      # own values stand. dryRun takes extract, lookup or full, and a
+      # value that is none of those fails the run rather than being
+      # ignored. autodiscoverFilter is not a mergeable option, so the
+      # input replaces the file's list rather than adding to it: that is
+      # what makes a one-repository canary possible, and what bounds a
+      # wider value is the token's own reach and the environment above.
+      - name: Self-hosted Renovate
+        env:
+          RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+          RENOVATE_CONFIG_FILE: ${{ github.workspace }}/renovate-runner.json
+          RENOVATE_DRY_RUN: ${{ inputs.dry_run }}
+          RENOVATE_AUTODISCOVER_FILTER: ${{ inputs.autodiscover_filter }}
+          # A clone and cache per job, under the directory the runner
+          # empties between jobs.
+          RENOVATE_BASE_DIR: ${{ runner.temp }}/renovate
+        run: "${RUNNER_TEMP}/renovate-bin/node_modules/.bin/renovate"
