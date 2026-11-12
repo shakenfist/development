@@ -1287,6 +1287,56 @@ line for a criterion that reaches the network. The authoritative list
 is right, and the warning in the brief is what a reader needs rather
 than a correction to the summaries.
 
+*What the review round changed, including a decision's shape.* The
+automated review of #392 raised two `fix` items. One was a real defect
+in the criterion: `rule_contexts()` returned an empty list for every
+shape it could not read -- a `parameters` object that is not an object,
+a `required_status_checks` value that is not a list, an entry carrying
+no context -- and that empty list flowed into the empty-context `fail`.
+So an unparseable payload filed an issue telling an operator to restore
+checks that may already have been in place, on a branch that may
+already have been protected. Every unreadable shape is now a
+`ToolFailure`; only a genuinely empty list is still the verdict it was
+meant to be. That is the distinction this repository treats as the one
+a criterion must never get wrong, and the criterion had it wrong in the
+direction that files work for somebody.
+
+Decision 3 said the repositories are a class constant
+`MOVING_REF_REPOS = ('actions',)`, with the expected contexts in a
+constant of their own. The review observed that this pairs a list with
+a single repository's job names, so a second entry would file findings
+at the new repository naming `actions`' checks, and that matching on
+`repo.name` alone would measure an `actions` repository in somebody
+else's organisation as though it were the fleet's. Both are now one
+table keyed `org/name` with each repository's contexts beside it. The
+decision's intent -- the set lives in a documented class constant, not
+in configuration -- is unchanged; its literal shape is not what it
+says.
+
+The second `fix` item is answered as #393 rather than in code, and the
+specification gained a *Known gap* section for it. `development` does
+meet this criterion's definition: `ci-prune-reviews.sh` clones this
+repository unpinned and `review-tracking.sh` `exec`s
+`scripts/review-tracking.py` out of that clone, inside the
+`prune-reviews` job of all eight adopters. It is not in the table
+because its `main` carries only `deletion` and `non_fast_forward`, so
+adding it would report a fail and file an issue no code change here
+could close; the ruleset has to come first, and this repository pushes
+review marks with `GITHUB_TOKEN` rather than the App, which has to be
+settled with it. Declining it in code while declaring it on the page is
+the honest shape, because the alternative was a specification that read
+as a complete set while being an incomplete one.
+
+The `document` item was taken as well: the claim that the
+effective-rules endpoint omits a `disabled` ruleset but not an
+`evaluate` one is now split into what was measured (instar's ruleset
+19389569, named on the page) and what is not settled (`evaluate`, which
+nothing in the organisation uses and which could only be measured by
+changing a live ruleset). The page says the second read is the
+conservative choice rather than a known necessity, and that the
+organisation-sourced error rests on the same unsettled question. The
+mutation set is seventeen now, all killed, six of them new this round.
+
 *Unrelated, and not this phase's to fix.* `plan-source-references`
 fails on this repository, on six `PLAN-a.md`/`PLAN-b.md` fixture
 names in `scripts/tests/test_audit_snapshot.py` that arrived with the
@@ -2017,6 +2067,16 @@ intend to do aligns with that plan.
   fixtures something the criterion does not read as a plan
   reference, or teaching it to skip a string that is a test's
   expected output.
+
+- #393: `development` is a moving-ref source nothing protects. The
+  `prune-reviews` job of all eight adopters clones this repository
+  unpinned and `exec`s `scripts/review-tracking.py` out of that
+  clone, so its default branch runs in eight repositories' jobs,
+  and its `main` carries only `deletion` and `non_fast_forward`.
+  The criterion ships measuring `actions` alone and declares the
+  gap, because adding `development` to the table before its ruleset
+  exists would file a failing issue no code change could close.
+  Raised by the automated review of #392.
 
 Related issues, as of writing:
 

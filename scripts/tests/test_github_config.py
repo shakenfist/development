@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import github_config  # noqa: E402
 from audit.github import CompletedCommand, FakeGitHub  # noqa: E402
-from tests.base import CheckTestCase, run_check  # noqa: E402
+from tests.base import CheckTestCase, repo_text, run_check  # noqa: E402
 
 evaluate_merge_queue_rules = github_config.evaluate_merge_queue_rules
 
@@ -1229,6 +1229,96 @@ class MovingRefSourceProtectionTest(GithubConfigTestCase):
             stdout=json.dumps({'id': self.RULESET, 'enforcement': None}))
         self.assert_tool_failure(lambda: self.run_with(answers),
                                  containing='reports no enforcement')
+
+    def test_an_unreadable_parameters_object_is_a_tool_failure(self):
+        """An unparseable payload is not a branch that requires nothing.
+
+        Reading it as "no contexts" would file an issue telling an
+        operator to restore checks that may already be in place.
+        """
+        rule = self.status_checks_rule()
+        rule['parameters'] = []
+        self.assert_tool_failure(
+            lambda: self.run_with(self.answers(
+                rules=[self.pull_request_rule(), rule])),
+            containing='no readable parameters object')
+
+    def test_an_unreadable_context_list_is_a_tool_failure(self):
+        rule = self.status_checks_rule()
+        rule['parameters'] = {'required_status_checks': 'all of them'}
+        self.assert_tool_failure(
+            lambda: self.run_with(self.answers(
+                rules=[self.pull_request_rule(), rule])),
+            containing='no readable required_status_checks list')
+
+    def test_an_entry_naming_no_context_is_a_tool_failure(self):
+        """One malformed entry is not three contexts and a shrug."""
+        rule = self.status_checks_rule()
+        rule['parameters']['required_status_checks'].append(
+            {'integration_id': 15368})
+        self.assert_tool_failure(
+            lambda: self.run_with(self.answers(
+                rules=[self.pull_request_rule(), rule])),
+            containing='names no context')
+
+    def test_the_same_name_in_another_organisation_is_not_applicable(self):
+        """`actions` elsewhere is somebody else's repository.
+
+        The table is keyed `org/name` for this: matching on the bare
+        name would measure a stranger's repository against the fleet's
+        expectations, and file an issue on it.
+        """
+        result = run_check(self.check_class(), self.fixture.path,
+                           name='actions', org='someone-else',
+                           github=RefusingGitHub())
+        self.assert_skip(result, containing='someone-else/actions')
+
+
+class MovingRefSourceProtectionSpecTest(unittest.TestCase):
+    """The page an operator reads must name what the check measures.
+
+    The finding for a cleared context list tells an operator which
+    checks to restore, and the specification repeats them in prose and
+    in a JSON block. Nothing else holds those three copies together, so
+    a context renamed in the ruleset could be corrected in the code and
+    left stale on the page that says how to fix the finding.
+    """
+
+    check = github_config.MovingRefSourceProtection
+
+    def setUp(self):
+        self.spec = repo_text('docs', 'audits',
+                              'moving-ref-source-protection.md')
+        # Prose wraps, so a two-word context can straddle a newline.
+        # That is formatting rather than drift, and a test that reads
+        # it as drift would be worked around rather than fixed.
+        self.flat = ' '.join(self.spec.split())
+
+    def test_every_moving_ref_repository_is_named(self):
+        for slug in self.check.MOVING_REF_REPOS:
+            with self.subTest(repository=slug):
+                self.assertIn(slug, self.flat)
+
+    def test_every_expected_context_is_named(self):
+        for slug, contexts in self.check.MOVING_REF_REPOS.items():
+            for context in contexts:
+                with self.subTest(repository=slug, context=context):
+                    self.assertIn(f'`{context}`', self.flat)
+
+    def test_the_page_records_what_was_measured_about_enforcement(self):
+        """The second read rests on this, so the page carries its basis."""
+        self.assertIn('19389569', self.spec)
+        self.assertIn('evaluate', self.spec)
+
+    def test_the_page_carries_the_known_gap(self):
+        """A moving-ref source this criterion does not measure yet.
+
+        The definition covers `development`, which the prune job of
+        every adopted repository clones unpinned and executes, so the
+        page says so rather than leaving the table looking complete.
+        """
+        self.assertIn('Known gap', self.spec)
+        self.assertIn('shakenfist/development', self.spec)
 
 
 class ScopeCoverageTest(CheckTestCase):

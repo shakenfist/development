@@ -34,13 +34,33 @@ rather than a review.
 A rule that is reported is not necessarily a rule that refuses
 anything. `GET /repos/shakenfist/<repo>/rules/branches/<branch>` is
 what the check reads, because it is the only endpoint that resolves
-organisation and repository rulesets together, and it already leaves
-out a ruleset that is `disabled`. It does not leave out one set to
-`evaluate`, where every rule is reported on and nothing is refused. So
-the check collects the `ruleset_id` of each of the two rules it
-matched, reads `GET /repos/shakenfist/<repo>/rulesets/<id>` once per
-distinct id, and fails unless every one of them is `enforcement:
-active`.
+organisation and repository rulesets together. So the check collects
+the `ruleset_id` of each of the two rules it matched, reads `GET
+/repos/shakenfist/<repo>/rulesets/<id>` once per distinct id, and
+fails unless every one of them is `enforcement: active`.
+
+What that second read rests on, stated as measurement and inference
+rather than as one claim. **Measured:** the effective-rules endpoint
+already leaves out a `disabled` ruleset. instar's ruleset `19389569`
+is `enforcement: disabled`, targets `~DEFAULT_BRANCH` and carries a
+`copilot_code_review` rule, and
+`repos/shakenfist/instar/rules/branches/develop` returns only ruleset
+`20783686`'s five rules. **Not settled:** whether the endpoint also
+omits the rules of a ruleset set to `evaluate`, where a rule is
+reported on and nothing is refused. The endpoint's documentation has
+at times said that rules from `evaluate` and `disabled` rulesets are
+not returned; nothing in this organisation is in `evaluate` mode, and
+setting one there to find out would mean changing a live ruleset, so
+it has not been measured here.
+
+The read is therefore the conservative choice rather than a known
+necessity. If the endpoint does omit `evaluate` rules, the read costs
+one API call per contributing ruleset and can never fail; if it does
+not, the read is the only thing standing between a rule that merely
+reports and a `pass`. The same unsettled question is why an
+organisation-sourced rule is an error below rather than a `pass`: the
+argument that reaching the endpoint at all implies the rule is active
+depends on exactly the behaviour that has not been established.
 
 It also fails a `required_status_checks` rule whose context list is
 empty. That is the shape an operator leaves behind by clearing the
@@ -54,12 +74,42 @@ well, and the symptom of a renamed job is loud, because every pull
 request stops offering a merge at once.
 
 Everywhere else the criterion reports `not_applicable`, naming the
-repository, and asks GitHub nothing: a caller that pins what it
-consumes, or consumes nothing from this repository, is not a source
-whose default branch runs in somebody else's job. The list of
-moving-ref sources is `MOVING_REF_REPOS` on the check, and holds
-`actions` alone. A repository joining that list is a decision somebody
-makes, and the next run measures it.
+repository, and asks GitHub nothing. The table of moving-ref sources
+is `MOVING_REF_REPOS` on the check, keyed `org/name` -- an `actions`
+repository in somebody else's organisation is not this one -- and each
+entry carries that repository's own check-run names, so a repository
+joining the table brings its own rather than inheriting these four
+into a finding filed against it.
+
+`not_applicable` here means "not in the table", which is not the same
+as "not a moving-ref source". The table is a decision about what is
+measured, and the gap below is the part of the definition it does not
+yet cover.
+
+### Known gap
+
+`shakenfist/development` meets the definition at the top of this page
+and is not in the table. `templates/review-tracking/ci-prune-reviews.sh`
+clones it with `git clone https://github.com/shakenfist/development`
+and no ref pin, exports the result as `SHAKENFIST_DEVELOPMENT`, and
+`templates/review-tracking/review-tracking.sh` then `exec`s
+`scripts/review-tracking.py` out of that clone. That runs in the
+`prune-reviews` job of every adopted repository -- eight of them,
+listed in `templates/review-tracking/README.md` -- so whatever
+`development`'s default branch holds when one of those jobs starts
+executes inside it, which is the same exposure this criterion exists
+to measure on `actions`.
+
+It is a gap rather than an omission because closing it is a change to
+a second repository's settings, not to this check: `development`'s
+`main` carries only `deletion` and `non_fast_forward` rules today, so
+adding it to the table would report a fail and file an issue that no
+code change here could close. Requiring a pull request and status
+checks on `development` is the fix, and adding it to the table is what
+should follow; that order is
+[#393](https://github.com/shakenfist/development/issues/393). Until
+then the table under-reports, and says so here rather than reading as
+the complete set.
 
 Anything the audit could not ask is a check error rather than a
 verdict. That covers the branch-rules read and each ruleset read

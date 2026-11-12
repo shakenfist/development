@@ -714,15 +714,34 @@ class MovingRefSourceProtection(Check):
     template = None
     issue_title = 'Moving ref source protection'
 
-    #: The repositories the rest of the fleet consumes at a moving ref,
-    #: and so the only ones where this criterion has anything at stake.
-    #: `actions` serves the shared reusable workflows and composite
-    #: actions at `@main`, so whatever its default branch holds when a
-    #: job starts runs inside that job, in a repository that reviewed
-    #: none of it. Everywhere else a caller pins what it consumes or
-    #: consumes nothing, and the API call would be paid for an answer
-    #: that could not fail.
-    MOVING_REF_REPOS = ('actions',)
+    #: The repositories the rest of the fleet consumes at a moving
+    #: ref, each mapped to the check-run names its own CI reports.
+    #:
+    #: Keyed `org/name`. An `actions` repository in somebody else's
+    #: organisation is not this one, and matching on the bare name
+    #: would measure it as though it were.
+    #:
+    #: `shakenfist/actions` serves the shared reusable workflows and
+    #: composite actions at `@main`, so whatever its default branch
+    #: holds when a job starts runs inside that job, in a repository
+    #: that reviewed none of it.
+    #:
+    #: The contexts sit beside the repository rather than in a
+    #: constant of their own, so that a repository joining this table
+    #: has to bring its own job names instead of inheriting another
+    #: repository's into a finding filed against it. They are named in
+    #: the finding when the rule carries no context at all, so the
+    #: issue says what to put back. They are not compared against the
+    #: rule's contexts: that needs the workflow read as well, and a
+    #: context list this criterion did not check is still a context
+    #: list.
+    #:
+    #: This table is not the whole set of moving-ref sources in the
+    #: fleet; see the specification's "Known gap" section.
+    MOVING_REF_REPOS = {
+        'shakenfist/actions': ('Check paths', 'Lint', 'Unit tests',
+                               'gitleaks'),
+    }
 
     #: The two rules the default branch needs. A pull-request rule means
     #: nothing reaches the branch except through a pull request; a
@@ -738,15 +757,6 @@ class MovingRefSourceProtection(Check):
     #: the ruleset object itself calls the same idea.
     ORGANISATION_SOURCE = 'Organization'
 
-    #: The check-run names the status-checks rule is expected to carry.
-    #: Not compared against the rule's contexts -- that would need the
-    #: workflow read as well, and a context list this criterion did not
-    #: check is still a context list -- but named in the finding when the
-    #: rule carries no context at all, so that the issue says what to put
-    #: back instead of leaving it to be rediscovered. They are the jobs
-    #: of the one repository MOVING_REF_REPOS names.
-    EXPECTED_CONTEXTS = ('Check paths', 'Lint', 'Unit tests', 'gitleaks')
-
     def applies(self, repo):
         """Only a repository the fleet reads at a moving ref can be measured.
 
@@ -754,10 +764,14 @@ class MovingRefSourceProtection(Check):
         one that reason is the whole of what the compliance page says
         about this criterion.
         """
-        if repo.name not in self.MOVING_REF_REPOS:
+        if self.slug(repo) not in self.MOVING_REF_REPOS:
             return (f'Nothing in the fleet consumes {repo.org}/{repo.name} at a moving ref, so '
                     f'its default branch is not code that runs in another repository\'s jobs')
         return None
+
+    def slug(self, repo):
+        """`org/name`, the key MOVING_REF_REPOS is written in."""
+        return f'{repo.org}/{repo.name}'
 
     def run(self, repo):
         """Check a moving-ref source cannot be changed without a reviewed pull request.
@@ -785,8 +799,6 @@ class MovingRefSourceProtection(Check):
         branch, rules = default_branch_rules(repo)
         matched = {}
         for rule in rules:
-            if not isinstance(rule, dict):
-                continue
             kind = rule.get('type')
             if kind in self.REQUIRED_RULES:
                 matched.setdefault(kind, []).append(rule)
@@ -800,12 +812,12 @@ class MovingRefSourceProtection(Check):
 
         contexts = sorted({context
                            for rule in matched['required_status_checks']
-                           for context in self.rule_contexts(rule)})
+                           for context in self.rule_contexts(rule, branch)})
         if not contexts:
             return self.fail(
                 f'The required_status_checks rule on "{branch}" requires no check at all, so a '
                 f'pull request merges without CI having reported: restore the contexts '
-                f'{", ".join(self.EXPECTED_CONTEXTS)}')
+                f'{", ".join(self.MOVING_REF_REPOS[self.slug(repo)])}')
 
         problems = []
         for ruleset_id, kinds in self.contributing_rulesets(repo, branch, matched).items():
@@ -822,24 +834,41 @@ class MovingRefSourceProtection(Check):
             f'The default branch "{branch}" requires a pull request, and requires '
             f'{", ".join(contexts)} before one can merge')
 
-    def rule_contexts(self, rule):
+    def rule_contexts(self, rule, branch):
         """The check-run names a required_status_checks rule requires.
 
         Each entry is `{"context": ..., "integration_id": ...}`, and the
-        context is the whole of what GitHub matches a check run against:
-        a rule whose list is empty satisfies "the rule is there" while
-        requiring nothing, which is what an operator leaves behind by
-        clearing the contexts instead of removing the rule.
+        context is the whole of what GitHub matches a check run against.
+        An empty list is a verdict, and a deliberate one: a rule whose
+        contexts have been cleared satisfies "the rule is there" while
+        requiring nothing.
+
+        A payload this cannot read is not that verdict. Reading an
+        unparseable shape as "no contexts" would file an issue telling
+        an operator to restore checks that may well be in place, about a
+        branch that may well be protected, so every shape other than a
+        list of entries carrying a context is the audit failing to ask.
         """
         parameters = rule.get('parameters')
         if not isinstance(parameters, dict):
-            return []
+            raise ToolFailure(
+                f'The required_status_checks rule on "{branch}" carries no readable '
+                f'parameters object, so the checks it requires cannot be established')
         entries = parameters.get('required_status_checks')
         if not isinstance(entries, list):
-            return []
-        return [entry['context'] for entry in entries
-                if isinstance(entry, dict) and isinstance(entry.get('context'), str)
-                and entry['context']]
+            raise ToolFailure(
+                f'The required_status_checks rule on "{branch}" carries no readable '
+                f'required_status_checks list, so the checks it requires cannot be '
+                f'established')
+        contexts = []
+        for entry in entries:
+            context = entry.get('context') if isinstance(entry, dict) else None
+            if not isinstance(context, str) or not context:
+                raise ToolFailure(
+                    f'An entry in the required_status_checks rule on "{branch}" names no '
+                    f'context, so the checks the rule requires cannot be established')
+            contexts.append(context)
+        return contexts
 
     def contributing_rulesets(self, repo, branch, matched):
         """{ruleset_id: [rule type, ...]} for the rules that were matched.
