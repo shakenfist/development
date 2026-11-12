@@ -1522,6 +1522,18 @@ would quietly halve the schedule rather than fail anything, and
 timing out under the hour makes it loud. The number is provisional
 until the cutover's dry run measures a full pass.
 
+**The local weekly rule covers majors too** (2026-11-13, step 2c).
+The rule decision 8 asks for gives `actions/checkout` and
+`actions/setup-node` in `renovate-fleet.yml` the weekly window, and it
+is not narrowed by update type, so it also takes those two actions out
+of the preset's first-of-the-month major window: a local rule is
+concatenated after the preset's and the later match wins. Kept rather
+than narrowed, because it is the same thing decision 8 wants for the
+same reason -- the most privileged workflow in the fleet should not be
+the slowest to pick up a fix -- and neither action is automerged, so a
+major still waits for a human. Nothing else in the fleet is affected,
+because the rule names a file that exists only here.
+
 **The validator hook fails between 2a and 2b, by design**
 (2026-11-13). `renovate-runner.json` is a global configuration and
 phase 1's hook validates every Renovate file as a repository

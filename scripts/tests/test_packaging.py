@@ -421,8 +421,12 @@ class RenovateFleetPresetTest(CheckTestCase):
         rule = self._rule(matchDepNames=['node'], enabled=False)
         self.assertEqual(rule['matchUpdateTypes'], ['major'])
         self.assertEqual(rule['matchManagers'], ['github-actions'])
+        # The whole set, not membership: each file is a workflow that sets
+        # up Node, and one left out is one a major Node pull request can
+        # reach, which stops Renovate for every repository at once.
         self.assertEqual(sorted(rule['matchFileNames']),
-                         ['.github/workflows/renovate.yml',
+                         ['.github/workflows/renovate-fleet.yml',
+                          '.github/workflows/renovate.yml',
                           'templates/renovate/renovate.yml'])
 
     def test_the_real_preset_merges_nothing_automatically(self):
@@ -443,6 +447,15 @@ class RenovateFleetPresetTest(CheckTestCase):
         rule = self._rule(matchDepNames=['renovate'])
         self.assertEqual(rule['matchUpdateTypes'], ['major'])
         self.assertIn('engines.node', rule['prBodyNotes'][0])
+
+    def test_the_renovate_major_note_names_each_workflow_to_move(self):
+        # The note is the only thing that tells a reviewer which files hold
+        # a node-version that has to move with the pin.
+        note = self._rule(matchDepNames=['renovate'])['prBodyNotes'][0]
+        for name in ('.github/workflows/renovate-fleet.yml',
+                     '.github/workflows/renovate.yml',
+                     'templates/renovate/renovate.yml'):
+            self.assertIn(name, note)
 
     def test_the_real_preset_sets_the_documented_cadence(self):
         preset = self._preset()
@@ -487,16 +500,20 @@ class RenovateReducedConfigTest(unittest.TestCase):
     The definition of done checked this by reading the two files once;
     this keeps it true.
 
-    This repository's own root config is allowed the two sections that
-    exist only here, which reach the templates/ directory the rest of
-    the fleet does not have.
+    This repository's own root config is allowed the sections that exist
+    only here: two that reach the templates/ directory the rest of the
+    fleet does not have, and the packageRules entries for the central
+    runner workflow. packageRules concatenates with the preset's rather
+    than replacing it, so a local rule adds to fleet policy; the test
+    below pins what the root config may hold in it.
     """
 
     PRESET_NAME = 'local>shakenfist/development:renovate-fleet'
 
     #: Sections that apply only to this repository, which ships the
     #: workflow templates. Everything else in the preset is fleet-wide.
-    ROOT_LOCAL_KEYS = frozenset({'github-actions', 'customManagers'})
+    ROOT_LOCAL_KEYS = frozenset(
+        {'github-actions', 'customManagers', 'packageRules'})
 
     STRUCTURAL_KEYS = frozenset({'$schema', 'extends'})
 
@@ -538,6 +555,18 @@ class RenovateReducedConfigTest(unittest.TestCase):
                 os.path.join(*parts) + ' restates fleet policy the preset '
                 'already carries, which overrides it locally: '
                 + ', '.join(restated))
+
+    def test_the_root_config_gives_the_runner_workflow_actions_a_weekly_schedule(self):
+        rules = self._config('renovate.json')['packageRules']
+        self.assertEqual(len(rules), 1)
+        rule = rules[0]
+        self.assertEqual(rule['matchFileNames'],
+                         ['.github/workflows/renovate-fleet.yml'])
+        self.assertEqual(sorted(rule['matchPackageNames']),
+                         ['actions/checkout', 'actions/setup-node'])
+        # The preset's own weekly window, not a second spelling of it.
+        self.assertEqual(rule['schedule'], self._preset()['schedule'])
+        self.assertNotIn('groupName', rule)
 
 
 class RenovateVersionCommentsTest(CheckTestCase):

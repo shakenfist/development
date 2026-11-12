@@ -9,6 +9,21 @@
       "/^templates/.+\\.ya?ml$/"
     ]
   },
+  "packageRules": [
+    {
+      "description": "The central runner's checkout and setup-node would otherwise wait for the monthly CI-tooling window, leaving the most privileged workflow in the organisation the slowest to pick up a fix. Only these two need the rule: the npm renovate pin in that workflow is found by the custom.regex manager that customManagers:githubActionsVersions installs, and the CI-tooling group matches only the github-actions and pre-commit managers, so it never matched the pin and the pin is already weekly. Local because the file exists only in this repository.",
+      "matchFileNames": [
+        ".github/workflows/renovate-fleet.yml"
+      ],
+      "matchPackageNames": [
+        "actions/checkout",
+        "actions/setup-node"
+      ],
+      "schedule": [
+        "on saturday"
+      ]
+    }
+  ],
   "customManagers": [
     {
       "description": "customManagers:githubActionsVersions reads the \"# renovate:\" version comments in .github/workflows, but not in templates/, for the same reason the github-actions block above exists: without this the pinned Renovate in templates/renovate/renovate.yml stays behind the copy this repository runs. The match string is customManagers:githubActionsVersions' own.",
