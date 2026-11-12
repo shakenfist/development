@@ -253,10 +253,6 @@
       "sha": "c58fa988567ea392014294842ae64989649a56f4",
       "date": "2026-10-19"
     },
-    "docs/audits/renovate.md": {
-      "sha": "be0ff82349a10fbca394c7a0c94bb5a86a4732c3",
-      "date": "2026-11-04"
-    },
     "docs/audits/reusable-workflow-secrets.md": {
       "sha": "2ebc5177a729dd8b6025ea36afdd1b305f7b536f",
       "date": "2026-10-05"
@@ -329,10 +325,6 @@
       "sha": "1ee271d86e8ce08b67f8632508b8386453b37c38",
       "date": "2026-11-01"
     },
-    "renovate.json": {
-      "sha": "b0c50aa381d99d1a83554044fc3dad3110c07642",
-      "date": "2026-10-31"
-    },
     "scripts/audit-check.py": {
       "sha": "97673b9e35622a6049cab81725d8554754e715b5",
       "date": "2026-09-04"
@@ -380,10 +372,6 @@
     "scripts/audit/checks/npm_dependencies.py": {
       "sha": "f38312108bb0aa28e9f19f691c13c76552ef0f33",
       "date": "2026-11-05"
-    },
-    "scripts/audit/checks/packaging.py": {
-      "sha": "878b7e61e42ae3c44283743a962083b28c51fcf5",
-      "date": "2026-11-04"
     },
     "scripts/audit/checks/release.py": {
       "sha": "33db8dee30d497d39a070a5465bf597c0031c5a0",
@@ -517,10 +505,6 @@
       "sha": "5aa2c2a84fb6bc3a7a024e3d695ea27eb2741d9a",
       "date": "2026-10-28"
     },
-    "scripts/tests/test_hooks.py": {
-      "sha": "f87b63fadcf25dccf18d7350d57863e2a7e1f6c7",
-      "date": "2026-09-22"
-    },
     "scripts/tests/test_llm_docs.py": {
       "sha": "25371b66c0cefc2ab495e451022839bca1746d8d",
       "date": "2026-10-21"
@@ -536,10 +520,6 @@
     "scripts/tests/test_npm_dependencies.py": {
       "sha": "9a3e2120c3f46dfea2787b13856ef264f805ca3d",
       "date": "2026-11-05"
-    },
-    "scripts/tests/test_packaging.py": {
-      "sha": "82bb9ee56ab41f3b22a4c1f466176273edb93918",
-      "date": "2026-11-04"
     },
     "scripts/tests/test_patterns.py": {
       "sha": "4477ff162d7fd9a3ffb14e31b5979850e23e514f",
@@ -688,14 +668,6 @@
     "templates/release-automation/RELEASE-SETUP.md": {
       "sha": "7b880ebda6d241915e8e4fd5e3283c2e0dee6a04",
       "date": "2026-10-22"
-    },
-    "templates/renovate/README.md": {
-      "sha": "9f3d1b4bcf854ca36aa6773475192c86b0914af8",
-      "date": "2026-11-04"
-    },
-    "templates/renovate/renovate.json": {
-      "sha": "c91385eb8cc7717ff9f3c5dbebad3de2ee8b70b2",
-      "date": "2026-10-31"
     },
     "templates/review-tracking/ci-prune-reviews.sh": {
       "sha": "3c00a9489c0b571bfdd0d1f1170344cfc33b44ff",

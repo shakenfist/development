@@ -173,10 +173,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_hooks.py",
-      "author": "mikal"
-    },
-    {
       "path": "templates/mermaid-lint/mermaid-lint.sh",
       "author": "mikal"
     },
@@ -805,15 +801,7 @@
       "author": "mikal"
     },
     {
-      "path": "templates/renovate/renovate.json",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_ci_workflows.py",
-      "author": "mikal"
-    },
-    {
-      "path": "renovate.json",
       "author": "mikal"
     },
     {
@@ -862,22 +850,6 @@
     },
     {
       "path": ".github/workflows/prune-reviews.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/renovate.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_packaging.py",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/packaging.py",
       "author": "mikal"
     },
     {
