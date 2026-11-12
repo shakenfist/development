@@ -3989,6 +3989,27 @@ class PlanRetirementTest(CheckTestCase):
         result = self.assert_fail(self.check())
         self.assertIn('at least 91 days', result['details'])
 
+    def test_the_walk_stops_at_the_first_revision_past_the_threshold(self):
+        # Two revisions older than the threshold, terminal in both.
+        # The walk stops at the newer of them, so the lower bound is
+        # 120 days and not 150: reading further back would only
+        # establish by how much, which no decision here turns on, and
+        # a walk that went one revision further would cost a promisor
+        # fetch for a number nothing reads.
+        #
+        # The case above cannot see this. Its two older revisions sit
+        # either side of the boundary, so a walk that ran to the end
+        # of the history would land on the same figure and pass.
+        self.history([
+            (300, self.index(self.row('PLAN-a.md', 'In progress'))),
+            (150, self.index(self.row('PLAN-a.md', 'Complete'))),
+            (120, self.index(self.row('PLAN-a.md', 'Complete',
+                                      name='A plan, relabelled'))),
+        ])
+        result = self.assert_fail(self.check())
+        self.assertIn('at least 120 days', result['details'])
+        self.assertNotIn('at least 150 days', result['details'])
+
     def test_a_row_that_went_terminal_inside_the_window_is_dated_exactly(self):
         # The mirror of the case above, one revision the other side of
         # the threshold: the walk reads the revision that pins the
@@ -4019,6 +4040,27 @@ class PlanRetirementTest(CheckTestCase):
         self.assertIn(
             'docs/plans/index.md: PLAN-a.md: no revision of it inside the '
             'window shows its status changing', result['findings'])
+
+    def test_a_row_terminal_only_in_an_uncommitted_edit_is_not_dated(self):
+        # The status is read from the working tree, because that is
+        # what the repository says today, and the clock is read from
+        # the history, because that is the only thing that can date
+        # it. An edit nobody has committed is terminal in the first
+        # and absent from the second, so there is no revision in which
+        # the row changed and nothing to date it by. Dating it by the
+        # newest commit would start the clock at a commit that does
+        # not say the row is terminal -- and for a row edited and left
+        # alone for a year, would declare it eligible on the strength
+        # of an uncommitted file.
+        self.history([
+            (300, self.index(self.row('PLAN-a.md', 'In progress'))),
+        ])
+        self.fixture.write('docs/plans/index.md',
+                           self.index(self.row('PLAN-a.md', 'Complete')))
+        result = self.assert_pass(self.check())
+        self.assertIn(
+            '1 terminal row(s) the history does not date: PLAN-a.md',
+            result['details'])
 
     def test_a_commit_that_deleted_the_index_dates_nothing(self):
         # A deleted index says nothing about any row's status, so the
@@ -4227,6 +4269,20 @@ class PlanRetirementTest(CheckTestCase):
         result = self.assert_fail(self.check())
         self.assertIn('PLAN-renamed.md (Complete, at least 100 days)',
                       result['details'])
+
+    def test_the_walk_budget_is_the_five_minutes_the_page_states(self):
+        # The budget case sets this constant to zero so that it does
+        # not have to wait for one, which leaves nothing asserting the
+        # value it actually ships with. Both halves matter: five
+        # minutes is a judgement about how long a leg may spend
+        # waiting on a promisor remote before one error row beats
+        # losing every other criterion's verdict, and the page a
+        # reader checks a finding against has to carry the same
+        # number the code applies.
+        self.assertEqual(plans.PLAN_RETIREMENT_WALK_BUDGET, 300)
+        self.assertIn(
+            'five-minute',
+            repo_text('docs', 'audits', 'plan-retirement.md'))
 
     def test_the_specification_states_the_threshold(self):
         # The page people read to decide whether a finding is right has
