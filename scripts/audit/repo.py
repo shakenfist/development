@@ -299,6 +299,27 @@ class Repo:
         """
         return exists_within(self._real_path, self.join(path))
 
+    def occupied(self, path):
+        """Is there anything at path, readable or not?
+
+        The one question read() and exists() cannot be asked, and the
+        one a criterion needs before it reports that a file it depends
+        on is absent. Both of those answer no for a shape they will
+        not read -- a directory, a dangling link, a link out of the
+        clone, an oversize file -- which is right for "is there
+        something here to read" and wrong for "did this repository
+        leave the path empty". os.path.lexists() rather than
+        os.path.exists(), so that a link is a thing that is there
+        whatever it points at or whether its target exists.
+
+        Not guarded against a path outside the checkout, because
+        nothing is read: a `..` in a path derived from the audited
+        repository's own files would answer about something outside
+        it, so ask this only about a path the audit chose. Its one
+        caller passes a literal.
+        """
+        return os.path.lexists(self.join(path))
+
     def isfile(self, path):
         """Is there a file at path that read() will return?
 

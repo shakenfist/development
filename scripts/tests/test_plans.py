@@ -3758,8 +3758,59 @@ class PlanRetirementTest(CheckTestCase):
                                blob[:2], blob[2:]))
 
     def test_a_repository_with_no_plan_index_is_not_applicable(self):
+        # Nothing at the path at all, which is the one shape that
+        # justifies closing the backlog issue: this repository keeps
+        # no plan index, so it never had a backlog to count.
         self.fixture.write('README.md', 'Fixture.\n')
         self.assert_skip(self.check(), 'No docs/plans/index.md')
+
+    def test_a_directory_where_the_index_belongs_is_a_finding(self):
+        # read() answers None for a directory the same way it does
+        # for an absent file, and reading that as "not applicable"
+        # closed the backlog issue of a repository that has one.
+        # Reported as this criterion's own finding instead: the
+        # repository put a directory there, so it is the repository's
+        # to fix, and an error would be a check an audited repository
+        # can break (tests/test_containment.py).
+        self.fixture.write('README.md', 'Fixture.\n')
+        os.makedirs(os.path.join(self.fixture.path, 'docs', 'plans',
+                                 'index.md'))
+        self.assert_fail(self.check(),
+                         'is not a file the audit can read')
+
+    def test_an_index_linked_out_of_the_checkout_is_a_finding(self):
+        # The shape read() refuses on purpose, so that an audited
+        # repository cannot choose what the audit reads and quotes
+        # into an issue. Refusing to read it is right; reading the
+        # refusal as an absent index is not.
+        self.fixture.write('README.md', 'Fixture.\n')
+        link_outside(self, 'docs/plans/index.md',
+                     self.index(self.row('PLAN-a.md', 'Complete')))
+        self.assert_fail(self.check(),
+                         'is not a file the audit can read')
+
+    def test_a_dangling_index_link_is_a_finding(self):
+        # A link to nothing is still something the repository put at
+        # the path, and os.path.exists() answers no for it, which is
+        # why the question asked is lexists().
+        self.fixture.write('README.md', 'Fixture.\n')
+        os.makedirs(os.path.join(self.fixture.path, 'docs', 'plans'))
+        os.symlink('gone.md', os.path.join(self.fixture.path, 'docs',
+                                           'plans', 'index.md'))
+        self.assert_fail(self.check(),
+                         'is not a file the audit can read')
+
+    def test_an_index_over_the_read_cap_is_a_finding(self):
+        # The cap applied to the index as it stands, rather than to a
+        # revision of it. Unreachable in the fleet today -- the
+        # largest index is 62 KB against a 2 MB cap -- and reported
+        # rather than retired for the same reason as the shapes above.
+        self.fixture.write('README.md', 'Fixture.\n')
+        self.fixture.write(
+            'docs/plans/index.md',
+            oversize(self.index(self.row('PLAN-a.md', 'Complete'))))
+        self.assert_fail(self.check(),
+                         'is not a file the audit can read')
 
     def test_a_plan_terminal_inside_the_window_is_not_eligible(self):
         self.history([

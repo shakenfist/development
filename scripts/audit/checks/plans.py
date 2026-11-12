@@ -2178,15 +2178,28 @@ class PlanRetirement(Check):
     issue_title = 'Completed plans awaiting retirement'
 
     def applies(self, repo):
-        """Only a repository with an index this can read is measured.
+        """Only a repository that has no index at all is skipped.
 
-        Read rather than stat'ed, because read() is what absence means
-        to a criterion: a docs/plans/index.md that is a directory, a
-        dangling link or a link out of the checkout is not an index.
-        The read is cached, so asking the question here costs the run
-        nothing when the answer is yes.
+        A `not_applicable` verdict closes this criterion's backlog
+        issue, with "not applicable to this project", so the question
+        asked here has to be the one that justifies closing it: the
+        repository keeps no plan index, and never had a backlog this
+        could be counting. A repository that does keep one, but keeps
+        something at the path that read() will not read -- a
+        directory, a link out of the checkout, a dangling link, a
+        revision over the read cap -- has not answered that question,
+        and run() reports that as its own finding rather than
+        retiring the issue.
+
+        The walk below already draws that line for a historical
+        revision: a commit that does not carry the index is skipped,
+        and a revision that does carry it but cannot be read raises
+        rather than being treated as a revision without it. HEAD is
+        held to the same rule here. The read is cached, so asking
+        twice costs the run nothing.
         """
-        if repo.read(PLAN_INDEX_PATH) is None:
+        if (repo.read(PLAN_INDEX_PATH) is None
+                and not repo.occupied(PLAN_INDEX_PATH)):
             return f'No {PLAN_INDEX_PATH}'
         return None
 
@@ -2231,8 +2244,30 @@ class PlanRetirement(Check):
         is not finished, and the issue saying so is the record of
         what is left.
         """
+        content = repo.read(PLAN_INDEX_PATH)
+        if content is None:
+            # applies() let this through: there is something at the
+            # path and it is not a file this will read. A finding
+            # rather than an error, because the repository put it
+            # there -- it is that repository's to fix, not a statement
+            # about the audit -- and because a check that errors on a
+            # shape an audited repository chose is what
+            # tests/test_containment.py exists to forbid. Not a pass
+            # or a not_applicable either: both close this criterion's
+            # backlog issue, and telling a repository that keeps plans
+            # that the criterion is "not applicable to this project"
+            # is the defect this replaced.
+            return self.fail(
+                f'{PLAN_INDEX_PATH} is not a file the audit can read: a '
+                f'directory, a link out of the checkout, a dangling '
+                f'link, or a file over the {READ_MAX_BYTES} byte cap a '
+                f'file is read under. Until it is one, whether any plan '
+                f'is overdue for retirement cannot be established '
+                f'(plan-index reports the same shape as its own '
+                f'finding).')
+
         index = plan_retirement_index(
-            repo.read(PLAN_INDEX_PATH), repository=(repo.org, repo.name))
+            content, repository=(repo.org, repo.name))
         terminal = {
             name: entry for name, entry in index['statuses'].items()
             if plan_status_is_terminal(entry[0])

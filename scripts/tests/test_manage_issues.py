@@ -456,6 +456,25 @@ class IssueLifecycleTest(IssueLifecycleCase):
         self.assertEqual(sorted(self.written('close')), [first, second])
         self.assertEqual(self.tracker.open_titles(REPO), [])
 
+    def test_an_error_leaves_an_open_issue_exactly_as_it_is(self):
+        # Nothing is known about the repository, so closing the issue
+        # would read as the repository having fixed what the audit
+        # never measured, and filing one would be a finding the audit
+        # cannot support. Every criterion can reach this state --
+        # plan-retirement's git reads raise ToolFailure, which
+        # run_check() turns into one -- and nothing asserted it.
+        self.tracker.add(REPO, title_for('eol-distro'))
+        self.process(('eol-distro', 'error'))
+        self.assertEqual(self.tracker.writes, [])
+        self.assertEqual(self.tracker.open_titles(REPO),
+                         [title_for('eol-distro')])
+        self.assertIn('[eol-distro] ERROR -- issues left alone',
+                      self.out.getvalue())
+
+    def test_an_error_with_nothing_open_files_nothing(self):
+        self.process(('eol-distro', 'error'))
+        self.assertEqual(self.tracker.writes, [])
+
     def test_a_pass_with_nothing_open_writes_nothing(self):
         self.process(('eol-distro', 'pass'), ('renovate', 'not_applicable'))
         self.assertEqual(self.tracker.writes, [])
