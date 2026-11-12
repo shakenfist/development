@@ -63,7 +63,10 @@ def tracked_files():
 
 
 def hooks():
-    """Read the local hooks as {id: {...}}.
+    """Read the hooks as {alias or id: {...}}.
+
+    Keyed by alias where there is one, because a repository may run the
+    same hook id twice with different arguments.
 
     Line-based, like the rest of this tree's YAML reading: the audit
     ships without PyYAML on purpose and the shape here is flat.
@@ -75,12 +78,22 @@ def hooks():
             stripped = line.strip()
             if stripped.startswith('- id: '):
                 current = {'id': stripped[len('- id: '):].strip(),
-                           'files': None, 'entry': '', 'always_run': False}
+                           'files': None, 'exclude': None, 'args': '',
+                           'entry': '', 'always_run': False}
                 found[current['id']] = current
             elif current is None:
                 continue
             elif stripped.startswith('files: '):
                 current['files'] = stripped[len('files: '):].strip()
+            elif stripped.startswith('alias: '):
+                if found.get(current['id']) is current:
+                    del found[current['id']]
+                current['alias'] = stripped[len('alias: '):].strip()
+                found[current['alias']] = current
+            elif stripped.startswith('exclude: '):
+                current['exclude'] = stripped[len('exclude: '):].strip()
+            elif stripped.startswith('args: '):
+                current['args'] = stripped[len('args: '):].strip()
             elif stripped.startswith('entry: '):
                 current['entry'] = stripped[len('entry: '):].strip()
             elif stripped.startswith('always_run: '):
@@ -283,30 +296,38 @@ class SuiteLocationTest(unittest.TestCase):
 
 
 class RenovateConfigHookTest(unittest.TestCase):
-    """The validator hook fires on every Renovate configuration here.
+    """Every Renovate configuration here is validated by exactly one hook.
 
-    This is the same property the suite hooks above carry, for the one
-    remote hook that has a `files:` of its own. It is worth asserting
-    for the same reason it was worth overriding: the hook's own default
-    pattern matched `renovate.json` but not `renovate-fleet.json`, so
-    the preset -- which takes effect fleet-wide the moment it merges,
-    and cannot be tried from a branch -- was the one file it skipped,
-    and it reported "Passed" while doing so.
+    There are two validator hooks, because a repository configuration
+    and the fleet runner's global configuration need different modes.
+    One that holds a global option must fail as a repository
+    configuration, and the other must accept them. A file matched by
+    neither is never validated and reports "Passed" regardless, which
+    is how the preset went unchecked when the hook's own default
+    pattern matched renovate.json but not renovate-fleet.json. A file
+    matched by both is validated in the wrong mode by one of them,
+    which fails a correct global configuration or passes a bad
+    repository one.
 
-    The replacement pattern is derived rather than a list, and the set
-    it is measured against is derived too, from the names Renovate
-    reads a configuration from plus this fleet's preset naming. So a
-    second preset, a `.github/renovate.json`, or a `renovate.json5`
-    added later is covered without anyone widening the pattern, and if
-    one is not, this fails rather than the validator passing silently.
+    The patterns are derived rather than listed, and the set they are
+    measured against is derived too, from the names Renovate reads a
+    configuration from plus this fleet's preset naming. So a second
+    preset, a `.github/renovate.json`, or a `renovate.json5` added
+    later is covered without anyone widening a pattern, and if one is
+    not, this fails rather than the validators passing silently.
     """
 
-    HOOK = 'renovate-config-validator'
+    REPOSITORY = 'renovate-config-validator-repository'
+    GLOBAL = 'renovate-config-validator-global'
+
+    #: The fleet runner's global configuration, the one file the second
+    #: hook exists for.
+    RUNNER = 'renovate-runner.json'
 
     #: The names Renovate reads a repository configuration from, and
     #: the `renovate-<name>.json` spelling this fleet gives a preset.
     #: Names rather than a pattern, so this is independent of the
-    #: pattern it checks.
+    #: patterns it checks.
     CONFIG_NAMES = frozenset({
         'renovate.json', 'renovate.json5', 'renovate.jsonc',
         '.renovaterc', '.renovaterc.json', '.renovaterc.json5',
@@ -325,28 +346,58 @@ class RenovateConfigHookTest(unittest.TestCase):
                 found.add(path)
         return found
 
-    def test_the_hook_is_configured(self):
-        self.assertIn(self.HOOK, hooks())
-        self.assertIsNotNone(hooks()[self.HOOK]['files'])
+    def _validators(self, path):
+        """The validator hooks that would run on this path."""
+        found = []
+        for name in (self.REPOSITORY, self.GLOBAL):
+            hook = hooks()[name]
+            if not re.search(hook['files'], path):
+                continue
+            if hook['exclude'] and re.search(hook['exclude'], path):
+                continue
+            found.append(name)
+        return found
+
+    def test_both_hooks_are_configured(self):
+        for name in (self.REPOSITORY, self.GLOBAL):
+            self.assertIn(name, hooks())
+            self.assertIsNotNone(hooks()[name]['files'])
+
+    def test_the_modes_are_the_ones_intended(self):
+        self.assertIn('--no-global', hooks()[self.REPOSITORY]['args'])
+        self.assertNotIn('--no-global', hooks()[self.GLOBAL]['args'])
 
     def test_the_tree_still_has_configs_to_check(self):
-        # Without this the test above could pass on an empty set, which
-        # is the failure mode it exists to catch.
+        # Without this the tests below could pass on an empty set, which
+        # is the failure mode they exist to catch.
         found = self._configs(tracked_files())
         for expected in ('renovate.json', 'renovate-fleet.json',
+                         self.RUNNER,
                          os.path.join('templates', 'renovate',
                                       'renovate.json')):
             self.assertIn(expected, found)
 
-    def test_the_hook_fires_on_every_renovate_config(self):
-        pattern = hooks()[self.HOOK]['files']
-        missed = sorted(path for path in self._configs(tracked_files())
-                        if not re.search(pattern, path))
+    def test_every_renovate_config_is_validated_by_exactly_one_hook(self):
+        configs = self._configs(tracked_files())
+        self.assertTrue(configs, 'no Renovate configurations were found')
+        unvalidated = sorted(p for p in configs if not self._validators(p))
         self.assertEqual(
-            missed, [],
-            'the ' + self.HOOK + ' hook\'s files: pattern does not match '
-            'these Renovate configurations, so they are never validated:'
-            '\n  ' + '\n  '.join(missed))
+            unvalidated, [],
+            'neither validator hook matches these Renovate '
+            'configurations, so they are never validated:\n  '
+            + '\n  '.join(unvalidated))
+        doubled = sorted(p for p in configs
+                         if len(self._validators(p)) > 1)
+        self.assertEqual(
+            doubled, [],
+            'both validator hooks match these Renovate configurations, '
+            'so one validates them in the wrong mode:\n  '
+            + '\n  '.join(doubled))
+
+    def test_the_global_hook_validates_the_runner_config_alone(self):
+        self.assertEqual(self._validators(self.RUNNER), [self.GLOBAL])
+        self.assertEqual(self._validators('renovate.json'),
+                         [self.REPOSITORY])
 
 
 if __name__ == '__main__':
