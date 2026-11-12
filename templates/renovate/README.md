@@ -8,7 +8,7 @@ in Shaken Fist projects.
 | File | Destination | Description |
 |------|-------------|-------------|
 | `renovate.yml` | `.github/workflows/renovate.yml` | Hourly workflow |
-| `renovate.json` | `renovate.json` (repo root) | Renovate config |
+| `renovate.json` | `renovate.json` (repo root) | Extends the fleet preset |
 
 ## Copying these files
 
@@ -19,13 +19,53 @@ copy to the template apart from the versions Renovate bumps in each
 repository: the value of each `PINNED_*_VERSION` variable (Renovate's
 and hashin's) and the ref of each action it uses.
 
-`renovate.json` is a per-repository adaptation, not expected to be
-byte-identical between repositories. It is copied as a starting point
-and then customised with project-specific package grouping rules, a
-Python version constraint, or a range strategy, as the sections below
-describe. Whatever else it carries, it must keep
-`"extends": ["customManagers:githubActionsVersions"]`, which is what
-lets Renovate see its own version pin (below).
+`renovate.json` is just `$schema` and
+`"extends": ["local>shakenfist/development:renovate-fleet"]`. The
+fleet policy lives once, in that preset, `renovate-fleet.json` at the
+root of shakenfist/development, and a repository adds only what is
+particular to it: project-specific package grouping rules, a Python
+version constraint, or a range strategy, as the sections below
+describe. That makes it not byte-identical between repositories once
+customised, and the audit does not expect it to be. Whatever else it
+carries, it must keep the `extends`: the preset is what enables the
+`pre-commit` manager and extends `customManagers:githubActionsVersions`,
+which lets Renovate see its own version pin (below).
+
+### The fleet preset
+
+The preset carries the whole fleet policy, so a repository that
+extends it needs nothing of its own: the author and assignee
+Renovate uses, the dependency dashboard, rollback pull requests,
+`minimumReleaseAge`, the `pre-commit` manager,
+`customManagers:githubActionsVersions`, the timezone and the cadence,
+the rule that merges nothing automatically, the two rules that keep
+`node-version` and the pinned Renovate in step, and the
+`shellcheck-py/shellcheck-py` versioning rule. What each of those is
+set to is listed once, in the
+[audit spec](https://github.com/shakenfist/development/blob/main/docs/audits/renovate.md),
+and deliberately not repeated here: a policy written out twice drifts,
+and the copy that drifts unnoticed is the one in a template.
+
+One part of it is worth stating twice, because it is the one place
+the cadence can cost a repository a security fix. The preset sets no
+`vulnerabilityAlerts`, so Renovate's defaults apply: a fix for a
+vulnerability Dependabot reports ignores the schedule,
+`minimumReleaseAge` and grouping, and arrives at once rather than
+waiting for Saturday. One rule is an exception. A `packageRules` entry
+with `enabled: false` suppresses even a vulnerability fix, and the
+preset's Node-major disable rule is one, so Node majors in the
+Renovate workflows are the one update type the immediate security
+path does not reach.
+
+Renovate reads the preset from the default branch of
+shakenfist/development, so a change to it cannot be tried from a pull
+request branch: it takes effect for the whole fleet the moment it
+merges. The only check before that is pre-commit's
+`renovate-config-validator`, which that repository's
+`.pre-commit-config.yaml` aims at the preset by name and runs with
+`--no-global`. See the
+[audit spec](https://github.com/shakenfist/development/blob/main/docs/audits/renovate.md)
+for why.
 
 ## Renovate runs from npm, not Docker
 
@@ -152,8 +192,8 @@ tree is fixed by a lockfile. `minimumReleaseAge` does not help here:
 it governs the pull requests Renovate opens, not what `npm` installs.
 
 `node-version` follows Renovate's `engines.node` (`^24.11.0` for
-44.x), and `renovate.json` keeps the two in step with two
-`packageRules` entries. Keep both when adapting the file.
+44.x), and the fleet preset keeps the two in step with two
+`packageRules` entries.
 
 - **Renovate majors carry a note.** A Renovate major that raises
   `engines.node` needs `node-version` raised in the same pull request,
@@ -175,8 +215,9 @@ reads it, and Renovate clones the repository itself with
 
 ## The pre-commit manager
 
-`renovate.json` enables renovate's `pre-commit` manager. That manager
-ships disabled, so a repository that copies an older config keeps
+The fleet preset enables renovate's `pre-commit` manager. That manager
+ships disabled, so a repository whose config does not extend the
+preset, or enable the manager itself, keeps
 `.pre-commit-config.yaml` outside renovate's view entirely -- the hook
 revisions never appear on the dependency dashboard, and nothing about
 the repository looks wrong while they age.
@@ -187,7 +228,8 @@ watching is the one deciding whether everything else is acceptable.
 It was found in `instar`, where `actionlint` sat four months behind
 while cargo, dockerfile and github-actions dependencies stayed current.
 
-Any of the three supported forms satisfies the audit:
+Any of the three supported forms satisfies the audit, as does
+extending the fleet preset, which enables the manager:
 
 ```json
 {"pre-commit": {"enabled": true}}
@@ -205,14 +247,18 @@ tags a fourth, packaging, component (`v0.11.0.1`), which renovate's
 default versioning cannot parse, so the lookup fails with "Can't find
 version matching v0.11.0.1" on the dependency dashboard and the hook is
 never bumped. That is the same silent ageing the manager was enabled to
-prevent, with a warning only the dashboard shows. The template's
+prevent, with a warning only the dashboard shows. The fleet preset's
 `shellcheck-py/shellcheck-py` package rule sets a regex versioning
-that reads all four components. Keep it when adapting the template:
-it is inert in a repository that does not use the hook. `kerbside`
-found this first, and its `renovate.json` additionally groups the hook
+that reads all four components, so a repository that extends the
+preset needs nothing of its own; the rule is inert in one that does
+not use the hook. `kerbside` found this first, and its
+`renovate.json` additionally groups the hook
 with the `tox.ini` pin of the same tool.
 
 ## Customisation
+
+Everything below is something a repository adds to its `renovate.json`
+beside the `extends` of the fleet preset, not a replacement for it.
 
 ### Python version constraints
 

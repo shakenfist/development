@@ -90,6 +90,32 @@ repos:
     hooks:
       - id: skillsaw
 
+  # Validate the Renovate configuration. The fleet policy lives in
+  # renovate-fleet.json, which every repository extends, and Renovate
+  # reads it from the default branch, so a mistake in it takes effect
+  # fleet-wide the moment it merges and cannot be tried from a branch.
+  # This hook is the only check before that.
+  #
+  # files: is overridden because the hook's default pattern matches
+  # renovate.json but not renovate-fleet.json, so the preset would be
+  # skipped while the hook still passed, which is exactly the failure
+  # it is here to prevent. The replacement is derived rather than a
+  # list of the files that exist today: any renovate config or
+  # renovate-*.json preset, in any directory, is covered, so the next
+  # one added is validated without anyone remembering to widen this.
+  # test_hooks.py holds the pattern to every such file in the tree.
+  #
+  # --no-global because a file given as an argument is otherwise
+  # validated as a global self-hosted configuration, and that mode
+  # accepts a self-hosted-only key (onboarding, say) in a file that is
+  # not one. Both modes still reject unknown keys and bad values.
+  - repo: https://github.com/renovatebot/pre-commit-hooks
+    rev: 44.227.4
+    hooks:
+      - id: renovate-config-validator
+        files: ^(.*/)?(\.renovaterc|\.?renovate[^/]*\.json[c5]?)$
+        args: ['--no-global']
+
   # The automation's own unit tests. They used to run only here, because
   # there was nowhere else for them to run: the only workflow in this
   # repository was the consistency audit, so until this hook existed a
@@ -165,7 +191,12 @@ repos:
         # shape of every other clause here: the suite reaches into
         # tools/ and the next thing it reaches for should not need a
         # pattern edit nobody remembers to make.
-        files: ^(scripts/.*\.py|tools/.*|.*\.md|templates/.*|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml)$
+        # And renovate-fleet.json, because the packaging tests load the
+        # real preset and assert that each Renovate check's helper accepts
+        # it on its own. The audit trusts that preset by name for every
+        # repository in the fleet, so the commit that guts it must be the
+        # commit that fails.
+        files: ^(scripts/.*\.py|tools/.*|.*\.md|templates/.*|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml|renovate-fleet\.json)$
 
       - id: review-tracking-tests
         name: review tracking tests

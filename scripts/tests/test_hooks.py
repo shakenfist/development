@@ -282,5 +282,72 @@ class SuiteLocationTest(unittest.TestCase):
             'no pre-commit hook runs these:\n  ' + '\n  '.join(missed))
 
 
+class RenovateConfigHookTest(unittest.TestCase):
+    """The validator hook fires on every Renovate configuration here.
+
+    This is the same property the suite hooks above carry, for the one
+    remote hook that has a `files:` of its own. It is worth asserting
+    for the same reason it was worth overriding: the hook's own default
+    pattern matched `renovate.json` but not `renovate-fleet.json`, so
+    the preset -- which takes effect fleet-wide the moment it merges,
+    and cannot be tried from a branch -- was the one file it skipped,
+    and it reported "Passed" while doing so.
+
+    The replacement pattern is derived rather than a list, and the set
+    it is measured against is derived too, from the names Renovate
+    reads a configuration from plus this fleet's preset naming. So a
+    second preset, a `.github/renovate.json`, or a `renovate.json5`
+    added later is covered without anyone widening the pattern, and if
+    one is not, this fails rather than the validator passing silently.
+    """
+
+    HOOK = 'renovate-config-validator'
+
+    #: The names Renovate reads a repository configuration from, and
+    #: the `renovate-<name>.json` spelling this fleet gives a preset.
+    #: Names rather than a pattern, so this is independent of the
+    #: pattern it checks.
+    CONFIG_NAMES = frozenset({
+        'renovate.json', 'renovate.json5', 'renovate.jsonc',
+        '.renovaterc', '.renovaterc.json', '.renovaterc.json5',
+    })
+    PRESET_PREFIX = 'renovate-'
+    PRESET_SUFFIXES = ('.json', '.json5', '.jsonc')
+
+    def _configs(self, tracked):
+        found = set()
+        for path in tracked:
+            name = os.path.basename(path)
+            if name in self.CONFIG_NAMES:
+                found.add(path)
+            elif (name.startswith(self.PRESET_PREFIX)
+                    and name.endswith(self.PRESET_SUFFIXES)):
+                found.add(path)
+        return found
+
+    def test_the_hook_is_configured(self):
+        self.assertIn(self.HOOK, hooks())
+        self.assertIsNotNone(hooks()[self.HOOK]['files'])
+
+    def test_the_tree_still_has_configs_to_check(self):
+        # Without this the test above could pass on an empty set, which
+        # is the failure mode it exists to catch.
+        found = self._configs(tracked_files())
+        for expected in ('renovate.json', 'renovate-fleet.json',
+                         os.path.join('templates', 'renovate',
+                                      'renovate.json')):
+            self.assertIn(expected, found)
+
+    def test_the_hook_fires_on_every_renovate_config(self):
+        pattern = hooks()[self.HOOK]['files']
+        missed = sorted(path for path in self._configs(tracked_files())
+                        if not re.search(pattern, path))
+        self.assertEqual(
+            missed, [],
+            'the ' + self.HOOK + ' hook\'s files: pattern does not match '
+            'these Renovate configurations, so they are never validated:'
+            '\n  ' + '\n  '.join(missed))
+
+
 if __name__ == '__main__':
     unittest.main()
