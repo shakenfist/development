@@ -185,10 +185,6 @@
       "sha": "df7aea389e9120a7e2474dbab10e7a05b302c962",
       "date": "2026-10-05"
     },
-    "docs/audits/plan-audit-phase.md": {
-      "sha": "fdb2179a490fe5c810e4f9f3d7d563dbaef44f5e",
-      "date": "2026-10-05"
-    },
     "docs/audits/plan-history-in-source.md": {
       "sha": "59d7e206cadc0ccfca4727179376985f1d29109e",
       "date": "2026-10-28"
@@ -333,10 +329,6 @@
       "sha": "72daf57dae5fe26a914ecd75b1f345badd68a002",
       "date": "2026-10-21"
     },
-    "scripts/audit-raised.py": {
-      "sha": "ebc5f3d66887e6225eeece3533833686652fa0f6",
-      "date": "2026-10-21"
-    },
     "scripts/audit-update-docs.py": {
       "sha": "0c1190a662d932787820c24dd0d74333cdd733c7",
       "date": "2026-10-21"
@@ -344,10 +336,6 @@
     "scripts/audit/__init__.py": {
       "sha": "86ffeb2a5deffaa05b04df768a1e43d2448435a0",
       "date": "2026-09-02"
-    },
-    "scripts/audit/check.py": {
-      "sha": "e6b86cbea55e61885d2ad38c7e9f5c77d5c4ae34",
-      "date": "2026-10-21"
     },
     "scripts/audit/checks/__init__.py": {
       "sha": "d54faddeed246c3b084571825d542bf04c1bb930",
@@ -461,10 +449,6 @@
       "sha": "10460b6ae248872a437175ef41c04844a8d319a3",
       "date": "2026-10-18"
     },
-    "scripts/tests/test_audit_clis.py": {
-      "sha": "92e72c1e0fce0f50c8f490e7d2e654b60dc4ff69",
-      "date": "2026-10-21"
-    },
     "scripts/tests/test_audit_common.py": {
       "sha": "cdae27ad94220840281832f75e1545e7880b438b",
       "date": "2026-10-18"
@@ -507,10 +491,6 @@
     },
     "scripts/tests/test_llm_docs.py": {
       "sha": "25371b66c0cefc2ab495e451022839bca1746d8d",
-      "date": "2026-10-21"
-    },
-    "scripts/tests/test_manage_issues.py": {
-      "sha": "39ceb4b259be8a6593c372e951855301808de499",
       "date": "2026-10-21"
     },
     "scripts/tests/test_markdown.py": {

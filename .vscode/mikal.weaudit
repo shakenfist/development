@@ -313,10 +313,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/plan-audit-phase.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/pin-indirect-dependencies.md",
       "author": "mikal"
     },
@@ -521,19 +517,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/check.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/audit/files.py",
       "author": "mikal"
     },
     {
       "path": "scripts/audit/scope.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_audit_clis.py",
       "author": "mikal"
     },
     {
@@ -550,10 +538,6 @@
     },
     {
       "path": "scripts/tests/test_llm_docs.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_manage_issues.py",
       "author": "mikal"
     },
     {
@@ -578,10 +562,6 @@
     },
     {
       "path": "scripts/audit-manage-issues.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit-raised.py",
       "author": "mikal"
     },
     {
