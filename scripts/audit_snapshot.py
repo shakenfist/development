@@ -42,6 +42,10 @@ NETWORK_CHECKS = frozenset({
     # Reads the review-marks environment and its branch policy, which
     # an operator can change between runs.
     'bypass-actor-identity',
+    # Reads the default branch's effective rules and the enforcement
+    # of each ruleset that contributed one, both of which an
+    # operator can change between runs.
+    'moving-ref-source-protection',
     'merge-group-cancellation',
     'sfui-vendor',
     # Reads run history, which moves every time a workflow fires.

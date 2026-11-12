@@ -708,6 +708,261 @@ class BypassActorIdentity(Check):
         return []
 
 
+class MovingRefSourceProtection(Check):
+    id = 'moving-ref-source-protection'
+    spec = 'docs/audits/moving-ref-source-protection.md'
+    template = None
+    issue_title = 'Moving ref source protection'
+
+    #: The repositories the rest of the fleet consumes at a moving
+    #: ref, each mapped to the check-run names its own CI reports.
+    #:
+    #: Keyed `org/name`. An `actions` repository in somebody else's
+    #: organisation is not this one, and matching on the bare name
+    #: would measure it as though it were.
+    #:
+    #: `shakenfist/actions` serves the shared reusable workflows and
+    #: composite actions at `@main`, so whatever its default branch
+    #: holds when a job starts runs inside that job, in a repository
+    #: that reviewed none of it.
+    #:
+    #: The contexts sit beside the repository rather than in a
+    #: constant of their own, so that a repository joining this table
+    #: has to bring its own job names instead of inheriting another
+    #: repository's into a finding filed against it.
+    #:
+    #: They are compared against the rule's own contexts, and a missing
+    #: one is a finding: clearing two of four leaves every pull request
+    #: still offering a merge, so nothing else would notice. What is
+    #: *not* compared is these names against the workflow's job names,
+    #: which would need the workflow of another repository read; that
+    #: is why the finding tells an operator to confirm each context
+    #: still names a job rather than asserting that it does.
+    #:
+    #: This table is not the whole set of moving-ref sources in the
+    #: fleet; see the specification's "Known gap" section.
+    MOVING_REF_REPOS = {
+        'shakenfist/actions': ('Check paths', 'Lint', 'Unit tests',
+                               'gitleaks'),
+    }
+
+    #: The two rules the default branch needs. A pull-request rule means
+    #: nothing reaches the branch except through a pull request; a
+    #: required-status-checks rule means that pull request waits for CI.
+    #: Either on its own leaves a gate somebody can walk through: a pull
+    #: request nobody looked at, or a push nobody opened one for.
+    REQUIRED_RULES = ('pull_request', 'required_status_checks')
+
+    #: The only rule source whose enforcement this check can read, and
+    #: the spelling the effective-rules response uses for it. The field
+    #: is `ruleset_source_type`, beside `ruleset_source` and
+    #: `ruleset_id`, rather than `source_type`, which is what the
+    #: ruleset object itself calls the same idea.
+    REPOSITORY_SOURCE = 'Repository'
+
+    #: GitHub's other sources. `Organization` has an endpoint this
+    #: token is refused; `Enterprise` is not reachable at all. Both are
+    #: raised rather than guessed at, and so is a rule that names no
+    #: source, because the repository read it implies would be an
+    #: assumption.
+    ORGANISATION_SOURCE = 'Organization'
+
+    def applies(self, repo):
+        """Only a repository the fleet reads at a moving ref can be measured.
+
+        The reason names the repository, because on every repository but
+        one that reason is the whole of what the compliance page says
+        about this criterion.
+        """
+        if self.slug(repo) not in self.MOVING_REF_REPOS:
+            return (f'This criterion measures {", ".join(sorted(self.MOVING_REF_REPOS))}, and '
+                    f'{repo.org}/{repo.name} is not among them, so no default branch is read '
+                    f'here; the specification lists the moving-ref sources it does not yet '
+                    f'measure')
+        return None
+
+    def slug(self, repo):
+        """`org/name`, the key MOVING_REF_REPOS is written in."""
+        return f'{repo.org}/{repo.name}'
+
+    def run(self, repo):
+        """Check a moving-ref source cannot be changed without a reviewed pull request.
+
+        A caller that writes `uses: <org>/<repo>/...@main` runs whatever
+        the default branch holds at the moment its job starts, so that
+        branch is the review gate for every caller at once. Two rules
+        make it one: a pull request to reach the branch, and status
+        checks before the pull request can merge.
+
+        The effective rules are read rather than the rulesets, because
+        that endpoint is the only one that resolves organisation and
+        repository rulesets together, and it already leaves out a
+        ruleset that is disabled. What it does not say is whether a rule
+        it reports blocks anything: a ruleset set to evaluate reports on
+        every rule it holds and refuses nothing. So each ruleset that
+        contributed one of the two rules is read back for its
+        enforcement.
+
+        Two things are the audit failing to ask rather than a verdict: a
+        read that does not answer, and a rule sourced from an
+        organisation ruleset, whose enforcement is only on an endpoint
+        the audit's read token cannot reach.
+        """
+        branch, rules = default_branch_rules(repo)
+        matched = {}
+        for rule in rules:
+            kind = rule.get('type')
+            if kind in self.REQUIRED_RULES:
+                matched.setdefault(kind, []).append(rule)
+
+        missing = [kind for kind in self.REQUIRED_RULES if kind not in matched]
+        if missing:
+            return self.fail(
+                f'The default branch "{branch}" of {repo.org}/{repo.name} is consumed at a '
+                f'moving ref, but its rules carry no {" rule and no ".join(missing)} rule: '
+                f'anything that lands there runs in every caller\'s job unreviewed')
+
+        expected = set(self.MOVING_REF_REPOS[self.slug(repo)])
+        contexts = sorted({context
+                           for rule in matched['required_status_checks']
+                           for context in self.rule_contexts(rule, branch)})
+
+        problems = []
+        if not contexts:
+            problems.append(
+                f'its required_status_checks rule requires no check at all, so a pull request '
+                f'merges without CI having reported: restore {", ".join(sorted(expected))}, '
+                f'confirming each still names a job in the repository\'s ci.yml')
+        else:
+            dropped = sorted(expected.difference(contexts))
+            if dropped:
+                problems.append(
+                    f'its required_status_checks rule no longer requires '
+                    f'{", ".join(dropped)}, so that much of the gate is gone while every pull '
+                    f'request still offers a merge')
+
+        for ruleset_id, kinds in self.contributing_rulesets(repo, branch, matched).items():
+            enforcement = self.ruleset_enforcement(repo, ruleset_id)
+            if enforcement != 'active':
+                problems.append(
+                    f'ruleset {ruleset_id}, which contributes the {" and ".join(kinds)} rule on '
+                    f'"{branch}", has enforcement "{enforcement}" rather than "active", so its '
+                    f'rules are reported on without refusing anything')
+
+        if problems:
+            return self.fail(
+                f'The default branch "{branch}" of {repo.org}/{repo.name} is consumed at a '
+                f'moving ref, but {"; ".join(problems)}')
+
+        return self.ok(
+            f'The default branch "{branch}" requires a pull request, and requires '
+            f'{", ".join(contexts)} before one can merge')
+
+    def rule_contexts(self, rule, branch):
+        """The check-run names a required_status_checks rule requires.
+
+        Each entry is `{"context": ..., "integration_id": ...}`, and the
+        context is the whole of what GitHub matches a check run against.
+        An empty list is a verdict, and a deliberate one: a rule whose
+        contexts have been cleared satisfies "the rule is there" while
+        requiring nothing.
+
+        A payload this cannot read is not that verdict. Reading an
+        unparseable shape as "no contexts" would file an issue telling
+        an operator to restore checks that may well be in place, about a
+        branch that may well be protected, so a value of the wrong type
+        is the audit failing to ask.
+
+        An absent key is read as the empty list, which is the one place
+        this leans on a shape nobody measured: whether GitHub returns
+        `{"required_status_checks": []}` for a rule whose contexts have
+        been cleared, or omits the key. Were the key omitted and treated
+        as unreadable, the criterion would report an error for exactly
+        the configuration it exists to catch, and the verdict below
+        would be unreachable outside the tests. The specification says
+        so rather than leaving the choice to be rediscovered.
+        """
+        parameters = rule.get('parameters')
+        if not isinstance(parameters, dict):
+            raise ToolFailure(
+                f'The required_status_checks rule on "{branch}" carries no readable '
+                f'parameters object, so the checks it requires cannot be established')
+        entries = parameters.get('required_status_checks', [])
+        if not isinstance(entries, list):
+            raise ToolFailure(
+                f'The required_status_checks rule on "{branch}" carries a '
+                f'required_status_checks value that is not a list, so the checks it requires '
+                f'cannot be established')
+        contexts = []
+        for entry in entries:
+            context = entry.get('context') if isinstance(entry, dict) else None
+            if not isinstance(context, str) or not context:
+                raise ToolFailure(
+                    f'An entry in the required_status_checks rule on "{branch}" names no '
+                    f'context, so the checks the rule requires cannot be established')
+            contexts.append(context)
+        return contexts
+
+    def contributing_rulesets(self, repo, branch, matched):
+        """{ruleset_id: [rule type, ...]} for the rules that were matched.
+
+        Each rule names the ruleset it came from, and more than one
+        ruleset can contribute to a branch, so the ids are collapsed and
+        each is read once. An organisation-sourced ruleset cannot be
+        read at all: its enforcement is only on the organisation
+        endpoint, which the audit's read token is refused, so there is
+        no answer to the question of whether its rule blocks or merely
+        reports. That is raised rather than judged, as a rule naming no
+        ruleset is: both leave the enforcement unknown.
+        """
+        contributing = {}
+        for kind in self.REQUIRED_RULES:
+            for rule in matched[kind]:
+                ruleset_id = rule.get('ruleset_id')
+                source = rule.get('ruleset_source_type')
+                if source != self.REPOSITORY_SOURCE:
+                    raise ToolFailure(
+                        self.unreadable_source(repo, branch, kind, source, ruleset_id))
+                if not isinstance(ruleset_id, int):
+                    raise ToolFailure(
+                        f'The {kind} rule on "{branch}" names no ruleset it came from, so the '
+                        f'enforcement that decides whether it refuses anything cannot be read')
+                contributing.setdefault(ruleset_id, []).append(kind)
+        return contributing
+
+    def unreadable_source(self, repo, branch, kind, source, ruleset_id):
+        """Why a rule's enforcement cannot be read from this repository.
+
+        Three cases, each saying what it saw rather than reporting a
+        failed read of an endpoint that was never the right one.
+        """
+        if source == self.ORGANISATION_SOURCE:
+            return (f'The {kind} rule on "{branch}" comes from organisation ruleset '
+                    f'{ruleset_id}, whose enforcement can only be read from '
+                    f'orgs/{repo.org}/rulesets/{ruleset_id}; the audit\'s read token is '
+                    f'refused that endpoint, so whether the rule refuses a push or only '
+                    f'reports on one cannot be established (see shakenfist/development '
+                    f'issue 352)')
+        if source is None:
+            return (f'The {kind} rule on "{branch}" names no ruleset_source_type, so reading '
+                    f'its enforcement from this repository\'s own rulesets would be an '
+                    f'assumption rather than a measurement')
+        return (f'The {kind} rule on "{branch}" comes from a "{source}" ruleset rather than '
+                f'this repository\'s own, so its enforcement is not at '
+                f'repos/{repo.org}/{repo.name}/rulesets/{ruleset_id} and cannot be read here')
+
+    def ruleset_enforcement(self, repo, ruleset_id):
+        """The enforcement of one of the repository's own rulesets."""
+        what = f'ruleset {ruleset_id} of {repo.org}/{repo.name}'
+        result = repo.github.api_answer(
+            f'repos/{repo.org}/{repo.name}/rulesets/{ruleset_id}', what)
+        answer = parse_json_answer(result, what)
+        enforcement = answer.get('enforcement')
+        if not isinstance(enforcement, str) or not enforcement:
+            raise ToolFailure(f'Could not read {what}: it reports no enforcement')
+        return enforcement
+
+
 #: How many repositories to ask for. `gh repo list` returns 30 by
 #: default, which silently loses eight of the organisation's 38 and
 #: reports them as undecided; the check refuses a listing that reaches

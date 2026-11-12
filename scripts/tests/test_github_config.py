@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import github_config  # noqa: E402
 from audit.github import CompletedCommand, FakeGitHub  # noqa: E402
-from tests.base import CheckTestCase, run_check  # noqa: E402
+from tests.base import CheckTestCase, repo_text, run_check  # noqa: E402
 
 evaluate_merge_queue_rules = github_config.evaluate_merge_queue_rules
 
@@ -1027,6 +1027,383 @@ class BypassActorIdentityTest(GithubConfigTestCase):
                 'name': 'review-marks', 'deployment_branch_policy': None})),
         }))
         self.assert_fail(result, containing='any branch or tag')
+
+
+class MovingRefSourceProtectionTest(GithubConfigTestCase):
+    """The criterion that measures the branch other repositories run from."""
+
+    check_class = github_config.MovingRefSourceProtection
+
+    #: The fixture repository is the one the fleet reads at a moving
+    #: ref, so the API paths are its, not the shared testrepo's.
+    REPO_PATH = 'repos/shakenfist/actions'
+
+    #: An arbitrary ruleset id. Nothing reads it back, so it stands for
+    #: "the ruleset a rule came from" and not for any live one.
+    RULESET = 4242
+
+    #: A second one, for the cases about more than one contributing
+    #: ruleset.
+    OTHER_RULESET = 4243
+
+    CONTEXTS = ('Check paths', 'Lint', 'Unit tests', 'gitleaks')
+
+    def run_with(self, responses, **props):
+        """As the base class, but against the moving-ref repository.
+
+        The shared helper runs every criterion against `testrepo`, and
+        this one reports not_applicable there, so each case would
+        measure the skip instead of the rules.
+        """
+        return run_check(self.check_class(), self.fixture.path, props,
+                         name='actions', github=FakeGitHub(responses))
+
+    def ruleset(self, ruleset_id):
+        return f'api {self.REPO_PATH}/rulesets/{ruleset_id}'
+
+    def pull_request_rule(self, ruleset_id=None, source='Repository'):
+        return {
+            'type': 'pull_request',
+            'ruleset_source_type': source,
+            'ruleset_source': 'shakenfist/actions',
+            'ruleset_id': self.RULESET if ruleset_id is None else ruleset_id,
+            'parameters': {'required_approving_review_count': 0},
+        }
+
+    def status_checks_rule(self, ruleset_id=None, source='Repository',
+                           contexts=None):
+        if contexts is None:
+            contexts = self.CONTEXTS
+        return {
+            'type': 'required_status_checks',
+            'ruleset_source_type': source,
+            'ruleset_source': 'shakenfist/actions',
+            'ruleset_id': self.RULESET if ruleset_id is None else ruleset_id,
+            'parameters': {
+                'required_status_checks': [
+                    {'context': context, 'integration_id': 15368}
+                    for context in contexts],
+            },
+        }
+
+    def answers(self, rules=None, enforcement=None, branch='main'):
+        """The scripted answers, defaulting to a compliant repository."""
+        if rules is None:
+            rules = [{'type': 'deletion'}, {'type': 'non_fast_forward'},
+                     self.pull_request_rule(), self.status_checks_rule()]
+        if enforcement is None:
+            enforcement = {self.RULESET: 'active'}
+        responses = {
+            self.api('.default_branch'): CompletedCommand(stdout=f'{branch}\n'),
+            self.rules(branch): CompletedCommand(stdout=json.dumps(rules)),
+        }
+        for ruleset_id, value in enforcement.items():
+            responses[self.ruleset(ruleset_id)] = CompletedCommand(
+                stdout=json.dumps({'id': ruleset_id, 'enforcement': value}))
+        return responses
+
+    def test_both_rules_in_an_active_ruleset_pass(self):
+        result = self.assert_pass(self.run_with(self.answers()))
+        self.assertIn('"main"', result['details'])
+        for context in self.CONTEXTS:
+            self.assertIn(context, result['details'])
+
+    def test_no_pull_request_rule_fails(self):
+        """A branch anyone can push to is not reviewed by requiring CI."""
+        result = self.run_with(self.answers(
+            rules=[{'type': 'non_fast_forward'}, self.status_checks_rule()]))
+        self.assert_fail(result, containing='no pull_request rule')
+
+    def test_no_required_status_checks_rule_fails(self):
+        """A pull request nobody checked is a pull request nobody read."""
+        result = self.run_with(self.answers(
+            rules=[self.pull_request_rule()]))
+        self.assert_fail(result, containing='no required_status_checks rule')
+
+    def test_both_rules_missing_are_reported_together(self):
+        result = self.run_with(self.answers(rules=[{'type': 'deletion'}]))
+        self.assert_fail(
+            result,
+            containing='no pull_request rule and no required_status_checks rule')
+
+    def test_a_contributing_ruleset_that_only_evaluates_fails(self):
+        """An evaluated rule is reported on and refuses nothing.
+
+        The effective-rules endpoint already leaves a disabled ruleset
+        out, so this is the enforcement value the read exists for.
+        """
+        result = self.run_with(self.answers(
+            enforcement={self.RULESET: 'evaluate'}))
+        self.assert_fail(result, containing='enforcement "evaluate"')
+        self.assertIn(str(self.RULESET), result['details'])
+
+    def test_a_status_checks_rule_requiring_nothing_fails_naming_the_checks(self):
+        """Clearing the contexts leaves the rule in place and the gate open.
+
+        The finding names the checks so that the issue body says what to
+        restore, rather than leaving an operator to work it out from the
+        workflow.
+        """
+        result = self.run_with(self.answers(
+            rules=[self.pull_request_rule(),
+                   self.status_checks_rule(contexts=())]))
+        self.assert_fail(result, containing='requires no check at all')
+        for context in self.CONTEXTS:
+            self.assertIn(context, result['details'])
+
+    def test_a_repository_consumed_at_a_pinned_ref_is_not_applicable(self):
+        """Everywhere else the criterion asks GitHub nothing at all.
+
+        The reason names the repository, because on the rest of the
+        fleet it is the whole of what this criterion says.
+        """
+        result = run_check(self.check_class(), self.fixture.path,
+                           name='kerbside', github=RefusingGitHub())
+        self.assert_skip(result, containing='shakenfist/kerbside')
+
+    def test_the_skip_reason_claims_only_what_the_table_knows(self):
+        """It is published for every repository the table omits.
+
+        Saying nothing consumes the repository at a moving ref would be
+        a claim about the fleet, and a false one: the specification's
+        known gap names a repository that is consumed that way and is
+        not in the table. The reason states membership instead.
+        """
+        result = run_check(self.check_class(), self.fixture.path,
+                           name='kerbside', github=RefusingGitHub())
+        self.assertNotIn('Nothing in the fleet', result['details'])
+        self.assertIn('measures', result['details'])
+        self.assertIn('specification', result['details'])
+
+    def test_each_contributing_ruleset_is_read_once(self):
+        """Two rules from one ruleset are one read, two rulesets are two."""
+        github = FakeGitHub(self.answers())
+        run_check(self.check_class(), self.fixture.path, name='actions',
+                  github=github)
+        self.assertEqual([self.api('.default_branch'), self.rules('main'),
+                          self.ruleset(self.RULESET)], github.calls)
+
+        shared = self.answers(
+            rules=[self.pull_request_rule(),
+                   self.status_checks_rule(ruleset_id=self.OTHER_RULESET)],
+            enforcement={self.RULESET: 'active', self.OTHER_RULESET: 'active'})
+        github = FakeGitHub(shared)
+        self.assert_pass(run_check(self.check_class(), self.fixture.path,
+                                   name='actions', github=github))
+        self.assertEqual([self.ruleset(self.RULESET),
+                          self.ruleset(self.OTHER_RULESET)], github.calls[2:])
+
+    def test_the_branch_rules_read_failing_is_a_tool_failure(self):
+        """GitHub not answering is never read as an unprotected branch."""
+        self.assert_tool_failure(lambda: self.run_with({
+            self.api('.default_branch'): CompletedCommand(stdout='main\n'),
+            self.rules('main'): CompletedCommand(
+                returncode=1, stderr='gh: Bad gateway (HTTP 502)'),
+        }), containing='branch rules')
+
+    def test_the_ruleset_read_failing_is_a_tool_failure(self):
+        """Nor is it read as a ruleset that enforces nothing."""
+        answers = self.answers()
+        answers[self.ruleset(self.RULESET)] = CompletedCommand(
+            returncode=1, stderr='gh: Bad gateway (HTTP 502)')
+        self.assert_tool_failure(
+            lambda: self.run_with(answers),
+            containing=f'ruleset {self.RULESET} of shakenfist/actions')
+
+    def test_an_organisation_sourced_rule_is_a_tool_failure(self):
+        """The repository read answers; the question still cannot be put.
+
+        An organisation ruleset's enforcement is only on the
+        organisation endpoint, which the audit's read token is refused,
+        so the rule may be refusing pushes or merely reporting on them
+        and the audit cannot tell which. A tool failure by construction
+        rather than from a read that failed, which is why the message
+        names the endpoint and the issue that would change it.
+        """
+        exception = self.assert_tool_failure(lambda: self.run_with(
+            self.answers(rules=[
+                self.pull_request_rule(source='Organization'),
+                self.status_checks_rule()])))
+        self.assertIn('orgs/shakenfist/rulesets/', str(exception))
+        self.assertIn('352', str(exception))
+
+    def test_a_rule_naming_no_ruleset_is_a_tool_failure(self):
+        """With no id there is nothing to read the enforcement from."""
+        rule = self.pull_request_rule()
+        del rule['ruleset_id']
+        self.assert_tool_failure(
+            lambda: self.run_with(self.answers(
+                rules=[rule, self.status_checks_rule()])),
+            containing='names no ruleset it came from')
+
+    def test_a_ruleset_with_no_enforcement_is_a_tool_failure(self):
+        """A null where a value is required is the audit failing to ask."""
+        answers = self.answers()
+        answers[self.ruleset(self.RULESET)] = CompletedCommand(
+            stdout=json.dumps({'id': self.RULESET, 'enforcement': None}))
+        self.assert_tool_failure(lambda: self.run_with(answers),
+                                 containing='reports no enforcement')
+
+    def test_an_unreadable_parameters_object_is_a_tool_failure(self):
+        """An unparseable payload is not a branch that requires nothing.
+
+        Reading it as "no contexts" would file an issue telling an
+        operator to restore checks that may already be in place.
+        """
+        rule = self.status_checks_rule()
+        rule['parameters'] = []
+        self.assert_tool_failure(
+            lambda: self.run_with(self.answers(
+                rules=[self.pull_request_rule(), rule])),
+            containing='no readable parameters object')
+
+    def test_an_unreadable_context_list_is_a_tool_failure(self):
+        """A value of the wrong type, as against a key that is absent.
+
+        The absent key is the cleared-contexts verdict; a string where
+        a list belongs is a response nobody can read.
+        """
+        rule = self.status_checks_rule()
+        rule['parameters'] = {'required_status_checks': 'all of them'}
+        self.assert_tool_failure(
+            lambda: self.run_with(self.answers(
+                rules=[self.pull_request_rule(), rule])),
+            containing='is not a list')
+
+    def test_an_entry_naming_no_context_is_a_tool_failure(self):
+        """One malformed entry is not three contexts and a shrug."""
+        rule = self.status_checks_rule()
+        rule['parameters']['required_status_checks'].append(
+            {'integration_id': 15368})
+        self.assert_tool_failure(
+            lambda: self.run_with(self.answers(
+                rules=[self.pull_request_rule(), rule])),
+            containing='names no context')
+
+    def test_a_partly_cleared_context_list_fails_naming_what_went(self):
+        """Two of four cleared is not loud anywhere else.
+
+        A renamed job wedges every pull request, which announces
+        itself. Deleting contexts leaves every pull request mergeable
+        with the gate two-thirds gone, so this is the case nothing but
+        the audit would report.
+        """
+        result = self.run_with(self.answers(
+            rules=[self.pull_request_rule(),
+                   self.status_checks_rule(contexts=('Check paths', 'Lint'))]))
+        self.assert_fail(result, containing='no longer requires')
+        self.assertIn('Unit tests', result['details'])
+        self.assertIn('gitleaks', result['details'])
+        self.assertNotIn('Check paths', result['details'])
+
+    def test_an_absent_context_list_is_a_verdict_not_an_error(self):
+        """Nobody measured which shape an emptied rule comes back as.
+
+        If GitHub omits the key rather than returning an empty list,
+        treating the absence as unreadable would report an error for
+        precisely the configuration this criterion exists to catch.
+        """
+        rule = self.status_checks_rule()
+        del rule['parameters']['required_status_checks']
+        result = self.run_with(self.answers(
+            rules=[self.pull_request_rule(), rule]))
+        self.assert_fail(result, containing='requires no check at all')
+
+    def test_an_enterprise_sourced_rule_is_a_tool_failure(self):
+        """Repository is the only source whose enforcement is readable.
+
+        Testing for `Organization` alone let this fall through to a
+        repository read that 404s: the safe answer by accident, with a
+        message that named the wrong endpoint.
+        """
+        exception = self.assert_tool_failure(lambda: self.run_with(
+            self.answers(rules=[
+                self.pull_request_rule(source='Enterprise'),
+                self.status_checks_rule()])))
+        self.assertIn('"Enterprise"', str(exception))
+
+    def test_a_rule_naming_no_source_is_a_tool_failure(self):
+        """Reading it from this repository would be an assumption."""
+        rule = self.pull_request_rule()
+        del rule['ruleset_source_type']
+        self.assert_tool_failure(
+            lambda: self.run_with(self.answers(
+                rules=[rule, self.status_checks_rule()])),
+            containing='names no ruleset_source_type')
+
+    def test_two_repairs_are_reported_in_one_finding(self):
+        """An issue that lists half the work is half an issue.
+
+        Cleared contexts and a ruleset that only evaluates are both
+        fails, and an operator handed only the first would restore four
+        contexts into a ruleset that still refuses nothing.
+        """
+        result = self.run_with(self.answers(
+            rules=[self.pull_request_rule(),
+                   self.status_checks_rule(contexts=())],
+            enforcement={self.RULESET: 'evaluate'}))
+        self.assert_fail(result, containing='requires no check at all')
+        self.assertIn('enforcement "evaluate"', result['details'])
+
+    def test_the_same_name_in_another_organisation_is_not_applicable(self):
+        """`actions` elsewhere is somebody else's repository.
+
+        The table is keyed `org/name` for this: matching on the bare
+        name would measure a stranger's repository against the fleet's
+        expectations, and file an issue on it.
+        """
+        result = run_check(self.check_class(), self.fixture.path,
+                           name='actions', org='someone-else',
+                           github=RefusingGitHub())
+        self.assert_skip(result, containing='someone-else/actions')
+
+
+class MovingRefSourceProtectionSpecTest(unittest.TestCase):
+    """The page an operator reads must name what the check measures.
+
+    The finding for a cleared context list tells an operator which
+    checks to restore, and the specification repeats them in prose and
+    in a JSON block. Nothing else holds those three copies together, so
+    a context renamed in the ruleset could be corrected in the code and
+    left stale on the page that says how to fix the finding.
+    """
+
+    check = github_config.MovingRefSourceProtection
+
+    def setUp(self):
+        # Prose wraps, so a two-word context can straddle a newline.
+        # That is formatting rather than drift, and a test that read it
+        # as drift would be worked around rather than fixed. Every
+        # assertion here reads this one normalisation, so there is no
+        # choosing whichever happens to pass.
+        self.flat = ' '.join(repo_text(
+            'docs', 'audits', 'moving-ref-source-protection.md').split())
+
+    def test_every_moving_ref_repository_is_named(self):
+        for slug in self.check.MOVING_REF_REPOS:
+            with self.subTest(repository=slug):
+                self.assertIn(slug, self.flat)
+
+    def test_every_expected_context_is_named(self):
+        for slug, contexts in self.check.MOVING_REF_REPOS.items():
+            for context in contexts:
+                with self.subTest(repository=slug, context=context):
+                    self.assertIn(f'`{context}`', self.flat)
+
+    def test_the_page_records_what_was_measured_about_enforcement(self):
+        """The second read rests on this, so the page carries its basis."""
+        self.assertIn('19389569', self.flat)
+        self.assertIn('evaluate', self.flat)
+
+    def test_the_page_carries_the_known_gap(self):
+        """A moving-ref source this criterion does not measure yet.
+
+        The definition covers `development`, which the prune job of
+        every adopted repository clones unpinned and executes, so the
+        page says so rather than leaving the table looking complete.
+        """
+        self.assertIn('Known gap', self.flat)
+        self.assertIn('shakenfist/development', self.flat)
 
 
 class ScopeCoverageTest(CheckTestCase):
