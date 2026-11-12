@@ -21,11 +21,18 @@ import re
 import sys
 
 
-# Checks that reach the network, and so may legitimately differ between
-# two runs over the same tree: a repository setting can change, or a
-# token can expire, without anything in this repository moving. They are
-# reported separately rather than ignored -- a difference here is not
-# evidence of a regression, but it is not nothing either.
+# Checks whose *verdict* may legitimately differ between two runs over
+# the same tree, because they ask GitHub rather than the tree: a
+# repository setting can change, or a token can expire, without
+# anything in this repository moving. They are reported separately
+# rather than ignored -- a difference here is not evidence of a
+# regression, but it is not nothing either.
+#
+# This is not the same question as whether a *tool failure* in a check
+# is transient; transient_tool_failure() below is that one, and it
+# answers yes to more than this set. A criterion can read a remote
+# without its verdict depending on one, and it says so by marking the
+# failure rather than by appearing here.
 #
 # Written by hand. NetworkCheckListTest in test_audit_snapshot.py
 # re-derives it from the checks under audit/ -- every check that
@@ -65,17 +72,52 @@ def github_did_not_answer(check):
 
     An `error` marked `tool_failure` from a check in NETWORK_CHECKS is
     GitHub, or a clone from it, not answering: an outage, a rate limit,
-    or no token at all. It is not a bug in the audit. Both
-    check-audit-smoke.py, which runs without a token, and
-    audit-raised.py, which must not let one transient 502 hold back the
-    compliance page, excuse exactly this and nothing else. A tool
-    failure from any other check is the runner's own git, skillsaw or
-    review-tracking.py not answering, which the next run would meet
-    too, and an unmarked error is a check that broke.
+    or no token at all. It is not a bug in the audit.
+
+    This is the narrow question check-audit-smoke.py asks, because it
+    runs without a token and its clone is an ordinary one: nothing it
+    measures can want a blob a promisor remote has to supply, so a
+    tool failure outside this set is a check that broke and the smoke
+    run should say so. audit-raised.py asks the wider question below.
     """
     return (check.get('status') == 'error'
             and bool(check.get('tool_failure'))
             and check.get('id') in NETWORK_CHECKS)
+
+
+def transient_tool_failure(check):
+    """Is this result a tool failure a remote could have caused?
+
+    The question audit-raised.py asks, which must not let one
+    transient 502 hold back the compliance page for every repository
+    in the fleet. Two ways to qualify, and the difference between them
+    is how much the result can be trusted to say.
+
+    A check in NETWORK_CHECKS qualifies whatever it was doing: asking
+    GitHub is how it reaches its verdict at all, so there is no other
+    kind of tooling in it to fail.
+
+    Any check qualifies for a failure its raise site marked
+    `transient`, which is the only way a criterion whose verdict comes
+    from the tree can say that one of its reads went to a remote.
+    plan-retirement is the case: its `git show` of a historical
+    docs/plans/index.md fetches a blob from the promisor remote in the
+    `--filter=blob:none` clone the workflow makes, while the shallow
+    check beside it, its `git log` and its read cap are local and fail
+    the leg as they should. Keying this off the check's id instead
+    would have excused all eight of its failure paths, so a clone step
+    regressing to `--depth 1` would have warned and passed on every
+    leg of every run while the criterion errored fleet-wide.
+
+    Everything else is the runner's own git, skillsaw or
+    review-tracking.py not answering, which the next run would meet
+    too, and an unmarked error is a check that broke: both fail the
+    leg.
+    """
+    return (check.get('status') == 'error'
+            and bool(check.get('tool_failure'))
+            and (bool(check.get('transient'))
+                 or check.get('id') in NETWORK_CHECKS))
 
 
 # Fields that move on every run regardless of what the checker does.

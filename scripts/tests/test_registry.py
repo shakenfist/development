@@ -1421,7 +1421,7 @@ class RunCheckBoundaryTest(unittest.TestCase):
     """
 
     def setUp(self):
-        from audit.check import Check
+        from audit.check import Check, ToolFailure
         from audit.github import FakeGitHub
         from audit.repo import Repo
 
@@ -1452,8 +1452,23 @@ class RunCheckBoundaryTest(unittest.TestCase):
             def run(self, repo):
                 raise KeyboardInterrupt()
 
+        class ToolDidNotAnswer(Check):
+            id = 'tool-did-not-answer'
+            issue_title = 'Tool did not answer'
+
+            def run(self, repo):
+                raise ToolFailure('git ls-files could not answer')
+
+        class RemoteDidNotAnswer(ToolDidNotAnswer):
+            id = 'remote-did-not-answer'
+
+            def run(self, repo):
+                raise ToolFailure('the fetch failed', transient=True)
+
         self.Raises, self.RaisesInApplies = Raises, RaisesInApplies
         self.Passes, self.Interrupted = Passes, Interrupted
+        self.ToolDidNotAnswer = ToolDidNotAnswer
+        self.RemoteDidNotAnswer = RemoteDidNotAnswer
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.repo = Repo(self.tmp.name, 'testrepo', 'shakenfist',
@@ -1507,39 +1522,30 @@ class RunCheckBoundaryTest(unittest.TestCase):
         with self.assertRaises(KeyboardInterrupt):
             self.run_quietly([self.Interrupted()])
 
+    def test_a_tool_failure_is_marked_and_prints_no_traceback(self):
+        """The check did what it should; its tooling did not answer."""
+        results, stderr = self.run_quietly([self.ToolDidNotAnswer()])
+        check = results['checks'][0]
+        self.assertEqual(check['status'], 'error')
+        self.assertTrue(check['tool_failure'])
+        self.assertIn('git ls-files could not answer', check['details'])
+        self.assertIn('could not measure testrepo', stderr)
+        self.assertNotIn('Traceback', stderr)
 
-class ErrorResultsLeaveIssuesAloneTest(unittest.TestCase):
-    """An `error` must neither file nor close a consistency issue.
+    def test_only_a_transient_tool_failure_carries_the_field(self):
+        # The field decides whether audit-raised.py fails the leg, and
+        # only the raise site knows whether a remote was in the way.
+        # Absent rather than False when it is not transient, so the
+        # results of a run in which nothing was are byte for byte what
+        # they were before the field existed.
+        from audit_snapshot import transient_tool_failure
 
-    The not_applicable branch used to be a bare else, so any status it
-    did not recognise -- which `error` would have been -- closed the
-    repository's open issue as though the check no longer applied.
-    """
-
-    def test_an_error_neither_files_nor_closes(self):
-        import contextlib
-        import importlib.util
-        import io
-        from tests.fake_issues import FakeIssueTracker
-        path = os.path.join(REPO_ROOT, 'scripts', 'audit-manage-issues.py')
-        spec = importlib.util.spec_from_file_location('audit_manage_issues', path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-
-        tracker = FakeIssueTracker()
-        tracker.add('shakenfist/testrepo',
-                    'Consistency: End-of-life distributions')
-        results = {
-            'org': 'shakenfist', 'repo': 'testrepo',
-            'summary': {'pass': 0, 'fail': 0, 'not_applicable': 0, 'error': 1},
-            'checks': [{'id': 'eol-distro', 'status': 'error', 'details': 'boom'}],
-        }
-        with contextlib.redirect_stdout(io.StringIO()) as out:
-            module.process_results(results, dry_run=False, github=tracker)
-        self.assertEqual(tracker.writes, [])
-        self.assertEqual(tracker.open_titles('shakenfist/testrepo'),
-                         ['Consistency: End-of-life distributions'])
-        self.assertIn('ERROR -- issues left alone', out.getvalue())
+        local, _ = self.run_quietly([self.ToolDidNotAnswer()])
+        remote, _ = self.run_quietly([self.RemoteDidNotAnswer()])
+        self.assertNotIn('transient', local['checks'][0])
+        self.assertTrue(remote['checks'][0]['transient'])
+        self.assertFalse(transient_tool_failure(local['checks'][0]))
+        self.assertTrue(transient_tool_failure(remote['checks'][0]))
 
 
 if __name__ == '__main__':

@@ -20,6 +20,17 @@ import audit_snapshot  # noqa: E402
 from audit.registry import CHECKS  # noqa: E402
 
 
+# Fixture plan names for the details strings below, standing in for
+# whatever plan-retirement found rather than being pointers a reader
+# follows -- so plan-source-references is told to skip these two lines
+# and goes on auditing the rest of this suite. The line marker rather
+# than the file-scope one on purpose: this file is about the snapshot
+# comparison, and a plan pointer in it that really had rotted should
+# still be found.
+PLAN_A = 'PLAN-a.md'  # audit-ok: plan-reference
+PLAN_B = 'PLAN-b.md'  # audit-ok: plan-reference
+
+
 def result(repo, checks, timestamp='2026-09-01T06:00:00+00:00'):
     """Build a result document of the shape audit-check.py emits."""
     return {
@@ -97,12 +108,12 @@ class CompareRepoTest(unittest.TestCase):
         counting that as a difference would leave this tool reporting
         one for every repository with an eligible plan.
         """
-        before = ('2 plan(s) terminal for more than 90 days: PLAN-a.md '
-                  '(Complete, at least 97 days), PLAN-b.md (Complete, at '
-                  'least 91 days)')
-        after = ('2 plan(s) terminal for more than 90 days: PLAN-a.md '
-                 '(Complete, at least 98 days), PLAN-b.md (Complete, at '
-                 'least 92 days)')
+        before = (f'2 plan(s) terminal for more than 90 days: {PLAN_A} '
+                  f'(Complete, at least 97 days), {PLAN_B} (Complete, '
+                  f'at least 91 days)')
+        after = (f'2 plan(s) terminal for more than 90 days: {PLAN_A} '
+                 f'(Complete, at least 98 days), {PLAN_B} (Complete, '
+                 f'at least 92 days)')
         self.assertEqual(
             audit_snapshot.compare_repo(
                 result('ryll', [check('plan-retirement', 'fail', before)]),
@@ -126,10 +137,10 @@ class CompareRepoTest(unittest.TestCase):
         # The normalisation is of the count alone. Which plans the
         # check names is what the snapshot is kept for, and an age
         # written over cannot be allowed to take a name with it.
-        before = ('1 plan(s) terminal for more than 90 days: PLAN-a.md '
-                  '(Complete, at least 97 days)')
-        after = ('1 plan(s) terminal for more than 90 days: PLAN-b.md '
-                 '(Complete, at least 97 days)')
+        before = (f'1 plan(s) terminal for more than 90 days: {PLAN_A} '
+                  f'(Complete, at least 97 days)')
+        after = (f'1 plan(s) terminal for more than 90 days: {PLAN_B} '
+                 f'(Complete, at least 97 days)')
         differences = audit_snapshot.compare_repo(
             result('ryll', [check('plan-retirement', 'fail', before)]),
             result('ryll', [check('plan-retirement', 'fail', after)]),
@@ -367,6 +378,50 @@ class NetworkCheckListTest(unittest.TestCase):
             'NETWORK_CHECKS in audit_snapshot.py disagrees with the '
             'checks that actually reach the network',
         )
+
+    def test_a_marked_tool_failure_is_excused_and_others_are_not(self):
+        # The amnesty audit-raised.py applies. A criterion whose
+        # verdict comes from the tree says that one of its reads went
+        # to a remote by marking the failure, because nothing in the
+        # result could tell afterwards which git call raised. Keying
+        # it off the check id instead excused every failure path the
+        # criterion has, so a clone step regressing to --depth 1 would
+        # have warned and passed on every leg while plan-retirement
+        # errored fleet-wide.
+        def failure(**extra):
+            return dict({'status': 'error', 'tool_failure': True,
+                         'id': 'plan-retirement'}, **extra)
+
+        self.assertTrue(
+            audit_snapshot.transient_tool_failure(failure(transient=True)))
+        self.assertFalse(
+            audit_snapshot.transient_tool_failure(failure()))
+
+        # A network check needs no mark: asking GitHub is how it
+        # reaches a verdict at all, so there is no other tooling in it
+        # to fail.
+        self.assertTrue(audit_snapshot.transient_tool_failure(
+            {'status': 'error', 'tool_failure': True,
+             'id': 'github-security'}))
+
+        # Neither excuses a check that broke, or a verdict.
+        self.assertFalse(audit_snapshot.transient_tool_failure(
+            {'status': 'error', 'id': 'plan-retirement', 'transient': True}))
+        self.assertFalse(audit_snapshot.transient_tool_failure(
+            {'status': 'fail', 'tool_failure': True,
+             'id': 'plan-retirement', 'transient': True}))
+
+    def test_the_two_questions_are_asked_of_different_results(self):
+        # github_did_not_answer() is the smoke run's question and
+        # transient_tool_failure() is the scheduled run's. The smoke
+        # run's clone is unfiltered and it has no token, so a marked
+        # failure is still a check that broke as far as it is
+        # concerned, and collapsing the two is what failed the leg
+        # before.
+        marked = {'status': 'error', 'tool_failure': True,
+                  'id': 'plan-retirement', 'transient': True}
+        self.assertTrue(audit_snapshot.transient_tool_failure(marked))
+        self.assertFalse(audit_snapshot.github_did_not_answer(marked))
 
 
 if __name__ == '__main__':

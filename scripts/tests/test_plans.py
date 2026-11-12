@@ -1385,6 +1385,47 @@ class PlanAuditPhaseTest(CheckTestCase):
         result = self.check()
         self.assert_skip(result)
 
+    def test_an_unreadable_index_is_a_finding_not_not_applicable(self):
+        # The same conflation the retirement criterion had, in the
+        # criterion beside it: read() answers None for a directory the
+        # same way it does for an absent file, and a not_applicable
+        # closes this criterion's open issue as though the repository
+        # had stopped planning this way.
+        plans_dir = self._plans_dir_with_one_plan()
+        os.makedirs(os.path.join(plans_dir, 'index.md'))
+        self.assert_fail(self.check(), 'could not be read')
+
+    def test_a_dangling_index_link_is_a_finding(self):
+        plans_dir = self._plans_dir_with_one_plan()
+        os.symlink('gone.md', os.path.join(plans_dir, 'index.md'))
+        self.assert_fail(self.check(), 'could not be read')
+
+    def _plans_dir_with_one_plan(self):
+        """docs/plans/ holding one master plan and no index yet.
+
+        _check() runs the check as it builds the tree, and these cases
+        put something at the index path that it cannot write through.
+        """
+        plans_dir = os.path.join(self.fixture.path, 'docs', 'plans')
+        os.makedirs(plans_dir)
+        with open(os.path.join(plans_dir, 'PLAN-one.md'), 'w') as handle:
+            handle.write(self._plan(['Build']))
+        return plans_dir
+
+    def test_a_plans_directory_linked_out_of_the_clone_is_still_skipped(self):
+        # The one unreadable shape that stays not_applicable, because
+        # plan-index already decides that a docs/plans which is itself
+        # a link out of the clone is not a directory this audit has.
+        # An index inside one is absent rather than unreadable, and the
+        # criteria reading it agree about that.
+        elsewhere = self.tempdir()
+        with open(os.path.join(elsewhere, 'index.md'), 'w') as f:
+            f.write(self.HEADER)
+        os.makedirs(os.path.join(self.fixture.path, 'docs'))
+        os.symlink(elsewhere,
+                   os.path.join(self.fixture.path, 'docs', 'plans'))
+        self.assert_skip(self.check(), containing='No docs/plans/index.md')
+
     def test_index_linking_no_plans_is_not_applicable(self):
         result = self._check({}, index='# Plans\n\nNothing yet.\n')
         self.assert_skip(result)
@@ -3758,8 +3799,69 @@ class PlanRetirementTest(CheckTestCase):
                                blob[:2], blob[2:]))
 
     def test_a_repository_with_no_plan_index_is_not_applicable(self):
+        # Nothing at the path at all, which is the one shape that
+        # justifies closing the backlog issue: this repository keeps
+        # no plan index, so it never had a backlog to count.
         self.fixture.write('README.md', 'Fixture.\n')
         self.assert_skip(self.check(), 'No docs/plans/index.md')
+
+    def test_a_plans_directory_linked_out_of_the_clone_is_not_applicable(self):
+        # The guard both index-reading criteria share: a docs/plans
+        # that is itself a link out of the clone is not a directory
+        # this audit has, so the index inside it is absent rather than
+        # unreadable and the backlog issue is rightly closed.
+        self.fixture.write('README.md', 'Fixture.\n')
+        elsewhere = self.tempdir()
+        with open(os.path.join(elsewhere, 'index.md'), 'w') as f:
+            f.write(self.index(self.row('PLAN-a.md', 'Complete')))
+        os.makedirs(os.path.join(self.fixture.path, 'docs'))
+        os.symlink(elsewhere,
+                   os.path.join(self.fixture.path, 'docs', 'plans'))
+        self.assert_skip(self.check(), 'No docs/plans/index.md')
+
+    def test_a_directory_where_the_index_belongs_is_a_finding(self):
+        # read() answers None for a directory the same way it does
+        # for an absent file, and reading that as "not applicable"
+        # closed the backlog issue of a repository that has one.
+        # Reported as this criterion's own finding instead: the
+        # repository put a directory there, so it is the repository's
+        # to fix, and an error would be a check an audited repository
+        # can break (tests/test_containment.py).
+        self.fixture.write('README.md', 'Fixture.\n')
+        os.makedirs(os.path.join(self.fixture.path, 'docs', 'plans',
+                                 'index.md'))
+        self.assert_fail(self.check(), 'could not be read')
+
+    def test_an_index_linked_out_of_the_checkout_is_a_finding(self):
+        # The shape read() refuses on purpose, so that an audited
+        # repository cannot choose what the audit reads and quotes
+        # into an issue. Refusing to read it is right; reading the
+        # refusal as an absent index is not.
+        self.fixture.write('README.md', 'Fixture.\n')
+        link_outside(self, 'docs/plans/index.md',
+                     self.index(self.row('PLAN-a.md', 'Complete')))
+        self.assert_fail(self.check(), 'could not be read')
+
+    def test_a_dangling_index_link_is_a_finding(self):
+        # A link to nothing is still something the repository put at
+        # the path, and os.path.exists() answers no for it, which is
+        # why the question asked is lexists().
+        self.fixture.write('README.md', 'Fixture.\n')
+        os.makedirs(os.path.join(self.fixture.path, 'docs', 'plans'))
+        os.symlink('gone.md', os.path.join(self.fixture.path, 'docs',
+                                           'plans', 'index.md'))
+        self.assert_fail(self.check(), 'could not be read')
+
+    def test_an_index_over_the_read_cap_is_a_finding(self):
+        # The cap applied to the index as it stands, rather than to a
+        # revision of it. Unreachable in the fleet today -- the
+        # largest index is 62 KB against a 2 MB cap -- and reported
+        # rather than retired for the same reason as the shapes above.
+        self.fixture.write('README.md', 'Fixture.\n')
+        self.fixture.write(
+            'docs/plans/index.md',
+            oversize(self.index(self.row('PLAN-a.md', 'Complete'))))
+        self.assert_fail(self.check(), 'could not be read')
 
     def test_a_plan_terminal_inside_the_window_is_not_eligible(self):
         self.history([
@@ -3938,6 +4040,27 @@ class PlanRetirementTest(CheckTestCase):
         result = self.assert_fail(self.check())
         self.assertIn('at least 91 days', result['details'])
 
+    def test_the_walk_stops_at_the_first_revision_past_the_threshold(self):
+        # Two revisions older than the threshold, terminal in both.
+        # The walk stops at the newer of them, so the lower bound is
+        # 120 days and not 150: reading further back would only
+        # establish by how much, which no decision here turns on, and
+        # a walk that went one revision further would cost a promisor
+        # fetch for a number nothing reads.
+        #
+        # The case above cannot see this. Its two older revisions sit
+        # either side of the boundary, so a walk that ran to the end
+        # of the history would land on the same figure and pass.
+        self.history([
+            (300, self.index(self.row('PLAN-a.md', 'In progress'))),
+            (150, self.index(self.row('PLAN-a.md', 'Complete'))),
+            (120, self.index(self.row('PLAN-a.md', 'Complete',
+                                      name='A plan, relabelled'))),
+        ])
+        result = self.assert_fail(self.check())
+        self.assertIn('at least 120 days', result['details'])
+        self.assertNotIn('at least 150 days', result['details'])
+
     def test_a_row_that_went_terminal_inside_the_window_is_dated_exactly(self):
         # The mirror of the case above, one revision the other side of
         # the threshold: the walk reads the revision that pins the
@@ -3968,6 +4091,27 @@ class PlanRetirementTest(CheckTestCase):
         self.assertIn(
             'docs/plans/index.md: PLAN-a.md: no revision of it inside the '
             'window shows its status changing', result['findings'])
+
+    def test_a_row_terminal_only_in_an_uncommitted_edit_is_not_dated(self):
+        # The status is read from the working tree, because that is
+        # what the repository says today, and the clock is read from
+        # the history, because that is the only thing that can date
+        # it. An edit nobody has committed is terminal in the first
+        # and absent from the second, so there is no revision in which
+        # the row changed and nothing to date it by. Dating it by the
+        # newest commit would start the clock at a commit that does
+        # not say the row is terminal -- and for a row edited and left
+        # alone for a year, would declare it eligible on the strength
+        # of an uncommitted file.
+        self.history([
+            (300, self.index(self.row('PLAN-a.md', 'In progress'))),
+        ])
+        self.fixture.write('docs/plans/index.md',
+                           self.index(self.row('PLAN-a.md', 'Complete')))
+        result = self.assert_pass(self.check())
+        self.assertIn(
+            '1 terminal row(s) the history does not date: PLAN-a.md',
+            result['details'])
 
     def test_a_commit_that_deleted_the_index_dates_nothing(self):
         # A deleted index says nothing about any row's status, so the
@@ -4088,8 +4232,13 @@ class PlanRetirementTest(CheckTestCase):
             (10, self.index(self.row('PLAN-a.md', 'Complete')) + padding),
             (1, self.index(self.row('PLAN-a.md', 'Complete'))),
         ])
-        self.assert_tool_failure(
+        failure = self.assert_tool_failure(
             self.check, 'byte cap a file is read under')
+        # Not marked transient: the revision is this repository's own
+        # content, so excusing it would let a repository that once
+        # committed a 3 MB index keep its cell in a permanently
+        # excused error state.
+        self.assertFalse(failure.transient)
 
     def test_a_walk_that_spends_its_budget_is_a_tool_failure(self):
         # A remote answering every read slowly rather than not at all
@@ -4109,6 +4258,61 @@ class PlanRetirementTest(CheckTestCase):
         failure = self.assert_tool_failure(
             self.check, 'did not finish within 0 seconds')
         self.assertIn('after 0 revision(s)', str(failure))
+        # Marked transient: what runs long here is one read waiting on
+        # the promisor remote, so the leg warns rather than failing.
+        self.assertTrue(failure.transient)
+
+    def test_only_a_remote_read_is_marked_transient(self):
+        # audit-raised.py excuses a tool failure the raise site marked
+        # transient, so which failures carry the mark decides which
+        # ones fail the repository's leg. Only the blob read and the
+        # spent walk budget can be a remote; everything else in the
+        # walk is this runner's own git. Marking the criterion by id
+        # instead excused all eight paths, so a clone step regressing
+        # to --depth 1 would have warned and passed on every leg while
+        # the criterion errored fleet-wide.
+        self.history([
+            (300, self.index(self.row('PLAN-a.md', 'In progress'))),
+            (120, self.index(self.row('PLAN-a.md', 'Complete'))),
+        ])
+        self.unreadable_revision()
+        failure = self.assert_tool_failure(self.check, 'Could not read')
+        self.assertTrue(failure.transient)
+
+    def test_a_timed_out_blob_read_is_marked_transient(self):
+        # The other half of the read that reaches the promisor remote.
+        # The exit-status case above covers a fetch the remote refused;
+        # this one covers a fetch it never answered, which is the more
+        # likely shape of an outage and arrives through run_tool()
+        # rather than from a return code. Only the blob read's own
+        # timeout is shortened, so the shallow query and the log that
+        # run before it on the longer one still answer.
+        self.history([
+            (300, self.index(self.row('PLAN-a.md', 'In progress'))),
+            (120, self.index(self.row('PLAN-a.md', 'Complete'))),
+        ])
+        original = plans.PLAN_RETIREMENT_SHOW_TIMEOUT
+        plans.PLAN_RETIREMENT_SHOW_TIMEOUT = 0
+        self.addCleanup(
+            setattr, plans, 'PLAN_RETIREMENT_SHOW_TIMEOUT', original)
+        failure = self.assert_tool_failure(self.check, 'git show timed out')
+        self.assertTrue(failure.transient)
+
+    def test_a_shallow_checkout_is_not_marked_transient(self):
+        # The case the mark exists to exclude: a shallow checkout is
+        # this runner's clone step, not a remote, and the leg has to
+        # fail for it. ARCHITECTURE.md's "a broken audit looks like a
+        # healthy one" is what excusing it would produce, fleet-wide
+        # and on every run.
+        self.history([
+            (300, self.index(self.row('PLAN-a.md', 'In progress'))),
+        ])
+        shallow = FixtureRepo(self.tempdir())
+        shallow.git('clone', '--quiet', '--depth', '1',
+                    'file://' + self.fixture.path, shallow.path)
+        self.fixture = shallow
+        failure = self.assert_tool_failure(self.check, 'checkout is shallow')
+        self.assertFalse(failure.transient)
 
     def test_a_shallow_checkout_is_refused_with_nothing_to_date(self):
         # The refusal is about the history the criterion reads, not
@@ -4176,6 +4380,20 @@ class PlanRetirementTest(CheckTestCase):
         result = self.assert_fail(self.check())
         self.assertIn('PLAN-renamed.md (Complete, at least 100 days)',
                       result['details'])
+
+    def test_the_walk_budget_is_the_five_minutes_the_page_states(self):
+        # The budget case sets this constant to zero so that it does
+        # not have to wait for one, which leaves nothing asserting the
+        # value it actually ships with. Both halves matter: five
+        # minutes is a judgement about how long a leg may spend
+        # waiting on a promisor remote before one error row beats
+        # losing every other criterion's verdict, and the page a
+        # reader checks a finding against has to carry the same
+        # number the code applies.
+        self.assertEqual(plans.PLAN_RETIREMENT_WALK_BUDGET, 300)
+        self.assertIn(
+            'five-minute',
+            repo_text('docs', 'audits', 'plan-retirement.md'))
 
     def test_the_specification_states_the_threshold(self):
         # The page people read to decide whether a finding is right has

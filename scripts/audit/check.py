@@ -53,24 +53,50 @@ class ToolFailure(Exception):
     The message is the `details` of the error result, so it says what
     could not be asked and why, in the terms a reader of the
     compliance page needs.
+
+    `transient` says the failure could have been a remote declining to
+    answer, which audit-raised.py excuses rather than failing the
+    repository's leg of the scheduled run over. It defaults to false
+    because most of what raises this is the runner's own tooling, and
+    only the raise site knows which it was: a criterion reading
+    history in a `--filter=blob:none` clone fetches a blob from the
+    promisor remote for some of its reads and not for others, and
+    nothing in the result can tell them apart afterwards. Marking it
+    per check id instead would excuse a local failure -- a shallow
+    checkout, say -- on the strength of a sibling read that reaches a
+    remote, which is how a broken audit comes to look like a healthy
+    one.
     """
 
+    def __init__(self, message, transient=False):
+        super().__init__(message)
+        self.transient = transient
 
-def run_tool(args, what, timeout, **kwargs):
+
+def run_tool(args, what, timeout, transient=False, **kwargs):
     """subprocess.run() for a check, with a failure to run raised.
 
     A timeout, a missing binary and an unusable working directory all
     mean the tool never answered, so each becomes a ToolFailure naming
     `what` was being run. The exit status is the caller's to read:
     only it knows which statuses are answers.
+
+    `transient` is passed through to the ToolFailure, for a call whose
+    timeout is a remote not answering in time rather than local
+    tooling hanging -- a read that a promisor remote has to satisfy.
+    It covers the missing-binary case too, which is not transient; a
+    caller whose first call is a local one finds that out there, with
+    the leg failing as it should.
     """
     try:
         return subprocess.run(
             args, capture_output=True, text=True, timeout=timeout, **kwargs)
     except subprocess.TimeoutExpired as e:
-        raise ToolFailure(f'{what} timed out after {timeout} seconds') from e
+        raise ToolFailure(f'{what} timed out after {timeout} seconds',
+                          transient=transient) from e
     except OSError as e:
-        raise ToolFailure(f'{what} could not run: {e}') from e
+        raise ToolFailure(f'{what} could not run: {e}',
+                          transient=transient) from e
 
 
 class Check(abc.ABC):
