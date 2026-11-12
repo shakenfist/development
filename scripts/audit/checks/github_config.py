@@ -708,6 +708,182 @@ class BypassActorIdentity(Check):
         return []
 
 
+class MovingRefSourceProtection(Check):
+    id = 'moving-ref-source-protection'
+    spec = 'docs/audits/moving-ref-source-protection.md'
+    template = None
+    issue_title = 'Moving ref source protection'
+
+    #: The repositories the rest of the fleet consumes at a moving ref,
+    #: and so the only ones where this criterion has anything at stake.
+    #: `actions` serves the shared reusable workflows and composite
+    #: actions at `@main`, so whatever its default branch holds when a
+    #: job starts runs inside that job, in a repository that reviewed
+    #: none of it. Everywhere else a caller pins what it consumes or
+    #: consumes nothing, and the API call would be paid for an answer
+    #: that could not fail.
+    MOVING_REF_REPOS = ('actions',)
+
+    #: The two rules the default branch needs. A pull-request rule means
+    #: nothing reaches the branch except through a pull request; a
+    #: required-status-checks rule means that pull request waits for CI.
+    #: Either on its own leaves a gate somebody can walk through: a pull
+    #: request nobody looked at, or a push nobody opened one for.
+    REQUIRED_RULES = ('pull_request', 'required_status_checks')
+
+    #: The spelling the effective-rules response uses for a rule that
+    #: came from an organisation ruleset rather than the repository's
+    #: own. It sits beside `ruleset_source` and `ruleset_id`, and it is
+    #: `ruleset_source_type` rather than `source_type`, which is what
+    #: the ruleset object itself calls the same idea.
+    ORGANISATION_SOURCE = 'Organization'
+
+    #: The check-run names the status-checks rule is expected to carry.
+    #: Not compared against the rule's contexts -- that would need the
+    #: workflow read as well, and a context list this criterion did not
+    #: check is still a context list -- but named in the finding when the
+    #: rule carries no context at all, so that the issue says what to put
+    #: back instead of leaving it to be rediscovered. They are the jobs
+    #: of the one repository MOVING_REF_REPOS names.
+    EXPECTED_CONTEXTS = ('Check paths', 'Lint', 'Unit tests', 'gitleaks')
+
+    def applies(self, repo):
+        """Only a repository the fleet reads at a moving ref can be measured.
+
+        The reason names the repository, because on every repository but
+        one that reason is the whole of what the compliance page says
+        about this criterion.
+        """
+        if repo.name not in self.MOVING_REF_REPOS:
+            return (f'Nothing in the fleet consumes {repo.org}/{repo.name} at a moving ref, so '
+                    f'its default branch is not code that runs in another repository\'s jobs')
+        return None
+
+    def run(self, repo):
+        """Check a moving-ref source cannot be changed without a reviewed pull request.
+
+        A caller that writes `uses: <org>/<repo>/...@main` runs whatever
+        the default branch holds at the moment its job starts, so that
+        branch is the review gate for every caller at once. Two rules
+        make it one: a pull request to reach the branch, and status
+        checks before the pull request can merge.
+
+        The effective rules are read rather than the rulesets, because
+        that endpoint is the only one that resolves organisation and
+        repository rulesets together, and it already leaves out a
+        ruleset that is disabled. What it does not say is whether a rule
+        it reports blocks anything: a ruleset set to evaluate reports on
+        every rule it holds and refuses nothing. So each ruleset that
+        contributed one of the two rules is read back for its
+        enforcement.
+
+        Two things are the audit failing to ask rather than a verdict: a
+        read that does not answer, and a rule sourced from an
+        organisation ruleset, whose enforcement is only on an endpoint
+        the audit's read token cannot reach.
+        """
+        branch, rules = default_branch_rules(repo)
+        matched = {}
+        for rule in rules:
+            if not isinstance(rule, dict):
+                continue
+            kind = rule.get('type')
+            if kind in self.REQUIRED_RULES:
+                matched.setdefault(kind, []).append(rule)
+
+        missing = [kind for kind in self.REQUIRED_RULES if kind not in matched]
+        if missing:
+            return self.fail(
+                f'The default branch "{branch}" of {repo.org}/{repo.name} is consumed at a '
+                f'moving ref, but its rules carry no {" rule and no ".join(missing)} rule: '
+                f'anything that lands there runs in every caller\'s job unreviewed')
+
+        contexts = sorted({context
+                           for rule in matched['required_status_checks']
+                           for context in self.rule_contexts(rule)})
+        if not contexts:
+            return self.fail(
+                f'The required_status_checks rule on "{branch}" requires no check at all, so a '
+                f'pull request merges without CI having reported: restore the contexts '
+                f'{", ".join(self.EXPECTED_CONTEXTS)}')
+
+        problems = []
+        for ruleset_id, kinds in self.contributing_rulesets(repo, branch, matched).items():
+            enforcement = self.ruleset_enforcement(repo, ruleset_id)
+            if enforcement != 'active':
+                problems.append(
+                    f'ruleset {ruleset_id}, which contributes the {" and ".join(kinds)} rule on '
+                    f'"{branch}", has enforcement "{enforcement}" rather than "active", so its '
+                    f'rules are reported on without refusing anything')
+        if problems:
+            return self.fail('; '.join(problems))
+
+        return self.ok(
+            f'The default branch "{branch}" requires a pull request, and requires '
+            f'{", ".join(contexts)} before one can merge')
+
+    def rule_contexts(self, rule):
+        """The check-run names a required_status_checks rule requires.
+
+        Each entry is `{"context": ..., "integration_id": ...}`, and the
+        context is the whole of what GitHub matches a check run against:
+        a rule whose list is empty satisfies "the rule is there" while
+        requiring nothing, which is what an operator leaves behind by
+        clearing the contexts instead of removing the rule.
+        """
+        parameters = rule.get('parameters')
+        if not isinstance(parameters, dict):
+            return []
+        entries = parameters.get('required_status_checks')
+        if not isinstance(entries, list):
+            return []
+        return [entry['context'] for entry in entries
+                if isinstance(entry, dict) and isinstance(entry.get('context'), str)
+                and entry['context']]
+
+    def contributing_rulesets(self, repo, branch, matched):
+        """{ruleset_id: [rule type, ...]} for the rules that were matched.
+
+        Each rule names the ruleset it came from, and more than one
+        ruleset can contribute to a branch, so the ids are collapsed and
+        each is read once. An organisation-sourced ruleset cannot be
+        read at all: its enforcement is only on the organisation
+        endpoint, which the audit's read token is refused, so there is
+        no answer to the question of whether its rule blocks or merely
+        reports. That is raised rather than judged, as a rule naming no
+        ruleset is: both leave the enforcement unknown.
+        """
+        contributing = {}
+        for kind in self.REQUIRED_RULES:
+            for rule in matched[kind]:
+                ruleset_id = rule.get('ruleset_id')
+                if rule.get('ruleset_source_type') == self.ORGANISATION_SOURCE:
+                    raise ToolFailure(
+                        f'The {kind} rule on "{branch}" comes from organisation ruleset '
+                        f'{ruleset_id}, whose enforcement can only be read from '
+                        f'orgs/{repo.org}/rulesets/{ruleset_id}; the audit\'s read token is '
+                        f'refused that endpoint, so whether the rule refuses a push or only '
+                        f'reports on one cannot be established (see '
+                        f'shakenfist/development issue 352)')
+                if not isinstance(ruleset_id, int):
+                    raise ToolFailure(
+                        f'The {kind} rule on "{branch}" names no ruleset it came from, so the '
+                        f'enforcement that decides whether it refuses anything cannot be read')
+                contributing.setdefault(ruleset_id, []).append(kind)
+        return contributing
+
+    def ruleset_enforcement(self, repo, ruleset_id):
+        """The enforcement of one of the repository's own rulesets."""
+        what = f'ruleset {ruleset_id} of {repo.org}/{repo.name}'
+        result = repo.github.api_answer(
+            f'repos/{repo.org}/{repo.name}/rulesets/{ruleset_id}', what)
+        answer = parse_json_answer(result, what)
+        enforcement = answer.get('enforcement')
+        if not isinstance(enforcement, str) or not enforcement:
+            raise ToolFailure(f'Could not read {what}: it reports no enforcement')
+        return enforcement
+
+
 #: How many repositories to ask for. `gh repo list` returns 30 by
 #: default, which silently loses eight of the organisation's 38 and
 #: reports them as undecided; the check refuses a listing that reaches

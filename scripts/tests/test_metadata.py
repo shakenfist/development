@@ -319,6 +319,10 @@ FROZEN_METADATA = {
         'spec': 'docs/audits/bypass-actor-identity.md',
         'template': None,
     },
+    'moving-ref-source-protection': {
+        'spec': 'docs/audits/moving-ref-source-protection.md',
+        'template': None,
+    },
     'eol-distro': {
         'spec': 'docs/audits/eol-distro.md',
         'template': None,
@@ -358,6 +362,7 @@ FROZEN_ISSUE_TITLES = {
     'release-merge-queue': 'Release merge queue',
     'release-environment-protection': 'Release environment protection',
     'bypass-actor-identity': 'Bypass actor identity',
+    'moving-ref-source-protection': 'Moving ref source protection',
     'workflow-permissions': 'Workflow standards',
     'pre-commit-config': 'Workflow standards (linting)',
     'review-marks-pre-commit': 'Workflow standards (review marks)',

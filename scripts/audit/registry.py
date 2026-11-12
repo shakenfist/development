@@ -99,6 +99,7 @@ CHECKS = [
     github_config.ReleaseMergeQueue(),
     github_config.ReleaseEnvironmentProtection(),
     github_config.BypassActorIdentity(),
+    github_config.MovingRefSourceProtection(),
     github_config.ScopeCoverage(),
 ]
 
