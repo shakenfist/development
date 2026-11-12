@@ -443,19 +443,35 @@ answers. `check-audit-smoke.py`, which runs in CI without a token,
 excuses a `tool_failure` from the checks that ask GitHub and nothing
 else.
 
-The scheduled run excuses the same results, and only those
-(`github_did_not_answer()` in `scripts/audit_snapshot.py` is the one
-rule both scripts use). For a network check whose tooling could not
-ask GitHub, *Fail if any check raised* prints a workflow warning and
-does not fail the leg. A failed leg holds back the compliance page for
-the whole fleet, which one transient 502 or rate limit in one
-repository is not worth. The page shows that cell as a check error
-saying what could not be asked, and the criterion's issue is left as it
-was. An outage that lasts is not hidden by this. A token that has
-expired or lost access fails every leg at *Check the read token*,
-before anything is measured. A tool failure from any other check is
-the runner's own git, skillsaw or `review-tracking.py` not answering,
-which the next run would meet too, so it still fails the leg.
+The scheduled run excuses a slightly wider set, for a reason the smoke
+run does not have. *Fail if any check raised* prints a workflow
+warning and does not fail the leg for a `tool_failure` from any check
+whose tooling reaches a remote (`transient_tool_failure()` in
+`scripts/audit_snapshot.py`). A failed leg holds back the compliance
+page for the whole fleet, which one transient 502, reset or rate limit
+in one repository is not worth. The page shows that cell as a check
+error saying what could not be asked, and the criterion's issue is
+left as it was. An outage that lasts is not hidden by this. A token
+that has expired or lost access fails every leg at *Check the read
+token*, before anything is measured. A tool failure from any other
+check is the runner's own git, skillsaw or `review-tracking.py` not
+answering, which the next run would meet too, so it still fails the
+leg.
+
+The two sets differ by one criterion, and the difference is the
+distinction worth holding on to. `NETWORK_CHECKS` is the set whose
+*verdict* can move between two runs over the same tree, because the
+verdict comes from GitHub; it is what the snapshot comparison reports
+as advisory and what the smoke run excuses. `plan-retirement`'s
+verdict comes from the tree and this repository's own history, so it
+is held to the byte-for-byte comparison -- but it reads a historical
+`docs/plans/index.md` with `git show`, and the scheduled run clones
+with `--filter=blob:none`, where that read fetches the blob from the
+promisor remote. So its tool failures are transient and its verdicts
+are not, and a check can be in one set without being in the other. A
+test derives the history-reading side from the sources, the way
+`NetworkCheckListTest` derives the GitHub-asking side, so neither
+list can quietly go stale.
 
 The tests call `run()` directly and assert a verdict, so a check that
 raises unexpectedly still fails them. A test of a tool-failure path

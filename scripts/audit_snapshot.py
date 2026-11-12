@@ -21,11 +21,17 @@ import re
 import sys
 
 
-# Checks that reach the network, and so may legitimately differ between
-# two runs over the same tree: a repository setting can change, or a
-# token can expire, without anything in this repository moving. They are
-# reported separately rather than ignored -- a difference here is not
-# evidence of a regression, but it is not nothing either.
+# Checks whose *verdict* may legitimately differ between two runs over
+# the same tree, because they ask GitHub rather than the tree: a
+# repository setting can change, or a token can expire, without
+# anything in this repository moving. They are reported separately
+# rather than ignored -- a difference here is not evidence of a
+# regression, but it is not nothing either.
+#
+# This is not the same question as whether a *tool failure* in a check
+# is transient; TRANSIENT_FAILURE_CHECKS below is that one, and it is
+# the wider set. A criterion can read a remote without its verdict
+# depending on one.
 #
 # Written by hand. NetworkCheckListTest in test_audit_snapshot.py
 # re-derives it from the checks under audit/ -- every check that
@@ -60,22 +66,57 @@ NETWORK_CHECKS = frozenset({
 })
 
 
+# Checks whose tooling reaches a remote, so an `error` marked
+# `tool_failure` from one is an outage rather than a broken check.
+# Every NETWORK_CHECK qualifies, because asking GitHub is how it
+# reaches its verdict at all.
+#
+# plan-retirement is here without being a NETWORK_CHECK, which is the
+# distinction this set exists to draw. Its verdict comes from the tree
+# and from this repository's own history, so it is held to the
+# byte-for-byte comparison like any other local check. But its
+# `git show` of a historical docs/plans/index.md is the audit
+# package's only read of a blob out of history -- every other git call
+# under audit/ is `ls-files`, `check-ignore`, `rev-parse`, a metadata
+# `log`, or sfui-vendor's own clone -- and the consistency audit clones
+# with `--filter=blob:none`, where reading such a blob fetches it from
+# the promisor remote. A 502 or a reset between two legs of one run is
+# therefore a failure here, and failing the leg for it holds back the
+# compliance page for the whole fleet.
+TRANSIENT_FAILURE_CHECKS = NETWORK_CHECKS | frozenset({'plan-retirement'})
+
+
 def github_did_not_answer(check):
     """Is this result a network check whose tooling could not ask?
 
     An `error` marked `tool_failure` from a check in NETWORK_CHECKS is
     GitHub, or a clone from it, not answering: an outage, a rate limit,
-    or no token at all. It is not a bug in the audit. Both
-    check-audit-smoke.py, which runs without a token, and
-    audit-raised.py, which must not let one transient 502 hold back the
-    compliance page, excuse exactly this and nothing else. A tool
-    failure from any other check is the runner's own git, skillsaw or
-    review-tracking.py not answering, which the next run would meet
-    too, and an unmarked error is a check that broke.
+    or no token at all. It is not a bug in the audit.
+
+    This is the narrow question check-audit-smoke.py asks, because it
+    runs without a token and its clone is an ordinary one: nothing it
+    measures can want a blob a promisor remote has to supply, so a
+    tool failure outside this set is a check that broke and the smoke
+    run should say so. audit-raised.py asks the wider question below.
     """
     return (check.get('status') == 'error'
             and bool(check.get('tool_failure'))
             and check.get('id') in NETWORK_CHECKS)
+
+
+def transient_tool_failure(check):
+    """Is this result a tool failure a remote could have caused?
+
+    The question audit-raised.py asks, which must not let one
+    transient 502 hold back the compliance page for every repository
+    in the fleet. A tool failure from a check outside this set is the
+    runner's own git, skillsaw or review-tracking.py not answering,
+    which the next run would meet too, and an unmarked error is a
+    check that broke: both fail the leg.
+    """
+    return (check.get('status') == 'error'
+            and bool(check.get('tool_failure'))
+            and check.get('id') in TRANSIENT_FAILURE_CHECKS)
 
 
 # Fields that move on every run regardless of what the checker does.

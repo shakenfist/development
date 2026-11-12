@@ -225,7 +225,7 @@ class ReportTest(unittest.TestCase):
 
 
 class NetworkCheckListTest(unittest.TestCase):
-    """The advisory list must match what the checker actually does.
+    """Both hand-written lists must match what the checker does.
 
     NETWORK_CHECKS is written by hand, and a check that grows a
     GitHub call later would otherwise silently become a source of
@@ -238,6 +238,13 @@ class NetworkCheckListTest(unittest.TestCase):
     Matching on the client rather than on a literal `gh` is what makes
     this survive the client seam: no check spawns `gh` itself, they
     all go through audit/github.py.
+
+    TRANSIENT_FAILURE_CHECKS is derived the same way from a different
+    question: which checks read a blob out of history, which in the
+    `--filter=blob:none` clone the scheduled run makes is a fetch from
+    the promisor remote. That set is hand-written too, because nothing
+    in a result says which git call produced a tool failure, and the
+    two lists go stale in the same way.
     """
 
     def _sources(self):
@@ -266,7 +273,7 @@ class NetworkCheckListTest(unittest.TestCase):
 
         The tables are keyed by bare name across every module, so two
         same-named top-level symbols would silently overwrite each
-        other and `_reaches_network` would examine the wrong body --
+        other and the reachability walk would examine the wrong body
         a wrong answer rather than a missing one, which the `unread`
         assertion cannot see. Returns the collisions so the caller can
         fail on them; there are none today.
@@ -301,22 +308,53 @@ class NetworkCheckListTest(unittest.TestCase):
                 bodies[name] = '\n'.join(body)
         return bodies, bases, sorted(duplicates)
 
-    def _reaches_network(self, bodies, bases, name, seen=None):
+    # The GitHub client, or a clone from it. Matched on the client
+    # rather than on a literal `gh` for the reason the class docstring
+    # gives.
+    NETWORK = r"_github\(|repo\.github|GhCli\(|'clone'"
+
+    # A git subcommand that materialises a blob out of history, which
+    # is the read a promisor remote has to answer. `ls-files`,
+    # `check-ignore`, `rev-parse` and a `log` of commit metadata do
+    # not: a clone filtered of blobs still holds every commit and
+    # every tree. `cat-file` is matched whatever it is asked for,
+    # because the one call of it today is in a check that already
+    # reaches the network and a future one asked for a blob would not
+    # be.
+    HISTORY_BLOB = r"'(?:show|cat-file|archive)'"
+
+    def _reaches(self, pattern, bodies, bases, name, seen=None):
+        """Does name, or anything it reaches, match pattern?
+
+        The call-graph walk both derivations share: the symbol's own
+        body, then its base classes, then every other top-level symbol
+        its body calls. Only the pattern differs between them.
+        """
         seen = seen if seen is not None else set()
         if name in seen:
             return False
         seen.add(name)
         body = bodies.get(name, '')
-        if re.search(r"_github\(|repo\.github|GhCli\(|'clone'", body):
+        if re.search(pattern, body):
             return True
         for other in bases.get(name, []):
-            if self._reaches_network(bodies, bases, other, seen):
+            if self._reaches(pattern, bodies, bases, other, seen):
                 return True
         for other in bodies:
             if other != name and re.search(rf'\b{other}\s*\(', body):
-                if self._reaches_network(bodies, bases, other, seen):
+                if self._reaches(pattern, bodies, bases, other, seen):
                     return True
         return False
+
+    def _scheduled(self):
+        """Check id to implementing class name, from the registry.
+
+        Taken from CHECKS rather than matched out of the source, for
+        the reason test_network_checks_matches_the_checker gives.
+        That test asserts the map is complete and unambiguous, so a
+        derivation here that went blind fails there first.
+        """
+        return {check.id: type(check).__name__ for check in CHECKS}
 
     def test_network_checks_matches_the_checker(self):
         bodies, bases, duplicates = self._symbols(self._sources())
@@ -366,13 +404,60 @@ class NetworkCheckListTest(unittest.TestCase):
 
         derived = {
             check_id for check_id, symbol in scheduled.items()
-            if self._reaches_network(bodies, bases, symbol)
+            if self._reaches(self.NETWORK, bodies, bases, symbol)
         }
         self.assertEqual(
             derived, set(audit_snapshot.NETWORK_CHECKS),
             'NETWORK_CHECKS in audit_snapshot.py disagrees with the '
             'checks that actually reach the network',
         )
+
+    def test_transient_failure_checks_matches_the_checker(self):
+        # The set audit-raised.py excuses is every check that asks
+        # GitHub plus every check that reads a blob out of history.
+        # Asserted as that union rather than as a literal list, so a
+        # criterion added to either side is covered without a second
+        # place to remember.
+        bodies, bases, _ = self._symbols(self._sources())
+        scheduled = self._scheduled()
+
+        reads_history = {
+            check_id for check_id, symbol in scheduled.items()
+            if self._reaches(self.HISTORY_BLOB, bodies, bases, symbol)
+        }
+        self.assertEqual(
+            set(audit_snapshot.TRANSIENT_FAILURE_CHECKS),
+            set(audit_snapshot.NETWORK_CHECKS) | reads_history,
+            'TRANSIENT_FAILURE_CHECKS in audit_snapshot.py disagrees '
+            'with the checks whose tooling reaches a remote',
+        )
+
+        # The finding this list was split out for: plan-retirement is
+        # excused as transient without being a network check, because
+        # its verdict is held to the byte-for-byte comparison while
+        # its `git show` of a historical index is not.
+        self.assertIn('plan-retirement', reads_history)
+        self.assertIn('plan-retirement',
+                      audit_snapshot.TRANSIENT_FAILURE_CHECKS)
+        self.assertNotIn('plan-retirement', audit_snapshot.NETWORK_CHECKS)
+
+    def test_the_two_questions_are_asked_of_different_sets(self):
+        # github_did_not_answer() is the smoke run's question and
+        # transient_tool_failure() is the scheduled run's. A
+        # plan-retirement tool failure is transient, but it is not
+        # GitHub declining to answer a run that has no token, and
+        # collapsing the two is what failed the leg before.
+        failure = {'status': 'error', 'tool_failure': True,
+                   'id': 'plan-retirement'}
+        self.assertTrue(audit_snapshot.transient_tool_failure(failure))
+        self.assertFalse(audit_snapshot.github_did_not_answer(failure))
+
+        # Neither excuses a check that broke, or a verdict.
+        broken = {'status': 'error', 'id': 'plan-retirement'}
+        self.assertFalse(audit_snapshot.transient_tool_failure(broken))
+        verdict = {'status': 'fail', 'tool_failure': True,
+                   'id': 'plan-retirement'}
+        self.assertFalse(audit_snapshot.transient_tool_failure(verdict))
 
 
 if __name__ == '__main__':
