@@ -26,6 +26,74 @@
   directly passes, and so does extending the fleet preset, which
   enables it.
 
+### The central runner
+
+Everything above describes the arrangement the criterion checks: a
+copy of `renovate.yml` in each repository, running Renovate over that
+repository alone. The fleet is moving to a single workflow that runs
+Renovate over every repository from one place, and that workflow is
+already in this repository as `.github/workflows/renovate-fleet.yml`.
+It runs hourly at minute 23, not on the hour, because GitHub delays
+and sometimes drops scheduled events at the top of the hour and a
+dropped run here would delay every repository at once. It can also be
+dispatched by hand, with a Renovate `dryRun` mode and an autodiscover
+filter as inputs, so a pass can be read-only or confined to one
+repository. It installs Renovate from npm in a step that holds no
+secret, exactly as the template does, for the reasons given under
+[Renovate without Docker](#renovate-without-docker) and in the
+template README.
+
+Its global configuration is `renovate-runner.json` at the root of this
+repository. That file decides two things. Which repositories are
+discovered: autodiscovery over `shakenfist/*`, with `requireConfig`
+set to `required`, so Renovate manages a repository that carries a
+Renovate configuration and ignores one that does not, and with
+onboarding off, so it opens no pull request to add a configuration
+where there is none. And one temporary `packageRules` entry that
+disables every dependency in `.github/workflows/renovate.yml` and
+`templates/renovate/renovate.yml`. Matching the files rather than the
+packages covers everything in them at once, whichever of the Renovate
+pin, the actions or the container action a given copy carries, and the
+rule is to be removed when the per-repository copies are. The file is
+validated by its own hook in default mode, which accepts global
+options, while every other Renovate configuration is validated with
+`--no-global`; `scripts/tests/test_hooks.py` holds each configuration
+in the tree to exactly one of the two.
+
+The job runs on an ephemeral VM, `[self-hosted, vm, debian-13, s]`,
+and names the `renovate-write` environment, not the static pool the
+per-repository copies use. `RENOVATE_TOKEN` pushes branches to every
+repository the runner manages, and the static runners share one user
+and one home directory between jobs, so code another job ran could
+leave a `.pth` file or a `~/.gitconfig` hook there for this job to run
+with that token. A VM starts from the image and is thrown away after
+one job, which is the same reasoning `consistency-audit.yml` applies
+to its token-holding jobs. The environment is what keeps the token off
+a branch: it is meant to deploy only from `main`, so a branch that has
+edited the workflow cannot dispatch itself with the organisation's push
+token. It is a repository setting rather than a file in the tree, so
+the workflow is inert until it exists, and the workflow's own check of
+the ref is a second line of defence that makes a branch dispatch show
+as skipped rather than failed. The cost is that a VM pays the whole
+install on every run, with no cache to reuse.
+
+Before Renovate starts, every run probes the token with
+`scripts/renovate-check-push.py`. For each unarchived repository in
+the organisation whose default branch carries a `renovate.json` it
+asks GitHub whether the token has push permission, and the job fails
+naming every repository where it does not, not only the first. The
+probe derives the set the way `requireConfig` does, so it stays right
+as repositories are added and retired. It reads `renovate.json` alone,
+though Renovate accepts other file names, because this criterion is
+what requires `renovate.json`. Without the probe, a repository the
+token cannot write is one Renovate reads and plans updates for, then
+fails to act on every hour with nothing but a line in a log to say so.
+
+The per-repository copies of `renovate.yml` are still present and
+still running. Disabling them, deleting them, and changing this
+criterion to match are later work, not part of adding the runner, and
+"What we check" above is accurate for as long as they exist.
+
 ### Renovate without Docker
 
 `renovatebot/github-action` runs Renovate as a container. The static
