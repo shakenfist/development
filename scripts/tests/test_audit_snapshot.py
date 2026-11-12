@@ -97,11 +97,17 @@ class CompareRepoTest(unittest.TestCase):
         counting that as a difference would leave this tool reporting
         one for every repository with an eligible plan.
         """
-        before = ('2 plan(s) terminal for more than 90 days: PLAN-a.md '
-                  '(Complete, at least 97 days), PLAN-b.md (Complete, at '
+        # The plan names below are fixtures standing in for whatever
+        # plan-retirement found, not pointers a reader follows, so
+        # each line carrying one is marked for plan-source-references.
+        # The line marker rather than the file-scope one: this suite
+        # is about the snapshot comparison and would otherwise stop
+        # being audited for a pointer that really had rotted.
+        before = ('2 plan(s) terminal for more than 90 days: PLAN-a.md '  # audit-ok: plan-reference
+                  '(Complete, at least 97 days), PLAN-b.md (Complete, at '  # audit-ok: plan-reference
                   'least 91 days)')
-        after = ('2 plan(s) terminal for more than 90 days: PLAN-a.md '
-                 '(Complete, at least 98 days), PLAN-b.md (Complete, at '
+        after = ('2 plan(s) terminal for more than 90 days: PLAN-a.md '  # audit-ok: plan-reference
+                 '(Complete, at least 98 days), PLAN-b.md (Complete, at '  # audit-ok: plan-reference
                  'least 92 days)')
         self.assertEqual(
             audit_snapshot.compare_repo(
@@ -126,9 +132,9 @@ class CompareRepoTest(unittest.TestCase):
         # The normalisation is of the count alone. Which plans the
         # check names is what the snapshot is kept for, and an age
         # written over cannot be allowed to take a name with it.
-        before = ('1 plan(s) terminal for more than 90 days: PLAN-a.md '
+        before = ('1 plan(s) terminal for more than 90 days: PLAN-a.md '  # audit-ok: plan-reference
                   '(Complete, at least 97 days)')
-        after = ('1 plan(s) terminal for more than 90 days: PLAN-b.md '
+        after = ('1 plan(s) terminal for more than 90 days: PLAN-b.md '  # audit-ok: plan-reference
                  '(Complete, at least 97 days)')
         differences = audit_snapshot.compare_repo(
             result('ryll', [check('plan-retirement', 'fail', before)]),
