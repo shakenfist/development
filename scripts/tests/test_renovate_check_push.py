@@ -126,7 +126,7 @@ class FakeApi:
 
 
 class RenovatePushProbeTest(unittest.TestCase):
-    def run_probe(self, responses, token='a-token', org=ORG):
+    def run_probe(self, responses, token='a-token', org=ORG, extra=()):
         """Run main() against fake responses, returning (code, out, err, api).
 
         Kept apart rather than concatenated, because the managed set is
@@ -141,7 +141,7 @@ class RenovatePushProbeTest(unittest.TestCase):
         with mock.patch.object(probe, 'api_get', api), \
                 mock.patch.dict(os.environ, environ, clear=True), \
                 redirect_stdout(out), redirect_stderr(err):
-            code = probe.main(['--org', org])
+            code = probe.main(['--org', org, *extra])
         return code, out.getvalue(), err.getvalue(), api
 
     def test_a_writable_fleet_passes(self):
@@ -261,6 +261,40 @@ class RenovatePushProbeTest(unittest.TestCase):
         self.assertNotIn(archived['full_name'], out + err)
         self.assertNotIn(config_url(archived), api.urls)
 
+    def test_a_managed_set_smaller_than_the_fleet_fails(self):
+        # The failure the empty-set check cannot catch: a token that can
+        # still see some of the organisation reports that everything it
+        # can see is writable, and the repositories that fell out of
+        # the set are managed by nobody. Without the floor this passes.
+        code, out, err, _ = self.run_probe(answers([
+            (repository('one'), CONFIG, True),
+            (repository('two'), CONFIG, True),
+        ]), extra=['--expect-at-least', '23'])
+        self.assertEqual(code, 1, out + err)
+        self.assertIn('23', err)
+        self.assertIn('2 repositories', err)
+
+    def test_a_managed_set_at_the_floor_passes(self):
+        # The floor is a floor, not an equality: a repository added to
+        # the fleet must not fail the gate for every other one.
+        code, out, err, _ = self.run_probe(answers([
+            (repository('one'), CONFIG, True),
+            (repository('two'), CONFIG, True),
+            (repository('three'), CONFIG, True),
+        ]), extra=['--expect-at-least', '2'])
+        self.assertEqual(code, 0, out + err)
+
+    def test_the_floor_does_not_decide_which_repositories_are_managed(self):
+        # The derivation stays authoritative: a repository without a
+        # Renovate configuration is not made managed by the count, and
+        # the count is of what was derived rather than of the listing.
+        code, out, err, api = self.run_probe(answers([
+            (repository('managed'), CONFIG, True),
+            (repository('unmanaged'), MISSING, None),
+        ]), extra=['--expect-at-least', '2'])
+        self.assertEqual(code, 1, out + err)
+        self.assertIn('1 repositories', err)
+
     def test_a_missing_token_fails_before_anything_is_asked(self):
         code, out, err, api = self.run_probe(answers([
             (repository('one'), CONFIG, True),
@@ -302,14 +336,22 @@ class ApiGetTest(unittest.TestCase):
     """
 
     def api_get(self, answer, **kwargs):
-        """Call api_get with urlopen answering once, however it answers."""
+        """Call api_get with urlopen answering the same way every attempt.
+
+        sleep is captured rather than slept and the retry notices are
+        swallowed, so a retryable answer here costs no test time and no
+        test output. RetryTest below is where the retrying itself is
+        asserted.
+        """
         def fake_urlopen(request, timeout=None):
             self.request = request
             if isinstance(answer, Exception):
                 raise answer
             return answer
 
-        with mock.patch.object(probe.urllib.request, 'urlopen', fake_urlopen):
+        with mock.patch.object(probe.urllib.request, 'urlopen', fake_urlopen), \
+                mock.patch.object(probe.time, 'sleep', lambda seconds: None), \
+                redirect_stderr(io.StringIO()):
             return probe.api_get(API_URL, 'a-token', **kwargs)
 
     def test_a_successful_read_returns_the_payload_and_the_link_header(self):
@@ -341,6 +383,91 @@ class ApiGetTest(unittest.TestCase):
     def test_a_connection_that_fails_is_an_error(self):
         with self.assertRaises(probe.ProbeError):
             self.api_get(urllib.error.URLError('no route to host'), allow_missing=True)
+
+
+class RetryTest(unittest.TestCase):
+    """api_get rides out infrastructure, and only infrastructure.
+
+    The probe gates Renovate for the whole fleet, so one 502 that fails
+    the job costs every repository its pass for that hour, for a reason
+    that has nothing to do with permissions. An answer about the token
+    is a different thing: a 403 is the finding this script exists to
+    report, and asking again would only report it later.
+    """
+
+    def api_get(self, replies, **kwargs):
+        """api_get with urlopen answering from a list, one call per attempt.
+
+        time.sleep is captured rather than slept, so the backoff is an
+        assertion instead of six seconds of test run.
+        """
+        remaining = list(replies)
+        self.slept = []
+
+        def fake_urlopen(request, timeout=None):
+            answer = remaining.pop(0)
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+
+        with mock.patch.object(probe.urllib.request, 'urlopen', fake_urlopen), \
+                mock.patch.object(probe.time, 'sleep', self.slept.append), \
+                redirect_stderr(io.StringIO()):
+            try:
+                return probe.api_get(API_URL, 'a-token', **kwargs)
+            finally:
+                self.attempts = len(replies) - len(remaining)
+
+    def test_a_server_error_is_retried_rather_than_lost(self):
+        payload, _ = self.api_get([http_error(502, 'Bad Gateway'),
+                                   FakeResponse({'permissions': {'push': True}})])
+        self.assertIs(payload['permissions']['push'], True)
+        self.assertEqual(self.attempts, 2)
+        self.assertEqual(self.slept, [probe.RETRY_BACKOFF])
+
+    def test_a_rate_limited_response_is_retried(self):
+        # A secondary rate limit is GitHub asking for a pause, not an
+        # answer about the token.
+        payload, _ = self.api_get([http_error(429, 'Too Many Requests'),
+                                   FakeResponse({'ok': True})])
+        self.assertTrue(payload['ok'])
+        self.assertEqual(self.attempts, 2)
+
+    def test_a_connection_that_never_arrived_is_retried(self):
+        payload, _ = self.api_get([urllib.error.URLError('no route to host'),
+                                   FakeResponse({'ok': True})])
+        self.assertTrue(payload['ok'])
+        self.assertEqual(self.attempts, 2)
+
+    def test_retrying_gives_up_and_reports(self):
+        # Retrying for ever would turn a GitHub outage into a job that
+        # holds a VM until the timeout, which is worse than failing.
+        with self.assertRaises(probe.ProbeError) as raised:
+            self.api_get([http_error(503, 'Service Unavailable')] * probe.RETRY_ATTEMPTS)
+        self.assertIn('503', str(raised.exception))
+        self.assertEqual(self.attempts, probe.RETRY_ATTEMPTS)
+        # Backing off rather than hammering: each wait is twice the last.
+        self.assertEqual(self.slept, [probe.RETRY_BACKOFF * 2 ** n
+                                      for n in range(probe.RETRY_ATTEMPTS - 1)])
+
+    def test_a_forbidden_response_is_not_retried(self):
+        # The second reply would succeed, so a retry here would turn
+        # the one finding the probe exists to report into a pass.
+        with self.assertRaises(probe.ProbeError) as raised:
+            self.api_get([http_error(403, 'Forbidden'), FakeResponse({'ok': True})],
+                         allow_missing=True)
+        self.assertIn('403', str(raised.exception))
+        self.assertEqual(self.attempts, 1)
+        self.assertEqual(self.slept, [])
+
+    def test_an_absent_file_is_not_retried(self):
+        # A repository without a Renovate configuration is the common
+        # case, not a failure, and retrying it would cost the probe
+        # seconds per unmanaged repository in the organisation.
+        self.assertEqual(
+            self.api_get([http_error(404, 'Not Found')], allow_missing=True), (None, ''))
+        self.assertEqual(self.attempts, 1)
+        self.assertEqual(self.slept, [])
 
 
 if __name__ == '__main__':

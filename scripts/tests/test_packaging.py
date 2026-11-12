@@ -569,6 +569,65 @@ class RenovateReducedConfigTest(unittest.TestCase):
         self.assertNotIn('groupName', rule)
 
 
+class RenovateRunnerConfigTest(unittest.TestCase):
+    """The fleet runner's global configuration, pinned key by key.
+
+    This is the file that decides which repositories one
+    organisation-wide push token is pointed at, and nothing else checks
+    what is in it: the validator hook reads it against the schema, so a
+    widened `autodiscoverFilter`, a lost `requireConfig`, `onboarding`
+    turned back on, or a temporary rule that lost its `matchFileNames`
+    -- and so disabled every dependency in every repository in the
+    fleet -- all pass `pre-commit run --all-files` and would be noticed
+    by the fleet quietly stopping.
+
+    Whole sets rather than membership, in the same shape as the
+    preset's Node rule: a key added here is then a key somebody decided
+    to add.
+    """
+
+    RUNNER = 'renovate-runner.json'
+
+    def _runner(self):
+        with open(os.path.join(REPO_ROOT, self.RUNNER)) as f:
+            return json.load(f)
+
+    def test_the_runner_config_holds_exactly_these_keys(self):
+        self.assertEqual(
+            sorted(self._runner()),
+            ['$schema', 'autodiscover', 'autodiscoverFilter', 'onboarding',
+             'packageRules', 'requireConfig'])
+
+    def test_the_runner_discovers_this_organisation_and_no_other(self):
+        config = self._runner()
+        self.assertIs(config['autodiscover'], True)
+        # The whole list, not membership: a second pattern here is a
+        # second organisation this token would be pointed at, and a
+        # bare '*' is every repository on GitHub it can see.
+        self.assertEqual(config['autodiscoverFilter'], ['shakenfist/*'])
+
+    def test_the_runner_manages_only_repositories_that_asked_for_it(self):
+        config = self._runner()
+        # Without requireConfig the runner manages every repository it
+        # discovers, configured or not; with onboarding it would open
+        # an onboarding pull request on each of those.
+        self.assertEqual(config['requireConfig'], 'required')
+        self.assertIs(config['onboarding'], False)
+
+    def test_the_runner_suppresses_the_renovate_workflows_and_nothing_else(self):
+        rules = self._runner()['packageRules']
+        self.assertEqual(len(rules), 1)
+        rule = rules[0]
+        self.assertIs(rule['enabled'], False)
+        # The whole set again, and the reason it matters most here: a
+        # rule that lost its matchFileNames disables every dependency
+        # in the fleet, and the only symptom is Renovate proposing
+        # nothing to anybody.
+        self.assertEqual(sorted(rule['matchFileNames']),
+                         ['.github/workflows/renovate.yml',
+                          'templates/renovate/renovate.yml'])
+
+
 class RenovateVersionCommentsTest(CheckTestCase):
     """Renovate can only bump the pinned Renovate if it reads the comments."""
 

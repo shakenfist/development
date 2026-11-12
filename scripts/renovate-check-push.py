@@ -15,6 +15,17 @@ configuration. A list of names here would be a second copy of the
 fleet, and would be wrong the first time a repository was added or
 retired.
 
+What this cannot see, and does not try to: whether the token may push
+a change to a file under .github/workflows/. `permissions.push` does
+not cover that. A classic personal access token needs the `workflow`
+scope as well, and a fine-grained one needs Workflows: write; without
+it GitHub refuses the push even on a repository the token can
+otherwise write. Most of what this fleet's Renovate proposes is
+exactly that -- action pins, and the Renovate version a custom manager
+bumps -- so a pass here does not mean those branches will land. That
+has to be established by pushing one, which is what the cutover's
+canary run is for.
+
 Usage:
     RENOVATE_TOKEN=... python3 scripts/renovate-check-push.py --org shakenfist
 
@@ -28,6 +39,7 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -43,6 +55,20 @@ API_VERSION = '2022-11-28'
 # Long enough that a slow response is not a failed run, short enough
 # that a hung connection cannot hold a VM for the job's whole timeout.
 HTTP_TIMEOUT = 30
+
+# This probe gates Renovate for the whole fleet, so a transient failure
+# here costs every repository its pass rather than one of them. A 5xx,
+# a 429 and a dropped connection are all infrastructure rather than an
+# answer about permissions, and they are retried. A 403 and a push
+# permission that is false are answers, and stay immediately fatal: a
+# token that cannot see a repository is the finding the probe exists to
+# report, and retrying it would only delay it.
+RETRY_ATTEMPTS = 3
+
+# Seconds before the first retry, doubling after that. Small on purpose:
+# the point is to ride out a blip, and three attempts over six seconds
+# is still a gate that fails in seconds rather than minutes.
+RETRY_BACKOFF = 2
 
 # `requireConfig: "required"` manages a repository that carries any of
 # renovate.json, .json5 or .jsonc, the same three under .github/ or
@@ -81,15 +107,31 @@ def api_get(url, token, allow_missing=False):
         'User-Agent': 'renovate-push-probe',
         'X-GitHub-Api-Version': API_VERSION,
     })
-    try:
-        with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT) as response:
-            return json.load(response), response.headers.get('Link', '')
-    except urllib.error.HTTPError as e:
-        if allow_missing and e.code == 404:
-            return None, ''
-        raise ProbeError(f'GET {url} returned HTTP {e.code} {e.reason}') from e
-    except urllib.error.URLError as e:
-        raise ProbeError(f'GET {url} failed: {e.reason}') from e
+    delay = RETRY_BACKOFF
+    for attempt in range(RETRY_ATTEMPTS):
+        last = attempt == RETRY_ATTEMPTS - 1
+        try:
+            with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT) as response:
+                return json.load(response), response.headers.get('Link', '')
+        except urllib.error.HTTPError as e:
+            if allow_missing and e.code == 404:
+                return None, ''
+            failure = ProbeError(f'GET {url} returned HTTP {e.code} {e.reason}')
+            # Everything that is not a 5xx or a rate limit is an answer
+            # from GitHub about this token and this repository, so it is
+            # reported rather than asked again.
+            if last or not (e.code == 429 or e.code >= 500):
+                raise failure from e
+        except urllib.error.URLError as e:
+            # HTTPError is a subclass of this, so the clause above has
+            # already taken every response that arrived. What is left
+            # never reached GitHub at all.
+            failure = ProbeError(f'GET {url} failed: {e.reason}')
+            if last:
+                raise failure from e
+        print(f'  {failure}, retrying in {delay} seconds', file=sys.stderr)
+        time.sleep(delay)
+        delay *= 2
 
 
 def api_get_all(url, token):
@@ -172,6 +214,11 @@ def can_push(full_name, token):
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Check Renovate can push to every repository it manages')
     parser.add_argument('--org', required=True, help='GitHub organisation to probe')
+    parser.add_argument('--expect-at-least', type=int, default=0, metavar='N',
+                        help='fail when fewer than N repositories are managed. A floor under the '
+                             'derived set rather than a list of it: the derivation above stays '
+                             'authoritative, and this only catches a token that lost sight of most '
+                             'of the fleet. Retiring a repository means moving the number.')
     args = parser.parse_args(argv)
 
     token = os.environ.get('RENOVATE_TOKEN')
@@ -187,6 +234,20 @@ def main(argv=None):
         # writable, which is true and useless.
         if not managed:
             print(f'no repository in {args.org} carries {CONFIG_FILE}, which cannot be right', file=sys.stderr)
+            return 1
+        # And a set smaller than the fleet is a failure for the same
+        # reason, one step short of empty. /orgs/{org}/repos returns
+        # only what the token can see, so a token that lost visibility
+        # to most of the organisation shrinks this set and Renovate's
+        # autodiscovery together: every repository still in it is
+        # writable, and the ones that vanished are managed by nobody.
+        # The derivation is what says which repositories those are;
+        # this number only says how few of them is too few, so
+        # retiring a repository from the fleet means moving it.
+        if len(managed) < args.expect_at_least:
+            print(f'only {len(managed)} repositories in {args.org} are managed by Renovate, '
+                  f'and at least {args.expect_at_least} were expected: the token has probably '
+                  'lost visibility to part of the fleet', file=sys.stderr)
             return 1
         unwritable = [full_name for full_name in managed if not can_push(full_name, token)]
     except ProbeError as e:

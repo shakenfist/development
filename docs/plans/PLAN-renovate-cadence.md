@@ -1432,6 +1432,11 @@ and nothing in it is done without an explicit yes.
    dispatch the central workflow for real with the filter input set
    to `shakenfist/development`. Confirm it pushed the branch,
    opened or updated the pull request, and rewrote the dashboard.
+   Tick an update to a workflow file specifically, because pushing one
+   needs a capability the probe cannot see: push permission is not the
+   `workflow` scope, and most of what this fleet's Renovate proposes
+   touches `.github/workflows/`. A canary that only moved a
+   requirements pin would leave that untested.
 3. **Disable the rest.** `gh workflow disable renovate.yml` in each
    of the other 22. The full list, `development` included, is here
    so that the rollback is mechanical: `actions`, `agent-python`,
@@ -1441,9 +1446,13 @@ and nothing in it is done without an explicit yes.
    `kerbside-client`, `kerbside-patches`, `library-utilities`,
    `occystrap`, `ryll`, `sfui`, `shakenfist`,
    `uncalibrated-sextant`, `visual-digest-rust`.
-4. **Watch a full day.** Dependency dashboards update, no duplicate
-   branches appear, and open Renovate pull requests are adopted
-   rather than reopened. Record how many times
+4. **Turn the schedule on, and watch a full day.** The workflow
+   lands with `workflow_dispatch` only, so this step is a pull
+   request of its own adding the `schedule` block its header comment
+   records, and it comes after step 3 because a schedule with the
+   copies still enabled is the duplicate pull request race. Then
+   watch: dependency dashboards update, no duplicate branches appear,
+   and open Renovate pull requests are adopted rather than reopened. Record how many times
    `renovate-fleet.yml` ran that day, each run's duration, and the
    longest gap, against the Situation's median of 4 hours 47
    minutes and longest of 9 hours 35 minutes. A pass approaching 60
@@ -1595,6 +1604,41 @@ would quietly halve the schedule rather than fail anything, and
 timing out under the hour makes it loud. The number is provisional
 until the cutover's dry run measures a full pass.
 
+**The first review round caught a live-on-merge defect** (2026-11-13).
+The workflow was written with its hourly `cron` in place, so merging it
+would have started real fleet-wide runs at the next scheduled tick
+while all 23 per-repository copies were still running -- the duplicate
+pull request race this phase exists to avoid, which the runner's own
+concurrency group cannot prevent because the racing instances are
+different workflows in different repositories. The cause was in the
+planning, not the implementation: rewriting this phase's Cutover
+section dropped the master plan's original "enable the central
+runner's schedule" step, so nothing remained to turn the schedule on
+and it shipped already on. The workflow now lands with
+`workflow_dispatch` only, the block to add is recorded in its header
+comment, and cutover step 4 turns it on in a pull request of its own.
+
+**Two claims about the environment were wrong** (2026-11-13). This
+phase said the workflow was inert until `renovate-write` existed.
+GitHub's documentation says the opposite: "Running a workflow that
+references an environment that does not exist will create an
+environment with the referenced name", and that environment "will not
+have any protection rules or secrets configured". Naming an
+environment therefore protects nothing by itself, and the main-only
+deployment rule binds only once an administrator has configured it.
+Whether a job naming an environment still inherits a repository-level
+secret of the same name is not documented either way, so nothing in
+this plan or the spec asserts it. Both pages now say the protection is
+verified out of band before the cutover.
+
+**The probe cannot see the capability that matters most**
+(2026-11-13). `permissions.push` is not the `workflow` scope, and most
+of what this fleet's Renovate proposes touches `.github/workflows/`,
+so the probe can report that the token reaches all 23 repositories
+while every workflow-file branch is refused. It is documented rather
+than probed, and cutover step 2's canary now ticks a workflow-file
+update specifically, which is what establishes the capability.
+
 **The local weekly rule covers majors too** (2026-11-13, step 2c).
 The rule decision 8 asks for gives `actions/checkout` and
 `actions/setup-node` in `renovate-fleet.yml` the weekly window, and it
@@ -1660,10 +1704,16 @@ Every item is checked by the management session against the files
 and the commands, not against a sub-agent's summary.
 
 * `.github/workflows/renovate-fleet.yml` exists, triggers on
-  `schedule` at minute 23 and `workflow_dispatch` only, carries
-  top-level `permissions: contents: read`, names the
-  `renovate-write` environment, runs on an ephemeral VM label, and
-  contains no `uses:` of `renovatebot/github-action`.
+  `workflow_dispatch` and **nothing else**, carries top-level
+  `permissions: contents: read`, names the `renovate-write`
+  environment, runs on an ephemeral VM label, and contains no `uses:`
+  of `renovatebot/github-action`. The absence of a `schedule` is the
+  point: it is what stops the runner working the same repositories as
+  the copies that are still running, and the minute-23 block to add
+  at cutover is recorded in the workflow's header comment.
+  `scripts/tests/test_renovate_fleet_workflow.py` asserts each of
+  these, including that no third-party action beside the token runs
+  on a ref that can move.
 * The workflow installs Renovate in a step whose `env:` does not
   mention `RENOVATE_TOKEN`, and the step that holds the token runs
   only what that step installed.

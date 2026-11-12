@@ -1,5 +1,5 @@
-# Runs Renovate hourly over every repository in the organisation, from
-# here, with its global configuration in renovate-runner.json.
+# Runs Renovate over every repository in the organisation, from here,
+# with its global configuration in renovate-runner.json.
 #
 # The fleet's per-repository copies of templates/renovate/renovate.yml
 # each run Renovate over the one repository they live in. This runs it
@@ -8,6 +8,25 @@
 # repositories are discovered, and what is suppressed fleet-wide -- is
 # in one file instead of being implied by where the copies are
 # installed. docs/audits/renovate.md is the specification.
+#
+# There is deliberately no schedule here yet: dispatch only. Every
+# repository in the fleet still runs its own hourly copy, and a
+# schedule here would have this workflow running Renovate over the
+# same repositories at the same time as those copies do. Two Renovate
+# instances over one repository race on branch creation and produce
+# duplicate or half-written pull requests, and the concurrency group
+# below cannot prevent that race, because the two runs are different
+# workflows in different repositories. The schedule arrives once the
+# copies are disabled, and this is the block to add then:
+#
+#     schedule:
+#       - cron: '23 * * * *'
+#
+# Hourly at minute 23 rather than on the hour, when it does arrive.
+# GitHub delays and sometimes drops scheduled events at the top of the
+# hour, when everybody else's cron fires too, and with one central
+# runner a dropped run delays every repository in the fleet at once
+# rather than one of them.
 
 name: Renovate fleet runner
 
@@ -17,20 +36,25 @@ permissions:
   contents: read
 
 on:
-  schedule:
-    # Hourly at minute 23 rather than on the hour. GitHub delays and
-    # sometimes drops scheduled events at the top of the hour, when
-    # everybody else's cron fires too, and with one central runner a
-    # dropped run delays every repository in the fleet at once rather
-    # than one of them.
-    - cron: '23 * * * *'
   workflow_dispatch:
     inputs:
+      # A choice rather than a free-form string. dryRun takes extract,
+      # lookup or full, and Renovate fails a run given anything else
+      # -- after the checkout, the probe, Node, Rust, hashin and the
+      # npm install have all run, which is a slow way to learn about a
+      # typo. The fourth option is writing for real, spelled out
+      # rather than left as the empty string nobody reading a dispatch
+      # form would guess at.
       dry_run:
-        description: 'Renovate dryRun: extract, lookup or full. Empty writes for real.'
+        description: 'Renovate dryRun mode, or write-for-real to let it write'
         required: false
-        default: ''
-        type: string
+        default: write-for-real
+        type: choice
+        options:
+          - write-for-real
+          - extract
+          - lookup
+          - full
       autodiscover_filter:
         description: 'Autodiscover filter, e.g. shakenfist/development. Empty uses the runner config.'
         required: false
@@ -49,13 +73,18 @@ jobs:
     # one job. These are the labels, and the reasoning, that
     # consistency-audit.yml already uses for its token-holding jobs.
     runs-on: [self-hosted, vm, debian-13, s]
-    # The environment is what keeps RENOVATE_TOKEN off a branch: it
-    # deploys only from main, so a branch that has edited this file
-    # cannot dispatch itself and run with the organisation's push
-    # token. The condition below is defence in depth rather than the
-    # control -- a branch can edit a condition out of its own copy, but
-    # it cannot grant itself the environment -- and it makes a branch
-    # dispatch show up as skipped rather than failed.
+    # The environment is where RENOVATE_TOKEN is meant to be kept off
+    # a branch, by deploying only from main, so that a branch which has
+    # edited this file cannot dispatch itself and run with the
+    # organisation's push token. That is a protection somebody has to
+    # configure and verify out of band, not one this file can assert:
+    # referencing an environment that does not exist creates it, and
+    # the environment GitHub creates that way carries no protection
+    # rules and no secrets of its own. Naming it here therefore
+    # protects nothing by itself. The condition below is the weaker,
+    # in-tree half of the same control -- a branch can edit a
+    # condition out of its own copy -- and it makes a branch dispatch
+    # show up as skipped rather than failed.
     environment: renovate-write
     if: ${{ github.ref == 'refs/heads/main' }}
     # Provisional, until a dry run has measured a full pass over the
@@ -66,15 +95,16 @@ jobs:
     # loud instead. Renovate resumes where it left off on the next run,
     # so a killed pass costs an hour rather than any state.
     timeout-minutes: 50
-    # timeout-minutes does not cover queue time: the run can sit waiting
-    # for a VM, so an hourly cron can fire while the previous run is
-    # still queued, and workflow_dispatch can collide with either. Two
-    # Renovate instances over the same repository race on branch
-    # creation and produce duplicate or half-written pull requests --
-    # across the whole fleet here, not one repository.
+    # timeout-minutes does not cover queue time: the run can sit
+    # waiting for a VM, so once the schedule above arrives an hourly
+    # cron can fire while the previous run is still queued, and a
+    # dispatch can collide with either -- which is the one collision
+    # possible today. Two Renovate instances over the same repository
+    # race on branch creation and produce duplicate or half-written
+    # pull requests -- across the whole fleet here, not one repository.
     #
     # Not cancel-in-progress: killing Renovate mid-push is worse than
-    # skipping an hour, and the next cron is an hour away.
+    # skipping a pass, and the next one is an hour away.
     concurrency:
       group: renovate-fleet
       cancel-in-progress: false
@@ -94,10 +124,22 @@ jobs:
       # does and names every repository it cannot push to; the script
       # says why that set is derived rather than listed. Python 3 and
       # the standard library only, which is what the image has.
+      #
+      # renovate-runner.json is the source of truth for the discovery
+      # surface: its autodiscoverFilter decides what Renovate actually
+      # manages, and --org here only has to name the same
+      # organisation, so the two have to move together.
+      #
+      # --expect-at-least is a floor under the derived set rather than
+      # a list of it. The derivation stays authoritative; the number
+      # only catches the case the derivation cannot, which is a token
+      # that lost sight of most of the fleet and so reports that every
+      # repository it can still see is writable. Retiring a repository
+      # from the fleet means moving this number.
       - name: Check the push token reaches every managed repository
         env:
           RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
-        run: python3 scripts/renovate-check-push.py --org shakenfist
+        run: python3 scripts/renovate-check-push.py --org shakenfist --expect-at-least 23
 
       # Renovate runs from npm rather than through
       # renovatebot/github-action, which runs it as a container and so
@@ -119,8 +161,26 @@ jobs:
       # they are cloned later, by Renovate. Several of them are Rust, so
       # the tool is installed on every run. A rust-toolchain.toml in a
       # repository still wins: this only sets rustup's default.
+      #
+      # continue-on-error, because this step runs for the whole fleet:
+      # a rustup outage would otherwise mean no Renovate pass at all
+      # for any repository, where skipping it costs an artifact update
+      # problem on the handful of Rust ones.
+      #
+      # Pinned to a commit rather than to @stable, which is a branch,
+      # so that the code running in the job that holds the
+      # organisation's push token is not whatever that ref points at
+      # on the day. toolchain is given explicitly because the action
+      # takes its own default from the ref name: on the stable branch
+      # the input defaults to stable, and on the default branch it is
+      # required, so a bare SHA otherwise works only by virtue of
+      # which branch it happens to sit on -- which a reader of this
+      # file cannot see.
       - name: Set up Rust for Cargo.lock
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        continue-on-error: true
+        with:
+          toolchain: stable
 
       # A requirements file pinned with --hash lines needs hashin, which
       # Renovate runs to rewrite the hashes when it bumps a pin. Without
@@ -129,7 +189,13 @@ jobs:
       # above: the repositories that have such a file are not in this
       # workspace to be looked at. Only hashin goes on PATH, so the
       # venv's python and pip do not shadow the runner's.
+      #
+      # continue-on-error for the reason the Rust step gives: a PyPI
+      # outage or a yanked release should degrade to an artifact update
+      # problem on the repositories with hashed requirements, not cost
+      # the whole fleet its Renovate pass.
       - name: Set up hashin for hashed requirements
+        continue-on-error: true
         env:
           # renovate: datasource=pypi depName=hashin
           PINNED_HASHIN_VERSION: 1.0.5
@@ -148,6 +214,15 @@ jobs:
       # which here writes to every repository in the organisation. The
       # step that holds the token runs only what this one installed.
       #
+      # What that step-level env: split buys is bounded, and worth
+      # stating: it keeps the token out of this step's environment, so
+      # nothing installed here can read it. It is not protection
+      # against code that runs in the same job alongside the token.
+      # Anything earlier in the job can write GITHUB_PATH or
+      # GITHUB_ENV, or leave a shim in the workspace for the
+      # token-holding step to run. The pinned action above, and the
+      # ephemeral VM this job runs on, are what bound that.
+      #
       # --ignore-scripts skips every install script in the tree; re2 is
       # then rebuilt by name, because it is the one Renovate uses (its
       # RE2 regex engine, without which it falls back to RegExp and
@@ -162,19 +237,21 @@ jobs:
               "renovate@${PINNED_RENOVATE_VERSION}"
           npm rebuild --prefix "${RUNNER_TEMP}/renovate-bin" re2
 
-      # The two dispatch inputs are empty on a scheduled run, and
-      # Renovate ignores an empty environment variable, so the file's
-      # own values stand. dryRun takes extract, lookup or full, and a
-      # value that is none of those fails the run rather than being
-      # ignored. autodiscoverFilter is not a mergeable option, so the
-      # input replaces the file's list rather than adding to it: that is
-      # what makes a one-repository canary possible, and what bounds a
-      # wider value is the token's own reach and the environment above.
+      # Either dispatch input can be empty -- and both are on a
+      # scheduled run, once the schedule above arrives -- and Renovate
+      # ignores an empty environment variable, so the file's own values
+      # stand. write-for-real maps to an empty RENOVATE_DRY_RUN for the
+      # same reason: there is no dryRun value meaning "write", only the
+      # absence of one. autodiscoverFilter is not a mergeable option,
+      # so the input replaces the file's list rather than adding to it:
+      # that is what makes a one-repository canary possible, and what
+      # bounds a wider value is the token's own reach and the
+      # environment above.
       - name: Self-hosted Renovate
         env:
           RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
           RENOVATE_CONFIG_FILE: ${{ github.workspace }}/renovate-runner.json
-          RENOVATE_DRY_RUN: ${{ inputs.dry_run }}
+          RENOVATE_DRY_RUN: ${{ inputs.dry_run != 'write-for-real' && inputs.dry_run || '' }}
           RENOVATE_AUTODISCOVER_FILTER: ${{ inputs.autodiscover_filter }}
           # A clone and cache per job, under the directory the runner
           # empties between jobs.
