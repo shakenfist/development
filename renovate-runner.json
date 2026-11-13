@@ -1,0 +1,19 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "autodiscover": true,
+  "autodiscoverFilter": [
+    "shakenfist/*"
+  ],
+  "requireConfig": "required",
+  "onboarding": false,
+  "packageRules": [
+    {
+      "description": "Dependencies in a Renovate workflow are not updated. Each repository keeps its own .github/workflows/renovate.yml, disabled, until those copies are deleted, and every pin in one -- the Renovate version a custom manager bumps, the actions, and the container action three repositories still use -- would otherwise be proposed and reviewed for a file that no longer runs. Matching the files covers every dependency in them at once, including the ones this repository's copy of the template carries. Remove this rule when the copies go.",
+      "matchFileNames": [
+        ".github/workflows/renovate.yml",
+        "templates/renovate/renovate.yml"
+      ],
+      "enabled": false
+    }
+  ]
+}
