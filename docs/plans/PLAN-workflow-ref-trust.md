@@ -308,7 +308,7 @@ Out of scope:
 | Phase | Status | Merged |
 |-------|--------|--------|
 | 1. Finish the inherit rollout | Complete | development 8df8179 (#209); instar bdc8905 (#617); shakenfist e4c7726 (#4404); occystrap c583d68 (#152); client-python 68f295f (#415); agent-python 4bf7763 (#148); client-python-k3s 03998e0 (#83); clingwrap 125eb20 (#141); divergulent 8a2852e (#125); library-utilities 832d82d (#67); sfui ad0d6a2 (#44) |
-| 2. Make `actions` main require a pull request | In progress | |
+| 2. Make `actions` main require a pull request | Complete | 951fef7 (#388), 9bd865d (#392) |
 | 3. Pin third-party actions to a sha | Not started | |
 | 4. Record the policy | Not started | |
 | 5. Shared workflows instead of copied templates | Not started | |
