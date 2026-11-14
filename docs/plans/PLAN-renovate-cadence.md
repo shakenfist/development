@@ -1693,13 +1693,23 @@ workflows read the organisation secret rather than something else:
 every repository on the list works, and the one repository off it has
 never worked. The cutover fixes it as a side effect, since the fleet
 runner uses this repository's token and the probe reports it can push
-to all 23, so the first real central pass would be the first
-dependency update `uncalibrated-sextant` has ever had. Filed as issue
-#402 so that it is fixed on its own terms rather than only by the
-cutover, and so that the underlying gap is recorded: nothing checks
-the organisation secret's selected list against the set of
-repositories carrying a `renovate.json`, and the probe cannot see
-secret visibility.
+to all 23, so the first real central pass would have been the first
+dependency update `uncalibrated-sextant` ever had. It was fixed on
+its own terms instead, on 2026-11-15 with the operator's approval:
+the repository was added to the organisation secret's selected list
+with the single-repository endpoint, taking it from 22 to 23, and the
+selected set is now exactly the 23 Renovate manages. The run was not
+forced, so its own cron is what proves it.
+
+What is left is why it happened, and it is why issue #402 stays open:
+nothing checks the organisation secret's selected list against the
+set of repositories carrying a `renovate.json`. The probe is the
+closest thing and cannot do it, because it reads `permissions.push`
+for the token it already holds and cannot see secret visibility. The
+next repository onboarded without being added to the list fails the
+same way, silently. Both candidate homes for the check -- the
+consistency audit's `renovate` criterion, or the probe itself --
+need `admin:org`, which neither has today.
 
 **Open question 1's read path is still open after both dry runs**
 (2026-11-14). Neither pass mentions Dependabot or vulnerability alerts
