@@ -859,10 +859,10 @@ Australian Eastern Daylight Time (UTC+11).
 
 | Secret | Level and visibility | Repositories holding it | Account | Type | Scopes or permissions | Expiry |
 |--------|----------------------|-------------------------|---------|------|-----------------------|--------|
-| `DEPENDENCIES_TOKEN` | repository only; no organisation secret of that name exists | client-python, hunkydory, kerbside, ryll, shakenfist, and andris since 2026-10-29 18:39 UTC (#343) | `shakenfist-bot` (rule-suite `actor_name` of every push made with it) | *deferred to the bot's token list* | *deferred* | *deferred* |
+| `DEPENDENCIES_TOKEN` | repository only; no organisation secret of that name exists | client-python, hunkydory, kerbside, ryll, shakenfist, and andris since 2026-10-29 18:39 UTC (#343) | `shakenfist-bot` (rule-suite `actor_name` of every push made with it) | classic, four tokens | `public_repo`, `read:org`, `read:project`, except the kerbside token which lacks `read:org`; `public_repo` is write access to every public repository, so none of the four is scoped to the repository it is named for | none: no classic token on the account expires |
 | `RENOVATE_TOKEN` | organisation, selected: the 22 repositories in the next table | none at repository level | `shakenfist-bot` (probe) | classic PAT | `read:org`, `read:project`, `repo`, `workflow` | none: no expiration header |
 | `AUDIT_READ_TOKEN` | repository, development | development | `shakenfist-bot` (probe) | fine-grained | read-only, as `docs/consistency-audits.md` lists | 2027-10-24 21:29:44 UTC |
-| `AUDIT_TOKEN` | environment `audit-write`, development; policy `main` only | development | `shakenfist-bot` (authored #247) | fine-grained (`docs/consistency-audits.md`) | Issues read and write, all repositories, organisation as resource owner (documented), plus Contents read since 2026-10-31 09:45 AEDT (#349, closed on audit run 41140043392; confirmed against the token list: *deferred*) | *deferred to the token list* |
+| `AUDIT_TOKEN` | environment `audit-write`, development; policy `main` only | development | `shakenfist-bot` (authored #247) | fine-grained (`docs/consistency-audits.md`) | Issues read and write, all repositories, organisation as resource owner (documented), plus Contents read since 2026-10-31 09:45 AEDT (#349, closed on audit run 41140043392; the token list confirms the token and its expiry, but its index does not itemise permissions, so not the Contents half) | 2027-10-25 AEDT (token list) |
 
 The probe could not read `DEPENDENCIES_TOKEN` at all ("secret not
 set in this context"): no copy is visible to this repository, which
@@ -883,17 +883,71 @@ measures only the environment half, and both the bypass list and
 the repository-level key check move to the spec's
 reviewer-confirmed half, as the plan provides.
 
-**The bot's token list (1a).** *Deferred: still to be read as
-`shakenfist-bot` by the operator (plan-blocker b2). Phase 1 closed
-on 2026-10-31 with this the one cell not filled, by Mikal's
-decision; it lands in a later record commit.* Secrets elsewhere in
-the fleet that may also be rows in it: kerbside-patches'
-`DAILY_REBASE_TOKEN`, ryll's `HOMEBREW_TAP_TOKEN`, and the two
-`GITLAB_TESTDATA_*` tokens, which are GitLab's and not GitHub's.
+**The bot's token list (1a).** Read on 2026-11-15 by the operator
+as `shakenfist-bot`, from Settings, Developer settings, both
+personal access token tabs. This is the cell phase 1 closed without
+on 2026-10-31, and reading it clears plan-blocker b9, the remaining
+half of what phase 1 recorded as b2. Ten tokens, eight classic and
+two fine-grained; no token value was read or recorded. Both secrets
+the plan guessed would appear here are rows, kerbside-patches'
+`DAILY_REBASE_TOKEN` and ryll's `HOMEBREW_TAP_TOKEN`, while the two
+`GITLAB_TESTDATA_*` tokens are GitLab's and not GitHub's and so are
+not. The account holds no SSH key and no GPG key
+(`users/shakenfist-bot/keys` and `.../gpg_keys`, both empty, read
+the same day), so these ten tokens are the whole of what that
+account can reach with.
 
 | Token name | Type | Scopes or permissions | Expiry | Matched secret |
 |------------|------|-----------------------|--------|----------------|
-| *deferred, see above* | | | | |
+| `AUDIT_TOKEN` | fine-grained | Issues read and write, all repositories, organisation as resource owner, plus Contents read; the tab's index does not itemise permissions, so this is the documented set rather than a reading of it | 2027-10-25 AEDT | `AUDIT_TOKEN`, development, environment `audit-write` |
+| `AUDIT_READ_TOKEN` | fine-grained | read-only, as `docs/consistency-audits.md` lists | 2027-10-25 AEDT, which is the probe's 2027-10-24 21:29:44 UTC rendered in local time | `AUDIT_READ_TOKEN`, development, repository |
+| `Renovate v3` | classic | `read:org`, `read:project`, `repo`, `workflow` | none | `RENOVATE_TOKEN`, organisation, the 22 repositories above |
+| `audit_token` | classic | `repo` | none | none found; see below |
+| `Homebrew taps CI token` | classic | `repo` | none | `HOMEBREW_TAP_TOKEN`, ryll |
+| `kerbside daily rebase` | classic | `public_repo`, `read:org`, `read:project` | none | `DAILY_REBASE_TOKEN`, kerbside-patches |
+| `pin-dependencies-andris` | classic | `public_repo`, `read:org`, `read:project` | none | `DEPENDENCIES_TOKEN`, andris |
+| `pin-dependencies-hunkydory` | classic | `public_repo`, `read:org`, `read:project` | none | `DEPENDENCIES_TOKEN`, hunkydory |
+| `pin-dependencies-kerbside` | classic | `public_repo`, `read:project` | none | `DEPENDENCIES_TOKEN`, kerbside |
+| `pin-dependencies` | classic | `public_repo`, `read:org`, `read:project` | none | `DEPENDENCIES_TOKEN`, client-python, ryll and shakenfist, by elimination: six repositories hold the secret and four tokens exist |
+
+**What the scopes say, which the names do not.** Every classic token
+is non-expiring: eight of eight read "This token has no expiration
+date". Only the two fine-grained tokens expire, and both on the same
+day.
+
+Three classic tokens hold `repo` rather than `public_repo`:
+`Renovate v3`, `Homebrew taps CI token` and `audit_token`. `repo`
+is write access to private repositories as well as public ones, so
+each of the three reaches every private repository the account can
+see. `Renovate v3` also holds `workflow`, which is write access to
+`.github/workflows` in each of the 22 repositories its secret is
+scoped to.
+
+The four `pin-dependencies*` tokens hold `public_repo`, which is
+write access to every public repository, so their per-repository
+names are cosmetic: the andris token can push to shakenfist. A
+classic token cannot be scoped to one repository at all. Narrowing
+`DEPENDENCIES_TOKEN` therefore means converting it to fine-grained
+tokens, which the Future work entry on narrowing already proposes,
+rather than splitting or renaming the classic ones further.
+`pin-dependencies-kerbside` also lacks the `read:org` its three
+siblings hold, so the four were cut by hand at different times
+rather than from one procedure.
+
+**One token matches no secret.** The classic `audit_token` carries
+`repo` and never expires, and nothing in the fleet can be carrying
+it: the audit's two credentials are both fine-grained (the rows
+above, and `docs/consistency-audits.md`), the organisation holds
+only `RENOVATE_TOKEN` and `GITLAB_TESTDATA_TOKEN`, development holds
+`AUDIT_READ_TOKEN` and the `audit-write` environment's
+`AUDIT_TOKEN`, and neither this repository's `tools/` and `scripts/`
+nor 33fl names a classic audit token. It reads as the credential the
+audit used before it moved to fine-grained tokens. Its last-used
+date is not settled: the tab was read as a list whose last-used line
+precedes each token's name, which puts it inside two months, while
+the other alignment puts it at eight, and the two answers disagree
+about whether anything still holds it. Settling that and then
+revoking it, or finding its consumer, is Future work below.
 
 **Organisation secrets and variables (1a).** `gh secret list --org
 shakenfist` and `gh variable list --org shakenfist`, 2026-10-30.
@@ -2875,6 +2929,10 @@ entries. The fourth is also phase 1's one record cell still pending an
 operator paste, and a plan blocker; it is in Future work as well
 because that is what retirement reads, and a deferral recorded only in
 the body of a plan goes with the plan's files when they are deleted.
+That cell was filled on 2026-11-15 and plan-blocker b9 cleared with
+it; what remains of that deferral is the unmatched classic
+`audit_token` the list turned up, which holds its Future work entry
+now.
 
 This phase closes itself out, so it sets its own `Status` to
 `Complete`. Its `Merged` cell is empty in this pull request for the
@@ -3442,21 +3500,29 @@ intend to do aligns with that plan.
 - Narrow `DEPENDENCIES_TOKEN` and `RENOVATE_TOKEN`. After this plan
   neither can bypass a ruleset, but both still push branches and
   open pull requests in every repository the bot can write to, and
-  `DEPENDENCIES_TOKEN` is in scope of pull-request jobs. A
-  fine-grained token per use, or a second App for branch pushes, is
-  the next step. Fine-grained tokens owned by a user expire within a
-  year, so that is a rotation commitment, not a one-off change.
+  `DEPENDENCIES_TOKEN` is in scope of pull-request jobs. The token
+  list read on 2026-11-15 measures that reach rather than inferring
+  it: both secrets are classic tokens, the four behind
+  `DEPENDENCIES_TOKEN` carrying `public_repo` and `RENOVATE_TOKEN`
+  carrying `repo` and `workflow`, and a classic token cannot be
+  scoped to a repository, so the per-repository names on those four
+  mean nothing. A fine-grained token per use, or a second App for
+  branch pushes, is the next step. Fine-grained tokens owned by a
+  user expire within a year, so that is a rotation commitment, not a
+  one-off change -- against no expiry at all today, which is the
+  trade being made.
 - `sfconductor` merges pull requests past the merge queue and
   required checks in four repositories (open question 3). Phase 1
   records where its credential lives; whatever follows from that is
   its own issue.
-- Record the `shakenfist-bot` token list -- name, type, scopes or
-  permissions and expiry per token, never a value -- in phase 1's
-  record, whose table has held an empty cell for it since the plan
-  began. It needs the operator's own session as that account, so it is
-  a plan blocker rather than work anyone else can pick up. Until it is
-  written down, what that account can still reach is known only to
-  whoever reads its settings page.
+- Settle the classic `audit_token` that reading the token list
+  turned up. It carries `repo`, it never expires, and no secret in
+  the fleet can be carrying it, so it reads as the credential the
+  audit used before it moved to fine-grained tokens. Confirm its
+  last-used date, which phase 1's record could not settle between two
+  months and eight, and then revoke it or find what still holds it.
+  This is what remains of the token-list deferral, which was read on
+  2026-11-15; the list itself is in phase 1's record.
 - If step 1a finds `AUDIT_TOKEN` is the bot's, 1b's demotion may
   stop it listing repository secrets or reading `bypass_actors`,
   and 3c then moves those halves to its reviewer-confirmed half. The
