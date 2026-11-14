@@ -892,10 +892,17 @@ two fine-grained; no token value was read or recorded. Both secrets
 the plan guessed would appear here are rows, kerbside-patches'
 `DAILY_REBASE_TOKEN` and ryll's `HOMEBREW_TAP_TOKEN`, while the two
 `GITLAB_TESTDATA_*` tokens are GitLab's and not GitHub's and so are
-not. The account holds no SSH key and no GPG key
-(`users/shakenfist-bot/keys` and `.../gpg_keys`, both empty, read
-the same day), so these ten tokens are the whole of what that
-account can reach with.
+not. The account holds no SSH authentication key, no SSH signing
+key and no GPG key (`users/shakenfist-bot/keys`,
+`.../ssh_signing_keys` and `.../gpg_keys`, all empty; the first and
+third read the same day, the second on 2026-11-15 from a session
+that was not the bot's, since the endpoint is public). So these ten
+tokens are the whole of what the fleet's automation can carry as
+this account. They are not the whole of what the account can reach
+with: its password and web session, the OAuth and GitHub App
+authorisations it has granted (Settings, Applications), and deploy
+keys, which are per repository rather than per account, were not
+enumerated.
 
 | Token name | Type | Scopes or permissions | Expiry | Matched secret |
 |------------|------|-----------------------|--------|----------------|
@@ -935,19 +942,27 @@ siblings hold, so the four were cut by hand at different times
 rather than from one procedure.
 
 **One token matches no secret.** The classic `audit_token` carries
-`repo` and never expires, and nothing in the fleet can be carrying
-it: the audit's two credentials are both fine-grained (the rows
-above, and `docs/consistency-audits.md`), the organisation holds
-only `RENOVATE_TOKEN` and `GITLAB_TESTDATA_TOKEN`, development holds
-`AUDIT_READ_TOKEN` and the `audit-write` environment's
+`repo` and never expires, and no holder that was searched is
+carrying it: the audit's two credentials are both fine-grained (the
+rows above, and `docs/consistency-audits.md`), the organisation
+holds only `RENOVATE_TOKEN` and `GITLAB_TESTDATA_TOKEN`, development
+holds `AUDIT_READ_TOKEN` and the `audit-write` environment's
 `AUDIT_TOKEN`, and neither this repository's `tools/` and `scripts/`
-nor 33fl names a classic audit token. It reads as the credential the
-audit used before it moved to fine-grained tokens. Its last-used
-date is not settled: the tab was read as a list whose last-used line
-precedes each token's name, which puts it inside two months, while
-the other alignment puts it at eight, and the two answers disagree
-about whether anything still holds it. Settling that and then
-revoking it, or finding its consumer, is Future work below.
+nor 33fl names a classic audit token. Holders that were not searched
+could still be: a self-hosted runner host's environment or units,
+a cron on an operator machine or server, non-GitHub CI, and the
+secrets of the other repositories that hold any, whose names were
+read but not their values. It reads as the credential the audit used
+before it moved to fine-grained tokens. Its last-used date is not
+settled: the tab was read as a list whose last-used line precedes
+each token's name, which puts it inside two months, while the other
+alignment puts it at eight, and the two answers disagree about
+whether an unsearched holder still has it. The token's own page
+settles that; reading it and then revoking the token is #404,
+filed on 2026-11-15 rather than left to Future work, because
+retirement reads Future work up to 90 days after the plan went
+terminal and a non-expiring `repo` token should not wait that
+long.
 
 **Organisation secrets and variables (1a).** `gh secret list --org
 shakenfist` and `gh variable list --org shakenfist`, 2026-10-30.
@@ -2924,15 +2939,16 @@ than finished, none of them a finding of this audit: #352, a read-only
 App identity for the audit's own reads; the team rule behind open
 question 3, which is what `sfconductor` should push with; narrowing
 `DEPENDENCIES_TOKEN` and `RENOVATE_TOKEN`, whose six remaining
-workflow consumers item 4 above names. All four are Future work
-entries. The fourth is also phase 1's one record cell still pending an
-operator paste, and a plan blocker; it is in Future work as well
-because that is what retirement reads, and a deferral recorded only in
-the body of a plan goes with the plan's files when they are deleted.
-That cell was filled on 2026-11-15 and plan-blocker b9 cleared with
-it; what remains of that deferral is the unmatched classic
-`audit_token` the list turned up, which holds its Future work entry
-now.
+workflow consumers item 4 above names; and reading the bot's token
+list. All four are Future work entries. The token list was also
+phase 1's one record cell pending an operator paste, and a plan
+blocker; it was in Future work as well because that is what
+retirement reads, and a deferral recorded only in the body of a plan
+goes with the plan's files when they are deleted. That cell was
+filled on 2026-11-15 AEDT and plan-blocker b9 cleared with it; what
+remains of that deferral is the unmatched classic `audit_token` the
+list turned up, which is #404, with a Future work entry pointing at
+it.
 
 This phase closes itself out, so it sets its own `Status` to
 `Complete`. Its `Merged` cell is empty in this pull request for the
@@ -3134,9 +3150,10 @@ and the record, not from a sub-agent's summary.
 * The deviation in decision 2 is recorded in this section, and the
   deferrals still open (#352, the team rule behind open question 3,
   the `DEPENDENCIES_TOKEN` and `RENOVATE_TOKEN` narrowing, and the
-  bot's token list, which is phase 1's pending record cell and a plan
-  blocker as well) are each a Future work entry, which is what
-  retirement reads.
+  bot's token list, which was phase 1's pending record cell and a
+  plan blocker as well, read on 2026-11-15 AEDT; see phase 1's
+  record) are each a Future work entry, which is what retirement
+  reads.
 
 #### Back brief
 
@@ -3515,14 +3532,14 @@ intend to do aligns with that plan.
   required checks in four repositories (open question 3). Phase 1
   records where its credential lives; whatever follows from that is
   its own issue.
-- Settle the classic `audit_token` that reading the token list
-  turned up. It carries `repo`, it never expires, and no secret in
-  the fleet can be carrying it, so it reads as the credential the
-  audit used before it moved to fine-grained tokens. Confirm its
-  last-used date, which phase 1's record could not settle between two
-  months and eight, and then revoke it or find what still holds it.
-  This is what remains of the token-list deferral, which was read on
-  2026-11-15; the list itself is in phase 1's record.
+- Revoke the classic `audit_token` that reading the token list
+  turned up: #404. It carries `repo`, it never expires, and no
+  holder that was searched is carrying it, so it reads as the
+  credential the audit used before it moved to fine-grained tokens.
+  The issue carries the last-used date phase 1's record could not
+  settle and the revocation; this entry stays only until #404
+  closes. This is what remains of the token-list deferral, which was
+  read on 2026-11-15 AEDT; the list itself is in phase 1's record.
 - If step 1a finds `AUDIT_TOKEN` is the bot's, 1b's demotion may
   stop it listing repository secrets or reading `bypass_actors`,
   and 3c then moves those halves to its reviewer-confirmed half. The
