@@ -1426,7 +1426,10 @@ preset's only consumer today (3a); the
 `third-party-action-pinning` criterion, measuring workflows and
 composite actions (3b). Out: pinning `shakenfist/actions@main`
 references, which stay a moving ref under phase 2 and are protected
-by `moving-ref-source-protection` instead; pinning any fleet
+by `moving-ref-source-protection` instead -- and which the helper
+preset would otherwise pin, so keeping them out took an explicit
+exclusion rule rather than silence, as the step 3a record below
+sets out; pinning any fleet
 repository's own workflows by hand, which Renovate does once that
 repository extends the preset; `docker://` references, which pin by
 image digest and would be a different criterion if ever; and
@@ -1788,6 +1791,67 @@ pin pull request are two landings.
    lands 3a and then holds. The alternative is to let phase 3 close
    on 3a alone and plan the criterion as its own phase later, which
    renumbers phases 4 to 6. Confirm holding is acceptable.
+
+**Back brief outcome** (2026-11-14). Both gates were answered yes.
+Decision 3's reversal stands, so the correction this planning commit
+made to `PLAN-renovate-cadence.md`'s coordination paragraph is kept
+and 3a lands before that plan's sweep. Decision 4's hold is accepted:
+this phase lands 3a, stays `In progress`, and 3b waits for the sweep
+plus two weeks, so phases 4 to 6 are not renumbered. 3a then ran in
+the same session.
+
+**Step 3a record (2026-11-14).** The helper is in the preset's
+`extends`, after `customManagers:githubActionsVersions`, and
+`docs/audits/renovate.md`'s fleet-preset section describes the policy
+in two new paragraphs. The `renovate` criterion reports `pass` with
+details "Renovate workflow and config exist", identical before and
+after; `python3 -m unittest discover -s scripts/tests -t scripts` ran
+2678 tests, OK; `pre-commit run --all-files` passed every hook,
+`renovate-config-validator` included. No `uses:` line was pinned by
+hand, and neither `renovate.json` nor
+`templates/renovate/renovate.json` was touched.
+
+**The helper had to be fenced, which this phase did not plan for.**
+Read from Renovate's documentation during execution,
+`helpers:pinGitHubActionDigests` expands to a single rule --
+`matchDepTypes` of `action` and `workflow` with `pinDigests: true` --
+with no owner scoping of any kind. Three consequences follow, and the
+first contradicted this phase's Scope:
+
+1. The fleet's own references would have been pinned. This
+   repository's scanned paths hold 22 `shakenfist/actions/...@main`
+   references, 15 step-level and 7 job-level reusable workflows, and
+   nothing in the preset distinguished them from a third party's. The
+   Scope rules them out and the definition of done's grep excludes
+   `^shakenfist/`, so the plan assumed an exemption that did not
+   exist. Pinning them would have frozen this repository on the sha
+   it last merged and defeated the moving ref that phase 2 exists to
+   protect. 3a therefore carries a `packageRules` entry naming both
+   dep types and `shakenfist/**` with `pinDigests: false`. Renovate
+   applies a configuration's own rules after the rules it inherits
+   through `extends`, so the exception wins. The Scope above is
+   corrected to say so.
+2. A branch reference is pinned like a tag, which is decision 7's
+   first half answered from documentation rather than observation:
+   the `github-actions` manager routes a non-semver ref to the
+   digest datasource, "only digest pinning updates are supported",
+   and the original ref is preserved in the trailing comment. The
+   second half -- whether the digest then follows the branch, which
+   is what `dtolnay/rust-toolchain@stable` turns on -- is still an
+   observation 3a's pull request has to make.
+3. Open question 5 is partly answered, and by a different route than
+   decision 6 chose. A job-level reusable workflow is a `workflow`
+   dep type, distinct from `action`, and the helper pins both. So
+   Renovate does extract third-party reusable workflows and would
+   pin them. Decision 6's citation of the extractor's own line is
+   still outstanding, and remains the record this phase owes.
+
+The exception is also why `renovate-fleet.json` carries no top-level
+`description`: the first draft of 3a put one there to describe the
+`extends` entry, which an `extends` string cannot carry itself, but
+every other description in that file sits on the rule or block it
+explains. The pinning rationale now sits on the exclusion rule, where
+a reader meets it beside the behaviour it modifies.
 
 ### Phase 4: record the policy
 

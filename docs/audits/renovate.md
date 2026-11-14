@@ -87,16 +87,41 @@ onboarded stayed behind; extended, a change reaches the fleet once.
 
 The preset holds the author and assignee Renovate uses, the dependency
 dashboard, rollback pull requests, a three day `minimumReleaseAge`,
-the `pre-commit` manager, `customManagers:githubActionsVersions`, the
-`Australia/Sydney` timezone, and the cadence: ordinary updates
-`on saturday`, majors and the CI tooling group `on the first day of the
-month`, with at most 2 pull requests an hour and 10 open at once
-(Renovate's own defaults, written down rather than inherited). Minor,
-patch and digest updates are never merged automatically. The CI
-tooling group puts GitHub Actions and pre-commit hook revisions, every
-update type, digests included, into one monthly pull request. The two
-rules that keep `node-version` and the pinned Renovate in step, and the
-`shellcheck-py/shellcheck-py` versioning rule, are in it too. It sets
+the `pre-commit` manager, `customManagers:githubActionsVersions`,
+`helpers:pinGitHubActionDigests`, the `Australia/Sydney` timezone, and
+the cadence: ordinary updates `on saturday`, majors and the CI tooling
+group `on the first day of the month`, with at most 2 pull requests an
+hour and 10 open at once (Renovate's own defaults, written down rather
+than inherited). Minor, patch and digest updates are never merged
+automatically. The CI tooling group puts GitHub Actions and pre-commit
+hook revisions, every update type, digests included, into one monthly
+pull request. The two rules that keep `node-version` and the pinned
+Renovate in step, and the `shellcheck-py/shellcheck-py` versioning
+rule, are in it too.
+
+`helpers:pinGitHubActionDigests` makes Renovate rewrite a third-party
+`uses:` reference to a full commit sha with a trailing comment naming
+the ref it replaced, and then keep that sha current. A tag is a
+pointer its owner can move, so a workflow that trusts one runs
+whatever the tag points at on the morning it runs; a sha is the only
+reference that cannot change underneath. The pins arrive inside the CI
+tooling group, so the policy costs one monthly pull request rather
+than one per release. Pinning reaches whatever a repository's
+`github-actions` manager scans, which in this repository means
+`templates/` as well as `.github/`, so a template and its deployed
+twin are pinned in the same pull request.
+
+The fleet's own actions are the exception, carried as a `packageRules`
+entry. `shakenfist/*` references are not pinned: every repository
+consumes them at `@main` on purpose, so that a fix to a shared
+composite action or reusable workflow reaches the fleet without a pull
+request in each repository, and that branch is protected by a ruleset
+requiring review instead of by a sha. The exception names both the
+`action` and `workflow` dep types, because Renovate calls a job-level
+reusable workflow a `workflow` while every other `uses:` reference is
+an `action`.
+
+The preset sets
 no `vulnerabilityAlerts`: Renovate's defaults already drop the
 schedule, `minimumReleaseAge` and grouping for a security fix, so a
 fix for a vulnerability Dependabot reports arrives at once rather than
