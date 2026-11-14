@@ -1550,6 +1550,97 @@ open question 1 -- what `RENOVATE_TOKEN` actually is and what it can
 reach -- is recorded here too, since the probe is the first thing in
 this plan that establishes it rather than assuming it.
 
+**Cutover step 1: the fleet is discovered exactly, and a pass costs
+under ten minutes** (2026-11-14). Two dispatches, both read-only.
+Run 43543283195 with `dry_run: lookup` took 9m22s for the job and
+7m34s for Renovate itself; run 43557260170 with `dry_run: full`,
+which computes every branch and pull request without writing any of
+them, took 10m05s and 8m12s. Either leaves a wide margin under the
+50-minute `timeout-minutes`, so the hourly cadence is achievable and
+the concurrency group will not silently swallow runs.
+
+The probe ran first on both, with `RENOVATE_TOKEN` from the
+`renovate-write` environment rather than an operator token, and
+reported:
+
+```
+40 repositories in shakenfist, 23 of them managed by Renovate
+  shakenfist/actions
+  shakenfist/agent-python
+  shakenfist/andris
+  shakenfist/client-python
+  shakenfist/client-python-k3s
+  shakenfist/client-python-ova
+  shakenfist/clingwrap
+  shakenfist/cloudgood
+  shakenfist/development
+  shakenfist/divergulent
+  shakenfist/hunkydory
+  shakenfist/images
+  shakenfist/instar
+  shakenfist/kerbside
+  shakenfist/kerbside-client
+  shakenfist/kerbside-patches
+  shakenfist/library-utilities
+  shakenfist/occystrap
+  shakenfist/ryll
+  shakenfist/sfui
+  shakenfist/shakenfist
+  shakenfist/uncalibrated-sextant
+  shakenfist/visual-digest-rust
+the token can push to all 23 repositories
+```
+
+The 23 are the 23 in *Cutover* above, name for name, with nothing to
+explain. The two counts reconcile as 40 in the organisation, 10 of
+them archived, 30 autodiscovered by Renovate, 7 of those without a
+Renovate configuration, 23 managed. Renovate logged each of the 7 as
+`disabled-no-config` and onboarded none of them, so `requireConfig`
+and `onboarding: false` behave as decision 5 intended. The probe's
+own line is the weak part of that chain rather than its arithmetic:
+the 40 it prints is the raw organisation listing, taken before the
+archived filter at `scripts/renovate-check-push.py:191`, so it
+invites a comparison with Renovate's 30 that needs this paragraph to
+resolve.
+
+**The global rule reaches every repository's resolved config, and
+will close four pull requests** (2026-11-14, run 43557260170). The
+`full` pass proposed no new branch anywhere -- the per-repository
+copies have been running hourly and are current -- but it would
+retire four pull requests that are already open:
+
+| Repository | PR | Title |
+|---|---|---|
+| `actions` | 251 | Update dependency renovate to v44.227.4 |
+| `andris` | 81 | Update dependency renovate to v44.227.4 |
+| `client-python-k3s` | 171 | Update renovatebot/github-action action to v46.3.13 |
+| `kerbside-client` | 24 | Update dependency renovate to v44.227.4 |
+
+Each of the four changes `.github/workflows/renovate.yml` and nothing
+else, which is exactly the file the temporary `packageRules` entry
+disables. That is the proof decision 4 wanted, and a stronger one
+than an absence of output: a global entry matched by `matchFileNames`
+reaches each repository's resolved configuration, demonstrated by
+Renovate retiring work it had already started on the strength of it.
+
+The four closures are intended and are recorded here so that whoever
+finds them closed can see why. They update a workflow phase 3
+deletes, so merging them would be churn. The canary in step 2 is
+filtered to this repository and will not touch them; step 3 or step 4
+is where they close. It also means the dependency dashboards in all
+23 repositories would be rewritten by the central runner on its first
+real pass, which the `full` pass shows as 23 `Would ensure Dependency
+Dashboard` lines.
+
+**Open question 1 is still open after both dry runs** (2026-11-14).
+Neither pass mentions Dependabot or vulnerability alerts at the
+default INFO log level, in either mode, so neither confirms nor
+denies that the central runner reads them. Absence of a log line is
+not absence of the fetch, and nothing here should be read as either.
+Answering it needs debug logging, which the workflow does not expose
+as an input; it is carried to phase 3 rather than left looking
+settled.
+
 #### Execution notes
 
 Dates are Australian Eastern Daylight Time (UTC+11).
@@ -1557,8 +1648,31 @@ Dates are Australian Eastern Daylight Time (UTC+11).
 **The back brief's four answers** (2026-11-13). Decision 2 stands: the
 runner is an ephemeral VM in the `renovate-write` environment, with
 the operator creating the environment himself, since it is a
-repository setting rather than a file in a pull request. The workflow
-references it and is inert until it exists.
+repository setting rather than a file in a pull request. Naming it in
+the workflow does not create that protection: referencing an
+environment that does not exist creates one with no protection rules
+and no secrets, so the restriction binds only once it is configured.
+
+**The VM runner pool was drained under step 1** (2026-11-14). The
+first dispatch queued at 01:54 and did not start until 04:21, because
+sfcbr was drained for maintenance and nothing with the `vm` label was
+answering. Three unrelated jobs were queued behind the same shortage
+-- `Secret scan`, `Mermaid lint` and `Prune and import review marks`
+-- so the cause was the pool rather than the labels or the
+environment, and `secret-scan.yml` and `prune-reviews.yml` have used
+the identical label set for months. The queued dispatch ran itself
+when the pool returned; no retry was needed. Worth knowing for the
+watch day in step 4: a drained pool does not fail the runner, it
+delays it silently, and `timeout-minutes` does not cover queue time.
+
+**The runner's Renovate version moved between step 1's two runs**
+(2026-11-14). `lookup` ran 44.222.2 and `full` ran 44.227.4, because
+#398 merged `ac1b8a6` between them, bumping
+`PINNED_RENOVATE_VERSION` in `renovate-fleet.yml`. That is this
+repository's own hourly copy finding the new file within hours of the
+merge, which incidentally confirms the custom manager matches the
+fleet runner as well as the template, but it means the two durations
+differ in version as well as in mode.
 
 **Phase 2 lands in two pull requests, not one** (2026-11-13). GitHub
 offers `workflow_dispatch` only for a workflow that exists on the
