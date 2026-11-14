@@ -909,7 +909,7 @@ enumerated.
 | `AUDIT_TOKEN` | fine-grained | Issues read and write, all repositories, organisation as resource owner, plus Contents read; the tab's index does not itemise permissions, so this is the documented set rather than a reading of it | 2027-10-25 AEDT | `AUDIT_TOKEN`, development, environment `audit-write` |
 | `AUDIT_READ_TOKEN` | fine-grained | read-only, as `docs/consistency-audits.md` lists | 2027-10-25 AEDT, which is the probe's 2027-10-24 21:29:44 UTC rendered in local time | `AUDIT_READ_TOKEN`, development, repository |
 | `Renovate v3` | classic | `read:org`, `read:project`, `repo`, `workflow` | none | `RENOVATE_TOKEN`, organisation, the 22 repositories above |
-| `audit_token` | classic | `repo` | none | none found; see below |
+| `audit_token` | classic | `repo` | none; revoked 2026-11-15 09:22 AEDT (#404) | none found; see below |
 | `Homebrew taps CI token` | classic | `repo` | none | `HOMEBREW_TAP_TOKEN`, ryll |
 | `kerbside daily rebase` | classic | `public_repo`, `read:org`, `read:project` | none | `DAILY_REBASE_TOKEN`, kerbside-patches |
 | `pin-dependencies-andris` | classic | `public_repo`, `read:org`, `read:project` | none | `DEPENDENCIES_TOKEN`, andris |
@@ -923,7 +923,8 @@ date". Only the two fine-grained tokens expire, and both on the same
 day.
 
 Three classic tokens hold `repo` rather than `public_repo`:
-`Renovate v3`, `Homebrew taps CI token` and `audit_token`. `repo`
+`Renovate v3`, `Homebrew taps CI token` and `audit_token`, the
+last since revoked (below). `repo`
 is write access to private repositories as well as public ones, so
 each of the three reaches every private repository the account can
 see. `Renovate v3` also holds `workflow`, which is write access to
@@ -957,12 +958,16 @@ before it moved to fine-grained tokens. Its last-used date is not
 settled: the tab was read as a list whose last-used line precedes
 each token's name, which puts it inside two months, while the other
 alignment puts it at eight, and the two answers disagree about
-whether an unsearched holder still has it. The token's own page
-settles that; reading it and then revoking the token is #404,
-filed on 2026-11-15 rather than left to Future work, because
-retirement reads Future work up to 90 days after the plan went
-terminal and a non-expiring `repo` token should not wait that
-long.
+whether an unsearched holder still has it. It was tracked as #404
+on 2026-11-15 rather than left to Future work, because retirement
+reads Future work up to 90 days after the plan went terminal and a
+non-expiring `repo` token should not wait that long. The token's
+own page did not settle the date either: it shows no last-used
+value more precise than the list's. The operator revoked the token
+as `shakenfist-bot` at 2026-11-15 09:22 AEDT without waiting to
+find a consumer, since a classic token is cheap to re-mint and
+anything that still held it now fails visibly. Its last-used date
+stays unsettled, and no longer matters.
 
 **Organisation secrets and variables (1a).** `gh secret list --org
 shakenfist` and `gh variable list --org shakenfist`, 2026-10-30.
@@ -2940,15 +2945,16 @@ App identity for the audit's own reads; the team rule behind open
 question 3, which is what `sfconductor` should push with; narrowing
 `DEPENDENCIES_TOKEN` and `RENOVATE_TOKEN`, whose six remaining
 workflow consumers item 4 above names; and reading the bot's token
-list. All four are Future work entries. The token list was also
+list. All four were Future work entries, and the first three still
+are. The token list was also
 phase 1's one record cell pending an operator paste, and a plan
 blocker; it was in Future work as well because that is what
 retirement reads, and a deferral recorded only in the body of a plan
 goes with the plan's files when they are deleted. That cell was
-filled on 2026-11-15 AEDT and plan-blocker b9 cleared with it; what
-remains of that deferral is the unmatched classic `audit_token` the
-list turned up, which is #404, with a Future work entry pointing at
-it.
+filled on 2026-11-15 AEDT and plan-blocker b9 cleared with it. The
+one thing the list turned up that needed action, an unmatched
+classic `audit_token`, was revoked at 09:22 AEDT the same day
+(#404), so nothing of that deferral remains open.
 
 This phase closes itself out, so it sets its own `Status` to
 `Complete`. Its `Merged` cell is empty in this pull request for the
@@ -3151,8 +3157,8 @@ and the record, not from a sub-agent's summary.
   deferrals still open (#352, the team rule behind open question 3,
   the `DEPENDENCIES_TOKEN` and `RENOVATE_TOKEN` narrowing, and the
   bot's token list, which was phase 1's pending record cell and a
-  plan blocker as well, read on 2026-11-15 AEDT; see phase 1's
-  record) are each a Future work entry, which is what retirement
+  plan blocker as well, read on 2026-11-15 AEDT and closed with
+  #404; see phase 1's record) are each a Future work entry, which is what retirement
   reads.
 
 #### Back brief
@@ -3532,14 +3538,6 @@ intend to do aligns with that plan.
   required checks in four repositories (open question 3). Phase 1
   records where its credential lives; whatever follows from that is
   its own issue.
-- Revoke the classic `audit_token` that reading the token list
-  turned up: #404. It carries `repo`, it never expires, and no
-  holder that was searched is carrying it, so it reads as the
-  credential the audit used before it moved to fine-grained tokens.
-  The issue carries the last-used date phase 1's record could not
-  settle and the revocation; this entry stays only until #404
-  closes. This is what remains of the token-list deferral, which was
-  read on 2026-11-15 AEDT; the list itself is in phase 1's record.
 - If step 1a finds `AUDIT_TOKEN` is the bot's, 1b's demotion may
   stop it listing repository secrets or reading `bypass_actors`,
   and 3c then moves those halves to its reviewer-confirmed half. The
