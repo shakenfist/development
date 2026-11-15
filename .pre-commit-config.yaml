@@ -48,10 +48,17 @@ repos:
       # are linted here. The ten copy-directly templates,
       # which are the ones the fleet actually runs unmodified, are all
       # checked.
+      #
+      # One YAML file under templates/ is not a workflow at all:
+      # source-size-ratchet's pre-commit-hook.yaml is a stanza for an
+      # adopter's .pre-commit-config.yaml, which actionlint can only
+      # reject. It is left out of `files:` by name rather than through
+      # `exclude:`, because the exclude list is held to exactly the
+      # templates that carry a placeholder, and this one carries none.
       - id: actionlint
         alias: actionlint-templates
         name: Lint the workflow templates
-        files: ^templates/.*\.ya?ml$
+        files: ^templates/(?!source-size-ratchet/pre-commit-hook\.yaml$).*\.ya?ml$
         exclude: |
           (?x)^templates/(
             issue-fix/issue-fix\.yml|
@@ -78,8 +85,12 @@ repos:
   - repo: https://github.com/pycqa/flake8
     rev: 7.5.0
     hooks:
+      # templates/ as well, because it holds Python shipped to other
+      # repositories (source-size-ratchet.py), which each of them lints
+      # with flake8 once copied. A breach found there is found by the
+      # wrong repository, and twenty times over.
       - id: flake8
-        files: ^(scripts|tools)/.*\.py$
+        files: ^(scripts|tools|templates)/.*\.py$
 
   # The llm-context-lint-ci audit requires every audited project with
   # agent context to run skillsaw here and in CI. This repo is audited
@@ -222,6 +233,28 @@ repos:
         # decides which repositories the fleet runner touches at all.
         files: ^(scripts/.*\.py|tools/.*|.*\.md|templates/.*|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml|renovate-fleet\.json|renovate-runner\.json)$
 
+      # The source size ratchet, from templates/source-size-ratchet/.
+      # This repository adopts the template it ships because it is in
+      # its own audit matrix. tools/source-size-baseline lists the
+      # files over the threshold, which are the ones that owe a stated
+      # reason; a commit that adds a file to it or grows one past its
+      # entry has to edit that file by hand, and say why in the pull
+      # request.
+      # The script is stdlib only, so `language: system` needs no
+      # managed environment, and python3 is named rather than relying
+      # on the copy's executable bit; -I keeps tools/ off sys.path, so
+      # a module a pull request plants there cannot shadow the stdlib
+      # and run inside the hook. pass_filenames is off because it
+      # measures the whole tree against the baseline, not the files in
+      # the commit, and always_run is on because any source file, the
+      # baseline or the exclude file can change the verdict -- there
+      # is no `files:` pattern that is not narrower than what it reads.
+      - id: source-size-ratchet
+        name: source size ratchet
+        entry: python3 -I tools/source-size-ratchet.py
+        language: system
+        pass_filenames: false
+        always_run: true
       - id: review-tracking-tests
         name: review tracking tests
         entry: python3 scripts/tests/test_review_tracking.py

@@ -75,6 +75,12 @@ repository, are in `docs/consistency-audits.md`. So is the
 `CheckTestCase` convention a check's own test follows -- see
 *Testing a change* there.
 
+The `source-size-ratchet` hook fails a commit that grows a file
+listed in `tools/source-size-baseline` past its entry, or adds a new
+file over 1,500 lines. Raising an entry is a hand edit with the
+reason in the pull request description; see
+`templates/source-size-ratchet/README.md`.
+
 `pre-commit` does not look at diagrams. Mermaid fails at render time,
 so a broken diagram commits cleanly and breaks a page instead: run
 `tools/mermaid-lint.sh` after editing one. It needs docker, which is

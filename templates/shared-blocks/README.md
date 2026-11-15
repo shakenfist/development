@@ -66,7 +66,10 @@ eleven carrying a `PUSH-AUDIT.md` newly failed `push-audit`. Each
 issue is closed by a verbatim copy of the block and names the file
 to copy it from; `docs/audits/compliance.md` is regenerated weekly
 and is the current figure. `plan-references-in-code` followed on
-2026-09-24 on the same terms.
+2026-09-24 on the same terms. `source-file-size` v2 later applied
+the same reasoning to the guidance itself: a file over 1,500 lines
+may no longer grow without a reviewed baseline edit (see
+`docs/audits/push-audit.md`).
 
 Read `plan-phase-landing` together with `plan-push-audit-phase`: the
 first says the push-audit phase records no `Merged` cell, which is

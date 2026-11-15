@@ -1,0 +1,31 @@
+# The source size ratchet, from shakenfist/development's
+# templates/source-size-ratchet/. Merge this stanza into the `repos:`
+# list of .pre-commit-config.yaml as it stands -- it is indented to sit
+# there -- or, if the file already has a `repo: local` entry, add the
+# hook below to that entry's `hooks:` list instead.
+#
+# A pre-commit hook and no workflow of its own: every repository in the
+# fleet already runs `pre-commit run --all-files` in CI, so this one
+# hook gates merges as well as commits, and the check takes well under
+# a second, so it does not earn a lane.
+  - repo: local
+    hooks:
+      - id: source-size-ratchet
+        name: source size ratchet
+        # python3 rather than relying on the copy's executable bit,
+        # which a copy made by hand or through a web editor can lose.
+        # -I (isolated mode) keeps tools/ off sys.path, so a module a
+        # pull request plants there, such as tools/fnmatch.py, cannot
+        # shadow the standard library and run inside the hook.
+        entry: python3 -I tools/source-size-ratchet.py
+        # The script is stdlib only, so it needs no managed environment.
+        language: system
+        # It measures the whole tree against the baseline, not the
+        # files in the commit: a file's verdict depends on its entry in
+        # tools/source-size-baseline, and that file is not source.
+        pass_filenames: false
+        # Any source file, the baseline or the exclude file can change
+        # the verdict, including on a commit that touches only one of
+        # the latter two, so there is no `files:` pattern that is not
+        # narrower than what the check reads.
+        always_run: true

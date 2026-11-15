@@ -20,10 +20,14 @@ projects consistent. It contains no application code.
   copy of `templates/review-tracking/`, which `prune-reviews.yml` runs
   on every push to the default branch and daily to prune and import
   review marks; plus `mermaid-lint.sh`, this repository's
-  deployed copy of `templates/mermaid-lint/`. The pull request automation's helpers used to
-  live here too; they went with the retired comment addresser, and what
-  the reviewer still needs ships inside
-  `shakenfist/actions/review-pr-with-claude`.
+  deployed copy of `templates/mermaid-lint/`; plus
+  `source-size-ratchet.py`, the deployed copy of
+  `templates/source-size-ratchet/`, with its `source-size-baseline`
+  of the files over the size threshold, run by the
+  `source-size-ratchet` pre-commit hook. The pull request
+  automation's helpers used to live here too; they went with the
+  retired comment addresser, and what the reviewer still needs ships
+  inside `shakenfist/actions/review-pr-with-claude`.
 - `.github/workflows/consistency-audit.yml` -- the weekly audit workflow.
 - `.github/workflows/renovate-fleet.yml` and `renovate-runner.json` --
   the central Renovate runner, which runs Renovate over every
