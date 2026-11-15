@@ -503,10 +503,10 @@ Behaviour, all of it decidable from the tree with no git history:
   without a list. Count only source extensions (the list in the
   Situation table, held in one constant). Apply a built-in
   exclusion list for things that are never a review unit anywhere
-  in the fleet -- `*_pb2.py`, `*_pb2_grpc.py`, `*.min.js`, lock
-  files -- each with its reason in a comment, as
-  `NON_SOURCE_DIRS` does; then the repository's own
-  `tools/source-size-exclude`.
+  in the fleet -- `*_pb2.py`, `*_pb2_grpc.py`, `*.min.js` and the
+  like -- each with its reason in a comment, as `NON_SOURCE_DIRS`
+  does; then the repository's own `tools/source-size-exclude`.
+  (Lock files need no entry: none has a source extension.)
 * Fail if a file over the threshold (1,500, one constant) is not in
   the baseline, or is longer than its baseline entry. The failure
   message names the file, both numbers, and the two honest fixes:
@@ -522,8 +522,9 @@ Behaviour, all of it decidable from the tree with no git history:
 * `--init` writes the baseline from scratch, for adoption only.
 
 Tests in `scripts/tests/test_source_size_ratchet.py`, against
-temporary git repositories built in the test (the
-`CheckTestCase` fixture style): growth fails, shrink passes, new
+temporary git repositories built in the test, running the
+template as a subprocess (it is a script, not a `Check`, so
+`CheckTestCase` does not apply): growth fails, shrink passes, new
 file over threshold fails, excluded path ignored, untracked file
 ignored, `--update` never raises an entry.
 
