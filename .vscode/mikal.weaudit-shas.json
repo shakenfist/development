@@ -33,9 +33,17 @@
       "sha": "63b5043da65a8228e4c56540364b6a253ef14cbe",
       "date": "2026-09-01"
     },
+    ".github/workflows/ci.yml": {
+      "sha": "050804445a5d4d3607f44501569c2dfd545d3808",
+      "date": "2026-11-15"
+    },
     ".github/workflows/codeql-analysis.yml": {
       "sha": "975f656d8135aefe12ba2f2094d8671460ef1a8a",
       "date": "2026-10-01"
+    },
+    ".github/workflows/consistency-audit.yml": {
+      "sha": "91bc7b61767cd6e64384737c5135b4f777144769",
+      "date": "2026-11-15"
     },
     ".github/workflows/export-repo-config.yml": {
       "sha": "b9b3936053b8685ef0ae47f656b2f35aa62ba637",
@@ -60,6 +68,14 @@
     ".github/workflows/prune-reviews.yml": {
       "sha": "0c0cfe362b24e6bc67ccf1ddd09dacc722a0524f",
       "date": "2026-11-01"
+    },
+    ".github/workflows/renovate-fleet.yml": {
+      "sha": "5449a3064a03ec568f9d0d1106ff95e5791d1221",
+      "date": "2026-11-15"
+    },
+    ".github/workflows/renovate.yml": {
+      "sha": "a3096c2fa0541b4c15268b32e7c24650e5e8526f",
+      "date": "2026-11-15"
     },
     ".github/workflows/secret-scan.yml": {
       "sha": "afd9d7247b03b9cfa29e7526ced1991772d0c76d",
