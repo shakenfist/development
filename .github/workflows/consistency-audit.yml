@@ -86,7 +86,7 @@ jobs:
       # No credential left in .git/config. Nothing in this job pushes,
       # and its later steps run code over another repository's files.
       - name: Checkout development repo
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
@@ -192,7 +192,7 @@ jobs:
           AUDIT_SKILLSAW: ${{ runner.temp }}/skillsaw-venv/bin/skillsaw
 
       - name: Upload audit results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: audit-${{ matrix.repo }}
           path: ${{ runner.temp }}/audit-result-${{ matrix.repo }}.json
@@ -266,7 +266,7 @@ jobs:
       # This job does not push either; update-docs below does, so its
       # checkout keeps the credential.
       - name: Checkout development repo
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
@@ -274,7 +274,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y gh
 
       - name: Download all audit results
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           path: audit-results
           pattern: audit-*
@@ -331,13 +331,13 @@ jobs:
       # other checkout in this file: commit-audit-docs.sh pushes the
       # page with the GITHUB_TOKEN it leaves in the clone.
       - name: Checkout development repo
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Install gh
         run: sudo apt-get update && sudo apt-get install -y gh
 
       - name: Download all audit results
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           path: ${{ runner.temp }}/consistency-audit-results
           pattern: audit-*
@@ -380,7 +380,7 @@ jobs:
       # body inline in YAML, which nothing lints, and a checkout that
       # fails is rare enough to accept it.
       - name: Checkout development repo
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 

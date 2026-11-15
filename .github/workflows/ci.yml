@@ -52,7 +52,7 @@ jobs:
       group: ${{ github.workflow }}-${{ github.ref }}-lint-and-test
       cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # A venv for the same reason consistency-audit.yml uses one: the
       # runners enforce PEP 668 and refuse a bare install. Under
@@ -99,7 +99,7 @@ jobs:
       # historical index revision from github.com while the job
       # deliberately runs without a token. The scheduled workflow
       # keeps its filter, where 24 repositories make clone size matter.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
           fetch-depth: 0
