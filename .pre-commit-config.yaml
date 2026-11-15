@@ -109,12 +109,33 @@ repos:
   # validated as a global self-hosted configuration, and that mode
   # accepts a self-hosted-only key (onboarding, say) in a file that is
   # not one. Both modes still reject unknown keys and bad values.
+  #
+  # There are two entries because there are two kinds of file. The
+  # fleet runner's renovate-runner.json is a global configuration: it
+  # exists to hold autodiscover, autodiscoverFilter, requireConfig and
+  # onboarding, which --no-global rejects as options reserved for
+  # global configuration. Every other file is a repository
+  # configuration or a preset, and one of those holding a global
+  # option must still fail, so the flag stays on the first entry and
+  # that entry excludes the runner config. The second entry names only
+  # the runner config and omits the flag, so global options are
+  # accepted there and unknown keys and bad values are still not.
+  # test_hooks.py holds the two to every configuration in the tree:
+  # each is validated by exactly one of them.
   - repo: https://github.com/renovatebot/pre-commit-hooks
     rev: 44.227.4
     hooks:
       - id: renovate-config-validator
+        alias: renovate-config-validator-repository
+        name: Validate Renovate repository configuration
         files: ^(.*/)?(\.renovaterc|\.?renovate[^/]*\.json[c5]?)$
+        exclude: ^renovate-runner\.json$
         args: ['--no-global']
+
+      - id: renovate-config-validator
+        alias: renovate-config-validator-global
+        name: Validate Renovate global configuration
+        files: ^renovate-runner\.json$
 
   # The automation's own unit tests. They used to run only here, because
   # there was nowhere else for them to run: the only workflow in this
@@ -195,8 +216,11 @@ repos:
         # real preset and assert that each Renovate check's helper accepts
         # it on its own. The audit trusts that preset by name for every
         # repository in the fleet, so the commit that guts it must be the
-        # commit that fails.
-        files: ^(scripts/.*\.py|tools/.*|.*\.md|templates/.*|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml|renovate-fleet\.json)$
+        # commit that fails. And renovate-runner.json for the same
+        # reason: test_hooks.py requires it to be validated by exactly
+        # one of the two validator hooks above, and it is the file that
+        # decides which repositories the fleet runner touches at all.
+        files: ^(scripts/.*\.py|tools/.*|.*\.md|templates/.*|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml|renovate-fleet\.json|renovate-runner\.json)$
 
       - id: review-tracking-tests
         name: review tracking tests

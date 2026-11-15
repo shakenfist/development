@@ -10,6 +10,17 @@ in Shaken Fist projects.
 | `renovate.yml` | `.github/workflows/renovate.yml` | Hourly workflow |
 | `renovate.json` | `renovate.json` (repo root) | Extends the fleet preset |
 
+## This template is being retired
+
+The fleet is moving to a single workflow that runs Renovate over every
+repository from one place, which makes the per-repository copy of
+`renovate.yml` that this template produces redundant. That workflow,
+what it decides and what it means for these copies are described in the
+[audit spec](https://github.com/shakenfist/development/blob/main/docs/audits/renovate.md#the-central-runner),
+and deliberately not repeated here. The per-repository copies are
+still present and still running, which is why the template and the
+rest of this page remain.
+
 ## Copying these files
 
 `renovate.yml` has no placeholders and is copied verbatim: its

@@ -40,6 +40,7 @@ import ast
 import os
 import re
 import subprocess
+import tempfile
 import unittest
 
 CONFIG = '.pre-commit-config.yaml'
@@ -48,6 +49,15 @@ CONFIG = '.pre-commit-config.yaml'
 #: repository-relative directories. Both are spelled as
 #: `os.path.dirname(__file__)` walks, which mean nothing to a parser.
 ANCHORS = {'REPO_ROOT': '', 'SCRIPT_DIR': 'scripts'}
+
+#: What hooks() reports for a value it could not read: an `args:` or
+#: `exclude:` written as a YAML list across lines rather than inline.
+#: Deliberately distinguishable from the empty string, which means the
+#: key is not there at all. A test that treats the two alike holds
+#: vacuously the day somebody reformats one -- which is how an
+#: assertion that a flag is *not* in a hook's arguments can pass with
+#: the flag sitting right there in the file.
+UNPARSED = '<written across lines>'
 
 
 def repo_root():
@@ -62,29 +72,59 @@ def tracked_files():
     return set(out.split('\n')) - {''}
 
 
-def hooks():
-    """Read the local hooks as {id: {...}}.
+def hooks(path=None):
+    """Read the hooks as {alias or id: {...}}.
+
+    Keyed by alias where there is one, because a repository may run the
+    same hook id twice with different arguments. Two hooks that would
+    key the same way raise rather than being silently collapsed: the
+    first spelling of this keyed each hook by id as it read it and then
+    deleted that key when an alias arrived, so the un-aliased half of a
+    duplicated id was absent from the map entirely and any assertion
+    about it would have been made against nothing at all.
 
     Line-based, like the rest of this tree's YAML reading: the audit
-    ships without PyYAML on purpose and the shape here is flat.
+    ships without PyYAML on purpose and the shape here is flat. A value
+    the line-based read cannot see -- a list written across lines -- is
+    reported as UNPARSED rather than as missing, so a caller can tell
+    the two apart.
     """
-    found = {}
+    collected = []
     current = None
-    with open(os.path.join(repo_root(), CONFIG), 'r') as f:
+    with open(path or os.path.join(repo_root(), CONFIG), 'r') as f:
         for line in f:
             stripped = line.strip()
             if stripped.startswith('- id: '):
                 current = {'id': stripped[len('- id: '):].strip(),
-                           'files': None, 'entry': '', 'always_run': False}
-                found[current['id']] = current
+                           'files': None, 'exclude': None, 'args': '',
+                           'entry': '', 'always_run': False}
+                collected.append(current)
             elif current is None:
                 continue
             elif stripped.startswith('files: '):
                 current['files'] = stripped[len('files: '):].strip()
+            elif stripped.startswith('alias: '):
+                current['alias'] = stripped[len('alias: '):].strip()
+            elif stripped.startswith('exclude: '):
+                current['exclude'] = stripped[len('exclude: '):].strip()
+            elif stripped.startswith('args: '):
+                current['args'] = stripped[len('args: '):].strip()
+            elif stripped in ('args:', 'exclude:'):
+                current[stripped[:-1]] = UNPARSED
             elif stripped.startswith('entry: '):
                 current['entry'] = stripped[len('entry: '):].strip()
             elif stripped.startswith('always_run: '):
                 current['always_run'] = 'true' in stripped
+
+    found = {}
+    for hook in collected:
+        key = hook.get('alias') or hook['id']
+        if key in found:
+            raise ValueError(
+                f'two hooks are keyed {key!r}: give one of them an alias, '
+                'because a map holds only one and the other would be absent '
+                'from every test that reads this')
+        found[key] = hook
     return found
 
 
@@ -283,30 +323,38 @@ class SuiteLocationTest(unittest.TestCase):
 
 
 class RenovateConfigHookTest(unittest.TestCase):
-    """The validator hook fires on every Renovate configuration here.
+    """Every Renovate configuration here is validated by exactly one hook.
 
-    This is the same property the suite hooks above carry, for the one
-    remote hook that has a `files:` of its own. It is worth asserting
-    for the same reason it was worth overriding: the hook's own default
-    pattern matched `renovate.json` but not `renovate-fleet.json`, so
-    the preset -- which takes effect fleet-wide the moment it merges,
-    and cannot be tried from a branch -- was the one file it skipped,
-    and it reported "Passed" while doing so.
+    There are two validator hooks, because a repository configuration
+    and the fleet runner's global configuration need different modes.
+    One that holds a global option must fail as a repository
+    configuration, and the other must accept them. A file matched by
+    neither is never validated and reports "Passed" regardless, which
+    is how the preset went unchecked when the hook's own default
+    pattern matched renovate.json but not renovate-fleet.json. A file
+    matched by both is validated in the wrong mode by one of them,
+    which fails a correct global configuration or passes a bad
+    repository one.
 
-    The replacement pattern is derived rather than a list, and the set
-    it is measured against is derived too, from the names Renovate
-    reads a configuration from plus this fleet's preset naming. So a
-    second preset, a `.github/renovate.json`, or a `renovate.json5`
-    added later is covered without anyone widening the pattern, and if
-    one is not, this fails rather than the validator passing silently.
+    The patterns are derived rather than listed, and the set they are
+    measured against is derived too, from the names Renovate reads a
+    configuration from plus this fleet's preset naming. So a second
+    preset, a `.github/renovate.json`, or a `renovate.json5` added
+    later is covered without anyone widening a pattern, and if one is
+    not, this fails rather than the validators passing silently.
     """
 
-    HOOK = 'renovate-config-validator'
+    REPOSITORY = 'renovate-config-validator-repository'
+    GLOBAL = 'renovate-config-validator-global'
+
+    #: The fleet runner's global configuration, the one file the second
+    #: hook exists for.
+    RUNNER = 'renovate-runner.json'
 
     #: The names Renovate reads a repository configuration from, and
     #: the `renovate-<name>.json` spelling this fleet gives a preset.
     #: Names rather than a pattern, so this is independent of the
-    #: pattern it checks.
+    #: patterns it checks.
     CONFIG_NAMES = frozenset({
         'renovate.json', 'renovate.json5', 'renovate.jsonc',
         '.renovaterc', '.renovaterc.json', '.renovaterc.json5',
@@ -325,28 +373,146 @@ class RenovateConfigHookTest(unittest.TestCase):
                 found.add(path)
         return found
 
-    def test_the_hook_is_configured(self):
-        self.assertIn(self.HOOK, hooks())
-        self.assertIsNotNone(hooks()[self.HOOK]['files'])
+    def _validators(self, path):
+        """The validator hooks that would run on this path."""
+        found = []
+        for name in (self.REPOSITORY, self.GLOBAL):
+            hook = hooks()[name]
+            if not re.search(hook['files'], path):
+                continue
+            if hook['exclude'] and re.search(hook['exclude'], path):
+                continue
+            found.append(name)
+        return found
+
+    def test_both_hooks_are_configured(self):
+        for name in (self.REPOSITORY, self.GLOBAL):
+            self.assertIn(name, hooks())
+            self.assertIsNotNone(hooks()[name]['files'])
+
+    def _args(self, name):
+        """The hook's arguments, or a loud failure if they cannot be read."""
+        args = hooks()[name]['args']
+        self.assertNotEqual(
+            args, UNPARSED,
+            name + ' writes its args across lines, which the line-based '
+            'read cannot see: the assertions about what is in them would '
+            'hold against any arguments at all')
+        return args
+
+    def test_the_modes_are_the_ones_intended(self):
+        # The repository hook's arguments have to parse before
+        # membership in them means anything, so the shape is asserted
+        # first. The global hook is meant to carry no args at all,
+        # which is why only the shape it must not have -- a list the
+        # read cannot see -- is checked there.
+        repository = self._args(self.REPOSITORY)
+        self.assertTrue(
+            repository.startswith('['),
+            self.REPOSITORY + ' args are not a single-line YAML list, so '
+            'the flag below cannot be looked for in them: ' + repository)
+        self.assertIn('--no-global', repository)
+        self.assertNotIn('--no-global', self._args(self.GLOBAL))
 
     def test_the_tree_still_has_configs_to_check(self):
-        # Without this the test above could pass on an empty set, which
-        # is the failure mode it exists to catch.
+        # Without this the tests below could pass on an empty set, which
+        # is the failure mode they exist to catch.
         found = self._configs(tracked_files())
         for expected in ('renovate.json', 'renovate-fleet.json',
+                         self.RUNNER,
                          os.path.join('templates', 'renovate',
                                       'renovate.json')):
             self.assertIn(expected, found)
 
-    def test_the_hook_fires_on_every_renovate_config(self):
-        pattern = hooks()[self.HOOK]['files']
-        missed = sorted(path for path in self._configs(tracked_files())
-                        if not re.search(pattern, path))
+    def test_every_renovate_config_is_validated_by_exactly_one_hook(self):
+        configs = self._configs(tracked_files())
+        self.assertTrue(configs, 'no Renovate configurations were found')
+        unvalidated = sorted(p for p in configs if not self._validators(p))
         self.assertEqual(
-            missed, [],
-            'the ' + self.HOOK + ' hook\'s files: pattern does not match '
-            'these Renovate configurations, so they are never validated:'
-            '\n  ' + '\n  '.join(missed))
+            unvalidated, [],
+            'neither validator hook matches these Renovate '
+            'configurations, so they are never validated:\n  '
+            + '\n  '.join(unvalidated))
+        doubled = sorted(p for p in configs
+                         if len(self._validators(p)) > 1)
+        self.assertEqual(
+            doubled, [],
+            'both validator hooks match these Renovate configurations, '
+            'so one validates them in the wrong mode:\n  '
+            + '\n  '.join(doubled))
+
+    def test_the_global_hook_validates_the_runner_config_alone(self):
+        self.assertEqual(self._validators(self.RUNNER), [self.GLOBAL])
+        self.assertEqual(self._validators('renovate.json'),
+                         [self.REPOSITORY])
+
+
+class HookParsingTest(unittest.TestCase):
+    """hooks() must not lose a hook, nor read a value it cannot parse.
+
+    Both are silent failures in a map every suite above reads: a hook
+    absent from it fails nothing, and a value read as empty satisfies
+    every assertion about what is not in it.
+    """
+
+    def _hooks(self, body):
+        with tempfile.NamedTemporaryFile('w', suffix='.yaml',
+                                         delete=False) as handle:
+            handle.write(body)
+        self.addCleanup(os.unlink, handle.name)
+        return hooks(handle.name)
+
+    def test_a_duplicated_id_is_kept_under_the_alias_and_the_id(self):
+        parsed = self._hooks(
+            'repos:\n'
+            '  - repo: somewhere\n'
+            '    hooks:\n'
+            '      - id: actionlint\n'
+            "        args: ['-config-file', '.github/actionlint.yaml']\n"
+            '      - id: actionlint\n'
+            '        alias: actionlint-templates\n'
+            '        files: ^templates/\n')
+        # Both, where keying by id as the file was read kept neither:
+        # the second entry overwrote the first, and then its alias
+        # deleted the key they shared.
+        self.assertIn('actionlint', parsed)
+        self.assertIn('actionlint-templates', parsed)
+        self.assertIsNone(parsed['actionlint']['files'])
+        self.assertEqual(parsed['actionlint-templates']['files'],
+                         '^templates/')
+
+    def test_a_duplicated_id_with_no_alias_raises(self):
+        with self.assertRaises(ValueError) as raised:
+            self._hooks(
+                'repos:\n'
+                '  - repo: somewhere\n'
+                '    hooks:\n'
+                '      - id: actionlint\n'
+                '      - id: actionlint\n')
+        self.assertIn('actionlint', str(raised.exception))
+
+    def test_args_written_across_lines_are_not_read_as_absent(self):
+        parsed = self._hooks(
+            'repos:\n'
+            '  - repo: somewhere\n'
+            '    hooks:\n'
+            '      - id: renovate-config-validator\n'
+            '        args:\n'
+            "          - '--no-global'\n")
+        self.assertEqual(parsed['renovate-config-validator']['args'],
+                         UNPARSED)
+
+    def test_an_inline_list_is_read_as_itself(self):
+        # The guard on the guard: if every args: read as UNPARSED the
+        # test above would pass and the mode assertions would all fail.
+        parsed = self._hooks(
+            'repos:\n'
+            '  - repo: somewhere\n'
+            '    hooks:\n'
+            '      - id: renovate-config-validator\n'
+            "        args: ['--no-global']\n")
+        self.assertEqual(parsed['renovate-config-validator']['args'],
+                         "['--no-global']")
 
 
 if __name__ == '__main__':

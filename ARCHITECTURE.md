@@ -25,6 +25,11 @@ projects consistent. It contains no application code.
   the reviewer still needs ships inside
   `shakenfist/actions/review-pr-with-claude`.
 - `.github/workflows/consistency-audit.yml` -- the weekly audit workflow.
+- `.github/workflows/renovate-fleet.yml` and `renovate-runner.json` --
+  the central Renovate runner, which runs Renovate over every
+  repository in the organisation from here, and its global
+  configuration. See [the Renovate audit
+  spec](docs/audits/renovate.md#the-central-runner).
 - `.github/workflows/ci.yml` -- this repository's own pull request
   checks: the pre-commit gate, a smoke run of the audit, and the
   automated reviewer gated on both.
