@@ -377,6 +377,10 @@
       "sha": "86ffeb2a5deffaa05b04df768a1e43d2448435a0",
       "date": "2026-09-02"
     },
+    "scripts/audit/check.py": {
+      "sha": "55a4203b53400d3ad8017659648b10127307e522",
+      "date": "2026-11-15"
+    },
     "scripts/audit/checks/__init__.py": {
       "sha": "d54faddeed246c3b084571825d542bf04c1bb930",
       "date": "2026-09-02"
@@ -429,6 +433,10 @@
       "sha": "ef1d4a20156613830ec787fde806cbf955e9501e",
       "date": "2026-09-02"
     },
+    "scripts/audit/registry.py": {
+      "sha": "9d5087283ff295bbb6165d7b8b314cd1582b2406",
+      "date": "2026-11-15"
+    },
     "scripts/audit/scope.py": {
       "sha": "8963b56866f597ff5c8c10ef91b274b766643e42",
       "date": "2026-10-21"
@@ -469,6 +477,10 @@
       "sha": "46e35a9bc799f7b392ca9394edcc266a4bdb5b35",
       "date": "2026-10-18"
     },
+    "scripts/audit_snapshot.py": {
+      "sha": "ef75a58cb66f4a9d5309d7033370e9b3a7dc7832",
+      "date": "2026-11-15"
+    },
     "scripts/check-audit-smoke.py": {
       "sha": "016f302a2d95f8b6a35e50b677ca86429711886a",
       "date": "2026-10-21"
@@ -476,6 +488,10 @@
     "scripts/commit-audit-docs.sh": {
       "sha": "cc6bcdab6674b2c7c135fa9e59bebdb88b8576f6",
       "date": "2026-09-04"
+    },
+    "scripts/renovate-check-push.py": {
+      "sha": "0ba9d504f6d625f4217440c7b238adc642ff9452",
+      "date": "2026-11-15"
     },
     "scripts/review-tracking.py": {
       "sha": "52f3f19b527aa1ce7ae6351730aa7e1d3bd81f06",
@@ -485,9 +501,17 @@
       "sha": "531d26fbe639291831bc7dff3a4959a702b09fe8",
       "date": "2026-09-04"
     },
+    "scripts/tests/base.py": {
+      "sha": "1cbd3083979a4793fd44ae832e079d95e90f2b65",
+      "date": "2026-11-15"
+    },
     "scripts/tests/fake_issues.py": {
       "sha": "10460b6ae248872a437175ef41c04844a8d319a3",
       "date": "2026-10-18"
+    },
+    "scripts/tests/test_audit_clis.py": {
+      "sha": "6ceab783e938216b34d6bb444046bf532fe699c8",
+      "date": "2026-11-15"
     },
     "scripts/tests/test_audit_common.py": {
       "sha": "cdae27ad94220840281832f75e1545e7880b438b",
@@ -496,6 +520,10 @@
     "scripts/tests/test_audit_seams.py": {
       "sha": "5b4eeabd4341bf97e0a3d76c2cc6df559bfe894c",
       "date": "2026-10-21"
+    },
+    "scripts/tests/test_audit_snapshot.py": {
+      "sha": "658a30966a911bbd5b20c9f0190a33d0257c45ac",
+      "date": "2026-11-15"
     },
     "scripts/tests/test_audit_update_docs.py": {
       "sha": "0419d4a8d18b67b54dc834a7387eccbb956489eb",
@@ -513,6 +541,10 @@
       "sha": "11da7b42360c4037b712cc5111b19ce1fd3d1383",
       "date": "2026-10-21"
     },
+    "scripts/tests/test_ci_prune_reviews.py": {
+      "sha": "60456392d2699d3adbfeb64edf75fef172440015",
+      "date": "2026-11-15"
+    },
     "scripts/tests/test_ci_workflows.py": {
       "sha": "5faeedf2abf5f340bb0c6e3c6a516e352ccc8f7b",
       "date": "2026-10-31"
@@ -529,9 +561,25 @@
       "sha": "5aa2c2a84fb6bc3a7a024e3d695ea27eb2741d9a",
       "date": "2026-10-28"
     },
+    "scripts/tests/test_github_config.py": {
+      "sha": "4bf87ef22c042b52c26535b7f094eedd52368977",
+      "date": "2026-11-15"
+    },
+    "scripts/tests/test_hooks.py": {
+      "sha": "e712c566c1b74862e2688c0197939c5f8a8e2d88",
+      "date": "2026-11-15"
+    },
+    "scripts/tests/test_issue_fix_measurement.py": {
+      "sha": "7c760ffef68ab4e6fd5ebba24f1a2bcac2f36773",
+      "date": "2026-11-15"
+    },
     "scripts/tests/test_llm_docs.py": {
       "sha": "25371b66c0cefc2ab495e451022839bca1746d8d",
       "date": "2026-10-21"
+    },
+    "scripts/tests/test_manage_issues.py": {
+      "sha": "a95f13092003fb574e8d8a84d2ec91c378d22220",
+      "date": "2026-11-15"
     },
     "scripts/tests/test_markdown.py": {
       "sha": "732418e9457f543d3f9cea5e7dd5f8ec917d0ef4",
@@ -541,9 +589,17 @@
       "sha": "9a3e2120c3f46dfea2787b13856ef264f805ca3d",
       "date": "2026-11-05"
     },
+    "scripts/tests/test_packaging.py": {
+      "sha": "cc473a3760dbbc01f6a0b6430d70f0df61d16f3c",
+      "date": "2026-11-15"
+    },
     "scripts/tests/test_patterns.py": {
       "sha": "4477ff162d7fd9a3ffb14e31b5979850e23e514f",
       "date": "2026-10-21"
+    },
+    "scripts/tests/test_plans.py": {
+      "sha": "6593f54d0d495e0badb159df350ff72b0b223916",
+      "date": "2026-11-15"
     },
     "scripts/tests/test_pre_commit.py": {
       "sha": "0111894d5b9d552062558ecb4beae6bb906d2cc0",
