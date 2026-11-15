@@ -1,7 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "customManagers:githubActionsVersions"
+    "customManagers:githubActionsVersions",
+    "helpers:pinGitHubActionDigests"
   ],
   "gitAuthor": "shakenfist-bot <bot@shakenfist.com>",
   "dependencyDashboard": true,
@@ -19,6 +20,17 @@
     "enabled": true
   },
   "packageRules": [
+    {
+      "description": "helpers:pinGitHubActionDigests in extends rewrites a third-party uses: reference to a commit sha with a comment naming the ref it replaced, which is the point: a tag is a pointer its owner can move, and a sha is the only reference that cannot change underneath a workflow. The fleet's own actions are the exception. Every repository consumes shakenfist/actions at @main deliberately, so that a fix to a shared composite action or reusable workflow reaches the fleet without a pull request in each repository; that branch is protected by a ruleset requiring review instead of by a sha. Pinning those references would freeze each repository on whatever it last merged, and the moving-ref-source-protection criterion is what makes the moving ref safe to trust. Both dep types are named because Renovate calls a job-level reusable workflow a workflow and every other uses: reference an action, and the exception has to cover both; those names are read from Renovate's own source at the version this fleet runs, 44.227.4, where lib/config/presets/internal/helpers.preset.ts:118-126 is the helper's whole definition -- matchDepTypes action and workflow, pinDigests true, with no owner scoping -- and lib/modules/manager/github-actions/extract.ts:111 picks workflow for a reference whose sub-path matches the reusable-workflow pattern at line 78 and action for every other. This entry sits after the extends array deliberately: Renovate resolves a preset's rules ahead of the config's own, so the later rule wins, and test_no_other_rule_sets_the_pinning_flag in scripts/tests/test_packaging.py fails if any other rule here sets pinDigests. The glob is org-wide while the protection that justifies it is not: moving-ref-source-protection measures MOVING_REF_REPOS, which holds shakenfist/actions alone (scripts/audit/checks/github_config.py), so a new first-party moving-ref source inherits this exemption and has to join that table to inherit the ruleset that makes it safe.",
+      "matchDepTypes": [
+        "action",
+        "workflow"
+      ],
+      "matchPackageNames": [
+        "shakenfist/**"
+      ],
+      "pinDigests": false
+    },
     {
       "description": "Minor, patch and digest updates are not merged automatically: every update needs review",
       "matchUpdateTypes": [

@@ -443,6 +443,37 @@ class RenovateFleetPresetTest(CheckTestCase):
         # included, which is what both pages promise.
         self.assertNotIn('matchUpdateTypes', rule)
 
+    def test_the_real_preset_pins_third_party_action_digests(self):
+        # The fleet-wide promise docs/audits/renovate.md makes: every
+        # third-party uses: becomes a sha. An edit that dropped this
+        # entry would leave both pages describing a policy nothing
+        # applies.
+        self.assertIn('helpers:pinGitHubActionDigests',
+                      self._preset()['extends'])
+
+    def test_the_real_preset_exempts_the_fleets_own_actions(self):
+        # Pinning these would freeze each repository on the sha it last
+        # merged and defeat the moving ref PLAN-workflow-ref-trust phase
+        # 2 exists to protect. The dep type names are Renovate's own,
+        # read from lib/modules/manager/github-actions/extract.ts:111 at
+        # 44.227.4: a uses: whose sub-path matches the reusable-workflow
+        # pattern is a 'workflow' and every other reference an 'action'.
+        rule = self._rule(pinDigests=False)
+        self.assertEqual(rule['matchPackageNames'], ['shakenfist/**'])
+        self.assertEqual(sorted(rule['matchDepTypes']),
+                         ['action', 'workflow'])
+
+    def test_no_other_rule_sets_the_pinning_flag(self):
+        # The exemption holds by rule order: Renovate resolves the rules
+        # an extends entry carries before the config's own, so the last
+        # rule to set pinDigests for a reference wins. A rule added
+        # after this one with pinDigests true would silently pin the
+        # fleet's own moving refs, and nothing else here would fail.
+        rules = self._preset()['packageRules']
+        setters = [rule for rule in rules if 'pinDigests' in rule]
+        self.assertEqual(len(setters), 1)
+        self.assertFalse(setters[0]['pinDigests'])
+
     def test_the_real_preset_keeps_the_renovate_major_note(self):
         rule = self._rule(matchDepNames=['renovate'])
         self.assertEqual(rule['matchUpdateTypes'], ['major'])
