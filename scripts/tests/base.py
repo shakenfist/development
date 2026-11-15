@@ -9,6 +9,7 @@ fixture repository looks like, and neither would fail.
 """
 
 import os
+import re
 import subprocess
 import tempfile
 import unittest
@@ -37,6 +38,91 @@ def repo_file(*parts):
     """
     with open(os.path.join(REPO_ROOT, *parts), 'rb') as f:
         return f.read()
+
+
+class RefNotFound(AssertionError):
+    """No such `uses:` reference in the text.
+
+    An AssertionError subclass so that a suite which has not heard of
+    it still fails, and a distinct type so that
+    `assertRaises(RefNotFound)` cannot be satisfied by an unrelated
+    assertion failing inside the call.
+    """
+
+
+#: One `uses:` clause for a named action, as a %-format template: the
+#: action goes in escaped, so `_uses_re()` is the only way to use it.
+#: Anchored to the start of a line and admitting only whitespace and an
+#: optional list dash before `uses:`, which is what keeps it off a
+#: commented-out step -- `templates/release-automation-rust/release.yml`
+#: has one, and matching it would mean mutating a comment and passing.
+#:
+#: The ref ends at whitespace or a quote, not at a `#`, which agrees
+#: with `audit.text.workflows.STEP_USES_RE`: in YAML a comment starts
+#: only at a `#` after whitespace, so `owner/action@v1#x` is one value
+#: and `test_release.py` pins that reading. Trailing whitespace is
+#: allowed after the clause, and the quotes are permitted
+#: independently on each side rather than matched, because a shipped
+#: workflow that got that wrong would fail `actionlint` long before a
+#: test read it.
+_USES_TEMPLATE = (
+    r'(?m)^[ \t]*(?:-[ \t]+)?uses:[ \t]*'
+    r'[\'"]?(?P<ref>%s@[^\s\'"]+)[\'"]?'
+    r'(?:[ \t]+#.*)?[ \t]*$'
+)
+
+
+def _uses_re(action):
+    return re.compile(_USES_TEMPLATE % re.escape(action))
+
+
+def _uses_match(text, action):
+    """The first match for `action`, or RefNotFound.
+
+    First, not only: a file may use one action in two jobs. Every
+    caller today mutates a reference that appears once, and
+    `test_release_rust.py` pairs this with `in_job()`, which searches
+    from a job's own start -- so a second, differing clause earlier in
+    the file would hand `in_job()` a string it cannot find and raise
+    `ValueError` rather than failing an assertion. If a caller ever
+    needs a particular one, give this a scope argument rather than
+    reaching for `str.index`.
+    """
+    found = _uses_re(action).search(text)
+    if not found:
+        raise RefNotFound('no "uses: %s@..." in the text' % action)
+    return found
+
+
+def current_ref(text, action):
+    """The reference `action` carries in `text` right now.
+
+    The suites that mutate a real shipped workflow used to write the
+    ref out -- `uses: actions/checkout@v7` -- and locate it by exact
+    string. `helpers:pinGitHubActionDigests` in the fleet preset broke
+    every one of those on the day Renovate pinned the file, and a
+    pinned literal would break them again on each digest bump, which
+    now arrives monthly in the CI tooling group. Deriving the ref
+    keeps such a test about the property it is checking rather than
+    about today's reference. Raises rather than returning None: a test
+    that silently substituted nothing would pass while measuring
+    nothing.
+    """
+    return _uses_match(text, action).group('ref')
+
+
+def uses_clause(text, action):
+    """The whole `uses:` clause for `action`, trailing comment included.
+
+    `current_ref` is enough to find a reference, but a test that
+    substitutes only the reference leaves the file's own digest
+    comment behind -- `uses: actions/cache@v4 # v8` -- so a fixture
+    meant to carry a comment, or meant to carry none, depends on
+    whether the shipped file happens to be pinned today. Replacing
+    this instead gives the test both halves of the line.
+    """
+    found = _uses_match(text, action)
+    return text[found.start():found.end()].lstrip(' \t-')
 
 
 def repo_text(*parts):

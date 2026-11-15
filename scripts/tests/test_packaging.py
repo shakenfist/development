@@ -15,7 +15,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import packaging  # noqa: E402
 from audit.files import WALK_SKIP  # noqa: E402
-from tests.base import REPO_ROOT, CheckTestCase, repo_text  # noqa: E402
+from tests.base import (  # noqa: E402
+    REPO_ROOT, CheckTestCase, current_ref, repo_text, uses_clause,
+)
 
 RENOVATE_WORKFLOW = repo_text('templates', 'renovate', 'renovate.yml')
 
@@ -797,28 +799,46 @@ class RenovateWorkflowDriftTest(CheckTestCase):
 
     def test_other_action_refs_pass(self):
         """Renovate bumps the actions in each copy on its own schedule."""
-        for ref in ('actions/checkout@v7', 'actions/setup-node@v7',
-                    'dtolnay/rust-toolchain@stable'):
-            self.assertIn(f'uses: {ref}\n', RENOVATE_WORKFLOW)
-        bumped = RENOVATE_WORKFLOW.replace(
-            'actions/checkout@v7', 'actions/checkout@v8').replace(
-            'actions/setup-node@v7', 'actions/setup-node@v6.1.0').replace(
-            'dtolnay/rust-toolchain@stable', 'dtolnay/rust-toolchain@1.92.0')
+        bumped = RENOVATE_WORKFLOW
+        for action, moved in (('actions/checkout', 'v8'),
+                              ('actions/setup-node', 'v6.1.0'),
+                              ('dtolnay/rust-toolchain', '1.92.0')):
+            # The clause is read out rather than written here: the
+            # fleet preset pins these, so a literal would be whichever
+            # sha Renovate last chose. The whole clause, so that a
+            # digest comment in the shipped file does not survive the
+            # substitution and leave `@v8 # v7` behind.
+            bumped = bumped.replace(
+                uses_clause(RENOVATE_WORKFLOW, action),
+                f'uses: {action}@{moved}')
         self.assertNotEqual(bumped, RENOVATE_WORKFLOW)
         self.assert_pass(self._repo(bumped))
 
     def test_a_digest_pinned_action_passes(self):
         """Renovate's pinDigests leaves the version as a comment."""
+        # The comment is this fixture's, not the shipped file's, so the
+        # case covers RENOVATE_USES_RE's trailing-comment branch
+        # whether or not the template is pinned today.
         pinned = RENOVATE_WORKFLOW.replace(
-            'actions/checkout@v7\n',
-            'actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v7.0.0\n')
+            uses_clause(RENOVATE_WORKFLOW, 'actions/checkout'),
+            'uses: actions/checkout'
+            '@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v7.0.0')
+        self.assertIn('# v7.0.0', pinned)
         self.assertNotEqual(pinned, RENOVATE_WORKFLOW)
         self.assert_pass(self._repo(pinned))
 
     def test_a_comment_after_a_uses_line_is_compared(self):
         """The digest comment is on the uses: line, not the lines after."""
         comment = '      # A requirements file pinned with --hash lines needs hashin, which\n'
-        self.assertIn('uses: dtolnay/rust-toolchain@stable\n\n' + comment, RENOVATE_WORKFLOW)
+        # Derived, and no longer asserting adjacency: the rust-toolchain
+        # pin held by minimumReleaseAge lands about 2026-11-18 and owes
+        # a with: toolchain: stable block, either of which would break a
+        # literal or a \n\n. The property is that the next comment after
+        # a uses: line belongs to no uses: line of its own.
+        after = RENOVATE_WORKFLOW.split(
+            uses_clause(RENOVATE_WORKFLOW, 'dtolnay/rust-toolchain'), 1)[1]
+        self.assertIn(comment, after)
+        self.assertNotIn('uses:', after[:after.index(comment)])
         line = RENOVATE_WORKFLOW.splitlines().index(comment.rstrip('\n')) + 1
         self.assert_fail(
             self._repo(RENOVATE_WORKFLOW.replace(comment, '      # A local comment\n')),
@@ -826,8 +846,9 @@ class RenovateWorkflowDriftTest(CheckTestCase):
 
     def test_another_action_fails(self):
         """Only the ref is Renovate's; the action named is the template's."""
+        ref = current_ref(RENOVATE_WORKFLOW, 'actions/checkout')
         result = self._repo(RENOVATE_WORKFLOW.replace(
-            'actions/checkout@v7', 'someone/checkout@v7'))
+            ref, ref.replace('actions/', 'someone/', 1)))
         self.assert_fail(
             result,
             containing='is `uses: someone/checkout` where the template '

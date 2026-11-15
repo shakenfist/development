@@ -29,7 +29,7 @@ from audit.text.workflows import (  # noqa: E402
     step_keys, step_with_inputs, strip_yaml_comments, workflow_job_blocks,
     workflow_step_blocks,
 )
-from tests.base import REPO_ROOT  # noqa: E402
+from tests.base import REPO_ROOT, current_ref, uses_clause  # noqa: E402
 
 sys.path.insert(0, REPO_ROOT)
 
@@ -1292,6 +1292,36 @@ class ConvergedTemplatesTest(unittest.TestCase):
             '.github/workflows/renovate.yml must be byte-identical to '
             'templates/renovate/renovate.yml: the template README tells '
             'the fleet to copy it unmodified')
+
+    def test_a_pinned_rust_toolchain_states_its_toolchain(self):
+        """A sha cannot default the input the ref name defaults.
+
+        dtolnay/rust-toolchain takes its toolchain from the ref it is
+        used at: on the stable branch the input defaults to stable,
+        and on a bare sha it is required. So the digest pin that
+        PLAN-workflow-ref-trust.md step 3a expects around 2026-11-18
+        must add `with: toolchain: stable` in the same change --
+        Renovate will not -- or the hourly Renovate run fails here and
+        in every fleet repository that copied the template. The
+        reasoning is written out at
+        .github/workflows/renovate-fleet.yml:170-183, where the same
+        reference is pinned by hand with that input.
+
+        Passes today, while the ref is still a branch; it is the pull
+        request carrying the pin that this is here to fail.
+        """
+        for path in ('.github/workflows/renovate.yml',
+                     'templates/renovate/renovate.yml'):
+            text = self._read(path)
+            ref = current_ref(text, 'dtolnay/rust-toolchain')
+            step = text.split(uses_clause(text, 'dtolnay/rust-toolchain'), 1)[1]
+            step = step[:step.index('\n\n')] if '\n\n' in step else step
+            if re.fullmatch(r'dtolnay/rust-toolchain@[0-9a-f]{40}', ref):
+                self.assertIn('toolchain:', step,
+                              f'{path} pins rust-toolchain to a sha, so it '
+                              f'must set the toolchain input explicitly')
+            else:
+                self.assertTrue(ref.endswith('@stable'), ref)
 
     def test_renovate_installs_without_the_token(self):
         # shakenfist/development#322. npm resolves Renovate's tree afresh
