@@ -1679,6 +1679,21 @@ coordination paragraph, so a later step need not redo them.
    declines to pin a branch ref, the reference is pinned by hand in
    the same form and the spec says which refs Renovate does not
    maintain.
+
+   **Half right, corrected 2026-11-15 from the pull request.**
+   `release/v1` pinned exactly as predicted, comment included.
+   `stable` did not, and the reason is one this decision did not
+   anticipate: `minimumReleaseAge: 3 days` applies to a branch
+   digest, so a branch that moved recently is held rather than
+   refused. `dtolnay/rust-toolchain@stable` moved to `3900882` at
+   02:32 UTC on 2026-11-15, five hours before the run, so its pin
+   is due about 2026-11-18. The reference is therefore maintained
+   by Renovate, just later, and no hand pin is called for. What
+   this does create is a sequencing constraint on
+   `PLAN-renovate-cadence.md`, recorded in the risk list: the pin
+   arrives only while this repository's own hourly Renovate is
+   still enabled, because the central runner excludes both files
+   the reference sits in.
 8. **The pin's cost to `PLAN-bot-bypass-identity.md` is already
    being paid.** That plan's `actions/create-github-app-token` pin
    is in the `prune-reviews` template, and
@@ -1698,11 +1713,14 @@ coordination paragraph, so a later step need not redo them.
 
 **The observation after 3a is the management session's**, not a
 sub-agent's, because it happens after the merge and across a window
-nobody can shorten. Once 3a has merged, Renovate's next permitted
-window opens the pin pull request. Review it against the unpinned
-references the grep in the definition of done reports on the day --
-54 when this phase was last measured, and not a number to carry
-around -- and record in this section:
+nobody can shorten. **Observations 1 to 5 were answered on
+2026-11-15** in the step 3a pin pull request record below; only 6,
+the two-window volume count, is still open. Once 3a has merged,
+Renovate's next permitted window opens the pin pull request.
+Review it against the unpinned references the grep in the
+definition of done reports on the day -- 54 when this phase was
+last measured, and not a number to carry around -- and record in
+this section:
 
 1. the exact form of a pinned line, comment included, for a major
    tag and for a release tag;
@@ -1776,6 +1794,20 @@ pin pull request are two landings.
   the same pull request, keeping the template and its twin
   byte-identical. There is no exempt-by-name fallback, because the
   problem that fallback addressed does not exist.
+- **Disabling this repository's own Renovate before 2026-11-18
+  strands the last two pins.** `dtolnay/rust-toolchain@stable` in
+  `.github/workflows/renovate.yml` and
+  `templates/renovate/renovate.yml` is held by
+  `minimumReleaseAge` until about then, and `renovate-runner.json`
+  disables both files for the central runner, so the pin arrives
+  only if the local hourly workflow is still enabled when it does.
+  `PLAN-renovate-cadence.md`'s cutover step 2 disables exactly that
+  workflow. Mitigation: the two plans are sequenced -- land the
+  rust-toolchain pin before the canary, or narrow the runner rule
+  first -- and this phase's definition-of-done grep is what
+  notices if neither happened, because it prints those two lines
+  and nothing else. The pin's pull request must also add
+  `with: toolchain: stable` to both files by hand.
 - **The pins in `templates/renovate/renovate.yml` lose their
   maintainer at the cutover.** `renovate-runner.json`, which
   `PLAN-renovate-cadence.md` phase 2 landed, disables every
@@ -1941,6 +1973,69 @@ silently, since it accepts any string there, and the first visible
 symptom would have been a pin on a first-party reference in the pull
 request. `test_the_real_preset_exempts_the_fleets_own_actions` now
 pins both names in this repository's own tests.
+
+**Step 3a's pin pull request: #407, opened 2026-11-15.** Forced
+rather than waited for: the dependency dashboard (#58) listed the
+pin as one entry on branch `renovate/ci-tooling` awaiting its
+schedule, which answered observation 3 on its own, and ticking that
+box brought the pull request forward from 1 December. Observations
+1 to 5 are answered here; 6 is still two monthly windows away and 7
+was answered in the citations above.
+
+1. **The form.** A major tag gives
+   `actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7`
+   and a branch ref gives
+   `pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1`:
+   the sha, then the reference it replaced, verbatim, which is what
+   `extract.ts:113`'s `autoReplaceStringTemplate` writes. No
+   release-tag example arose, because nothing in this repository
+   referenced one.
+2. **The two branch references diverged.** `release/v1` pinned.
+   `dtolnay/rust-toolchain@stable` did not, and is held rather than
+   refused: `minimumReleaseAge: 3 days` covers a branch digest, the
+   `stable` branch moved to `3900882` at 02:32 UTC the same morning,
+   and the dashboard still offers the update. Due about 2026-11-18.
+   Decision 7 is corrected above. When it lands, that pull request
+   must also add `with: toolchain: stable` to both files, which
+   Renovate will not do and the risk list explains.
+3. **One grouped pull request, from the local runner.** Branch
+   `renovate/ci-tooling`, so the CI-tooling package rule does
+   capture a `pinDigest` update as well as a digest bump --- the
+   question the plan recorded as unsettled by Renovate's
+   documentation, now settled by observation. It was awaiting the
+   monthly schedule, so left alone it would have appeared on 1
+   December. The runner was this repository's own hourly
+   `renovate.yml`, not the central fleet runner, which matters for
+   the reason the risk list gives: only the local runner can see
+   the two Renovate workflow files.
+4. **`minimumReleaseAge` held two things.** The rust-toolchain
+   digest above, and the newer `renovatebot/pre-commit-hooks`
+   releases --- `44.235.1` is in the pull request with `44.239.1`
+   and 17 others listed as pending. The release age is doing its
+   job in both cases.
+5. **The group spans managers, which the pin inherits.** Because
+   the CI-tooling rule matches `github-actions` and `pre-commit`
+   together, the pin pull request also carries that hook bump, and
+   the group's youngest member puts a pending
+   `renovate/stability-days` check on it. This repository's `main`
+   has no required-status-checks rule, so it does not block the
+   merge; on a repository that gains one it would. Worth knowing
+   before the sweep puts this preset in front of the fleet.
+
+**What the pull request proves about the fence.** Not one
+`shakenfist/` reference appears in its diff. All 22 first-party
+references this repository consumes --- 15 step-level actions and 7
+job-level reusable workflows --- are still moving refs, while 52
+third-party references across 18 files were pinned, on both sides of
+every twin. The exception is therefore observed in production rather
+than argued from Renovate's merge order.
+
+**The gate after #407 merges: exactly two lines.** 54 unpinned
+references were measured before it, 52 are pinned in it, and the two
+that remain are both `dtolnay/rust-toolchain@stable`, in
+`.github/workflows/renovate.yml:57` and
+`templates/renovate/renovate.yml:57`. So the definition of done's
+grep prints two lines until the held digest lands, and nothing else.
 
 The exception is also why `renovate-fleet.json` carries no top-level
 `description`: the first draft of 3a put one there to describe the
