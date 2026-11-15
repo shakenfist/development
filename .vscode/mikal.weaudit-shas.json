@@ -89,6 +89,14 @@
       "sha": "2586a6e49881abcb8c0a00414eac30364bd53da7",
       "date": "2026-10-28"
     },
+    "docs/audits/README.md": {
+      "sha": "b33966d094e62a1f1822539f0b24b949a496996f",
+      "date": "2026-11-15"
+    },
+    "docs/audits/bypass-actor-identity.md": {
+      "sha": "b589d544e404f70e6ea827f19420da9ffc5d0de5",
+      "date": "2026-11-15"
+    },
     "docs/audits/ci-review-automation.md": {
       "sha": "ceb7b6ba2ae57439dc519581f22e8e98530816a8",
       "date": "2026-10-19"
@@ -169,9 +177,17 @@
       "sha": "47dc9572d8e3a651392f06ff3ce1ac0ea2023bff",
       "date": "2026-10-19"
     },
+    "docs/audits/merge-queue-config.md": {
+      "sha": "347404a22bb1dfc487ed9bacbe8daf9c204c88de",
+      "date": "2026-11-15"
+    },
     "docs/audits/mermaid-lint-ci.md": {
       "sha": "820c00c1669077d5e07e65439a01cdc3986c7178",
       "date": "2026-10-19"
+    },
+    "docs/audits/moving-ref-source-protection.md": {
+      "sha": "19d4d2eacd548d76116493241a0f770602c13ddd",
+      "date": "2026-11-15"
     },
     "docs/audits/npm-pin-indirect-dependencies.md": {
       "sha": "38d030fe3fc547238a6109e280051312e4585532",
@@ -189,6 +205,10 @@
       "sha": "df7aea389e9120a7e2474dbab10e7a05b302c962",
       "date": "2026-10-05"
     },
+    "docs/audits/plan-audit-phase.md": {
+      "sha": "6e82d2b8322c35161c22f44585caedfc5264f458",
+      "date": "2026-11-15"
+    },
     "docs/audits/plan-history-in-source.md": {
       "sha": "59d7e206cadc0ccfca4727179376985f1d29109e",
       "date": "2026-10-28"
@@ -200,6 +220,10 @@
     "docs/audits/plan-phase-references.md": {
       "sha": "1e4484ed652def0fd7d64c0befa81b7c16795cd3",
       "date": "2026-10-28"
+    },
+    "docs/audits/plan-retirement.md": {
+      "sha": "62dc2c35d559d5b87a82c999ed4e1cd10e6e5b25",
+      "date": "2026-11-15"
     },
     "docs/audits/plan-source-references.md": {
       "sha": "f4a5692ebc7df73e1408d526523d5b407ea851e4",
@@ -248,6 +272,10 @@
     "docs/audits/renovate-lockstep-groups.md": {
       "sha": "c58fa988567ea392014294842ae64989649a56f4",
       "date": "2026-10-19"
+    },
+    "docs/audits/renovate.md": {
+      "sha": "7240cf11cb6e3cb12af1991dd4f4bb758b675dbb",
+      "date": "2026-11-15"
     },
     "docs/audits/reusable-workflow-secrets.md": {
       "sha": "2ebc5177a729dd8b6025ea36afdd1b305f7b536f",
@@ -320,6 +348,18 @@
     "docs/code-review-tracking.md": {
       "sha": "1ee271d86e8ce08b67f8632508b8386453b37c38",
       "date": "2026-11-01"
+    },
+    "docs/consistency-audits.md": {
+      "sha": "b1550b886e7b446aa137d4c18c7036803954a520",
+      "date": "2026-11-15"
+    },
+    "docs/plan-retirement.md": {
+      "sha": "a1ab4ab7462319b8fec4490c3cbfcf674bda8645",
+      "date": "2026-11-15"
+    },
+    "docs/release-automation.md": {
+      "sha": "d18b037a6f27400af8a522a4e7d34f5bf23f77c5",
+      "date": "2026-11-15"
     },
     "scripts/audit-check.py": {
       "sha": "97673b9e35622a6049cab81725d8554754e715b5",

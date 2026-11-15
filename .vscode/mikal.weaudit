@@ -835,6 +835,46 @@
     {
       "path": ".github",
       "author": "mikal"
+    },
+    {
+      "path": "docs/audits/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/merge-queue-config.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/bypass-actor-identity.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/plan-retirement.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/moving-ref-source-protection.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/plan-audit-phase.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/renovate.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consistency-audits.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/plan-retirement.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/release-automation.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
