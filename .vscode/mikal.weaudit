@@ -823,6 +823,46 @@
     {
       "path": "scripts/tests/test_audit_clis.py",
       "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/codeql-analysis.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/pr-re-review.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/renovate-fleet.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/secret-scan.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/consistency-audit.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/mermaid-lint.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
