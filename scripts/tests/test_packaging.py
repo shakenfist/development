@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import packaging  # noqa: E402
 from audit.files import WALK_SKIP  # noqa: E402
-from tests.base import REPO_ROOT, CheckTestCase, repo_text  # noqa: E402
+from tests.base import REPO_ROOT, CheckTestCase, current_ref, repo_text  # noqa: E402
 
 RENOVATE_WORKFLOW = repo_text('templates', 'renovate', 'renovate.yml')
 
@@ -797,21 +797,24 @@ class RenovateWorkflowDriftTest(CheckTestCase):
 
     def test_other_action_refs_pass(self):
         """Renovate bumps the actions in each copy on its own schedule."""
-        for ref in ('actions/checkout@v7', 'actions/setup-node@v7',
-                    'dtolnay/rust-toolchain@stable'):
-            self.assertIn(f'uses: {ref}\n', RENOVATE_WORKFLOW)
-        bumped = RENOVATE_WORKFLOW.replace(
-            'actions/checkout@v7', 'actions/checkout@v8').replace(
-            'actions/setup-node@v7', 'actions/setup-node@v6.1.0').replace(
-            'dtolnay/rust-toolchain@stable', 'dtolnay/rust-toolchain@1.92.0')
+        bumped = RENOVATE_WORKFLOW
+        for action, moved in (('actions/checkout', 'v8'),
+                              ('actions/setup-node', 'v6.1.0'),
+                              ('dtolnay/rust-toolchain', '1.92.0')):
+            # The ref is read out rather than written here: the fleet
+            # preset pins these, so a literal would be whichever sha
+            # Renovate last chose.
+            bumped = bumped.replace(
+                current_ref(RENOVATE_WORKFLOW, action),
+                f'{action}@{moved}')
         self.assertNotEqual(bumped, RENOVATE_WORKFLOW)
         self.assert_pass(self._repo(bumped))
 
     def test_a_digest_pinned_action_passes(self):
         """Renovate's pinDigests leaves the version as a comment."""
         pinned = RENOVATE_WORKFLOW.replace(
-            'actions/checkout@v7\n',
-            'actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v7.0.0\n')
+            current_ref(RENOVATE_WORKFLOW, 'actions/checkout'),
+            'actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8')
         self.assertNotEqual(pinned, RENOVATE_WORKFLOW)
         self.assert_pass(self._repo(pinned))
 
@@ -826,8 +829,9 @@ class RenovateWorkflowDriftTest(CheckTestCase):
 
     def test_another_action_fails(self):
         """Only the ref is Renovate's; the action named is the template's."""
+        ref = current_ref(RENOVATE_WORKFLOW, 'actions/checkout')
         result = self._repo(RENOVATE_WORKFLOW.replace(
-            'actions/checkout@v7', 'someone/checkout@v7'))
+            ref, ref.replace('actions/', 'someone/', 1)))
         self.assert_fail(
             result,
             containing='is `uses: someone/checkout` where the template '

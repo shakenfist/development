@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.check import ToolFailure  # noqa: E402
 from audit.checks import release, release_rust  # noqa: E402
-from tests.base import REPO_ROOT, CheckTestCase, repo_text  # noqa: E402
+from tests.base import REPO_ROOT, CheckTestCase, current_ref, repo_text  # noqa: E402
 
 
 TEMPLATE_DIR = os.path.join(REPO_ROOT, 'templates', 'release-automation-rust')
@@ -795,8 +795,11 @@ class GithubReleaseTest(RustReleaseCase):
         self.assertIn('has no github-release job', ' '.join(self.issues(release_rust.rust_github_release_issues)))
 
     def test_no_download_fails(self):
-        self.assertIn('downloads no artifacts',
-                      self.release_issues('uses: actions/download-artifact@v8', 'uses: actions/cache@v4'))
+        # The ref is read out of the template rather than written here,
+        # because the fleet preset pins it: see tests.base.current_ref.
+        self.assertIn('downloads no artifacts', self.release_issues(
+            'uses: ' + current_ref(FILLED, 'actions/download-artifact'),
+            'uses: actions/cache@v4'))
 
     def test_another_pattern_fails(self):
         self.assertIn('downloads pattern wheel-*', self.release_issues('pattern: release-*', 'pattern: wheel-*'))
@@ -818,7 +821,9 @@ class GithubReleaseTest(RustReleaseCase):
 
     def test_no_release_step_fails(self):
         self.assertIn('does not create the release with softprops/action-gh-release',
-                      self.release_issues('softprops/action-gh-release@v3', 'actions/github-script@v7'))
+                      self.release_issues(
+                          current_ref(FILLED, 'softprops/action-gh-release'),
+                          'actions/github-script@v7'))
 
     def test_a_release_attaching_nothing_must_still_fail_on_unmatched_files(self):
         self.assertIn('without fail_on_unmatched_files: true', self.release_issues(

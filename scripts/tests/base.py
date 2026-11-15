@@ -9,6 +9,7 @@ fixture repository looks like, and neither would fail.
 """
 
 import os
+import re
 import subprocess
 import tempfile
 import unittest
@@ -37,6 +38,33 @@ def repo_file(*parts):
     """
     with open(os.path.join(REPO_ROOT, *parts), 'rb') as f:
         return f.read()
+
+
+#: A `uses:` reference in a real file, with whatever ref it carries
+#: today: `actions/checkout@v7` before Renovate pins it,
+#: `actions/checkout@<sha> # v7` after, and a different sha after every
+#: digest bump.
+USES_REF = r'uses: (?P<ref>%s@[^\s]+)'
+
+
+def current_ref(text, action):
+    """The reference `action` carries in `text` right now.
+
+    The suites that mutate a real shipped workflow used to write the
+    ref out -- `uses: actions/checkout@v7` -- and locate it by exact
+    string. `helpers:pinGitHubActionDigests` in the fleet preset broke
+    every one of those on the day Renovate pinned the file, and a
+    pinned literal would break them again on each digest bump, which
+    now arrives monthly in the CI tooling group. Deriving the ref
+    keeps such a test about the property it is checking rather than
+    about today's reference. Raises rather than returning None: a test
+    that silently substituted nothing would pass while measuring
+    nothing.
+    """
+    found = re.search(USES_REF % re.escape(action), text)
+    if not found:
+        raise AssertionError('no "uses: %s@..." in the text' % action)
+    return found.group('ref')
 
 
 def repo_text(*parts):
