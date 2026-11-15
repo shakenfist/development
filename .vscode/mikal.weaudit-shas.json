@@ -237,6 +237,10 @@
       "sha": "dd8d40d69bbe1195b9f85cb23c17c0b36db0cf62",
       "date": "2026-10-31"
     },
+    "docs/audits/push-audit.md": {
+      "sha": "71bceaa852bc55a55e9789f1a60107daab5030b9",
+      "date": "2026-11-16"
+    },
     "docs/audits/pyproject-usage.md": {
       "sha": "c7c1f0311e26b8fc94ff6f31653f9139ae538e09",
       "date": "2026-10-05"
@@ -272,6 +276,10 @@
     "docs/audits/renovate-lockstep-groups.md": {
       "sha": "c58fa988567ea392014294842ae64989649a56f4",
       "date": "2026-10-19"
+    },
+    "docs/audits/renovate.md": {
+      "sha": "878e75bc8f587bced3f4717439cda922ff6769e2",
+      "date": "2026-11-16"
     },
     "docs/audits/reusable-workflow-secrets.md": {
       "sha": "2ebc5177a729dd8b6025ea36afdd1b305f7b536f",
@@ -344,6 +352,10 @@
     "docs/code-review-tracking.md": {
       "sha": "1ee271d86e8ce08b67f8632508b8386453b37c38",
       "date": "2026-11-01"
+    },
+    "docs/consistency-audits.md": {
+      "sha": "fefca15edb3ca50826d6f90b472c675464d556d0",
+      "date": "2026-11-16"
     },
     "docs/plan-retirement.md": {
       "sha": "a1ab4ab7462319b8fec4490c3cbfcf674bda8645",
