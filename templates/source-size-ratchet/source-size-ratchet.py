@@ -42,8 +42,9 @@ the exclude file and tools/ itself must each be absent or a real file
 or directory: a symlink, FIFO or device in their place is a tool
 failure, never followed. The baseline is written through a temporary
 file renamed into place. Paths and patterns are printed escaped when
-they hold anything unprintable or begin with `::`, so a file name
-cannot write control sequences or workflow commands into a CI log. Run
+they hold anything unprintable or begin with `::`, after any leading
+whitespace, so a file name cannot write control sequences or workflow
+commands into a CI log. Run
 it with `python3 -I`, as the shebang and the pre-commit hook do, so a
 module planted beside it in tools/ cannot shadow the standard library.
 
@@ -89,9 +90,13 @@ import tempfile
 THRESHOLD = 1500
 
 #: Hand-written source in the languages the fleet uses. Anything else
-#: -- markdown, data, lock files, configuration -- is not counted.
-SOURCE_EXTENSIONS = ('.c', '.cjs', '.css', '.cts', '.go', '.h', '.js', '.jsx', '.mjs', '.mts', '.py', '.rs',
-                     '.sh', '.ts', '.tsx')
+#: -- markdown, data, lock files, configuration -- is not counted, and
+#: neither is a file with no extension, such as a script known only by
+#: its shebang: telling those from data would mean reading every
+#: tracked file. Widen this when a repository adopts another language;
+#: every copy is the template, so the whole fleet gets it at once.
+SOURCE_EXTENSIONS = ('.c', '.cc', '.cjs', '.cpp', '.css', '.cts', '.cxx', '.go', '.h', '.hh', '.hpp', '.js',
+                     '.jsx', '.mjs', '.mts', '.py', '.rs', '.sh', '.ts', '.tsx')
 
 #: Generated shapes that are never a review unit in any repository.
 #: Lock files need no entry: no lock file has a source extension.
@@ -143,9 +148,11 @@ def shown(text):
     Paths are pull request content. A name with a control character, an
     undecodable byte (which os.fsdecode leaves as a lone surrogate that
     cannot be encoded for output) or a leading `::` (a workflow command
-    in a GitHub Actions log) is shown as a quoted escape instead.
+    in a GitHub Actions log) is shown as a quoted escape instead. The
+    runner trims leading whitespace before it looks for a command, and
+    paths are printed indented, so `::` after spaces counts as leading.
     """
-    if text.isprintable() and not text.startswith('::'):
+    if text.isprintable() and not text.lstrip().startswith('::'):
         return text
     return ascii(text)
 
@@ -157,17 +164,23 @@ def git(*args):
     except OSError as e:
         raise ToolError(f'could not run git: {e}')
     if result.returncode != 0:
-        err = result.stderr.decode('utf-8', 'replace').strip()
+        err = shown(result.stderr.decode('utf-8', 'replace').strip())
         raise ToolError(f'git {" ".join(args)} failed ({result.returncode}): {err}')
     return result.stdout
 
 
 def count_lines(path):
-    """Lines as wc -l counts them, plus one for an unterminated last line."""
+    """Lines as wc -l counts them, plus one for an unterminated last line.
+
+    Read in chunks, so a huge tracked file costs time but not memory.
+    """
+    lines = 0
+    last = b'\n'
     with open(path, 'rb') as f:
-        data = f.read()
-    lines = data.count(b'\n')
-    if data and not data.endswith(b'\n'):
+        while chunk := f.read(1 << 20):
+            lines += chunk.count(b'\n')
+            last = chunk[-1:]
+    if last != b'\n':
         lines += 1
     return lines
 
@@ -256,11 +269,14 @@ def measure():
     for path in sorted({os.fsdecode(p) for p in listed if p}):
         if not path.endswith(SOURCE_EXTENSIONS):
             continue
-        if any(fnmatch.fnmatchcase(path, p) for p in BUILTIN_EXCLUDES):
-            continue
+        # The repository's patterns are tried first so that one covering
+        # only generated files still counts as used, rather than being
+        # reported as matching nothing.
         hits = [p for p in excludes if pattern_matches(p, path)]
         if hits:
             used.update(hits)
+            continue
+        if any(fnmatch.fnmatchcase(path, p) for p in BUILTIN_EXCLUDES):
             continue
         try:
             mode = os.lstat(path).st_mode
@@ -311,6 +327,8 @@ def write_baseline(entries):
     swapped for a symlink in between is replaced rather than followed.
     """
     body = ''.join(f'{lines} {path}\n' for path, lines in sorted(entries.items()))
+    # Called for its ToolError alone: absent or regular are both fine to
+    # write, but a symlink or special file must stop the write here.
     is_regular(BASELINE)
     directory = os.path.dirname(BASELINE)
     try:
@@ -414,7 +432,11 @@ def run(mode):
         if tightened != baseline:
             write_baseline(tightened)
         loose = slack(current, baseline)
-        print(f'source-size-ratchet: tightened {len(loose)} entr{"y" if len(loose) == 1 else "ies"} in {BASELINE}')
+        if loose:
+            print(f'source-size-ratchet: tightened {len(loose)} entr{"y" if len(loose) == 1 else "ies"} '
+                  f'in {BASELINE}')
+        else:
+            print(f'source-size-ratchet: nothing to tighten in {BASELINE}')
     else:
         loose = slack(current, baseline)
         if loose:

@@ -217,8 +217,8 @@ class CheckModeTest(RatchetTestCase):
         self.assertExit(self.run_script(), 0)
 
     def test_every_source_extension_is_counted(self):
-        for ext in ('.c', '.cjs', '.css', '.cts', '.go', '.h', '.js', '.jsx', '.mjs', '.mts', '.py', '.rs',
-                    '.sh', '.ts', '.tsx'):
+        for ext in ('.c', '.cc', '.cjs', '.cpp', '.css', '.cts', '.cxx', '.go', '.h', '.hh', '.hpp', '.js',
+                    '.jsx', '.mjs', '.mts', '.py', '.rs', '.sh', '.ts', '.tsx'):
             with self.subTest(ext=ext):
                 name = f'f{ext}'
                 self.commit({name: lines(THRESHOLD + 1)})
@@ -285,6 +285,12 @@ class CheckModeTest(RatchetTestCase):
         self.assertIn('vendor', result.stdout)
         self.assertIn('match no tracked source file', result.stdout)
 
+    def test_a_pattern_covering_only_generated_files_is_not_noted(self):
+        self.commit({'gen/db_pb2.py': lines(THRESHOLD + 1), EXCLUDE: '# Generated.\ngen/\n'})
+        result = self.run_script()
+        self.assertExit(result, 0)
+        self.assertNotIn('match no tracked', result.stdout)
+
     def test_a_missing_trailing_newline_counts_as_a_line(self):
         self.commit({'edge.py': lines(THRESHOLD) + 'y = 2'})
         result = self.run_script()
@@ -296,6 +302,21 @@ class CheckModeTest(RatchetTestCase):
         result = self.run_script()
         self.assertExit(result, 1)
         self.assertIn('win.py: 1,501 lines', result.stdout)
+
+    def test_a_file_larger_than_one_read_is_counted_across_reads(self):
+        # 1.5 MiB with an unterminated last line, so the final partial
+        # line sits in a later read than the first newline.
+        self.commit({'huge.py': ('#' * 1023 + '\n') * THRESHOLD + 'y = 2'})
+        result = self.run_script()
+        self.assertExit(result, 1)
+        self.assertIn('huge.py: 1,501 lines', result.stdout)
+
+    def test_a_newline_ending_exactly_at_a_read_boundary_is_not_an_extra_line(self):
+        # Exactly 2 MiB: the last read ends on a newline and the next is empty.
+        self.commit({'edge.py': ('#' * 1023 + '\n') * 2048})
+        result = self.run_script()
+        self.assertExit(result, 1)
+        self.assertIn('edge.py: 2,048 lines', result.stdout)
 
     def test_runs_from_a_subdirectory(self):
         self.commit({'pkg/sub/big.py': lines(THRESHOLD + 1)})
@@ -328,15 +349,23 @@ class CheckModeTest(RatchetTestCase):
         self.assertExit(self.run_script(), 0)
 
     def test_control_characters_and_workflow_commands_are_escaped(self):
+        # GitHub's runner trims leading whitespace before it looks for a
+        # workflow command, so `::` after spaces must be escaped too.
         self.commit({'a\x1b[31mred.py': lines(THRESHOLD + 1),
                      '::warning::x.py': lines(THRESHOLD + 1),
-                     EXCLUDE: '# Nothing.\n::error::gone\n'})
+                     '  ::error::y.py': lines(THRESHOLD + 1),
+                     EXCLUDE: '# Nothing.\n::error::gone\n',
+                     BASELINE: '1600   ::notice::gone.py\n'})
         result = self.run_script()
         self.assertExit(result, 1)
         self.assertNotIn('\x1b', result.stdout)
         self.assertIn("'a\\x1b[31mred.py'", result.stdout)
         self.assertIn("'::warning::x.py'", result.stdout)
+        self.assertIn("'  ::error::y.py'", result.stdout)
         self.assertIn("'::error::gone'", result.stdout)
+        self.assertIn("'  ::notice::gone.py'", result.stdout)
+        for line in result.stdout.splitlines():
+            self.assertFalse(line.lstrip().startswith('::'), line)
 
     def test_a_path_with_a_space_round_trips(self):
         self.commit({'my dir/big file.py': lines(THRESHOLD + 1)})
@@ -397,6 +426,22 @@ class ToolFailureTest(RatchetTestCase):
         self.commit({'a.py': lines(3)})
         self.env['PATH'] = os.path.join(self.repo, 'no-such-bin')
         self.assertExit(self.run_script(), 2)
+
+    def test_git_stderr_cannot_start_a_workflow_command(self):
+        # git's stderr is quoted in the error, and a second line of it
+        # would start a line of the log.
+        bin_dir = os.path.join(self.repo, 'fake-bin')
+        os.mkdir(bin_dir)
+        fake = os.path.join(bin_dir, 'git')
+        with open(fake, 'w') as f:
+            f.write('#!/bin/sh\nprintf "fatal: no\\n::error::injected\\n" >&2\nexit 128\n')
+        os.chmod(fake, 0o755)
+        self.env['PATH'] = bin_dir
+        result = self.run_script()
+        self.assertExit(result, 2)
+        self.assertIn('::error::injected', result.stderr)
+        for line in result.stderr.splitlines():
+            self.assertFalse(line.lstrip().startswith('::'), line)
 
 
 class HostileCheckoutTest(RatchetTestCase):
@@ -503,6 +548,7 @@ class UpdateTest(RatchetTestCase):
         result = self.run_script('--update')
         self.assertExit(result, 0)
         self.assertEqual(self.read_baseline(), {'shrank.py': 1700, 'same.py': 1800})
+        self.assertIn(f'tightened 4 entries in {BASELINE}', result.stdout)
 
     def test_update_never_raises_an_entry_or_adds_a_file(self):
         self.commit({'grew.py': lines(2100), 'new.py': lines(1600), 'shrank.py': lines(1700)})
@@ -520,7 +566,10 @@ class UpdateTest(RatchetTestCase):
         with open(path, 'rb') as f:
             before = f.read()
         self.assertIn(b'# hand written', before)
-        self.assertExit(self.run_script('--update'), 0)
+        result = self.run_script('--update')
+        self.assertExit(result, 0)
+        self.assertIn(f'nothing to tighten in {BASELINE}', result.stdout)
+        self.assertNotIn('tightened', result.stdout)
         with open(path, 'rb') as f:
             self.assertEqual(f.read(), before)
 

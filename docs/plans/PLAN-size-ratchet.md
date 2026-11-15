@@ -559,14 +559,22 @@ things:
 Embed v2 in this repository's `PUSH-AUDIT.md` in the same commit
 as the bump, so `development` stays compliant.
 
-**What the bump does to the fleet**, read from
-`docs/audits/compliance.md` today and to be re-derived before
-merging: `push-audit` applies to 12 repositories, 9 compliant.
-Every compliant repository except this one carries v1, so the next
-run moves 8 to non-compliant -- `actions`, `client-python-k3s`,
-`divergulent`, `hunkydory`, `kerbside`, `occystrap`, `ryll`,
-`shakenfist` -- and adds a line to the existing issues on `instar`,
-`sfui` and `uncalibrated-sextant`. Each is closed by a verbatim
+**What the bump does to the fleet**, re-derived on 2026-11-15 by
+running this branch's `scripts/audit-check.py` against a fresh
+clone of each repository's default branch, then
+`scripts/audit-manage-issues.py --dry-run` over the results:
+`push-audit` applies to 13 repositories, and on `main` all 13
+carry v1 (the first count, from the 2026-11-08 compliance page,
+had 12 and three already failing; `andris` has since come into
+scope and `instar`, `sfui` and `uncalibrated-sextant` have since
+passed). With v2 this one passes and the other 12 fail with
+exactly one finding -- `source-file-size` "v1 embedded, v2
+current; copy it verbatim from
+templates/shared-blocks/source-file-size.md" -- and none has an
+open `push-audit` issue, so the next run files 12 new issues:
+`actions`, `andris`, `client-python-k3s`, `divergulent`,
+`hunkydory`, `instar`, `kerbside`, `occystrap`, `ryll`, `sfui`,
+`shakenfist`, `uncalibrated-sextant`. Each is closed by a verbatim
 copy. ryll's is closed by the pilot.
 
 ### 3. ryll pilot
@@ -929,7 +937,22 @@ We should list obvious extensions, known issues, unrelated bugs we
 encountered, and anything else we should one day do but have
 chosen to defer to here, so that we do not forget them.
 
-...
+* **A comment-blind line count.** Counting only code would make
+  deleting code the only way under the line, but needs a lexer per
+  language; the baseline escape hatch removes the pressure to delete
+  comments meanwhile. Out of scope above.
+* **Watch where the ratchet pushes code, not only comments.** On its
+  first commit it moved a test out of its natural home:
+  `SourceSizeRatchetDeploymentTest` lives in
+  `scripts/tests/test_source_size_ratchet.py` rather than beside
+  `MermaidLintDeploymentTest`, because `test_docs_content.py` is
+  baselined. The plan predicted pressure on rationale comments, not
+  on placement. Look for both during the ryll pilot.
+* **`--init` over an existing baseline.** It rewrites the baseline
+  upwards and exits 0, so it can erase a failure in one command.
+  The defence is that the baseline diff is reviewed; refusing to
+  raise an entry without `--force` would make it checked rather than
+  stated. Deferred as a behaviour change of its own.
 
 ### Bugs fixed during this work
 

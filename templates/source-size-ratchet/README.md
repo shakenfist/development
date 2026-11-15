@@ -55,8 +55,11 @@ of every copy. Change it here and re-sync, rather than editing a copy.
   a regular file in the working tree -- deleted, a symlink, a
   submodule -- is skipped.
 - **Source only:** `.py .rs .ts .tsx .mts .cts .js .jsx .mjs .cjs .go
-  .sh .c .h .css`.
-  Markdown, data, configuration and lock files are not counted.
+  .sh .c .h .cc .cpp .cxx .hh .hpp .css`.
+  Markdown, data, configuration and lock files are not counted, and
+  neither is a file with no extension, such as a script known only by
+  its shebang. A repository adopting another language widens the list
+  in the template, for the whole fleet.
 - **Not generated output.** A short built-in list that is never
   anybody's review unit: protoc's `*_pb2.py`, `*_pb2_grpc.py` and
   `*.pb.go`, and minified `*.min.js` and `*.min.css`. Then the
@@ -189,7 +192,8 @@ committed `tools/source-size-baseline` pointing out of the tree can
 neither be read nor written through -- and writes the baseline through
 a temporary file renamed into place. It prints a path or pattern
 escaped, with Python's `ascii()`, when it holds a control character or
-an undecodable byte or begins with `::`, so a file name cannot write
+an undecodable byte or begins with `::`, after any leading whitespace
+(the runner trims it before looking for a command), so a file name cannot write
 terminal escapes or workflow commands into a CI log. A tracked path
 with a line break in it is counted, but if it is over the threshold it
 is a tool failure, because the baseline cannot hold its name.
