@@ -282,8 +282,8 @@ is recorded as `ryll <sha> (#pr)`.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. The ratchet template | Not started | |
-| 2. `source-file-size` v2 | Not started | |
+| 1. The ratchet template | In progress | |
+| 2. `source-file-size` v2 | In progress | |
 | 3. ryll pilot | Not started | |
 | 4. Criteria and enforcement | Not started | |
 | 5. Push audit | Not started | |

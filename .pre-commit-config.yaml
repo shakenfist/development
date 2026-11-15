@@ -48,10 +48,17 @@ repos:
       # are linted here. The ten copy-directly templates,
       # which are the ones the fleet actually runs unmodified, are all
       # checked.
+      #
+      # One YAML file under templates/ is not a workflow at all:
+      # source-size-ratchet's pre-commit-hook.yaml is a stanza for an
+      # adopter's .pre-commit-config.yaml, which actionlint can only
+      # reject. It is left out of `files:` by name rather than through
+      # `exclude:`, because the exclude list is held to exactly the
+      # templates that carry a placeholder, and this one carries none.
       - id: actionlint
         alias: actionlint-templates
         name: Lint the workflow templates
-        files: ^templates/.*\.ya?ml$
+        files: ^templates/(?!source-size-ratchet/pre-commit-hook\.yaml$).*\.ya?ml$
         exclude: |
           (?x)^templates/(
             issue-fix/issue-fix\.yml|
@@ -78,8 +85,12 @@ repos:
   - repo: https://github.com/pycqa/flake8
     rev: 7.5.0
     hooks:
+      # templates/ as well, because it holds Python shipped to other
+      # repositories (source-size-ratchet.py), which each of them lints
+      # with flake8 once copied. A breach found there is found by the
+      # wrong repository, and twenty times over.
       - id: flake8
-        files: ^(scripts|tools)/.*\.py$
+        files: ^(scripts|tools|templates)/.*\.py$
 
   # The llm-context-lint-ci audit requires every audited project with
   # agent context to run skillsaw here and in CI. This repo is audited
