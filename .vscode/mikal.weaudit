@@ -721,10 +721,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_release_rust.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_release.py",
       "author": "mikal"
     },
@@ -861,14 +857,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/renovate.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/consistency-audits.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/plan-retirement.md",
       "author": "mikal"
     },
@@ -889,19 +877,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/base.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_ci_prune_reviews.py",
       "author": "mikal"
     },
     {
       "path": "scripts/tests/test_issue_fix_measurement.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_packaging.py",
       "author": "mikal"
     },
     {

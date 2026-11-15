@@ -273,10 +273,6 @@
       "sha": "c58fa988567ea392014294842ae64989649a56f4",
       "date": "2026-10-19"
     },
-    "docs/audits/renovate.md": {
-      "sha": "7240cf11cb6e3cb12af1991dd4f4bb758b675dbb",
-      "date": "2026-11-15"
-    },
     "docs/audits/reusable-workflow-secrets.md": {
       "sha": "2ebc5177a729dd8b6025ea36afdd1b305f7b536f",
       "date": "2026-10-05"
@@ -348,10 +344,6 @@
     "docs/code-review-tracking.md": {
       "sha": "1ee271d86e8ce08b67f8632508b8386453b37c38",
       "date": "2026-11-01"
-    },
-    "docs/consistency-audits.md": {
-      "sha": "b1550b886e7b446aa137d4c18c7036803954a520",
-      "date": "2026-11-15"
     },
     "docs/plan-retirement.md": {
       "sha": "a1ab4ab7462319b8fec4490c3cbfcf674bda8645",
@@ -501,10 +493,6 @@
       "sha": "531d26fbe639291831bc7dff3a4959a702b09fe8",
       "date": "2026-09-04"
     },
-    "scripts/tests/base.py": {
-      "sha": "1cbd3083979a4793fd44ae832e079d95e90f2b65",
-      "date": "2026-11-15"
-    },
     "scripts/tests/fake_issues.py": {
       "sha": "10460b6ae248872a437175ef41c04844a8d319a3",
       "date": "2026-10-18"
@@ -589,10 +577,6 @@
       "sha": "9a3e2120c3f46dfea2787b13856ef264f805ca3d",
       "date": "2026-11-05"
     },
-    "scripts/tests/test_packaging.py": {
-      "sha": "cc473a3760dbbc01f6a0b6430d70f0df61d16f3c",
-      "date": "2026-11-15"
-    },
     "scripts/tests/test_patterns.py": {
       "sha": "4477ff162d7fd9a3ffb14e31b5979850e23e514f",
       "date": "2026-10-21"
@@ -611,10 +595,6 @@
     },
     "scripts/tests/test_release.py": {
       "sha": "150cc97f0a03011407dbe46234ff791ae8ea97b6",
-      "date": "2026-10-30"
-    },
-    "scripts/tests/test_release_rust.py": {
-      "sha": "b9956267c489a157beafd0af4d6ef4790d7c8c23",
       "date": "2026-10-30"
     },
     "scripts/tests/test_release_version.py": {
