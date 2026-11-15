@@ -17,7 +17,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.check import ToolFailure  # noqa: E402
 from audit.checks import release, release_rust  # noqa: E402
-from tests.base import REPO_ROOT, CheckTestCase, current_ref, repo_text  # noqa: E402
+from tests.base import (  # noqa: E402
+    REPO_ROOT, CheckTestCase, repo_text, uses_clause,
+)
 
 
 TEMPLATE_DIR = os.path.join(REPO_ROOT, 'templates', 'release-automation-rust')
@@ -798,7 +800,7 @@ class GithubReleaseTest(RustReleaseCase):
         # The ref is read out of the template rather than written here,
         # because the fleet preset pins it: see tests.base.current_ref.
         self.assertIn('downloads no artifacts', self.release_issues(
-            'uses: ' + current_ref(FILLED, 'actions/download-artifact'),
+            uses_clause(FILLED, 'actions/download-artifact'),
             'uses: actions/cache@v4'))
 
     def test_another_pattern_fails(self):
@@ -822,8 +824,8 @@ class GithubReleaseTest(RustReleaseCase):
     def test_no_release_step_fails(self):
         self.assertIn('does not create the release with softprops/action-gh-release',
                       self.release_issues(
-                          current_ref(FILLED, 'softprops/action-gh-release'),
-                          'actions/github-script@v7'))
+                          uses_clause(FILLED, 'softprops/action-gh-release'),
+                          'uses: actions/github-script@v7'))
 
     def test_a_release_attaching_nothing_must_still_fail_on_unmatched_files(self):
         self.assertIn('without fail_on_unmatched_files: true', self.release_issues(

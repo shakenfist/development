@@ -15,7 +15,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import packaging  # noqa: E402
 from audit.files import WALK_SKIP  # noqa: E402
-from tests.base import REPO_ROOT, CheckTestCase, current_ref, repo_text  # noqa: E402
+from tests.base import (  # noqa: E402
+    REPO_ROOT, CheckTestCase, current_ref, repo_text, uses_clause,
+)
 
 RENOVATE_WORKFLOW = repo_text('templates', 'renovate', 'renovate.yml')
 
@@ -801,20 +803,27 @@ class RenovateWorkflowDriftTest(CheckTestCase):
         for action, moved in (('actions/checkout', 'v8'),
                               ('actions/setup-node', 'v6.1.0'),
                               ('dtolnay/rust-toolchain', '1.92.0')):
-            # The ref is read out rather than written here: the fleet
-            # preset pins these, so a literal would be whichever sha
-            # Renovate last chose.
+            # The clause is read out rather than written here: the
+            # fleet preset pins these, so a literal would be whichever
+            # sha Renovate last chose. The whole clause, so that a
+            # digest comment in the shipped file does not survive the
+            # substitution and leave `@v8 # v7` behind.
             bumped = bumped.replace(
-                current_ref(RENOVATE_WORKFLOW, action),
-                f'{action}@{moved}')
+                uses_clause(RENOVATE_WORKFLOW, action),
+                f'uses: {action}@{moved}')
         self.assertNotEqual(bumped, RENOVATE_WORKFLOW)
         self.assert_pass(self._repo(bumped))
 
     def test_a_digest_pinned_action_passes(self):
         """Renovate's pinDigests leaves the version as a comment."""
+        # The comment is this fixture's, not the shipped file's, so the
+        # case covers RENOVATE_USES_RE's trailing-comment branch
+        # whether or not the template is pinned today.
         pinned = RENOVATE_WORKFLOW.replace(
-            current_ref(RENOVATE_WORKFLOW, 'actions/checkout'),
-            'actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8')
+            uses_clause(RENOVATE_WORKFLOW, 'actions/checkout'),
+            'uses: actions/checkout'
+            '@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v7.0.0')
+        self.assertIn('# v7.0.0', pinned)
         self.assertNotEqual(pinned, RENOVATE_WORKFLOW)
         self.assert_pass(self._repo(pinned))
 

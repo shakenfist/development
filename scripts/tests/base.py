@@ -40,11 +40,40 @@ def repo_file(*parts):
         return f.read()
 
 
-#: A `uses:` reference in a real file, with whatever ref it carries
-#: today: `actions/checkout@v7` before Renovate pins it,
-#: `actions/checkout@<sha> # v7` after, and a different sha after every
-#: digest bump.
-USES_REF = r'uses: (?P<ref>%s@[^\s]+)'
+class RefNotFound(AssertionError):
+    """No such `uses:` reference in the text.
+
+    An AssertionError subclass so that a suite which has not heard of
+    it still fails, and a distinct type so that
+    `assertRaises(RefNotFound)` cannot be satisfied by an unrelated
+    assertion failing inside the call.
+    """
+
+
+#: One `uses:` clause for a named action, as a %-format template: the
+#: action goes in escaped, so `_uses_re()` is the only way to use it.
+#: Anchored to the start of a line and admitting only whitespace and an
+#: optional list dash before `uses:`, which is what keeps it off a
+#: commented-out step -- `templates/release-automation-rust/release.yml`
+#: has one, and matching it would mean mutating a comment and passing.
+#: The ref stops at whitespace, a quote or a `#`, so the trailing
+#: comment Renovate writes after a digest is not part of it.
+_USES_TEMPLATE = (
+    r'(?m)^[ \t]*(?:-[ \t]+)?uses:[ \t]*'
+    r'[\'"]?(?P<ref>%s@[^\s\'"#]+)[\'"]?'
+    r'(?P<comment>[ \t]+#.*)?$'
+)
+
+
+def _uses_re(action):
+    return re.compile(_USES_TEMPLATE % re.escape(action))
+
+
+def _uses_match(text, action):
+    found = _uses_re(action).search(text)
+    if not found:
+        raise RefNotFound('no "uses: %s@..." in the text' % action)
+    return found
 
 
 def current_ref(text, action):
@@ -61,10 +90,21 @@ def current_ref(text, action):
     that silently substituted nothing would pass while measuring
     nothing.
     """
-    found = re.search(USES_REF % re.escape(action), text)
-    if not found:
-        raise AssertionError('no "uses: %s@..." in the text' % action)
-    return found.group('ref')
+    return _uses_match(text, action).group('ref')
+
+
+def uses_clause(text, action):
+    """The whole `uses:` clause for `action`, trailing comment included.
+
+    `current_ref` is enough to find a reference, but a test that
+    substitutes only the reference leaves the file's own digest
+    comment behind -- `uses: actions/cache@v4 # v8` -- so a fixture
+    meant to carry a comment, or meant to carry none, depends on
+    whether the shipped file happens to be pinned today. Replacing
+    this instead gives the test both halves of the line.
+    """
+    found = _uses_match(text, action)
+    return text[found.start():found.end()].lstrip(' \t-').lstrip()
 
 
 def repo_text(*parts):

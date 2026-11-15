@@ -309,7 +309,7 @@ Out of scope:
 |-------|--------|--------|
 | 1. Finish the inherit rollout | Complete | development 8df8179 (#209); instar bdc8905 (#617); shakenfist e4c7726 (#4404); occystrap c583d68 (#152); client-python 68f295f (#415); agent-python 4bf7763 (#148); client-python-k3s 03998e0 (#83); clingwrap 125eb20 (#141); divergulent 8a2852e (#125); library-utilities 832d82d (#67); sfui ad0d6a2 (#44) |
 | 2. Make `actions` main require a pull request | Complete | development 951fef7 (#388); development 9bd865d (#392) |
-| 3. Pin third-party actions to a sha | In progress | development 6170a789 (#406) |
+| 3. Pin third-party actions to a sha | In progress | development 6170a78 (#406) |
 | 4. Record the policy | Not started | |
 | 5. Shared workflows instead of copied templates | Not started | |
 | 6. Push audit | Not started | |
@@ -2075,9 +2075,18 @@ digest bump arrives monthly. The tests now derive the reference from
 the file with `current_ref()` in `scripts/tests/base.py`, which raises
 rather than returning the bare action, so a substitution that finds
 nothing fails loudly instead of passing while measuring nothing. That
-helper has its own suite, `scripts/tests/test_base.py`, covering a
-tag, a branch ref, a pinned sha with its comment, a missing action and
-an action name containing a regex metacharacter.
+helper has its own suite, `scripts/tests/test_base.py`. Its cases
+are a tag, a branch ref, a pinned sha with its comment, a sub-path
+action, a quoted ref, a tab after `uses:`, a list dash, a missing
+action, the escaping of the action before it becomes a pattern (an
+unescaped `.` in `actions/setup.node` would otherwise match
+`setup-node`), and a commented-out step --- which review round 2
+found the first cut of the helper matching, with a live example at
+`templates/release-automation-rust/release.yml:154`. A test that
+mutated a comment would have passed while measuring nothing, which
+is the failure the helper exists to prevent, so the pattern is now
+anchored to the start of a line and admits only whitespace and an
+optional list dash before `uses:`.
 
 This is the one consequence of pinning that reaches beyond the files
 Renovate rewrites, and it generalises: **any repository whose tests

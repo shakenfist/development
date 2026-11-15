@@ -4,10 +4,10 @@
 
 Run with: python3 scripts/tests/test_base.py
 
-Only `current_ref` is covered here, because it is the one helper whose
-failure is silent: a suite that substitutes a reference it could not
-find still runs, still passes, and measures nothing. The rest of
-base.py fails loudly in whatever suite uses it.
+Only `current_ref` and `uses_clause` are covered here, because they
+are the helpers whose failure is silent: a suite that substitutes a
+reference it could not find still runs, still passes, and measures
+nothing. The rest of base.py fails loudly in whatever suite uses it.
 """
 
 import os
@@ -16,7 +16,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tests.base import current_ref  # noqa: E402
+from tests.base import RefNotFound, current_ref, uses_clause  # noqa: E402
 
 UNPINNED = (
     '      - name: Checkout\n'
@@ -59,11 +59,16 @@ class CurrentRefTest(unittest.TestCase):
         for text in (UNPINNED, PINNED):
             self.assertIn('@', current_ref(text, 'actions/checkout'))
 
+    def test_the_error_is_an_assertion_error(self):
+        # Documented in base.py and relied on by any suite that catches
+        # AssertionError without having heard of RefNotFound.
+        self.assertTrue(issubclass(RefNotFound, AssertionError))
+
     def test_a_missing_action_raises(self):
         # The point of the helper: returning None or the bare action
         # would let a caller substitute nothing and still pass.
         for text in (UNPINNED, PINNED):
-            with self.assertRaises(AssertionError):
+            with self.assertRaises(RefNotFound):
                 current_ref(text, 'actions/upload-artifact')
 
     def test_the_first_occurrence_wins(self):
@@ -71,14 +76,62 @@ class CurrentRefTest(unittest.TestCase):
         self.assertEqual(current_ref(two, 'actions/checkout'),
                          'actions/checkout@v7')
 
-    def test_a_dotted_action_name_is_not_a_wildcard(self):
-        # The action is escaped before it becomes a pattern, so the dot
-        # in a name matches a dot rather than any character.
+    def test_a_sub_path_action_is_found(self):
         text = '        uses: github/codeql-action/init@v4\n'
         self.assertEqual(current_ref(text, 'github/codeql-action/init'),
                          'github/codeql-action/init@v4')
-        with self.assertRaises(AssertionError):
-            current_ref(text, 'github/codeql-action/inXt')
+
+    def test_the_action_is_escaped_before_it_becomes_a_pattern(self):
+        # Unescaped, the dot matches the hyphen and the helper would
+        # hand back setup-node's reference for an action that is not in
+        # the file at all. Delete the re.escape() in base.py and this
+        # is the case that fails.
+        text = '        uses: actions/setup-node@v7\n'
+        self.assertEqual(current_ref(text, 'actions/setup-node'),
+                         'actions/setup-node@v7')
+        with self.assertRaises(RefNotFound):
+            current_ref(text, 'actions/setup.node')
+
+    def test_a_commented_out_step_is_not_a_uses_line(self):
+        # templates/release-automation-rust/release.yml carries one of
+        # these. Matching it would mean a test mutating a comment and
+        # passing, which is what the helper exists to prevent.
+        text = ('      # - name: Check the wheel contents\n'
+                '      #   uses: shakenfist/actions/check-dist@main\n')
+        with self.assertRaises(RefNotFound):
+            current_ref(text, 'shakenfist/actions/check-dist')
+
+    def test_a_tab_or_extra_space_after_uses_is_found(self):
+        for text in ('        uses:\tactions/checkout@v7\n',
+                     '        uses:   actions/checkout@v7\n',
+                     '      - uses: actions/checkout@v7\n'):
+            self.assertEqual(current_ref(text, 'actions/checkout'),
+                             'actions/checkout@v7')
+
+    def test_a_quoted_ref_is_found_without_its_quotes(self):
+        for quote in ("'", '"'):
+            text = f'        uses: {quote}actions/checkout@v7{quote}\n'
+            self.assertEqual(current_ref(text, 'actions/checkout'),
+                             'actions/checkout@v7')
+
+    def test_the_clause_carries_the_trailing_comment(self):
+        self.assertEqual(
+            uses_clause(PINNED, 'actions/checkout'),
+            'uses: actions/checkout'
+            '@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7')
+
+    def test_the_clause_of_an_unpinned_ref_has_no_comment(self):
+        self.assertEqual(uses_clause(UNPINNED, 'actions/checkout'),
+                         'uses: actions/checkout@v7')
+
+    def test_the_clause_drops_the_list_dash_and_indentation(self):
+        text = '      - uses: actions/checkout@v7 # v7\n'
+        self.assertEqual(uses_clause(text, 'actions/checkout'),
+                         'uses: actions/checkout@v7 # v7')
+
+    def test_a_missing_action_has_no_clause(self):
+        with self.assertRaises(RefNotFound):
+            uses_clause(UNPINNED, 'actions/upload-artifact')
 
 
 if __name__ == '__main__':
