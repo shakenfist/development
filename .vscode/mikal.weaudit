@@ -181,10 +181,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/shared-blocks/source-file-size.md",
-      "author": "mikal"
-    },
-    {
       "path": "tools/mermaid-lint.sh",
       "author": "mikal"
     },
@@ -386,10 +382,6 @@
     },
     {
       "path": "docs/audits/sfui-vendor.md",
-      "author": "mikal"
-    },
-    {
-      "path": "AGENTS.md",
       "author": "mikal"
     },
     {
@@ -637,10 +629,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/push-audit.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/release-merge-queue.md",
       "author": "mikal"
     },
@@ -705,23 +693,11 @@
       "author": "mikal"
     },
     {
-      "path": "templates/shared-blocks/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/shared-blocks",
-      "author": "mikal"
-    },
-    {
       "path": "tools/check-audit-read-token.sh",
       "author": "mikal"
     },
     {
       "path": "tools/review-tracking.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "PUSH-AUDIT.md",
       "author": "mikal"
     },
     {
@@ -766,10 +742,6 @@
     },
     {
       "path": "docs/audits/release-process.md",
-      "author": "mikal"
-    },
-    {
-      "path": "README.md",
       "author": "mikal"
     },
     {
@@ -818,10 +790,6 @@
     },
     {
       "path": "tools/ci-prune-reviews.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "tools",
       "author": "mikal"
     },
     {

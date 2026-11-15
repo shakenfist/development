@@ -69,21 +69,9 @@
       "sha": "26a19958e61609c60e1b721594ab8151ddf1634f",
       "date": "2026-09-04"
     },
-    "AGENTS.md": {
-      "sha": "dd4e9bcf06e4ee7957cc38b980b9ca11ef8c240e",
-      "date": "2026-10-18"
-    },
     "PLAN-TEMPLATE.md": {
       "sha": "2586a6e49881abcb8c0a00414eac30364bd53da7",
       "date": "2026-10-28"
-    },
-    "PUSH-AUDIT.md": {
-      "sha": "19250ecbf2e394e40a54ca5babb36d7b0d211fcb",
-      "date": "2026-10-28"
-    },
-    "README.md": {
-      "sha": "ef9028068ca302a5cd3fa21d9804df2f71590b57",
-      "date": "2026-10-30"
     },
     "docs/audits/ci-review-automation.md": {
       "sha": "ceb7b6ba2ae57439dc519581f22e8e98530816a8",
@@ -208,10 +196,6 @@
     "docs/audits/pre-commit-node-version.md": {
       "sha": "dd8d40d69bbe1195b9f85cb23c17c0b36db0cf62",
       "date": "2026-10-31"
-    },
-    "docs/audits/push-audit.md": {
-      "sha": "102a9f2f6a2462b7b58c448e207f384d511a295b",
-      "date": "2026-10-28"
     },
     "docs/audits/pyproject-usage.md": {
       "sha": "c7c1f0311e26b8fc94ff6f31653f9139ae538e09",
@@ -661,10 +645,6 @@
       "sha": "fcadd30b9cea7aec8c747c7f43ef1864bc01bbef",
       "date": "2026-10-28"
     },
-    "templates/shared-blocks/README.md": {
-      "sha": "3c0e4e257e78ce28b2dc6cd97014effcc837c384",
-      "date": "2026-10-28"
-    },
     "templates/shared-blocks/comment-proportion.md": {
       "sha": "38c366bd44e111f047e5eb2379451ba9c13d04c6",
       "date": "2026-09-04"
@@ -728,10 +708,6 @@
     "templates/shared-blocks/readme-discipline.md": {
       "sha": "50400365305b95aacedee649285740f5d1d3715c",
       "date": "2026-09-04"
-    },
-    "templates/shared-blocks/source-file-size.md": {
-      "sha": "c0f09ec4d5d500e40be59be0609ff299593bc956",
-      "date": "2026-09-22"
     },
     "templates/shared-blocks/subagent-execution-model.md": {
       "sha": "f67957bb72bbdc1e7aa893780593204f0995ee94",
