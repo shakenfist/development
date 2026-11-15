@@ -90,6 +90,10 @@ to Shaken Fist projects:
   Versioned blocks of canonical wording embedded verbatim across
   repositories, in each one's `PUSH-AUDIT.md` and
   `PLAN-TEMPLATE.md`
+- [`templates/source-size-ratchet/`](https://github.com/shakenfist/development/tree/main/templates/source-size-ratchet) --
+  A pre-commit hook that fails when a source file over 1,500 lines
+  grows, or a new one crosses the line, without a stated reason
+  recorded in a checked-in baseline
 
 ## Claude Code Skills
 

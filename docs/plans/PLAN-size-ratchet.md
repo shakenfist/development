@@ -528,8 +528,10 @@ file over threshold fails, excluded path ignored, untracked file
 ignored, `--update` never raises an entry.
 
 This repository adopts it in the same phase: it is in its own audit
-matrix, and its baseline -- eight files over 1,500 today -- is the
-first real one.
+matrix, and its baseline is the first real one. It holds twelve
+files, all under `scripts/`, re-derived on 2026-11-15; the
+Situation table above counted eight on 2026-10-10, and
+`test_plans.py` alone has since grown from 2,956 lines to 4,526.
 
 ### 2. `source-file-size` v2
 

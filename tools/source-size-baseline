@@ -1,0 +1,24 @@
+# Source files over the 1,500-line threshold, one "<lines> <path>"
+# per line, sorted by path. Written by tools/source-size-ratchet.py, which fails
+# when a file over the threshold is missing from this list or is longer
+# than its entry here.
+#
+# Shrinking a file needs no edit by hand: `tools/source-size-ratchet.py --update`
+# lowers entries and drops files that fell under the threshold, and never
+# raises one. Raising an entry or adding a file is a deliberate hand edit:
+# make it in the pull request that grows the file, and say in the
+# pull request description why the file should grow rather than split.
+# Comments here are not preserved when the tool rewrites this file.
+
+2605 scripts/audit/checks/ci_workflows.py
+2413 scripts/audit/checks/packaging.py
+2401 scripts/audit/checks/plans.py
+1859 scripts/review-tracking.py
+3793 scripts/tests/test_ci_workflows.py
+2128 scripts/tests/test_docs_content.py
+1816 scripts/tests/test_github_config.py
+3753 scripts/tests/test_packaging.py
+4526 scripts/tests/test_plans.py
+1552 scripts/tests/test_registry.py
+1570 scripts/tests/test_release.py
+2554 scripts/tests/test_review_tracking.py

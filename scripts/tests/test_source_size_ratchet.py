@@ -26,7 +26,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tests.base import REPO_ROOT  # noqa: E402
+from tests.base import REPO_ROOT, repo_file  # noqa: E402
 
 TEMPLATE_DIR = os.path.join(REPO_ROOT, 'templates', 'source-size-ratchet')
 SCRIPT = os.path.join(TEMPLATE_DIR, 'source-size-ratchet.py')
@@ -388,6 +388,25 @@ class TemplateFilesTest(unittest.TestCase):
         self.assertIn('language: system', hook)
         self.assertIn('pass_filenames: false', hook)
         self.assertIn('always_run: true', hook)
+
+
+class SourceSizeRatchetDeploymentTest(unittest.TestCase):
+    """This repository's copy must match the template exactly.
+
+    templates/source-size-ratchet/README.md promises that the script
+    copies byte-for-byte into every adopting repository, this one
+    included because it is in its own audit matrix. As with
+    MermaidLintDeploymentTest, a drifted copy means the script
+    shipped to the fleet is not the one this repository runs. It
+    lives here rather than in test_docs_content.py beside that one
+    because test_docs_content.py is itself a baselined file.
+    """
+
+    def test_script_matches_the_template(self):
+        self.assertEqual(
+            repo_file('tools', 'source-size-ratchet.py'),
+            repo_file('templates', 'source-size-ratchet', 'source-size-ratchet.py'),
+        )
 
 
 if __name__ == '__main__':
