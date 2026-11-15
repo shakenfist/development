@@ -347,9 +347,14 @@ The order matters in two places:
   churn is prevented by the monthly CI-tooling group, which lives
   in this same preset, rather than by the ordering. What the
   ordering decides is where the change gets reviewed. Before the
-  sweep it changes one repository, and phase 3's per-repository
-  pull request then carries the pinning in, reviewed alongside
-  everything else that repository receives. After the sweep the
+  sweep it changes one repository, and this plan's own sweep pull
+  request then carries the *policy* into each repository
+  reviewably, alongside everything else that repository receives.
+  The pin diff is not in that pull request: it arrives afterwards,
+  as one grouped Renovate pull request per repository on the next
+  monthly window, which is also the volume to expect from the
+  sweep -- roughly one grouped pull request per repository, not one
+  per action per release. After the sweep the
   same one-line edit changes every repository's behaviour with no
   pull request in any of them -- which is what the comment above
   `RENOVATE_FLEET_PRESET` in `scripts/audit/checks/packaging.py`
