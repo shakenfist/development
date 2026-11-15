@@ -242,14 +242,16 @@ repos:
       # request.
       # The script is stdlib only, so `language: system` needs no
       # managed environment, and python3 is named rather than relying
-      # on the copy's executable bit. pass_filenames is off because it
+      # on the copy's executable bit; -I keeps tools/ off sys.path, so
+      # a module a pull request plants there cannot shadow the stdlib
+      # and run inside the hook. pass_filenames is off because it
       # measures the whole tree against the baseline, not the files in
       # the commit, and always_run is on because any source file, the
       # baseline or the exclude file can change the verdict -- there
       # is no `files:` pattern that is not narrower than what it reads.
       - id: source-size-ratchet
         name: source size ratchet
-        entry: python3 tools/source-size-ratchet.py
+        entry: python3 -I tools/source-size-ratchet.py
         language: system
         pass_filenames: false
         always_run: true

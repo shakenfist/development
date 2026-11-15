@@ -14,7 +14,10 @@
         name: source size ratchet
         # python3 rather than relying on the copy's executable bit,
         # which a copy made by hand or through a web editor can lose.
-        entry: python3 tools/source-size-ratchet.py
+        # -I (isolated mode) keeps tools/ off sys.path, so a module a
+        # pull request plants there, such as tools/fnmatch.py, cannot
+        # shadow the standard library and run inside the hook.
+        entry: python3 -I tools/source-size-ratchet.py
         # The script is stdlib only, so it needs no managed environment.
         language: system
         # It measures the whole tree against the baseline, not the

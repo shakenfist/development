@@ -54,7 +54,8 @@ of every copy. Change it here and re-sync, rather than editing a copy.
   are never seen, with no list to maintain. A tracked path that is not
   a regular file in the working tree -- deleted, a symlink, a
   submodule -- is skipped.
-- **Source only:** `.py .rs .ts .tsx .js .go .sh .c .h .css`.
+- **Source only:** `.py .rs .ts .tsx .mts .cts .js .jsx .mjs .cjs .go
+  .sh .c .h .css`.
   Markdown, data, configuration and lock files are not counted.
 - **Not generated output.** A short built-in list that is never
   anybody's review unit: protoc's `*_pb2.py`, `*_pb2_grpc.py` and
@@ -72,7 +73,12 @@ whole, so the baseline is exactly the list of files that owe one.
 ## Adopting it
 
 1. Copy `source-size-ratchet.py` to `tools/source-size-ratchet.py`
-   and keep it executable.
+   and keep it executable. Its shebang runs Python with `-I`
+   (isolated mode), as the hook stanza does and as every command
+   here does: without it, Python puts `tools/` first on its import
+   path, and a module a pull request plants there -- a
+   `tools/fnmatch.py`, say -- would run in place of the standard
+   library's.
 2. Merge `pre-commit-hook.yaml` into `.pre-commit-config.yaml`. It is
    indented to sit under `repos:` as it stands; if the file already
    has a `repo: local` entry, add the hook to that entry's `hooks:`
@@ -82,7 +88,7 @@ whole, so the baseline is exactly the list of files that owe one.
 3. If the repository tracks generated or vendored source, write
    `tools/source-size-exclude` first (see below), so those files never
    enter the baseline.
-4. Run `tools/source-size-ratchet.py --init`. It writes
+4. Run `python3 -I tools/source-size-ratchet.py --init`. It writes
    `tools/source-size-baseline` from the current tree, with a header
    explaining what the file is.
 5. Commit all of it in one pull request. The baseline in that pull
@@ -100,8 +106,14 @@ whatever has grown since, which is the drift the tool exists to stop.
 Python's `fnmatch` against the repository-relative path, so `*`
 crosses `/`. A pattern that matches a leading directory of a path
 excludes the whole tree beneath it, with or without a trailing `/`;
-with a trailing `/` it only ever matches a directory. Give every line
-a comment saying why that tree is not reviewed here:
+with a trailing `/` it only ever matches a directory.
+
+Patterns are anchored at the repository root, unlike `.gitignore`:
+`vendor/` matches `vendor/x.py`, not `sub/vendor/x.py`; write
+`*/vendor/` or the full path for that. That is deliberate: every line
+has to carry a reason, and a pattern that silently matched at any depth
+would exclude trees nobody gave a reason for. Give every line a comment
+saying why that tree is not reviewed here:
 
 ```
 # Vendored from shakenfist/sfui, and reviewed there rather than
@@ -144,14 +156,15 @@ that is gone, excluded or back under the threshold, is not a failure
 dance. When you want the baseline tightened, run:
 
 ```bash
-tools/source-size-ratchet.py --update
+python3 -I tools/source-size-ratchet.py --update
 ```
 
 It lowers entries that have shrunk and drops files that are gone,
 excluded, or at or under the threshold. It never raises an entry and
 never adds a file, because that hand edit is the reviewable decision.
 If something has grown it still writes the tightened baseline, then
-reports the growth and exits 1.
+reports the growth and exits 1. When there is nothing to tighten it
+leaves the file alone, comments included.
 
 Nothing here forces a split. A ratchet that pushed files under a
 deadline would push them into splits at line numbers rather than
@@ -165,6 +178,18 @@ stops the numbers getting worse while it waits.
 |--------|---------|
 | 0 | Every oversize file is at or under its baseline entry |
 | 1 | A file grew past its entry, or crossed the threshold with none |
-| 2 | The tool could not do its job: not a git repository, git failed, or a malformed baseline line, which it names |
+| 2 | The tool could not do its job: not a git repository, git failed, a malformed baseline line, which it names, or a baseline, exclude file or `tools/` that is a symlink or special file rather than a regular file or directory |
 
 A tool failure is never reported as a size violation.
+
+The tree it measures is pull request content, so the script treats it
+as hostile. It refuses, rather than follows, a symlink or special file
+where the baseline, the exclude file or `tools/` should be -- so a
+committed `tools/source-size-baseline` pointing out of the tree can
+neither be read nor written through -- and writes the baseline through
+a temporary file renamed into place. It prints a path or pattern
+escaped, with Python's `ascii()`, when it holds a control character or
+an undecodable byte or begins with `::`, so a file name cannot write
+terminal escapes or workflow commands into a CI log. A tracked path
+with a line break in it is counted, but if it is over the threshold it
+is a tool failure, because the baseline cannot hold its name.

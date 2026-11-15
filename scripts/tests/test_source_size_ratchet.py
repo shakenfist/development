@@ -19,6 +19,7 @@ Run with: python3 scripts/tests/test_source_size_ratchet.py
 
 import ast
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -38,6 +39,21 @@ THRESHOLD = 1500
 
 BASELINE = 'tools/source-size-baseline'
 EXCLUDE = 'tools/source-size-exclude'
+
+NO_BASELINE_HINT = 'There is no tools/source-size-baseline'
+
+
+def hook_entry(path):
+    """The `entry:` of the source-size-ratchet hook in a pre-commit file."""
+    with open(path) as f:
+        found = False
+        for line in f:
+            line = line.strip()
+            if line == '- id: source-size-ratchet':
+                found = True
+            elif found and line.startswith('entry: '):
+                return line[len('entry: '):]
+    raise AssertionError(f'no source-size-ratchet entry in {path}')
 
 
 def lines(n):
@@ -66,8 +82,13 @@ class RatchetTestCase(unittest.TestCase):
                        stdout=subprocess.DEVNULL)
 
     def write(self, files):
-        """Write {path: str} into the work tree, without adding it."""
+        """Write {path: str} into the work tree, without adding it; a bytes path is written as given."""
         for name, content in files.items():
+            if isinstance(name, bytes):
+                target = os.path.join(os.fsencode(self.repo), name)
+                with open(target, 'w') as f:
+                    f.write(content)
+                continue
             target = os.path.join(self.repo, name)
             os.makedirs(os.path.dirname(target), exist_ok=True)
             with open(target, 'w', newline='') as f:
@@ -95,10 +116,12 @@ class RatchetTestCase(unittest.TestCase):
                 entries[path] = int(count)
         return entries
 
-    def run_script(self, *args, cwd=None):
+    def run_script(self, *args, cwd=None, argv=None):
+        # The timeout turns a hang -- reading a FIFO, say -- into a
+        # failure rather than a stuck suite.
         return subprocess.run(
-            [sys.executable, SCRIPT, *args], cwd=cwd or self.repo, env=self.env,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            argv or [sys.executable, SCRIPT, *args], cwd=cwd or self.repo, env=self.env,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, timeout=60)
 
     def assertExit(self, result, code):
         self.assertEqual(result.returncode, code,
@@ -118,6 +141,8 @@ class CheckModeTest(RatchetTestCase):
         self.assertIn('pkg/big.py: 1,501 lines, not in the baseline', result.stdout)
         self.assertIn(BASELINE, result.stdout)
         self.assertIn('pull request description', result.stdout)
+        self.assertIn(NO_BASELINE_HINT, result.stdout)
+        self.assertIn('--init', result.stdout)
 
     def test_a_baselined_file_at_its_entry_passes(self):
         self.commit({'big.rs': lines(2000)})
@@ -132,6 +157,7 @@ class CheckModeTest(RatchetTestCase):
         result = self.run_script()
         self.assertExit(result, 1)
         self.assertIn('big.rs: 2,001 lines, baseline 2,000', result.stdout)
+        self.assertNotIn(NO_BASELINE_HINT, result.stdout)
 
     def test_a_single_large_jump_fails(self):
         """instar's shape: one landing of hundreds of lines, not many small ones."""
@@ -191,7 +217,8 @@ class CheckModeTest(RatchetTestCase):
         self.assertExit(self.run_script(), 0)
 
     def test_every_source_extension_is_counted(self):
-        for ext in ('.c', '.css', '.go', '.h', '.js', '.py', '.rs', '.sh', '.ts', '.tsx'):
+        for ext in ('.c', '.cjs', '.css', '.cts', '.go', '.h', '.js', '.jsx', '.mjs', '.mts', '.py', '.rs',
+                    '.sh', '.ts', '.tsx'):
             with self.subTest(ext=ext):
                 name = f'f{ext}'
                 self.commit({name: lines(THRESHOLD + 1)})
@@ -241,6 +268,16 @@ class CheckModeTest(RatchetTestCase):
                      EXCLUDE: '# Not a directory.\nodd.py/\n'})
         self.assertExit(self.run_script(), 1)
 
+    def test_exclude_patterns_are_anchored_at_the_root(self):
+        """Unlike .gitignore: `vendor/` is the top-level tree, `*/vendor/` any nested one."""
+        self.commit({'sub/vendor/x.py': lines(THRESHOLD + 1),
+                     EXCLUDE: '# Vendored.\nvendor/\n'})
+        result = self.run_script()
+        self.assertExit(result, 1)
+        self.assertIn('sub/vendor/x.py', result.stdout)
+        self.commit({EXCLUDE: '# Vendored.\n*/vendor/\n'})
+        self.assertExit(self.run_script(), 0)
+
     def test_an_exclude_pattern_matching_nothing_is_noted(self):
         self.commit({'a.py': lines(3), EXCLUDE: '# Anticipatory.\nvendor\n'})
         result = self.run_script()
@@ -266,6 +303,41 @@ class CheckModeTest(RatchetTestCase):
         self.assertExit(result, 1)
         self.assertIn('pkg/sub/big.py', result.stdout)
 
+    def test_a_small_file_with_a_line_break_in_its_name_is_counted(self):
+        """It can never enter the baseline, so it must not block every commit."""
+        self.commit({'odd\nname.py': lines(3), 'cr\rname.py': lines(3)})
+        self.assertExit(self.run_script(), 0)
+
+    def test_a_non_utf8_name_is_reported_escaped(self):
+        """os.fsdecode leaves a lone surrogate that a strict stdout cannot encode."""
+        # A UTF-8 locale without UTF-8 mode is the strict-stdout case
+        # that used to raise UnicodeEncodeError out of the report.
+        self.env.update({'LC_ALL': 'C.UTF-8', 'PYTHONUTF8': '0'})
+        self.env.pop('PYTHONIOENCODING', None)
+        self.commit({b'a\xff.py': lines(THRESHOLD + 1)})
+        result = self.run_script()
+        self.assertExit(result, 1)
+        self.assertNotIn('Traceback', result.stderr)
+        self.assertIn("'a\\udcff.py': 1,501 lines, not in the baseline", result.stdout)
+
+    def test_a_non_utf8_name_round_trips_through_the_baseline(self):
+        self.commit({b'a\xff.py': lines(THRESHOLD + 1)})
+        self.assertExit(self.run_script('--init'), 0)
+        with open(os.path.join(self.repo, BASELINE), 'rb') as f:
+            self.assertIn(b'\n1501 a\xff.py\n', f.read())
+        self.assertExit(self.run_script(), 0)
+
+    def test_control_characters_and_workflow_commands_are_escaped(self):
+        self.commit({'a\x1b[31mred.py': lines(THRESHOLD + 1),
+                     '::warning::x.py': lines(THRESHOLD + 1),
+                     EXCLUDE: '# Nothing.\n::error::gone\n'})
+        result = self.run_script()
+        self.assertExit(result, 1)
+        self.assertNotIn('\x1b', result.stdout)
+        self.assertIn("'a\\x1b[31mred.py'", result.stdout)
+        self.assertIn("'::warning::x.py'", result.stdout)
+        self.assertIn("'::error::gone'", result.stdout)
+
     def test_a_path_with_a_space_round_trips(self):
         self.commit({'my dir/big file.py': lines(THRESHOLD + 1)})
         self.assertExit(self.run_script('--init'), 0)
@@ -281,6 +353,29 @@ class ToolFailureTest(RatchetTestCase):
         result = self.run_script()
         self.assertExit(result, 2)
         self.assertIn(f'{BASELINE}:4', result.stderr)
+
+    def test_a_long_malformed_line_is_quoted_short_and_escaped(self):
+        self.commit({'a.py': lines(3), BASELINE: '\x1b[31m' + 'x' * 500 + '\n'})
+        result = self.run_script()
+        self.assertExit(result, 2)
+        self.assertIn(f'{BASELINE}:1', result.stderr)
+        self.assertNotIn('x' * 81, result.stderr)
+        self.assertNotIn('\x1b', result.stderr)
+
+    def test_an_oversize_file_with_a_line_break_in_its_name_exits_2(self):
+        self.commit({'odd\nname.py': lines(THRESHOLD + 1)})
+        result = self.run_script()
+        self.assertExit(result, 2)
+        self.assertIn('line break', result.stderr)
+
+    def test_a_corrupt_index_exits_2(self):
+        """git rev-parse succeeds, then git ls-files fails."""
+        self.commit({'a.py': lines(3)})
+        with open(os.path.join(self.repo, '.git', 'index'), 'wb') as f:
+            f.write(b'garbage')
+        result = self.run_script()
+        self.assertExit(result, 2)
+        self.assertIn('ls-files', result.stderr)
 
     def test_a_duplicate_baseline_entry_exits_2(self):
         self.commit({'a.py': lines(3), BASELINE: '2000 a.py\n2001 a.py\n'})
@@ -302,6 +397,68 @@ class ToolFailureTest(RatchetTestCase):
         self.commit({'a.py': lines(3)})
         self.env['PATH'] = os.path.join(self.repo, 'no-such-bin')
         self.assertExit(self.run_script(), 2)
+
+
+class HostileCheckoutTest(RatchetTestCase):
+    """The tree is pull request content: tools/ and its two files are never followed."""
+
+    def setUp(self):
+        super().setUp()
+        outside = tempfile.TemporaryDirectory()
+        self.addCleanup(outside.cleanup)
+        self.outside = outside.name
+        self.secret = os.path.join(self.outside, 'secret')
+        with open(self.secret, 'w') as f:
+            f.write('SECRET=hunter2\n')
+
+    def assertRefused(self, result, path):
+        self.assertExit(result, 2)
+        self.assertIn(path, result.stderr)
+        self.assertIn('must be a', result.stderr)
+        self.assertNotIn('hunter2', result.stdout + result.stderr)
+
+    def test_a_dangling_baseline_symlink_is_refused_not_written_through(self):
+        victim = os.path.join(self.outside, 'victim')
+        self.commit({'big.py': lines(THRESHOLD + 1)})
+        os.makedirs(os.path.join(self.repo, 'tools'))
+        os.symlink(victim, os.path.join(self.repo, BASELINE))
+        self.assertRefused(self.run_script(), BASELINE)
+        self.assertRefused(self.run_script('--init'), BASELINE)
+        self.assertFalse(os.path.lexists(victim))
+
+    def test_a_baseline_symlink_to_a_secret_is_refused_not_read(self):
+        self.commit({'a.py': lines(3)})
+        os.makedirs(os.path.join(self.repo, 'tools'))
+        os.symlink(self.secret, os.path.join(self.repo, BASELINE))
+        self.assertRefused(self.run_script(), BASELINE)
+
+    def test_an_exclude_symlink_to_a_secret_is_refused_not_read(self):
+        self.commit({'a.py': lines(3)})
+        os.makedirs(os.path.join(self.repo, 'tools'))
+        os.symlink(self.secret, os.path.join(self.repo, EXCLUDE))
+        self.assertRefused(self.run_script(), EXCLUDE)
+
+    def test_a_special_file_in_place_of_the_baseline_or_exclude_file_is_refused(self):
+        self.commit({'a.py': lines(3)})
+        for path in (BASELINE, EXCLUDE):
+            for kind in ('fifo', 'directory'):
+                with self.subTest(path=path, kind=kind):
+                    target = os.path.join(self.repo, path)
+                    os.makedirs(os.path.dirname(target), exist_ok=True)
+                    if kind == 'fifo':
+                        os.mkfifo(target)
+                    else:
+                        os.mkdir(target)
+                    try:
+                        self.assertRefused(self.run_script(), path)
+                    finally:
+                        (os.unlink if kind == 'fifo' else os.rmdir)(target)
+
+    def test_a_symlinked_tools_directory_is_refused(self):
+        self.commit({'big.py': lines(THRESHOLD + 1)})
+        os.symlink(self.outside, os.path.join(self.repo, 'tools'))
+        self.assertRefused(self.run_script('--init'), 'tools')
+        self.assertEqual(os.listdir(self.outside), ['secret'])
 
 
 class InitTest(RatchetTestCase):
@@ -356,6 +513,17 @@ class UpdateTest(RatchetTestCase):
         self.assertIn('grew.py: 2,100 lines, baseline 2,000', result.stdout)
         self.assertIn('new.py: 1,600 lines, not in the baseline', result.stdout)
 
+    def test_update_leaves_a_tight_baseline_byte_for_byte(self):
+        self.commit({'big.py': lines(1600), 'other.py': lines(3)})
+        self.baseline({'big.py': 1600})
+        path = os.path.join(self.repo, BASELINE)
+        with open(path, 'rb') as f:
+            before = f.read()
+        self.assertIn(b'# hand written', before)
+        self.assertExit(self.run_script('--update'), 0)
+        with open(path, 'rb') as f:
+            self.assertEqual(f.read(), before)
+
     def test_update_without_a_baseline_creates_nothing(self):
         self.commit({'a.py': lines(3)})
         self.assertExit(self.run_script('--update'), 0)
@@ -367,6 +535,11 @@ class TemplateFilesTest(unittest.TestCase):
 
     def test_the_script_is_executable(self):
         self.assertTrue(os.access(SCRIPT, os.X_OK), f'{SCRIPT} must be executable')
+
+    def test_the_shebang_runs_python_isolated(self):
+        """Run directly, as the README's commands are, it must not import from tools/ either."""
+        with open(SCRIPT) as f:
+            self.assertEqual(f.readline(), '#!/usr/bin/env -S python3 -I\n')
 
     def test_the_script_imports_only_the_standard_library(self):
         """It runs from a bare pre-commit `language: system` hook in every adopter."""
@@ -384,10 +557,28 @@ class TemplateFilesTest(unittest.TestCase):
         with open(HOOK) as f:
             hook = f.read()
         self.assertIn('repo: local', hook)
-        self.assertIn('entry: python3 tools/source-size-ratchet.py', hook)
+        self.assertIn('entry: python3 -I tools/source-size-ratchet.py', hook)
         self.assertIn('language: system', hook)
         self.assertIn('pass_filenames: false', hook)
         self.assertIn('always_run: true', hook)
+
+
+class HookInvocationTest(RatchetTestCase):
+    """The script run exactly as the hook stanza runs it, from an adopter's tools/."""
+
+    def test_a_module_planted_in_tools_does_not_shadow_the_standard_library(self):
+        entry = hook_entry(HOOK).split()
+        self.assertEqual(entry[0], 'python3')
+        os.makedirs(os.path.join(self.repo, 'tools'))
+        shutil.copy(SCRIPT, os.path.join(self.repo, 'tools', 'source-size-ratchet.py'))
+        self.commit({'a.py': lines(3),
+                     'tools/fnmatch.py': 'raise RuntimeError("planted tools/fnmatch.py was imported")\n'})
+        result = self.run_script(argv=[sys.executable, *entry[1:]])
+        self.assertExit(result, 0)
+        self.assertNotIn('planted', result.stderr)
+
+    def test_this_repository_runs_the_hook_as_the_template_does(self):
+        self.assertEqual(hook_entry(os.path.join(REPO_ROOT, '.pre-commit-config.yaml')), hook_entry(HOOK))
 
 
 class SourceSizeRatchetDeploymentTest(unittest.TestCase):
