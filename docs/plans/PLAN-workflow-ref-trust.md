@@ -2088,13 +2088,39 @@ is the failure the helper exists to prevent, so the pattern is now
 anchored to the start of a line and admits only whitespace and an
 optional list dash before `uses:`.
 
+A sixth test was found by review round 2 rather than by the suite:
+`test_a_comment_after_a_uses_line_is_compared` asserted
+`uses: dtolnay/rust-toolchain@stable` against the shipped file and
+passed only because that is the one reference the held digest left
+unpinned. Enumerating by what failed rather than by shape is what hid
+it, which is worth knowing for the sweep: **the class is tests
+asserting against a real workflow's `uses:` line, not tests that
+failed today**, and adjacency assumptions belong to it as much as
+literals do --- that one asserted a `\n\n` between the reference and
+the next comment, which the `with: toolchain: stable` block the pin
+owes would also have broken.
+
 This is the one consequence of pinning that reaches beyond the files
 Renovate rewrites, and it generalises: **any repository whose tests
 assert against a real workflow's `uses:` line breaks when that
 repository extends the preset.** It therefore belongs in step 3b's
 specification, and the fleet sweep in `PLAN-renovate-cadence.md` phase
 3 should expect it per repository rather than discover it. Filed as
-#410 so the sweep can plan for it.
+#410 so the sweep can plan for it, with the durable half of the
+guidance in `docs/consistency-audits.md` beside the rest of what
+`scripts/tests/base.py` offers, since this plan is a point-in-time
+record due for retirement.
+
+**The pin's other half now fails loudly.** The `with: toolchain:
+stable` that the rust-toolchain pin owes was recorded only in prose
+here, and Renovate will not write it; if the pin landed without it,
+the first symptom would be the hourly Renovate run failing in this
+repository and in every repository that copied the template, rather
+than a red test. `test_a_pinned_rust_toolchain_states_its_toolchain`
+in `scripts/tests/test_registry.py` now asserts that a
+40-hex-sha reference carries the input and that a branch reference
+need not, so the pull request carrying the pin fails until it adds
+the block.
 
 **The gate after #407 merges: exactly two lines.** 54 unpinned
 references were measured before it, 52 are pinned in it, and the two

@@ -34,6 +34,8 @@ PINNED = (
 class CurrentRefTest(unittest.TestCase):
     """The reference an action carries, whichever form the file is in."""
 
+    maxDiff = None
+
     def test_a_tag_is_returned_whole(self):
         self.assertEqual(current_ref(UNPINNED, 'actions/checkout'),
                          'actions/checkout@v7')
@@ -113,6 +115,35 @@ class CurrentRefTest(unittest.TestCase):
             text = f'        uses: {quote}actions/checkout@v7{quote}\n'
             self.assertEqual(current_ref(text, 'actions/checkout'),
                              'actions/checkout@v7')
+
+    def test_an_unspaced_hash_is_part_of_the_ref(self):
+        # YAML starts a comment only at a # after whitespace, which is
+        # what audit.text.workflows.STEP_USES_RE reads and
+        # test_release.py pins. The two readings agree deliberately.
+        text = '      - uses: owner/action@v1#x\n'
+        self.assertEqual(current_ref(text, 'owner/action'),
+                         'owner/action@v1#x')
+
+    def test_trailing_whitespace_after_the_ref_is_allowed(self):
+        # Pre-commit forbids it here, but the sweep in #410 copies this
+        # helper into repositories whose hooks differ, and raising
+        # RefNotFound over an invisible space would be a poor error.
+        text = '        uses: actions/checkout@v7   \n'
+        self.assertEqual(current_ref(text, 'actions/checkout'),
+                         'actions/checkout@v7')
+
+    def test_an_unbalanced_quote_still_yields_the_ref(self):
+        # Lenient on purpose: the quotes are optional on each side
+        # rather than matched. A shipped workflow with one quote fails
+        # actionlint long before a test reads it, and refusing here
+        # would only turn that into a confusing RefNotFound.
+        text = '        uses: "actions/checkout@v7\n'
+        self.assertEqual(current_ref(text, 'actions/checkout'),
+                         'actions/checkout@v7')
+
+
+class UsesClauseTest(unittest.TestCase):
+    """The whole clause, for a caller that must own the comment too."""
 
     def test_the_clause_carries_the_trailing_comment(self):
         self.assertEqual(

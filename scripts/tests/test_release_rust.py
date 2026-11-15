@@ -797,8 +797,10 @@ class GithubReleaseTest(RustReleaseCase):
         self.assertIn('has no github-release job', ' '.join(self.issues(release_rust.rust_github_release_issues)))
 
     def test_no_download_fails(self):
-        # The ref is read out of the template rather than written here,
-        # because the fleet preset pins it: see tests.base.current_ref.
+        # The clause is read out of the template rather than written
+        # here, because the fleet preset pins it: see
+        # tests.base.uses_clause, which carries the trailing comment so
+        # the substitution does not leave the file's behind.
         self.assertIn('downloads no artifacts', self.release_issues(
             uses_clause(FILLED, 'actions/download-artifact'),
             'uses: actions/cache@v4'))

@@ -56,12 +56,19 @@ class RefNotFound(AssertionError):
 #: optional list dash before `uses:`, which is what keeps it off a
 #: commented-out step -- `templates/release-automation-rust/release.yml`
 #: has one, and matching it would mean mutating a comment and passing.
-#: The ref stops at whitespace, a quote or a `#`, so the trailing
-#: comment Renovate writes after a digest is not part of it.
+#:
+#: The ref ends at whitespace or a quote, not at a `#`, which agrees
+#: with `audit.text.workflows.STEP_USES_RE`: in YAML a comment starts
+#: only at a `#` after whitespace, so `owner/action@v1#x` is one value
+#: and `test_release.py` pins that reading. Trailing whitespace is
+#: allowed after the clause, and the quotes are permitted
+#: independently on each side rather than matched, because a shipped
+#: workflow that got that wrong would fail `actionlint` long before a
+#: test read it.
 _USES_TEMPLATE = (
     r'(?m)^[ \t]*(?:-[ \t]+)?uses:[ \t]*'
-    r'[\'"]?(?P<ref>%s@[^\s\'"#]+)[\'"]?'
-    r'(?P<comment>[ \t]+#.*)?$'
+    r'[\'"]?(?P<ref>%s@[^\s\'"]+)[\'"]?'
+    r'(?:[ \t]+#.*)?[ \t]*$'
 )
 
 
@@ -70,6 +77,17 @@ def _uses_re(action):
 
 
 def _uses_match(text, action):
+    """The first match for `action`, or RefNotFound.
+
+    First, not only: a file may use one action in two jobs. Every
+    caller today mutates a reference that appears once, and
+    `test_release_rust.py` pairs this with `in_job()`, which searches
+    from a job's own start -- so a second, differing clause earlier in
+    the file would hand `in_job()` a string it cannot find and raise
+    `ValueError` rather than failing an assertion. If a caller ever
+    needs a particular one, give this a scope argument rather than
+    reaching for `str.index`.
+    """
     found = _uses_re(action).search(text)
     if not found:
         raise RefNotFound('no "uses: %s@..." in the text' % action)
@@ -104,7 +122,7 @@ def uses_clause(text, action):
     this instead gives the test both halves of the line.
     """
     found = _uses_match(text, action)
-    return text[found.start():found.end()].lstrip(' \t-').lstrip()
+    return text[found.start():found.end()].lstrip(' \t-')
 
 
 def repo_text(*parts):

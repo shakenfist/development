@@ -830,7 +830,15 @@ class RenovateWorkflowDriftTest(CheckTestCase):
     def test_a_comment_after_a_uses_line_is_compared(self):
         """The digest comment is on the uses: line, not the lines after."""
         comment = '      # A requirements file pinned with --hash lines needs hashin, which\n'
-        self.assertIn('uses: dtolnay/rust-toolchain@stable\n\n' + comment, RENOVATE_WORKFLOW)
+        # Derived, and no longer asserting adjacency: the rust-toolchain
+        # pin held by minimumReleaseAge lands about 2026-11-18 and owes
+        # a with: toolchain: stable block, either of which would break a
+        # literal or a \n\n. The property is that the next comment after
+        # a uses: line belongs to no uses: line of its own.
+        after = RENOVATE_WORKFLOW.split(
+            uses_clause(RENOVATE_WORKFLOW, 'dtolnay/rust-toolchain'), 1)[1]
+        self.assertIn(comment, after)
+        self.assertNotIn('uses:', after[:after.index(comment)])
         line = RENOVATE_WORKFLOW.splitlines().index(comment.rstrip('\n')) + 1
         self.assert_fail(
             self._repo(RENOVATE_WORKFLOW.replace(comment, '      # A local comment\n')),
