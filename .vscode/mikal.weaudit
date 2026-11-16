@@ -875,6 +875,10 @@
     {
       "path": "docs/audits/renovate.md",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_source_size_ratchet.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

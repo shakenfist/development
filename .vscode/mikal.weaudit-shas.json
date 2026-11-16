@@ -629,6 +629,10 @@
       "sha": "a03306f92a9741a98cd365b7822f13756aff8f62",
       "date": "2026-10-21"
     },
+    "scripts/tests/test_source_size_ratchet.py": {
+      "sha": "aa5b5c2d7d5054e57267b495bb0b7f474e115e52",
+      "date": "2026-11-16"
+    },
     "templates/ci-review-automation/README.md": {
       "sha": "88357350089f2356fb74240dd48461788b35dd6e",
       "date": "2026-10-22"
