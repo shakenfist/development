@@ -75,6 +75,18 @@ include = [
 # LICENSE is verbatim upstream text; reviewing it would attest to the
 # Apache Software Foundation.
 #
+# tools/source-size-baseline is the source-size ratchet's list of line
+# counts, and the tool owns it: `--update` rewrites the whole file,
+# header included, every time an oversize file shrinks, so a mark on it
+# would be invalidated by edits nobody made by hand. The one hand edit
+# it takes -- raising an entry -- is a one-line diff reviewed in the
+# pull request that grows the file, with the reason in that pull
+# request's description, which is where the judgement lives; a
+# whole-file mark on a column of numbers attests to nothing more. A
+# tools/source-size-exclude, if one is ever written, is the opposite
+# case -- hand-written, one reason per line -- and wants an include
+# entry rather than this.
+#
 # .github/exported-config/ was excluded until 2026-09-01, on the
 # grounds that the export-repo-config workflow writes it from the
 # GitHub API, so a mark there attests to GitHub's state rather than to
@@ -95,4 +107,5 @@ exclude = [
     '!PLAN-TEMPLATE.md',
     'docs/audits/compliance.md',
     'LICENSE',
+    'tools/source-size-baseline',
 ]
