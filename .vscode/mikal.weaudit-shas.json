@@ -697,6 +697,10 @@
       "sha": "88357350089f2356fb74240dd48461788b35dd6e",
       "date": "2026-10-22"
     },
+    "templates/ci-review-automation/pr-re-review.yml": {
+      "sha": "0f38d90143c93506f8c823ca6baf6ed2c7eef132",
+      "date": "2026-11-17"
+    },
     "templates/ci-review-automation/pr-retest.yml": {
       "sha": "189610eb241bbecbf11c6459f874c97ff80c0359",
       "date": "2026-10-22"
@@ -704,6 +708,10 @@
     "templates/codeql/README.md": {
       "sha": "d70d68e44cfe1b1d4c6908b7e8b1d206be933224",
       "date": "2026-10-01"
+    },
+    "templates/codeql/codeql-analysis.yml": {
+      "sha": "f9e0c8a01e5341267947151fefab721c5a7a3842",
+      "date": "2026-11-17"
     },
     "templates/export-repo-config/README.md": {
       "sha": "c7853c882f153d7a34cf927a765eb9715674e4d0",
@@ -713,6 +721,10 @@
       "sha": "b9b3936053b8685ef0ae47f656b2f35aa62ba637",
       "date": "2026-09-27"
     },
+    "templates/issue-fix/README.md": {
+      "sha": "1001c669b30bbcf14496a3c176cb8f2a30dfde36",
+      "date": "2026-11-17"
+    },
     "templates/issue-fix/claude-model-fallback.sh": {
       "sha": "2bf1baa7b5782dd5b1490e8ce548ad3029084050",
       "date": "2026-08-30"
@@ -720,6 +732,14 @@
     "templates/issue-fix/extract-model-block.sh": {
       "sha": "ce4f2ab10198501e02ccc70c7824195cb26ab0f2",
       "date": "2026-08-30"
+    },
+    "templates/issue-fix/issue-fix.yml": {
+      "sha": "c44dc8267d6039f98a348a989dd86aabd82aa5a9",
+      "date": "2026-11-17"
+    },
+    "templates/issue-fix/measure-change-size.sh": {
+      "sha": "fb4cbdb11c3790fca89eab279a45ebcbc1a17947",
+      "date": "2026-11-17"
     },
     "templates/issue-fix/neutralise-pr-body.sh": {
       "sha": "4248bb512fa54f024a31cc9e838d0a11092f8da1",
@@ -741,6 +761,10 @@
       "sha": "22f14bf915f76875950bb5589212b55ab0a91db1",
       "date": "2026-09-22"
     },
+    "templates/mermaid-lint/mermaid-lint.yml": {
+      "sha": "662b844fa020d0a5f85d6b2affc185ccb92da0e1",
+      "date": "2026-11-17"
+    },
     "templates/pin-indirect-dependencies/README.md": {
       "sha": "c340937342fdf83e0c24ec1c9ce6a024933e12b1",
       "date": "2026-10-01"
@@ -753,6 +777,10 @@
       "sha": "241b462c281d6e33fa1d4023d15762a95d69112a",
       "date": "2026-08-30"
     },
+    "templates/pin-indirect-dependencies/pin-indirect-dependencies.yml": {
+      "sha": "ff514a84aef4dc9778fd99480678e1d72a6ca07e",
+      "date": "2026-11-17"
+    },
     "templates/release-automation-rust/README.md": {
       "sha": "f6283ea32cc6fd7cdccec0565a8407f983518d54",
       "date": "2026-10-30"
@@ -764,6 +792,10 @@
     "templates/release-automation-rust/release-version.sh": {
       "sha": "3de931698cee8e1d242dec9a4b100b5a8fa5268d",
       "date": "2026-10-20"
+    },
+    "templates/release-automation-rust/release.yml": {
+      "sha": "8800aa12e6d03fe9f9f0f2162dbd7586db2acba4",
+      "date": "2026-11-17"
     },
     "templates/release-automation-rust/sign-release-tag.sh": {
       "sha": "cc23ebc95fbcdeec23224323fe9bd9c36a85e585",
@@ -781,6 +813,26 @@
       "sha": "7b880ebda6d241915e8e4fd5e3283c2e0dee6a04",
       "date": "2026-10-22"
     },
+    "templates/release-automation/release.yml": {
+      "sha": "26e4d5eb8ce5f74d96c9003f8c1b697ed5dc32f1",
+      "date": "2026-11-17"
+    },
+    "templates/renovate/README.md": {
+      "sha": "2305847a045b3922d41e2fa29536fa1bcc1ba31d",
+      "date": "2026-11-17"
+    },
+    "templates/renovate/renovate.json": {
+      "sha": "34bc3ba88cc9475eb7bc7f9ca99d05d0be6a828b",
+      "date": "2026-11-17"
+    },
+    "templates/renovate/renovate.yml": {
+      "sha": "d545d6072a11ee5ecdcaf01cb23aba1879b241d4",
+      "date": "2026-11-17"
+    },
+    "templates/review-tracking/README.md": {
+      "sha": "098c5cd2e772cf3cd1172f5974c9f53e49c1dbcd",
+      "date": "2026-11-17"
+    },
     "templates/review-tracking/ci-prune-reviews.sh": {
       "sha": "3c00a9489c0b571bfdd0d1f1170344cfc33b44ff",
       "date": "2026-11-01"
@@ -792,6 +844,10 @@
     "templates/review-tracking/review-tracking.sh": {
       "sha": "fcadd30b9cea7aec8c747c7f43ef1864bc01bbef",
       "date": "2026-10-28"
+    },
+    "templates/shared-blocks/README.md": {
+      "sha": "75e2ff586452a71d72f156ead821196fa3637c97",
+      "date": "2026-11-17"
     },
     "templates/shared-blocks/comment-proportion.md": {
       "sha": "38c366bd44e111f047e5eb2379451ba9c13d04c6",
@@ -857,6 +913,10 @@
       "sha": "50400365305b95aacedee649285740f5d1d3715c",
       "date": "2026-09-04"
     },
+    "templates/shared-blocks/source-file-size.md": {
+      "sha": "ec6cdfae29fd58fa6fe672ae9309550070dc4522",
+      "date": "2026-11-17"
+    },
     "templates/shared-blocks/subagent-execution-model.md": {
       "sha": "f67957bb72bbdc1e7aa893780593204f0995ee94",
       "date": "2026-09-04"
@@ -869,6 +929,18 @@
       "sha": "add2cdd152a7215c083bdcda91c2cb39d2c4ec8d",
       "date": "2026-09-04"
     },
+    "templates/source-size-ratchet/README.md": {
+      "sha": "1fac415f7c5553e8d5eb367293cf948ea6d941d1",
+      "date": "2026-11-17"
+    },
+    "templates/source-size-ratchet/pre-commit-hook.yaml": {
+      "sha": "cca9425843f60ff618d30cc81ade28d39abab977",
+      "date": "2026-11-17"
+    },
+    "templates/source-size-ratchet/source-size-ratchet.py": {
+      "sha": "f07378a356f391be5a6c6d8d949bc1607786c618",
+      "date": "2026-11-17"
+    },
     "templates/test-drift-fix/README.md": {
       "sha": "e3d6692995bb8cfbb8505d470ee09f71576ce214",
       "date": "2026-08-30"
@@ -876,6 +948,10 @@
     "templates/test-drift-fix/pr-fix-tests.yml": {
       "sha": "b64370dd4fca4b7c18830eb336c1bf1dbf282ed6",
       "date": "2026-09-30"
+    },
+    "templates/test-drift-fix/test-drift-fix.yml": {
+      "sha": "07b61afdf59ef6e8f7ee31c9bce207f32c442dbb",
+      "date": "2026-11-17"
     },
     "tools/audit-snapshot.sh": {
       "sha": "9d7efbf68a9f510b036f0db47cff860b635bb41f",
