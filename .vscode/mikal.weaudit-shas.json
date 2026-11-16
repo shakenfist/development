@@ -85,9 +85,29 @@
       "sha": "26a19958e61609c60e1b721594ab8151ddf1634f",
       "date": "2026-09-04"
     },
+    ".pre-commit-config.yaml": {
+      "sha": "02b94d174540c41db029e2cbf89ba0e5fa13251b",
+      "date": "2026-11-17"
+    },
+    "AGENTS.md": {
+      "sha": "f764b451e7387863708f2a6732336a9b497d9571",
+      "date": "2026-11-17"
+    },
+    "ARCHITECTURE.md": {
+      "sha": "c24d95b43e4b19b4ae4d526ea0e4885e992a6225",
+      "date": "2026-11-17"
+    },
     "PLAN-TEMPLATE.md": {
       "sha": "2586a6e49881abcb8c0a00414eac30364bd53da7",
       "date": "2026-10-28"
+    },
+    "PUSH-AUDIT.md": {
+      "sha": "1efc1940c0da3fa5775912079c10bd38a3455351",
+      "date": "2026-11-17"
+    },
+    "README.md": {
+      "sha": "b5e5509d9cb9e529de4cda9642b8c4ccbc84e3b4",
+      "date": "2026-11-17"
     },
     "docs/audits/README.md": {
       "sha": "b33966d094e62a1f1822539f0b24b949a496996f",
@@ -364,6 +384,18 @@
     "docs/release-automation.md": {
       "sha": "d18b037a6f27400af8a522a4e7d34f5bf23f77c5",
       "date": "2026-11-15"
+    },
+    "renovate-fleet.json": {
+      "sha": "229d53c38447feb2ed237c723b2dd33dc4790007",
+      "date": "2026-11-17"
+    },
+    "renovate-runner.json": {
+      "sha": "a3cc7d6c817f6e4598b213efc8eaef36a544f6cb",
+      "date": "2026-11-17"
+    },
+    "renovate.json": {
+      "sha": "db7eda907fd935ce4a782d66dc60fb4a58507e56",
+      "date": "2026-11-17"
     },
     "scripts/audit-check.py": {
       "sha": "97673b9e35622a6049cab81725d8554754e715b5",
@@ -976,6 +1008,10 @@
     "tools/review-tracking.sh": {
       "sha": "0864c56af83a71932257dcb9dbc6cf1801f698db",
       "date": "2026-10-28"
+    },
+    "tools/source-size-ratchet.py": {
+      "sha": "f07378a356f391be5a6c6d8d949bc1607786c618",
+      "date": "2026-11-17"
     }
   }
 }
