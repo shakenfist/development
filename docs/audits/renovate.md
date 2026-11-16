@@ -234,7 +234,7 @@ the helper is the `pinGitHubActionDigests` entry in
 [`lib/config/presets/internal/helpers.preset.ts`](https://github.com/renovatebot/renovate/blob/83794a8993ff455b106ddf1e23ce4deca3f5277d/lib/config/presets/internal/helpers.preset.ts#L118-L126),
 and the dep type a reference is given is chosen by
 `extractRepositoryAction` in
-[`lib/modules/manager/github-actions/extract.ts`](https://github.com/renovatebot/renovate/blob/83794a8993ff455b106ddf1e23ce4deca3f5277d/lib/modules/manager/github-actions/extract.ts#L111),
+[`lib/modules/manager/github-actions/extract.ts`](https://github.com/renovatebot/renovate/blob/83794a8993ff455b106ddf1e23ce4deca3f5277d/lib/modules/manager/github-actions/extract.ts#L78-L111),
 which says `workflow` when the reference's sub-path matches
 `reusableWorkflowPathRe` and `action` otherwise. Both links are pinned
 to the commit that release was tagged from.

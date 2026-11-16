@@ -78,10 +78,11 @@ include = [
 # tools/source-size-baseline is the source-size ratchet's list of line
 # counts, and the tool owns it: `--update` rewrites the whole file,
 # header included, every time an oversize file shrinks, so a mark on it
-# would be invalidated by edits nobody made by hand. The one hand edit
-# it takes -- raising an entry -- is a one-line diff reviewed in the
-# pull request that grows the file, with the reason in that pull
-# request's description, which is where the judgement lives; a
+# would be invalidated by edits nobody made by hand. The hand edits it
+# takes -- raising an entry, or adding a line for a file that has just
+# crossed the threshold -- are one-line diffs reviewed in the pull
+# request that grows the file, with the reason in that pull request's
+# description, which is where the judgement lives; a
 # whole-file mark on a column of numbers attests to nothing more. A
 # tools/source-size-exclude, if one is ever written, is the opposite
 # case -- hand-written, one reason per line -- and wants an include
