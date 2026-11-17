@@ -873,10 +873,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/renovate.md",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_source_size_ratchet.py",
       "author": "mikal"
     },
@@ -902,14 +898,6 @@
     },
     {
       "path": "scripts/tests/test_metadata.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_packaging_renovate.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_registry.py",
       "author": "mikal"
     },
     {
@@ -1029,14 +1017,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/source-size-ratchet/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/source-size-ratchet",
-      "author": "mikal"
-    },
-    {
       "path": "templates/issue-fix/issue-fix.yml",
       "author": "mikal"
     },
@@ -1065,10 +1045,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates",
-      "author": "mikal"
-    },
-    {
       "path": "README.md",
       "author": "mikal"
     },
@@ -1090,10 +1066,6 @@
     },
     {
       "path": "renovate-runner.json",
-      "author": "mikal"
-    },
-    {
-      "path": "renovate-fleet.json",
       "author": "mikal"
     },
     {
