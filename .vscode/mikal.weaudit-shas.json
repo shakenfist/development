@@ -297,6 +297,10 @@
       "sha": "c58fa988567ea392014294842ae64989649a56f4",
       "date": "2026-10-19"
     },
+    "docs/audits/renovate.md": {
+      "sha": "6311db67dbebff7dde809739470be6a11f0795ee",
+      "date": "2026-11-18"
+    },
     "docs/audits/reusable-workflow-secrets.md": {
       "sha": "2ebc5177a729dd8b6025ea36afdd1b305f7b536f",
       "date": "2026-10-05"
@@ -380,6 +384,10 @@
     "docs/release-automation.md": {
       "sha": "d18b037a6f27400af8a522a4e7d34f5bf23f77c5",
       "date": "2026-11-15"
+    },
+    "renovate-fleet.json": {
+      "sha": "a619c2e140db840e5929c774466d3189385c9d13",
+      "date": "2026-11-18"
     },
     "renovate-runner.json": {
       "sha": "a3cc7d6c817f6e4598b213efc8eaef36a544f6cb",
@@ -653,6 +661,10 @@
       "sha": "3717db8520eaca6d1a1b04880214f823dab1f6c7",
       "date": "2026-11-17"
     },
+    "scripts/tests/test_packaging_renovate.py": {
+      "sha": "56e71a9f78f84b898eae1179db60e8658087bea7",
+      "date": "2026-11-18"
+    },
     "scripts/tests/test_patterns.py": {
       "sha": "4477ff162d7fd9a3ffb14e31b5979850e23e514f",
       "date": "2026-10-21"
@@ -668,6 +680,10 @@
     "scripts/tests/test_python_source.py": {
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",
       "date": "2026-09-04"
+    },
+    "scripts/tests/test_registry.py": {
+      "sha": "29ecfd843f2b0b0453595e42f882eebbf1ee8b7a",
+      "date": "2026-11-18"
     },
     "scripts/tests/test_release.py": {
       "sha": "150cc97f0a03011407dbe46234ff791ae8ea97b6",
@@ -944,6 +960,10 @@
     "templates/shared-blocks/subagent-step-guidance.md": {
       "sha": "add2cdd152a7215c083bdcda91c2cb39d2c4ec8d",
       "date": "2026-09-04"
+    },
+    "templates/source-size-ratchet/README.md": {
+      "sha": "49bc8c98cd30f0fa213b60d90e6b92f210ff8105",
+      "date": "2026-11-18"
     },
     "templates/source-size-ratchet/pre-commit-hook.yaml": {
       "sha": "cca9425843f60ff618d30cc81ade28d39abab977",
