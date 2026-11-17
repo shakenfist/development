@@ -1075,6 +1075,34 @@
     {
       "path": "ARCHITECTURE.md",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_packaging_renovate.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/renovate.md",
+      "author": "mikal"
+    },
+    {
+      "path": "renovate-fleet.json",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_registry.py",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/source-size-ratchet/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/source-size-ratchet",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
