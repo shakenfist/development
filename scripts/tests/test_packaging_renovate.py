@@ -214,11 +214,13 @@ class RenovateFleetPresetTest(CheckTestCase):
 
     def test_the_real_preset_exempts_the_fleets_own_actions(self):
         # Pinning these would freeze each repository on the sha it last
-        # merged and defeat the moving ref PLAN-workflow-ref-trust phase
-        # 2 exists to protect. The dep type names are Renovate's own,
-        # read from lib/modules/manager/github-actions/extract.ts:111 at
-        # 44.227.4: a uses: whose sub-path matches the reusable-workflow
-        # pattern is a 'workflow' and every other reference an 'action'.
+        # merged and defeat the moving ref, which a review ruleset on
+        # shakenfist/actions protects instead of a sha. The dep type
+        # names are Renovate's own, from extractRepositoryAction in
+        # lib/modules/manager/github-actions/extract.ts at 44.227.4
+        # (docs/audits/renovate.md links it): a uses: whose sub-path
+        # matches reusableWorkflowPathRe is a 'workflow' and every
+        # other reference an 'action'.
         rule = self._rule(pinDigests=False)
         self.assertEqual(rule['matchPackageNames'], ['shakenfist/**'])
         self.assertEqual(sorted(rule['matchDepTypes']),

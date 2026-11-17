@@ -94,7 +94,19 @@ whole, so the baseline is exactly the list of files that owe one.
 4. Run `python3 -I tools/source-size-ratchet.py --init`. It writes
    `tools/source-size-baseline` from the current tree, with a header
    explaining what the file is.
-5. Commit all of it in one pull request. The baseline in that pull
+5. If the repository has review tracking deployed (a
+   `.vscode/review-scope.toml`), add `tools/source-size-baseline` to
+   its `exclude` list with a comment saying why: the tool rewrites the
+   whole file on every `--update`, so no mark on it survives, and the
+   hand edits it takes -- raising an entry, or adding a line for a file
+   that has just crossed the threshold -- are one-line diffs reviewed
+   in the pull request that makes them. Left in scope, the baseline
+   sits in the review queue permanently stale. Where `include` lists
+   file extensions, the baseline has none, so no pattern matches it
+   and the review-scope-completeness audit reports it as an orphan
+   instead. A `tools/source-size-exclude` is the opposite case:
+   hand-written reasoning, which wants an `include` entry.
+6. Commit all of it in one pull request. The baseline in that pull
    request is the list of files that already owe a reason; it is a
    starting point, not an endorsement, and nothing about adopting the
    ratchet asks anyone to split them.

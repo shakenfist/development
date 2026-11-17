@@ -1298,14 +1298,14 @@ class ConvergedTemplatesTest(unittest.TestCase):
 
         dtolnay/rust-toolchain takes its toolchain from the ref it is
         used at: on the stable branch the input defaults to stable,
-        and on a bare sha it is required. So the digest pin that
-        PLAN-workflow-ref-trust.md step 3a expects around 2026-11-18
-        must add `with: toolchain: stable` in the same change --
-        Renovate will not -- or the hourly Renovate run fails here and
-        in every fleet repository that copied the template. The
-        reasoning is written out at
-        .github/workflows/renovate-fleet.yml:170-183, where the same
-        reference is pinned by hand with that input.
+        and on a bare sha it is required. The fleet preset extends
+        helpers:pinGitHubActionDigests, so a pin Renovate proposes must
+        add `with: toolchain: stable` in the same change -- Renovate
+        will not -- or the hourly Renovate run fails here and in every
+        fleet repository that copied the template. The reasoning is
+        above the 'Set up Rust for Cargo.lock' step in
+        .github/workflows/renovate-fleet.yml, where the same reference
+        is pinned by hand with that input.
 
         Passes today, while the ref is still a branch; it is the pull
         request carrying the pin that this is here to fail.
