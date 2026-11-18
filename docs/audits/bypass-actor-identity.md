@@ -179,11 +179,11 @@ the reach.
 
 On `shakenfist/development` the key is read by a second job. The
 `push-docs` job of `consistency-audit.yml` mints a token from it to
-land the regenerated `docs/audits/compliance.md` on `main`, because
-`main`'s ruleset requires a pull request, which refuses a push with
+land the regenerated `docs/audits/compliance.md` on `main`, because a
+ruleset requiring a pull request on `main` refuses a push with
 `GITHUB_TOKEN`, and the review-marks App is the one automation identity
-such a ruleset admits as a bypass. Opening a
-weekly pull request for the page was rejected, since the page would
+such a ruleset admits as a bypass. Opening a weekly pull request for
+the page was rejected, since the page would
 stay stale until someone merged it, and so was moving the page off
 `main`, which would break every link to `compliance.md`. What bounds
 this second use is the same thing that bounds the first: the

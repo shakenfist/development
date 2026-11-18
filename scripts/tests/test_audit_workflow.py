@@ -197,6 +197,44 @@ class AuditWorkflowGuardsTest(unittest.TestCase):
             "&& github.ref == 'refs/heads/main' }}",
             keys.get('if'))
 
+    def test_the_pushing_job_gives_github_token_nothing(self):
+        # With no scopes, GITHUB_TOKEN cannot be what pushes, whatever a
+        # later edit to the push step names.
+        self.assertEqual('{}', job_level_keys(self.jobs[PUSHING_JOB]).get('permissions'))
+
+    def test_the_page_is_committed_where_it_was_generated(self):
+        # The page carries the audited commit's copy of its own prose.
+        # Committed on main's tip instead, it would quietly undo any
+        # edit to that prose landed during the run; committed at the
+        # audited commit, the script's rebase carries the edit forward.
+        code = self.code(self.jobs[PUSHING_JOB])
+        self.assertRegex(code, r'checkout --quiet --detach "\$\{GITHUB_SHA\}"')
+
+    def test_the_pushing_job_ignores_the_runner_git_configuration(self):
+        # A hook or url rewrite left in the runner's git configuration
+        # would run, or redirect, with the token in hand.
+        steps = workflow_step_blocks(self.jobs[PUSHING_JOB])
+        for marker in ('git clone', 'scripts/commit-audit-docs.sh'):
+            matching = [step for step in steps if marker in self.code(step)]
+            self.assertEqual(1, len(matching), marker)
+            self.assertRegex(self.code(matching[0]), r'GIT_CONFIG_GLOBAL[=:] ?/dev/null', marker)
+            self.assertRegex(self.code(matching[0]), r"GIT_CONFIG_NOSYSTEM[=:] ?'?1'?", marker)
+
+    def test_the_pushing_job_checks_its_credentials_before_minting(self):
+        # Without a fallback, a missing key or client id should say so
+        # by name, before the token step fails with its own message.
+        steps = workflow_step_blocks(self.jobs[PUSHING_JOB])
+        codes = [self.code(step) for step in steps]
+        minting = [i for i, step in enumerate(steps) if step_action(step) == APP_TOKEN_ACTION][0]
+        key = [i for i, code in enumerate(codes) if "env.HAS_REVIEW_MARKS_KEY != 'true'" in code]
+        client = [i for i, code in enumerate(codes) if "vars.REVIEW_MARKS_APP_CLIENT_ID == ''" in code]
+        self.assertEqual(1, len(key))
+        self.assertEqual(1, len(client))
+        self.assertLess(key[0], minting)
+        self.assertLess(client[0], minting)
+        for index in key + client:
+            self.assertIn('exit 1', codes[index])
+
     def test_the_smoke_job_makes_the_same_assumptions(self):
         # ci.yml's audit-smoke exists to exercise the scheduled run's
         # environment on a pull request, so it drops its checkout

@@ -25,8 +25,9 @@
 TARGET='docs/audits/compliance.md'
 BRANCH='main'
 
-# PUSH_TOKEN is the review-marks App's installation token, the identity
-# main's ruleset admits as its bypass actor, and nothing else will do.
+# PUSH_TOKEN is the review-marks App's installation token, the one
+# automation identity a pull-request ruleset on main admits as its
+# bypass actor, and nothing else will do.
 # There is no fallback to GITHUB_TOKEN, unlike prune-reviews.yml: GitHub
 # does not accept the built-in Actions app as a bypass actor, so once
 # the ruleset requires pull requests a push with GITHUB_TOKEN is

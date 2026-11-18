@@ -276,8 +276,8 @@ the `review-marks` environment on its own ephemeral VM.
 `shakenfist-bot`, in a fresh clone at the commit the audit ran on,
 rebases it in case another push landed while the audit ran, and pushes
 that one file to `main` with a token minted from the
-`shakenfist-review-marks` App. The App is used because `main`'s
-ruleset requires a pull request, which refuses a push with
+`shakenfist-review-marks` App. The App is used because a ruleset
+requiring a pull request on `main` refuses a push with
 `GITHUB_TOKEN`; the script fails rather than fall back to it. It is a
 separate job so that `AUDIT_TOKEN`, held in `audit-write`, and the
 App's key, held in `review-marks`, are never in one job. See

@@ -46,9 +46,10 @@ jobs:
   # checks. A workflow filtered at the trigger never starts, so its
   # required checks never report and the pull request can never
   # merge; a job skipped by its own if: reports skipped, which
-  # satisfies a required check. This is the shape the
-  # expensive-lane-path-filter audit requires of a workflow that backs
-  # one.
+  # satisfies a required check. It is the shape
+  # docs/audits/expensive-lane-path-filter.md sets out for a workflow
+  # that backs one; that criterion measures only vm-runner workflows,
+  # so it does not read this static-runner one.
   #
   # This job must itself be a required check, and is named "CI paths"
   # rather than "Check paths" because a required check matches by name

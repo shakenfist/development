@@ -421,6 +421,16 @@ jobs:
           echo '::error::The review-marks environment holds no REVIEW_MARKS_APP_KEY, so the page cannot be pushed.'
           exit 1
 
+      # The client id is an organisation variable this repository is
+      # given, not something it holds, so it can be withdrawn without
+      # anything here changing. Unlike a secret, vars is available in
+      # a step's if:.
+      - name: Check for the App's client id
+        if: vars.REVIEW_MARKS_APP_CLIENT_ID == ''
+        run: |
+          echo '::error::REVIEW_MARKS_APP_CLIENT_ID is not visible to this repository, so no push token can be minted.'
+          exit 1
+
       # No actions/checkout, as in prune-reviews.yml: nothing in the
       # job reads the workspace, which on a runner that is reused could
       # hold a .git whose hooks or config an earlier job wrote. The

@@ -207,7 +207,11 @@ repos:
         # audit-update-docs.py, audit_snapshot.py, check-audit-smoke.py
         # and review-tracking.py directly. A pattern listing only the
         # package would be narrower than the imports, which is the
-        # drift this hook exists to catch.
+        # drift this hook exists to catch. And not only its Python:
+        # test_commit_audit_docs.py runs scripts/commit-audit-docs.sh,
+        # which pushes the compliance page to main with the bypass
+        # token, so a commit editing only that script must run the
+        # test that pins what it pushes and who sees the token.
         #
         # And this file, because test_hooks.py reads it to check that
         # every suite hook fires on what its suite reads -- including
@@ -223,13 +227,6 @@ repos:
         # shape of every other clause here: the suite reaches into
         # tools/ and the next thing it reaches for should not need a
         # pattern edit nobody remembers to make.
-        #
-        # And all of scripts/ rather than only its Python, because
-        # test_commit_audit_docs.py runs scripts/commit-audit-docs.sh,
-        # which pushes the compliance page to main with the bypass
-        # token. A commit editing only that script is the one that
-        # must run the test that pins what it pushes and who sees the
-        # token.
         #
         # And renovate-fleet.json, because the packaging tests load the
         # real preset and assert that each Renovate check's helper accepts

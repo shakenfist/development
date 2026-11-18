@@ -69,7 +69,8 @@ consistent" into a measurement, in four stages:
    `docs/audits/compliance.md` from the same results, and a separate
    job then runs `scripts/commit-audit-docs.sh` to push it back to
    `main` as the `shakenfist-review-marks` App, the one automation
-   identity `main`'s ruleset admits as a bypass. Generating needs
+   identity a pull-request ruleset on `main` admits as a bypass, which
+   `GITHUB_TOKEN` cannot be. Generating needs
    `AUDIT_TOKEN` and pushing needs the App's key, and the two jobs
    keep those apart. The tables are a rendering of the latest run,
    never hand-maintained.
