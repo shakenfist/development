@@ -207,7 +207,11 @@ repos:
         # audit-update-docs.py, audit_snapshot.py, check-audit-smoke.py
         # and review-tracking.py directly. A pattern listing only the
         # package would be narrower than the imports, which is the
-        # drift this hook exists to catch.
+        # drift this hook exists to catch. And not only its Python:
+        # test_commit_audit_docs.py runs scripts/commit-audit-docs.sh,
+        # which pushes the compliance page to main with the bypass
+        # token, so a commit editing only that script must run the
+        # test that pins what it pushes and who sees the token.
         #
         # And this file, because test_hooks.py reads it to check that
         # every suite hook fires on what its suite reads -- including
@@ -223,6 +227,7 @@ repos:
         # shape of every other clause here: the suite reaches into
         # tools/ and the next thing it reaches for should not need a
         # pattern edit nobody remembers to make.
+        #
         # And renovate-fleet.json, because the packaging tests load the
         # real preset and assert that each Renovate check's helper accepts
         # it on its own. The audit trusts that preset by name for every
@@ -231,7 +236,7 @@ repos:
         # reason: test_hooks.py requires it to be validated by exactly
         # one of the two validator hooks above, and it is the file that
         # decides which repositories the fleet runner touches at all.
-        files: ^(scripts/.*\.py|tools/.*|.*\.md|templates/.*|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml|renovate-fleet\.json|renovate-runner\.json)$
+        files: ^(scripts/.*|tools/.*|.*\.md|templates/.*|\.github/workflows/.*\.ya?ml|\.pre-commit-config\.yaml|renovate-fleet\.json|renovate-runner\.json)$
 
       # The source size ratchet, from templates/source-size-ratchet/.
       # This repository adopts the template it ships because it is in

@@ -263,8 +263,9 @@ jobs:
     permissions:
       contents: read
     steps:
-      # This job does not push either; update-docs below does, so its
-      # checkout keeps the credential.
+      # No job in this workflow pushes with its checkout's credential:
+      # push-docs below lands the page with the review-marks App's
+      # token instead, from a clone of its own.
       - name: Checkout development repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -291,11 +292,21 @@ jobs:
           GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
 
   # Regenerate docs/audits/compliance.md from the JSON results and
-  # commit it back, so the docs cannot drift from what the audit
-  # actually measured. Runs after manage-issues so the issue links in
-  # the tables include issues created by this run. The tables are on
-  # one generated page rather than in the criterion specs so that the
-  # specs, which are hand-written, can hold a human review mark.
+  # hand it to push-docs, which commits it back, so the docs cannot
+  # drift from what the audit actually measured. Runs after
+  # manage-issues so the issue links in the tables include issues
+  # created by this run. The tables are on one generated page rather
+  # than in the criterion specs so that the specs, which are
+  # hand-written, can hold a human review mark.
+  #
+  # Generating and pushing are two jobs because they need two
+  # credentials that should not meet. This job needs AUDIT_TOKEN, to
+  # look up the issue each table links, and that lives in the
+  # audit-write environment. Pushing to main needs the review-marks
+  # App, the identity main's ruleset admits as its bypass actor, and
+  # its key lives in the review-marks environment. A
+  # job is in one environment, and a single job holding both would put
+  # the fleet-wide issue token and the bypass key in one place.
   update-docs:
     name: Update the audit compliance page
     # Every audit leg must have passed, which is a stricter condition
@@ -316,7 +327,9 @@ jobs:
     # away a correct page over a transient GitHub error.
     #
     # Only from main, and in the audit-write environment, as for
-    # manage-issues: a branch's page would otherwise be pushed to main.
+    # manage-issues, whose AUDIT_TOKEN this job needs too. A branch's
+    # page would not be published anyway: push-docs is guarded the
+    # same way.
     if: ${{ !cancelled() && needs.audit.result == 'success' && github.ref == 'refs/heads/main' }}
     environment: audit-write
     needs: [audit, manage-issues]
@@ -325,13 +338,15 @@ jobs:
     runs-on: [self-hosted, vm, debian-13, s]
     timeout-minutes: 60
     permissions:
-      contents: write
+      contents: read
     steps:
-      # persist-credentials stays at its default here, unlike every
-      # other checkout in this file: commit-audit-docs.sh pushes the
-      # page with the GITHUB_TOKEN it leaves in the clone.
+      # This job pushes nothing, so, like every other checkout in this
+      # file, it leaves no credential in the clone for the code it runs
+      # with AUDIT_TOKEN to find.
       - name: Checkout development repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Install gh
         run: sudo apt-get update && sudo apt-get install -y gh
@@ -350,8 +365,137 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AUDIT_TOKEN }}
 
-      - name: Commit and push the updated page
-        run: scripts/commit-audit-docs.sh
+      # Not named audit-*: the download steps above, and a re-run of
+      # one, take every artifact matching that into the results.
+      # push-docs reads it moments later; the retention only has to
+      # cover re-running a failed push-docs.
+      - name: Upload the regenerated page
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: compliance-page
+          path: docs/audits/compliance.md
+          if-no-files-found: error
+          retention-days: 7
+
+  # Commit the page update-docs regenerated and push it to main as the
+  # shakenfist-review-marks GitHub App.
+  push-docs:
+    name: Push the audit compliance page
+    # Only after update-docs succeeded, which already requires every
+    # audit leg to have, and only from main. !cancelled() rather than
+    # the implicit success(), which would also skip this job when
+    # manage-issues failed: update-docs runs regardless of that, for
+    # the reasons given there, and its page should land too.
+    if: ${{ !cancelled() && needs.update-docs.result == 'success' && github.ref == 'refs/heads/main' }}
+    needs: [update-docs]
+    # The App's key is a secret of this environment, whose deployment
+    # branch policy admits main alone, so no other ref's run is given
+    # it. deployment: false keeps these runs out of the repository's
+    # Deployments view, as in prune-reviews.yml.
+    environment:
+      name: review-marks
+      deployment: false
+    # An ephemeral VM, a fresh machine per job, so that nothing an
+    # earlier job ran is still on the machine while this one holds the
+    # App's key and the token minted from it.
+    runs-on: [self-hosted, vm, debian-13, s]
+    # A clone, a download and a push; the VM's boot is not counted.
+    timeout-minutes: 15
+    # Nothing for GITHUB_TOKEN: the App's token carries its own
+    # permissions, which this block does not constrain, and a
+    # GITHUB_TOKEN with none cannot be the one that pushes.
+    permissions: {}
+    env:
+      # Whether the review-marks environment holds the App's key, as
+      # 'true' or 'false'. The secrets context is not available in a
+      # step's if:, so presence is exposed to the first step's guard
+      # this way.
+      HAS_REVIEW_MARKS_KEY: ${{ secrets.REVIEW_MARKS_APP_KEY != '' }}
+    steps:
+      # There is no fallback to GITHUB_TOKEN when the key is missing,
+      # unlike prune-reviews.yml (commit-audit-docs.sh says why), so
+      # say what is wrong before doing any work.
+      - name: Check for the App's key
+        if: env.HAS_REVIEW_MARKS_KEY != 'true'
+        run: |
+          echo '::error::The review-marks environment holds no REVIEW_MARKS_APP_KEY, so the page cannot be pushed.'
+          exit 1
+
+      # The client id is an organisation variable this repository is
+      # given, not something it holds, so it can be withdrawn without
+      # anything here changing. Unlike a secret, vars is available in
+      # a step's if:.
+      - name: Check for the App's client id
+        if: vars.REVIEW_MARKS_APP_CLIENT_ID == ''
+        run: |
+          echo '::error::REVIEW_MARKS_APP_CLIENT_ID is not visible to this repository, so no push token can be minted.'
+          exit 1
+
+      # No actions/checkout, as in prune-reviews.yml: nothing in the
+      # job reads the workspace, which on a runner that is reused could
+      # hold a .git whose hooks or config an earlier job wrote. The
+      # script and the tree it commits in come from a fresh clone in
+      # RUNNER_TEMP, made ignoring the runner's git configuration and
+      # any repository above RUNNER_TEMP, in a step without the token.
+      # The clone is checked out at the commit this run audited, which
+      # is the one update-docs generated the page from, rather than at
+      # main's tip: the page carries that commit's copy of its own
+      # prose, and committed on top of a newer main it would silently
+      # undo any edit to that prose landed during the run. Committed
+      # where it was generated, commit-audit-docs.sh's rebase brings
+      # such an edit along, or stops on it. A full clone, so that the
+      # rebase can find where main has moved from. The repository is
+      # public, so the clone needs no credentials.
+      - name: Fetch the commit the page was generated from
+        working-directory: ${{ runner.temp }}
+        run: >-
+          rm -rf audit-docs &&
+          GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+          GIT_CEILING_DIRECTORIES="$(dirname "${RUNNER_TEMP}")"
+          git clone --quiet --branch main
+          "https://github.com/${GITHUB_REPOSITORY}" audit-docs &&
+          GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+          git -C audit-docs checkout --quiet --detach "${GITHUB_SHA}"
+
+      - name: Download the regenerated page
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: compliance-page
+          path: ${{ runner.temp }}/compliance-page
+
+      # Mint an installation token for the App, per run, limited to this
+      # repository and to contents: write, and revoked by the action
+      # when the job ends. Last before the push, so that no earlier step
+      # runs while it exists. There is no owner or repositories input,
+      # on purpose: the App is installed on several repositories, and
+      # naming the owner would widen the token to all of them, whereas
+      # with neither set it is limited to this one. The action is pinned
+      # to a commit, the same one prune-reviews.yml uses, because this
+      # step handles the key of the identity that bypasses the ruleset,
+      # and a moved tag would hand that key to whatever the tag then
+      # named. The vm runners set a proxy in the environment, and the
+      # action refuses to start while one is set unless Node.js is told
+      # to honour it; NODE_USE_ENV_PROXY does that.
+      - name: Mint the push token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        env:
+          NODE_USE_ENV_PROXY: '1'
+        with:
+          client-id: ${{ vars.REVIEW_MARKS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.REVIEW_MARKS_APP_KEY }}
+          permission-contents: write
+
+      # The App's token alone, with no || github.token: see
+      # commit-audit-docs.sh, which fails if it is empty. The runner's
+      # git configuration is ignored here too, as for the clone.
+      - name: Commit and push the regenerated page
+        working-directory: ${{ runner.temp }}/audit-docs
+        env:
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: '1'
+          PUSH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: scripts/commit-audit-docs.sh "${RUNNER_TEMP}/compliance-page/compliance.md"
 
   # A scheduled workflow that fails emails whoever last pushed, which
   # is nobody's inbox in particular and is easy to miss for a workflow
@@ -367,7 +511,7 @@ jobs:
   # says is failing.
   report-failure:
     name: Report audit failure
-    needs: [audit, manage-issues, update-docs]
+    needs: [audit, manage-issues, update-docs, push-docs]
     if: ${{ failure() && github.ref == 'refs/heads/main' }}
     runs-on: [self-hosted, static]
     timeout-minutes: 10

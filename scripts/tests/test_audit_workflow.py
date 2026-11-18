@@ -6,7 +6,7 @@ The audit workflow holds a token that files and closes issues across
 the organisation and pushes to this repository, and runs checks over
 files every audited repository controls. What keeps those two apart
 is a handful of lines: which secret each step names, which jobs run
-only from main, which checkout keeps its credential. Each is the kind
+only from main, which identity pushes the page. Each is the kind
 of line a tidy-up removes without anything else noticing -- actionlint
 is happy either way, and so is every run until the one that matters --
 so these read the workflow and say which guard went.
@@ -22,22 +22,27 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.text.workflows import (  # noqa: E402
-    job_level_keys, parse_runner_labels, step_action, step_with_inputs,
-    strip_yaml_comments, workflow_job_blocks, workflow_step_blocks,
+    job_environment, job_level_keys, parse_runner_labels, step_action, step_uses,
+    step_with_inputs, strip_yaml_comments, workflow_job_blocks, workflow_step_blocks,
 )
 from tests.base import repo_text  # noqa: E402
 
 WORKFLOW = '.github/workflows/consistency-audit.yml'
 
-# The jobs that write: issues across the fleet, the compliance page on
-# main, and the audit-failure issue here.
-WRITING_JOBS = ('manage-issues', 'update-docs', 'report-failure')
+# The jobs that write, or hand what they generate to one that does:
+# issues across the fleet, the compliance page on main, and the
+# audit-failure issue here.
+WRITING_JOBS = ('manage-issues', 'update-docs', 'push-docs', 'report-failure')
 
 # The only jobs that may hold the writing token.
 AUDIT_TOKEN_JOBS = ('manage-issues', 'update-docs')
 
-# The only job that pushes, so the only checkout that keeps its credential.
-PUSHING_JOBS = ('update-docs',)
+# The only job that pushes, as the review-marks App: main's ruleset
+# admits that App as its bypass actor, and GitHub will not admit
+# GITHUB_TOKEN as one.
+PUSHING_JOB = 'push-docs'
+APP_KEY_ENVIRONMENT = 'review-marks'
+APP_TOKEN_ACTION = 'actions/create-github-app-token'
 
 MAIN_ONLY = "github.ref == 'refs/heads/main'"
 
@@ -121,10 +126,11 @@ class AuditWorkflowGuardsTest(unittest.TestCase):
                 terms = [term.strip() for term in condition.split('&&')]
                 self.assertIn(MAIN_ONLY, terms)
 
-    def test_only_the_pushing_job_keeps_its_checkout_credential(self):
-        # Every other job runs code with a token in its environment and
-        # pushes nothing, so it has no use for a credential left in
-        # .git/config.
+    def test_no_checkout_keeps_its_credential(self):
+        # Every job that checks out runs code with a token in its
+        # environment and pushes nothing, so it has no use for a
+        # credential left in .git/config. The one job that pushes does
+        # so with the App's token, from a clone of its own.
         keeping = set()
         for name, body in self.jobs.items():
             for step in workflow_step_blocks(body):
@@ -132,7 +138,102 @@ class AuditWorkflowGuardsTest(unittest.TestCase):
                     continue
                 if step_with_inputs(step).get('persist-credentials') != 'false':
                     keeping.add(name)
-        self.assertEqual(sorted(keeping), sorted(PUSHING_JOBS))
+        self.assertEqual(sorted(keeping), [])
+
+    def test_only_the_pushing_job_holds_the_app_key(self):
+        holders = sorted(
+            name for name, body in self.jobs.items()
+            if re.search(r'secrets\.REVIEW_MARKS_APP_KEY\b', self.code(body))
+        )
+        self.assertEqual(holders, [PUSHING_JOB])
+        self.assertEqual(sorted(
+            name for name, body in self.jobs.items()
+            if job_environment(body) == APP_KEY_ENVIRONMENT
+        ), [PUSHING_JOB])
+
+    def test_the_pushing_job_runs_on_an_ephemeral_runner_without_a_checkout(self):
+        # The App's key bypasses main's ruleset. On a static runner,
+        # or reading a workspace an earlier job could have left a .git
+        # in, something else could run with it.
+        body = self.jobs[PUSHING_JOB]
+        labels = parse_runner_labels(job_level_keys(body).get('runs-on', ''))
+        self.assertIsNotNone(labels)
+        self.assertIn(EPHEMERAL_RUNNER, labels)
+        self.assertNotIn(SHARED_RUNNER, labels)
+        actions = [step_action(step) for step in workflow_step_blocks(body)]
+        self.assertNotIn('actions/checkout', actions)
+
+    def test_the_page_is_pushed_with_the_app_token_alone(self):
+        # A fallback to github.token would be refused by the ruleset,
+        # with a message about rules rather than the missing key.
+        body = self.jobs[PUSHING_JOB]
+        self.assertNotIn('github.token', self.code(body))
+        self.assertNotIn('GITHUB_TOKEN', self.code(body))
+        steps = workflow_step_blocks(body)
+        minting = [step for step in steps if step_action(step) == APP_TOKEN_ACTION]
+        self.assertEqual(1, len(minting))
+        # Pinned to a commit: a moved tag would be handed the key.
+        self.assertRegex(step_uses(minting[0]), r'@[0-9a-f]{40}$')
+        inputs = step_with_inputs(minting[0])
+        self.assertEqual(inputs.get('permission-contents'), 'write')
+        # Either would widen the token to every repository the App is
+        # installed on.
+        self.assertNotIn('owner', inputs)
+        self.assertNotIn('repositories', inputs)
+        pushing = [step for step in steps if 'scripts/commit-audit-docs.sh' in self.code(step)]
+        self.assertEqual(1, len(pushing))
+        self.assertIn('PUSH_TOKEN: ${{ steps.app-token.outputs.token }}\n', self.code(pushing[0]))
+
+    def test_the_pushing_job_needs_the_page_but_not_issue_success(self):
+        # As update-docs does not wait for manage-issues' success, so
+        # neither does this: the implicit success() would skip it when
+        # manage-issues failed, throwing a correct page away over one
+        # refused issue write. Pinned exactly, as test_registry.py pins
+        # the other jobs' gates.
+        keys = job_level_keys(self.jobs[PUSHING_JOB])
+        self.assertEqual('[update-docs]', keys.get('needs'))
+        self.assertEqual(
+            "${{ !cancelled() && needs.update-docs.result == 'success' "
+            "&& github.ref == 'refs/heads/main' }}",
+            keys.get('if'))
+
+    def test_the_pushing_job_gives_github_token_nothing(self):
+        # With no scopes, GITHUB_TOKEN cannot be what pushes, whatever a
+        # later edit to the push step names.
+        self.assertEqual('{}', job_level_keys(self.jobs[PUSHING_JOB]).get('permissions'))
+
+    def test_the_page_is_committed_where_it_was_generated(self):
+        # The page carries the audited commit's copy of its own prose.
+        # Committed on main's tip instead, it would quietly undo any
+        # edit to that prose landed during the run; committed at the
+        # audited commit, the script's rebase carries the edit forward.
+        code = self.code(self.jobs[PUSHING_JOB])
+        self.assertRegex(code, r'checkout --quiet --detach "\$\{GITHUB_SHA\}"')
+
+    def test_the_pushing_job_ignores_the_runner_git_configuration(self):
+        # A hook or url rewrite left in the runner's git configuration
+        # would run, or redirect, with the token in hand.
+        steps = workflow_step_blocks(self.jobs[PUSHING_JOB])
+        for marker in ('git clone', 'scripts/commit-audit-docs.sh'):
+            matching = [step for step in steps if marker in self.code(step)]
+            self.assertEqual(1, len(matching), marker)
+            self.assertRegex(self.code(matching[0]), r'GIT_CONFIG_GLOBAL[=:] ?/dev/null', marker)
+            self.assertRegex(self.code(matching[0]), r"GIT_CONFIG_NOSYSTEM[=:] ?'?1'?", marker)
+
+    def test_the_pushing_job_checks_its_credentials_before_minting(self):
+        # Without a fallback, a missing key or client id should say so
+        # by name, before the token step fails with its own message.
+        steps = workflow_step_blocks(self.jobs[PUSHING_JOB])
+        codes = [self.code(step) for step in steps]
+        minting = [i for i, step in enumerate(steps) if step_action(step) == APP_TOKEN_ACTION][0]
+        key = [i for i, code in enumerate(codes) if "env.HAS_REVIEW_MARKS_KEY != 'true'" in code]
+        client = [i for i, code in enumerate(codes) if "vars.REVIEW_MARKS_APP_CLIENT_ID == ''" in code]
+        self.assertEqual(1, len(key))
+        self.assertEqual(1, len(client))
+        self.assertLess(key[0], minting)
+        self.assertLess(client[0], minting)
+        for index in key + client:
+            self.assertIn('exit 1', codes[index])
 
     def test_the_smoke_job_makes_the_same_assumptions(self):
         # ci.yml's audit-smoke exists to exercise the scheduled run's

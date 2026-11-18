@@ -66,9 +66,14 @@ consistent" into a measurement, in four stages:
    failing check, closing issues for checks that now pass or no longer
    apply. Issue titles are the idempotency key.
 3. `scripts/audit-update-docs.py` regenerates
-   `docs/audits/compliance.md` from the same results, and
-   `scripts/commit-audit-docs.sh` pushes them back to `main`. The
-   tables are a rendering of the latest run, never hand-maintained.
+   `docs/audits/compliance.md` from the same results, and a separate
+   job then runs `scripts/commit-audit-docs.sh` to push it back to
+   `main` as the `shakenfist-review-marks` App, the one automation
+   identity a pull-request ruleset on `main` admits as a bypass, which
+   `GITHUB_TOKEN` cannot be. Generating needs
+   `AUDIT_TOKEN` and pushing needs the App's key, and the two jobs
+   keep those apart. The tables are a rendering of the latest run,
+   never hand-maintained.
 4. On failure, a reporting job files or updates an `audit-failure`
    issue here -- because while the pipeline is down the tables keep
    showing the previous run's verdicts, so a broken audit looks like a
