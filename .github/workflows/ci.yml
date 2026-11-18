@@ -84,26 +84,20 @@ jobs:
       # fork's file content never reaches this long-lived static
       # runner at all.
       #
-      # The step is skipped on workflow_dispatch, which has no pull
-      # request payload for the action to read; the output above then
-      # falls back to 'true', so a dispatched run (which is how
-      # pr-retest.yml re-runs this workflow) runs everything.
+      # The step runs only on pull_request, the one event here with a
+      # pull request payload for the action to read. On any other, such
+      # as workflow_dispatch (which is how pr-retest.yml re-runs this
+      # workflow), the output above falls back to 'true' and everything
+      # runs.
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
         id: filter
-        if: github.event_name != 'workflow_dispatch'
+        if: github.event_name == 'pull_request'
         with:
-          # By default a file matches if it matches at least one
-          # listed pattern, which makes '**' match everything and
-          # silently defeats every '!' exclusion below.
-          # 'some-with-excludes' means a file is code if it matches
-          # any inclusion and no exclusion, which is both what is
-          # meant here and what stays correct if a second inclusion is
-          # ever added. ('every' also behaves correctly today, but
-          # only because there is exactly one positive pattern: it
-          # requires a file to match ALL of them, so adding a second
-          # inclusion would silently turn this into an intersection
-          # matching almost nothing.)
-          predicate-quantifier: 'some-with-excludes'
+          # The default quantifier is 'some', under which the bare '**'
+          # already matches and every '!' exclusion is a no-op. 'every'
+          # is what makes the exclusions work, as in
+          # codeql-analysis.yml.
+          predicate-quantifier: 'every'
           # The scope config is deliberately not excluded: it decides
           # what is reviewed at all, so a change to it is linted and
           # reviewed like code (review-scope-ci in the audit checks

@@ -244,13 +244,14 @@ and only `runner.temp` is emptied between jobs. Code an audit leg runs
 -- skillsaw's unpinned dependencies, or anything an audited repository
 can steer -- could leave something in that user's home directory (a
 `.pth` file in the user site-packages, a `~/.gitconfig` hook) for a
-later job there to run. So `manage-issues` and `update-docs` run on
-ephemeral `[self-hosted, vm, debian-13, s]` runners instead: each
-starts from the image and is thrown away after one job, so nothing a
-leg wrote reaches a job holding `AUDIT_TOKEN`. The image has no `gh`,
-so both jobs install it from Debian first.
-`scripts/tests/test_audit_workflow.py` fails if either job moves back
-to `static`.
+later job there to run. So `manage-issues`, `update-docs` and
+`push-docs` run on ephemeral `[self-hosted, vm, debian-13, s]`
+runners instead: each starts from the image and is thrown away after
+one job, so nothing a leg wrote reaches a job holding `AUDIT_TOKEN` or
+the review-marks App's key. The image has no `gh`, so the two jobs
+that use it install it from Debian first.
+`scripts/tests/test_audit_workflow.py` fails if any of the three
+moves back to `static`.
 
 Within a leg, the isolation is weaker. skillsaw runs as the same user
 as `audit-check.py`, so taking the token out of its environment is
@@ -281,6 +282,13 @@ ruleset requires a pull request, which refuses a push with
 separate job so that `AUDIT_TOKEN`, held in `audit-write`, and the
 App's key, held in `review-marks`, are never in one job. See
 [bypass-actor-identity.md](audits/bypass-actor-identity.md).
+
+If the rebase stops -- a pull request merged during the run changed
+the same lines of the page, which in practice means its hand-written
+prose next to a table that also changed -- `push-docs` fails, nothing
+is pushed, and `report-failure` files its issue. Nothing is lost: the
+next run regenerates the tables over the merged prose, so a re-run
+by hand once the cause is understood is the whole fix.
 
 It writes that page and nothing else. The criterion specifications are
 hand-written, and are in scope for whole-file human review because of
