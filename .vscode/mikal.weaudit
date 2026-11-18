@@ -1043,6 +1043,74 @@
     {
       "path": "templates/source-size-ratchet",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/commit-audit-docs.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_commit_audit_docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/consistency-audit.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/moving-ref-source-protection.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consistency-audits.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_audit_workflow.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_registry.py",
+      "author": "mikal"
+    },
+    {
+      "path": ".pre-commit-config.yaml",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/bypass-actor-identity.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/review-tracking/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/review-tracking",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_ci_workflow_guards.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

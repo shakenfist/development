@@ -33,9 +33,17 @@
       "sha": "63b5043da65a8228e4c56540364b6a253ef14cbe",
       "date": "2026-09-01"
     },
+    ".github/workflows/ci.yml": {
+      "sha": "9ab6e13ac54ca2113b44483d0932d176e328d895",
+      "date": "2026-11-19"
+    },
     ".github/workflows/codeql-analysis.yml": {
       "sha": "f9e0c8a01e5341267947151fefab721c5a7a3842",
       "date": "2026-11-16"
+    },
+    ".github/workflows/consistency-audit.yml": {
+      "sha": "a54e4f27524c630f16e8c56166cf6f47ca9a1c69",
+      "date": "2026-11-19"
     },
     ".github/workflows/export-repo-config.yml": {
       "sha": "b9b3936053b8685ef0ae47f656b2f35aa62ba637",
@@ -77,9 +85,17 @@
       "sha": "26a19958e61609c60e1b721594ab8151ddf1634f",
       "date": "2026-09-04"
     },
+    ".pre-commit-config.yaml": {
+      "sha": "eb799aa90448ef1e0cace57e1b9f2fa0b572a6d3",
+      "date": "2026-11-19"
+    },
     "AGENTS.md": {
       "sha": "f764b451e7387863708f2a6732336a9b497d9571",
       "date": "2026-11-17"
+    },
+    "ARCHITECTURE.md": {
+      "sha": "a89d3b85cd10f4d24b28af57cad380570e0dc4ef",
+      "date": "2026-11-19"
     },
     "PLAN-TEMPLATE.md": {
       "sha": "2586a6e49881abcb8c0a00414eac30364bd53da7",
@@ -96,6 +112,10 @@
     "docs/audits/README.md": {
       "sha": "b33966d094e62a1f1822539f0b24b949a496996f",
       "date": "2026-11-15"
+    },
+    "docs/audits/bypass-actor-identity.md": {
+      "sha": "305df37d99d84ef7a729a1dfbb523940bc985ed2",
+      "date": "2026-11-19"
     },
     "docs/audits/ci-review-automation.md": {
       "sha": "ceb7b6ba2ae57439dc519581f22e8e98530816a8",
@@ -184,6 +204,10 @@
     "docs/audits/mermaid-lint-ci.md": {
       "sha": "820c00c1669077d5e07e65439a01cdc3986c7178",
       "date": "2026-10-19"
+    },
+    "docs/audits/moving-ref-source-protection.md": {
+      "sha": "2b1159fdf2990920fc365bacfb284d8c33f9794a",
+      "date": "2026-11-19"
     },
     "docs/audits/npm-pin-indirect-dependencies.md": {
       "sha": "38d030fe3fc547238a6109e280051312e4585532",
@@ -349,6 +373,10 @@
       "sha": "1ee271d86e8ce08b67f8632508b8386453b37c38",
       "date": "2026-11-01"
     },
+    "docs/consistency-audits.md": {
+      "sha": "965efc8b6c83e311e4318e7942063a0188e44daa",
+      "date": "2026-11-19"
+    },
     "docs/plan-retirement.md": {
       "sha": "a1ab4ab7462319b8fec4490c3cbfcf674bda8645",
       "date": "2026-11-15"
@@ -513,6 +541,10 @@
       "sha": "016f302a2d95f8b6a35e50b677ca86429711886a",
       "date": "2026-10-21"
     },
+    "scripts/commit-audit-docs.sh": {
+      "sha": "98016e7b74dc2bb9b49e041a0e26804b9f20b670",
+      "date": "2026-11-19"
+    },
     "scripts/renovate-check-push.py": {
       "sha": "0ba9d504f6d625f4217440c7b238adc642ff9452",
       "date": "2026-11-15"
@@ -553,6 +585,10 @@
       "sha": "0419d4a8d18b67b54dc834a7387eccbb956489eb",
       "date": "2026-10-18"
     },
+    "scripts/tests/test_audit_workflow.py": {
+      "sha": "ecff5bd6182c8b67e337e5fea1768c4d30075524",
+      "date": "2026-11-19"
+    },
     "scripts/tests/test_base.py": {
       "sha": "cc3c41987d8ea8882339c2485dccdf3c8d862c88",
       "date": "2026-11-17"
@@ -569,9 +605,17 @@
       "sha": "60456392d2699d3adbfeb64edf75fef172440015",
       "date": "2026-11-15"
     },
+    "scripts/tests/test_ci_workflow_guards.py": {
+      "sha": "139b40300dfb44465bfd10408f57aa378f722ed2",
+      "date": "2026-11-19"
+    },
     "scripts/tests/test_ci_workflows.py": {
       "sha": "5faeedf2abf5f340bb0c6e3c6a516e352ccc8f7b",
       "date": "2026-10-31"
+    },
+    "scripts/tests/test_commit_audit_docs.py": {
+      "sha": "d3cf931caef51117d81e6e2771ced6606cd01d75",
+      "date": "2026-11-19"
     },
     "scripts/tests/test_containment.py": {
       "sha": "3cec7ccb87046ee2bf25de3492ae71efcb605570",
@@ -644,6 +688,10 @@
     "scripts/tests/test_python_source.py": {
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",
       "date": "2026-09-04"
+    },
+    "scripts/tests/test_registry.py": {
+      "sha": "ff589d6e8ecfa42c2d049d6ce9c145f57fcd6862",
+      "date": "2026-11-19"
     },
     "scripts/tests/test_release.py": {
       "sha": "150cc97f0a03011407dbe46234ff791ae8ea97b6",
@@ -820,6 +868,10 @@
     "templates/renovate/renovate.yml": {
       "sha": "d545d6072a11ee5ecdcaf01cb23aba1879b241d4",
       "date": "2026-11-17"
+    },
+    "templates/review-tracking/README.md": {
+      "sha": "ee7f765242d5186a35289b582e5db25ea4c95f12",
+      "date": "2026-11-19"
     },
     "templates/review-tracking/ci-prune-reviews.sh": {
       "sha": "3c00a9489c0b571bfdd0d1f1170344cfc33b44ff",
