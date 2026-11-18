@@ -273,7 +273,7 @@ re-synced.
 |---------|----------------|-----------|
 | [actions](https://github.com/shakenfist/actions) | `main` | App |
 | [andris](https://github.com/shakenfist/andris) | `develop` | App |
-| [development](https://github.com/shakenfist/development) | `main` | `GITHUB_TOKEN` |
+| [development](https://github.com/shakenfist/development) | `main` | App |
 | [hunkydory](https://github.com/shakenfist/hunkydory) | `develop` | App |
 | [kerbside](https://github.com/shakenfist/kerbside) | `develop` | App |
 | [kerbside-client](https://github.com/shakenfist/kerbside-client) | `develop` | `GITHUB_TOKEN` |
