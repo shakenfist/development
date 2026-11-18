@@ -1096,12 +1096,12 @@ class AuditWorkflowGatesTest(unittest.TestCase):
 
     Each gate fails quietly in one direction. manage-issues waiting on
     every audit leg stops issue filing fleet-wide over one timeout.
-    update-docs without the audit condition commits a page of
+    update-docs without the audit condition publishes a page of
     `unknown` verdicts for a leg that failed, and update-docs waiting
     on manage-issues' success throws away a correct page over one
     refused issue write. Pinned as exact strings so that changing one
     is a decision made by editing this test. The main-only term each
-    carries is test_audit_workflow.py's to explain.
+    carries, and push-docs' gate, are test_audit_workflow.py's.
     """
 
     WORKFLOW = os.path.join('.github', 'workflows', 'consistency-audit.yml')
@@ -1126,7 +1126,7 @@ class AuditWorkflowGatesTest(unittest.TestCase):
 
     def test_a_failure_anywhere_is_reported(self):
         keys = self.keys('report-failure')
-        self.assertEqual('[audit, manage-issues, update-docs]',
+        self.assertEqual('[audit, manage-issues, update-docs, push-docs]',
                          keys.get('needs'))
         self.assertEqual(
             "${{ failure() && github.ref == 'refs/heads/main' }}",
