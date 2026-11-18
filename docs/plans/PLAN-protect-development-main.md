@@ -461,6 +461,24 @@ next push to main.
   filter that errors costs a full run instead of a skip; and the
   `paths-filter` pin is this repository's own from
   `codeql-analysis.yml`, because `actions` refers to `@v4` by tag.
+* Step 1b changed nothing: no document in this repository described
+  its own `ci.yml` as filtered at the trigger. The `paths-ignore`
+  advice in `docs/code-review-tracking.md` is adoption guidance for
+  other repositories, which `expensive-lane-path-filter` already
+  qualifies for workflows backing required checks.
+* Step 2a went beyond its brief in three ways, all kept. `push-docs`
+  commits in a clone checked out at the audited commit rather than at
+  `main`'s tip, because the page carries that commit's copy of its own
+  hand-written prose and would otherwise undo an edit landed during
+  the run; the rebase then carries such an edit forward. It changed
+  the workflow guard tests (`test_audit_workflow.py`,
+  `test_registry.py`) to pin the new job's key, runner, token and
+  gate, with four workflow mutations each caught. And
+  `commit-audit-docs.sh` runs from a function called on its last line,
+  because the rebase rewrites the clone the script runs from. The
+  script was exercised against a local bare repository standing in for
+  GitHub: missing or empty token, missing page, an unchanged page, and
+  a concurrent prose edit, with the token seen only by `git push`.
 
 ### Phase 1: CI that reports on every pull request
 
