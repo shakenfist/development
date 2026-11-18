@@ -212,8 +212,8 @@ identity in #352.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. CI that reports on every pull request | Not started | |
-| 2. Push identities for automated writers | Not started | |
+| 1. CI that reports on every pull request | In progress | |
+| 2. Push identities for automated writers | In progress | |
 | 3. Apply the ruleset | Not started | |
 | 4. Measure it | Not started | |
 | 5. Push audit | Not started | |
