@@ -439,6 +439,29 @@ header count, so a phase that adds or removes an in-scope file needs
 no regeneration commit; `prune-reviews` corrects the count on the
 next push to main.
 
+### Execution notes
+
+* 2026-11-18 (AEDT): phases 1 and 2 land together in one pull request
+  from `protect-development-main`, at Mikal's choice in the back
+  brief, so both phases' `Merged` cells will record the same merge
+  commit. This session may push and open that pull request.
+* Phase 2's operator steps were done on 2026-11-18: the App was
+  installed on this repository and `REVIEW_MARKS_APP_KEY` set in
+  `review-marks`. `REVIEW_MARKS_APP_CLIENT_ID` needed no setting: it
+  is an organisation variable this repository already sees. A
+  dispatched `prune-reviews` run, 44154156673, showed `Mint the push
+  token` as `success` (it was `skipped` in 44094308347); it had
+  nothing to push, so the first App push is still to come.
+* Steps ran in sequence in this worktree rather than 2a in an
+  isolated worktree: every step runs `pre-commit` in the same tree.
+* Step 1a departed from its brief in two ways, both kept and both
+  corrected in the brief above: the gated jobs fail open
+  (`!cancelled() && ... != 'false'`, as `actions` and
+  `codeql-analysis.yml` do) rather than testing `== 'true'`, so a
+  filter that errors costs a full run instead of a skip; and the
+  `paths-filter` pin is this repository's own from
+  `codeql-analysis.yml`, because `actions` refers to `@v4` by tag.
+
 ### Phase 1: CI that reports on every pull request
 
 Planning effort: medium -- `shakenfist/actions`' `ci.yml` is the
@@ -450,7 +473,7 @@ or skipped.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 1a | high | opus | none | In `.github/workflows/ci.yml`, remove the `paths-ignore` list from the `pull_request` trigger and add a first job `ci_paths`, named `CI paths` (not `Check paths`: `codeql-analysis.yml` already has a job of that name and a required context matches by name). Mirror `check_paths` in `shakenfist/actions`' `.github/workflows/ci.yml` (read it with `gh api repos/shakenfist/actions/contents/.github/workflows/ci.yml --jq .content \| base64 -d`): static runner, `permissions: pull-requests: read`, no checkout, `dorny/paths-filter` pinned to the same commit and comment form that file uses, an output that defaults to `'true'` when the filter step yields nothing (so `workflow_dispatch`, which has no pull request, runs everything). The filter's "code" set is everything except `REVIEWS.md`, `.vscode/*.weaudit` and `.vscode/*.weaudit-shas.json` -- exactly the three patterns being removed, and not `.vscode/review-scope.toml`, which the existing comment says is deliberately linted. Gate `lint-and-test` and `audit-smoke` on it with `needs:` and `if: needs.ci_paths.outputs.code_changed == 'true'`; `automated_reviewer` already needs both and so skips with them. Move the existing trigger comment's reasoning to the new job, and add a sentence saying why the filter job must itself be a required check (a failed filter skips the gated jobs, and a skipped required check passes). Keep every existing comment that is still true. Run `pre-commit run --all-files` (actionlint covers the workflow) and `python3 scripts/audit-check.py --repo-path . --repo-name development`, and confirm `expensive-lane-path-filter` and `ci-workflow`-family verdicts for this repository are unchanged or better; report any that moved. |
+| 1a | high | opus | none | In `.github/workflows/ci.yml`, remove the `paths-ignore` list from the `pull_request` trigger and add a first job `ci_paths`, named `CI paths` (not `Check paths`: `codeql-analysis.yml` already has a job of that name and a required context matches by name). Mirror `check_paths` in `shakenfist/actions`' `.github/workflows/ci.yml` (read it with `gh api repos/shakenfist/actions/contents/.github/workflows/ci.yml --jq .content \| base64 -d`): static runner, `permissions: pull-requests: read`, no checkout, `dorny/paths-filter` pinned to the commit `codeql-analysis.yml` in this repository uses (`actions` refers to it by tag), an output that defaults to `'true'` when the filter step yields nothing (so `workflow_dispatch`, which has no pull request, runs everything). The filter's "code" set is everything except `REVIEWS.md`, `.vscode/*.weaudit` and `.vscode/*.weaudit-shas.json` -- exactly the three patterns being removed, and not `.vscode/review-scope.toml`, which the existing comment says is deliberately linted. Gate `lint-and-test` and `audit-smoke` on it with `needs:` and `if: !cancelled() && needs.ci_paths.outputs.code_changed != 'false'`, so that a filter that errors runs the gates rather than skipping them; `automated_reviewer` already needs both and so skips with them. Move the existing trigger comment's reasoning to the new job, and add a sentence saying why the filter job must itself be a required check (a failed filter skips the gated jobs, and a skipped required check passes). Keep every existing comment that is still true. Run `pre-commit run --all-files` (actionlint covers the workflow) and `python3 scripts/audit-check.py --repo-path . --repo-name development`, and confirm `expensive-lane-path-filter` and `ci-workflow`-family verdicts for this repository are unchanged or better; report any that moved. |
 | 1b | medium | sonnet | none | Document the new shape where this repository describes its own CI: find it with `grep -rn "paths-ignore\|ci.yml" docs/ AGENTS.md`, and update any statement that review-only pull requests do not start `ci.yml` -- they now start it and skip its jobs. Do not touch `docs/audits/compliance.md` or `REVIEWS.md`. |
 
 Verification before this phase is done, recorded here: on the phase's
