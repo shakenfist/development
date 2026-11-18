@@ -18,34 +18,117 @@
 # Two gate jobs, because the two failures are different. Lint and tests
 # cover the scripts; the audit smoke run covers the workflow's own
 # runtime assumptions, which no amount of linting reaches. The
-# automated reviewer at the bottom is gated on both.
+# automated reviewer at the bottom is gated on both. A path filter job
+# in front of the two decides whether a pull request needs them at
+# all.
 name: CI
 
 on:
   pull_request:
-    # A review session or a bot prune changes only review state, and
-    # no job here reads any of it: the lint and test jobs cover the
-    # scripts, and the smoke job exercises the audit workflow's
-    # runtime assumptions. Nothing in this workflow scans content, so
-    # nothing is lost by skipping. That last point is now settled
-    # rather than pending: the secret scanner lives in its own
-    # secret-scan.yml with no path filter, precisely so it keeps
-    # reading review notes and the rest of the prose, so this list can
-    # stay as it is. The scope config is deliberately not listed: it
-    # decides what is reviewed at all, so a change to it is linted and
-    # reviewed like code (review-scope-ci in the audit checks this).
-    paths-ignore:
-      - 'REVIEWS.md'
-      - '.vscode/*.weaudit'
-      - '.vscode/*.weaudit-shas.json'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  # Whether this pull request needs the two gate jobs below. A review
+  # session or a bot prune changes only review state, and no job here
+  # reads any of it: the lint and test jobs cover the scripts, and the
+  # smoke job exercises the audit workflow's runtime assumptions.
+  # Nothing in this workflow scans content, so nothing is lost by
+  # skipping. That last point is settled rather than pending: the
+  # secret scanner lives in its own secret-scan.yml with no path
+  # filter, precisely so it keeps reading review notes and the rest of
+  # the prose, so this list can stay as it is.
+  #
+  # The filter is a job rather than a paths-ignore list on the
+  # pull_request trigger because the jobs here back required status
+  # checks. A workflow filtered at the trigger never starts, so its
+  # required checks never report and the pull request can never
+  # merge; a job skipped by its own if: reports skipped, which
+  # satisfies a required check. This is the shape the
+  # expensive-lane-path-filter audit requires of a workflow that backs
+  # one.
+  #
+  # This job must itself be a required check, and is named "CI paths"
+  # rather than "Check paths" because a required check matches by name
+  # and codeql-analysis.yml already has a "Check paths" job. Required
+  # because a skipped required check passes. The gated jobs below fail
+  # open, so today a filter error costs a full run rather than a skip;
+  # but were that condition ever lost, a failed filter would skip
+  # every gated job and leave the required contexts green. Requiring
+  # this job makes a filter that errors block the merge whatever the
+  # jobs below do with it.
+  #
+  # automated_reviewer needs both gate jobs, so it skips when they do,
+  # without a condition of its own: a job whose dependency was skipped
+  # is skipped.
+  ci_paths:
+    name: "CI paths"
+    runs-on: [self-hosted, static]
+    timeout-minutes: 10
+    # paths-filter calls pulls.listFiles rather than reading the
+    # working tree (see below), and the top-level permissions block
+    # sets every scope it does not name to none. This repository is
+    # public, so the call would most likely succeed on public-data
+    # read alone -- which is exactly why the omission would sit here
+    # until it did not.
+    permissions:
+      pull-requests: read
+    outputs:
+      code_changed: ${{ steps.filter.outputs.code || 'true' }}
+    steps:
+      # There is deliberately no checkout step. On a pull_request
+      # event paths-filter reads the changed-file list from
+      # pulls.listFiles, so it never looks at the working tree, and a
+      # fork's file content never reaches this long-lived static
+      # runner at all.
+      #
+      # The step is skipped on workflow_dispatch, which has no pull
+      # request payload for the action to read; the output above then
+      # falls back to 'true', so a dispatched run (which is how
+      # pr-retest.yml re-runs this workflow) runs everything.
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          # By default a file matches if it matches at least one
+          # listed pattern, which makes '**' match everything and
+          # silently defeats every '!' exclusion below.
+          # 'some-with-excludes' means a file is code if it matches
+          # any inclusion and no exclusion, which is both what is
+          # meant here and what stays correct if a second inclusion is
+          # ever added. ('every' also behaves correctly today, but
+          # only because there is exactly one positive pattern: it
+          # requires a file to match ALL of them, so adding a second
+          # inclusion would silently turn this into an intersection
+          # matching almost nothing.)
+          predicate-quantifier: 'some-with-excludes'
+          # The scope config is deliberately not excluded: it decides
+          # what is reviewed at all, so a change to it is linted and
+          # reviewed like code (review-scope-ci in the audit checks
+          # this). docs/ is not excluded either: the test suites read
+          # the audit specs and the documents whose prose is parsed.
+          filters: |
+            code:
+              - '**'
+              - '!REVIEWS.md'
+              - '!.vscode/*.weaudit'
+              - '!.vscode/*.weaudit-shas.json'
+
   lint-and-test:
     name: Lint and test
+    # The path filter fails open. By default a job whose dependency did
+    # not succeed is skipped, so without !cancelled() any failure of
+    # ci_paths would read as "this never ran and the required checks
+    # are green". !cancelled() overrides that default; a failed
+    # ci_paths yields no output, an empty output is != 'false', and
+    # so this job runs. Only a filter that positively said 'false'
+    # skips it.
+    needs: [ci_paths]
+    if: |
+      !cancelled()
+      && needs.ci_paths.outputs.code_changed != 'false'
     runs-on: [self-hosted, static]
     timeout-minutes: 15
     concurrency:
@@ -79,6 +162,12 @@ jobs:
 
   audit-smoke:
     name: Audit smoke run
+    # The path filter fails open, for the reason set out on
+    # lint-and-test above.
+    needs: [ci_paths]
+    if: |
+      !cancelled()
+      && needs.ci_paths.outputs.code_changed != 'false'
     runs-on: [self-hosted, static]
     timeout-minutes: 15
     concurrency:
