@@ -81,10 +81,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/commit-audit-docs.sh",
-      "author": "mikal"
-    },
-    {
       "path": "templates/shared-blocks/comment-proportion.md",
       "author": "mikal"
     },
@@ -605,10 +601,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_audit_workflow.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_check_audit_read_token.py",
       "author": "mikal"
     },
@@ -753,15 +745,7 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/bypass-actor-identity.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/plan-retirement.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/moving-ref-source-protection.md",
       "author": "mikal"
     },
     {
@@ -845,31 +829,11 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/consistency-audit.yml",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/mermaid-lint.yml",
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/ci.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/push-audit.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/consistency-audits.md",
       "author": "mikal"
     },
     {
@@ -1037,14 +1001,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/review-tracking/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/review-tracking",
-      "author": "mikal"
-    },
-    {
       "path": "README.md",
       "author": "mikal"
     },
@@ -1061,19 +1017,11 @@
       "author": "mikal"
     },
     {
-      "path": ".pre-commit-config.yaml",
-      "author": "mikal"
-    },
-    {
       "path": "renovate-runner.json",
       "author": "mikal"
     },
     {
       "path": "tools/source-size-ratchet.py",
-      "author": "mikal"
-    },
-    {
-      "path": "ARCHITECTURE.md",
       "author": "mikal"
     },
     {
@@ -1089,19 +1037,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_registry.py",
-      "author": "mikal"
-    },
-    {
       "path": "templates/source-size-ratchet/README.md",
       "author": "mikal"
     },
     {
       "path": "templates/source-size-ratchet",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     }
   ],
