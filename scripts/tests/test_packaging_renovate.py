@@ -350,17 +350,37 @@ class RenovateReducedConfigTest(unittest.TestCase):
                 'already carries, which overrides it locally: '
                 + ', '.join(restated))
 
+    def _root_rule(self, file_names):
+        rules = [rule for rule in self._config('renovate.json')['packageRules']
+                 if rule.get('matchFileNames') == file_names]
+        self.assertEqual(len(rules), 1, file_names)
+        return rules[0]
+
+    def test_the_root_config_holds_two_local_rules(self):
+        # Each is local because it names files only this repository has;
+        # a third is a decision somebody should have to make here.
+        self.assertEqual(len(self._config('renovate.json')['packageRules']), 2)
+
     def test_the_root_config_gives_the_runner_workflow_actions_a_weekly_schedule(self):
-        rules = self._config('renovate.json')['packageRules']
-        self.assertEqual(len(rules), 1)
-        rule = rules[0]
-        self.assertEqual(rule['matchFileNames'],
-                         ['.github/workflows/renovate-fleet.yml'])
+        rule = self._root_rule(['.github/workflows/renovate-fleet.yml'])
         self.assertEqual(sorted(rule['matchPackageNames']),
                          ['actions/checkout', 'actions/setup-node'])
         # The preset's own weekly window, not a second spelling of it.
         self.assertEqual(rule['schedule'], self._preset()['schedule'])
         self.assertNotIn('groupName', rule)
+
+    def test_only_the_doomed_renovate_copies_keep_rust_toolchain_unpinned(self):
+        # The two files renovate-cadence deletes, and nothing else: the
+        # fleet runner's own reference holds the organisation's push token
+        # and stays pinned, so a rule that widened to it, or to every
+        # action in these files, would unpin what the preset is there to
+        # pin.
+        rule = self._root_rule(['.github/workflows/renovate.yml',
+                                'templates/renovate/renovate.yml'])
+        self.assertEqual(rule['matchPackageNames'], ['dtolnay/rust-toolchain'])
+        self.assertIs(rule['pinDigests'], False)
+        self.assertEqual(set(rule), {'description', 'matchFileNames',
+                                     'matchPackageNames', 'pinDigests'})
 
 
 class RenovateRunnerConfigTest(unittest.TestCase):
