@@ -1479,6 +1479,15 @@ and nothing in it is done without an explicit yes.
    rule to drop `templates/renovate/renovate.yml` first, which
    phase 3 has to do anyway. The reasoning is in that plan's step
    3a record.
+
+   **Lifted 2026-11-21.** The pin was declined rather than waited
+   for. Adding the `with: toolchain: stable` block it needed to the
+   template would have made 16 fleet copies of `renovate.yml` drift
+   from it. So this repository's root `renovate.json` keeps
+   `dtolnay/rust-toolchain` unpinned in exactly these two files
+   until this plan's phase 3 deletes them, and disabling strands
+   nothing that is owed. The record is at the end of that plan's
+   phase 3.
 4. **Turn the schedule on, and watch a full day.** The workflow
    lands with `workflow_dispatch` only, so this step is a pull
    request of its own adding the `schedule` block its header comment
@@ -1892,7 +1901,9 @@ differ in version as well as in mode.
   arrives. Mitigation: cutover steps 2 and 3 carry the date, and
   the alternative is to narrow the rule to drop the template path,
   which phase 3 has to do anyway --- the template outlives the
-  deployed copies the rule exists for.
+  deployed copies the rule exists for. **Lifted 2026-11-21:** that
+  pin was declined, as cutover step 3 now records, so the live case
+  is gone.
 
 * **The VM image may not have what Renovate needs.** The
   `audit-write` job's comment says the image "has git and python3
@@ -2459,7 +2470,8 @@ chosen to defer to here, so that we do not forget them.
 * Digest pinning moves github-actions out of Dependabot's reach.
   Step 1a found that GitHub raises Dependabot alerts for actions
   referenced by semantic version but not by commit sha, so
-  `PLAN-workflow-ref-trust.md`'s step 3b takes the fleet's 540
+  `PLAN-workflow-ref-trust.md`'s digest pinning (its phase 3, which
+  this plan's sweep carries to each repository) takes the fleet's 540
   third-party `uses:` references out of the one ecosystem that feeds
   `vulnerabilityAlerts`. Nothing in this plan changes because of it
   --- an action fix then waits for the monthly CI-tooling window,
