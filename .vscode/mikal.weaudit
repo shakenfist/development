@@ -997,23 +997,11 @@
       "author": "mikal"
     },
     {
-      "path": "renovate.json",
-      "author": "mikal"
-    },
-    {
       "path": "renovate-runner.json",
       "author": "mikal"
     },
     {
       "path": "tools/source-size-ratchet.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_packaging_renovate.py",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/renovate.md",
       "author": "mikal"
     },
     {
@@ -1058,10 +1046,6 @@
     },
     {
       "path": "scripts/tests/test_audit_workflow.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_registry.py",
       "author": "mikal"
     },
     {

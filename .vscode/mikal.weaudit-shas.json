@@ -285,10 +285,6 @@
       "sha": "c58fa988567ea392014294842ae64989649a56f4",
       "date": "2026-10-19"
     },
-    "docs/audits/renovate.md": {
-      "sha": "6311db67dbebff7dde809739470be6a11f0795ee",
-      "date": "2026-11-18"
-    },
     "docs/audits/reusable-workflow-secrets.md": {
       "sha": "2ebc5177a729dd8b6025ea36afdd1b305f7b536f",
       "date": "2026-10-05"
@@ -379,10 +375,6 @@
     },
     "renovate-runner.json": {
       "sha": "a3cc7d6c817f6e4598b213efc8eaef36a544f6cb",
-      "date": "2026-11-17"
-    },
-    "renovate.json": {
-      "sha": "db7eda907fd935ce4a782d66dc60fb4a58507e56",
       "date": "2026-11-17"
     },
     "scripts/audit-check.py": {
@@ -657,10 +649,6 @@
       "sha": "3717db8520eaca6d1a1b04880214f823dab1f6c7",
       "date": "2026-11-17"
     },
-    "scripts/tests/test_packaging_renovate.py": {
-      "sha": "56e71a9f78f84b898eae1179db60e8658087bea7",
-      "date": "2026-11-18"
-    },
     "scripts/tests/test_patterns.py": {
       "sha": "4477ff162d7fd9a3ffb14e31b5979850e23e514f",
       "date": "2026-10-21"
@@ -676,10 +664,6 @@
     "scripts/tests/test_python_source.py": {
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",
       "date": "2026-09-04"
-    },
-    "scripts/tests/test_registry.py": {
-      "sha": "ff589d6e8ecfa42c2d049d6ce9c145f57fcd6862",
-      "date": "2026-11-19"
     },
     "scripts/tests/test_release.py": {
       "sha": "150cc97f0a03011407dbe46234ff791ae8ea97b6",
