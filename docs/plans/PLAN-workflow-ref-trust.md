@@ -320,7 +320,7 @@ Out of scope:
 |-------|--------|--------|
 | 1. Finish the inherit rollout | Complete | development 8df8179 (#209); instar bdc8905 (#617); shakenfist e4c7726 (#4404); occystrap c583d68 (#152); client-python 68f295f (#415); agent-python 4bf7763 (#148); client-python-k3s 03998e0 (#83); clingwrap 125eb20 (#141); divergulent 8a2852e (#125); library-utilities 832d82d (#67); sfui ad0d6a2 (#44) |
 | 2. Make `actions` main require a pull request | Complete | development 951fef7 (#388); development 9bd865d (#392) |
-| 3. Pin third-party actions to a sha | In progress | development 6170a78 (#406); development 528e46c (#407); development 4db8f79 (#409) |
+| 3. Pin third-party actions to a sha | Complete | development 6170a78 (#406); development 528e46c (#407); development 4db8f79 (#409); development 9805498 (#429) |
 | 4. Third-party action pinning criterion | Not started | |
 | 5. Record the policy | Not started | |
 | 6. Shared workflows instead of copied templates | Not started | |
@@ -342,10 +342,9 @@ workflows and the push audit are now phases 5 to 7. This file uses
 the new numbers throughout. Commits and pull requests from before
 that date use the old ones; the date is AEDT, as are this plan's
 other dates, so the split's own commits read 2026-11-20 in UTC.
-Phase 3's row stays `In progress` until phase 4's first commit
-carries its close-out and the merge commit of the pull request that
-made the split, as the phase-landing rules require; the phase is
-not being worked in the meantime.
+Phase 3 was closed out on 2026-11-22, in phase 4's first commit,
+which recorded the merge commit of the pull request that made the
+split.
 
 ### Phase 1: finish the inherit rollout
 
@@ -2241,6 +2240,21 @@ a file about to be deleted. The residual is one unpinned reference,
 in a workflow holding this repository's Renovate token, until the
 cutover disables it. Every fleet repository carries the same
 residual until then.
+
+**Closed out 2026-11-22.** #429 merged as 9805498 at 03:37 UTC on
+2026-11-21. Against main afterwards, each done-item holds:
+`renovate-fleet.json` extends the helper and the unit tests pass; the
+grep prints exactly the two `dtolnay/rust-toolchain@stable` lines;
+`renovate` and `plan-history-in-source` both pass here; and the
+fleet runner's first two runs after the merge, at 03:41 and 05:00
+UTC, opened no pull request. That last result is weaker than the
+done-item meant. `renovate-runner.json` disables every dependency in
+both files and this repository's own `renovate.yml` workflow is
+disabled, so nothing would have proposed the pin with or without the
+exemption, which acts only if the per-repository workflow runs
+again. The last automated review of #429 arrived four minutes before
+the merge, with no `fix` items. Its items in this plan's text were
+corrected in phase 4's planning commit, and the rest are #435.
 
 ### Phase 4: the third-party-action-pinning criterion
 
