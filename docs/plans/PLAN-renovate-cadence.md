@@ -1753,6 +1753,85 @@ Answering it needs debug logging, which the workflow does not expose
 as an input; it is carried to phase 3 rather than left looking
 settled.
 
+**Cutover step 2: the write path works, and the global rule is now
+proved positively** (2026-11-21). `development`'s own hourly
+`renovate.yml` was disabled first -- `gh workflow disable` reports it
+`disabled_manually` -- and it stays disabled going into step 3. The
+update ticked on dashboard #58 was
+`unpend-branch=renovate/renovate-44.x`, the `renovate` npm pin: a
+workflow-file dependency, and the one available to tick, because it
+is found by `custom.regex` and the CI-tooling group's `matchManagers`
+never matched it, so unlike the actions it is not held to the monthly
+window. Run 44862446166 then dispatched with `dry_run:
+write-for-real` and `autodiscover_filter: shakenfist/development`:
+8m54s wall, 6m54s of job, 5m16s inside Renovate, with two minutes of
+queue against step 1's 2h37m and 27m, so the drained pool recorded
+there was transient.
+
+The probe ran first and reported the same 40 repositories, 23 managed
+and `the token can push to all 23 repositories`, naming the same 23.
+This run's probe came after `development`'s own workflow was
+disabled, so it is step 1's two runs that satisfy the
+definition-of-done clause about running before anything was disabled;
+this one confirms the token has not changed. Renovate then logged
+exactly one repository, `repository=shakenfist/development`, so the
+filter input narrows as survey item 6 said, and logged both `Branch
+created` and `PR created` for `renovate/renovate-44.x`.
+
+The result is pull request #431, head `fe58da5`, opened by
+`shakenfist-bot`, and it changes
+`.github/workflows/renovate-fleet.yml` and nothing else: one line,
+`PINNED_RENOVATE_VERSION` from 44.251.0 to 44.257.5. The same pin
+exists in `.github/workflows/renovate.yml` and
+`templates/renovate/renovate.yml` and was not touched. So the central
+runner can push a file under `.github/workflows/`, which is the
+capability the probe cannot see and the reason this step ticks a
+workflow-file update rather than a requirements pin, and the
+temporary rule holds on the write path as well as in a dry run. The
+canary's own pull request merged as `d1cfabc` at 04:53, so the branch
+the central runner pushed was mergeable on its own terms and the
+fleet runner now installs the version it proposed.
+
+The dashboard was rewritten at 03:50:40. The ticked entry moved to
+*Open* against #431, the stale reference to #426 -- merged at 01:48,
+while the dashboard still showed it open -- is gone, and
+`.github/workflows/renovate.yml` and
+`templates/renovate/renovate.yml` have disappeared from *Detected
+Dependencies* altogether, where the local runner's dashboard listed
+four github-actions and two regex dependencies for each. That is the
+evidence step 1's record said it did not have. There, the `full` pass
+could only show the rule acting on the four repositories that
+happened to have a pending `renovate.yml` update, and the 23 `Would
+ensure Dependency Dashboard` lines showed each config resolving
+rather than this entry matching. Here the entry is visibly removing
+dependencies from a repository that had no pending update in either
+file.
+
+Two smaller findings. `renovate/stability-days` was still pending on
+#431 when it merged, and is pending now: ticking the dashboard box
+forces creation without satisfying `minimumReleaseAge`, and because
+`main` carries no branch protection -- `gh api
+repos/shakenfist/development/branches/main/protection` returns
+`Branch not protected`, which is what
+`PLAN-protect-development-main.md` is about -- nothing stopped the
+merge. So the age gate is advisory in this repository rather than
+enforced, and a tick does get around it. That is worth knowing before
+phase 3 starts ticking dashboards to drive the sweep. And
+the run's one WARN is spurious -- Renovate warns at startup that the
+default `gitAuthor` `renovate@whitesourcesoftware.com` is not
+recommended, because `renovate-runner.json` sets none, but
+`renovate-fleet.json` does and #431's commit is authored
+`shakenfist-bot <bot@shakenfist.com>`. The local runner's last
+scheduled run, 44832835607, emits the same line, so it belongs to the
+template rather than to the central runner. Commits are unsigned
+either way.
+
+One consequence to carry into step 3: `development` now has no
+scheduled Renovate at all, since its own copy is disabled and the
+central runner has no schedule until step 4. Step 3 puts the other 22
+in the same position, which is why step 4 follows it immediately
+rather than after a pause.
+
 #### Execution notes
 
 Dates are Australian Eastern Daylight Time (UTC+11).
