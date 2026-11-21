@@ -54,6 +54,26 @@ def uses_remote_pre_commit_hooks(repo):
 RENOVATE_FLEET_PRESET = 'local>shakenfist/development:renovate-fleet'
 
 
+# shellcheck-py tags four numeric components, which is not semver, so
+# Renovate cannot order its tags without a `versioning` packageRule.
+# The fleet preset carries the rule and explains it at length.
+SHELLCHECK_PY_HOOK = 'shellcheck-py/shellcheck-py'
+
+
+def uses_shellcheck_py_hook(repo):
+    """True when .pre-commit-config.yaml uses the shellcheck-py hook.
+
+    The hook, not its pin: what is wrong without the rule is the
+    missing configuration, whatever revision happens to be current.
+    """
+    return check_file_contains(
+        repo, '.pre-commit-config.yaml',
+        r'(?m)^\s*-?\s*repo:\s*[\'"]?'
+        r'(?:https?://github\.com/)?'
+        + re.escape(SHELLCHECK_PY_HOOK) + r'(?:\.git)?/?[\'"]?\s*(?:#.*)?$'
+    )
+
+
 def extends_fleet_preset(config):
     """True when a parsed renovate.json extends the fleet preset."""
     extends = config.get('extends')
@@ -95,6 +115,40 @@ def renovate_manages_pre_commit(repo):
     if config is None:
         return False
     return (renovate_config_manages_pre_commit(config)
+            or extends_fleet_preset(config))
+
+
+def renovate_config_versions_shellcheck_py(config):
+    """True when a parsed Renovate config gives shellcheck-py a versioning.
+
+    Any packageRules entry naming the hook with a non-empty `versioning`
+    counts. The rule's exact string is the preset's business, and is
+    tested there.
+    """
+    rules = config.get('packageRules')
+    if not isinstance(rules, list):
+        return False
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        names = rule.get('matchPackageNames')
+        versioning = rule.get('versioning')
+        if (isinstance(names, list) and SHELLCHECK_PY_HOOK in names
+                and isinstance(versioning, str) and versioning):
+            return True
+    return False
+
+
+def renovate_versions_shellcheck_py(repo):
+    """True when renovate.json versions shellcheck-py's four-part tags.
+
+    Either with a local packageRule, or by extending the fleet preset,
+    which carries it for every repository.
+    """
+    config = renovate_config(repo)
+    if config is None:
+        return False
+    return (renovate_config_versions_shellcheck_py(config)
             or extends_fleet_preset(config))
 
 
@@ -533,6 +587,15 @@ class Renovate(Check):
                 f'itself or by extending {RENOVATE_FLEET_PRESET}, so '
                 'the hook revisions in .pre-commit-config.yaml are '
                 'unmanaged and drift silently')
+        if uses_shellcheck_py_hook(repo) and not (
+            renovate_versions_shellcheck_py(repo)
+        ):
+            issues.append(
+                f'.pre-commit-config.yaml uses {SHELLCHECK_PY_HOOK} but '
+                'renovate.json has no versioning packageRule for it, '
+                f'itself or by extending {RENOVATE_FLEET_PRESET}, so the '
+                'github-tags lookup fails on its four-part tags and the '
+                'hook revision is never bumped')
 
         if issues:
             return self.fail('; '.join(issues))

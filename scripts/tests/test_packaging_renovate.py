@@ -95,6 +95,118 @@ class RenovatePreCommitManagerTest(CheckTestCase):
         self.assertIn('renovate.json', result['missing'])
 
 
+class RenovateShellcheckVersioningTest(CheckTestCase):
+    """shellcheck-py's four-part tags need a versioning rule to be bumped."""
+
+    check_class = packaging.Renovate
+
+    PRESET_NAME = 'local>shakenfist/development:renovate-fleet'
+
+    SHELLCHECK_HOOK = (
+        'repos:\n'
+        '  - repo: https://github.com/shellcheck-py/shellcheck-py\n'
+        '    rev: v0.11.0.1\n'
+        '    hooks:\n'
+        '      - id: shellcheck\n'
+    )
+
+    OTHER_HOOK = (
+        'repos:\n'
+        '  - repo: https://github.com/rhysd/actionlint\n'
+        '    rev: v1.7.12\n'
+        '    hooks:\n'
+        '      - id: actionlint\n'
+    )
+
+    RULE = {
+        'matchPackageNames': ['shellcheck-py/shellcheck-py'],
+        'versioning': 'regex:^v?(?<major>\\d+)\\.(?<minor>\\d+)'
+                      '\\.(?<patch>\\d+)\\.(?<build>\\d+)$',
+    }
+
+    def _repo(self, renovate, pre_commit=None):
+        # The other findings are separate; every repository here carries
+        # the version comment preset, the workflow and the manager.
+        if isinstance(renovate, dict):
+            renovate = dict(renovate)
+            renovate['extends'] = renovate.get('extends', []) + [
+                'customManagers:githubActionsVersions',
+                ':enablePreCommit']
+            renovate = json.dumps(renovate)
+        self.fixture.workflow('renovate.yml', RENOVATE_WORKFLOW)
+        self.fixture.write('renovate.json', renovate)
+        if pre_commit is not None:
+            self.fixture.write('.pre-commit-config.yaml', pre_commit)
+        return self.check()
+
+    def test_the_hook_without_a_rule_fails(self):
+        result = self._repo({}, self.SHELLCHECK_HOOK)
+        self.assert_fail(result, containing='shellcheck-py/shellcheck-py')
+        self.assert_fail(result, containing='never bumped')
+
+    def test_a_local_rule_passes(self):
+        self.assert_pass(self._repo(
+            {'packageRules': [self.RULE]}, self.SHELLCHECK_HOOK))
+
+    def test_the_fleet_preset_satisfies_it(self):
+        self.assert_pass(self._repo(
+            {'extends': [self.PRESET_NAME]}, self.SHELLCHECK_HOOK))
+
+    def test_a_rule_for_another_package_does_not_pass(self):
+        rule = dict(self.RULE, matchPackageNames=['rhysd/actionlint'])
+        self.assert_fail(self._repo(
+            {'packageRules': [rule]}, self.SHELLCHECK_HOOK),
+            containing='shellcheck-py/shellcheck-py')
+
+    def test_a_rule_without_versioning_does_not_pass(self):
+        rule = {'matchPackageNames': ['shellcheck-py/shellcheck-py'],
+                'groupName': 'linters'}
+        self.assert_fail(self._repo(
+            {'packageRules': [rule]}, self.SHELLCHECK_HOOK),
+            containing='shellcheck-py/shellcheck-py')
+
+    def test_an_empty_versioning_does_not_pass(self):
+        rule = dict(self.RULE, versioning='')
+        self.assert_fail(self._repo(
+            {'packageRules': [rule]}, self.SHELLCHECK_HOOK),
+            containing='shellcheck-py/shellcheck-py')
+
+    def test_malformed_package_rules_do_not_raise(self):
+        for rules in ('x', None, [1, 'x'], {'a': 1}):
+            with self.subTest(rules=rules):
+                self.assertFalse(
+                    packaging.renovate_config_versions_shellcheck_py(
+                        {'packageRules': rules}))
+
+    def test_no_pre_commit_config_passes(self):
+        self.assert_pass(self._repo({}))
+
+    def test_a_config_without_the_hook_passes(self):
+        self.assert_pass(self._repo({}, self.OTHER_HOOK))
+
+    def test_a_malformed_renovate_config_does_not_abort_the_run(self):
+        # renovate.json's top level can hold any JSON value; the run
+        # reports findings rather than raising.
+        for renovate in ('{"packageRules": "x"}', '[1, 2]', '"hi"',
+                         '{not json'):
+            with self.subTest(renovate=renovate):
+                self.fresh_fixture()
+                result = self._repo(renovate, self.SHELLCHECK_HOOK)
+                self.assert_fail(result)
+
+    def test_a_malformed_renovate_config_without_the_hook_is_not_this(self):
+        # The unreadable config is the other findings' business.
+        result = self._repo('[1, 2]', self.OTHER_HOOK)
+        self.assert_fail(result)
+        self.assertNotIn('shellcheck-py', result['details'])
+
+    def test_missing_files_still_reported_first(self):
+        self.fixture.write('.pre-commit-config.yaml', self.SHELLCHECK_HOOK)
+        result = self.check()
+        self.assert_fail(result)
+        self.assertIn('renovate.json', result['missing'])
+
+
 class RenovateFleetPresetTest(CheckTestCase):
     """A repository that extends the fleet preset inherits what it holds.
 
@@ -139,6 +251,13 @@ class RenovateFleetPresetTest(CheckTestCase):
         self.assertFalse(packaging.renovate_config_manages_pre_commit(config))
         self.assertFalse(
             packaging.renovate_config_reads_version_comments(config))
+        self.assertFalse(
+            packaging.renovate_config_versions_shellcheck_py(config))
+
+    def test_the_real_preset_versions_shellcheck_py(self):
+        self.assertTrue(
+            packaging.renovate_config_versions_shellcheck_py(
+                self._preset()))
 
     def test_a_similar_name_is_not_the_preset(self):
         self.assert_fail(self._repo(
