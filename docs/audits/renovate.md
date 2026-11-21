@@ -33,22 +33,24 @@ copy of `renovate.yml` in each repository, running Renovate over that
 repository alone. The fleet is moving to a single workflow that runs
 Renovate over every repository from one place, and that workflow is
 already in this repository as `.github/workflows/renovate-fleet.yml`.
-It has no schedule yet, and runs only when it is dispatched by hand,
-with a Renovate `dryRun` mode and an autodiscover filter as inputs, so
-a pass can be read-only or confined to one repository. A schedule here
-while every repository still runs its own hourly copy would have two
-Renovate instances working the same repository, racing on branch
-creation to produce duplicate or half-written pull requests, and the
-runner's concurrency group cannot prevent that because the two runs
-are different workflows in different repositories. Turning the
-schedule on is therefore a step of the cutover rather than part of
-adding the workflow. It will be hourly at minute 23 rather than on the
-hour, because GitHub delays and sometimes drops scheduled events at
-the top of the hour and a dropped run here would delay every
-repository at once. It installs Renovate from npm in a step that holds no
-secret, exactly as the template does, for the reasons given under
+It runs hourly at minute 23, and can also be dispatched by hand with a
+Renovate `dryRun` mode and an autodiscover filter as inputs, so a pass
+can be read-only or confined to one repository. Minute 23 rather than
+the hour, because GitHub delays and sometimes drops scheduled events
+at the top of the hour and a dropped run here would delay every
+repository at once. It installs Renovate from npm in a step that holds
+no secret, exactly as the template does, for the reasons given under
 [Renovate without Docker](#renovate-without-docker) and in the
 template README.
+
+The schedule was deliberately the last step of the cutover rather than
+part of adding the workflow. A schedule here while every repository
+still ran its own hourly copy would have had two Renovate instances
+working the same repository, racing on branch creation to produce
+duplicate or half-written pull requests, and the runner's concurrency
+group cannot prevent that because the two runs are different workflows
+in different repositories. Every per-repository copy is disabled now,
+so re-enabling one while this schedule is on reintroduces that race.
 
 Its global configuration is `renovate-runner.json` at the root of this
 repository. That file decides two things. Which repositories are
