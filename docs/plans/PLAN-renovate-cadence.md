@@ -1832,6 +1832,67 @@ central runner has no schedule until step 4. Step 3 puts the other 22
 in the same position, which is why step 4 follows it immediately
 rather than after a pause.
 
+**Cutover step 3: the fleet is disabled, and the first full write
+pass costs ten minutes of job and twenty-one of queue** (2026-11-21).
+The remaining 22 copies were disabled with `gh workflow disable`, and
+all 23 were then verified by reading each workflow's state back
+rather than trusting the command's exit status: 23 of 23 report
+`disabled_manually`.
+
+Run 44868757936 then dispatched `write-for-real` with no filter, so
+the runner config's `shakenfist/*` governed: 32m11s wall, 10m33s of
+job, and 9m03s inside Renovate over the 30 autodiscovered
+repositories. Against the 50-minute `timeout-minutes` set in 2a that
+is comfortable, and it is the first measurement of a real pass rather
+than the dry floor of 8m12s step 1 recorded. The cadence risk is not
+the job, though: 21m37s of that wall time was spent waiting for a VM,
+which sits outside `timeout-minutes` and outside what the concurrency
+group protects. An hourly cron that queues for 21 minutes and runs
+for 11 still fits the hour, but with little margin, and GitHub keeps
+only one pending run per concurrency group. Step 4's watch day is
+what says whether that margin holds.
+
+The pass was predicted before it ran, against the live state rather
+than step 1's week-old list, and both halves held. Five Renovate pull
+requests were open fleet-wide beforehand. The two whose change lay in
+a file `renovate-runner.json` disables were retired:
+`client-python-k3s#176` (`renovatebot/github-action` v46.3.14) closed
+at 05:24:36 and `kerbside-patches#2136` (the `renovate` pin) at
+05:29:19, both inside the run's window. The three ordinary dependency
+pull requests were adopted rather than reopened -- `instar#947`,
+`kerbside#734` and `kerbside#733` are still open and still carry the
+previous evening's `updatedAt`, so the pass left them untouched.
+Afterwards the only `renovate/` branches anywhere in the fleet are
+those three, so nothing was duplicated.
+
+Beside those two closures the pass wrote only two deletions, both
+`Deleting orphan branch` for `renovate/renovate-44.x` in `instar` and
+in `uncalibrated-sextant`: branches whose dependency now sits in a
+disabled file and which had no pull request to retire. Step 1's
+predicted four retirements -- `actions#251`, `andris#81`,
+`client-python-k3s#171` and `kerbside-client#24` -- had all merged or
+closed under the hourly copies in the week between, which is why the
+prediction was re-derived rather than carried forward.
+
+Eleven WARN lines, and every one is pre-existing rather than a
+property of the central runner. The `gitAuthor` line is the same one
+step 2 recorded. `Package lookup failures` appears for seven
+repositories; in `shakenfist` it is `Can't find version matching
+ec30cf07... for github-tags package stbenjam/skillsaw` in
+`.pre-commit-config.yaml`, and that repository's own last hourly run
+emits the same warning. `andris` reports three `Could not determine
+new digest` warnings where its own last hourly run reports seven, the
+difference being the `renovate.yml` dependencies the temporary rule
+now disables. So on both counts the central runner is no worse, and
+on one it is quieter.
+
+Open question 1 is still unanswered, and a real pass has now failed
+to answer it. A full write pass over 23 repositories logs nothing
+about Dependabot or vulnerability alerts at INFO -- the only
+`security` matches in the log are npm deprecation notices from the
+install step. It needs debug logging, as the dry runs already said,
+and it stays carried to phase 3.
+
 #### Execution notes
 
 Dates are Australian Eastern Daylight Time (UTC+11).
