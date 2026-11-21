@@ -18,7 +18,7 @@ is the part of it that can be checked by a test rather than by hand.
 Line-based, like the rest of this tree's YAML reading: the audit ships
 without PyYAML on purpose and the shape here is flat. Comments are
 stripped before anything is matched, because this workflow argues with
-itself in its comments -- it quotes the `schedule:` block to add at
+itself in its comments -- it explains why the schedule waited for
 cutover, and names `renovatebot/github-action` to explain why it is not
 used -- and matching those would be asserting prose.
 """
@@ -98,22 +98,29 @@ class FleetRunnerWorkflowTest(unittest.TestCase):
         self.assertIn('    runs-on: [self-hosted, vm, debian-13, s]',
                       self.lines)
 
-    def test_the_workflow_is_dispatch_only_for_now(self):
-        # The schedule arrives at cutover, when the per-repository
-        # copies are disabled, so this assertion is the thing that has
-        # to be changed deliberately then rather than a property that
-        # holds for ever. Until then a schedule here would run Renovate
-        # over the same repositories as their own hourly copies, which
-        # races on branch creation and produces duplicate or
-        # half-written pull requests -- and the concurrency group below
-        # cannot prevent that, because the racing runs are different
-        # workflows in different repositories.
+    def test_the_workflow_runs_hourly_at_minute_23(self):
+        # Cutover step 4 turned the schedule on, once every
+        # per-repository copy was disabled. Before that the assertion
+        # here was that there was no schedule at all, because a
+        # schedule running alongside those copies races them on branch
+        # creation and produces duplicate or half-written pull
+        # requests -- and the concurrency group cannot prevent that,
+        # because the racing runs are different workflows in different
+        # repositories.
+        #
+        # The cron is asserted rather than merely its presence. Minute
+        # 23 is deliberate: GitHub delays and sometimes drops events
+        # at the top of the hour, and with one central runner a
+        # dropped run delays the whole fleet rather than one
+        # repository. A schedule silently moved to the hour would
+        # still be a schedule.
         self.assertIn('  workflow_dispatch:', self.lines)
-        scheduled = [line for line in self.lines
-                     if line.strip().startswith(('schedule:', '- cron:'))]
-        self.assertEqual(scheduled, [],
-                         'the fleet runner has a schedule while the '
-                         'per-repository copies are still running')
+        crons = [line.strip() for line in self.lines
+                 if line.strip().startswith('- cron:')]
+        self.assertEqual(crons, ["- cron: '23 * * * *'"],
+                         'the fleet runner does not run hourly at '
+                         'minute 23')
+        self.assertIn('  schedule:', self.lines)
 
     def test_renovate_is_not_run_as_a_container_action(self):
         # renovatebot/github-action runs Renovate in a container, and

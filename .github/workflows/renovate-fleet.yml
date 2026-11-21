@@ -9,24 +9,21 @@
 # in one file instead of being implied by where the copies are
 # installed. docs/audits/renovate.md is the specification.
 #
-# There is deliberately no schedule here yet: dispatch only. Every
-# repository in the fleet still runs its own hourly copy, and a
-# schedule here would have this workflow running Renovate over the
-# same repositories at the same time as those copies do. Two Renovate
-# instances over one repository race on branch creation and produce
-# duplicate or half-written pull requests, and the concurrency group
-# below cannot prevent that race, because the two runs are different
-# workflows in different repositories. The schedule arrives once the
-# copies are disabled, and this is the block to add then:
+# Hourly at minute 23 rather than on the hour. GitHub delays and
+# sometimes drops scheduled events at the top of the hour, when
+# everybody else's cron fires too, and with one central runner a
+# dropped run delays every repository in the fleet at once rather than
+# one of them.
 #
-#     schedule:
-#       - cron: '23 * * * *'
-#
-# Hourly at minute 23 rather than on the hour, when it does arrive.
-# GitHub delays and sometimes drops scheduled events at the top of the
-# hour, when everybody else's cron fires too, and with one central
-# runner a dropped run delays every repository in the fleet at once
-# rather than one of them.
+# The schedule arrived at cutover step 4, once every per-repository
+# copy of templates/renovate/renovate.yml had been disabled. Until
+# then this workflow was dispatch-only, because a schedule here would
+# have run Renovate over the same repositories at the same time as
+# those copies did. Two Renovate instances over one repository race on
+# branch creation and produce duplicate or half-written pull requests,
+# and the concurrency group below cannot prevent that race, because
+# the two runs are different workflows in different repositories.
+# Re-enabling any copy while this schedule is on reintroduces it.
 
 name: Renovate fleet runner
 
@@ -36,6 +33,9 @@ permissions:
   contents: read
 
 on:
+  schedule:
+    - cron: '23 * * * *'
+
   workflow_dispatch:
     inputs:
       # A choice rather than a free-form string. dryRun takes extract,

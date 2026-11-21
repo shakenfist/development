@@ -1886,6 +1886,17 @@ difference being the `renovate.yml` dependencies the temporary rule
 now disables. So on both counts the central runner is no worse, and
 on one it is quieter.
 
+Step 3 also brought on the condition `docs/audits/renovate.md` warns
+about: with every copy disabled, nothing maintains the pins in
+`templates/renovate/renovate.yml` any more, because the central
+runner's temporary rule disables that path and the hourly copy that
+used to read it through `renovate.json` is off. The warning assumes
+the template outlives the copies, and under this plan it does not --
+phase 3 deletes the template along with them -- so the rule is left
+alone rather than narrowed, and those two files simply stop receiving
+pins for the weeks before they go. The drift criterion is unaffected,
+because it blanks pinned refs before comparing.
+
 Open question 1 is still unanswered, and a real pass has now failed
 to answer it. A full write pass over 23 repositories logs nothing
 about Dependabot or vulnerability alerts at INFO -- the only
@@ -2086,14 +2097,17 @@ differ in version as well as in mode.
 Every item is checked by the management session against the files
 and the commands, not against a sub-agent's summary.
 
-* `.github/workflows/renovate-fleet.yml` exists, triggers on
-  `workflow_dispatch` and **nothing else**, carries top-level
+* `.github/workflows/renovate-fleet.yml` exists, carries top-level
   `permissions: contents: read`, names the `renovate-write`
   environment, runs on an ephemeral VM label, and contains no `uses:`
-  of `renovatebot/github-action`. The absence of a `schedule` is the
-  point: it is what stops the runner working the same repositories as
-  the copies that are still running, and the minute-23 block to add
-  at cutover is recorded in the workflow's header comment.
+  of `renovatebot/github-action`. It landed triggering on
+  `workflow_dispatch` and **nothing else**, because the absence of a
+  `schedule` is what stopped the runner working the same repositories
+  as the copies that were still running. Cutover step 4 added the
+  minute-23 `schedule` its header comment recorded, once every copy
+  was disabled, and the test moved with it: where it asserted that no
+  `schedule` existed, it now asserts the cron itself, so a schedule
+  silently moved to the top of the hour fails it.
   `scripts/tests/test_renovate_fleet_workflow.py` asserts each of
   these, including that no third-party action beside the token runs
   on a ref that can move.
