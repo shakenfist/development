@@ -389,6 +389,44 @@ next push to main.
   `../development-wt-rsa-p1`. The plan and phase 1 were written
   together, since the plan has two phases and one of them is the push
   audit.
+* 2026-11-21 (AEDT): back brief answered. Both gates stand as
+  planned: the phase lands ahead of `PLAN-renovate-cadence.md` phase 3
+  (decision 4) and the work is a finding inside the `renovate`
+  criterion rather than a criterion of its own (decision 1). This
+  session may push the branch and open the pull request.
+* 2026-11-21 (AEDT): four corrections to the plan, each made at its
+  source rather than noted here alone.
+  - The step table and the definition of done both said `pytest`.
+    There is no pytest in this repository: the suite runs as
+    `python3 -m unittest discover -s scripts/tests -t scripts`, which
+    is what the `audit package and script tests` pre-commit hook
+    invokes. Corrected before step 1a ran.
+  - Step 1a's brief said a malformed `renovate.json` "is not this
+    finding". Wrong, and the step reported it: the `config is None`
+    guard the same brief specifies returns False, so the finding
+    fires whenever the hook is present, exactly as the pre-commit
+    manager finding beside it does. The brief now says so. The
+    semantics are deliberate -- a config that cannot be parsed does
+    not carry the rule -- and the test asserts the run reports rather
+    than raises.
+  - Step 1a grew `scripts/audit/checks/packaging.py` from 2,413 to
+    2,476 lines, which the `source size ratchet` pre-commit hook
+    fails. The plan did not anticipate it. The entry in
+    `tools/source-size-baseline` is raised by hand, which is the
+    escape that file's header documents, and the pull request
+    description carries the justification it asks for. A
+    `checks/renovate.py` seam is the alternative and is not taken
+    here: it would be a 2,400-line restructure around a 63-line
+    change. Recorded in *Future work* for an issue of its own,
+    mirroring #412 for the test module, which the tests already split
+    along that line.
+  - Step 1b's brief warned that a stale clone was its failure mode.
+    It is, and two repositories prove it: measuring the finding
+    against the local working trees reports `clingwrap` and
+    `uncalibrated-sextant` failing, and both are checkouts behind
+    their `develop` default branch, which carries the rule. The
+    recorded measurement reads each repository's default branch, not
+    whatever its working tree holds.
 
 ### Phase 1: the criterion and its specification
 
@@ -531,7 +569,7 @@ half.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 1a | medium | sonnet | none | Add the finding. In `scripts/audit/checks/packaging.py`: (i) a module constant `SHELLCHECK_PY_HOOK = 'shellcheck-py/shellcheck-py'` beside `RENOVATE_FLEET_PRESET` (`:54`), with a comment saying why four-component tags need a `versioning` rule -- take the reasoning from the rule's own `description` in `renovate-fleet.json`, do not restate it at length; (ii) `uses_shellcheck_py_hook(repo)`, modelled on `uses_remote_pre_commit_hooks` (`:33-44`), using `check_file_contains(repo, '.pre-commit-config.yaml', ...)` with a pattern matching the hook repository URL; (iii) `renovate_config_versions_shellcheck_py(config)`, returning True when any entry in `config.get('packageRules')` is a dict whose `matchPackageNames` list contains `SHELLCHECK_PY_HOOK` and whose `versioning` is a non-empty string -- do not match the regex itself, since the rule's exact string is the preset's business and is tested there; (iv) `renovate_versions_shellcheck_py(repo)`, returning `renovate_config_versions_shellcheck_py(config) or extends_fleet_preset(config)` with the same `config is None` guard as `renovate_manages_pre_commit` (`:88-99`). Then add a fifth `issues.append` to `Renovate.run`, after the pre-commit manager one (`:528-535`), conditional on `uses_shellcheck_py_hook(repo) and not renovate_versions_shellcheck_py(repo)`, whose message names the hook, says the `github-tags` lookup fails so the revision is never bumped, and names `RENOVATE_FLEET_PRESET` as a way to satisfy it -- match the voice of the four messages above it. Order matters only in that the `missing` early return (`:496`) must still come first. Tests go in `scripts/tests/test_packaging_renovate.py` as a new `RenovateShellcheckVersioningTest(CheckTestCase)` placed after `RenovatePreCommitManagerTest` (`:26-96`), copying its `_repo` helper shape exactly -- including adding `customManagers:githubActionsVersions` to `extends` and writing `RENOVATE_WORKFLOW`, since the other findings are separate and every fixture must carry both. Cover: the hook with no rule fails; a local rule passes; the fleet preset alone passes; a rule naming a different package does not pass; a rule naming the hook with no `versioning` key does not pass; no `.pre-commit-config.yaml` passes; a `.pre-commit-config.yaml` without the hook passes; a malformed `renovate.json` is not this finding (mirror `test_a_malformed_renovate_config_does_not_abort_the_run`, `scripts/tests/test_packaging.py:1122`); and `missing` is still reported first. Add one assertion to `RenovateFleetPresetTest` (`:98`) that extending the preset alone satisfies this check too, beside `test_extending_the_preset_satisfies_each_check_alone` (`:136`) -- extend that test rather than adding a parallel one if it enumerates the checks. Do not add a `FROZEN_METADATA` or `FROZEN_ISSUE_TITLES` row: no new criterion id is created, and adding one would fail `scripts/tests/test_metadata.py`. Run `python3 -m pytest scripts/tests/test_packaging_renovate.py scripts/tests/test_packaging.py scripts/tests/test_metadata.py` and report the counts. Commit subject: `Require the shellcheck-py versioning rule.` |
+| 1a | medium | sonnet | none | Add the finding. In `scripts/audit/checks/packaging.py`: (i) a module constant `SHELLCHECK_PY_HOOK = 'shellcheck-py/shellcheck-py'` beside `RENOVATE_FLEET_PRESET` (`:54`), with a comment saying why four-component tags need a `versioning` rule -- take the reasoning from the rule's own `description` in `renovate-fleet.json`, do not restate it at length; (ii) `uses_shellcheck_py_hook(repo)`, modelled on `uses_remote_pre_commit_hooks` (`:33-44`), using `check_file_contains(repo, '.pre-commit-config.yaml', ...)` with a pattern matching the hook repository URL; (iii) `renovate_config_versions_shellcheck_py(config)`, returning True when any entry in `config.get('packageRules')` is a dict whose `matchPackageNames` list contains `SHELLCHECK_PY_HOOK` and whose `versioning` is a non-empty string -- do not match the regex itself, since the rule's exact string is the preset's business and is tested there; (iv) `renovate_versions_shellcheck_py(repo)`, returning `renovate_config_versions_shellcheck_py(config) or extends_fleet_preset(config)` with the same `config is None` guard as `renovate_manages_pre_commit` (`:88-99`). Then add a fifth `issues.append` to `Renovate.run`, after the pre-commit manager one (`:528-535`), conditional on `uses_shellcheck_py_hook(repo) and not renovate_versions_shellcheck_py(repo)`, whose message names the hook, says the `github-tags` lookup fails so the revision is never bumped, and names `RENOVATE_FLEET_PRESET` as a way to satisfy it -- match the voice of the four messages above it. Order matters only in that the `missing` early return (`:496`) must still come first. Tests go in `scripts/tests/test_packaging_renovate.py` as a new `RenovateShellcheckVersioningTest(CheckTestCase)` placed after `RenovatePreCommitManagerTest` (`:26-96`), copying its `_repo` helper shape exactly -- including adding `customManagers:githubActionsVersions` to `extends` and writing `RENOVATE_WORKFLOW`, since the other findings are separate and every fixture must carry both. Cover: the hook with no rule fails; a local rule passes; the fleet preset alone passes; a rule naming a different package does not pass; a rule naming the hook with no `versioning` key does not pass; no `.pre-commit-config.yaml` passes; a `.pre-commit-config.yaml` without the hook passes; a malformed `renovate.json` reports the finding rather than raising, because the `config is None` guard returns False exactly as the pre-commit pair's does (mirror `test_a_malformed_renovate_config_does_not_abort_the_run`, `scripts/tests/test_packaging.py:1122`); and `missing` is still reported first. Add one assertion to `RenovateFleetPresetTest` (`:98`) that extending the preset alone satisfies this check too, beside `test_extending_the_preset_satisfies_each_check_alone` (`:136`) -- extend that test rather than adding a parallel one if it enumerates the checks. Do not add a `FROZEN_METADATA` or `FROZEN_ISSUE_TITLES` row: no new criterion id is created, and adding one would fail `scripts/tests/test_metadata.py`. Run the repository's suite with `python3 -m unittest discover -s scripts/tests -t scripts` -- which is what the `audit package and script tests` pre-commit hook runs, and the only runner here; there is no pytest -- and report the counts. Commit subject: `Require the shellcheck-py versioning rule.` |
 | 1b | medium | sonnet | none | Prove the finding fires on exactly the four repositories and no others, with a script rather than by reading. Write it under this session's scratchpad (not the tree): for each of the 24 repositories in the `audit` job matrix in `.github/workflows/consistency-audit.yml`, run `python3 scripts/audit-check.py --repo-path <local clone> --repo-name <repo> --github-org shakenfist` filtered to the `renovate` check, against clones under `~/src/shakenfist/<repo>` fetched to their default branch first -- a stale clone is the failure mode here, so fetch and report any clone you could not update rather than reporting its verdict. Expect: `agent-python`, `client-python`, `client-python-k3s` and `client-python-ova` fail naming the shellcheck finding; `images` and `private-ci` report nothing for `renovate` at all because `REPO_OVERRIDES` scopes them out (`scripts/audit/repo.py:127-148`); `development` and the 14 with local copies pass this finding; `shakenfist`, `visual-digest-rust` and `cloudgood` pass because they have no hook. Repositories failing `renovate` for one of the other four findings are expected and are not a problem -- report them separately so the count is readable. Record the result as a table in the phase's execution notes in `docs/plans/PLAN-renovate-shellcheck-audit.md`, including anything that contradicted the prediction, and say which commit of the audit you measured. Run anything long under `timeout`. Commit subject: `Measure what the shellcheck finding newly fails.` |
 | 1c | medium | sonnet | none | Document it. In `docs/audits/renovate.md`: add a bullet to "What we check" (`:3-27`) after the pre-commit manager bullet, saying that a repository whose `.pre-commit-config.yaml` uses `shellcheck-py/shellcheck-py` carries a `versioning` `packageRule` for it, naming it directly or by extending the fleet preset -- match the two bullets above it, which both spell out that either form passes. Then rewrite the paragraph at `:312-316`, which currently says "This check does not look for that rule" and points the reader at the template README: it now does look, so say what it requires and keep the link to [the template README](https://github.com/shakenfist/development/blob/main/templates/renovate/README.md#shellcheck-pys-four-part-tags) as the explanation of why, rather than restating the four-component reasoning on a third page. Note there that `images` and `private-ci` are scoped out of this criterion and their pins are therefore unwatched, with a pointer to this plan's *Future work*. Do not touch `templates/renovate/README.md`'s own explanation of the tags, which is the canonical one, and do not change the "What we check" bullet at `:15-19` that says the preset is not required -- it is still not. `AGENTS.md` and `ARCHITECTURE.md`: no change. A finding added to an existing criterion is neither a new convention nor a change to the shape of the system; say so in the commit rather than leaving the omission to be noticed. Commit subject: `Specify the shellcheck versioning requirement.` |
 
@@ -575,8 +613,8 @@ half.
 
 #### Definition of done
 
-1. `python3 -m pytest scripts/tests/` passes, and
-   `pre-commit run --all-files` passes.
+1. `python3 -m unittest discover -s scripts/tests -t scripts` passes,
+   and `pre-commit run --all-files` passes.
 2. `RenovateShellcheckVersioningTest` exists in
    `scripts/tests/test_packaging_renovate.py` with at least the nine
    cases step 1a lists, and deleting the `issues.append` block from
@@ -941,6 +979,16 @@ canonical copy lives in shakenfist/development at
   onto it, and would collapse this finding into "extends the preset",
   which that plan's own *Future work* already contemplates for other
   reasons.
+* **`scripts/audit/checks/packaging.py` has no renovate seam.** This
+  phase took it from 2,413 to 2,476 lines and raised its
+  `tools/source-size-baseline` entry by hand rather than split it,
+  because a 2,400-line restructure around a 63-line change is the
+  wrong diff to review together. The seam is obvious and the tests
+  already use it -- `scripts/tests/test_packaging_renovate.py` exists
+  beside `test_packaging.py` -- so a `checks/renovate.py` holding the
+  five renovate helpers, `Renovate` and `renovate_workflow_drift`
+  would follow the split the tests already made. Worth an issue of its
+  own, as #412 is for the test module.
 * **Nothing checks that a repository's local copy of the rule matches
   the preset's.** Measured byte-identical across all 14 on 2026-11-21,
   and `PLAN-renovate-cadence.md` phase 3 deletes the local copies, so
