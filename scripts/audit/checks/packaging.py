@@ -65,12 +65,16 @@ def uses_shellcheck_py_hook(repo):
 
     The hook, not its pin: what is wrong without the rule is the
     missing configuration, whatever revision happens to be current.
+    Whitespace is spaces and tabs only, never a newline, for the reason
+    RENOVATE_USES_RE gives. The SSH remote form is not matched;
+    nothing in the fleet writes it.
     """
     return check_file_contains(
         repo, '.pre-commit-config.yaml',
-        r'(?m)^\s*-?\s*repo:\s*[\'"]?'
+        r'(?m)^[ \t]*(?:-[ \t]+)?repo:[ \t]*[\'"]?'
         r'(?:https?://github\.com/)?'
-        + re.escape(SHELLCHECK_PY_HOOK) + r'(?:\.git)?/?[\'"]?\s*(?:#.*)?$'
+        + re.escape(SHELLCHECK_PY_HOOK)
+        + r'(?:\.git)?/?[\'"]?[ \t]*(?:#.*)?$'
     )
 
 
@@ -121,20 +125,33 @@ def renovate_manages_pre_commit(repo):
 def renovate_config_versions_shellcheck_py(config):
     """True when a parsed Renovate config gives shellcheck-py a versioning.
 
-    Any packageRules entry naming the hook with a non-empty `versioning`
-    counts. The rule's exact string is the preset's business, and is
-    tested there.
+    Any packageRules entry selecting the hook with a non-empty
+    `versioning` counts. The rule's exact string is the preset's
+    business, and is tested there.
+
+    The rule is read the way Renovate reads it -- exact, glob, regex
+    and negated entries, matchDepNames as well as matchPackageNames,
+    and the deprecated spellings Renovate migrates -- through
+    rule_covers(), because a hand-written rule that Renovate applies
+    must not be reported as missing in somebody else's tracker.
+
+    Matchers that narrow a rule away from the pre-commit manager
+    (matchManagers, matchFileNames and the rest), and `enabled: false`,
+    are not read: such a rule passes although Renovate never applies
+    it to the hook. That is the cheaper direction to be wrong in -- a
+    pin left unwatched rather than an issue filed outward -- and
+    reading them would mean modelling the rest of Renovate's matchers.
     """
     rules = config.get('packageRules')
     if not isinstance(rules, list):
         return False
+    hook = {SHELLCHECK_PY_HOOK: [SHELLCHECK_PY_HOOK]}
     for rule in rules:
         if not isinstance(rule, dict):
             continue
-        names = rule.get('matchPackageNames')
         versioning = rule.get('versioning')
-        if (isinstance(names, list) and SHELLCHECK_PY_HOOK in names
-                and isinstance(versioning, str) and versioning):
+        if (isinstance(versioning, str) and versioning
+                and rule_covers(rule, hook)):
             return True
     return False
 

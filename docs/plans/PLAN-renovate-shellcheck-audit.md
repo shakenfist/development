@@ -420,6 +420,10 @@ next push to main.
     change. Recorded in *Future work* for an issue of its own,
     mirroring #412 for the test module, which the tests already split
     along that line.
+  - The first review round took the file to 2,493 lines: the
+    shellcheck helper now reads rules through `rule_covers()` and
+    documents the matchers it deliberately does not read (decision 3).
+    The baseline entry is raised again for the same reason.
   - Step 1b's brief warned that a stale clone was its failure mode.
     It is, and two repositories prove it: measuring the finding
     against the local working trees reports `clingwrap` and
@@ -583,6 +587,18 @@ half.
    held to carrying the rule by a test that loads it -- the pattern
    `RENOVATE_FLEET_PRESET`'s comment (`:46-54`) describes and
    `PLAN-renovate-cadence.md` phase 1 decision 2 established.
+
+   The first review round changed what "naming the hook" means. The
+   helper first accepted only a literal entry in `matchPackageNames`,
+   which would have reported a repository whose rule Renovate applies
+   -- written with `matchDepNames`, a glob, a `/regex/` or a
+   deprecated spelling -- in that repository's tracker. It now reads
+   the rule through `rule_covers()`, the matcher the lockstep criterion
+   already uses. The opposite hole is accepted deliberately: a rule
+   narrowed away from the `pre-commit` manager, or carrying
+   `enabled: false`, still passes. That errs toward a pin left
+   unwatched rather than an issue filed outward, and closing it would
+   mean modelling the rest of Renovate's matchers.
 
 4. **This lands before `PLAN-renovate-cadence.md` phase 3, not after.**
    That phase sweeps every `renovate.json` onto the preset, which gives
@@ -1028,7 +1044,7 @@ canonical copy lives in shakenfist/development at
   which that plan's own *Future work* already contemplates for other
   reasons.
 * **`scripts/audit/checks/packaging.py` has no renovate seam.** This
-  phase took it from 2,413 to 2,476 lines and raised its
+  phase took it from 2,413 to 2,493 lines and raised its
   `tools/source-size-baseline` entry by hand rather than split it,
   because a 2,400-line restructure around a 63-line change is the
   wrong diff to review together. The seam is obvious and the tests

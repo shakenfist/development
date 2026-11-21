@@ -100,8 +100,6 @@ class RenovateShellcheckVersioningTest(CheckTestCase):
 
     check_class = packaging.Renovate
 
-    PRESET_NAME = 'local>shakenfist/development:renovate-fleet'
-
     SHELLCHECK_HOOK = (
         'repos:\n'
         '  - repo: https://github.com/shellcheck-py/shellcheck-py\n'
@@ -150,7 +148,8 @@ class RenovateShellcheckVersioningTest(CheckTestCase):
 
     def test_the_fleet_preset_satisfies_it(self):
         self.assert_pass(self._repo(
-            {'extends': [self.PRESET_NAME]}, self.SHELLCHECK_HOOK))
+            {'extends': [packaging.RENOVATE_FLEET_PRESET]},
+            self.SHELLCHECK_HOOK))
 
     def test_a_rule_for_another_package_does_not_pass(self):
         rule = dict(self.RULE, matchPackageNames=['rhysd/actionlint'])
@@ -170,6 +169,83 @@ class RenovateShellcheckVersioningTest(CheckTestCase):
         self.assert_fail(self._repo(
             {'packageRules': [rule]}, self.SHELLCHECK_HOOK),
             containing='shellcheck-py/shellcheck-py')
+
+    def _rule(self, **match):
+        return {'packageRules': [dict(match, versioning=self.RULE['versioning'])]}
+
+    def test_every_spelling_renovate_applies_passes(self):
+        # Renovate applies each of these to the hook, so none of them
+        # may be reported as missing the rule.
+        for match in (
+            {'matchDepNames': ['shellcheck-py/shellcheck-py']},
+            {'matchPackageNames': ['shellcheck-py/**']},
+            {'matchPackageNames': ['/^shellcheck-py//']},
+            {'matchPackageNames': ['/SHELLCHECK/i']},
+            {'matchPackagePatterns': ['^shellcheck-py/']},
+            {'matchPackagePrefixes': ['shellcheck-py/']},
+            {'matchPackageNames': ['!rhysd/actionlint']},
+        ):
+            with self.subTest(match=match):
+                self.fresh_fixture()
+                self.assert_pass(self._repo(
+                    self._rule(**match), self.SHELLCHECK_HOOK))
+
+    def test_a_rule_that_excludes_the_hook_does_not_pass(self):
+        for match in (
+            {'matchPackageNames': ['shellcheck-py/**',
+                                   '!shellcheck-py/shellcheck-py']},
+            {'matchPackageNames': ['/^shellcheck/'],
+             'excludePackageNames': ['shellcheck-py/shellcheck-py']},
+            {'matchPackageNames': ['shellcheck-py/shellcheck-py'],
+             'matchDepNames': ['rhysd/actionlint']},
+        ):
+            with self.subTest(match=match):
+                self.fresh_fixture()
+                self.assert_fail(self._repo(
+                    self._rule(**match), self.SHELLCHECK_HOOK),
+                    containing='shellcheck-py/shellcheck-py')
+
+    def test_a_rule_with_no_package_matcher_does_not_pass(self):
+        self.assert_fail(self._repo(
+            self._rule(matchManagers=['pre-commit']), self.SHELLCHECK_HOOK),
+            containing='shellcheck-py/shellcheck-py')
+
+    def test_a_string_package_names_does_not_pass(self):
+        # Renovate rejects a non-list matcher; it does not name the hook.
+        self.assertFalse(packaging.renovate_config_versions_shellcheck_py(
+            self._rule(matchPackageNames='shellcheck-py/shellcheck-py')))
+
+    def test_a_rule_scoped_away_from_pre_commit_still_passes(self):
+        # Chosen, not missed: see renovate_config_versions_shellcheck_py.
+        self.assert_pass(self._repo(
+            self._rule(matchPackageNames=['shellcheck-py/shellcheck-py'],
+                       matchManagers=['npm']),
+            self.SHELLCHECK_HOOK))
+
+    def test_the_hook_is_found_in_each_url_form(self):
+        for repo_line in (
+            '- repo: https://github.com/shellcheck-py/shellcheck-py',
+            '- repo: https://github.com/shellcheck-py/shellcheck-py.git',
+            "- repo: 'https://github.com/shellcheck-py/shellcheck-py'",
+            '- repo: https://github.com/shellcheck-py/shellcheck-py  # lint',
+            '-\n    repo: https://github.com/shellcheck-py/shellcheck-py',
+        ):
+            with self.subTest(repo_line=repo_line):
+                self.fresh_fixture()
+                self.assert_fail(self._repo(
+                    {}, 'repos:\n  ' + repo_line + '\n    rev: v0.11.0.1\n'),
+                    containing='shellcheck-py/shellcheck-py')
+
+    def test_a_commented_out_or_similar_hook_is_not_found(self):
+        for pre_commit in (
+            'repos:\n  # - repo: https://github.com/shellcheck-py/shellcheck-py\n',
+            'repos:\n  - repo: https://github.com/shellcheck-py/shellcheck-py-fork\n',
+            'repos:\n  - repo: https://github.com/someone/shellcheck-py/shellcheck-py\n',
+        ):
+            with self.subTest(pre_commit=pre_commit):
+                self.fresh_fixture()
+                result = self._repo({}, pre_commit)
+                self.assertNotIn('shellcheck-py', result.get('details') or '')
 
     def test_malformed_package_rules_do_not_raise(self):
         for rules in ('x', None, [1, 'x'], {'a': 1}):
@@ -192,7 +268,8 @@ class RenovateShellcheckVersioningTest(CheckTestCase):
             with self.subTest(renovate=renovate):
                 self.fresh_fixture()
                 result = self._repo(renovate, self.SHELLCHECK_HOOK)
-                self.assert_fail(result)
+                self.assert_fail(
+                    result, containing='shellcheck-py/shellcheck-py')
 
     def test_a_malformed_renovate_config_without_the_hook_is_not_this(self):
         # The unreadable config is the other findings' business.

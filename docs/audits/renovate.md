@@ -13,7 +13,7 @@
   (`PINNED_RENOVATE_VERSION` and `PINNED_HASHIN_VERSION`) and the ref
   of each action it uses.
 * `renovate.json` exists. Nothing is checked about what it holds
-  beyond the two entries below, so a repository that keeps the fleet
+  beyond the entries below, so a repository that keeps the fleet
   policy locally rather than extending the preset still passes; the
   preset is the convention, not a requirement this check enforces. It
   is not expected to be byte-identical to the template's copy.
@@ -319,8 +319,17 @@ repository whose `.pre-commit-config.yaml` uses
 `packageRule` naming it, either itself or by extending the fleet
 preset, or the hook is never bumped. The check fires on the presence
 of the hook, not on a stale pin, and accepts any non-empty
-`versioning` string on a rule naming it; the preset's own test holds
-the real rule's shape. See
+`versioning` string on a rule selecting it; the preset's own test
+holds the real rule's shape. The rule is matched as Renovate matches
+it -- exact, glob and `/regex/` entries, `matchDepNames` as well as
+`matchPackageNames`, and the deprecated spellings Renovate migrates --
+so a hand-written rule Renovate applies is not reported. A rule
+narrowed away from the `pre-commit` manager (by `matchManagers`,
+`matchFileNames` and the like) or carrying `enabled: false` still
+passes, although Renovate never applies it to the hook: that is the
+cheaper direction to be wrong in, leaving a pin unwatched rather than
+filing an issue against a repository that is configured correctly.
+See
 [the template README](https://github.com/shakenfist/development/blob/main/templates/renovate/README.md#shellcheck-pys-four-part-tags)
 for why the rule is needed.
 
