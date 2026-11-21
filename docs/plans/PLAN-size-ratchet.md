@@ -951,7 +951,9 @@ is 20 entries on either base, so finding 2's count is unaffected.
 
 | Commit | Step |
 |--------|------|
-| ryll `15e5538` | 3a: the script, the hook, a CI job, the exclude file, the baseline and the review-scope entries |
+| ryll `965a14f` | 3a: the script, the hook, a CI job, the exclude file, the baseline and the review-scope entries |
+| ryll `a1cfada` | 3c: the threshold, thirteen `#[expect]`s, `AGENTS.md`, `docs/development.md`, six raised baseline entries |
+| ryll `c70d276` | 3d: `PLAN-app-split.md` phases 4 and 6 closed out |
 
 * **`make lint` runs clippy eleven times, not four.** Finding 7
   counted the commands chained in the `lint` target and did not look
@@ -1020,6 +1022,38 @@ is 20 entries on either base, so finding 2's count is unaffected.
   shakenfist-spice-compression --no-default-features --features
   encode`, reports nothing at all, because that crate gates every
   long module behind features the lane does not enable.
+* **The ratchet's first catch was the pull request that installed
+  it.** The thirteen exemptions add 73 lines of prose to six files
+  that are already in the baseline, so step 3c's first
+  `pre-commit run --all-files` failed on the `source-size-ratchet`
+  hook adopted two commits earlier: `bugreport.rs` 5,101 to 5,110,
+  `display.rs` 6,330 to 6,347, `inputs.rs` 3,201 to 3,210,
+  `main_channel.rs` 3,921 to 3,929, `playback.rs` 2,331 to 2,340 and
+  `session.rs` 1,663 to 1,681. The six entries were raised by hand,
+  which is the flow the baseline's own header prescribes and the only
+  one available, since `--update` never raises an entry. Two things
+  worth carrying forward: the reason for the growth has to be in the
+  pull request description, which is where the baseline design puts
+  the judgement, and the two halves of this plan interact in a way
+  neither phase predicted -- a function-length lint makes files
+  longer, because the exemptions live next to the functions they
+  excuse. An adopter taking both halves in one pull request should
+  expect to raise entries in it, and the template should say so.
+  Every raised entry equals its file's current length exactly, which
+  the management session checked rather than assumed.
+* 3a's commit hash in this table was corrected after an amend:
+  `15e5538` became `965a14f`, and nothing outside this table had
+  cited it.
+* Step 3d found that `PLAN-app-split.md` phase 6's `Plan` cell named
+  a phase plan file that was never written and now never will be, so
+  it names shakenfist/development's `PLAN-size-ratchet.md` phase 3
+  instead. Nothing reads that column: this repository's plan
+  criteria take a phase's label from the first cell and its state
+  from the `Status` column, and ryll has no test that reads it. The
+  phase 6 section also *instructed* a reader to measure after
+  app-split phase 5, which is no longer what happened, so that
+  instruction was corrected rather than left to contradict the
+  record.
 
 
 ### 4. Criteria and enforcement
