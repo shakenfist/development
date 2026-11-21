@@ -220,6 +220,17 @@ rule has to lose the `templates/renovate/renovate.yml` path or the
 pins in the template stop being maintained -- the template outlives
 the deployed copies the rest of the rule is there for.
 
+One reference in those two files is not pinned, by a second local
+rule in this repository's `renovate.json`: `dtolnay/rust-toolchain`
+stays on `@stable`. That action takes its `toolchain` input's default
+from the ref name, so a sha needs a `with: toolchain: stable` block
+that Renovate will not write, and that block in the template would
+make every fleet copy of `renovate.yml` drift from it under this
+criterion. The fleet runner's own workflow is pinned, with the input
+given. The rule goes when the two files do, and
+`scripts/tests/test_packaging_renovate.py` fails while either
+reference is pinned or either file is gone.
+
 The fleet's own actions are the exception, carried as a `packageRules`
 entry. `shakenfist/**` references are not pinned: every repository
 consumes them at `@main` on purpose, so that a fix to a shared
@@ -229,7 +240,8 @@ requiring review instead of by a sha. The exception names both the
 `action` and `workflow` dep types, because Renovate calls a job-level
 reusable workflow a `workflow` while every other `uses:` reference is
 an `action`. Both names, and the helper's own definition, are read
-from Renovate's source at the version this fleet runs, 44.227.4:
+from Renovate's source at 44.227.4, and re-read unchanged at
+44.251.0:
 the helper is the `pinGitHubActionDigests` entry in
 [`lib/config/presets/internal/helpers.preset.ts`](https://github.com/renovatebot/renovate/blob/83794a8993ff455b106ddf1e23ce4deca3f5277d/lib/config/presets/internal/helpers.preset.ts#L118-L126),
 and the dep type a reference is given is chosen by
@@ -237,7 +249,7 @@ and the dep type a reference is given is chosen by
 [`lib/modules/manager/github-actions/extract.ts`](https://github.com/renovatebot/renovate/blob/83794a8993ff455b106ddf1e23ce4deca3f5277d/lib/modules/manager/github-actions/extract.ts#L78-L111),
 which says `workflow` when the reference's sub-path matches
 `reusableWorkflowPathRe` and `action` otherwise. Both links are pinned
-to the commit that release was tagged from.
+to the commit 44.227.4 was tagged from.
 
 The preset sets no `vulnerabilityAlerts`: Renovate's defaults
 already drop the schedule, `minimumReleaseAge` and grouping for a

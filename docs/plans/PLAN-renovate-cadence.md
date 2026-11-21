@@ -261,7 +261,7 @@ Out of scope:
   this plan keeps it.
 - The pinning policy itself, which `PLAN-workflow-ref-trust.md`
   owns. This plan provides the grouping that policy needs, and
-  its phase 3 must land before that plan's step 3b.
+  its phase 3 must land before that plan's step 4a.
 - Turning other copied workflow templates into shared workflows.
   Renovate is a special case: a reusable workflow would still run
   once per repository, while a central runner runs once in total.
@@ -1479,6 +1479,15 @@ and nothing in it is done without an explicit yes.
    rule to drop `templates/renovate/renovate.yml` first, which
    phase 3 has to do anyway. The reasoning is in that plan's step
    3a record.
+
+   **Lifted 2026-11-21.** The pin was declined rather than waited
+   for. Adding the `with: toolchain: stable` block it needed to the
+   template would have made 16 fleet copies of `renovate.yml` drift
+   from it. So this repository's root `renovate.json` keeps
+   `dtolnay/rust-toolchain` unpinned in exactly these two files
+   until this plan's phase 3 deletes them, and disabling strands
+   nothing that is owed. The record is at the end of that plan's
+   phase 3.
 4. **Turn the schedule on, and watch a full day.** The workflow
    lands with `workflow_dispatch` only, so this step is a pull
    request of its own adding the `schedule` block its header comment
@@ -1892,7 +1901,9 @@ differ in version as well as in mode.
   arrives. Mitigation: cutover steps 2 and 3 carry the date, and
   the alternative is to narrow the rule to drop the template path,
   which phase 3 has to do anyway --- the template outlives the
-  deployed copies the rule exists for.
+  deployed copies the rule exists for. **Lifted 2026-11-21:** that
+  pin was declined, as cutover step 3 now records, so the live case
+  is gone.
 
 * **The VM image may not have what Renovate needs.** The
   `audit-write` job's comment says the image "has git and python3
@@ -2059,6 +2070,17 @@ ten copy-directly templates", the supporting-workflows list in
 phase 2 instead), the `renovate.yml` fixture in the packaging test
 module, and `docs/audits/renovate.md` itself; the mention in
 `docs/audits/scheduled-workflow-health.md` is history and stays.
+Since 2026-11-21 two more go with the files: the
+`dtolnay/rust-toolchain` rule in the root `renovate.json`, which keeps
+that action unpinned in exactly these two paths, and
+`test_only_the_doomed_renovate_copies_keep_rust_toolchain_unpinned`
+in `scripts/tests/test_packaging_renovate.py`, which fails while the
+rule names a path that does not exist, together with
+`test_the_root_config_holds_two_local_rules` beside it, whose count
+drops to one. `test_a_pinned_rust_toolchain_states_its_toolchain` in
+`scripts/tests/test_registry.py` reads both files as well; it goes,
+or is narrowed to `.github/workflows/renovate-fleet.yml`, where its
+docstring says the same reference is pinned by hand.
 The audit change lands first, and the
 `Renovate` issues it files at the next weekly run are the sweep's
 work queue. That is deliberate: it is the fleet's issue-driven
@@ -2449,7 +2471,7 @@ chosen to defer to here, so that we do not forget them.
   extreme case of a wider problem: on 2026-10-03, the 17 live copies
   of `codeql-analysis.yml` came in 12 versions. Converting the other
   verbatim-copied templates into callers of shared workflows in
-  `actions` is phase 5 of `PLAN-workflow-ref-trust.md`, because it
+  `actions` is phase 6 of `PLAN-workflow-ref-trust.md`, because it
   rests on that plan's decision to trust `actions` main.
 * GitHub dropping top-of-hour scheduled events (see Situation) is
   not specific to Renovate. Phase 2 moves the central runner off the
@@ -2459,7 +2481,8 @@ chosen to defer to here, so that we do not forget them.
 * Digest pinning moves github-actions out of Dependabot's reach.
   Step 1a found that GitHub raises Dependabot alerts for actions
   referenced by semantic version but not by commit sha, so
-  `PLAN-workflow-ref-trust.md`'s step 3b takes the fleet's 540
+  `PLAN-workflow-ref-trust.md`'s digest pinning (its phase 3, which
+  this plan's sweep carries to each repository) takes the fleet's 540
   third-party `uses:` references out of the one ecosystem that feeds
   `vulnerabilityAlerts`. Nothing in this plan changes because of it
   --- an action fix then waits for the monthly CI-tooling window,

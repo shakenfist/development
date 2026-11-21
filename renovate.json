@@ -22,6 +22,17 @@
       "schedule": [
         "on saturday"
       ]
+    },
+    {
+      "description": "dtolnay/rust-toolchain stays at @stable in these two files, against the preset's helpers:pinGitHubActionDigests, because pinning it there costs the fleet more than it buys. The action takes its toolchain input's default from the ref name, so a reference pinned to a sha needs a with: toolchain: stable block that Renovate will not write, and test_a_pinned_rust_toolchain_states_its_toolchain in scripts/tests/test_registry.py fails a pin without it. That block in the template makes every fleet copy of renovate.yml drift from it: 16 repositories would newly have failed the renovate criterion on 2026-11-20, for two files that PLAN-renovate-cadence.md disables and then deletes. Delete this rule with them; test_only_the_doomed_renovate_copies_keep_rust_toolchain_unpinned fails until it is. .github/workflows/renovate-fleet.yml is deliberately not named: the runner that holds the organisation's push token is pinned, with the toolchain input given.",
+      "matchFileNames": [
+        ".github/workflows/renovate.yml",
+        "templates/renovate/renovate.yml"
+      ],
+      "matchPackageNames": [
+        "dtolnay/rust-toolchain"
+      ],
+      "pinDigests": false
     }
   ],
   "customManagers": [
