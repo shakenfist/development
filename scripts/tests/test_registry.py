@@ -1301,16 +1301,15 @@ class ConvergedTemplatesTest(unittest.TestCase):
         and on a bare sha it is required. The fleet preset extends
         helpers:pinGitHubActionDigests, so a pin Renovate proposes must
         add `with: toolchain: stable` in the same change -- Renovate
-        will not -- or the hourly Renovate run fails here and in every
-        fleet repository that copied the template. The reasoning is
-        above the 'Set up Rust for Cargo.lock' step in
-        .github/workflows/renovate-fleet.yml, where the same reference
-        is pinned by hand with that input.
-
-        Passes today, while the ref is still a branch; it is the pull
-        request carrying the pin that this is here to fail.
+        will not -- or the Renovate run fails on every repository with a
+        Cargo.lock. .github/workflows/renovate-fleet.yml is pinned, with
+        that input. The per-repository renovate.yml and its template stay
+        on the stable branch instead: a renovate.json rule declines the
+        pin there, because the input would make every fleet copy of the
+        template drift from it, and test_packaging_renovate checks they
+        stay unpinned.
         """
-        for path in ('.github/workflows/renovate.yml',
+        for path in ('.github/workflows/renovate-fleet.yml', '.github/workflows/renovate.yml',
                      'templates/renovate/renovate.yml'):
             text = self._read(path)
             ref = current_ref(text, 'dtolnay/rust-toolchain')
@@ -1318,8 +1317,8 @@ class ConvergedTemplatesTest(unittest.TestCase):
             step = step[:step.index('\n\n')] if '\n\n' in step else step
             if re.fullmatch(r'dtolnay/rust-toolchain@[0-9a-f]{40}', ref):
                 self.assertIn('toolchain:', step,
-                              f'{path} pins rust-toolchain to a sha, so it '
-                              f'must set the toolchain input explicitly')
+                              f'{path} pins rust-toolchain to a sha, so it must set the toolchain input '
+                              f'explicitly; in renovate.yml and its template, revert the pin to @stable instead')
             else:
                 self.assertTrue(ref.endswith('@stable'), ref)
 

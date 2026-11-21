@@ -352,8 +352,10 @@ class RenovateReducedConfigTest(unittest.TestCase):
 
     def _root_rule(self, file_names):
         rules = [rule for rule in self._config('renovate.json')['packageRules']
-                 if rule.get('matchFileNames') == file_names]
-        self.assertEqual(len(rules), 1, file_names)
+                 if sorted(rule.get('matchFileNames') or []) == sorted(file_names)]
+        self.assertEqual(len(rules), 1,
+                         f'renovate.json should hold exactly one packageRule whose '
+                         f'matchFileNames is {sorted(file_names)}, and holds {len(rules)}')
         return rules[0]
 
     def test_the_root_config_holds_two_local_rules(self):
@@ -381,11 +383,20 @@ class RenovateReducedConfigTest(unittest.TestCase):
         self.assertIs(rule['pinDigests'], False)
         self.assertEqual(set(rule), {'description', 'matchFileNames',
                                      'matchPackageNames', 'pinDigests'})
-        # The exemption outlives its reason only by naming a path that
-        # has gone: the pull request deleting either file must delete
-        # the rule too, and a renamed file cannot slip out of it.
+        # The rule and the files are one invariant: the exemption is
+        # true only while both files exist and both references are still
+        # unpinned. The pull request deleting either file must delete the
+        # rule too, and a pin that reaches either file anyway is reverted
+        # rather than given a toolchain input, which would make every
+        # fleet copy of the template drift from it.
         for path in rule['matchFileNames']:
             self.assertTrue(os.path.isfile(os.path.join(REPO_ROOT, path)), path)
+            ref = current_ref(repo_text(*path.split('/')), 'dtolnay/rust-toolchain')
+            self.assertTrue(
+                ref.endswith('@stable'),
+                f'{path} has {ref}: this repository declines that pin, so put '
+                f'the reference back to dtolnay/rust-toolchain@stable with no '
+                f'with: block rather than adding a toolchain input')
 
 
 class RenovateRunnerConfigTest(unittest.TestCase):
