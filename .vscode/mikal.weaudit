@@ -817,15 +817,7 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/renovate-fleet.yml",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/secret-scan.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/renovate.yml",
       "author": "mikal"
     },
     {
@@ -906,14 +898,6 @@
     },
     {
       "path": "templates/ci-review-automation",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate",
       "author": "mikal"
     },
     {
@@ -1069,14 +1053,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
-      "author": "mikal"
-    },
-    {
       "path": "docs/consistency-audits.md",
       "author": "mikal"
     },
@@ -1089,10 +1065,6 @@
       "author": "mikal"
     },
     {
-      "path": ".pre-commit-config.yaml",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/bypass-actor-identity.md",
       "author": "mikal"
     },
@@ -1102,10 +1074,6 @@
     },
     {
       "path": "templates/review-tracking",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     },
     {

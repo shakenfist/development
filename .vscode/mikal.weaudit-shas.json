@@ -69,14 +69,6 @@
       "sha": "0c0cfe362b24e6bc67ccf1ddd09dacc722a0524f",
       "date": "2026-11-01"
     },
-    ".github/workflows/renovate-fleet.yml": {
-      "sha": "3adb9d8981175fad77c4cb5292f0ffc92d296ebd",
-      "date": "2026-11-16"
-    },
-    ".github/workflows/renovate.yml": {
-      "sha": "d545d6072a11ee5ecdcaf01cb23aba1879b241d4",
-      "date": "2026-11-16"
-    },
     ".github/workflows/secret-scan.yml": {
       "sha": "06815927ddee6c25cc2ce8d62656563f70432025",
       "date": "2026-11-16"
@@ -84,10 +76,6 @@
     ".gitignore": {
       "sha": "26a19958e61609c60e1b721594ab8151ddf1634f",
       "date": "2026-09-04"
-    },
-    ".pre-commit-config.yaml": {
-      "sha": "eb799aa90448ef1e0cace57e1b9f2fa0b572a6d3",
-      "date": "2026-11-19"
     },
     "AGENTS.md": {
       "sha": "f764b451e7387863708f2a6732336a9b497d9571",
@@ -863,10 +851,6 @@
     },
     "templates/renovate/renovate.json": {
       "sha": "34bc3ba88cc9475eb7bc7f9ca99d05d0be6a828b",
-      "date": "2026-11-17"
-    },
-    "templates/renovate/renovate.yml": {
-      "sha": "d545d6072a11ee5ecdcaf01cb23aba1879b241d4",
       "date": "2026-11-17"
     },
     "templates/review-tracking/README.md": {
