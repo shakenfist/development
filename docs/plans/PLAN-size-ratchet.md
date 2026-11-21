@@ -155,10 +155,15 @@ and the `NON_SOURCE_DIRS` pattern in
 during the walk, with each entry's reason written beside it.
 
 **Function length is the other half, and it is per-language.** The
-file that prompted this plan is ryll's `app.rs`, whose real defects
-are a 1,630-line `eframe::App::ui` and a 610-line
-`process_events`; the file's length follows from them. What each
-language's linter offers today:
+file that prompted this plan was ryll's `app.rs`, whose real
+defects were a 1,630-line `eframe::App::ui` and a 610-line
+`process_events`; the file's length followed from them. That file
+no longer exists: shakenfist/ryll's `PLAN-app-split.md` phases 1
+to 4 split it into `ryll/src/app/`, and as of 2026-11-21 the
+longest function in the workspace is 649 lines, elsewhere. Phase
+3's survey records what that does to this plan; the argument is
+unaffected, because the functions moved rather than shrank. What
+each language's linter offers today:
 
 * **Rust** (instar, ryll, uncalibrated-sextant, visual-digest-rust):
   clippy's `too_many_lines`, in `clippy::pedantic`, threshold set
@@ -264,6 +269,10 @@ Deliberately out of scope:
    distribution during the pilot, recording the figure and its
    derivation in that repository's `clippy.toml` comment; the
    criterion requires the lint to be on, not a particular number.**
+   Answered for ryll in phase 3, decision 3: 150, giving 22
+   `#[expect]`s across 4,151 functions. The worry in this question
+   was specific to a pre-split `app.rs`; measured after the split,
+   clippy's own default of 100 would have cost 44.
 5. **Enforcement and the sweep.** Bumping `source-file-size` to v2
    and adding a template-adoption criterion makes most of the
    fleet non-compliant the next morning (see phase 4 for the
@@ -274,17 +283,20 @@ Deliberately out of scope:
 
 ## Execution
 
-Work happens on `size-ratchet` off `main`, in the worktree
-`../development-size-ratchet`. Phases are the sections below
-rather than separate files, following this repository's
-convention. The ryll pilot (phase 3) lands in shakenfist/ryll and
-is recorded as `ryll <sha> (#pr)`.
+Phases are the sections below rather than separate files,
+following this repository's convention. Phases 1 and 2 shipped
+together from the branch `size-ratchet`; from phase 3 on, each
+phase takes a branch named for it, matching the rest of the fleet
+(`size-ratchet-phase-NN-descriptive`). The ryll pilot (phase 3)
+does its work in shakenfist/ryll and is recorded as `ryll <sha>
+(#pr)`; the development-side branch for that phase carries the
+plan, the close-out of phases 1 and 2, and the pilot's report.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
 | 1. The ratchet template | Complete | dbcf540 (#405) |
 | 2. `source-file-size` v2 | Complete | dbcf540 (#405) |
-| 3. ryll pilot | Not started | |
+| 3. ryll pilot | In progress | |
 | 4. Criteria and enforcement | Not started | |
 | 5. Push audit | Not started | |
 
@@ -579,26 +591,315 @@ copy. ryll's is closed by the pilot.
 
 ### 3. ryll pilot
 
-In shakenfist/ryll, as the clippy half of `PLAN-app-split.md`'s
-phase 6 plus the file half from here. One pull request:
+**Planning effort: high.** It reaches into another repository's
+plan to take a phase off it, and it turns on a lint in a build
+that runs clippy four times with different feature sets and
+`-D warnings` on each, where `#[expect]` has a failure mode that
+`#[allow]` does not.
 
-* Copy `tools/source-size-ratchet.py` and the hook stanza;
-  `--init` the baseline (twelve files over 1,500 today); write
-  `tools/source-size-exclude` for `ryll/src/web/assets/sfui/`.
-* Re-copy `source-file-size` v2 into `PUSH-AUDIT.md`.
-* `too_many_lines = "warn"` in `[workspace.lints.clippy]`, a
-  measured `too-many-lines-threshold` in `clippy.toml` with its
-  derivation in a comment, and
-  `#[expect(clippy::too_many_lines, reason = "...")]` on every
-  remaining offender. `#[expect]` rather than `#[allow]` so an
-  exemption that stops being needed fails and is removed.
+One pull request in shakenfist/ryll does the work; the
+development-side branch `size-ratchet-phase-03-ryll-pilot` carries
+this plan, the close-out of phases 1 and 2, and the pilot's report,
+and is pushed after the ryll pull request merges so that it can
+carry that report.
 
-What the pilot reports back here, before phase 4 starts: the
-function-length distribution and the threshold chosen, the number
-of `#[expect]`s it needed, anything about the ratchet's ergonomics
-that should change the template, and how long the hook takes.
-Template changes it motivates land here first, and the pilot
-re-copies.
+**In scope.** Adopting the ratchet template in ryll (script, hook,
+exclude file, baseline, review-scope entries); enabling
+`clippy::too_many_lines` workspace-wide with a measured threshold
+and an `#[expect]` on every remaining offender; the convention and
+rationale documentation that shakenfist/ryll's `PLAN-app-split.md`
+phase 6 asks for; closing out that phase and its phase 4; and
+reporting back here what phase 4 needs.
+
+**Out of scope.** Splitting any file or any function. The baseline
+is a list of files that already owe a reason, not a work queue, and
+nothing here asks anyone to shorten one. Also out: ryll's
+`PLAN-app-split.md` phase 5, which is unplanned and stays that way;
+the six repositories still holding an open `push-audit` issue, which
+the daily audit drives (open question 5); and anything about Python
+or TypeScript function length (open questions 2 and 3, Future work).
+
+#### What the survey found
+
+Surveyed 2026-11-21 against shakenfist/ryll `origin/develop` at
+f845f45, and shakenfist/development `main` at 2f0c62e, unless
+stated. The phase section below was written on 2026-10-10 and
+re-touched on 2026-11-15, and six of its factual claims have
+moved. Corrections to the Situation and Mission sections were made
+at their source in the same commit as this rewrite, so they do not
+need making again; the dated figures in the Situation table were
+left alone, as that section's own instructions require, and the
+shifts are recorded here.
+
+1. **`ryll/src/app.rs` no longer exists.** `PLAN-app-split.md`
+   phases 1 to 4 split it into `ryll/src/app/` and
+   `ryll/src/app/ui/`, 23 files, none over 1,500 lines. Phase 4
+   merged as ecf54b5 (#726); its Execution table still reads
+   `In progress` only because no phase 5 ever branched to close it
+   out. The 1,630-line `eframe::App::ui` and the 610-line
+   `process_events` that prompted this plan are both gone: the
+   longest function under `app/` is `app/mod.rs::new` at 246 lines.
+   This is the finding that reopens the sequencing question, and
+   decision 1 settles it.
+
+2. **ryll has 20 source files over 1,500 lines, not twelve.**
+   Measured with the template's own `SOURCE_EXTENSIONS` list and
+   the vendored sfui tree excluded: 221 tracked source files, 52
+   over 800, 20 over 1,500, largest
+   `shakenfist-spice-renderer/src/channels/display.rs` at 6,330.
+   At this plan's own 2026-10-10 datum (ryll 16cb826) the same
+   measurement gives 160 files, 39 over 800 and 12 over 1,500 --
+   so the twelve was right when it was written, and the count has
+   grown by two thirds in six weeks. `ryll/src/bugreport.rs` went
+   4,275 to 5,101 and `display.rs` 5,356 to 6,330 over that
+   window, while `app.rs` went from 6,308 to nothing. The plan's
+   thesis gained its best evidence while the plan was being
+   written.
+
+3. **ryll already carries `source-file-size` v2, verbatim.**
+   `PUSH-AUDIT.md:333`, landed by `consistency-fixes-2026-11-19`
+   (#740, merge a6028d0); diffed against
+   `templates/shared-blocks/source-file-size.md` and identical.
+   ryll's `push-audit` issue #733 is closed. The step that said to
+   re-copy it is already done, by the mechanism phase 2 set up
+   rather than by this phase -- see decision 2.
+
+4. **Phase 2's fleet prediction held exactly.** Twelve
+   `Consistency: Pre-push audit file` issues were filed; six are
+   closed (ryll, shakenfist, hunkydory, instar, sfui, andris) and
+   six remain open (occystrap, client-python-k3s, kerbside,
+   divergulent, actions, uncalibrated-sextant). The audit-driven
+   approach from open question 5 is working and needs no
+   intervention from this phase.
+
+5. **The sfui exclusion is not load-bearing.** The largest
+   vendored file is `ryll/src/web/assets/sfui/sf.css` at 822
+   lines; nothing under that tree is over 1,500, so the baseline
+   would be correct without an exclude file. Written anyway, for
+   the reason in decision 5.
+
+6. **ryll's clippy configuration is as this plan described it.**
+   `clippy.toml` holds only `allow-unwrap-in-tests = true`;
+   `[workspace.lints.clippy]` holds only `unwrap_used = "warn"`.
+   Seven first-party crates carry `[lints] workspace = true`;
+   `shakenfist-spice-protocol/fuzz` and `tools/gen-swatches-jpeg`
+   do not. The second is a second exemption, where phase 4's
+   section anticipates only the fuzz crate -- recorded for phase 4
+   rather than fixed here.
+
+7. **`make lint` runs clippy four times, each with
+   `-D warnings`.** `Makefile:337-340`: the workspace with
+   `--all-targets` and `shakenfist-spice-compression/encode,ryll/rdp`;
+   `-p ryll --features gui,digest-decode`;
+   `-p shakenfist-spice-compression --no-default-features
+   --features encode`; then `tools/check-slim-renderer.sh`, which
+   builds the renderer feature by feature. This is the finding
+   that most changes the step plan. `#[expect]` emits
+   `unfulfilled_lint_expectation` when its lint does not fire, and
+   `-D warnings` makes that an error, so a function whose measured
+   length crosses the threshold in one feature configuration and
+   not another cannot carry an `#[expect]` at all. Headroom above
+   the threshold is a correctness property here, not a matter of
+   taste, and it is the strongest argument for the lower of the
+   two candidate thresholds.
+
+8. **The function-length distribution.** A proxy measurement
+   (brace-matching, counting non-blank, non-comment body lines,
+   which is the shape `clippy::too_many_lines` counts) over the
+   seven lint-inheriting crates: 4,151 functions, of which 44 are
+   over 100 lines, 30 over 120, **22 over 150**, 18 over 175, 14
+   over 200, 11 over 250 and 5 over 300. Exactly one of the 22 is
+   a test. The longest are
+   `shakenfist-spice-renderer/src/channels/display.rs::handle_message`
+   (649) and `::decode_image_and_emit` (529); nothing else exceeds
+   308. It is a proxy, so step 3b confirms it against clippy
+   itself before step 3c annotates anything.
+
+9. **This repository's own ratchet is live and passing.**
+   `python3 -I tools/source-size-ratchet.py` exits 0 on
+   `development` main, over a baseline of twelve files. Phases 1
+   and 2 are holding, which is what makes ryll a pilot rather than
+   a first attempt.
+
+10. **Two adoption details the template README covers but the
+    phase section did not.** ryll's `.pre-commit-config.yaml`
+    already has four `repo: local` entries (lines 2, 32, 129,
+    142), so the hook stanza merges into one of them rather than
+    adding a fifth. And ryll's `.vscode/review-scope.toml`
+    `include` list matches by extension plus a handful of names,
+    none of which matches an extensionless
+    `tools/source-size-exclude`, so adopting with an exclude file
+    needs an `include` entry or `review-scope-completeness`
+    reports it as an orphan.
+
+#### Decisions
+
+1. **Both halves land in phase 3, in one ryll pull request, and
+   `PLAN-app-split.md` phase 6 is closed out as `Complete`
+   pointing here.** `PLAN-app-split.md` phase 6 says to pick the
+   threshold from the distribution *after* its phase 5, and phase
+   5 is unplanned. Deferring to it would block this plan's phase 4
+   on another repository's unplanned refactor and would land
+   `rust-function-length-lint` with no compliant adopter at all --
+   the phase 4 section predicts 3 of 4 Rust repositories failing,
+   which is only true if ryll passes. Against that, the ordering
+   phase 6 wanted is not load-bearing: `#[expect]` is precisely
+   the mechanism that makes a stale exemption a build failure, so
+   if phase 5 later shortens `app/mod.rs::new` or
+   `app/connection.rs::reconnect`, the annotation fails and is
+   removed rather than quietly surviving. Taking the phase is
+   therefore cheaper than waiting for it, and the two functions
+   phase 5 would touch are the two the mechanism protects. This is
+   the decision a reviewer is most likely to argue with, because
+   it takes a phase off a plan in another repository; the
+   alternative, and its cost, are stated above.
+
+2. **The "re-copy `source-file-size` v2" step is dropped as
+   already done, not re-performed.** Finding 3. Phase 3 verifies
+   the embedded copy is byte-identical to the template and records
+   that it arrived through the daily audit, which is a result worth
+   having: it is the first evidence that open question 5's
+   audit-driven approach closes a v2 bump without a sweep.
+
+3. **`too-many-lines-threshold = 150`**, giving 22 `#[expect]`s.
+   The derivation, from finding 8: 150 is the lowest round figure
+   above which every function is plainly a candidate to split, and
+   22 annotations are an inventory a reviewer can read in one
+   sitting, where clippy's default of 100 would cost 44. The
+   alternative is 200, at 14 annotations, and it is rejected on
+   finding 7 rather than on taste: at 200 the functions nearest
+   the line are `main.rs::main` (194) and
+   `main_channel.rs::run_loop` (191), both within six lines of the
+   threshold and both in crates built under several feature sets,
+   which is exactly the shape that produces an
+   `unfulfilled_lint_expectation` in one lane and a `too_many_lines`
+   in another. At 150 the nearest is `jpeg.rs::try_new` at 153 and
+   the three below it sit at 149 or less, so the margin is wider
+   on both sides. Step 3b may move the figure if clippy's own count
+   differs materially from the proxy; it may not move it on
+   preference.
+
+4. **`#[expect]`, with `#[allow]` plus a stated reason as the
+   documented escape.** A function whose length is feature-sensitive
+   across the threshold cannot carry an `#[expect]` under
+   `-D warnings` (finding 7). Where step 3c finds one, it uses
+   `#[allow(clippy::too_many_lines)]` with an adjacent comment
+   naming the feature lane that forced it. Phase 4's section says
+   its criterion flags `#[allow(clippy::too_many_lines)]` as
+   something that should be `#[expect]`; that criterion will have
+   to accept an `#[allow]` carrying such a comment. Phase 3 records
+   the requirement; phase 4 implements it.
+
+5. **The exclude file is written even though no sfui file is over
+   the threshold.** Finding 5. It is correct independently of
+   today's line counts -- the tree is vendored from shakenfist/sfui
+   by that repository's `tools/vendor.sh` and reviewed there, which
+   `.vscode/review-scope.toml:69-74` already says -- and adding it
+   after a vendored file crosses 1,500 would mean editing the
+   baseline to remove an entry, which reads like a concession.
+
+6. **The development-side pull request is pushed after the ryll
+   pull request merges.** The pilot's report is phase 3's
+   deliverable and phase 4 reads it, so it belongs in this phase's
+   own pull request rather than in phase 4's close-out commit. The
+   branch therefore holds unpushed commits for as long as the ryll
+   review takes, which is the established pattern here.
+
+#### Step plan
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 3a | medium | sonnet | worktree | In a shakenfist/ryll worktree off `develop`, adopt the source-size ratchet, following `templates/source-size-ratchet/README.md` "Adopting it" in shakenfist/development. Copy `templates/source-size-ratchet/source-size-ratchet.py` to `tools/source-size-ratchet.py` byte for byte, keeping the executable bit. Merge the hook from `templates/source-size-ratchet/pre-commit-hook.yaml` into the `hooks:` list of an existing `repo: local` entry in `.pre-commit-config.yaml` -- there are four, at lines 2 (`rust-check`), 32 (`audit-range-test`), 129 (`bidi-check`) and 142 (`docs-line-references`); the last is the closest neighbour, a stdlib-Python tree-wide check -- rather than adding a fifth entry, and keep the stanza's comments. Write `tools/source-size-exclude` with one entry, `ryll/src/web/assets/sfui/`, and a comment saying the tree is vendored from shakenfist/sfui by that repository's `tools/vendor.sh` and reviewed there; `.vscode/review-scope.toml:69-74` has the wording. Then run `python3 -I tools/source-size-ratchet.py --init` and `--init` only once. In `.vscode/review-scope.toml`, add `tools/source-size-baseline` to `exclude` and `tools/source-size-exclude` to `include`, each with a comment; `shakenfist/development`'s own `.vscode/review-scope.toml:78-111` has both reasons written out, and the include entry is needed because the file has no extension and nothing in ryll's include list would match it. Do not touch `REVIEWS.md`. Verify: the baseline holds exactly 20 entries, `grep -c 'assets/sfui/' tools/source-size-baseline` is 0, no `*_pb2*` or minified file appears in it, `python3 -I tools/source-size-ratchet.py` exits 0, and `pre-commit run --all-files` passes. Report the baseline and the hook's wall-clock time (`time python3 -I tools/source-size-ratchet.py`, best of three). Commit subject: `Adopt the source-size ratchet.` |
+| 3b | high | opus | worktree | Same ryll worktree. Measure the real `clippy::too_many_lines` distribution before anything is annotated. Add `too_many_lines = "warn"` to `[workspace.lints.clippy]` in the root `Cargo.toml` and `too-many-lines-threshold = 100` to `clippy.toml` *temporarily*, then run each of the four clippy invocations in `make lint` (`Makefile:337-340`) separately, without `-D warnings`, capturing every `too_many_lines` hit with its file, function and reported line count. The build is Dockerised: use the `make` targets, do not install a toolchain on the host. Produce one table of every function clippy reports over 100, per lane, noting any function that appears in one lane and not another or with a different count -- that set is what decision 4's `#[allow]` escape exists for, and it is the single most important output of this step. Compare against the proxy measurement in finding 8 (4,151 functions; 44 over 100, 22 over 150, 14 over 200) and say where clippy disagrees with it and why. Then state whether decision 3's threshold of 150 still gives the 22-function inventory it predicts, or what figure does. Revert the temporary `clippy.toml` value before finishing; leave the `Cargo.toml` line in place. This step commits nothing: it reports. |
+| 3c | high | opus | worktree | Same ryll worktree, after the back brief gate on 3b's numbers. Set `too-many-lines-threshold` in `clippy.toml` to the confirmed figure, with a comment giving the figure, the date it was measured and the counts it came from (the `clippy.toml` already carries `allow-unwrap-in-tests`, so follow its comment style). Put `#[expect(clippy::too_many_lines, reason = "...")]` on every function 3b reported over that threshold. Each reason says why *this* function is long and what splitting it would cost -- a dispatch `match` over a wire protocol whose arms belong together, a decode loop whose state is shared, a `main` that is sequential setup -- and never restates the lint. For any function 3b flagged as feature-sensitive across the threshold, use `#[allow(clippy::too_many_lines)]` with an adjacent comment naming the lane that forced it, per decision 4. Then record the convention in `AGENTS.md` -- `#[expect]` rather than `#[allow]`, so an exemption that stops being needed fails the build and is removed -- and the rationale in `docs/development.md`, which is what shakenfist/ryll's `PLAN-app-split.md` phase 6 asks for. Verify with the full `make lint`: all four clippy lanes must pass with `-D warnings` and no `unfulfilled_lint_expectation`. Commit subject: `Require a function-length lint.` |
+| 3d | medium | sonnet | worktree | Same ryll worktree. Close out shakenfist/ryll's `docs/plans/PLAN-app-split.md`: set phase 4's row to `Complete` with `ecf54b5 (#726)` in its `Merged` cell (it merged on 2026-11-14 and no phase 5 branched to close it out, so this pull request is the first to touch the table since), and set phase 6's row to `Complete`, leaving its `Merged` cell to be filled with this pull request's own merge commit at close-out. Add two or three sentences to phase 6's section saying the phase was executed as shakenfist/development `PLAN-size-ratchet.md` phase 3, that the threshold was therefore measured before app-split phase 5 rather than after, and why that is safe (`#[expect]` turns a stale exemption into a build failure). Update ryll's `docs/plans/index.md` row for `PLAN-app-split.md` if its status changes. Do not mark the plan itself `Complete`: its phases 5 and 7 are outstanding. Commit subject: `Close out the function-length lint phase.` |
+| 3e | medium | sonnet | none | In the shakenfist/development worktree `development-wt-sr-p3`, after the ryll pull request merges. Add a `#### Pilot report` subsection at the end of this phase 3 section recording, as falsifiable statements: the threshold chosen and its derivation, the number of `#[expect]`s and the number of `#[allow]`s with the lane that forced each, the hook's wall-clock time on ryll's tree, the baseline size, and either the template changes the pilot motivates or one sentence saying it motivated none. Where it motivates a template change, make that change in `templates/source-size-ratchet/` in the same commit and say that ryll must re-copy, per this section's original instruction that template changes land here first. Also correct phase 4's section with what the pilot establishes: the `tools/gen-swatches-jpeg` exemption from finding 6, and decision 4's requirement that the criterion accept an `#[allow]` carrying a stated reason. Commit subject: `Report the ryll source-size pilot.` |
+
+#### Risks and mitigations
+
+* **`unfulfilled_lint_expectation` in one feature lane.** The
+  mechanism is finding 7 and it would show up as a red `make lint`
+  in a lane nobody was looking at. Mitigated by decision 3's
+  headroom, by step 3b measuring every lane separately *before*
+  anything is annotated, and by step 3c's verification being the
+  full `make lint` rather than one clippy run. The management
+  session reads the four lanes' output, not the sub-agent's
+  summary of it.
+* **Twenty-two reasons written to fill a slot.** A reason that
+  restates the lint ("this function is long") is worse than no
+  annotation, because it makes the inventory unreadable while
+  looking complete. Mitigated by the management session reading all
+  22 and rejecting any that does not say what splitting would cost;
+  this is the review step most likely to send 3c back.
+* **The Docker build is slow and 3b runs clippy four times at a
+  low threshold.** Mitigated by 3b and 3c sharing one worktree and
+  one image, and by 3b capturing the full hit list once rather than
+  iterating on the threshold.
+* **ryll's `develop` moves while the branch is open.** It merged
+  ten commits in the week before this survey. If `develop` moves
+  under the branch, rebase and re-run `--update`, never `--init`:
+  `--init` silently accepts whatever has grown since, which is the
+  drift the tool exists to stop, and the template README says so.
+* **The baseline freezes 20 files, two of which are growing
+  fast.** `bugreport.rs` and `display.rs` gained 1,800 lines
+  between them in six weeks. The ratchet stops them growing
+  further, which is the point, and no split is asked for; but the
+  pull request description should say that the two are the reason
+  the count moved from twelve to twenty, so the baseline is not
+  read as an endorsement.
+* **Taking a phase off another repository's plan.** If Michael
+  prefers `PLAN-app-split.md` phase 6 to stay open, step 3d's
+  close-out is the only part that changes and decision 1's gate in
+  the back brief is where to say so.
+
+#### Definition of done
+
+* `python3 -I tools/source-size-ratchet.py` exits 0 in ryll, and
+  `diff` between ryll's `tools/source-size-ratchet.py` and this
+  repository's `templates/source-size-ratchet/source-size-ratchet.py`
+  is empty.
+* ryll's `tools/source-size-baseline` holds exactly the number of
+  entries step 3a reported, `grep -c 'assets/sfui/'` on it is 0,
+  and no entry matches `*_pb2*`, `*.min.js` or `*.min.css`.
+* `pre-commit run --all-files` passes in ryll, and `make lint`
+  passes with all four clippy invocations run and no
+  `unfulfilled_lint_expectation` in any of them.
+* ryll's `clippy.toml` holds a `too-many-lines-threshold` whose
+  adjacent comment states the figure, the date it was measured and
+  the counts it came from.
+* Every `#[allow(clippy::too_many_lines)]` in ryll has an adjacent
+  comment naming the feature lane that forced it; there are no
+  bare ones.
+* ryll's `.vscode/review-scope.toml` lists
+  `tools/source-size-baseline` under `exclude` and
+  `tools/source-size-exclude` under `include`, each with a reason,
+  and `python3 scripts/audit-check.py` against ryll reports no new
+  `review-scope-completeness` failure.
+* ryll's `PLAN-app-split.md` phase 4 row reads `Complete` with
+  `ecf54b5 (#726)`, and its phase 6 row reads `Complete`.
+* ryll's `AGENTS.md` states the `#[expect]`-not-`#[allow]`
+  convention and `docs/development.md` carries the rationale.
+* This section carries a `Pilot report` subsection, and the
+  threshold figure appears identically in it, in ryll's
+  `clippy.toml` comment and in ryll's `docs/development.md` -- no
+  fact about the threshold is stated differently in two places.
+* `pre-commit run --all-files` passes in shakenfist/development,
+  and `python3 scripts/audit-check.py --repo-path . --repo-name
+  development` reports what it reported before this phase.
+
+#### Back brief
+
+Two gates, both because the work after them is cheap to propose
+and expensive to redo:
+
+* **After step 3b, before 3c annotates anything.** Report clippy's
+  own hit list, the set of feature-sensitive functions, and whether
+  decision 3's threshold of 150 survives contact with it. Twenty-two
+  hand-written reasons against the wrong number is the expensive
+  mistake available here.
+* **Before step 3d closes out `PLAN-app-split.md` phase 6.**
+  Confirm `Complete` pointing here, rather than `Superseded` or
+  leaving it open.
 
 ### 4. Criteria and enforcement
 
