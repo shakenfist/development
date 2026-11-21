@@ -681,10 +681,6 @@
       "sha": "39e97d6c0395dda5cc596440ce35e4f0fe21a7d8",
       "date": "2026-11-17"
     },
-    "scripts/tests/test_renovate_fleet_workflow.py": {
-      "sha": "50b0f8f6591d1d2132ccc8988c35875b5f98b662",
-      "date": "2026-11-17"
-    },
     "scripts/tests/test_repo.py": {
       "sha": "494c41567652920ef783aa50f829a0ba045616a5",
       "date": "2026-10-21"

@@ -881,10 +881,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_renovate_fleet_workflow.py",
-      "author": "mikal"
-    },
-    {
       "path": "templates/renovate/README.md",
       "author": "mikal"
     },
