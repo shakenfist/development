@@ -25,6 +25,10 @@
   repository has remote pre-commit hooks to manage. Enabling it
   directly passes, and so does extending the fleet preset, which
   enables it.
+* `renovate.json` carries a `versioning` `packageRule` for
+  `shellcheck-py/shellcheck-py`, where `.pre-commit-config.yaml` uses
+  that hook. Naming it directly passes, and so does extending the
+  fleet preset, which carries it.
 
 ### The central runner
 
@@ -309,11 +313,21 @@ with no `.pre-commit-config.yaml`, or one whose hooks are all
 `"pre-commit": {"enabled": true}` is the form repositories carried
 before the preset.
 
-Enabling the manager is not enough for the shellcheck hook:
-shellcheck-py's four-part tags need the fleet preset's regex versioning
-rule, or the lookup fails on the dependency dashboard and the hook is
-never bumped. This check does not look for that rule; see
-[the template README](https://github.com/shakenfist/development/blob/main/templates/renovate/README.md#shellcheck-pys-four-part-tags).
+Enabling the manager is not enough for the shellcheck hook. A
+repository whose `.pre-commit-config.yaml` uses
+`shellcheck-py/shellcheck-py` must also carry a `versioning`
+`packageRule` naming it, either itself or by extending the fleet
+preset, or the hook is never bumped. The check fires on the presence
+of the hook, not on a stale pin, and accepts any non-empty
+`versioning` string on a rule naming it; the preset's own test holds
+the real rule's shape. See
+[the template README](https://github.com/shakenfist/development/blob/main/templates/renovate/README.md#shellcheck-pys-four-part-tags)
+for why the rule is needed.
+
+`images` and `private-ci` use the hook but are scoped out of this
+criterion by their `only_checks` entries, so no finding reports them
+and their pins age unwatched. Widening either entry is a decision
+about that exemption rather than about this check.
 
 ### Repositories that ship workflow templates
 
