@@ -417,9 +417,9 @@ next push to main.
     description carries the justification it asks for. A
     `checks/renovate.py` seam is the alternative and is not taken
     here: it would be a 2,400-line restructure around a 63-line
-    change. Recorded in *Future work* for an issue of its own,
-    mirroring #412 for the test module, which the tests already split
-    along that line.
+    change. Filed as #434 and recorded in *Future work*, mirroring
+    #412 for the test module, which the tests already split along
+    that line.
   - The first review round took the file to 2,493 lines: the
     shellcheck helper now reads rules through `rule_covers()` and
     documents the matchers it deliberately does not read (decision 3).
@@ -1050,9 +1050,15 @@ canonical copy lives in shakenfist/development at
   wrong diff to review together. The seam is obvious and the tests
   already use it -- `scripts/tests/test_packaging_renovate.py` exists
   beside `test_packaging.py` -- so a `checks/renovate.py` holding the
-  five renovate helpers, `Renovate` and `renovate_workflow_drift`
-  would follow the split the tests already made. Worth an issue of its
-  own, as #412 is for the test module.
+  renovate constants and helpers, `Renovate` and
+  `RenovateLockstepGroups` would follow the split the tests already
+  made. Measured at 579 lines across five regions, none of them
+  called from outside the set: moving them leaves `packaging.py` at
+  1,914 lines, still in the baseline, and the new module under the
+  threshold. Every line the first review round added fell inside
+  those regions, so the remainder is unchanged by it. Filed as #434,
+  which carries the measurement, as #412 is filed for the test
+  module.
 * **Nothing checks that a repository's local copy of the rule matches
   the preset's.** Measured byte-identical across all 14 on 2026-11-21,
   and `PLAN-renovate-cadence.md` phase 3 deletes the local copies, so
