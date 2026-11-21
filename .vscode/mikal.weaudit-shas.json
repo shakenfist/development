@@ -69,6 +69,14 @@
       "sha": "0c0cfe362b24e6bc67ccf1ddd09dacc722a0524f",
       "date": "2026-11-01"
     },
+    ".github/workflows/renovate-fleet.yml": {
+      "sha": "b3da9a719fd1d40fac79b3cbb524b493b655f566",
+      "date": "2026-11-22"
+    },
+    ".github/workflows/renovate.yml": {
+      "sha": "46c7e8a54eefb024c01bc539987f67749ad57344",
+      "date": "2026-11-22"
+    },
     ".github/workflows/secret-scan.yml": {
       "sha": "06815927ddee6c25cc2ce8d62656563f70432025",
       "date": "2026-11-16"
@@ -76,6 +84,10 @@
     ".gitignore": {
       "sha": "26a19958e61609c60e1b721594ab8151ddf1634f",
       "date": "2026-09-04"
+    },
+    ".pre-commit-config.yaml": {
+      "sha": "6179590f2f93911cd1838d6ceb4c5763811e0b46",
+      "date": "2026-11-22"
     },
     "AGENTS.md": {
       "sha": "f764b451e7387863708f2a6732336a9b497d9571",
@@ -285,6 +297,10 @@
       "sha": "c58fa988567ea392014294842ae64989649a56f4",
       "date": "2026-10-19"
     },
+    "docs/audits/renovate.md": {
+      "sha": "3656d634770fb3149d54ab876274419f276fa62e",
+      "date": "2026-11-22"
+    },
     "docs/audits/reusable-workflow-secrets.md": {
       "sha": "2ebc5177a729dd8b6025ea36afdd1b305f7b536f",
       "date": "2026-10-05"
@@ -377,6 +393,10 @@
       "sha": "a3cc7d6c817f6e4598b213efc8eaef36a544f6cb",
       "date": "2026-11-17"
     },
+    "renovate.json": {
+      "sha": "9a9cf0cc7634409430f71502a9ccaa1acde2349d",
+      "date": "2026-11-22"
+    },
     "scripts/audit-check.py": {
       "sha": "97673b9e35622a6049cab81725d8554754e715b5",
       "date": "2026-09-04"
@@ -428,6 +448,10 @@
     "scripts/audit/checks/npm_dependencies.py": {
       "sha": "f38312108bb0aa28e9f19f691c13c76552ef0f33",
       "date": "2026-11-05"
+    },
+    "scripts/audit/checks/packaging.py": {
+      "sha": "2b95008a191e98191099e0cd861c2c22d6ee9c13",
+      "date": "2026-11-22"
     },
     "scripts/audit/checks/plans.py": {
       "sha": "0570a082dd6fba7edc6e88a82263faf564e511e1",
@@ -645,6 +669,10 @@
       "sha": "3717db8520eaca6d1a1b04880214f823dab1f6c7",
       "date": "2026-11-17"
     },
+    "scripts/tests/test_packaging_renovate.py": {
+      "sha": "093cdb49803e29cfa5a28b3d94d9dd9065e6f21c",
+      "date": "2026-11-22"
+    },
     "scripts/tests/test_patterns.py": {
       "sha": "4477ff162d7fd9a3ffb14e31b5979850e23e514f",
       "date": "2026-10-21"
@@ -661,6 +689,10 @@
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",
       "date": "2026-09-04"
     },
+    "scripts/tests/test_registry.py": {
+      "sha": "50e942d567399bdd0319302328eb703794955c52",
+      "date": "2026-11-22"
+    },
     "scripts/tests/test_release.py": {
       "sha": "150cc97f0a03011407dbe46234ff791ae8ea97b6",
       "date": "2026-10-30"
@@ -676,6 +708,10 @@
     "scripts/tests/test_renovate_check_push.py": {
       "sha": "39e97d6c0395dda5cc596440ce35e4f0fe21a7d8",
       "date": "2026-11-17"
+    },
+    "scripts/tests/test_renovate_fleet_workflow.py": {
+      "sha": "81fecb67d63fd6085ac0c091e2e89bc5029f3ce3",
+      "date": "2026-11-22"
     },
     "scripts/tests/test_repo.py": {
       "sha": "494c41567652920ef783aa50f829a0ba045616a5",
@@ -828,6 +864,10 @@
     "templates/renovate/renovate.json": {
       "sha": "34bc3ba88cc9475eb7bc7f9ca99d05d0be6a828b",
       "date": "2026-11-17"
+    },
+    "templates/renovate/renovate.yml": {
+      "sha": "46c7e8a54eefb024c01bc539987f67749ad57344",
+      "date": "2026-11-22"
     },
     "templates/review-tracking/README.md": {
       "sha": "ee7f765242d5186a35289b582e5db25ea4c95f12",
