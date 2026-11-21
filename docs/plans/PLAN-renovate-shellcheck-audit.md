@@ -428,6 +428,45 @@ next push to main.
     recorded measurement reads each repository's default branch, not
     whatever its working tree holds.
 
+* 2026-11-21 (AEDT): step 1b measured the finding. The audit was at
+  commit `9ed124f` (step 1a landed as `83d9565`), run by
+  `step-1b/measure.py` under the session scratchpad, which does not
+  survive a cleanup -- the method below is the durable record -- over
+  each of the 24 `audit` job matrix repositories. For each, the
+  script asked GitHub for the default branch, ran `git fetch origin
+  <branch>` in the local clone, exported `origin/<branch>` with `git
+  archive` to a scratch directory and audited that, never touching a
+  checkout. All 24 fetched and measured; none is unmeasured. The
+  prediction held in both directions.
+
+  | Verdict for the `renovate` check | Count | Repositories |
+  |---|---|---|
+  | Fails, shellcheck finding present | 4 | `agent-python`, `client-python`, `client-python-k3s`, `client-python-ova` |
+  | Not applicable, scoped out by `REPO_OVERRIDES` | 2 | `images`, `private-ci` |
+  | Fails, other findings only, no shellcheck finding | 18 | `actions`, `andris`, `clingwrap`, `cloudgood`, `development`, `divergulent`, `hunkydory`, `instar`, `kerbside`, `kerbside-client`, `kerbside-patches`, `library-utilities`, `occystrap`, `ryll`, `shakenfist`, `sfui`, `uncalibrated-sextant`, `visual-digest-rust` |
+  | Passes outright | 0 | |
+
+  The four shellcheck failures also fail on other `renovate`
+  findings. The 18 "other findings only" failures are not this
+  phase's doing and were verified as predating it: `90f1ea8`, already
+  on the default branch before this branch was cut, added `with:
+  toolchain: stable` to `templates/renovate/renovate.yml`, so every
+  fleet copy of `renovate.yml` now drifts from the template and
+  `ryll` reports "the template's `with:` is missing before line 58".
+  The `dtolnay/rust-toolchain` rule in this repository's own
+  `renovate.json` predicted it in terms -- 16 repositories newly
+  failing the criterion, for two files that `PLAN-renovate-cadence.md`
+  disables and then deletes -- so it is a known trade with a recorded
+  end, not a finding for this plan to file. The script classifies a
+  failure by whether any part of its detail names `shellcheck-py`.
+  `clingwrap` and `uncalibrated-sextant`, measured
+  at `develop`, carry the rule and report no shellcheck finding.
+  `images` and `private-ci` report `not_applicable` with their scope
+  reason, which is "nothing" for the criterion's purposes. The
+  exported trees are not git checkouts, so unrelated history-based
+  checks report that they could not measure `private-ci`; the
+  `renovate` check does not read history.
+
 ### Phase 1: the criterion and its specification
 
 **Planning effort:** medium. This adds a finding to an existing
@@ -919,9 +958,12 @@ repositories it fails are a recorded number rather than a guess:
 * No new criterion id, spec page, `docs/audits/README.md` row or
   frozen-metadata row was created.
 * The four repositories the criterion newly fails are named in the
-  plan, measured by running the audit rather than by reading configs,
-  and the first scheduled run after the merge files issues against
-  those four and no others.
+  plan, measured by running the audit rather than by reading configs.
+  The shellcheck finding appears in the `renovate` issue of those four
+  and of no others -- not that only four issues are filed: 18
+  repositories already fail that criterion on the template drift
+  `90f1ea8` introduced, so counting issues would measure somebody
+  else's work.
 * The four-component tag reasoning is stated in full in one place
   outside the plan and the preset's own `description`.
 * `images` and `private-ci` are recorded in *Future work* as unwatched
