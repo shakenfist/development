@@ -261,7 +261,7 @@ Out of scope:
   this plan keeps it.
 - The pinning policy itself, which `PLAN-workflow-ref-trust.md`
   owns. This plan provides the grouping that policy needs, and
-  its phase 3 must land before that plan's step 3b.
+  its phase 3 must land before that plan's step 4a.
 - Turning other copied workflow templates into shared workflows.
   Renovate is a special case: a reusable workflow would still run
   once per repository, while a central runner runs once in total.
@@ -2070,6 +2070,17 @@ ten copy-directly templates", the supporting-workflows list in
 phase 2 instead), the `renovate.yml` fixture in the packaging test
 module, and `docs/audits/renovate.md` itself; the mention in
 `docs/audits/scheduled-workflow-health.md` is history and stays.
+Since 2026-11-21 two more go with the files: the
+`dtolnay/rust-toolchain` rule in the root `renovate.json`, which keeps
+that action unpinned in exactly these two paths, and
+`test_only_the_doomed_renovate_copies_keep_rust_toolchain_unpinned`
+in `scripts/tests/test_packaging_renovate.py`, which fails while the
+rule names a path that does not exist, together with
+`test_the_root_config_holds_two_local_rules` beside it, whose count
+drops to one. `test_a_pinned_rust_toolchain_states_its_toolchain` in
+`scripts/tests/test_registry.py` reads both files as well; it goes,
+or is narrowed to `.github/workflows/renovate-fleet.yml`, where its
+docstring says the same reference is pinned by hand.
 The audit change lands first, and the
 `Renovate` issues it files at the next weekly run are the sweep's
 work queue. That is deliberate: it is the fleet's issue-driven
@@ -2460,7 +2471,7 @@ chosen to defer to here, so that we do not forget them.
   extreme case of a wider problem: on 2026-10-03, the 17 live copies
   of `codeql-analysis.yml` came in 12 versions. Converting the other
   verbatim-copied templates into callers of shared workflows in
-  `actions` is phase 5 of `PLAN-workflow-ref-trust.md`, because it
+  `actions` is phase 6 of `PLAN-workflow-ref-trust.md`, because it
   rests on that plan's decision to trust `actions` main.
 * GitHub dropping top-of-hour scheduled events (see Situation) is
   not specific to Renovate. Phase 2 moves the central runner off the

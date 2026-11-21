@@ -2408,7 +2408,7 @@ than deleted, with where it went.
 * ~~**HD-11: reusable workflows at `@main` with `secrets: inherit`**~~
   (`shakenfist/development`). development#153 was closed on
   2026-10-03 when `PLAN-workflow-ref-trust.md` (development#209)
-  took the question on; that plan's phase 4 records the settled
+  took the question on; that plan's phase 5 records the settled
   policy on which references may move. As written at the audit:
   `release.yml`'s `github-release` job calls a reusable workflow at
   a moving ref while inheriting every

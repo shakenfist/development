@@ -381,6 +381,11 @@ class RenovateReducedConfigTest(unittest.TestCase):
         self.assertIs(rule['pinDigests'], False)
         self.assertEqual(set(rule), {'description', 'matchFileNames',
                                      'matchPackageNames', 'pinDigests'})
+        # The exemption outlives its reason only by naming a path that
+        # has gone: the pull request deleting either file must delete
+        # the rule too, and a renamed file cannot slip out of it.
+        for path in rule['matchFileNames']:
+            self.assertTrue(os.path.isfile(os.path.join(REPO_ROOT, path)), path)
 
 
 class RenovateRunnerConfigTest(unittest.TestCase):

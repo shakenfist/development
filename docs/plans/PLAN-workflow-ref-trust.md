@@ -311,7 +311,8 @@ Out of scope:
    `lib/modules/manager/github-actions/extract.ts:111` at tag 44.227.4
    types a job-level reusable workflow `workflow` and every other
    reference `action`, and `helpers:pinGitHubActionDigests` pins both
-   dep types.
+   dep types. Re-read on 2026-11-21 at 44.251.0, the version
+   `renovate-fleet.yml` pins: that line and the helper are unchanged.
 
 ## Execution
 
@@ -339,7 +340,12 @@ Phase 3's step 3b, the criterion, became phase 4 on 2026-11-21, and
 the phases after it were renumbered: the policy write-up, shared
 workflows and the push audit are now phases 5 to 7. This file uses
 the new numbers throughout. Commits and pull requests from before
-that date use the old ones.
+that date use the old ones; the date is AEDT, as are this plan's
+other dates, so the split's own commits read 2026-11-20 in UTC.
+Phase 3's row stays `In progress` until phase 4's first commit
+carries its close-out and the merge commit of the pull request that
+made the split, as the phase-landing rules require; the phase is
+not being worked in the meantime.
 
 ### Phase 1: finish the inherit rollout
 
@@ -2272,7 +2278,10 @@ question 4 and which nothing could shorten. Out: everything phase
 - `.github/workflows/renovate.yml` and
   `templates/renovate/renovate.yml` no longer exist, and the root
   `renovate.json` rule that kept their `dtolnay/rust-toolchain`
-  unpinned went with them, so phase 3's grep prints nothing.
+  unpinned went with them, so phase 3's grep prints nothing. This
+  phase deletes neither; if the sweep leaves either file in place,
+  4a does not land until it is gone, rather than landing with the
+  exemption copied into the criterion.
 
 ### Phase 5: record the policy
 

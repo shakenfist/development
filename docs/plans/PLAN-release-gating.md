@@ -99,7 +99,7 @@ required reviewer and restrict it to `v*` tags. Whether anyone did
 is invisible to the audit: no criterion reads `environments` or
 `deployment-branch-policies` (the only planned readers are
 `bypass-actor-identity` in `PLAN-bot-bypass-identity.md:639` and
-`moving-ref-source-protection` in `PLAN-workflow-ref-trust.md:519`,
+`moving-ref-source-protection` in `PLAN-workflow-ref-trust.md`'s phase 2,
 neither started). On the morning of this plan:
 
 | Repository | `release` environment | `v*` tags | Exposure |
@@ -215,8 +215,9 @@ can and names `AUDIT_TOKEN` while doing so, which is the wrong token
 since #278 moved `AUDIT_TOKEN` into the `audit-write` environment.
 
 **Relation to other plans.** `PLAN-workflow-ref-trust.md` phase 6
-(:564-615, not started) may turn copied templates into callers of
-shared workflows. It never names `release.yml`; step 5a classifies
+("shared workflows instead of copied templates", not started) may
+turn copied templates into callers of shared workflows. It never
+names `release.yml`; step 6a classifies
 "every template directory under `templates/`", so the release
 template is in scope only by implication. `PLAN-typescript-onboarding.md`
 met the unprotected-environment problem in hunkydory as HD-1
@@ -259,7 +260,7 @@ Out of scope, each for a stated reason:
 * **Turning `release.yml` into a shared workflow.** That is
   `PLAN-workflow-ref-trust.md` phase 6's decision to make. This plan
   puts the new logic in shared composite actions, so whichever way
-  phase 5 goes, the logic exists once.
+  phase 6 goes, the logic exists once.
 * **sdist contents.** An sdist carrying its tests is conventional
   and harmless, and `release-artifacts-exclude-plans` already guards
   the one thing in it that should not ship.
