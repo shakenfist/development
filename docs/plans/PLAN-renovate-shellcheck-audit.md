@@ -667,11 +667,17 @@ half.
 5. `docs/audits/renovate.md` contains no sentence saying the check does
    not look for the rule: `grep -n 'does not look for that rule'
    docs/audits/renovate.md` prints nothing.
-6. The four-component tag reasoning is stated in full in exactly one
-   place in this repository outside the plan and the preset's own
-   `description`:
-   `grep -rln 'packaging revision' docs/ templates/ scripts/` prints
-   only `templates/renovate/README.md`.
+6. `docs/audits/renovate.md` states the requirement and links the
+   template README for the reason, without restating the tag format a
+   third time:
+   `grep -n 'fourth\|v0\.11\.0\.1' docs/audits/renovate.md | grep -v
+   'templates/renovate/README.md'` prints nothing, and
+   `grep -c 'shellcheck-pys-four-part-tags' docs/audits/renovate.md`
+   prints `1`. This replaces a grep for `packaging revision`, which
+   was unfalsifiable: `templates/renovate/README.md` does carry the
+   full explanation, but wraps it as "tags a fourth, packaging,
+   component", so no single-line grep for the phrase could ever have
+   matched it. A done-criterion grep must not span a line wrap.
 7. The `plan-index` and `plan-template` criteria pass for this
    repository: `python3 scripts/audit-check.py --repo-path . --repo-name
    development --github-org shakenfist` reports no new finding for
