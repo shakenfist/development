@@ -160,7 +160,7 @@ defects were a 1,630-line `eframe::App::ui` and a 610-line
 `process_events`; the file's length followed from them. That file
 no longer exists: shakenfist/ryll's `PLAN-app-split.md` phases 1
 to 4 split it into `ryll/src/app/`, and as of 2026-11-21 the
-longest function in the workspace is 649 lines, elsewhere. Phase
+longest function in the workspace is 650 lines, elsewhere. Phase
 3's survey records what that does to this plan; the argument is
 unaffected, because the functions moved rather than shrank. What
 each language's linter offers today:
@@ -269,10 +269,10 @@ Deliberately out of scope:
    distribution during the pilot, recording the figure and its
    derivation in that repository's `clippy.toml` comment; the
    criterion requires the lint to be on, not a particular number.**
-   Answered for ryll in phase 3, decision 3: 150, giving 22
-   `#[expect]`s across 4,151 functions. The worry in this question
-   was specific to a pre-split `app.rs`; measured after the split,
-   clippy's own default of 100 would have cost 44.
+   Answered for ryll in phase 3, decision 3: 200, giving 13
+   `#[expect]`s across about 4,145 functions. The worry in this
+   question was specific to a pre-split `app.rs`; measured after
+   the split, clippy's own default of 100 would have cost 40.
 5. **Enforcement and the sweep.** Bumping `source-file-size` to v2
    and adding a template-adoption criterion makes most of the
    fleet non-compliant the next morning (see phase 4 for the
@@ -719,8 +719,13 @@ shifts are recorded here.
    a test. The longest are
    `shakenfist-spice-renderer/src/channels/display.rs::handle_message`
    (649) and `::decode_image_and_emit` (529); nothing else exceeds
-   308. It is a proxy, so step 3b confirms it against clippy
-   itself before step 3c annotates anything.
+   308. It is a proxy, so step 3b confirmed it against clippy
+   itself before step 3c annotated anything. Clippy reports 40 over
+   100, 28 over 120, 21 over 150, 17 over 175 and 13 over 200, and
+   a reconstruction of this proxy lands within one of clippy at
+   every threshold. The residual gap is boundary rounding of a line
+   or two either way, plus one Windows-gated function the proxy
+   counts and no Linux lane can see.
 
 9. **This repository's own ratchet is live and passing.**
    `python3 -I tools/source-size-ratchet.py` exits 0 on
@@ -768,34 +773,53 @@ shifts are recorded here.
    having: it is the first evidence that open question 5's
    audit-driven approach closes a v2 bump without a sweep.
 
-3. **`too-many-lines-threshold = 150`**, giving 22 `#[expect]`s.
-   The derivation, from finding 8: 150 is the lowest round figure
-   above which every function is plainly a candidate to split, and
-   22 annotations are an inventory a reviewer can read in one
-   sitting, where clippy's default of 100 would cost 44. The
-   alternative is 200, at 14 annotations, and it is rejected on
-   finding 7 rather than on taste: at 200 the functions nearest
-   the line are `main.rs::main` (194) and
-   `main_channel.rs::run_loop` (191), both within six lines of the
-   threshold and both in crates built under several feature sets,
-   which is exactly the shape that produces an
-   `unfulfilled_lint_expectation` in one lane and a `too_many_lines`
-   in another. At 150 the nearest is `jpeg.rs::try_new` at 153 and
-   the three below it sit at 149 or less, so the margin is wider
-   on both sides. Step 3b may move the figure if clippy's own count
-   differs materially from the proxy; it may not move it on
-   preference.
+3. **`too-many-lines-threshold = 200`**, giving 13 `#[expect]`s.
+   Planning proposed 150 and 22 annotations, reading finding 8's
+   proxy; Mikal chose 200 once step 3b had measured the real
+   distribution, and the execution notes record the change. The
+   derivation is clippy's own count over all eleven lanes: of about
+   4,145 functions in the seven lint-inheriting crates, 40 are over
+   100 lines, 21 over 150 and 13 over 200. Thirteen reasons are an
+   inventory a reviewer reads in one sitting; clippy's default of
+   100 would have cost 40.
 
-4. **`#[expect]`, with `#[allow]` plus a stated reason as the
-   documented escape.** A function whose length is feature-sensitive
-   across the threshold cannot carry an `#[expect]` under
-   `-D warnings` (finding 7). Where step 3c finds one, it uses
-   `#[allow(clippy::too_many_lines)]` with an adjacent comment
-   naming the feature lane that forced it. Phase 4's section says
-   its criterion flags `#[allow(clippy::too_many_lines)]` as
-   something that should be `#[expect]`; that criterion will have
-   to accept an `#[allow]` carrying such a comment. Phase 3 records
-   the requirement; phase 4 implements it.
+   The argument that had rejected 200 was finding 7's, that the
+   functions nearest the line -- `main.rs::main` at 193 and
+   `main_channel.rs::run_loop` at 192 -- sit in crates built under
+   several feature sets, which is the shape that produces an
+   `unfulfilled_lint_expectation` in one lane and a `too_many_lines`
+   in another. Step 3b disproved it: the lint counts the lines of
+   the body's source span, not the code left after `cfg` stripping,
+   so every function's reported length is identical in every lane
+   that lints it, and a function that is compiled out loses its
+   `#[expect]` with it. Headroom above the threshold is therefore
+   not the correctness property finding 7 took it for, and the
+   choice between 150 and 200 is a judgement about how long an
+   inventory stays readable. The cost of the wider figure is that
+   `main` has seven lines of slack: growing it past 200 fails
+   `make lint` until someone annotates it, which is the same
+   decision-at-the-point-of-growth the baseline asks of a file.
+
+4. **`#[expect]` throughout, with `#[allow]` plus a stated reason
+   kept as a documented escape that ryll does not use.** The escape
+   was written for a function whose length is feature-sensitive
+   across the threshold, which cannot carry an `#[expect]` under
+   `-D warnings` (finding 7). Step 3b looked for one in all eleven
+   lanes and found that none can exist: the lint measures the body's
+   source span, so a feature flag changes only whether a function is
+   linted, never its reported length. ryll therefore carries
+   thirteen `#[expect]`s and no `#[allow]`, and `docs/development.md`
+   records the mechanism rather than leaving the next reader to
+   rediscover it.
+
+   Phase 4's criterion should still accept an `#[allow]` that
+   carries a stated reason, even though ryll gives it nothing to
+   accept: the hazard has no instance in a tree clippy measures
+   this way, but a macro-generated or build-script-generated body
+   in another repository may yet need the escape, and a criterion
+   that refuses one outright turns that into an argument about the
+   criterion. Phase 3 records the requirement; phase 4 implements
+   it.
 
 5. **The exclude file is written even though no sfui file is over
    the threshold.** Finding 5. It is correct independently of
@@ -832,11 +856,12 @@ shifts are recorded here.
   full `make lint` rather than one clippy run. The management
   session reads the lanes' output, not the sub-agent's
   summary of it.
-* **Twenty-two reasons written to fill a slot.** A reason that
+* **Thirteen reasons written to fill a slot.** A reason that
   restates the lint ("this function is long") is worse than no
   annotation, because it makes the inventory unreadable while
   looking complete. Mitigated by the management session reading all
-  22 and rejecting any that does not say what splitting would cost;
+  thirteen and rejecting any that does not say what splitting
+  would cost;
   this is the review step most likely to send 3c back.
 * **The Docker build is slow and 3b runs clippy eleven times at a
   low threshold.** Mitigated by 3b and 3c sharing one worktree and
@@ -874,9 +899,12 @@ shifts are recorded here.
 * ryll's `clippy.toml` holds a `too-many-lines-threshold` whose
   adjacent comment states the figure, the date it was measured and
   the counts it came from.
-* Every `#[allow(clippy::too_many_lines)]` in ryll has an adjacent
-  comment naming the feature lane that forced it; there are no
-  bare ones.
+* ryll carries exactly thirteen
+  `#[expect(clippy::too_many_lines, reason = "...")]` annotations and
+  no `#[allow(clippy::too_many_lines)]` at all, which step 3b's
+  measurement established it does not need. Should a later tree need
+  one, it carries an adjacent comment naming the lane that forced it;
+  there are no bare ones.
 * ryll's `.vscode/review-scope.toml` lists
   `tools/source-size-baseline` under `exclude` and
   `tools/source-size-exclude` under `include`, each with a reason,
@@ -964,6 +992,34 @@ is 20 entries on either base, so finding 2's count is unaffected.
   predates ryll's adoption of `source-file-size` v2. That is finding
   3 confirmed from the other direction rather than an effect of this
   work; `review-scope-completeness` and `review-scope-ci` both pass.
+* **The threshold is 200, not the 150 decision 3 proposed.** At the
+  first back-brief gate Mikal took the wider figure, so ryll carries
+  thirteen `#[expect]`s rather than twenty-one. Decision 3 is
+  corrected at source, along with open question 4's answer and the
+  risk that counted the reasons. The planning argument for 150 rested
+  on headroom being a correctness property; step 3b removed that
+  basis, which left inventory size as the whole question and 200 a
+  defensible answer to it.
+* **The feature-sensitive set is empty, and cannot be otherwise.**
+  Step 3b ran all eleven lanes at a threshold of 100 and found 40
+  functions over it, with every function's count identical in every
+  lane that lints it. `clippy::too_many_lines` measures the lines of
+  the body's source span, not the code left after `cfg` stripping:
+  `shakenfist-spice-renderer/src/session.rs::run_connection` holds
+  four `#[cfg(feature = ...)]` statements inside its body and reports
+  268 lines in all ten lanes that lint it, including the lane with no
+  features and the two that turn those features on. A feature flag
+  changes only whether a function is linted, and a function compiled
+  out loses its `#[expect]` with it. Decision 4's escape therefore
+  has no instance here; it stays documented, and phase 4's criterion
+  stays permissive, per the gate's second answer.
+* The management session re-parsed the raw per-lane JSON rather than
+  taking the counts on report, and reproduced all of them: 40 over
+  100, 28 over 120, 21 over 150, 17 over 175, 13 over 200, and no
+  function with a differing count. One lane, `-p
+  shakenfist-spice-compression --no-default-features --features
+  encode`, reports nothing at all, because that crate gates every
+  long module behind features the lane does not enable.
 
 
 ### 4. Criteria and enforcement
