@@ -54,7 +54,9 @@ jobs:
       # repository still wins: this only sets rustup's default.
       - name: Set up Rust for Cargo.lock
         if: hashFiles('**/Cargo.lock') != ''
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: stable
 
       # A requirements file pinned with --hash lines needs hashin, which
       # Renovate runs to rewrite the hashes when it bumps a pin. Without
