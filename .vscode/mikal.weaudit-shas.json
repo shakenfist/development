@@ -429,10 +429,6 @@
       "sha": "f38312108bb0aa28e9f19f691c13c76552ef0f33",
       "date": "2026-11-05"
     },
-    "scripts/audit/checks/packaging.py": {
-      "sha": "9acdbc4f24b941b8c737a4667ae69dee1409670e",
-      "date": "2026-11-17"
-    },
     "scripts/audit/checks/plans.py": {
       "sha": "0570a082dd6fba7edc6e88a82263faf564e511e1",
       "date": "2026-11-17"

@@ -873,10 +873,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/audit/checks/packaging.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_issue_fix_extraction.py",
       "author": "mikal"
     },
