@@ -1611,7 +1611,14 @@ Read against private-ci `master` at `8c5281e` and this repository's
     one settles as `unknown` after 48 hours, so a red Renovate never
     reaches the panel decision 9 relies on. Step 2e checks, and
     reports rather than widening the sweep, because the sweep's cost
-    is charged against the conductor's REST budget.
+    is charged against the conductor's REST budget. **Answered by
+    step 2e: it does.** `list_workflow_runs_and_jobs()` sweeps every
+    unarchived repository in the organisation (private-ci
+    `conductor/github.py:5397-5426`), reading each one's 40 most
+    recent runs (`:4199`, `:4329-4341`). On 2026-11-23, 40 runs of
+    this repository spanned about 10.8 hours. A run that finishes
+    after 40 newer runs have been created settles as `unknown`;
+    private-ci's `docs/periodic-ci.md` now says so.
 
 12. **Nothing outside the conductor would notice it stopping.**
     `conductor/heartbeat.py` is a systemd watchdog: it restarts a
@@ -2383,6 +2390,33 @@ repository's own hourly copy finding the new file within hours of the
 merge, which incidentally confirms the custom manager matches the
 fleet runner as well as the template, but it means the two durations
 differ in version as well as in mode.
+
+**Cutover step 5's back brief** (2026-11-23). The operator confirmed
+decision 9 as written: a `scheduled` kind with no daily cap. He
+confirmed decision 11 as an hourly floor and a two-hour deadline. He
+also authorised this session to push both branches and open both
+pull requests once the definition of done passed. The private-ci
+branch is `scheduled-target-kind`.
+
+**Steps 2e and 2f ran in parallel** (2026-11-23). They write to
+different repositories, and neither reads the other's output. 2f
+landed as `cc40987` here and 2e as `38cd5c0` on the private-ci
+branch. Review changed one thing in 2e, a rewrapped line in
+`docs/periodic-ci.md`. It kept one extra: a line in private-ci's
+`ARCHITECTURE.md` naming the third kind in the tier's inventory,
+which would otherwise have been wrong. private-ci's suite needs a
+`HOME` holding `.ssh/id_general.pub` on a host without one, because
+`provisioner.py` reads that key at import. That is a property of
+the suite, not of this change.
+
+**The runner's VM is on the cluster** (2026-11-23, step 2e). The plan
+said the runner's job queues as ordinary work rather than as a
+periodic lane. That is right, but it left unsaid that
+`[self-hosted, vm, debian-13, s]` is a VM the conductor provisions on
+the cluster. So an hourly run takes cluster capacity without a
+claim, exactly as each cron-triggered run did. That cost is
+unchanged by this step. Private-ci's comments and documentation now
+say so.
 
 #### Risks and mitigations
 
