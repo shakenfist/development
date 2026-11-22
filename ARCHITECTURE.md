@@ -32,7 +32,9 @@ projects consistent. It contains no application code.
 - `.github/workflows/renovate-fleet.yml` and `renovate-runner.json` --
   the central Renovate runner, which runs Renovate over every
   repository in the organisation from here, and its global
-  configuration. See [the Renovate audit
+  configuration. The runner has no schedule of its own: the
+  private-ci conductor dispatches it about hourly, so it stops if the
+  conductor does. See [the Renovate audit
   spec](docs/audits/renovate.md#the-central-runner).
 - `.github/workflows/ci.yml` -- this repository's own pull request
   checks: the pre-commit gate, a smoke run of the audit, and the
