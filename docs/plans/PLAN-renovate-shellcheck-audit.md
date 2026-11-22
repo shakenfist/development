@@ -159,7 +159,7 @@ settled and tested.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. The criterion and its specification | In progress | |
+| 1. The criterion and its specification | Complete | `b28ba45` (#433) |
 | 2. Push audit | Not started | |
 
 Phase 1 is one pull request. Phase 2 audits it against `PUSH-AUDIT.md`
