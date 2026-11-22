@@ -129,11 +129,8 @@ rule wherever the hook is used, accepting the rule reached through
 local copy, so a repository whose shellcheck pin cannot be looked up is
 reported rather than discovered. The deliverable is the criterion and
 its specification; it newly fails four repositories, and the issues the
-weekly audit then files are handed to `consistency-fix` like any other.
-The audit runs `0 18 * * 0`
-(`.github/workflows/consistency-audit.yml:14`), which phase 2's survey
-corrected here: a daily run "filed and closed issues faster than the
-fleet could absorb them", as that file says at length.
+weekly audit (`0 18 * * 0`) then files are handed to `consistency-fix`
+like any other.
 
 Out of scope: fixing those four repositories here (the audit files the
 issues, `consistency-fix` closes them); requiring the preset itself,
@@ -458,8 +455,9 @@ next push to main.
   findings; `client-python-ova` does not, which phase 2's survey
   established and this sentence originally got wrong. Its only
   `renovate` finding is the shellcheck one, so the criterion decides
-  that repository's verdict by itself. The 18 "other findings only" failures are not this
-  phase's doing and were verified as predating it: `90f1ea8`, already
+  that repository's verdict by itself. The 18 "other findings only"
+  failures are not this phase's doing and were verified as predating
+  it: `90f1ea8`, already
   on the default branch before this branch was cut, added `with:
   toolchain: stable` to `templates/renovate/renovate.yml`, so every
   fleet copy of `renovate.yml` now drifts from the template and
@@ -819,7 +817,10 @@ than only here.
    first run to carry the criterion is the one due 2026-11-22T18:00Z
    and in practice likely to start around 21:30-22:15Z -- Monday
    morning AEDT. Phase 1 merged at 2026-11-21T22:44Z, after the last
-   run. Decision 1 is about what that means for executing this phase.
+   run. The most recent `workflow_dispatch` of the same workflow is
+   `#41140043392`, 2026-10-30T22:44:00Z, which definition of done
+   item 6 uses as its baseline. Decision 1 is about what that means
+   for executing this phase.
 
 4. **One of the four repositories fails `renovate` on the shellcheck
    finding alone, and its issue is closed.** Measured on 2026-11-22
@@ -843,6 +844,17 @@ than only here.
    only evidence that will ever exist that this criterion works
    outside its own test suite, and step 2f reads it.
 
+   Both halves of that prediction follow from the issue manager
+   rather than from assumption: an open issue whose body has drifted
+   is rewritten rather than left alone
+   (`scripts/audit-manage-issues.py:476`, guarded by
+   `body_is_current()` at `:105`), and only open issues are listed at
+   all (`scripts/audit_common.py:160` passes `--state open`), so
+   `client-python-ova`'s closed #50 is not reopened and a new issue is
+   filed instead. The evidence step 2f looks for therefore differs by
+   repository: an edited body with a newer `updatedAt` for the first
+   three, a new issue number for the fourth.
+
 5. **The range is one clean merge, as the sketch said.** `b28ba45`
    has two parents (`6aefd63` and `4ddc693`); the eight commits of
    the branch are its second-parent history; `git diff --stat
@@ -853,8 +865,8 @@ than only here.
    reasoning reduces to that one merge with nothing left over.
 
 6. **"No `Merged` cell for this phase" is conditional, not flat.**
-   The sketch stated it absolutely. `plan-phase-landing`
-   (`PLAN-TEMPLATE.md:258-271`) permits the omission only where the
+   The sketch stated it absolutely. `plan-phase-landing` in
+   `PLAN-TEMPLATE.md` permits the omission only where the
    audit finds nothing: where it finds something, the findings pull
    request is the carrier and records this phase's merge commit, and
    the plan is not complete until those findings are resolved or
@@ -936,15 +948,16 @@ as step 2g.
 | 2c | medium | sonnet | none | Section 2b of `PUSH-AUDIT.md`, test review, read-only, same substitution and the same totals requirement. The tests in range are `RenovateShellcheckVersioningTest` in `scripts/tests/test_packaging_renovate.py` (19 cases) and the additions to `RenovateFleetPresetTest`. Worth testing against the claim rather than the count: the phase asserts that deleting the `issues.append` block from `Renovate.run` fails these tests, and that the preset-loading test holds the real `renovate-fleet.json` to carrying the rule. Say which of the 19 would survive the deletion. The two holes decision 3 leaves open -- an unvalidated `versioning` string, and a rule narrowed away from the `pre-commit` manager or disabled -- are pinned by tests on purpose; judge whether the tests pin what the decision says they pin. |
 | 2d | medium | sonnet | none | Section 2c of `PUSH-AUDIT.md`, documentation review, read-only, same substitution and totals. In scope: `docs/audits/renovate.md` and the plan file. The specific question is whether the specification and the code say the same thing after the first review round changed the matcher: the spec must describe what `rule_covers()` accepts, not what a literal `matchPackageNames` entry accepted. Check also that the four-component tag reasoning is stated in full in exactly one place outside the plan and the preset's own `description` -- the plan's own definition of done asserts this with two greps, and a doc reviewer reading the prose may find a third statement the greps miss. |
 | 2e | high | opus | none | Section 2d of `PUSH-AUDIT.md`, security review, read-only, same substitution and totals. The blast radius here is other people's issue trackers: a criterion that reports wrongly files an issue in twenty-four repositories, and a criterion message is quoted into those issues verbatim. Two specifics beyond the runbook's brief: whether any finding text in the range can carry content from a repository under audit into an issue body unescaped, and whether the message added here contains anything that acts as a bot trigger when quoted into a GitHub issue, as the `ci-review-automation` finding text does. Nothing in range touches a token, a workflow permission or a template the fleet copies; confirm that rather than assuming it. |
-| 2f | medium | opus | none | Management session, inline: the fleet check, read-only. After the scheduled run due 2026-11-22T18:00Z has finished, read its conclusion (`gh run list --workflow consistency-audit.yml -L 2`), then for each of `agent-python`, `client-python`, `client-python-k3s` and `client-python-ova` read the `Consistency: Renovate` issue and record whether its body carries the shellcheck sentence, with the issue number and its updated time. The prediction to check against is survey item 4's table: three issues gain the finding, and `client-python-ova` gets a newly filed issue because its #50 closed on 2026-11-03 and the shellcheck finding is now its only `renovate` finding. File nothing, close nothing, comment on nothing, and do not dispatch the workflow (decision 3). If the run has not finished or failed, record that and leave the prediction unverified. |
-| 2g | medium | opus | none | Management session, inline: the record and the close-out. One commit, subject `Record the renovate shellcheck push audit.` Write what each wave found into the *Record* section below, including "nothing", which `plan-push-audit-phase` says is worth a sentence of its own. Then set this phase's `Status` to `Complete` in the Execution table and the plan's row in `docs/plans/index.md`; leave the `Merged` cell empty if the audit found nothing, and if it found something, say in the record that the findings pull request carries this phase's merge commit (survey item 6). Run `pre-commit run --all-files` before proposing the commit. |
+| 2f | medium | opus | none | Management session, inline: the fleet check, read-only. Identify the run before reading any issue, because a liveness test is not enough here: `gh run list --workflow consistency-audit.yml --event schedule --branch main -L 3 --json databaseId,createdAt,conclusion` and require the newest row's `createdAt` to be **later than phase 1's merge at 2026-11-21T22:44Z**. Anything older is a run that predates the criterion -- as of planning the newest is 2026-11-15T22:14:48Z, `#43768205317`, which is finished and successful and would pass a liveness check while having never applied the criterion -- so record "the run that first applies the criterion has not happened" and stop, rather than reading four untouched issues and recording the prediction falsified. With a qualifying run, record its id and conclusion, then for each of `agent-python`, `client-python`, `client-python-k3s` and `client-python-ova` read the `Consistency: Renovate` issue and record the issue number, its `updatedAt`, and whether its body carries the shellcheck sentence. Survey item 4 says what counts as confirmation for each: an edited body with a newer `updatedAt` for the first three, a newly filed issue number for `client-python-ova`. File nothing, close nothing, comment on nothing, and do not dispatch the workflow (decision 3). |
+| 2g | medium | opus | none | Management session, inline: the record and the close-out. One commit, subject `Record the renovate shellcheck push audit.` Write what each wave found into the *Record* section below, including "nothing", which `plan-push-audit-phase` says is worth a sentence of its own; head each wave 2 verdict with the runbook's own section name -- code quality, test review, documentation review, security review -- rather than a letter, because the plan's step letters and the runbook's section letters are offset by one and the record outlives the mapping. Set this phase's `Status` to `Complete` in the Execution table either way. The plan's row in `docs/plans/index.md` is conditional, and so is the `Merged` cell: where the audit found nothing, set the index row to `Complete` and leave `Merged` empty; where it found something, leave the index row `In progress`, because `plan-push-audit-phase` says the plan is not complete until the findings are resolved or declined in writing, and say in the record that the findings pull request is the carrier for both that row and this phase's merge commit (survey item 6). Run `pre-commit run --all-files` before proposing the commit. |
 
 #### Record
 
 Written by step 2g. It holds wave 1's results including the empty
-greps, a verdict for each of 2a to 2d of the runbook, the fleet check
-from step 2f, and -- if the audit found nothing -- the one sentence
-saying so.
+greps, one verdict per wave 2 reader headed by the runbook's own
+section name -- code quality, test review, documentation review,
+security review -- the fleet check from step 2f, and, if the audit
+found nothing, the one sentence saying so.
 
 #### Risks and mitigations
 
@@ -978,22 +991,30 @@ saying so.
    changed, 1412 insertions(+), 16 deletions(-)`, and each of the
    four wave 2 reports states totals matching it. Any report that did
    not was re-run, and the record says so.
-4. The record carries a verdict for each of the runbook's 2a, 2b, 2c
-   and 2d, with "nothing found" written out where that is the result.
-5. The record names, for each of `agent-python`, `client-python`,
-   `client-python-k3s` and `client-python-ova`, the issue number and
-   whether its body carries the shellcheck finding after the first
-   scheduled run to apply the criterion -- or says the run had not
-   finished, which leaves the item unverified rather than passed.
+4. The record carries a verdict headed by each of the runbook's four
+   wave 2 section names -- code quality, test review, documentation
+   review, security review -- with "nothing found" written out where
+   that is the result.
+5. The record names the scheduled run it read, by id, with a
+   `createdAt` later than 2026-11-21T22:44Z, and then for each of
+   `agent-python`, `client-python`, `client-python-k3s` and
+   `client-python-ova` the issue number, its `updatedAt` and whether
+   its body carries the shellcheck finding. Where no scheduled run
+   newer than that merge exists, the record says so and the item is
+   unverified rather than passed; a run older than the merge never
+   counts as a verification.
 6. Nothing was written outward: `gh run list --workflow
    consistency-audit.yml --event workflow_dispatch -L 3` shows no run
-   newer than 2026-10-30, and no issue in the four repositories has a
-   comment or edit from this session.
+   created after this phase was planned -- the newest at planning was
+   `#41140043392`, 2026-10-30T22:44:00Z, recorded in survey item 3 --
+   and no issue in the four repositories has a comment or edit from
+   this session.
 7. The Execution table reads phase 1 `Complete` with `b28ba45` in its
-   `Merged` cell and phase 2 `Complete`; phase 2's `Merged` cell is
-   empty only if the audit found nothing, and otherwise the record
-   names the findings pull request that will carry it. The row in
-   `docs/plans/index.md` agrees with both.
+   `Merged` cell, and phase 2 `Complete`. Where the audit found
+   nothing, phase 2's `Merged` cell is empty and the plan's row in
+   `docs/plans/index.md` reads `Complete`. Where it found something,
+   that row still reads `In progress` and the record names the
+   findings pull request that carries both it and the `Merged` cell.
 8. `python3 scripts/audit-check.py --repo-path . --repo-name
    development --github-org shakenfist` reports no new finding for
    `plan-index`, `plan-template` or `plan-phase-references`.
