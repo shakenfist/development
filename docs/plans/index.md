@@ -15,9 +15,14 @@ list the `plan-index` audit enforces across the fleet. A status says
 whether the plan still wants attention and nothing else -- the dates,
 the phase arithmetic and the summary of what happened live in the plan.
 
+A plan linked by a pinned `blob/<sha>/` URL has been retired, and its
+row is marked `(retired)`. Its reasoning now lives in the `docs/` page
+that owns the topic; the pinned copy is frozen history rather than a
+maintained document, so it may state things a later phase overturned.
+
 | Date | Plan | Intent | Status |
 |------|------|--------|--------|
-| 2026-02-18 | [Project consistency](PLAN-consistency.md) | The original per-project audit of every Shaken Fist repository, and the cleanup backlog it produced | Superseded |
+| 2026-02-18 | [Project consistency](https://github.com/shakenfist/development/blob/7be8a9922dae7bdeafa9e19ae7d3af97836ef86e/docs/plans/PLAN-consistency.md) (retired) | The original per-project audit of every Shaken Fist repository, and the cleanup backlog it produced | Superseded |
 | 2026-02-18 | [stestr / testtools pin](PLAN-stestr-testtools.md) | Pin stestr and testtools around an upstream incompatibility, and record the conditions for removing the pin | Blocked |
 | 2026-03-08 | [Consistency audits v2](PLAN-consistency-audits-v2.md) | Rebuild the audit as modular specs, a CI runner and GitHub issue automation, so criteria can be added without re-auditing everything | Complete |
 | 2026-07-09 | [Code review tracking](PLAN-code-review-tracking.md) | Systematic whole-codebase human review: weAudit, signed review state, staleness pruning against blob SHAs. All phases have landed; the push audit's eight findings are fixed, and changing the review-scope CI skip is left to development#316 | Complete |
