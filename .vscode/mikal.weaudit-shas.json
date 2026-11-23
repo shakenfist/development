@@ -177,10 +177,6 @@
       "sha": "b7cb2fe037e858434caeed0d9acb08cf8bcecfe0",
       "date": "2026-10-19"
     },
-    "docs/audits/llm-doc-structure.md": {
-      "sha": "668b088d60583aba0934a798858ba04f23336904",
-      "date": "2026-10-05"
-    },
     "docs/audits/llm-tooling.md": {
       "sha": "3dd0b2fb0bab55ab115518573b7bf82fea04e768",
       "date": "2026-10-18"
@@ -227,10 +223,6 @@
     },
     "docs/audits/plan-index.md": {
       "sha": "c86f0eb31b2748f641c60c9d5077b961183a148d",
-      "date": "2026-10-28"
-    },
-    "docs/audits/plan-phase-references.md": {
-      "sha": "1e4484ed652def0fd7d64c0befa81b7c16795cd3",
       "date": "2026-10-28"
     },
     "docs/audits/plan-retirement.md": {
@@ -360,10 +352,6 @@
     "docs/code-review-tracking.md": {
       "sha": "1ee271d86e8ce08b67f8632508b8386453b37c38",
       "date": "2026-11-01"
-    },
-    "docs/consistency-audits.md": {
-      "sha": "965efc8b6c83e311e4318e7942063a0188e44daa",
-      "date": "2026-11-19"
     },
     "docs/plan-retirement.md": {
       "sha": "a1ab4ab7462319b8fec4490c3cbfcf674bda8645",

@@ -265,10 +265,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/audits/llm-doc-structure.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/console-logging.md",
       "author": "mikal"
     },
@@ -562,10 +558,6 @@
     },
     {
       "path": "docs/audits/plan-index.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/plan-phase-references.md",
       "author": "mikal"
     },
     {
@@ -1026,10 +1018,6 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/consistency-audits.md",
       "author": "mikal"
     },
     {
