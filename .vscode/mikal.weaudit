@@ -1047,6 +1047,22 @@
     {
       "path": "scripts/tests/test_packaging_renovate.py",
       "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_renovate_fleet_workflow.py",
+      "author": "mikal"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/renovate-fleet.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/renovate.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
