@@ -69,10 +69,6 @@
       "sha": "0c0cfe362b24e6bc67ccf1ddd09dacc722a0524f",
       "date": "2026-11-01"
     },
-    ".github/workflows/renovate-fleet.yml": {
-      "sha": "b3da9a719fd1d40fac79b3cbb524b493b655f566",
-      "date": "2026-11-22"
-    },
     ".github/workflows/renovate.yml": {
       "sha": "46c7e8a54eefb024c01bc539987f67749ad57344",
       "date": "2026-11-22"
@@ -92,10 +88,6 @@
     "AGENTS.md": {
       "sha": "f764b451e7387863708f2a6732336a9b497d9571",
       "date": "2026-11-17"
-    },
-    "ARCHITECTURE.md": {
-      "sha": "a89d3b85cd10f4d24b28af57cad380570e0dc4ef",
-      "date": "2026-11-19"
     },
     "PLAN-TEMPLATE.md": {
       "sha": "2586a6e49881abcb8c0a00414eac30364bd53da7",
@@ -296,10 +288,6 @@
     "docs/audits/renovate-lockstep-groups.md": {
       "sha": "c58fa988567ea392014294842ae64989649a56f4",
       "date": "2026-10-19"
-    },
-    "docs/audits/renovate.md": {
-      "sha": "3656d634770fb3149d54ab876274419f276fa62e",
-      "date": "2026-11-22"
     },
     "docs/audits/reusable-workflow-secrets.md": {
       "sha": "2ebc5177a729dd8b6025ea36afdd1b305f7b536f",
@@ -708,10 +696,6 @@
     "scripts/tests/test_renovate_check_push.py": {
       "sha": "39e97d6c0395dda5cc596440ce35e4f0fe21a7d8",
       "date": "2026-11-17"
-    },
-    "scripts/tests/test_renovate_fleet_workflow.py": {
-      "sha": "81fecb67d63fd6085ac0c091e2e89bc5029f3ce3",
-      "date": "2026-11-22"
     },
     "scripts/tests/test_repo.py": {
       "sha": "494c41567652920ef783aa50f829a0ba045616a5",
