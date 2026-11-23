@@ -1404,7 +1404,7 @@ source rather than left for the next reader.
   remaining references to `PROJECT-CONSISTENCY-AUDITS.md` are in the
   historical sections of `PLAN-consistency-audits-v2.md`,
   `PLAN-plan-template-blocks.md`, [`PLAN-consistency.md`](https://github.com/shakenfist/development/blob/7be8a9922dae7bdeafa9e19ae7d3af97836ef86e/docs/plans/PLAN-consistency.md),
-  `PLAN-llm-doc-structure.md` and this
+  [`PLAN-llm-doc-structure.md`](https://github.com/shakenfist/development/blob/3b546d6e617026705f4f5dc994e9cc996a892410/docs/plans/PLAN-llm-doc-structure.md) and this
   plan, which phase 5's decision says stand as records of what was
   written at the time; and every reference to [`PLAN-consistency.md`](https://github.com/shakenfist/development/blob/7be8a9922dae7bdeafa9e19ae7d3af97836ef86e/docs/plans/PLAN-consistency.md)
   resolves, because the file is there. So nothing dangles -- but the
