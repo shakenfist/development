@@ -18,9 +18,9 @@ is the part of it that can be checked by a test rather than by hand.
 Line-based, like the rest of this tree's YAML reading: the audit ships
 without PyYAML on purpose and the shape here is flat. Comments are
 stripped before anything is matched, because this workflow argues with
-itself in its comments -- it explains why the schedule waited for
-cutover, and names `renovatebot/github-action` to explain why it is not
-used -- and matching those would be asserting prose.
+itself in its comments -- it explains why it has no schedule, and
+names `renovatebot/github-action` to explain why it is not used -- and
+matching those would be asserting prose.
 """
 
 import os
@@ -98,29 +98,34 @@ class FleetRunnerWorkflowTest(unittest.TestCase):
         self.assertIn('    runs-on: [self-hosted, vm, debian-13, s]',
                       self.lines)
 
-    def test_the_workflow_runs_hourly_at_minute_23(self):
-        # Cutover step 4 turned the schedule on, once every
-        # per-repository copy was disabled. Before that the assertion
-        # here was that there was no schedule at all, because a
-        # schedule running alongside those copies races them on branch
-        # creation and produces duplicate or half-written pull
-        # requests -- and the concurrency group cannot prevent that,
-        # because the racing runs are different workflows in different
-        # repositories.
-        #
-        # The cron is asserted rather than merely its presence. Minute
-        # 23 is deliberate: GitHub delays and sometimes drops events
-        # at the top of the hour, and with one central runner a
-        # dropped run delays the whole fleet rather than one
-        # repository. A schedule silently moved to the hour would
-        # still be a schedule.
-        self.assertIn('  workflow_dispatch:', self.lines)
-        crons = [line.strip() for line in self.lines
-                 if line.strip().startswith('- cron:')]
-        self.assertEqual(crons, ["- cron: '23 * * * *'"],
-                         'the fleet runner does not run hourly at '
-                         'minute 23')
-        self.assertIn('  schedule:', self.lines)
+    def test_the_workflow_has_no_schedule_and_is_dispatchable(self):
+        # The conductor's periodic tier dispatches this workflow, and
+        # GitHub's own cron delivered roughly one hourly event in
+        # seven when it was tried. A `schedule:` trigger back here
+        # would run beside the conductor, and with the per-repository
+        # copies gone nothing else would notice the two doubling up.
+        # `workflow_dispatch` is the one trigger the conductor can
+        # use, so losing it would stop the fleet silently.
+        triggers = [line for line in self.lines
+                    if re.match(r'^  [a-z_]+:', line)]
+        self.assertIn('  workflow_dispatch:', triggers)
+        self.assertNotIn('  schedule:', self.lines)
+        self.assertEqual([line for line in self.lines
+                          if line.strip().startswith('- cron:')], [])
+
+    def test_the_dispatch_defaults_are_the_scheduled_run(self):
+        # The conductor sends no inputs, so these defaults are what
+        # every scheduled run gets. A default changed to `lookup`
+        # would turn every conductor dispatch into a dry run, each of
+        # which would show green; a non-empty filter would confine
+        # every run to part of the fleet.
+        self.assertIn('        default: write-for-real', self.lines)
+        self.assertIn("        default: ''", self.lines)
+        dry_run = self.lines.index('      dry_run:')
+        filt = self.lines.index('      autodiscover_filter:')
+        self.assertIn('        default: write-for-real',
+                      self.lines[dry_run:filt])
+        self.assertIn("        default: ''", self.lines[filt:filt + 6])
 
     def test_renovate_is_not_run_as_a_container_action(self):
         # renovatebot/github-action runs Renovate in a container, and

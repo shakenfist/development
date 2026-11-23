@@ -9,21 +9,21 @@
 # in one file instead of being implied by where the copies are
 # installed. docs/audits/renovate.md is the specification.
 #
-# Hourly at minute 23 rather than on the hour. GitHub delays and
-# sometimes drops scheduled events at the top of the hour, when
-# everybody else's cron fires too, and with one central runner a
-# dropped run delays every repository in the fleet at once rather than
-# one of them.
+# Dispatched about once an hour by the conductor's periodic tier in
+# shakenfist/private-ci, which sends no inputs, so the input defaults
+# below are what every scheduled run gets. There is deliberately no
+# GitHub cron trigger. Over the 35.6 hours an hourly cron was on,
+# GitHub started 5 runs, roughly one hourly event in seven, created
+# at whatever minute it chose (:27, :44, :22, :01 and :54). Moving it
+# off the top of the hour made no difference. The conductor's
+# documentation is private-ci's docs/periodic-ci.md.
 #
-# The schedule arrived at cutover step 4, once every per-repository
-# copy of templates/renovate/renovate.yml had been disabled. Until
-# then this workflow was dispatch-only, because a schedule here would
-# have run Renovate over the same repositories at the same time as
-# those copies did. Two Renovate instances over one repository race on
-# branch creation and produce duplicate or half-written pull requests,
-# and the concurrency group below cannot prevent that race, because
-# the two runs are different workflows in different repositories.
-# Re-enabling any copy while this schedule is on reintroduces it.
+# Do not re-enable any per-repository copy of
+# templates/renovate/renovate.yml while this runner is dispatched.
+# Two Renovate instances over one repository race on branch creation
+# and produce duplicate or half-written pull requests, and the
+# concurrency group below cannot prevent that race, because the two
+# runs are different workflows in different repositories.
 
 name: Renovate fleet runner
 
@@ -33,9 +33,6 @@ permissions:
   contents: read
 
 on:
-  schedule:
-    - cron: '23 * * * *'
-
   workflow_dispatch:
     inputs:
       # A choice rather than a free-form string. dryRun takes extract,
