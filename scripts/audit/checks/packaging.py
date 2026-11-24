@@ -6,7 +6,6 @@ source-level checks that go with them: how a console script sets up
 logging, and whether an HTTP handler sanitises what it logs.
 """
 
-import difflib
 import fnmatch
 import json
 import os
@@ -18,9 +17,6 @@ from audit.files import (
     check_file_contains, require_tracked_paths, toml_section_has_key,
 )
 from audit.repo import DEVELOPMENT_ROOT, read_within
-from audit.text.workflows import (
-    step_action, workflow_job_blocks, workflow_step_blocks,
-)
 from audit.text.patterns import bounded_search
 from audit.text.python_source import (
     HTTP_HANDLER_BASES, console_entry_point_files, handler_base_names,
@@ -30,28 +26,34 @@ from audit.text.python_source import (
 )
 
 
-def uses_remote_pre_commit_hooks(repo):
-    """True when .pre-commit-config.yaml pins at least one remote hook.
-
-    Remote hooks are the only kind that carry a version to bump: a
-    `repo: local` entry runs a script from the tree itself. Every remote
-    entry pins a `rev:`, so the presence of one is the signal that there
-    is something for renovate to manage.
-    """
-    return check_file_contains(
-        repo, '.pre-commit-config.yaml', r'(?m)^\s*rev:'
-    )
-
-
-# Every repository's renovate.json is meant to extend this preset, which
-# lives in this repository and carries the fleet policy: the pre-commit
-# manager and customManagers:githubActionsVersions among it. The name is
-# matched here and nowhere else, so the two checks below that accept it
-# cannot pass a repository on a string alone. What the preset keeps is
-# held by tests that load the real file and run each check's own helper
-# over it, because a local> preset takes effect fleet-wide the moment an
-# edit to it merges.
+# Every repository's renovate.json extends this preset, which lives in
+# this repository and carries the fleet's Renovate policy: the schedule,
+# the pull request limits, the pre-commit manager, digest pinning and the
+# rules every repository shares. The Renovate check below requires a
+# repository to extend it and to override none of its top-level keys,
+# and from then on trusts the preset by name. Nothing in an audited
+# repository can catch a property the preset loses, and a local> preset
+# takes effect fleet-wide the moment an edit to it merges, so an edit
+# here is a change to every managed repository at once. What the preset
+# has to keep is held by RenovateFleetPresetTest, which loads the real
+# file. The name is matched here and nowhere else.
 RENOVATE_FLEET_PRESET = 'local>shakenfist/development:renovate-fleet'
+
+# Where the preset lives in this repository. The check reads it from the
+# audit's own checkout to learn which top-level keys are the fleet's.
+RENOVATE_FLEET_PRESET_FILE = 'renovate-fleet.json'
+
+# The top-level keys a repository may set although the preset sets them
+# too. $schema only names the schema, extends is how a repository reaches
+# the preset, and Renovate appends a repository's packageRules to the
+# preset's rather than replacing them. Any other key the preset sets is
+# fleet policy, and a repository's own value for it silently wins.
+RENOVATE_SHARED_KEYS = frozenset({'$schema', 'extends', 'packageRules'})
+
+# The fleet runner in this repository runs Renovate for every managed
+# repository. A repository's own Renovate workflow, enabled again, would
+# race it over the same branches and pull requests.
+RENOVATE_REPOSITORY_WORKFLOW = '.github/workflows/renovate.yml'
 
 
 # shellcheck-py tags four numeric components, which is not semver, so
@@ -60,29 +62,55 @@ RENOVATE_FLEET_PRESET = 'local>shakenfist/development:renovate-fleet'
 SHELLCHECK_PY_HOOK = 'shellcheck-py/shellcheck-py'
 
 
-def uses_shellcheck_py_hook(repo):
-    """True when .pre-commit-config.yaml uses the shellcheck-py hook.
-
-    The hook, not its pin: what is wrong without the rule is the
-    missing configuration, whatever revision happens to be current.
-    Whitespace is spaces and tabs only, never a newline, for the reason
-    RENOVATE_USES_RE gives. The SSH remote form is not matched;
-    nothing in the fleet writes it.
-    """
-    return check_file_contains(
-        repo, '.pre-commit-config.yaml',
-        r'(?m)^[ \t]*(?:-[ \t]+)?repo:[ \t]*[\'"]?'
-        r'(?:https?://github\.com/)?'
-        + re.escape(SHELLCHECK_PY_HOOK)
-        + r'(?:\.git)?/?[\'"]?[ \t]*(?:#.*)?$'
-    )
-
-
 def extends_fleet_preset(config):
     """True when a parsed renovate.json extends the fleet preset."""
     extends = config.get('extends')
     return isinstance(extends, list) and RENOVATE_FLEET_PRESET in extends
 
+
+def renovate_fleet_preset():
+    """The fleet preset, parsed from the audit's own checkout.
+
+    Raises ToolFailure when it cannot be read or is not a JSON object:
+    the audit's own copy of its policy is missing, which says nothing
+    about the repository under audit.
+    """
+    content = read_within(
+        DEVELOPMENT_ROOT,
+        os.path.join(DEVELOPMENT_ROOT, RENOVATE_FLEET_PRESET_FILE))
+    if content is None:
+        raise ToolFailure(
+            f'Could not read {RENOVATE_FLEET_PRESET_FILE} in the audit\'s '
+            f'own checkout')
+    try:
+        preset = json.loads(content)
+    except ValueError as e:
+        raise ToolFailure(
+            f'Could not parse {RENOVATE_FLEET_PRESET_FILE} in the audit\'s '
+            f'own checkout: {e}')
+    if not isinstance(preset, dict):
+        raise ToolFailure(
+            f'{RENOVATE_FLEET_PRESET_FILE} in the audit\'s own checkout is '
+            f'not a JSON object')
+    return preset
+
+
+def renovate_preset_overrides(config, preset):
+    """The top-level keys of config that the preset also sets, sorted.
+
+    Every one of them, so that one issue names the whole fix. The keys
+    in RENOVATE_SHARED_KEYS are never reported.
+    """
+    return sorted((set(config) & set(preset)) - RENOVATE_SHARED_KEYS)
+
+
+# The three predicates below say whether a parsed Renovate config carries
+# a property every managed repository needs: the pre-commit manager, the
+# preset that reads `# renovate:` version comments, and a versioning rule
+# for shellcheck-py's four-part tags. The Renovate check does not ask
+# them of a repository, since one that extends the fleet preset has all
+# three by construction. RenovateFleetPresetTest runs them over the real
+# renovate-fleet.json, and that is what holds the preset to carrying them.
 
 def renovate_config_manages_pre_commit(config):
     """True when a parsed Renovate config enables the pre-commit manager.
@@ -109,19 +137,6 @@ def renovate_config_manages_pre_commit(config):
     return False
 
 
-def renovate_manages_pre_commit(repo):
-    """True when renovate.json enables the pre-commit manager.
-
-    Either in one of the three local forms, or by extending the fleet
-    preset, which carries it for every repository.
-    """
-    config = renovate_config(repo)
-    if config is None:
-        return False
-    return (renovate_config_manages_pre_commit(config)
-            or extends_fleet_preset(config))
-
-
 def renovate_config_versions_shellcheck_py(config):
     """True when a parsed Renovate config gives shellcheck-py a versioning.
 
@@ -132,15 +147,14 @@ def renovate_config_versions_shellcheck_py(config):
     The rule is read the way Renovate reads it -- exact, glob, regex
     and negated entries, matchDepNames as well as matchPackageNames,
     and the deprecated spellings Renovate migrates -- through
-    rule_covers(), because a hand-written rule that Renovate applies
-    must not be reported as missing in somebody else's tracker.
+    rule_covers(), so that a rule Renovate applies is never reported
+    as missing.
 
     Matchers that narrow a rule away from the pre-commit manager
     (matchManagers, matchFileNames and the rest), and `enabled: false`,
     are not read: such a rule passes although Renovate never applies
-    it to the hook. That is the cheaper direction to be wrong in -- a
-    pin left unwatched rather than an issue filed outward -- and
-    reading them would mean modelling the rest of Renovate's matchers.
+    it to the hook. Reading them would mean modelling the rest of
+    Renovate's matchers.
     """
     rules = config.get('packageRules')
     if not isinstance(rules, list):
@@ -156,115 +170,15 @@ def renovate_config_versions_shellcheck_py(config):
     return False
 
 
-def renovate_versions_shellcheck_py(repo):
-    """True when renovate.json versions shellcheck-py's four-part tags.
-
-    Either with a local packageRule, or by extending the fleet preset,
-    which carries it for every repository.
-    """
-    config = renovate_config(repo)
-    if config is None:
-        return False
-    return (renovate_config_versions_shellcheck_py(config)
-            or extends_fleet_preset(config))
-
-
-# renovatebot/github-action runs Renovate as a container, so it needs a
-# Docker daemon on the runner. The static pool's ephemeral runner pods
-# have none, and every run of the action that lands on one fails. The
-# template runs Renovate from npm instead.
-RENOVATE_CONTAINER_ACTION = 'renovatebot/github-action'
-
 # The built-in preset that reads "# renovate: datasource=... depName=..."
-# comments above *_VERSION keys in workflows. The template pins Renovate
-# that way, so without it the pin is invisible to Renovate and ages
-# silently. regexManagers: is the name the preset had before Renovate
-# renamed it, and Renovate still migrates it.
+# comments above *_VERSION keys in workflows. The fleet runner pins
+# Renovate that way, so without it the pin is invisible to Renovate and
+# ages silently. regexManagers: is the name the preset had before
+# Renovate renamed it, and Renovate still migrates it.
 RENOVATE_VERSION_COMMENT_PRESETS = (
     'customManagers:githubActionsVersions',
     'regexManagers:githubActionsVersions',
 )
-
-
-# Every repository copies the template's renovate.yml verbatim, apart
-# from the versions Renovate bumps in each copy on its own schedule:
-# each tool it pins in a PINNED_*_VERSION variable (Renovate itself and
-# hashin), and the ref of each action it uses. Anything
-# else that differs is drift; docs/audits/renovate.md has the Node 26
-# bump that showed why it matters.
-RENOVATE_WORKFLOW_TEMPLATE = 'templates/renovate/renovate.yml'
-RENOVATE_PIN_RE = re.compile(r'(?m)^(\s*PINNED_[A-Z0-9_]+_VERSION:).*$')
-# The ref after @, and the version comment that digest pinning leaves
-# after the ref. The action's name still has to match. The comment is
-# [ \t]+ rather than \s+, which would cross the newline and swallow a
-# comment on the lines after.
-RENOVATE_USES_RE = re.compile(r'(?m)^(\s*(?:-\s+)?uses:\s*[^@\s]+)@\S+([ \t]+#.*)?$')
-# Each keeps what the audit compares in group 1.
-RENOVATE_BUMPED_RES = (RENOVATE_PIN_RE, RENOVATE_USES_RE)
-
-
-# How many differing places a finding names before it counts the rest.
-RENOVATE_DRIFT_SHOWN = 3
-
-
-def renovate_workflow_drift(content, template):
-    """Where renovate.yml departs from the template, or None.
-
-    Both are compared with the versions Renovate bumps blanked (each
-    PINNED_*_VERSION value and the ref of each uses: action), so a
-    copy whose pinned tools or actions are ahead of or behind the
-    template's still matches. Returns the places that differ, each
-    named by its first line with the copy's text and the template's,
-    for the issue to quote: every place, so that one fix closes the
-    issue.
-    """
-    ours = _without_renovate_bumps(content).splitlines()
-    theirs = _without_renovate_bumps(template).splitlines()
-    places = []
-    opcodes = difflib.SequenceMatcher(
-        None, theirs, ours, autojunk=False).get_opcodes()
-    for tag, t1, _, o1, _ in opcodes:
-        if tag == 'insert':
-            places.append(
-                f'line {o1 + 1}, {_quote_line(ours[o1])}, is not in the '
-                f'template')
-        elif tag == 'delete':
-            if o1 == len(ours):
-                where = 'at the end'
-            else:
-                where = f'before line {o1 + 1}'
-            places.append(
-                f'the template\'s {_quote_line(theirs[t1])} is missing '
-                f'{where}')
-        elif tag == 'replace':
-            places.append(
-                f'line {o1 + 1} is {_quote_line(ours[o1])} where the '
-                f'template has {_quote_line(theirs[t1])}')
-    if not places:
-        return None
-    shown = places[:RENOVATE_DRIFT_SHOWN]
-    if len(places) > len(shown):
-        shown.append(f'and {len(places) - len(shown)} more')
-    return '; '.join(shown)
-
-
-def _without_renovate_bumps(text):
-    for pattern in RENOVATE_BUMPED_RES:
-        text = pattern.sub(r'\1', text)
-    return text
-
-
-def _quote_line(line):
-    return f'`{line.strip()[:80]}`'
-
-
-def renovate_workflow_runs_container(content):
-    """True when a step in renovate.yml runs renovatebot/github-action."""
-    return any(
-        step_action(step) == RENOVATE_CONTAINER_ACTION
-        for _, body in workflow_job_blocks(content)
-        for step in workflow_step_blocks(body)
-    )
 
 
 def renovate_config_reads_version_comments(config):
@@ -274,19 +188,6 @@ def renovate_config_reads_version_comments(config):
         return False
     return any(preset in RENOVATE_VERSION_COMMENT_PRESETS
                for preset in extends)
-
-
-def renovate_reads_version_comments(repo):
-    """True when renovate.json extends the version comment preset.
-
-    Either directly, or by extending the fleet preset, which does it
-    for every repository.
-    """
-    config = renovate_config(repo)
-    if config is None:
-        return False
-    return (renovate_config_reads_version_comments(config)
-            or extends_fleet_preset(config))
 
 
 # A project is in scope for indirect dependency pinning when it already
@@ -556,67 +457,64 @@ class Renovate(Check):
     issue_title = 'Renovate'
 
     def run(self, repo):
-        """Check for renovate workflow and config."""
+        """Check that Renovate reaches the repository through the fleet preset.
+
+        Every finding is reported at once, so that one change closes the
+        issue. The preset is read only when there is a renovate.json to
+        compare with it.
+        """
+        details = []
         missing = []
-        if not repo.isfile('.github/workflows/renovate.yml'):
-            missing.append('.github/workflows/renovate.yml')
+        config = None
         if not repo.isfile('renovate.json'):
             missing.append('renovate.json')
+            details.append('Missing: renovate.json')
+        else:
+            # renovate_config() is None for a file that is there but is
+            # not a JSON object: a finding, never an abort of the run.
+            config = renovate_config(repo)
+            if config is None:
+                details.append(
+                    'renovate.json is not a JSON object, so Renovate cannot '
+                    'read it')
+
+        if repo.isfile(RENOVATE_REPOSITORY_WORKFLOW):
+            details.append(
+                f'{RENOVATE_REPOSITORY_WORKFLOW} exists, but the fleet '
+                f'runner in shakenfist/development manages this repository '
+                f'and a copy of the workflow enabled again races it; delete '
+                f'the file')
+
+        if config is not None:
+            if not extends_fleet_preset(config):
+                shape = ''
+                if 'extends' in config and not isinstance(
+                        config['extends'], list):
+                    shape = ' (extends has to be a list)'
+                details.append(
+                    f'renovate.json does not extend {RENOVATE_FLEET_PRESET}, '
+                    f'which carries the fleet\'s Renovate policy; add it to '
+                    f'extends{shape}')
+            overrides = renovate_preset_overrides(
+                config, renovate_fleet_preset())
+            if overrides:
+                them = 'it' if len(overrides) == 1 else 'them'
+                details.append(
+                    f'renovate.json sets {", ".join(overrides)} at its top '
+                    f'level, which {RENOVATE_FLEET_PRESET} also sets, and a '
+                    f'repository\'s own value wins over the preset\'s, so '
+                    f'the fleet\'s policy does not apply here; delete {them}, '
+                    f'and put any difference this repository needs in a '
+                    f'packageRules entry scoped to what it is about')
 
         if missing:
-            return self.fail(f'Missing: {", ".join(missing)}', missing=missing)
-
-        template = read_within(
-            DEVELOPMENT_ROOT,
-            os.path.join(DEVELOPMENT_ROOT, RENOVATE_WORKFLOW_TEMPLATE))
-        if template is None:
-            raise ToolFailure(
-                f'Could not read {RENOVATE_WORKFLOW_TEMPLATE} in the '
-                f'audit\'s own checkout')
-
-        issues = []
-        workflow = repo.read('.github/workflows/renovate.yml') or ''
-        if renovate_workflow_runs_container(workflow):
-            issues.append(
-                f'renovate.yml runs Renovate through '
-                f'{RENOVATE_CONTAINER_ACTION}, which needs a Docker daemon '
-                f'the runner may not have; copy the template, which runs '
-                f'it from npm')
-        else:
-            # The container finding already says to copy the template.
-            drift = renovate_workflow_drift(workflow, template)
-            if drift:
-                issues.append(
-                    f'renovate.yml differs from {RENOVATE_WORKFLOW_TEMPLATE} '
-                    f'beyond the versions Renovate bumps ({drift}); copy '
-                    f'the template verbatim')
-        if not renovate_reads_version_comments(repo):
-            issues.append(
-                'renovate.json extends neither '
-                f'{RENOVATE_FLEET_PRESET} nor '
-                'customManagers:githubActionsVersions, so the Renovate '
-                'version pinned in renovate.yml is never bumped')
-        if uses_remote_pre_commit_hooks(repo) and not (
-            renovate_manages_pre_commit(repo)
-        ):
-            issues.append(
-                'renovate.json does not enable the pre-commit manager, '
-                f'itself or by extending {RENOVATE_FLEET_PRESET}, so '
-                'the hook revisions in .pre-commit-config.yaml are '
-                'unmanaged and drift silently')
-        if uses_shellcheck_py_hook(repo) and not (
-            renovate_versions_shellcheck_py(repo)
-        ):
-            issues.append(
-                f'.pre-commit-config.yaml uses {SHELLCHECK_PY_HOOK} but '
-                'renovate.json has no versioning packageRule for it, '
-                f'itself or by extending {RENOVATE_FLEET_PRESET}, so the '
-                'github-tags lookup fails on its four-part tags and the '
-                'hook revision is never bumped')
-
-        if issues:
-            return self.fail('; '.join(issues))
-        return self.ok('Renovate workflow and config exist')
+            return self.fail('; '.join(details), missing=missing)
+        if details:
+            return self.fail('; '.join(details))
+        return self.ok(
+            f'renovate.json extends {RENOVATE_FLEET_PRESET} and overrides '
+            f'none of its top-level keys, and there is no '
+            f'{RENOVATE_REPOSITORY_WORKFLOW}')
 
 
 class PinIndirectDependencies(Check):

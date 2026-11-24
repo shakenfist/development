@@ -11,7 +11,7 @@
 # Comments here are not preserved when the tool rewrites this file.
 
 2605 scripts/audit/checks/ci_workflows.py
-2493 scripts/audit/checks/packaging.py
+2391 scripts/audit/checks/packaging.py
 2401 scripts/audit/checks/plans.py
 1859 scripts/review-tracking.py
 3793 scripts/tests/test_ci_workflows.py
@@ -19,6 +19,6 @@
 1816 scripts/tests/test_github_config.py
 2922 scripts/tests/test_packaging.py
 4526 scripts/tests/test_plans.py
-1582 scripts/tests/test_registry.py
+1581 scripts/tests/test_registry.py
 1570 scripts/tests/test_release.py
 2554 scripts/tests/test_review_tracking.py
