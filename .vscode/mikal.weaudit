@@ -1063,6 +1063,54 @@
     {
       "path": "docs/audits/renovate.md",
       "author": "mikal"
+    },
+    {
+      "path": "docs/audits/plan-phase-references.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/review-tracking/prune-reviews.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/review-tracking",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consistency-audits.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/base.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_audit_workflow.py",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/prune-reviews.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/consistency-audit.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/llm-doc-structure.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
