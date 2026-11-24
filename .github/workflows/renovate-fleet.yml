@@ -57,6 +57,14 @@ on:
         required: false
         default: ''
         type: string
+      log_level:
+        description: 'Renovate log level. The conductor sends no inputs, so scheduled runs log at info.'
+        required: false
+        default: info
+        type: choice
+        options:
+          - info
+          - debug
 
 jobs:
   renovate:
@@ -250,6 +258,7 @@ jobs:
           RENOVATE_CONFIG_FILE: ${{ github.workspace }}/renovate-runner.json
           RENOVATE_DRY_RUN: ${{ inputs.dry_run != 'write-for-real' && inputs.dry_run || '' }}
           RENOVATE_AUTODISCOVER_FILTER: ${{ inputs.autodiscover_filter }}
+          LOG_LEVEL: ${{ inputs.log_level || 'info' }}
           # A clone and cache per job, under the directory the runner
           # empties between jobs.
           RENOVATE_BASE_DIR: ${{ runner.temp }}/renovate
