@@ -33,6 +33,7 @@ TEMPLATE_DIR = os.path.join(REPO_ROOT, 'templates', 'issue-fix')
 SCRIPT = os.path.join(TEMPLATE_DIR, 'measure-change-size.sh')
 WORKFLOW = os.path.join(TEMPLATE_DIR, 'issue-fix.yml')
 TEST_PATH_PATTERN = '^tests/'
+DOC_PATH_PATTERN = '^docs/|\\.md$'
 
 GIT_ENV = {
     'GIT_AUTHOR_NAME': 'test',
@@ -295,6 +296,107 @@ class MeasurementTest(unittest.TestCase):
         self.assertEqual('7', proc.stdout.strip())
 
 
+class UncountedPathsTest(MeasurementTest):
+    """The workflow passes tests and docs joined as one pattern."""
+
+    def test_documentation_is_not_counted(self):
+        base = self.commit()
+        self.write('src/a.py', 3)
+        self.write('docs/guide.md', 40)
+        self.write('README.md', 5)
+        self.write('tests/test_a.py', 7)
+        self.assertEqual(3, self.count(
+            base, pattern=TEST_PATH_PATTERN + '|' + DOC_PATH_PATTERN))
+
+    def test_deleted_documentation_is_not_counted(self):
+        # Retiring a plan is mostly deleting it.
+        self.write('docs/plans/PLAN-old.md', 200)
+        self.write('src/a.py', 1)
+        base = self.commit()
+        os.unlink(os.path.join(self.repo, 'docs/plans/PLAN-old.md'))
+        self.write('src/a.py', 2)
+        self.assertEqual(1, self.count(
+            base, pattern=TEST_PATH_PATTERN + '|' + DOC_PATH_PATTERN))
+
+    def test_the_workflow_default_matches_these_tests(self):
+        with open(WORKFLOW) as f:
+            workflow = f.read()
+        self.assertIn(
+            "DOC_PATH_PATTERN: '%s'" % DOC_PATH_PATTERN, workflow)
+
+
+class SizeGateTest(unittest.TestCase):
+    """Size is decided before the work, not after it.
+
+    The workflow used to measure a finished, passing fix and discard
+    it as a branch when it was over budget: all of the cost was paid
+    and none of the review happened. These pin the shape that replaced
+    it -- an estimate and a decline before any code is written, a
+    finished fix always proposed below the ceiling, and the large label
+    on one over the budget.
+    """
+
+    def setUp(self):
+        with open(WORKFLOW) as f:
+            self.workflow = f.read()
+
+    def step(self, name):
+        start = self.workflow.index('- name: %s\n' % name)
+        end = self.workflow.find('\n      - name: ', start + 1)
+        return self.workflow[start:end if end != -1 else None]
+
+    def condition(self, name):
+        """The step's if: block, and nothing after it."""
+        body = self.step(name)
+        start = body.index('if: |')
+        ends = [body.find(key, start) for key in ('\n        env:', '\n        run:')]
+        return body[start:min(e for e in ends if e != -1)]
+
+    def test_the_prompt_asks_for_an_estimate_before_code(self):
+        self.assertIn('"ESTIMATE: <number>"', self.workflow)
+        self.assertIn('before changing any file', self.workflow)
+        self.assertIn('Once you have started the fix, finish it.',
+                      self.workflow)
+
+    def test_the_prompt_states_the_budget(self):
+        # The task heredoc is quoted, so the number must be echoed
+        # outside it or the model sees a literal ${MAX_DIFF_LINES}.
+        prompt = self.step('Prepare Claude prompt')
+        tail = prompt[prompt.rindex('TASK_EOF'):]
+        self.assertIn('echo "The budget for step 2 is ${MAX_DIFF_LINES}',
+                      tail)
+
+    def test_publication_is_gated_on_the_ceiling_not_the_budget(self):
+        condition = self.condition('Publish draft PR')
+        self.assertIn("within_ceiling == 'true'", condition)
+        self.assertNotIn('within_budget', condition)
+
+    def test_an_over_budget_fix_is_labelled_and_explained(self):
+        publish = self.step('Publish draft PR')
+        self.assertIn('labels+=(--label automated-fix-large)', publish)
+        self.assertIn('"${labels[@]}"', publish)
+        self.assertIn('Larger than its size budget', publish)
+        self.assertIn("gh label create 'automated-fix-large'",
+                      self.workflow)
+
+    def test_only_a_runaway_fix_is_held_back(self):
+        condition = self.condition('Report runaway fix')
+        self.assertIn("within_ceiling == 'false'", condition)
+        self.assertNotIn('Report over-budget fix', self.workflow)
+
+    def test_the_estimate_is_reported_not_gated_on(self):
+        measure = self.step('Measure change size')
+        self.assertIn('estimate=', measure)
+        for step in ('Publish draft PR', 'Report runaway fix'):
+            self.assertNotIn('estimate', self.condition(step))
+
+    def test_the_limits_are_checked_as_numbers(self):
+        measure = self.step('Measure change size')
+        self.assertIn(
+            'for limit in "${MAX_DIFF_LINES}" "${MAX_DIFF_LINES_CEILING}"',
+            measure)
+
+
 class WorkflowSeamTest(unittest.TestCase):
     def setUp(self):
         with open(WORKFLOW) as f:
@@ -303,7 +405,7 @@ class WorkflowSeamTest(unittest.TestCase):
     def test_the_workflow_calls_the_script(self):
         self.assertIn(
             '${{ runner.temp }}/measure-change-size.sh \\\n'
-            '            "${BASE_SHA}" "${TEST_PATH_PATTERN}"',
+            '            "${BASE_SHA}" "${TEST_PATH_PATTERN}|${DOC_PATH_PATTERN}"',
             self.workflow,
             'the workflow no longer measures with the tested script. If '
             'the measurement was rewritten, rewrite these tests against '
