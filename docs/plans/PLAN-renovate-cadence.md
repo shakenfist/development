@@ -3084,6 +3084,64 @@ step and stops where a step says so.
 | 3g | medium | sonnet | none | Management session, not a sub-agent: *Sweep* steps 4 and 5. Per repository, commit the staged change with the subject `Move Renovate onto the fleet preset.`, push the branch `renovate-fleet-preset`, and open the pull request, each with the operator's yes. The body says what was dropped and why, in a sentence per rule, links this plan's decision 6 by permalink, notes the `lockFileMaintenance` timezone shift where it applies, and closes the repository's `Renovate` issue. |
 | 3h | medium | sonnet | none | The closing pull request, in a new worktree from `main` once *Sweep* step 6's API check shows no `renovate.yml` in any managed repository. Remove the temporary `packageRules` entry from `renovate-runner.json`, leaving no `packageRules` key, and update `RenovateRunnerConfigTest` (`test_the_runner_config_holds_exactly_these_keys` and `test_the_runner_suppresses_the_renovate_workflows_and_nothing_else`, which becomes a test that the runner config holds no package rules). Rewrite the sentence in `docs/audits/renovate.md` that describes the temporary rule. Mutation-test one mutant under `timeout`: the rule restored. The management session adds the Saturday watch, the secret deletion and the closing records to this plan in the same pull request. |
 
+#### Record
+
+**Step 3e: the preview matches survey item 16 exactly**
+(2026-11-25). Each of the 23 managed repositories and `private-ci`
+was cloned fresh at its default branch's tip, and `audit-check.py`
+run over each from this branch at `0935894`; `development`'s result
+was taken from this branch rather than from its `main` clone, since
+`main` still carries the workflow this branch deletes. The
+`renovate` verdicts: `development` passes, `images` and
+`private-ci` are N/A, and the other 21 fail. Every one of the 21
+fails on all three of the new findings at once -- the workflow
+present, the preset not extended, and the same seven top-level keys
+overridden, `assignees`, `dependencyDashboard`, `gitAuthor`,
+`minimumReleaseAge`, `pre-commit`, `rollbackPrs` and `schedule` --
+so survey item 14's `schedule` is named in all 21.
+
+`audit-manage-issues.py --dry-run` over those results would create
+15 `Consistency: Renovate` issues and update the body of six:
+`agent-python#159`, `client-python#437`, `client-python-k3s#158`,
+`client-python-ova#64`, `cloudgood#26` and `divergulent#150`. That is
+the count survey item 16 predicted, so nothing stops the merge.
+
+#### Execution notes
+
+Dates are Australian Eastern Daylight Time (UTC+11).
+
+**The back brief's answers** (2026-11-25). The operator agreed
+decisions 2 and 7 as written and had already kept decision 3 when
+the plan was committed. He authorised this session to push the
+branch and open the first pull request once its definition of done
+had been checked. Everything under *Sweep* stays gated as written.
+
+**Steps 3a to 3d ran in sequence, and 3e beside 3d** (2026-11-25).
+All four write this worktree and 3b and 3d read what 3a produced,
+so none ran in parallel. Step 3e's clones and audit runs are
+read-only and live outside the worktree, and 3d changed only
+documentation, so the preview ran while 3d was still writing.
+
+**Three departures, all kept** (2026-11-25). Step 3a's
+`source-size-ratchet.py --update` also lowered `test_registry.py`'s
+entry from 1,582 to 1,581, its length on `main`; the tool only ever
+lowers, so it stays. Step 3b found
+`test_renovate_installs_without_the_token` reading the deleted
+template and pointed it at `renovate-fleet.yml`, where two steps
+hold `RENOVATE_TOKEN` -- the probe and the Renovate run -- so it now
+asserts that no holder runs `npm` or `npx` rather than that there is
+exactly one holder. And the management session, reviewing 3d,
+rewrote five comments in `renovate-fleet.yml` that described state
+that no longer exists: two about the per-repository copies and
+template, and three left over from phase 2's cron, among them a
+timeout still called provisional until a dry run measured a pass.
+
+**A test failure that did not reproduce** (2026-11-25, step 3c).
+The 3c sub-agent reported four failures in `test_audit_update_docs`
+and said they failed on a clean tree too. The management session's
+run of the whole suite straight afterwards, 2,827 tests, passed, as
+did every run since, so nothing was changed for them.
+
 #### Risks and mitigations
 
 * **A sweep that keeps a local override changes nothing, quietly.**
@@ -3157,8 +3215,16 @@ the API and the commands, not against a sub-agent's summary.
   ':!docs/audits/compliance.md' ':!REVIEWS.md' ':!.vscode'` prints
   only the history in `docs/audits/scheduled-workflow-health.md`,
   the fixture name in `scripts/tests/test_ci_workflows.py`, and lines
-  of `docs/audits/renovate.md` that describe the criterion's
-  refusal of the file.
+  that name the file in order to refuse it: the check's
+  `RENOVATE_REPOSITORY_WORKFLOW` constant, its fixtures in
+  `scripts/tests/test_packaging_renovate.py`, the warning at the head
+  of `renovate-fleet.yml`, and the spec's lines describing the
+  refusal. (This item first listed only the history, the fixture name
+  and the spec, which missed the three that must name the file;
+  corrected on 2026-11-25 when the first pull request was checked
+  against it.) Until step 3h lands, `renovate-runner.json`'s
+  temporary rule, its test and the spec's sentence describing it are
+  hits too.
 * `renovate-runner.json` has no `packageRules` key, and
   `renovate-fleet.json`'s Node-major rule names
   `.github/workflows/renovate-fleet.yml` alone.
