@@ -41,6 +41,10 @@
       "sha": "f9e0c8a01e5341267947151fefab721c5a7a3842",
       "date": "2026-11-16"
     },
+    ".github/workflows/consistency-audit.yml": {
+      "sha": "730e1302def379a6dfd61986872698b3bb0cd342",
+      "date": "2026-11-25"
+    },
     ".github/workflows/export-repo-config.yml": {
       "sha": "b9b3936053b8685ef0ae47f656b2f35aa62ba637",
       "date": "2026-09-27"
@@ -61,6 +65,14 @@
       "sha": "189610eb241bbecbf11c6459f874c97ff80c0359",
       "date": "2026-10-20"
     },
+    ".github/workflows/prune-reviews.yml": {
+      "sha": "e26503ce741b47a1e1fa6edceae8ab710619ac54",
+      "date": "2026-11-25"
+    },
+    ".github/workflows/renovate-fleet.yml": {
+      "sha": "ed40f914dfa574aeae89152c1895a550e2c1931e",
+      "date": "2026-11-24"
+    },
     ".github/workflows/renovate.yml": {
       "sha": "46c7e8a54eefb024c01bc539987f67749ad57344",
       "date": "2026-11-22"
@@ -80,6 +92,10 @@
     "AGENTS.md": {
       "sha": "f764b451e7387863708f2a6732336a9b497d9571",
       "date": "2026-11-17"
+    },
+    "ARCHITECTURE.md": {
+      "sha": "83f0d657e84c505c578c740f708c720e97fc8000",
+      "date": "2026-11-24"
     },
     "PLAN-TEMPLATE.md": {
       "sha": "2586a6e49881abcb8c0a00414eac30364bd53da7",
@@ -169,6 +185,10 @@
       "sha": "b7cb2fe037e858434caeed0d9acb08cf8bcecfe0",
       "date": "2026-10-19"
     },
+    "docs/audits/llm-doc-structure.md": {
+      "sha": "28dcb93966d1fcac4133555e1dd983c4f10f7966",
+      "date": "2026-11-25"
+    },
     "docs/audits/llm-tooling.md": {
       "sha": "3dd0b2fb0bab55ab115518573b7bf82fea04e768",
       "date": "2026-10-18"
@@ -216,6 +236,10 @@
     "docs/audits/plan-index.md": {
       "sha": "c86f0eb31b2748f641c60c9d5077b961183a148d",
       "date": "2026-10-28"
+    },
+    "docs/audits/plan-phase-references.md": {
+      "sha": "66c823616257ffa1206390df22e678975c021b0a",
+      "date": "2026-11-25"
     },
     "docs/audits/plan-retirement.md": {
       "sha": "62dc2c35d559d5b87a82c999ed4e1cd10e6e5b25",
@@ -272,6 +296,10 @@
     "docs/audits/renovate-lockstep-groups.md": {
       "sha": "c58fa988567ea392014294842ae64989649a56f4",
       "date": "2026-10-19"
+    },
+    "docs/audits/renovate.md": {
+      "sha": "65158ac674ec60675be1e4c9f071d462d601f837",
+      "date": "2026-11-24"
     },
     "docs/audits/reusable-workflow-secrets.md": {
       "sha": "2ebc5177a729dd8b6025ea36afdd1b305f7b536f",
@@ -344,6 +372,10 @@
     "docs/code-review-tracking.md": {
       "sha": "1ee271d86e8ce08b67f8632508b8386453b37c38",
       "date": "2026-11-01"
+    },
+    "docs/consistency-audits.md": {
+      "sha": "556be6869641b70840b82d2fcc63cd9358bd7b66",
+      "date": "2026-11-25"
     },
     "docs/plan-retirement.md": {
       "sha": "a1ab4ab7462319b8fec4490c3cbfcf674bda8645",
@@ -525,6 +557,10 @@
       "sha": "531d26fbe639291831bc7dff3a4959a702b09fe8",
       "date": "2026-09-04"
     },
+    "scripts/tests/base.py": {
+      "sha": "b6f3bbbeac0c690812cddb967be6b12246f6216c",
+      "date": "2026-11-25"
+    },
     "scripts/tests/fake_issues.py": {
       "sha": "10460b6ae248872a437175ef41c04844a8d319a3",
       "date": "2026-10-18"
@@ -548,6 +584,10 @@
     "scripts/tests/test_audit_update_docs.py": {
       "sha": "0419d4a8d18b67b54dc834a7387eccbb956489eb",
       "date": "2026-10-18"
+    },
+    "scripts/tests/test_audit_workflow.py": {
+      "sha": "49318ce972a20024d9fff1a24b0e3e189644f3cb",
+      "date": "2026-11-25"
     },
     "scripts/tests/test_base.py": {
       "sha": "cc3c41987d8ea8882339c2485dccdf3c8d862c88",
@@ -668,6 +708,10 @@
     "scripts/tests/test_renovate_check_push.py": {
       "sha": "39e97d6c0395dda5cc596440ce35e4f0fe21a7d8",
       "date": "2026-11-17"
+    },
+    "scripts/tests/test_renovate_fleet_workflow.py": {
+      "sha": "511626b916eeb276c1aee69d9f3fd3c30e4627ba",
+      "date": "2026-11-24"
     },
     "scripts/tests/test_repo.py": {
       "sha": "494c41567652920ef783aa50f829a0ba045616a5",
@@ -832,6 +876,10 @@
     "templates/review-tracking/ci-prune-reviews.sh": {
       "sha": "3c00a9489c0b571bfdd0d1f1170344cfc33b44ff",
       "date": "2026-11-01"
+    },
+    "templates/review-tracking/prune-reviews.yml": {
+      "sha": "e26503ce741b47a1e1fa6edceae8ab710619ac54",
+      "date": "2026-11-25"
     },
     "templates/review-tracking/review-tracking.sh": {
       "sha": "fcadd30b9cea7aec8c747c7f43ef1864bc01bbef",
