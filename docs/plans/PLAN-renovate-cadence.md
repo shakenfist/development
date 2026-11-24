@@ -321,7 +321,7 @@ Out of scope:
 | Phase | Status | Merged |
 |-------|--------|--------|
 | 1. Shared preset and its validation | Complete | `47086db` |
-| 2. Central runner and cutover | In progress | |
+| 2. Central runner and cutover | Complete | `fc75514` (#396), `013c9c4` (#400), `e259e24` (#432), private-ci `250a8ba` (#321), `d23c5ad` (#440) |
 | 3. Fleet sweep and audit change | Not started | |
 | 4. Re-measure | Not started | |
 | 5. Push audit | Not started | |
@@ -2257,6 +2257,63 @@ due at minute 23, GitHub created five, at minutes :27, :44, :22,
 proposed because GitHub documents the hour as its busiest time, did
 not change the delivery rate the copies saw on `0 * * * *`. Cutover
 step 5 replaces the trigger.
+
+**Cutover step 5.1: the conductor's first dispatch came after the
+cron's removal had merged, not before** (recorded on 2026-11-25, in
+the close-out that opens phase 3). private-ci #321 merged at
+19:18:49 UTC on 2026-11-22. GitHub's cron then created two more
+runs, at 23:40 UTC on 2026-11-22 and 07:54 UTC on 2026-11-23, and
+#440 (step 2f) merged at 09:25:27 UTC on 2026-11-23. The first
+`workflow_dispatch` run after the cutover is 45147312399, created at
+09:28:16 UTC, 2m49s after that merge, and every run since has been a
+`workflow_dispatch` created 60.0 to 60.5 minutes after the one
+before it. So decision 13's gate -- see one conductor dispatch
+before merging 2f -- is not shown by this record, which shows the
+reverse order. Nothing was lost by it: the gap from the last cron
+run to the first dispatch was 1h34m, inside the cron's own median.
+Attributing 45147312399 and its successors to the conductor rests
+on that cadence rather than on the run record, which names
+`mikalstill` as the triggering actor of every run, hand dispatches
+and conductor dispatches alike, because the conductor dispatches
+with the operator's identity (survey item 10). The conductor is
+deployed by hand, so its deploy time is not in GitHub either.
+
+**Cutover step 5.3: the gate is met** (read at 18:34 UTC on
+2026-11-24, from the workflow runs and jobs API). In the 24 hours
+from #440's merge:
+
+| | Value |
+|---|---|
+| Runs | 24, every one `workflow_dispatch` and `success` |
+| `schedule` events | none after 07:54 UTC on 2026-11-23 |
+| Gap between dispatches | median 60.1 minutes, longest 60.5, shortest 60.0 |
+| Queue, dispatch to job start | median 1.8 minutes, longest 3.8 |
+| Job duration | median 11.0 minutes, longest 15.0, shortest 10.2 |
+
+The gate asked for a median gap of at most 90 minutes and no gap
+over 4h47m. Both hold by a wide margin: the longest gap is shorter
+than the cron's median by a factor of almost five. Read on past the
+window to 34 runs, the picture holds, with one exception worth
+knowing: 45415169726, dispatched at 14:32 UTC on 2026-11-24, queued
+22m43s for a VM, and the next dispatch still came an hour after the
+previous *dispatch* rather than an hour after that run ended. The
+floor is measured from dispatch, so a slow queue shortens the time
+between two passes rather than stretching the cadence.
+
+Dashboards were rewritten in 5 of the 23 repositories inside the
+window (`actions`, `cloudgood`, `ryll`, `shakenfist`,
+`uncalibrated-sextant`) and in 9 by the time of the reading.
+Renovate rewrites a dashboard only when its content changes, so the
+other 14 being untouched since 2026-11-21 or 2026-11-22 is what a
+quiet week looks like rather than a sign that they were skipped;
+all 23 were rewritten by the first full pass in cutover step 3. No
+duplicate branch exists. The fleet holds seven `renovate/` branches,
+six of them carrying one open pull request each; the seventh,
+`uncalibrated-sextant`'s `renovate/rust-1.x`, belongs to its #36,
+which merged at 01:12 UTC on 2026-11-23 and left the branch behind.
+
+Phase 2 is therefore complete, and its five pull requests are in the
+Execution table's `Merged` cell.
 
 #### Execution notes
 
