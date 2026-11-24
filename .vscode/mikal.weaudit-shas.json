@@ -41,10 +41,6 @@
       "sha": "f9e0c8a01e5341267947151fefab721c5a7a3842",
       "date": "2026-11-16"
     },
-    ".github/workflows/consistency-audit.yml": {
-      "sha": "a54e4f27524c630f16e8c56166cf6f47ca9a1c69",
-      "date": "2026-11-19"
-    },
     ".github/workflows/export-repo-config.yml": {
       "sha": "b9b3936053b8685ef0ae47f656b2f35aa62ba637",
       "date": "2026-09-27"
@@ -64,10 +60,6 @@
     ".github/workflows/pr-retest.yml": {
       "sha": "189610eb241bbecbf11c6459f874c97ff80c0359",
       "date": "2026-10-20"
-    },
-    ".github/workflows/prune-reviews.yml": {
-      "sha": "0c0cfe362b24e6bc67ccf1ddd09dacc722a0524f",
-      "date": "2026-11-01"
     },
     ".github/workflows/renovate.yml": {
       "sha": "46c7e8a54eefb024c01bc539987f67749ad57344",
@@ -533,10 +525,6 @@
       "sha": "531d26fbe639291831bc7dff3a4959a702b09fe8",
       "date": "2026-09-04"
     },
-    "scripts/tests/base.py": {
-      "sha": "598f23293ba16af0d5f8dfb2beb929181889c7dc",
-      "date": "2026-11-17"
-    },
     "scripts/tests/fake_issues.py": {
       "sha": "10460b6ae248872a437175ef41c04844a8d319a3",
       "date": "2026-10-18"
@@ -560,10 +548,6 @@
     "scripts/tests/test_audit_update_docs.py": {
       "sha": "0419d4a8d18b67b54dc834a7387eccbb956489eb",
       "date": "2026-10-18"
-    },
-    "scripts/tests/test_audit_workflow.py": {
-      "sha": "ecff5bd6182c8b67e337e5fea1768c4d30075524",
-      "date": "2026-11-19"
     },
     "scripts/tests/test_base.py": {
       "sha": "cc3c41987d8ea8882339c2485dccdf3c8d862c88",
@@ -847,10 +831,6 @@
     },
     "templates/review-tracking/ci-prune-reviews.sh": {
       "sha": "3c00a9489c0b571bfdd0d1f1170344cfc33b44ff",
-      "date": "2026-11-01"
-    },
-    "templates/review-tracking/prune-reviews.yml": {
-      "sha": "0c0cfe362b24e6bc67ccf1ddd09dacc722a0524f",
       "date": "2026-11-01"
     },
     "templates/review-tracking/review-tracking.sh": {

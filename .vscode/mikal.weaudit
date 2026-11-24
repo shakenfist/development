@@ -689,10 +689,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/review-tracking/prune-reviews.yml",
-      "author": "mikal"
-    },
-    {
       "path": ".claude/skills/review-tracking-adoption/SKILL.md",
       "author": "mikal"
     },
@@ -710,10 +706,6 @@
     },
     {
       "path": "templates/review-tracking/ci-prune-reviews.sh",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/prune-reviews.yml",
       "author": "mikal"
     },
     {
@@ -826,10 +818,6 @@
     },
     {
       "path": "scripts/audit-raised.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/base.py",
       "author": "mikal"
     },
     {
@@ -1009,10 +997,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/consistency-audit.yml",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/moving-ref-source-protection.md",
       "author": "mikal"
     },
@@ -1021,19 +1005,11 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_audit_workflow.py",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/bypass-actor-identity.md",
       "author": "mikal"
     },
     {
       "path": "templates/review-tracking/README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/review-tracking",
       "author": "mikal"
     },
     {
@@ -1062,10 +1038,6 @@
     },
     {
       "path": "templates/renovate",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     },
     {
