@@ -44,6 +44,10 @@ PUSHING_JOB = 'push-docs'
 APP_KEY_ENVIRONMENT = 'review-marks'
 APP_TOKEN_ACTION = 'actions/create-github-app-token'
 
+# The other workflow that mints a token from the same App's key; the
+# deployed copy in .github/workflows is held byte-identical to it.
+PRUNE_REVIEWS_TEMPLATE = 'templates/review-tracking/prune-reviews.yml'
+
 MAIN_ONLY = "github.ref == 'refs/heads/main'"
 
 # The environment holding AUDIT_TOKEN. Its deployment branch policy
@@ -183,6 +187,27 @@ class AuditWorkflowGuardsTest(unittest.TestCase):
         pushing = [step for step in steps if 'scripts/commit-audit-docs.sh' in self.code(step)]
         self.assertEqual(1, len(pushing))
         self.assertIn('PUSH_TOKEN: ${{ steps.app-token.outputs.token }}\n', self.code(pushing[0]))
+
+    def test_the_app_token_action_is_pinned_as_prune_reviews_pins_it(self):
+        # Both steps hand the action the key of the identity that
+        # bypasses main's ruleset, and the mint step's comment says they
+        # pin the same commit. Renovate cannot bump the template, so a
+        # bump made by hand to one file and not the other would leave
+        # two versions holding that key and the comment false. The
+        # version comment is compared too, so that the commit and the
+        # release it is said to be cannot drift apart either.
+        def pin(text):
+            lines = [
+                line.strip()
+                for step in workflow_step_blocks(text)
+                if step_action(step) == APP_TOKEN_ACTION
+                for line in step.splitlines()
+                if line.strip().startswith('uses:')
+            ]
+            self.assertEqual(1, len(lines))
+            return lines[0]
+
+        self.assertEqual(pin(repo_text(PRUNE_REVIEWS_TEMPLATE)), pin(self.jobs[PUSHING_JOB]))
 
     def test_the_pushing_job_needs_the_page_but_not_issue_success(self):
         # As update-docs does not wait for manage-issues' success, so
