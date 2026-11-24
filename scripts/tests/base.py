@@ -125,6 +125,17 @@ def uses_clause(text, action):
     return text[found.start():found.end()].lstrip(' \t-')
 
 
+def uses_clauses(text, action):
+    """Every `uses:` clause for `action` in `text`, as uses_clause() reads one.
+
+    For the tests that hold every reference to an action to one pin,
+    where the first is not enough. An empty list, not RefNotFound: a
+    file that does not use the action is an ordinary answer here, and
+    such a caller asserts on the files it expects to find instead.
+    """
+    return [found.group(0).lstrip(' \t-').rstrip() for found in _uses_re(action).finditer(text)]
+
+
 def repo_text(*parts):
     """The same file, decoded, for the suites that read prose.
 
