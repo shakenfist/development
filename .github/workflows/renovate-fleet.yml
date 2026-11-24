@@ -1,13 +1,13 @@
 # Runs Renovate over every repository in the organisation, from here,
 # with its global configuration in renovate-runner.json.
 #
-# The fleet's per-repository copies of templates/renovate/renovate.yml
-# each run Renovate over the one repository they live in. This runs it
-# over all of them in one pass, so the schedule costs one runner rather
-# than one per repository, and the global configuration -- which
-# repositories are discovered, and what is suppressed fleet-wide -- is
-# in one file instead of being implied by where the copies are
-# installed. docs/audits/renovate.md is the specification.
+# This runs Renovate over every managed repository in one pass, so the
+# schedule costs one runner rather than one per repository, and the
+# global configuration -- which repositories are discovered, and what
+# is suppressed fleet-wide -- is in one file. No repository runs its
+# own Renovate workflow any more: the per-repository copies are being
+# deleted, and the consistency audit fails a repository that has one.
+# docs/audits/renovate.md is the specification.
 #
 # Dispatched about once an hour by the conductor's periodic tier in
 # shakenfist/private-ci, which sends no inputs, so the input defaults
@@ -18,12 +18,12 @@
 # off the top of the hour made no difference. The conductor's
 # documentation is private-ci's docs/periodic-ci.md.
 #
-# Do not re-enable any per-repository copy of
-# templates/renovate/renovate.yml while this runner is dispatched.
-# Two Renovate instances over one repository race on branch creation
-# and produce duplicate or half-written pull requests, and the
-# concurrency group below cannot prevent that race, because the two
-# runs are different workflows in different repositories.
+# Do not re-enable a per-repository .github/workflows/renovate.yml
+# while this runner is dispatched. Two Renovate instances over one
+# repository race on branch creation and produce duplicate or
+# half-written pull requests, and the concurrency group below cannot
+# prevent that race, because the two runs are different workflows in
+# different repositories.
 
 name: Renovate fleet runner
 

@@ -41,13 +41,12 @@ repos:
       # scalars, so both do lint cleanly by hand; they are excluded
       # because ConvergedTemplatesTest holds this list to exactly the
       # templates that carry a placeholder.
-      # renovate.yml and pin-indirect-dependencies.yml read what would
-      # have been placeholders from the runtime instead
-      # (${{ github.repository }}, and a checkout into the workspace
-      # root), so every copy is byte-identical to its template and both
-      # are linted here. The ten copy-directly templates,
-      # which are the ones the fleet actually runs unmodified, are all
-      # checked.
+      # pin-indirect-dependencies.yml reads what would have been
+      # placeholders from the runtime instead (${{ github.repository }},
+      # and a checkout into the workspace root), so every copy is
+      # byte-identical to its template and it is linted here. The nine
+      # copy-directly templates, which are the ones the fleet actually
+      # runs unmodified, are all checked.
       #
       # One YAML file under templates/ is not a workflow at all:
       # source-size-ratchet's pre-commit-hook.yaml is a stanza for an

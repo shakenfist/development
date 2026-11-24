@@ -256,18 +256,18 @@ class NpmPinIndirectDependenciesTest(NpmFixtureMixin, CheckTestCase):
     def test_a_prefixed_tool_install_is_not_a_project_install(self):
         """A named package installed into a prefix outside the project.
 
-        The renovate workflow installs a pinned Renovate into a scratch
+        The renovate-fleet workflow installs a pinned Renovate into a scratch
         directory with `npm install --prefix "${RUNNER_TEMP}/..."
         renovate@x`, naming the package on a backslash continuation.
         Like `-g`, it reads and writes a manifest and lockfile under the
         prefix, not the project's, so it must not be reported. hunkydory
         is the one fleet repository with a root package.json, so it is
-        the only place this template and this criterion meet.
+        the only place a Renovate workflow and this criterion meet.
         """
         self.manifest(name='x', dependencies={'left-pad': '^1.3.0'})
         self.lockfile(['left-pad'])
         self.fixture.workflow(
-            'renovate.yml',
+            'renovate-fleet.yml',
             'jobs:\n  b:\n    steps:\n'
             '      - name: Install Renovate\n'
             '        run: |\n'

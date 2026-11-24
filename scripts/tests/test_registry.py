@@ -1239,14 +1239,14 @@ class CodeqlTemplateTest(unittest.TestCase):
 class ConvergedTemplatesTest(unittest.TestCase):
     """Templates copied verbatim must stay copyable verbatim.
 
-    renovate.yml and pin-indirect-dependencies.yml carry no
-    {{PLACEHOLDER}} substitutions, so that every copy can be
-    byte-identical to its template, and are absent from actionlint's
-    exclude list in .pre-commit-config.yaml on the strength of it. A
-    placeholder reintroduced into either would
-    break that quietly: actionlint would reject it, but only as a YAML
-    error in a file nobody reads as a template any more. So the exclude
-    list and the templates are held to each other here.
+    pin-indirect-dependencies.yml carries no {{PLACEHOLDER}}
+    substitutions, so that every copy can be byte-identical to its
+    template, and is absent from actionlint's exclude list in
+    .pre-commit-config.yaml on the strength of it. A placeholder
+    reintroduced into it would break that quietly: actionlint would
+    reject it, but only as a YAML error in a file nobody reads as a
+    template any more. So the exclude list and the templates are held
+    to each other here.
     """
 
     PRE_COMMIT = '.pre-commit-config.yaml'
@@ -1285,14 +1285,6 @@ class ConvergedTemplatesTest(unittest.TestCase):
             'the actionlint-templates exclude list must name exactly the '
             'templates that carry {{PLACEHOLDER}} substitutions')
 
-    def test_this_repository_runs_renovate_verbatim(self):
-        self.assertEqual(
-            self._read('.github/workflows/renovate.yml'),
-            self._read('templates/renovate/renovate.yml'),
-            '.github/workflows/renovate.yml must be byte-identical to '
-            'templates/renovate/renovate.yml: the template README tells '
-            'the fleet to copy it unmodified')
-
     def test_a_pinned_rust_toolchain_states_its_toolchain(self):
         """A sha cannot default the input the ref name defaults.
 
@@ -1303,14 +1295,9 @@ class ConvergedTemplatesTest(unittest.TestCase):
         add `with: toolchain: stable` in the same change -- Renovate
         will not -- or the Renovate run fails on every repository with a
         Cargo.lock. .github/workflows/renovate-fleet.yml is pinned, with
-        that input. The per-repository renovate.yml and its template stay
-        on the stable branch instead: a renovate.json rule declines the
-        pin there, because the input would make every fleet copy of the
-        template drift from it, and test_packaging_renovate checks they
-        stay unpinned.
+        that input.
         """
-        for path in ('.github/workflows/renovate-fleet.yml', '.github/workflows/renovate.yml',
-                     'templates/renovate/renovate.yml'):
+        for path in ('.github/workflows/renovate-fleet.yml',):
             text = self._read(path)
             ref = current_ref(text, 'dtolnay/rust-toolchain')
             step = text.split(uses_clause(text, 'dtolnay/rust-toolchain'), 1)[1]
@@ -1318,7 +1305,7 @@ class ConvergedTemplatesTest(unittest.TestCase):
             if re.fullmatch(r'dtolnay/rust-toolchain@[0-9a-f]{40}', ref):
                 self.assertIn('toolchain:', step,
                               f'{path} pins rust-toolchain to a sha, so it must set the toolchain input '
-                              f'explicitly; in renovate.yml and its template, revert the pin to @stable instead')
+                              f'explicitly')
             else:
                 self.assertTrue(ref.endswith('@stable'), ref)
 
@@ -1328,7 +1315,7 @@ class ConvergedTemplatesTest(unittest.TestCase):
         # step doing the install. So that step holds no secret and runs
         # no install scripts, and the step holding RENOVATE_TOKEN fetches
         # nothing from the registry.
-        content = self._read('templates/renovate/renovate.yml')
+        content = self._read('.github/workflows/renovate-fleet.yml')
         steps = [strip_yaml_comments(step)
                  for _, body in workflow_job_blocks(content)
                  for step in workflow_step_blocks(body)]
@@ -1336,10 +1323,11 @@ class ConvergedTemplatesTest(unittest.TestCase):
                     if re.search(r'\bnpm\s+(?:install|ci|exec)\b|\bnpx\b', step)]
         holders = [step for step in steps if 'RENOVATE_TOKEN' in step]
         self.assertEqual(len(installs), 1, 'expected one step that installs Renovate')
-        self.assertEqual(len(holders), 1, 'expected one step that holds RENOVATE_TOKEN')
+        self.assertTrue(holders, 'expected a step that holds RENOVATE_TOKEN')
         self.assertNotIn('secrets.', installs[0])
         self.assertIn('--ignore-scripts', installs[0])
-        self.assertNotRegex(holders[0], r'\bnp[mx]\b')
+        for holder in holders:
+            self.assertNotRegex(holder, r'\bnp[mx]\b')
 
     def test_pin_indirect_does_not_read_the_event_repository(self):
         # A schedule event's payload has no repository object, so on

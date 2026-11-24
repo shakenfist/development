@@ -9,6 +9,7 @@ Run with: python3 scripts/tests/test_packaging_renovate.py
 
 import json
 import os
+import re
 import sys
 import unittest
 from unittest import mock
@@ -16,9 +17,7 @@ from unittest import mock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import packaging  # noqa: E402
-from tests.base import (  # noqa: E402
-    REPO_ROOT, CheckTestCase, current_ref, repo_text,
-)
+from tests.base import REPO_ROOT, CheckTestCase  # noqa: E402
 
 
 class RenovateTest(CheckTestCase):
@@ -436,10 +435,8 @@ class RenovateFleetPresetTest(CheckTestCase):
         # The whole set, not membership: each file is a workflow that sets
         # up Node, and one left out is one a major Node pull request can
         # reach, which stops Renovate for every repository at once.
-        self.assertEqual(sorted(rule['matchFileNames']),
-                         ['.github/workflows/renovate-fleet.yml',
-                          '.github/workflows/renovate.yml',
-                          'templates/renovate/renovate.yml'])
+        self.assertEqual(rule['matchFileNames'],
+                         ['.github/workflows/renovate-fleet.yml'])
 
     def test_the_real_preset_merges_nothing_automatically(self):
         rule = self._rule(automerge=False)
@@ -497,10 +494,9 @@ class RenovateFleetPresetTest(CheckTestCase):
         # The note is the only thing that tells a reviewer which files hold
         # a node-version that has to move with the pin.
         note = self._rule(matchDepNames=['renovate'])['prBodyNotes'][0]
-        for name in ('.github/workflows/renovate-fleet.yml',
-                     '.github/workflows/renovate.yml',
-                     'templates/renovate/renovate.yml'):
-            self.assertIn(name, note)
+        # The whole set, so a file named back here fails this.
+        self.assertEqual(re.findall(r'[\w./-]+\.yml', note),
+                         ['.github/workflows/renovate-fleet.yml'])
 
     def test_the_real_preset_sets_the_documented_cadence(self):
         preset = self._preset()
@@ -558,7 +554,7 @@ class RenovateReducedConfigTest(unittest.TestCase):
     #: Sections that apply only to this repository, which ships the
     #: workflow templates. Everything else in the preset is fleet-wide.
     ROOT_LOCAL_KEYS = frozenset(
-        {'github-actions', 'customManagers', 'packageRules'})
+        {'github-actions', 'packageRules'})
 
     STRUCTURAL_KEYS = frozenset({'$schema', 'extends'})
 
@@ -609,10 +605,10 @@ class RenovateReducedConfigTest(unittest.TestCase):
                          f'matchFileNames is {sorted(file_names)}, and holds {len(rules)}')
         return rules[0]
 
-    def test_the_root_config_holds_two_local_rules(self):
-        # Each is local because it names files only this repository has;
-        # a third is a decision somebody should have to make here.
-        self.assertEqual(len(self._config('renovate.json')['packageRules']), 2)
+    def test_the_root_config_holds_one_local_rule(self):
+        # It is local because it names a file only this repository has;
+        # a second is a decision somebody should have to make here.
+        self.assertEqual(len(self._config('renovate.json')['packageRules']), 1)
 
     def test_the_root_config_gives_the_runner_workflow_actions_a_weekly_schedule(self):
         rule = self._root_rule(['.github/workflows/renovate-fleet.yml'])
@@ -621,33 +617,6 @@ class RenovateReducedConfigTest(unittest.TestCase):
         # The preset's own weekly window, not a second spelling of it.
         self.assertEqual(rule['schedule'], self._preset()['schedule'])
         self.assertNotIn('groupName', rule)
-
-    def test_only_the_doomed_renovate_copies_keep_rust_toolchain_unpinned(self):
-        # The two files renovate-cadence deletes, and nothing else: the
-        # fleet runner's own reference holds the organisation's push token
-        # and stays pinned, so a rule that widened to it, or to every
-        # action in these files, would unpin what the preset is there to
-        # pin.
-        rule = self._root_rule(['.github/workflows/renovate.yml',
-                                'templates/renovate/renovate.yml'])
-        self.assertEqual(rule['matchPackageNames'], ['dtolnay/rust-toolchain'])
-        self.assertIs(rule['pinDigests'], False)
-        self.assertEqual(set(rule), {'description', 'matchFileNames',
-                                     'matchPackageNames', 'pinDigests'})
-        # The rule and the files are one invariant: the exemption is
-        # true only while both files exist and both references are still
-        # unpinned. The pull request deleting either file must delete the
-        # rule too, and a pin that reaches either file anyway is reverted
-        # rather than given a toolchain input, which would make every
-        # fleet copy of the template drift from it.
-        for path in rule['matchFileNames']:
-            self.assertTrue(os.path.isfile(os.path.join(REPO_ROOT, path)), path)
-            ref = current_ref(repo_text(*path.split('/')), 'dtolnay/rust-toolchain')
-            self.assertTrue(
-                ref.endswith('@stable'),
-                f'{path} has {ref}: this repository declines that pin, so put '
-                f'the reference back to dtolnay/rust-toolchain@stable with no '
-                f'with: block rather than adding a toolchain input')
 
 
 class RenovateRunnerConfigTest(unittest.TestCase):
@@ -704,9 +673,8 @@ class RenovateRunnerConfigTest(unittest.TestCase):
         # rule that lost its matchFileNames disables every dependency
         # in the fleet, and the only symptom is Renovate proposing
         # nothing to anybody.
-        self.assertEqual(sorted(rule['matchFileNames']),
-                         ['.github/workflows/renovate.yml',
-                          'templates/renovate/renovate.yml'])
+        self.assertEqual(rule['matchFileNames'],
+                         ['.github/workflows/renovate.yml'])
 
 
 class RenovateLockstepGroupsTest(CheckTestCase):
