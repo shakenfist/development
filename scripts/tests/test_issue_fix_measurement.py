@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 
-"""Tests for the size cap measurement in the issue-fix template.
+"""Tests for the size measurement in the issue-fix template.
 
-The issue-fix workflow refuses to publish a fix whose non-test diff
-exceeds max_diff_lines. That cap is a safety control on an unattended
-agent with push access, so the direction it fails in matters more than
-its happy path: an over-count holds a fix back for a human, an
-under-count publishes one nobody sized.
+The issue-fix workflow counts the lines a fix changes, less tests,
+documentation and generated files. Over max_diff_lines (the budget) a
+fix is published labelled automated-fix-large; over
+max_diff_lines_ceiling it is not published at all. Both are controls
+on an unattended agent with push access, so the direction the count
+fails in matters more than its happy path: an over-count labels or
+holds a fix back for a human, an under-count publishes one nobody
+sized.
 
 The count is made by templates/issue-fix/measure-change-size.sh, which
 these tests run against throwaway repositories. Each test pins one of
 the rules in the script's header -- fail closed, measure from the
 recorded base rather than HEAD, read .gitattributes from the base, honour
-both spellings of linguist-generated, respect linguist's opt-out -- and
-none of those are things actionlint or shellcheck can see. The last
+both spellings of linguist-generated, respect linguist's opt-out, refuse
+a pattern which matches every path -- and none of those are things actionlint or shellcheck can see. The last
 class guards the seam: a tested script the workflow does not call is
 not a measurement.
 
@@ -21,6 +24,7 @@ Run with: python3 scripts/tests/test_issue_fix_measurement.py
 """
 
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -33,6 +37,7 @@ TEMPLATE_DIR = os.path.join(REPO_ROOT, 'templates', 'issue-fix')
 SCRIPT = os.path.join(TEMPLATE_DIR, 'measure-change-size.sh')
 WORKFLOW = os.path.join(TEMPLATE_DIR, 'issue-fix.yml')
 TEST_PATH_PATTERN = '^tests/'
+DOC_PATH_PATTERN = '^docs/|\\.md$'
 
 GIT_ENV = {
     'GIT_AUTHOR_NAME': 'test',
@@ -44,7 +49,9 @@ GIT_ENV = {
 }
 
 
-class MeasurementTest(unittest.TestCase):
+class MeasurementTestCase(unittest.TestCase):
+    """Throwaway repositories and a way to measure them; no tests."""
+
     def setUp(self):
         self._tempdir = tempfile.TemporaryDirectory()
         self.repo = self._tempdir.name
@@ -119,6 +126,8 @@ class MeasurementTest(unittest.TestCase):
         self.assertEqual(0, status, 'measurement failed: %s' % err)
         return int(out)
 
+
+class MeasurementTest(MeasurementTestCase):
     def test_the_script_is_executable(self):
         # The workflow runs its copy directly, and git records the mode.
         self.assertTrue(os.access(SCRIPT, os.X_OK))
@@ -295,6 +304,192 @@ class MeasurementTest(unittest.TestCase):
         self.assertEqual('7', proc.stdout.strip())
 
 
+class UncountedPathsTest(MeasurementTestCase):
+    """The workflow passes tests and docs joined as one pattern."""
+
+    def test_a_backslash_in_the_pattern_reaches_the_regex(self):
+        # Passed with "awk -v", "\.md$" lost its backslash to escape
+        # processing under gawk and became ".md$", which also matches
+        # a file named "cmd".
+        base = self.commit()
+        self.write('bin/cmd', 4)
+        self.write('notes.md', 9)
+        self.assertEqual(4, self.count(base, pattern=DOC_PATH_PATTERN))
+
+    def test_an_empty_pattern_leaves_nothing_out(self):
+        base = self.commit()
+        self.write('src/a.py', 3)
+        self.write('tests/test_a.py', 5)
+        self.assertEqual(8, self.count(base, pattern=''))
+
+    def test_a_pattern_matching_every_path_is_refused(self):
+        # Any of these leaves every path out and measures any fix as 0.
+        # The first is what joining a blank DOC_PATH_PATTERN onto the
+        # test pattern used to produce.
+        base = self.commit()
+        self.write('src/a.py', 500)
+        for pattern in ('^tests/|', '|^docs/', '^tests/||^docs/', '.*',
+                        '^$'):
+            with self.subTest(pattern=pattern):
+                out, err, status = self.measure(base, pattern=pattern)
+                self.assertEqual(2, status, err)
+                self.assertEqual('', out, 'a refused pattern printed a count')
+
+    def test_a_pattern_which_does_not_compile_is_refused(self):
+        base = self.commit()
+        self.write('src/a.py', 5)
+        out, _, status = self.measure(base, pattern='^tests/(')
+        self.assertNotEqual(0, status)
+        self.assertEqual('', out)
+
+    def test_documentation_is_not_counted(self):
+        base = self.commit()
+        self.write('src/a.py', 3)
+        self.write('docs/guide.md', 40)
+        self.write('README.md', 5)
+        self.write('tests/test_a.py', 7)
+        self.assertEqual(3, self.count(
+            base, pattern=TEST_PATH_PATTERN + '|' + DOC_PATH_PATTERN))
+
+    def test_deleted_documentation_is_not_counted(self):
+        # Retiring a plan is mostly deleting it.
+        self.write('docs/plans/PLAN-old.md', 200)
+        self.write('src/a.py', 1)
+        base = self.commit()
+        os.unlink(os.path.join(self.repo, 'docs/plans/PLAN-old.md'))
+        self.write('src/a.py', 2)
+        self.assertEqual(1, self.count(
+            base, pattern=TEST_PATH_PATTERN + '|' + DOC_PATH_PATTERN))
+
+    def test_the_workflow_default_matches_these_tests(self):
+        with open(WORKFLOW) as f:
+            workflow = f.read()
+        self.assertIn(
+            "DOC_PATH_PATTERN: '%s'" % DOC_PATH_PATTERN, workflow)
+
+
+class SizeGateTest(unittest.TestCase):
+    """Size is decided before the work, not after it.
+
+    The workflow used to measure a finished, passing fix and discard
+    it as a branch when it was over budget: all of the cost was paid
+    and none of the review happened. These pin the shape that replaced
+    it -- an estimate and a decline before any code is written, a
+    finished fix always proposed below the ceiling, and the large label
+    on one over the budget.
+    """
+
+    def setUp(self):
+        with open(WORKFLOW) as f:
+            self.workflow = f.read()
+
+    def step(self, name):
+        start = self.workflow.index('- name: %s\n' % name)
+        end = self.workflow.find('\n      - name: ', start + 1)
+        return self.workflow[start:end if end != -1 else None]
+
+    def condition(self, name):
+        """The step's if: block, and nothing after it."""
+        body = self.step(name)
+        start = body.index('if: |')
+        ends = [body.find(key, start) for key in ('\n        env:', '\n        run:')]
+        return body[start:min(e for e in ends if e != -1)]
+
+    def test_the_prompt_asks_for_an_estimate_before_code(self):
+        self.assertIn('"ESTIMATE: <number>"', self.workflow)
+        self.assertIn('before changing any file', self.workflow)
+        self.assertIn('Once you have started the fix, finish it.',
+                      self.workflow)
+
+    def test_the_prompt_states_the_budget(self):
+        # The task heredoc is quoted, so the number must be echoed
+        # outside it or the model sees a literal ${MAX_DIFF_LINES}.
+        prompt = self.step('Prepare Claude prompt')
+        tail = prompt[prompt.rindex('TASK_EOF'):]
+        self.assertIn('echo "The budget for step 2 is ${MAX_DIFF_LINES}',
+                      tail)
+
+    def test_publication_is_gated_on_the_ceiling_not_the_budget(self):
+        condition = self.condition('Publish draft PR')
+        self.assertIn("within_ceiling == 'true'", condition)
+        self.assertNotIn('within_budget', condition)
+
+    def test_an_over_budget_fix_is_labelled_and_explained(self):
+        publish = self.step('Publish draft PR')
+        self.assertIn('labels+=(--label automated-fix-large)', publish)
+        self.assertIn('"${labels[@]}"', publish)
+        self.assertIn('Larger than its size budget', publish)
+        self.assertIn("gh label create 'automated-fix-large'",
+                      self.workflow)
+
+    def test_only_a_runaway_fix_is_held_back(self):
+        condition = self.condition('Report runaway fix')
+        self.assertIn("within_ceiling == 'false'", condition)
+        self.assertNotIn('Report over-budget fix', self.workflow)
+
+    def test_the_estimate_is_reported_not_gated_on(self):
+        measure = self.step('Measure change size')
+        self.assertIn('estimate=', measure)
+        for step in ('Publish draft PR', 'Report runaway fix'):
+            self.assertNotIn('estimate', self.condition(step))
+
+    def test_the_limits_are_checked_as_numbers(self):
+        measure = self.step('Measure change size')
+        self.assertIn(
+            'for limit in "${MAX_DIFF_LINES}" "${MAX_DIFF_LINES_CEILING}"',
+            measure)
+
+    def test_the_ceiling_must_be_at_least_the_budget(self):
+        # A ceiling under the budget holds back fixes which should have
+        # been published labelled, with a message which does not say
+        # why.
+        measure = self.step('Measure change size')
+        self.assertIn(
+            'if [ "${MAX_DIFF_LINES_CEILING}" -lt "${MAX_DIFF_LINES}" ]',
+            measure)
+        self.assertLess(measure.index('for limit in'),
+                        measure.index('-lt "${MAX_DIFF_LINES}"'),
+                        'compare the limits only once they are numbers')
+
+
+ESTIMATE_RE = '^[[:space:]>*_-]*ESTIMATE[*_]*:[*_[:space:]]*[0-9]+'
+
+
+class EstimateParseTest(unittest.TestCase):
+    """The ESTIMATE line is read leniently, but only at a line's start."""
+
+    def setUp(self):
+        with open(WORKFLOW) as f:
+            self.workflow = f.read()
+
+    def estimate(self, output):
+        first = subprocess.run(
+            ['grep', '-m1', '-oE', ESTIMATE_RE], input=output,
+            capture_output=True, text=True, timeout=10).stdout
+        return subprocess.run(
+            ['grep', '-oE', '[0-9]+$'], input=first,
+            capture_output=True, text=True, timeout=10).stdout.strip()
+
+    def test_the_workflow_uses_this_expression(self):
+        self.assertIn("grep -m1 -oE '%s'" % ESTIMATE_RE, self.workflow)
+        self.assertIn("grep -oE '[0-9]+$'", self.workflow)
+
+    def test_decorated_estimates_are_read(self):
+        for line in ('ESTIMATE: 45', '**ESTIMATE: 45**', '**ESTIMATE:** 45',
+                     '  - ESTIMATE: 45', '> ESTIMATE:45', '_ESTIMATE_: 45'):
+            with self.subTest(line=line):
+                self.assertEqual('45', self.estimate('diagnosis\n%s\n' % line))
+
+    def test_prose_mentioning_an_estimate_is_not(self):
+        for line in ('My ESTIMATE: 99 was low', 'ESTIMATE: about 45'):
+            with self.subTest(line=line):
+                self.assertEqual('', self.estimate(line + '\n'))
+
+    def test_the_first_estimate_wins(self):
+        self.assertEqual('45', self.estimate(
+            'ESTIMATE: 45\nlater\nESTIMATE: 300\n'))
+
+
 class WorkflowSeamTest(unittest.TestCase):
     def setUp(self):
         with open(WORKFLOW) as f:
@@ -303,11 +498,34 @@ class WorkflowSeamTest(unittest.TestCase):
     def test_the_workflow_calls_the_script(self):
         self.assertIn(
             '${{ runner.temp }}/measure-change-size.sh \\\n'
-            '            "${BASE_SHA}" "${TEST_PATH_PATTERN}"',
+            '            "${BASE_SHA}" "${uncounted}"',
             self.workflow,
             'the workflow no longer measures with the tested script. If '
             'the measurement was rewritten, rewrite these tests against '
             'it rather than deleting them.')
+
+    def test_only_patterns_which_are_set_are_joined(self):
+        # "${TEST_PATH_PATTERN}|${DOC_PATH_PATTERN}" with either blank
+        # is a pattern matching every path. Run the workflow's own
+        # joining lines with each combination.
+        start = self.workflow.index('          uncounted="${TEST_PATH_PATTERN}"')
+        end = self.workflow.index('          counted=$(', start)
+        join = re.sub(r'(?m)^ {10}', '', self.workflow[start:end])
+        cases = [
+            ('^tests/', '^docs/', '^tests/|^docs/'),
+            ('^tests/', '', '^tests/'),
+            ('', '^docs/', '^docs/'),
+            ('', '', ''),
+        ]
+        for test, doc, expected in cases:
+            with self.subTest(test=test, doc=doc):
+                proc = subprocess.run(
+                    ['bash', '-euc', join + 'printf %s "${uncounted}"'],
+                    env=dict(os.environ, TEST_PATH_PATTERN=test,
+                             DOC_PATH_PATTERN=doc),
+                    capture_output=True, text=True, timeout=10)
+                self.assertEqual(0, proc.returncode, proc.stderr)
+                self.assertEqual(expected, proc.stdout)
 
     def test_the_script_is_read_from_the_base(self):
         # The fix under test may have edited the measurement itself.

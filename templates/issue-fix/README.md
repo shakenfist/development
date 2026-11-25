@@ -20,7 +20,7 @@ optionally naming a specific issue.
 | `claude-model-fallback.sh` | `tools/claude-model-fallback.sh` | Model fallback wrapper (needs `chmod +x`) |
 | `extract-model-block.sh` | `tools/extract-model-block.sh` | Marker block extraction (needs `chmod +x`) |
 | `neutralise-pr-body.sh` | `tools/neutralise-pr-body.sh` | Defuses mentions and closing keywords (needs `chmod +x`) |
-| `measure-change-size.sh` | `tools/measure-change-size.sh` | Counts the lines the size cap applies to (needs `chmod +x`) |
+| `measure-change-size.sh` | `tools/measure-change-size.sh` | Counts the lines the size budget applies to (needs `chmod +x`) |
 
 ## How it works
 
@@ -32,7 +32,8 @@ optionally naming a specific issue.
 2. The **fix job** applies the `automated-fix-attempted` label and
    posts a comment linking to the run, then asks Claude Code to fix
    the issue, verifies the test suite passes, and publishes a draft
-   PR labelled `automated-fix` with the maintainer as reviewer.
+   PR labelled `automated-fix` with the maintainer as reviewer (and
+   `automated-fix-large` as well when it is over its size budget).
 
 ## Design decisions
 
@@ -57,20 +58,44 @@ optionally naming a specific issue.
   attempted and the workflow never grinds on the same issue every
   idle cycle. Removing the label re-arms the issue for another
   attempt.
-- **The size budget lives in two places.** Triage is told to prefer
-  issues it estimates at under 100 changed lines excluding tests --
-  but that is only an estimate. The enforceable cap is applied
-  after the fix is produced: if the non-test diff exceeds
-  `max_diff_lines` (default 400), no PR is created; the branch is
-  pushed and a comment on the issue asks for human judgment.
-  Files marked `linguist-generated` (or `linguist-generated=true`)
-  in the base branch's `.gitattributes` are not counted, so a
-  repository with generated code (protobuf stubs, say) should mark
+- **Size is decided before the work, not after it.** Triage is
+  told to prefer issues it estimates at under 100 changed lines, and
+  the fix job has the model print an `ESTIMATE:` line after
+  diagnosis and before touching a file, declining with `NO_FIX` if it
+  is over `max_diff_lines` (default 400). Those are the only points
+  at which declining saves anything. Once the model starts writing it
+  is told to finish, and a finished fix which passes the tests is
+  always proposed: over the budget it gets the `automated-fix-large`
+  label and a warning at the top of the description giving the
+  counted size, the budget and the estimate. Only a change over
+  `max_diff_lines_ceiling` (default 2000) -- a runaway rewrite rather
+  than a fix which grew -- is held back, pushed as a branch with a
+  comment on the issue.
+
+  This replaced a hard cap at 400 lines measured after the fact,
+  which pushed over-budget fixes to a branch instead. In practice
+  that paid the whole cost of a fix and then hid it: the branch got
+  no CI and no automated review, and the fixes it held back were the
+  larger, riskier ones that most needed both. Of the first four it
+  held back in shakenfist, two were documentation or test scripts
+  the measurement should not have counted, and the two that were
+  real code each had a defect review found.
+- **What counts toward the budget.** Lines in files matching
+  `TEST_PATH_PATTERN` or `DOC_PATH_PATTERN` are not counted, and
+  nor are files marked `linguist-generated` (or
+  `linguist-generated=true`) in the base branch's `.gitattributes`.
+  A repository with generated code (protobuf stubs, say) should mark
   it there -- which also collapses those files in GitHub's diff
   view. The attributes are read from the base commit, so a fix
   cannot mark its own code generated. This needs git 2.41 or later
   on the runner; older git counts generated files and says so in
-  the log.
+  the log. Documentation is excluded because a fix should document
+  what it changes and retiring a plan is mostly deleted prose:
+  counting either measured the writing rather than the risk. The
+  ceiling inherits these exclusions, so it does not bound a change
+  which is all documentation or all tests; the run log prints the
+  full diffstat beside the count, and the PR description's diffstat
+  is what shows a reviewer the real size.
 - **Only issues authored by users with write access are eligible**,
   and only issue comments from such users are fed to the model.
   Issue text is untrusted input to an agent with push access;
@@ -134,10 +159,10 @@ optionally naming a specific issue.
   used a `sed` address range and did exactly that; the second
   embedded awk in the workflow, which had to be lifted back out
   with a regular expression to be testable at all.
-- **The size cap is measured by a script, pinned by a test, and
+- **The size is measured by a script, pinned by a test, and
   fails closed.** `measure-change-size.sh` counts lines changed
-  between the base commit and the index, less tests and generated
-  files. Inline, it was `git diff | awk` without `pipefail`, so a
+  between the base commit and the index, less tests, documentation
+  and generated files. Inline, it was `git diff | awk` without `pipefail`, so a
   `git` which failed -- an unsupported option, a bad pathspec --
   left `awk` to print 0 and published the fix however large it was.
   It measures from the commit the workflow records before the model
@@ -145,6 +170,10 @@ optionally naming a specific issue.
   the prompt tells the model not to commit, but a commit would move
   HEAD onto the work being measured. The extraction scripts are read
   from that recorded commit for the same reason.
+  The path pattern reaches `awk` through the environment rather than
+  `-v`, whose escape processing turned `\.md$` into `.md$`, and a
+  pattern which matches the empty string is refused, since it
+  matches every path and would count any fix as zero.
   `scripts/tests/test_issue_fix_measurement.py` builds throwaway
   repositories to pin each rule, including both spellings of the
   attribute, which git's `attr:` pathspec magic treats as different
@@ -221,7 +250,14 @@ to replace:
 - **`{{ENVIRONMENT}}`** -- optional project environment (proxies
   etc.)
 - **`{{TEST_PATH_PATTERN}}`** -- regular expression matching test
-  paths, excluded from the size cap
+  paths, excluded from the size budget. Include test scripts kept
+  outside the test tree, such as a functional suite shipped with a
+  deployment.
+- **`{{DOC_PATH_PATTERN}}`** -- regular expression matching
+  documentation, also excluded from the size budget. The default,
+  `^docs/|\.md$`, suits most repositories. Either pattern may be
+  left empty to exclude nothing of that kind; the workflow joins only
+  the ones which are set.
 - **`{{INSTALL_DEPENDENCIES}}`** -- project dependency installation
 - **`{{PROJECT_CONTEXT}}`** -- project description for the Claude
   prompt
@@ -260,6 +296,28 @@ dispatches with no inputs at all, so the workflow's own defaults
 apply and the rename is invisible to it. A conductor which pins the
 model explicitly, or a human running `gh workflow run ... -f
 model=...`, needs to switch to `-f models=...`.
+
+The size budget change (an `ESTIMATE` before any code, over-budget
+fixes published with the `automated-fix-large` label, and only a
+change over `max_diff_lines_ceiling` held back) needs, when
+redeploying:
+
+- the new `DOC_PATH_PATTERN` env entry substituted for the
+  project's documentation layout (or left empty to keep counting
+  documentation);
+- a fresh copy of `tools/measure-change-size.sh`. The old copy still
+  runs, but passes the pattern through `awk -v`, so under gawk the
+  default `\.md$` also leaves out any file whose name ends in `md`;
+- a decision about the ceiling. `max_diff_lines` no longer stops
+  publication, so a deployment which relied on it as a hard cap
+  should set `max_diff_lines_ceiling` (which must be at least the
+  budget) to the limit it wants.
+
+Nothing else is needed. Both inputs have defaults, so a dispatcher
+which names neither is unaffected; the workflow creates the
+`automated-fix-large` label on its first run; and the large label
+is applied in addition to `automated-fix`, so a conductor which
+gates on that label sees no difference.
 
 ## Projects using these templates
 

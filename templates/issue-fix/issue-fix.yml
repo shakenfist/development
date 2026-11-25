@@ -70,7 +70,14 @@
 # - Scratch files (prompts, logs, captured output) live in
 #   runner.temp, never the workspace: the workspace is the repo
 #   checkout, and anything written there is swept into the commit by
-#   "git add -A" and counted against the size cap.
+#   "git add -A" and counted against the size budget.
+# - Size is decided before any code is written: triage prefers small
+#   issues, and the fix job prints an ESTIMATE and declines with
+#   NO_FIX if it is over max_diff_lines. Once the model starts writing
+#   it finishes, and a finished fix over the budget is still proposed,
+#   labelled automated-fix-large. Discarding it at that point saved
+#   nothing and hid it from review. Only a change over
+#   max_diff_lines_ceiling is held back as a branch.
 #
 # Template source: shakenfist/development/templates/issue-fix/
 #
@@ -100,9 +107,14 @@ on:
         default: '200'
         type: string
       max_diff_lines:
-        description: 'Maximum non-test, non-generated lines changed before the fix is too large for an automated PR'
+        description: 'Size budget in counted lines (not tests, docs or generated files). A fix estimated over it is declined before coding; a finished fix over it is still proposed, labelled automated-fix-large'
         required: false
         default: '400'
+        type: string
+      max_diff_lines_ceiling:
+        description: 'A finished fix over this many counted lines is not proposed as a PR; its branch is pushed for a human instead. A guard against a runaway change, not a size budget'
+        required: false
+        default: '2000'
         type: string
       models:
         description: 'Comma-separated models to try for the fix, in preference order'
@@ -136,9 +148,16 @@ env:
   # Regular expression matching paths that are test changes. Lines
   # changed in matching files do not count against max_diff_lines,
   # and nor do files marked linguist-generated (see "Measure change
-  # size").
+  # size"). Include test scripts which live outside the test tree,
+  # such as functional suites shipped with a deployment.
   # {{TEST_PATH_PATTERN}}
   TEST_PATH_PATTERN: '^tests/'
+  # Regular expression matching documentation, which does not count
+  # against max_diff_lines either. A fix should document what it
+  # changes, and retiring a plan is mostly deleted prose: counting
+  # either measures the writing rather than the risk.
+  # {{DOC_PATH_PATTERN}}
+  DOC_PATH_PATTERN: '^docs/|\.md$'
   RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
 jobs:
@@ -212,7 +231,11 @@ jobs:
              clear statement of expected behaviour, looks fixable at
              the root cause without major refactoring, and you
              estimate the fix at under 100 changed lines excluding
-             tests. The fix must be coverable by unit tests.
+             tests and documentation. The fix must be coverable by
+             unit tests. Err on the side of skipping a large issue:
+             once the fix job starts writing code it finishes, so
+             this and the fix job's own estimate are where size is
+             decided.
           2. Not already owned by a plan: this repository plans
              significant work in advance as plan documents in
              {{PLANS_LOCATION}}. Skim {{PLANS_INDEX}}. If an issue
@@ -331,6 +354,7 @@ jobs:
       MODELS: ${{ inputs.models }}
       MAX_TURNS: ${{ inputs.max_turns }}
       MAX_DIFF_LINES: ${{ inputs.max_diff_lines }}
+      MAX_DIFF_LINES_CEILING: ${{ inputs.max_diff_lines_ceiling }}
 
     steps:
       - name: Checkout repository
@@ -356,6 +380,11 @@ jobs:
             --color '1D76DB' \
             --description 'Pull request proposed by the issue fix workflow' \
             2>/dev/null || true
+          gh label create 'automated-fix-large' \
+            --repo ${{ github.repository }} \
+            --color 'FBCA04' \
+            --description 'Automated fix larger than its size budget; review with extra care' \
+            2>/dev/null || true
 
       # The label is applied before any fix work so that crashes and
       # timeouts still leave the issue marked as attempted.
@@ -375,7 +404,7 @@ jobs:
 
       # The base is recorded as a step output before the model runs.
       # Later steps read the trusted scripts, and the attributes the
-      # size cap honours, from this commit rather than from HEAD: the
+      # size budget honours, from this commit rather than from HEAD: the
       # prompt tells the model not to commit, but a commit would move
       # HEAD onto the model's own work, and a step output is the one
       # place a later step cannot rewrite.
@@ -532,20 +561,34 @@ jobs:
 
           1. Diagnose the root cause of the issue. Fix the root
              cause, not the symptom.
-          2. Include unit test coverage for the fix.
-          3. Keep the non-test portion of the change small -- the
-             target is under 100 changed lines excluding tests. If a
-             correct fix genuinely requires major refactoring, do
-             NOT attempt it: output "NO_FIX: <one line reason>",
-             leave the tree unchanged, and stop.
-          4. Run the test suite and ensure it passes:
+          2. Size the fix BEFORE you write it. Once you have the
+             diagnosis, and before changing any file, estimate how
+             many lines the fix will change excluding tests,
+             documentation and generated files, and print it on a
+             line of its own: "ESTIMATE: <number>". The target is
+             under 100. If the estimate is over the budget given at
+             the end of this prompt, or a correct fix genuinely
+             requires major refactoring, do NOT start: output
+             "NO_FIX: <one line reason>", leave the tree unchanged,
+             and stop. This is the only point at which declining
+             saves anything.
+          3. Once you have started the fix, finish it. If it grows
+             past your estimate or the budget, still complete it,
+             tests and documentation included: a larger fix is
+             published labelled for closer review, not thrown away.
+             Say in the PR description where it grew and why. Do not
+             drop tests, skip a call site or leave a case unhandled
+             to bring the count down -- a smaller fix which is
+             incomplete is worse than a larger one which is not.
+          4. Include unit test coverage for the fix.
+          5. Run the test suite and ensure it passes:
              ```bash
              # {{TEST_COMMAND}}
              tox
              ```
-          5. Run `pre-commit run --all-files` and fix any issues.
-          6. Stage all changes with git add (do NOT commit).
-          7. Output a commit summary and a pull request description
+          6. Run `pre-commit run --all-files` and fix any issues.
+          7. Stage all changes with git add (do NOT commit).
+          8. Output a commit summary and a pull request description
              (see below).
 
           ## REQUIRED: Commit summary and PR description
@@ -612,6 +655,13 @@ jobs:
           NNNN". Do NOT write "@name": it notifies a real person.
           Refer to people by name alone.
           TASK_EOF
+
+            # Outside the quoted heredoc above so the number expands.
+            echo
+            echo "## Size budget"
+            echo
+            echo "The budget for step 2 is ${MAX_DIFF_LINES} changed lines,"
+            echo "not counting tests, documentation or generated files."
           } > ${{ runner.temp }}/claude-prompt.txt
 
           echo "Prompt prepared:"
@@ -782,14 +832,22 @@ jobs:
           echo "summary_found=${summary_found}" >> $GITHUB_OUTPUT
           echo "description_found=${description_found}" >> $GITHUB_OUTPUT
 
-      # The triage estimate of fix size is only an estimate. This is
-      # the hard cap: an over-budget fix is never published as a PR,
-      # but the branch is pushed for human inspection.
+      # Size is decided up front, not here. Triage and the model's own
+      # ESTIMATE line are where an over-budget fix is declined, before
+      # any of its cost is paid. A fix which has been written and passes
+      # the tests is always worth a human's look, so over the budget it
+      # is still published, labelled automated-fix-large with the
+      # numbers at the top of the description. Only over the ceiling --
+      # a runaway change rather than a fix which grew -- is it held back
+      # as a branch.
       #
-      # Files the base commit's .gitattributes marks linguist-generated
-      # are not counted: regenerated protobuf stubs, for one, rewrite
-      # every serialized offset when a single field is added, and once
-      # held back a ~200 line fix as 1800. The count is made by
+      # Tests, documentation and files the base commit's .gitattributes
+      # marks linguist-generated are not counted: regenerated protobuf
+      # stubs, for one, rewrite every serialized offset when a single
+      # field is added, and once held back a ~200 line fix as 1800. The
+      # ceiling inherits those exclusions, so it does not bound a change
+      # which is all prose or tests; the full diffstat is logged here
+      # and published in the PR body for that. The count is made by
       # tools/measure-change-size.sh, read from the base commit like
       # the extraction scripts above and pinned by
       # scripts/tests/test_issue_fix_measurement.py in the template
@@ -807,21 +865,55 @@ jobs:
           chmod +x "${{ runner.temp }}/measure-change-size.sh"
 
           git add -A
-          nontest=$(${{ runner.temp }}/measure-change-size.sh \
-            "${BASE_SHA}" "${TEST_PATH_PATTERN}")
-          case "${nontest}" in
+          # Join only the patterns which are set: a blank one joined as
+          # "^tests/|" would match every path, which the script refuses.
+          uncounted="${TEST_PATH_PATTERN}"
+          if [ -n "${DOC_PATH_PATTERN}" ]; then
+            uncounted="${uncounted:+${uncounted}|}${DOC_PATH_PATTERN}"
+          fi
+          counted=$(${{ runner.temp }}/measure-change-size.sh \
+            "${BASE_SHA}" "${uncounted}")
+          case "${counted}" in
             ''|*[!0-9]*)
-              echo "Could not measure the change (got '${nontest}')." >&2
+              echo "Could not measure the change (got '${counted}')." >&2
               exit 1
               ;;
           esac
-          echo "Non-test, non-generated lines changed: ${nontest} (cap: ${MAX_DIFF_LINES})"
-          echo "nontest_lines=${nontest}" >> $GITHUB_OUTPUT
+          for limit in "${MAX_DIFF_LINES}" "${MAX_DIFF_LINES_CEILING}"; do
+            case "${limit}" in
+              ''|*[!0-9]*)
+                echo "Size limits must be whole numbers (got '${limit}')." >&2
+                exit 1
+                ;;
+            esac
+          done
+          if [ "${MAX_DIFF_LINES_CEILING}" -lt "${MAX_DIFF_LINES}" ]; then
+            echo "The ceiling (${MAX_DIFF_LINES_CEILING}) must be at least the budget (${MAX_DIFF_LINES})." >&2
+            exit 1
+          fi
 
-          if [ "${nontest}" -le "${MAX_DIFF_LINES}" ]; then
+          # The model's own estimate, for the description. Absent is
+          # fine: it is reported, never gated on. Lenient about the
+          # decoration a model puts on the line (indent, bullet, quote,
+          # markdown emphasis), but anchored to its start, so prose
+          # which mentions the word is not read as an estimate.
+          estimate=$(grep -m1 -oE '^[[:space:]>*_-]*ESTIMATE[*_]*:[*_[:space:]]*[0-9]+' \
+            ${{ runner.temp }}/claude-output.txt | grep -oE '[0-9]+$' || true)
+
+          echo "Counted lines changed: ${counted} (budget ${MAX_DIFF_LINES}, ceiling ${MAX_DIFF_LINES_CEILING}, estimate ${estimate:-none})"
+          echo "All lines changed, counted or not: $(git diff --cached --shortstat "${BASE_SHA}")"
+          echo "counted_lines=${counted}" >> $GITHUB_OUTPUT
+          echo "estimate=${estimate}" >> $GITHUB_OUTPUT
+
+          if [ "${counted}" -le "${MAX_DIFF_LINES}" ]; then
             echo "within_budget=true" >> $GITHUB_OUTPUT
           else
             echo "within_budget=false" >> $GITHUB_OUTPUT
+          fi
+          if [ "${counted}" -le "${MAX_DIFF_LINES_CEILING}" ]; then
+            echo "within_ceiling=true" >> $GITHUB_OUTPUT
+          else
+            echo "within_ceiling=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Commit changes
@@ -856,8 +948,12 @@ jobs:
       - name: Publish draft PR
         if: |
           steps.verify.outputs.fix_succeeded == 'true' &&
-          steps.measure.outputs.within_budget == 'true' &&
+          steps.measure.outputs.within_ceiling == 'true' &&
           inputs.dry_run != true
+        env:
+          WITHIN_BUDGET: ${{ steps.measure.outputs.within_budget }}
+          COUNTED_LINES: ${{ steps.measure.outputs.counted_lines }}
+          ESTIMATE: ${{ steps.measure.outputs.estimate }}
         run: |
           git push -f origin "issue-fix-${ISSUE_NUMBER}"
           sleep 5
@@ -893,6 +989,19 @@ jobs:
           {
             echo "Fixes #${ISSUE_NUMBER}"
             echo
+            if [ "${WITHIN_BUDGET}" != "true" ]; then
+              echo "> [!WARNING]"
+              echo "> **Larger than its size budget.** This fix changes"
+              echo "> ${COUNTED_LINES} counted lines against a budget of"
+              echo "> ${MAX_DIFF_LINES} (the model estimated"
+              echo "> ${ESTIMATE:-nothing} before starting). Tests,"
+              echo "> documentation and generated files are not counted."
+              echo "> It is proposed rather than discarded because it is"
+              echo "> finished and passes the tests, but review it with more"
+              echo "> care than a small automated fix: the description"
+              echo "> should say where it grew."
+              echo
+            fi
             if [ "${{ steps.extract_summary.outputs.description_found }}" == "true" ]; then
               cat ${{ runner.temp }}/pr-description.txt
             elif [ -s ${{ runner.temp }}/summary-body.txt ]; then
@@ -928,9 +1037,14 @@ jobs:
             echo "Generated with [Claude Code](https://claude.com/claude-code)"
           } > ${{ runner.temp }}/pr-body.md
 
+          labels=(--label automated-fix)
+          if [ "${WITHIN_BUDGET}" != "true" ]; then
+            labels+=(--label automated-fix-large)
+          fi
+
           pr_url=$(gh pr create \
             --draft \
-            --label automated-fix \
+            "${labels[@]}" \
             --assignee {{MAINTAINER}} \
             --reviewer {{MAINTAINER}} \
             --title "${PR_TITLE}" \
@@ -941,17 +1055,17 @@ jobs:
             --repo ${{ github.repository }} \
             --body "An automated fix has been proposed in ${pr_url}."
 
-      - name: Report over-budget fix
+      - name: Report runaway fix
         if: |
           steps.verify.outputs.fix_succeeded == 'true' &&
-          steps.measure.outputs.within_budget == 'false' &&
+          steps.measure.outputs.within_ceiling == 'false' &&
           inputs.dry_run != true
         run: |
           git push -f origin "issue-fix-${ISSUE_NUMBER}"
 
           gh issue comment "${ISSUE_NUMBER}" \
             --repo ${{ github.repository }} \
-            --body "An automated fix was produced and passes tests, but it changes ${{ steps.measure.outputs.nontest_lines }} lines (cap: ${MAX_DIFF_LINES}), which is too large to propose automatically. Test files and files marked \`linguist-generated\` in \`.gitattributes\` are not counted, so the pushed diff may be larger than that.
+            --body "An automated fix was produced and passes tests, but it changes ${{ steps.measure.outputs.counted_lines }} counted lines, over the ${MAX_DIFF_LINES_CEILING} line ceiling (the budget is ${MAX_DIFF_LINES}). A change that size is more likely a rewrite than a fix, so it has not been proposed. Tests, documentation and files marked \`linguist-generated\` in \`.gitattributes\` are not counted, so the pushed diff is larger than that.
 
           The changes have been pushed to the \`issue-fix-${ISSUE_NUMBER}\` branch for human review. No PR was created.
 
