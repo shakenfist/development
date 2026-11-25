@@ -49,7 +49,7 @@ projects consistent. It contains no application code.
   queue here, so it reports rather than gates.
 - `.github/workflows/` also carries the fleet-standard supporting
   workflows: the `pr-re-review.yml` and `pr-retest.yml` bot triggers,
-  `secret-scan.yml`, `codeql-analysis.yml`, `renovate.yml` and
+  `secret-scan.yml`, `codeql-analysis.yml` and
   `export-repo-config.yml`.
 
 ## The consistency audit pipeline

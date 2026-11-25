@@ -9,6 +9,7 @@ Run with: python3 scripts/tests/test_packaging_renovate.py
 
 import json
 import os
+import re
 import sys
 import unittest
 from unittest import mock
@@ -16,166 +17,282 @@ from unittest import mock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from audit.checks import packaging  # noqa: E402
-from tests.base import (  # noqa: E402
-    REPO_ROOT, CheckTestCase, current_ref, repo_text, uses_clause,
-)
-
-RENOVATE_WORKFLOW = repo_text('templates', 'renovate', 'renovate.yml')
+from tests.base import REPO_ROOT, CheckTestCase  # noqa: E402
 
 
-class RenovatePreCommitManagerTest(CheckTestCase):
-    """The pre-commit manager is opt-in, so its absence is a finding."""
+class RenovateTest(CheckTestCase):
+    """A repository reaches Renovate through the fleet preset and nothing else.
+
+    Four findings: renovate.json is missing or unreadable, the
+    per-repository workflow is present, renovate.json does not extend the
+    preset, and renovate.json overrides a top-level key the preset sets.
+    """
 
     check_class = packaging.Renovate
 
-    REMOTE_HOOKS = (
-        'repos:\n'
-        '  - repo: https://github.com/rhysd/actionlint\n'
-        '    rev: v1.7.12\n'
-        '    hooks:\n'
-        '      - id: actionlint\n'
-    )
+    PRESET_NAME = 'local>shakenfist/development:renovate-fleet'
+    SCHEMA = 'https://docs.renovatebot.com/renovate-schema.json'
+    WORKFLOW = 'name: Renovate\non: workflow_dispatch\n'
 
-    LOCAL_HOOKS = (
-        'repos:\n'
-        '  - repo: local\n'
-        '    hooks:\n'
-        '      - id: rust-check\n'
-        '        entry: ./scripts/check-rust.sh\n'
-        '        language: script\n'
-    )
+    def _preset(self):
+        with open(os.path.join(REPO_ROOT, 'renovate-fleet.json')) as f:
+            return json.load(f)
 
-    def _repo(self, renovate, pre_commit=None):
-        # The version comment preset and the workflow are separate
-        # findings, tested below; every repository here carries both.
-        renovate = dict(renovate)
-        renovate['extends'] = renovate.get('extends', []) + [
-            'customManagers:githubActionsVersions']
-        self.fixture.workflow('renovate.yml', RENOVATE_WORKFLOW)
-        self.fixture.write('renovate.json', json.dumps(renovate))
-        if pre_commit is not None:
-            self.fixture.write('.pre-commit-config.yaml', pre_commit)
+    def _repo(self, renovate, workflow=False):
+        """Run the check over a renovate.json, given as a dict or raw text."""
+        if renovate is not None:
+            if not isinstance(renovate, str):
+                renovate = json.dumps(renovate)
+            self.fixture.write('renovate.json', renovate)
+        if workflow:
+            self.fixture.workflow('renovate.yml', self.WORKFLOW)
         return self.check()
 
-    def test_remote_hooks_without_the_manager_fail(self):
-        self.assert_fail(self._repo({}, self.REMOTE_HOOKS),
-                         containing='pre-commit manager')
+    def _config(self, **keys):
+        return dict({'$schema': self.SCHEMA, 'extends': [self.PRESET_NAME]},
+                    **keys)
 
-    def test_explicit_manager_block_passes(self):
-        self.assert_pass(self._repo(
-            {'pre-commit': {'enabled': True}}, self.REMOTE_HOOKS))
+    def test_the_preset_alone_passes(self):
+        self.assert_pass(self._repo(self._config()))
 
-    def test_enabled_managers_list_passes(self):
-        self.assert_pass(self._repo(
-            {'enabledManagers': ['cargo', 'pre-commit']},
-            self.REMOTE_HOOKS,
-        ))
+    def test_the_template_passes(self):
+        # The template is what an issue points a repository at, so a
+        # copy of it has to close the issue.
+        with open(os.path.join(REPO_ROOT, 'templates', 'renovate',
+                               'renovate.json')) as f:
+            self.assert_pass(self._repo(f.read()))
 
-    def test_preset_passes(self):
-        self.assert_pass(self._repo(
-            {'extends': [':enablePreCommit']}, self.REMOTE_HOOKS))
+    def test_the_preset_with_other_presets_passes(self):
+        self.assert_pass(self._repo(self._config(
+            extends=[self.PRESET_NAME, 'customManagers:dockerfileVersions'])))
 
-    def test_manager_disabled_explicitly_fails(self):
-        self.assert_fail(self._repo(
-            {'pre-commit': {'enabled': False}}, self.REMOTE_HOOKS))
+    def test_the_workflow_fails(self):
+        result = self._repo(self._config(), workflow=True)
+        self.assert_fail(
+            result, containing='.github/workflows/renovate.yml exists')
+        self.assertIn('races it; delete the file', result['details'])
 
-    def test_no_pre_commit_config_passes(self):
-        self.assert_pass(self._repo({}))
+    def test_a_workflow_elsewhere_is_not_this(self):
+        self.fixture.workflow('renovate-fleet.yml', self.WORKFLOW)
+        self.assert_pass(self._repo(self._config()))
 
-    def test_local_only_hooks_pass(self):
-        # A repo: local hook runs a script from the tree and carries no
-        # revision, so there is nothing for renovate to bump.
-        self.assert_pass(self._repo({}, self.LOCAL_HOOKS))
+    def test_extends_missing_fails(self):
+        for config in ({'$schema': self.SCHEMA},
+                       {'extends': ['config:recommended']},
+                       {'extends': []}):
+            with self.subTest(config=config):
+                self.fresh_fixture()
+                result = self._repo(config)
+                self.assert_fail(
+                    result,
+                    containing=f'does not extend {self.PRESET_NAME}')
+                self.assertNotIn('has to be a list', result['details'])
 
-    def test_missing_files_still_reported_first(self):
-        # The manager check must not mask the more basic finding.
-        self.fixture.write('.pre-commit-config.yaml', self.REMOTE_HOOKS)
-        result = self.check()
+    def test_extends_not_a_list_fails(self):
+        for extends in (self.PRESET_NAME, {'0': self.PRESET_NAME}, None):
+            with self.subTest(extends=extends):
+                self.fresh_fixture()
+                result = self._repo({'extends': extends})
+                self.assert_fail(
+                    result,
+                    containing=f'does not extend {self.PRESET_NAME}')
+                self.assertIn('(extends has to be a list)', result['details'])
+
+    def test_one_overridden_key_fails_naming_it(self):
+        # Every repository in the fleet carried this one: a local
+        # schedule wins over the preset's, so the cadence never changes.
+        result = self._repo(self._config(schedule=['after 9pm']))
+        self.assert_fail(
+            result, containing='renovate.json sets schedule at its top level')
+        self.assertIn('delete it,', result['details'])
+
+    def test_several_overridden_keys_are_named_in_one_finding(self):
+        config = self._config(
+            schedule=['after 9pm'], assignees=['mikalstill'],
+            dependencyDashboard=True, minimumReleaseAge='3 days',
+            rollbackPrs=True, gitAuthor='someone <someone@example.com>')
+        config['pre-commit'] = {'enabled': True}
+        result = self._repo(config)
+        self.assert_fail(
+            result,
+            containing='renovate.json sets assignees, dependencyDashboard, '
+                       'gitAuthor, minimumReleaseAge, pre-commit, '
+                       'rollbackPrs, schedule at its top level')
+        self.assertIn('delete them,', result['details'])
+        self.assertEqual(result['details'].count('renovate.json sets'), 1)
+
+    def test_every_key_the_preset_sets_is_reported(self):
+        # Read from the preset, not listed here: a key the preset gains
+        # is a key a repository may no longer set.
+        preset = self._preset()
+        expected = sorted(set(preset) - {'$schema', 'extends', 'packageRules'})
+        # Guard the derivation: an empty set would pass everything.
+        self.assertIn('schedule', expected)
+        result = self._repo(dict(preset, extends=[self.PRESET_NAME]))
+        self.assert_fail(
+            result,
+            containing=f'renovate.json sets {", ".join(expected)} at its '
+                       f'top level')
+
+    def test_the_shared_keys_are_never_reported(self):
+        preset = self._preset()
+        for key in ('$schema', 'extends', 'packageRules'):
+            self.assertIn(key, preset)
+        result = self._repo(self._config(packageRules=[
+            {'matchPackageNames': ['oslo.*'], 'groupName': 'oslo'}]))
+        self.assert_pass(result)
+
+    def test_the_shared_keys_are_not_reported_beside_an_override(self):
+        result = self._repo(self._config(
+            schedule=['after 9pm'],
+            packageRules=[{'matchPackageNames': ['oslo.*'],
+                           'groupName': 'oslo'}]))
+        # The list is joined just before "at its top level", so this
+        # names schedule and nothing else.
+        self.assert_fail(
+            result, containing='renovate.json sets schedule at its top level')
+
+    def test_keys_the_preset_does_not_set_pass(self):
+        preset = self._preset()
+        local = {
+            'lockFileMaintenance': {'enabled': True,
+                                    'schedule': ['before 4am on monday']},
+            'constraints': {'python': '==3.12'},
+            'customManagers': [{'customType': 'regex',
+                                'managerFilePatterns': ['/^tox\\.ini$/'],
+                                'matchStrings': ['x'],
+                                'datasourceTemplate': 'pypi'}],
+            'github-actions': {'managerFilePatterns': ['/^templates/.+$/']},
+        }
+        for key in local:
+            self.assertNotIn(key, preset)
+        self.assert_pass(self._repo(self._config(**local)))
+
+    def test_every_finding_is_reported_together(self):
+        result = self._repo({'extends': ['config:recommended'],
+                             'schedule': ['after 9pm'],
+                             'timezone': 'UTC'},
+                            workflow=True)
         self.assert_fail(result)
-        self.assertIn('renovate.json', result['missing'])
+        details = result['details']
+        self.assertIn('.github/workflows/renovate.yml exists', details)
+        self.assertIn(f'does not extend {self.PRESET_NAME}', details)
+        self.assertIn('renovate.json sets schedule, timezone at its top level',
+                      details)
+
+    def test_renovate_json_missing_fails(self):
+        result = self._repo(None)
+        self.assert_fail(result, containing='Missing: renovate.json')
+        self.assertEqual(result['missing'], ['renovate.json'])
+
+    def test_renovate_json_missing_is_reported_with_the_workflow(self):
+        result = self._repo(None, workflow=True)
+        self.assert_fail(result, containing='Missing: renovate.json')
+        self.assertIn('.github/workflows/renovate.yml exists',
+                      result['details'])
+        self.assertEqual(result['missing'], ['renovate.json'])
+
+    def test_no_missing_list_when_renovate_json_is_there(self):
+        result = self._repo({}, workflow=True)
+        self.assert_fail(result)
+        self.assertNotIn('missing', result)
+
+    def test_a_malformed_renovate_json_fails_rather_than_raising(self):
+        # renovate.json's top level can hold any JSON value, or none.
+        for renovate in ('{not json', '[1, 2]', '"hi"', 'null', ''):
+            with self.subTest(renovate=renovate):
+                self.fresh_fixture()
+                result = self._repo(renovate, workflow=True)
+                self.assert_fail(result, containing='is not a JSON object')
+                self.assertIn('.github/workflows/renovate.yml exists',
+                              result['details'])
+                self.assertNotIn('missing', result)
+
+    def test_an_unreadable_preset_is_a_tool_failure(self):
+        with mock.patch.object(packaging, 'RENOVATE_FLEET_PRESET_FILE',
+                               'no-such-preset.json'):
+            self.assert_tool_failure(
+                lambda: self._repo(self._config()),
+                containing='Could not read no-such-preset.json')
+
+    def test_an_unparseable_preset_is_a_tool_failure(self):
+        for content, containing in (
+                ('{not json', 'Could not parse renovate-fleet.json'),
+                ('[1, 2]', 'renovate-fleet.json in the audit\'s own '
+                           'checkout is not a JSON object')):
+            with self.subTest(content=content):
+                self.fresh_fixture()
+                self.fixture.write('renovate.json',
+                                   json.dumps(self._config()))
+                with mock.patch.object(packaging, 'read_within',
+                                       return_value=content):
+                    self.assert_tool_failure(self.check, containing=containing)
+
+    def test_the_preset_is_read_only_to_compare_with_a_config(self):
+        # With no renovate.json to compare, an unreadable preset changes
+        # nothing about the verdict.
+        with mock.patch.object(packaging, 'RENOVATE_FLEET_PRESET_FILE',
+                               'no-such-preset.json'):
+            self.assert_fail(self._repo(None), containing='Missing')
+            self.fresh_fixture()
+            self.assert_fail(self._repo('[]'),
+                             containing='is not a JSON object')
 
 
-class RenovateShellcheckVersioningTest(CheckTestCase):
-    """shellcheck-py's four-part tags need a versioning rule to be bumped."""
+class RenovateConfigPredicatesTest(unittest.TestCase):
+    """The three properties RenovateFleetPresetTest holds the preset to.
 
-    check_class = packaging.Renovate
+    Each predicate is tested here on small configs, so that the preset
+    tests passing means the preset has the property rather than that the
+    predicate accepts anything.
+    """
 
-    SHELLCHECK_HOOK = (
-        'repos:\n'
-        '  - repo: https://github.com/shellcheck-py/shellcheck-py\n'
-        '    rev: v0.11.0.1\n'
-        '    hooks:\n'
-        '      - id: shellcheck\n'
-    )
+    VERSIONING = ('regex:^v?(?<major>\\d+)\\.(?<minor>\\d+)'
+                  '\\.(?<patch>\\d+)\\.(?<build>\\d+)$')
 
-    OTHER_HOOK = (
-        'repos:\n'
-        '  - repo: https://github.com/rhysd/actionlint\n'
-        '    rev: v1.7.12\n'
-        '    hooks:\n'
-        '      - id: actionlint\n'
-    )
+    def test_each_way_of_enabling_the_pre_commit_manager_counts(self):
+        for config in ({'pre-commit': {'enabled': True}},
+                       {'enabledManagers': ['cargo', 'pre-commit']},
+                       {'extends': [':enablePreCommit']}):
+            with self.subTest(config=config):
+                self.assertTrue(
+                    packaging.renovate_config_manages_pre_commit(config))
 
-    RULE = {
-        'matchPackageNames': ['shellcheck-py/shellcheck-py'],
-        'versioning': 'regex:^v?(?<major>\\d+)\\.(?<minor>\\d+)'
-                      '\\.(?<patch>\\d+)\\.(?<build>\\d+)$',
-    }
+    def test_the_pre_commit_manager_disabled_or_absent_does_not_count(self):
+        for config in ({}, {'pre-commit': {'enabled': False}},
+                       {'pre-commit': True}, {'enabledManagers': ['cargo']},
+                       {'extends': ':enablePreCommit'}):
+            with self.subTest(config=config):
+                self.assertFalse(
+                    packaging.renovate_config_manages_pre_commit(config))
 
-    def _repo(self, renovate, pre_commit=None):
-        # The other findings are separate; every repository here carries
-        # the version comment preset, the workflow and the manager.
-        if isinstance(renovate, dict):
-            renovate = dict(renovate)
-            renovate['extends'] = renovate.get('extends', []) + [
-                'customManagers:githubActionsVersions',
-                ':enablePreCommit']
-            renovate = json.dumps(renovate)
-        self.fixture.workflow('renovate.yml', RENOVATE_WORKFLOW)
-        self.fixture.write('renovate.json', renovate)
-        if pre_commit is not None:
-            self.fixture.write('.pre-commit-config.yaml', pre_commit)
-        return self.check()
+    def test_the_version_comment_preset_counts_in_either_name(self):
+        for preset in ('customManagers:githubActionsVersions',
+                       'regexManagers:githubActionsVersions'):
+            with self.subTest(preset=preset):
+                self.assertTrue(
+                    packaging.renovate_config_reads_version_comments(
+                        {'extends': [':enablePreCommit', preset]}))
 
-    def test_the_hook_without_a_rule_fails(self):
-        result = self._repo({}, self.SHELLCHECK_HOOK)
-        self.assert_fail(result, containing='shellcheck-py/shellcheck-py')
-        self.assert_fail(result, containing='never bumped')
-
-    def test_a_local_rule_passes(self):
-        self.assert_pass(self._repo(
-            {'packageRules': [self.RULE]}, self.SHELLCHECK_HOOK))
-
-    def test_the_fleet_preset_satisfies_it(self):
-        self.assert_pass(self._repo(
-            {'extends': [packaging.RENOVATE_FLEET_PRESET]},
-            self.SHELLCHECK_HOOK))
-
-    def test_a_rule_for_another_package_does_not_pass(self):
-        rule = dict(self.RULE, matchPackageNames=['rhysd/actionlint'])
-        self.assert_fail(self._repo(
-            {'packageRules': [rule]}, self.SHELLCHECK_HOOK),
-            containing='shellcheck-py/shellcheck-py')
-
-    def test_a_rule_without_versioning_does_not_pass(self):
-        rule = {'matchPackageNames': ['shellcheck-py/shellcheck-py'],
-                'groupName': 'linters'}
-        self.assert_fail(self._repo(
-            {'packageRules': [rule]}, self.SHELLCHECK_HOOK),
-            containing='shellcheck-py/shellcheck-py')
-
-    def test_an_empty_versioning_does_not_pass(self):
-        rule = dict(self.RULE, versioning='')
-        self.assert_fail(self._repo(
-            {'packageRules': [rule]}, self.SHELLCHECK_HOOK),
-            containing='shellcheck-py/shellcheck-py')
+    def test_a_config_without_the_version_comment_preset_does_not_count(self):
+        for config in ({}, {'extends': [':enablePreCommit']},
+                       {'extends': 'customManagers:githubActionsVersions'}):
+            with self.subTest(config=config):
+                self.assertFalse(
+                    packaging.renovate_config_reads_version_comments(config))
 
     def _rule(self, **match):
-        return {'packageRules': [dict(match, versioning=self.RULE['versioning'])]}
+        return {'packageRules': [dict(match, versioning=self.VERSIONING)]}
 
-    def test_every_spelling_renovate_applies_passes(self):
-        # Renovate applies each of these to the hook, so none of them
-        # may be reported as missing the rule.
+    def _versions(self, config):
+        return packaging.renovate_config_versions_shellcheck_py(config)
+
+    def test_a_shellcheck_py_versioning_rule_counts(self):
+        self.assertTrue(self._versions(
+            self._rule(matchPackageNames=['shellcheck-py/shellcheck-py'])))
+
+    def test_every_spelling_renovate_applies_counts(self):
+        # Renovate applies each of these to the hook.
         for match in (
             {'matchDepNames': ['shellcheck-py/shellcheck-py']},
             {'matchPackageNames': ['shellcheck-py/**']},
@@ -186,102 +303,42 @@ class RenovateShellcheckVersioningTest(CheckTestCase):
             {'matchPackageNames': ['!rhysd/actionlint']},
         ):
             with self.subTest(match=match):
-                self.fresh_fixture()
-                self.assert_pass(self._repo(
-                    self._rule(**match), self.SHELLCHECK_HOOK))
+                self.assertTrue(self._versions(self._rule(**match)))
 
-    def test_a_rule_that_excludes_the_hook_does_not_pass(self):
+    def test_a_rule_scoped_away_from_pre_commit_still_counts(self):
+        # Chosen, not missed: see renovate_config_versions_shellcheck_py.
+        self.assertTrue(self._versions(self._rule(
+            matchPackageNames=['shellcheck-py/shellcheck-py'],
+            matchManagers=['npm'])))
+
+    def test_a_rule_that_does_not_select_the_hook_does_not_count(self):
         for match in (
+            {'matchPackageNames': ['rhysd/actionlint']},
             {'matchPackageNames': ['shellcheck-py/**',
                                    '!shellcheck-py/shellcheck-py']},
             {'matchPackageNames': ['/^shellcheck/'],
              'excludePackageNames': ['shellcheck-py/shellcheck-py']},
             {'matchPackageNames': ['shellcheck-py/shellcheck-py'],
              'matchDepNames': ['rhysd/actionlint']},
+            {'matchManagers': ['pre-commit']},
+            # Renovate rejects a non-list matcher; it does not name the hook.
+            {'matchPackageNames': 'shellcheck-py/shellcheck-py'},
         ):
             with self.subTest(match=match):
-                self.fresh_fixture()
-                self.assert_fail(self._repo(
-                    self._rule(**match), self.SHELLCHECK_HOOK),
-                    containing='shellcheck-py/shellcheck-py')
+                self.assertFalse(self._versions(self._rule(**match)))
 
-    def test_a_rule_with_no_package_matcher_does_not_pass(self):
-        self.assert_fail(self._repo(
-            self._rule(matchManagers=['pre-commit']), self.SHELLCHECK_HOOK),
-            containing='shellcheck-py/shellcheck-py')
-
-    def test_a_string_package_names_does_not_pass(self):
-        # Renovate rejects a non-list matcher; it does not name the hook.
-        self.assertFalse(packaging.renovate_config_versions_shellcheck_py(
-            self._rule(matchPackageNames='shellcheck-py/shellcheck-py')))
-
-    def test_a_rule_scoped_away_from_pre_commit_still_passes(self):
-        # Chosen, not missed: see renovate_config_versions_shellcheck_py.
-        self.assert_pass(self._repo(
-            self._rule(matchPackageNames=['shellcheck-py/shellcheck-py'],
-                       matchManagers=['npm']),
-            self.SHELLCHECK_HOOK))
-
-    def test_the_hook_is_found_in_each_url_form(self):
-        for repo_line in (
-            '- repo: https://github.com/shellcheck-py/shellcheck-py',
-            '- repo: https://github.com/shellcheck-py/shellcheck-py.git',
-            "- repo: 'https://github.com/shellcheck-py/shellcheck-py'",
-            '- repo: https://github.com/shellcheck-py/shellcheck-py  # lint',
-            '-\n    repo: https://github.com/shellcheck-py/shellcheck-py',
-        ):
-            with self.subTest(repo_line=repo_line):
-                self.fresh_fixture()
-                self.assert_fail(self._repo(
-                    {}, 'repos:\n  ' + repo_line + '\n    rev: v0.11.0.1\n'),
-                    containing='shellcheck-py/shellcheck-py')
-
-    def test_a_commented_out_or_similar_hook_is_not_found(self):
-        for pre_commit in (
-            'repos:\n  # - repo: https://github.com/shellcheck-py/shellcheck-py\n',
-            'repos:\n  - repo: https://github.com/shellcheck-py/shellcheck-py-fork\n',
-            'repos:\n  - repo: https://github.com/someone/shellcheck-py/shellcheck-py\n',
-        ):
-            with self.subTest(pre_commit=pre_commit):
-                self.fresh_fixture()
-                result = self._repo({}, pre_commit)
-                self.assertNotIn('shellcheck-py', result.get('details') or '')
+    def test_a_rule_without_a_versioning_does_not_count(self):
+        for rule in ({'matchPackageNames': ['shellcheck-py/shellcheck-py'],
+                      'groupName': 'linters'},
+                     {'matchPackageNames': ['shellcheck-py/shellcheck-py'],
+                      'versioning': ''}):
+            with self.subTest(rule=rule):
+                self.assertFalse(self._versions({'packageRules': [rule]}))
 
     def test_malformed_package_rules_do_not_raise(self):
         for rules in ('x', None, [1, 'x'], {'a': 1}):
             with self.subTest(rules=rules):
-                self.assertFalse(
-                    packaging.renovate_config_versions_shellcheck_py(
-                        {'packageRules': rules}))
-
-    def test_no_pre_commit_config_passes(self):
-        self.assert_pass(self._repo({}))
-
-    def test_a_config_without_the_hook_passes(self):
-        self.assert_pass(self._repo({}, self.OTHER_HOOK))
-
-    def test_a_malformed_renovate_config_does_not_abort_the_run(self):
-        # renovate.json's top level can hold any JSON value; the run
-        # reports findings rather than raising.
-        for renovate in ('{"packageRules": "x"}', '[1, 2]', '"hi"',
-                         '{not json'):
-            with self.subTest(renovate=renovate):
-                self.fresh_fixture()
-                result = self._repo(renovate, self.SHELLCHECK_HOOK)
-                self.assert_fail(
-                    result, containing='shellcheck-py/shellcheck-py')
-
-    def test_a_malformed_renovate_config_without_the_hook_is_not_this(self):
-        # The unreadable config is the other findings' business.
-        result = self._repo('[1, 2]', self.OTHER_HOOK)
-        self.assert_fail(result)
-        self.assertNotIn('shellcheck-py', result['details'])
-
-    def test_missing_files_still_reported_first(self):
-        self.fixture.write('.pre-commit-config.yaml', self.SHELLCHECK_HOOK)
-        result = self.check()
-        self.assert_fail(result)
-        self.assertIn('renovate.json', result['missing'])
+                self.assertFalse(self._versions({'packageRules': rules}))
 
 
 class RenovateFleetPresetTest(CheckTestCase):
@@ -290,24 +347,21 @@ class RenovateFleetPresetTest(CheckTestCase):
     The audit trusts the preset by name, so what it vouches for is proved
     here against the real file: a local> preset takes effect fleet-wide the
     moment an edit to it merges, and an edit that dropped the pre-commit
-    manager or the version comment extend would otherwise leave every
-    repository passing on a promise the preset no longer keeps.
+    manager, the version comment extend or the shellcheck-py versioning
+    rule would otherwise leave every repository passing on a promise the
+    preset no longer keeps.
     """
 
     check_class = packaging.Renovate
 
     PRESET_NAME = 'local>shakenfist/development:renovate-fleet'
 
-    REMOTE_HOOKS = RenovatePreCommitManagerTest.REMOTE_HOOKS
-
     def _preset(self):
         with open(os.path.join(REPO_ROOT, 'renovate-fleet.json')) as f:
             return json.load(f)
 
     def _repo(self, renovate):
-        self.fixture.workflow('renovate.yml', RENOVATE_WORKFLOW)
         self.fixture.write('renovate.json', json.dumps(renovate))
-        self.fixture.write('.pre-commit-config.yaml', self.REMOTE_HOOKS)
         return self.check()
 
     def test_the_real_preset_enables_the_pre_commit_manager(self):
@@ -381,10 +435,8 @@ class RenovateFleetPresetTest(CheckTestCase):
         # The whole set, not membership: each file is a workflow that sets
         # up Node, and one left out is one a major Node pull request can
         # reach, which stops Renovate for every repository at once.
-        self.assertEqual(sorted(rule['matchFileNames']),
-                         ['.github/workflows/renovate-fleet.yml',
-                          '.github/workflows/renovate.yml',
-                          'templates/renovate/renovate.yml'])
+        self.assertEqual(rule['matchFileNames'],
+                         ['.github/workflows/renovate-fleet.yml'])
 
     def test_the_real_preset_merges_nothing_automatically(self):
         rule = self._rule(automerge=False)
@@ -442,10 +494,9 @@ class RenovateFleetPresetTest(CheckTestCase):
         # The note is the only thing that tells a reviewer which files hold
         # a node-version that has to move with the pin.
         note = self._rule(matchDepNames=['renovate'])['prBodyNotes'][0]
-        for name in ('.github/workflows/renovate-fleet.yml',
-                     '.github/workflows/renovate.yml',
-                     'templates/renovate/renovate.yml'):
-            self.assertIn(name, note)
+        # The whole set, so a file named back here fails this.
+        self.assertEqual(re.findall(r'[\w./-]+\.yml', note),
+                         ['.github/workflows/renovate-fleet.yml'])
 
     def test_the_real_preset_sets_the_documented_cadence(self):
         preset = self._preset()
@@ -503,7 +554,7 @@ class RenovateReducedConfigTest(unittest.TestCase):
     #: Sections that apply only to this repository, which ships the
     #: workflow templates. Everything else in the preset is fleet-wide.
     ROOT_LOCAL_KEYS = frozenset(
-        {'github-actions', 'customManagers', 'packageRules'})
+        {'github-actions', 'packageRules'})
 
     STRUCTURAL_KEYS = frozenset({'$schema', 'extends'})
 
@@ -554,10 +605,10 @@ class RenovateReducedConfigTest(unittest.TestCase):
                          f'matchFileNames is {sorted(file_names)}, and holds {len(rules)}')
         return rules[0]
 
-    def test_the_root_config_holds_two_local_rules(self):
-        # Each is local because it names files only this repository has;
-        # a third is a decision somebody should have to make here.
-        self.assertEqual(len(self._config('renovate.json')['packageRules']), 2)
+    def test_the_root_config_holds_one_local_rule(self):
+        # It is local because it names a file only this repository has;
+        # a second is a decision somebody should have to make here.
+        self.assertEqual(len(self._config('renovate.json')['packageRules']), 1)
 
     def test_the_root_config_gives_the_runner_workflow_actions_a_weekly_schedule(self):
         rule = self._root_rule(['.github/workflows/renovate-fleet.yml'])
@@ -566,33 +617,6 @@ class RenovateReducedConfigTest(unittest.TestCase):
         # The preset's own weekly window, not a second spelling of it.
         self.assertEqual(rule['schedule'], self._preset()['schedule'])
         self.assertNotIn('groupName', rule)
-
-    def test_only_the_doomed_renovate_copies_keep_rust_toolchain_unpinned(self):
-        # The two files renovate-cadence deletes, and nothing else: the
-        # fleet runner's own reference holds the organisation's push token
-        # and stays pinned, so a rule that widened to it, or to every
-        # action in these files, would unpin what the preset is there to
-        # pin.
-        rule = self._root_rule(['.github/workflows/renovate.yml',
-                                'templates/renovate/renovate.yml'])
-        self.assertEqual(rule['matchPackageNames'], ['dtolnay/rust-toolchain'])
-        self.assertIs(rule['pinDigests'], False)
-        self.assertEqual(set(rule), {'description', 'matchFileNames',
-                                     'matchPackageNames', 'pinDigests'})
-        # The rule and the files are one invariant: the exemption is
-        # true only while both files exist and both references are still
-        # unpinned. The pull request deleting either file must delete the
-        # rule too, and a pin that reaches either file anyway is reverted
-        # rather than given a toolchain input, which would make every
-        # fleet copy of the template drift from it.
-        for path in rule['matchFileNames']:
-            self.assertTrue(os.path.isfile(os.path.join(REPO_ROOT, path)), path)
-            ref = current_ref(repo_text(*path.split('/')), 'dtolnay/rust-toolchain')
-            self.assertTrue(
-                ref.endswith('@stable'),
-                f'{path} has {ref}: this repository declines that pin, so put '
-                f'the reference back to dtolnay/rust-toolchain@stable with no '
-                f'with: block rather than adding a toolchain input')
 
 
 class RenovateRunnerConfigTest(unittest.TestCase):
@@ -649,271 +673,8 @@ class RenovateRunnerConfigTest(unittest.TestCase):
         # rule that lost its matchFileNames disables every dependency
         # in the fleet, and the only symptom is Renovate proposing
         # nothing to anybody.
-        self.assertEqual(sorted(rule['matchFileNames']),
-                         ['.github/workflows/renovate.yml',
-                          'templates/renovate/renovate.yml'])
-
-
-class RenovateVersionCommentsTest(CheckTestCase):
-    """Renovate can only bump the pinned Renovate if it reads the comments."""
-
-    check_class = packaging.Renovate
-
-    def _repo(self, renovate):
-        self.fixture.workflow('renovate.yml', RENOVATE_WORKFLOW)
-        self.fixture.write('renovate.json', json.dumps(renovate))
-        return self.check()
-
-    def test_the_local_preset_passes(self):
-        self.assert_pass(self._repo(
-            {'extends': ['customManagers:githubActionsVersions']}))
-
-    def test_a_config_without_it_fails(self):
-        self.assert_fail(self._repo({'extends': [':enablePreCommit']}),
-                         containing='customManagers:githubActionsVersions')
-
-    def test_the_fleet_preset_passes(self):
-        self.assert_pass(self._repo(
-            {'extends': ['local>shakenfist/development:renovate-fleet']}))
-
-
-class RenovateWithoutDockerTest(CheckTestCase):
-    """renovate.yml runs Renovate from npm, and Renovate can see the pin.
-
-    The fixtures are the template's own steps, before and after the
-    change: the drift these findings exist to report is a copy of the
-    old template.
-    """
-
-    check_class = packaging.Renovate
-
-    CONTAINER_WORKFLOW = (
-        'jobs:\n'
-        '  renovate:\n'
-        '    runs-on: [self-hosted, static]\n'
-        '    steps:\n'
-        '      - name: Checkout\n'
-        '        uses: actions/checkout@v7\n'
-        '\n'
-        '      - name: Self-hosted Renovate\n'
-        '        uses: renovatebot/github-action@v46.3.7\n'
-        '        with:\n'
-        '          token: ${{ secrets.RENOVATE_TOKEN }}\n'
-    )
-
-    # The template is the npm form, and the one copy that passes the
-    # workflow finding RenovateWorkflowDriftTest measures.
-    NPM_WORKFLOW = RENOVATE_WORKFLOW
-
-    PRESET = {'extends': ['customManagers:githubActionsVersions']}
-
-    def _repo(self, workflow, renovate):
-        self.fixture.workflow('renovate.yml', workflow)
-        self.fixture.write('renovate.json', json.dumps(renovate))
-        return self.check()
-
-    def _template(self, name):
-        with open(os.path.join(REPO_ROOT, 'templates', 'renovate', name)) as f:
-            return f.read()
-
-    def test_the_template_itself_passes(self):
-        # The template is what an issue tells a repository to copy, so
-        # a copy of it has to close the issue.
-        self.assert_pass(self._repo(
-            self._template('renovate.yml'),
-            json.loads(self._template('renovate.json'))))
-
-    def test_the_npm_form_passes(self):
-        # Its comment names the action; only a step running it counts.
-        self.assert_pass(self._repo(self.NPM_WORKFLOW, self.PRESET))
-
-    def test_the_container_action_fails(self):
-        self.assert_fail(self._repo(self.CONTAINER_WORKFLOW, self.PRESET),
-                         containing='needs a Docker daemon')
-
-    def test_a_config_without_the_preset_fails(self):
-        self.assert_fail(self._repo(self.NPM_WORKFLOW, {}),
-                         containing='customManagers:githubActionsVersions')
-
-    def test_the_old_preset_name_passes(self):
-        self.assert_pass(self._repo(
-            self.NPM_WORKFLOW,
-            {'extends': ['regexManagers:githubActionsVersions']}))
-
-    def test_a_malformed_config_fails_rather_than_raising(self):
-        self.fixture.workflow('renovate.yml', self.NPM_WORKFLOW)
-        for renovate in ('{not json\n', '[]', '{"extends": "x"}'):
-            with self.subTest(renovate=renovate):
-                self.fixture.write('renovate.json', renovate)
-                self.assert_fail(self.check(),
-                                 containing='githubActionsVersions')
-
-    def test_an_old_copy_reports_both_findings(self):
-        # The copy the fleet has today: one issue names both changes.
-        result = self._repo(self.CONTAINER_WORKFLOW, {})
-        self.assert_fail(result, containing='needs a Docker daemon')
-        self.assertIn('githubActionsVersions', result['details'])
-
-
-class RenovateWorkflowDriftTest(CheckTestCase):
-    """renovate.yml is the template's, apart from the Renovate it pins."""
-
-    check_class = packaging.Renovate
-
-    PRESET = {'extends': ['customManagers:githubActionsVersions']}
-
-    def _repo(self, workflow):
-        self.fixture.workflow('renovate.yml', workflow)
-        self.fixture.write('renovate.json', json.dumps(self.PRESET))
-        return self.check()
-
-    def test_the_template_passes(self):
-        self.assert_pass(self._repo(RENOVATE_WORKFLOW))
-
-    def test_a_different_renovate_pin_passes(self):
-        """Renovate bumps the pin in each copy on its own schedule."""
-        pinned = packaging.RENOVATE_PIN_RE.sub(r'\1 1.0.0', RENOVATE_WORKFLOW)
-        self.assertNotEqual(pinned, RENOVATE_WORKFLOW)
-        self.assert_pass(self._repo(pinned))
-
-    def test_a_different_hashin_pin_passes(self):
-        """hashin is pinned for Renovate to bump like Renovate itself."""
-        self.assertIn('PINNED_HASHIN_VERSION: 1.0.5\n', RENOVATE_WORKFLOW)
-        bumped = RENOVATE_WORKFLOW.replace(
-            'PINNED_HASHIN_VERSION: 1.0.5\n', 'PINNED_HASHIN_VERSION: 1.1.0\n')
-        self.assert_pass(self._repo(bumped))
-
-    def test_a_pin_is_not_a_line_it_does_not_name(self):
-        """Only the value of a PINNED_*_VERSION key is blanked."""
-        self.assert_fail(
-            self._repo(RENOVATE_WORKFLOW.replace(
-                'PINNED_HASHIN_VERSION: 1.0.5\n', 'HASHIN_VERSION: 1.0.5\n')),
-            containing='`HASHIN_VERSION: 1.0.5`')
-
-    def test_other_action_refs_pass(self):
-        """Renovate bumps the actions in each copy on its own schedule."""
-        bumped = RENOVATE_WORKFLOW
-        for action, moved in (('actions/checkout', 'v8'),
-                              ('actions/setup-node', 'v6.1.0'),
-                              ('dtolnay/rust-toolchain', '1.92.0')):
-            # The clause is read out rather than written here: the
-            # fleet preset pins these, so a literal would be whichever
-            # sha Renovate last chose. The whole clause, so that a
-            # digest comment in the shipped file does not survive the
-            # substitution and leave `@v8 # v7` behind.
-            bumped = bumped.replace(
-                uses_clause(RENOVATE_WORKFLOW, action),
-                f'uses: {action}@{moved}')
-        self.assertNotEqual(bumped, RENOVATE_WORKFLOW)
-        self.assert_pass(self._repo(bumped))
-
-    def test_a_digest_pinned_action_passes(self):
-        """Renovate's pinDigests leaves the version as a comment."""
-        # The comment is this fixture's, not the shipped file's, so the
-        # case covers RENOVATE_USES_RE's trailing-comment branch
-        # whether or not the template is pinned today.
-        pinned = RENOVATE_WORKFLOW.replace(
-            uses_clause(RENOVATE_WORKFLOW, 'actions/checkout'),
-            'uses: actions/checkout'
-            '@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v7.0.0')
-        self.assertIn('# v7.0.0', pinned)
-        self.assertNotEqual(pinned, RENOVATE_WORKFLOW)
-        self.assert_pass(self._repo(pinned))
-
-    def test_a_comment_after_a_uses_line_is_compared(self):
-        """The digest comment is on the uses: line, not the lines after."""
-        comment = '      # A requirements file pinned with --hash lines needs hashin, which\n'
-        # Derived, and no longer asserting adjacency: the rust-toolchain
-        # pin held by minimumReleaseAge lands about 2026-11-18 and owes
-        # a with: toolchain: stable block, either of which would break a
-        # literal or a \n\n. The property is that the next comment after
-        # a uses: line belongs to no uses: line of its own.
-        after = RENOVATE_WORKFLOW.split(
-            uses_clause(RENOVATE_WORKFLOW, 'dtolnay/rust-toolchain'), 1)[1]
-        self.assertIn(comment, after)
-        self.assertNotIn('uses:', after[:after.index(comment)])
-        line = RENOVATE_WORKFLOW.splitlines().index(comment.rstrip('\n')) + 1
-        self.assert_fail(
-            self._repo(RENOVATE_WORKFLOW.replace(comment, '      # A local comment\n')),
-            containing=f'line {line} is `# A local comment`')
-
-    def test_another_action_fails(self):
-        """Only the ref is Renovate's; the action named is the template's."""
-        ref = current_ref(RENOVATE_WORKFLOW, 'actions/checkout')
-        result = self._repo(RENOVATE_WORKFLOW.replace(
-            ref, ref.replace('actions/', 'someone/', 1)))
-        self.assert_fail(
-            result,
-            containing='is `uses: someone/checkout` where the template '
-                       'has `uses: actions/checkout`')
-
-    def test_another_node_fails(self):
-        """kerbside-patches and visual-digest-rust after their Node 26 bump."""
-        self.assertIn('node-version: 24\n', RENOVATE_WORKFLOW)
-        result = self._repo(RENOVATE_WORKFLOW.replace(
-            'node-version: 24\n', 'node-version: 26\n'))
-        self.assert_fail(
-            result,
-            containing='is `node-version: 26` where the template has '
-                       '`node-version: 24`')
-
-    def test_line_endings_and_a_missing_final_newline_pass(self):
-        self.assertTrue(RENOVATE_WORKFLOW.endswith('\n'))
-        self.assert_pass(self._repo(RENOVATE_WORKFLOW.replace('\n', '\r\n')))
-        self.assert_pass(self._repo(RENOVATE_WORKFLOW.rstrip('\n')))
-
-    def test_an_added_line_fails(self):
-        self.assert_fail(self._repo(RENOVATE_WORKFLOW + '# local tweak\n'),
-                         containing='`# local tweak`, is not in the template')
-
-    def test_a_removed_line_fails(self):
-        comment = '          # renovate: datasource=npm depName=renovate\n'
-        self.assertIn(comment, RENOVATE_WORKFLOW)
-        line = RENOVATE_WORKFLOW.splitlines().index(comment.rstrip('\n')) + 1
-        self.assert_fail(
-            self._repo(RENOVATE_WORKFLOW.replace(comment, '')),
-            containing='`# renovate: datasource=npm depName=renovate` is '
-                       f'missing before line {line}')
-
-    def test_a_removed_last_line_is_missing_at_the_end(self):
-        """No line number past the copy's last."""
-        lines = RENOVATE_WORKFLOW.splitlines(keepends=True)
-        self.assertIn('node_modules/.bin/renovate', lines[-1])
-        self.assert_fail(self._repo(''.join(lines[:-1])),
-                         containing='is missing at the end')
-
-    def test_every_place_is_named_with_the_copys_line(self):
-        result = self._repo('# header\n' + RENOVATE_WORKFLOW.replace(
-            'node-version: 24\n', 'node-version: 26\n'))
-        line = RENOVATE_WORKFLOW.splitlines().index('          node-version: 24') + 2
-        self.assertIn('line 1, `# header`, is not in the template', result['details'])
-        self.assertIn(f'line {line} is `node-version: 26`', result['details'])
-
-    def test_places_past_the_limit_are_counted(self):
-        lines = RENOVATE_WORKFLOW.splitlines(keepends=True)
-        # Five lines apart from one another make five places.
-        for i in (0, 10, 20, 30, 40):
-            lines[i] = lines[i].rstrip('\n') + '  # changed\n'
-        details = self._repo(''.join(lines))['details']
-        self.assertEqual(details.count('# changed'), packaging.RENOVATE_DRIFT_SHOWN)
-        self.assertIn(f'and {5 - packaging.RENOVATE_DRIFT_SHOWN} more', details)
-
-    def test_a_container_copy_is_told_once_to_copy_the_template(self):
-        result = self._repo(RenovateWithoutDockerTest.CONTAINER_WORKFLOW)
-        self.assert_fail(result, containing='needs a Docker daemon')
-        self.assertNotIn('differs from', result['details'])
-
-    def test_an_unreadable_template_is_a_tool_failure(self):
-        with mock.patch.object(packaging, 'RENOVATE_WORKFLOW_TEMPLATE',
-                               'templates/renovate/no-such.yml'):
-            self.assert_tool_failure(
-                lambda: self._repo(RENOVATE_WORKFLOW),
-                containing='Could not read templates/renovate/no-such.yml')
-
-    def test_developments_own_copy_passes(self):
-        """This repository runs the template too."""
-        self.assertIsNone(packaging.renovate_workflow_drift(
-            repo_text('.github', 'workflows', 'renovate.yml'), RENOVATE_WORKFLOW))
+        self.assertEqual(rule['matchFileNames'],
+                         ['.github/workflows/renovate.yml'])
 
 
 class RenovateLockstepGroupsTest(CheckTestCase):

@@ -1,13 +1,13 @@
 # Runs Renovate over every repository in the organisation, from here,
 # with its global configuration in renovate-runner.json.
 #
-# The fleet's per-repository copies of templates/renovate/renovate.yml
-# each run Renovate over the one repository they live in. This runs it
-# over all of them in one pass, so the schedule costs one runner rather
-# than one per repository, and the global configuration -- which
-# repositories are discovered, and what is suppressed fleet-wide -- is
-# in one file instead of being implied by where the copies are
-# installed. docs/audits/renovate.md is the specification.
+# This runs Renovate over every managed repository in one pass, so the
+# schedule costs one runner rather than one per repository, and the
+# global configuration -- which repositories are discovered, and what
+# is suppressed fleet-wide -- is in one file. No repository runs its
+# own Renovate workflow any more: the per-repository copies are being
+# deleted, and the consistency audit fails a repository that has one.
+# docs/audits/renovate.md is the specification.
 #
 # Dispatched about once an hour by the conductor's periodic tier in
 # shakenfist/private-ci, which sends no inputs, so the input defaults
@@ -18,12 +18,12 @@
 # off the top of the hour made no difference. The conductor's
 # documentation is private-ci's docs/periodic-ci.md.
 #
-# Do not re-enable any per-repository copy of
-# templates/renovate/renovate.yml while this runner is dispatched.
-# Two Renovate instances over one repository race on branch creation
-# and produce duplicate or half-written pull requests, and the
-# concurrency group below cannot prevent that race, because the two
-# runs are different workflows in different repositories.
+# Do not re-enable a per-repository .github/workflows/renovate.yml
+# while this runner is dispatched. Two Renovate instances over one
+# repository race on branch creation and produce duplicate or
+# half-written pull requests, and the concurrency group below cannot
+# prevent that race, because the two runs are different workflows in
+# different repositories.
 
 name: Renovate fleet runner
 
@@ -57,12 +57,19 @@ on:
         required: false
         default: ''
         type: string
+      log_level:
+        description: 'Renovate log level. The conductor sends no inputs, so scheduled runs log at info.'
+        required: false
+        default: info
+        type: choice
+        options:
+          - info
+          - debug
 
 jobs:
   renovate:
     name: Renovate the fleet
-    # An ephemeral VM, not the static pool the per-repository copies
-    # run on. RENOVATE_TOKEN pushes branches to every repository in the
+    # An ephemeral VM, not the static pool. RENOVATE_TOKEN pushes branches to every repository in the
     # organisation, and the static runners share one user and one home
     # directory between jobs, so code another job ran could leave a
     # .pth file or a ~/.gitconfig hook there for this job to run with
@@ -84,21 +91,20 @@ jobs:
     # show up as skipped rather than failed.
     environment: renovate-write
     if: ${{ github.ref == 'refs/heads/main' }}
-    # Provisional, until a dry run has measured a full pass over the
-    # fleet. The ceiling is the cadence rather than the work: GitHub
-    # keeps one pending run per concurrency group, so a pass that
-    # regularly ran past the hour would quietly halve the schedule
-    # instead of failing anything. Timing out under the hour makes that
-    # loud instead. Renovate resumes where it left off on the next run,
-    # so a killed pass costs an hour rather than any state.
+    # A full pass takes about eleven minutes of job. The ceiling is the
+    # cadence rather than the work: the conductor does not dispatch
+    # while a run is queued or in progress, so a pass that regularly
+    # ran past the hour would quietly stretch the cadence instead of
+    # failing anything. Timing out under the hour makes that loud
+    # instead. Renovate resumes where it left off on the next run, so a
+    # killed pass costs an hour rather than any state.
     timeout-minutes: 50
     # timeout-minutes does not cover queue time: the run can sit
-    # waiting for a VM, so once the schedule above arrives an hourly
-    # cron can fire while the previous run is still queued, and a
-    # dispatch can collide with either -- which is the one collision
-    # possible today. Two Renovate instances over the same repository
-    # race on branch creation and produce duplicate or half-written
-    # pull requests -- across the whole fleet here, not one repository.
+    # waiting for a VM. Since the conductor waits for a run in flight,
+    # the collision left is a hand dispatch landing beside one of its
+    # runs. Two Renovate instances over the same repository race on
+    # branch creation and produce duplicate or half-written pull
+    # requests -- across the whole fleet here, not one repository.
     #
     # Not cancel-in-progress: killing Renovate mid-push is worse than
     # skipping a pass, and the next one is an hour away.
@@ -142,7 +148,8 @@ jobs:
       # renovatebot/github-action, which runs it as a container and so
       # needs a Docker daemon this runner does not have. node-version is
       # the major Renovate's package.json declares in engines.node; read
-      # templates/renovate/README.md before bumping either.
+      # "The version pin" in docs/audits/renovate.md before bumping
+      # either.
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
@@ -151,9 +158,8 @@ jobs:
 
       # Renovate refreshes lock files with the runner's own tools, which
       # a container used to install for it. Cargo is the one the fleet
-      # needs that the image lacks. Unconditionally, unlike the
-      # per-repository template: there, hashFiles() asks whether the one
-      # repository being managed has a Cargo.lock, and here the
+      # needs that the image lacks. Unconditionally: a hashFiles() guard
+      # would ask whether the workspace holds a Cargo.lock, and the
       # repositories being managed are not in the workspace at all --
       # they are cloned later, by Renovate. Several of them are Rust, so
       # the tool is installed on every run. A rust-toolchain.toml in a
@@ -234,10 +240,9 @@ jobs:
               "renovate@${PINNED_RENOVATE_VERSION}"
           npm rebuild --prefix "${RUNNER_TEMP}/renovate-bin" re2
 
-      # Either dispatch input can be empty -- and both are on a
-      # scheduled run, once the schedule above arrives -- and Renovate
-      # ignores an empty environment variable, so the file's own values
-      # stand. write-for-real maps to an empty RENOVATE_DRY_RUN for the
+      # The filter input is empty on a conductor dispatch, which sends
+      # no inputs, and Renovate ignores an empty environment variable,
+      # so the file's own values stand. write-for-real maps to an empty RENOVATE_DRY_RUN for the
       # same reason: there is no dryRun value meaning "write", only the
       # absence of one. autodiscoverFilter is not a mergeable option,
       # so the input replaces the file's list rather than adding to it:
@@ -250,6 +255,7 @@ jobs:
           RENOVATE_CONFIG_FILE: ${{ github.workspace }}/renovate-runner.json
           RENOVATE_DRY_RUN: ${{ inputs.dry_run != 'write-for-real' && inputs.dry_run || '' }}
           RENOVATE_AUTODISCOVER_FILTER: ${{ inputs.autodiscover_filter }}
+          LOG_LEVEL: ${{ inputs.log_level || 'info' }}
           # A clone and cache per job, under the directory the runner
           # empties between jobs.
           RENOVATE_BASE_DIR: ${{ runner.temp }}/renovate

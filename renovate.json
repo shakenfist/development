@@ -22,29 +22,6 @@
       "schedule": [
         "on saturday"
       ]
-    },
-    {
-      "description": "dtolnay/rust-toolchain stays at @stable in these two files, against the preset's helpers:pinGitHubActionDigests, because pinning it there costs the fleet more than it buys. The action takes its toolchain input's default from the ref name, so a reference pinned to a sha needs a with: toolchain: stable block that Renovate will not write, and test_a_pinned_rust_toolchain_states_its_toolchain in scripts/tests/test_registry.py fails a pin without it. That block in the template makes every fleet copy of renovate.yml drift from it: 16 repositories would newly have failed the renovate criterion on 2026-11-20, for two files that PLAN-renovate-cadence.md disables and then deletes. Delete this rule with them; test_only_the_doomed_renovate_copies_keep_rust_toolchain_unpinned fails until it is. .github/workflows/renovate-fleet.yml is deliberately not named: the runner that holds the organisation's push token is pinned, with the toolchain input given.",
-      "matchFileNames": [
-        ".github/workflows/renovate.yml",
-        "templates/renovate/renovate.yml"
-      ],
-      "matchPackageNames": [
-        "dtolnay/rust-toolchain"
-      ],
-      "pinDigests": false
-    }
-  ],
-  "customManagers": [
-    {
-      "description": "customManagers:githubActionsVersions reads the \"# renovate:\" version comments in .github/workflows, but not in templates/, for the same reason the github-actions block above exists: without this the pinned Renovate in templates/renovate/renovate.yml stays behind the copy this repository runs. The match string is customManagers:githubActionsVersions' own. From the moment the fleet runner's own configuration lands, its temporary rule disables every dependency in that template, so the pin there stops moving and sits where it is until the per-repository copies are deleted. That is deliberate: the live pin is the one in .github/workflows/renovate-fleet.yml, and the template exists only to be copied by repositories whose copies are on their way out.",
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/^templates/.+\\.ya?ml$/"
-      ],
-      "matchStrings": [
-        "# renovate: datasource=(?<datasource>[a-zA-Z0-9-._]+?) depName=(?<depName>[^\\s]+?)(?: (?:lookupName|packageName)=(?<packageName>[^\\s]+?))?(?: versioning=(?<versioning>[^\\s]+?))?(?: extractVersion=(?<extractVersion>[^\\s]+?))?(?: registryUrl=(?<registryUrl>[^\\s]+?))?\\s+[A-Za-z0-9_]+?_VERSION\\s*:\\s*[\"']?(?<currentValue>.+?)[\"']?\\s"
-      ]
     }
   ]
 }

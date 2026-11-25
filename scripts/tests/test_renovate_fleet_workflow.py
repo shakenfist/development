@@ -126,6 +126,20 @@ class FleetRunnerWorkflowTest(unittest.TestCase):
         self.assertIn('        default: write-for-real',
                       self.lines[dry_run:filt])
         self.assertIn("        default: ''", self.lines[filt:filt + 6])
+        level = self.lines.index('      log_level:')
+        self.assertIn('        default: info', self.lines[level:level + 6])
+
+    def test_the_log_level_offers_info_and_debug_only(self):
+        # Debug logs in a public repository are for a deliberate
+        # one-off dispatch, so the choice is exactly these two.
+        level = self.lines.index('      log_level:')
+        opts = self.lines.index('        options:', level)
+        listed = []
+        for line in self.lines[opts + 1:]:
+            if not line.startswith('          - '):
+                break
+            listed.append(line.strip()[2:])
+        self.assertEqual(['info', 'debug'], listed)
 
     def test_renovate_is_not_run_as_a_container_action(self):
         # renovatebot/github-action runs Renovate in a container, and
