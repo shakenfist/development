@@ -605,10 +605,6 @@
       "sha": "717622242c159d7ea0101c2c5178cb2d8dcb3eba",
       "date": "2026-11-17"
     },
-    "scripts/tests/test_issue_fix_measurement.py": {
-      "sha": "7c760ffef68ab4e6fd5ebba24f1a2bcac2f36773",
-      "date": "2026-11-15"
-    },
     "scripts/tests/test_llm_docs.py": {
       "sha": "25371b66c0cefc2ab495e451022839bca1746d8d",
       "date": "2026-10-21"
@@ -709,10 +705,6 @@
       "sha": "b9b3936053b8685ef0ae47f656b2f35aa62ba637",
       "date": "2026-09-27"
     },
-    "templates/issue-fix/README.md": {
-      "sha": "1001c669b30bbcf14496a3c176cb8f2a30dfde36",
-      "date": "2026-11-17"
-    },
     "templates/issue-fix/claude-model-fallback.sh": {
       "sha": "2bf1baa7b5782dd5b1490e8ce548ad3029084050",
       "date": "2026-08-30"
@@ -720,14 +712,6 @@
     "templates/issue-fix/extract-model-block.sh": {
       "sha": "ce4f2ab10198501e02ccc70c7824195cb26ab0f2",
       "date": "2026-08-30"
-    },
-    "templates/issue-fix/issue-fix.yml": {
-      "sha": "c44dc8267d6039f98a348a989dd86aabd82aa5a9",
-      "date": "2026-11-17"
-    },
-    "templates/issue-fix/measure-change-size.sh": {
-      "sha": "fb4cbdb11c3790fca89eab279a45ebcbc1a17947",
-      "date": "2026-11-17"
     },
     "templates/issue-fix/neutralise-pr-body.sh": {
       "sha": "4248bb512fa54f024a31cc9e838d0a11092f8da1",

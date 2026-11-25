@@ -757,10 +757,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_issue_fix_measurement.py",
-      "author": "mikal"
-    },
-    {
       "path": "scripts/tests/test_plans.py",
       "author": "mikal"
     },
@@ -897,10 +893,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/issue-fix/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/test-drift-fix/test-drift-fix.yml",
       "author": "mikal"
     },
@@ -929,23 +921,11 @@
       "author": "mikal"
     },
     {
-      "path": "templates/issue-fix/issue-fix.yml",
-      "author": "mikal"
-    },
-    {
       "path": "templates/shared-blocks/source-file-size.md",
       "author": "mikal"
     },
     {
       "path": "templates/shared-blocks",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/issue-fix/measure-change-size.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/issue-fix",
       "author": "mikal"
     },
     {
