@@ -717,10 +717,6 @@
       "author": "mikal"
     },
     {
-      "path": "scripts/tests/test_npm_dependencies.py",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/README.md",
       "author": "mikal"
     },
@@ -857,10 +853,6 @@
       "author": "mikal"
     },
     {
-      "path": "templates/renovate/README.md",
-      "author": "mikal"
-    },
-    {
       "path": "templates/renovate/renovate.json",
       "author": "mikal"
     },
@@ -969,15 +961,7 @@
       "author": "mikal"
     },
     {
-      "path": "renovate-runner.json",
-      "author": "mikal"
-    },
-    {
       "path": "tools/source-size-ratchet.py",
-      "author": "mikal"
-    },
-    {
-      "path": "renovate-fleet.json",
       "author": "mikal"
     },
     {
@@ -1017,54 +1001,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "renovate.json",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/audit/checks/packaging.py",
-      "author": "mikal"
-    },
-    {
-      "path": ".pre-commit-config.yaml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "templates/renovate",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_registry.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_packaging_renovate.py",
-      "author": "mikal"
-    },
-    {
-      "path": "scripts/tests/test_renovate_fleet_workflow.py",
-      "author": "mikal"
-    },
-    {
-      "path": "ARCHITECTURE.md",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/renovate-fleet.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/audits/renovate.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/audits/plan-phase-references.md",
       "author": "mikal"
     },
@@ -1074,10 +1010,6 @@
     },
     {
       "path": "templates/review-tracking",
-      "author": "mikal"
-    },
-    {
-      "path": "templates",
       "author": "mikal"
     },
     {
@@ -1098,14 +1030,6 @@
     },
     {
       "path": ".github/workflows/consistency-audit.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
       "author": "mikal"
     },
     {
