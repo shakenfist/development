@@ -69,6 +69,10 @@
       "sha": "e26503ce741b47a1e1fa6edceae8ab710619ac54",
       "date": "2026-11-25"
     },
+    ".github/workflows/renovate-fleet.yml": {
+      "sha": "91cdad57ffab6d84398169af0d77935fa882cf10",
+      "date": "2026-11-26"
+    },
     ".github/workflows/secret-scan.yml": {
       "sha": "06815927ddee6c25cc2ce8d62656563f70432025",
       "date": "2026-11-16"
@@ -77,9 +81,17 @@
       "sha": "26a19958e61609c60e1b721594ab8151ddf1634f",
       "date": "2026-09-04"
     },
+    ".pre-commit-config.yaml": {
+      "sha": "0bfe4218c70b453665362a5048f26e57fe8fdfdd",
+      "date": "2026-11-26"
+    },
     "AGENTS.md": {
       "sha": "f764b451e7387863708f2a6732336a9b497d9571",
       "date": "2026-11-17"
+    },
+    "ARCHITECTURE.md": {
+      "sha": "2f86345d8aa9ce1cc5b9c9d32b7cac2a7e6ff8a2",
+      "date": "2026-11-26"
     },
     "PLAN-TEMPLATE.md": {
       "sha": "2586a6e49881abcb8c0a00414eac30364bd53da7",
@@ -281,6 +293,10 @@
       "sha": "c58fa988567ea392014294842ae64989649a56f4",
       "date": "2026-10-19"
     },
+    "docs/audits/renovate.md": {
+      "sha": "2efd16e46c95f53870afa26227c9ef6ed7aa33b0",
+      "date": "2026-11-26"
+    },
     "docs/audits/reusable-workflow-secrets.md": {
       "sha": "2ebc5177a729dd8b6025ea36afdd1b305f7b536f",
       "date": "2026-10-05"
@@ -365,6 +381,18 @@
       "sha": "d18b037a6f27400af8a522a4e7d34f5bf23f77c5",
       "date": "2026-11-15"
     },
+    "renovate-fleet.json": {
+      "sha": "d32f32ac11aaa2f7c32478a7e4b52c30f4483daf",
+      "date": "2026-11-26"
+    },
+    "renovate-runner.json": {
+      "sha": "1d430583c3732df342fa9d33860016cdd0d347ac",
+      "date": "2026-11-26"
+    },
+    "renovate.json": {
+      "sha": "3da6c2c9dc5c4ad30d4dbb9b35819d4ae5a7fb0c",
+      "date": "2026-11-26"
+    },
     "scripts/audit-check.py": {
       "sha": "97673b9e35622a6049cab81725d8554754e715b5",
       "date": "2026-09-04"
@@ -416,6 +444,10 @@
     "scripts/audit/checks/npm_dependencies.py": {
       "sha": "f38312108bb0aa28e9f19f691c13c76552ef0f33",
       "date": "2026-11-05"
+    },
+    "scripts/audit/checks/packaging.py": {
+      "sha": "24eb1238393a310612750fe13f5829bd9f15de64",
+      "date": "2026-11-26"
     },
     "scripts/audit/checks/plans.py": {
       "sha": "0570a082dd6fba7edc6e88a82263faf564e511e1",
@@ -605,6 +637,10 @@
       "sha": "717622242c159d7ea0101c2c5178cb2d8dcb3eba",
       "date": "2026-11-17"
     },
+    "scripts/tests/test_issue_fix_measurement.py": {
+      "sha": "bb636ef7f9ceabd60ac8113c3614106895035ead",
+      "date": "2026-11-26"
+    },
     "scripts/tests/test_llm_docs.py": {
       "sha": "25371b66c0cefc2ab495e451022839bca1746d8d",
       "date": "2026-10-21"
@@ -621,9 +657,17 @@
       "sha": "acee6997eb7f116f51fe5496eb660d4c6d67ec27",
       "date": "2026-11-17"
     },
+    "scripts/tests/test_npm_dependencies.py": {
+      "sha": "33bfc114bf1bd1ffd385153f27fc2b6e4588dc3b",
+      "date": "2026-11-26"
+    },
     "scripts/tests/test_packaging.py": {
       "sha": "3717db8520eaca6d1a1b04880214f823dab1f6c7",
       "date": "2026-11-17"
+    },
+    "scripts/tests/test_packaging_renovate.py": {
+      "sha": "3091054df1831ff2759c0f530879a0e43a6a2d41",
+      "date": "2026-11-26"
     },
     "scripts/tests/test_patterns.py": {
       "sha": "4477ff162d7fd9a3ffb14e31b5979850e23e514f",
@@ -641,6 +685,10 @@
       "sha": "5ac39fc5a13c1f189f2b52f3bf8524191be85d75",
       "date": "2026-09-04"
     },
+    "scripts/tests/test_registry.py": {
+      "sha": "590ae99c7fd0b50fff0e9025c3ce8dacb83a2cd3",
+      "date": "2026-11-26"
+    },
     "scripts/tests/test_release.py": {
       "sha": "150cc97f0a03011407dbe46234ff791ae8ea97b6",
       "date": "2026-10-30"
@@ -656,6 +704,10 @@
     "scripts/tests/test_renovate_check_push.py": {
       "sha": "39e97d6c0395dda5cc596440ce35e4f0fe21a7d8",
       "date": "2026-11-17"
+    },
+    "scripts/tests/test_renovate_fleet_workflow.py": {
+      "sha": "5beb4a9224009fd4bc5b270edd503447b630da89",
+      "date": "2026-11-26"
     },
     "scripts/tests/test_repo.py": {
       "sha": "494c41567652920ef783aa50f829a0ba045616a5",
@@ -705,6 +757,10 @@
       "sha": "b9b3936053b8685ef0ae47f656b2f35aa62ba637",
       "date": "2026-09-27"
     },
+    "templates/issue-fix/README.md": {
+      "sha": "2e5ad95118dc0ec74fc271917041a6bb80217450",
+      "date": "2026-11-26"
+    },
     "templates/issue-fix/claude-model-fallback.sh": {
       "sha": "2bf1baa7b5782dd5b1490e8ce548ad3029084050",
       "date": "2026-08-30"
@@ -712,6 +768,14 @@
     "templates/issue-fix/extract-model-block.sh": {
       "sha": "ce4f2ab10198501e02ccc70c7824195cb26ab0f2",
       "date": "2026-08-30"
+    },
+    "templates/issue-fix/issue-fix.yml": {
+      "sha": "23623fed99b947dde3f47e0c99c6886062986b2c",
+      "date": "2026-11-26"
+    },
+    "templates/issue-fix/measure-change-size.sh": {
+      "sha": "2b2d269143fc5bbaed1e1536b0148c665bbb7898",
+      "date": "2026-11-26"
     },
     "templates/issue-fix/neutralise-pr-body.sh": {
       "sha": "4248bb512fa54f024a31cc9e838d0a11092f8da1",
@@ -788,6 +852,10 @@
     "templates/release-automation/release.yml": {
       "sha": "26e4d5eb8ce5f74d96c9003f8c1b697ed5dc32f1",
       "date": "2026-11-17"
+    },
+    "templates/renovate/README.md": {
+      "sha": "1ae89d91bbb3ca957d5028da9a6a4cfcddd7a679",
+      "date": "2026-11-26"
     },
     "templates/renovate/renovate.json": {
       "sha": "34bc3ba88cc9475eb7bc7f9ca99d05d0be6a828b",
