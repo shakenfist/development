@@ -91,7 +91,11 @@ optionally naming a specific issue.
   on the runner; older git counts generated files and says so in
   the log. Documentation is excluded because a fix should document
   what it changes and retiring a plan is mostly deleted prose:
-  counting either measured the writing rather than the risk.
+  counting either measured the writing rather than the risk. The
+  ceiling inherits these exclusions, so it does not bound a change
+  which is all documentation or all tests; the run log prints the
+  full diffstat beside the count, and the PR description's diffstat
+  is what shows a reviewer the real size.
 - **Only issues authored by users with write access are eligible**,
   and only issue comments from such users are fed to the model.
   Issue text is untrusted input to an agent with push access;
@@ -157,8 +161,8 @@ optionally naming a specific issue.
   with a regular expression to be testable at all.
 - **The size is measured by a script, pinned by a test, and
   fails closed.** `measure-change-size.sh` counts lines changed
-  between the base commit and the index, less tests and generated
-  files. Inline, it was `git diff | awk` without `pipefail`, so a
+  between the base commit and the index, less tests, documentation
+  and generated files. Inline, it was `git diff | awk` without `pipefail`, so a
   `git` which failed -- an unsupported option, a bad pathspec --
   left `awk` to print 0 and published the fix however large it was.
   It measures from the commit the workflow records before the model
@@ -166,6 +170,10 @@ optionally naming a specific issue.
   the prompt tells the model not to commit, but a commit would move
   HEAD onto the work being measured. The extraction scripts are read
   from that recorded commit for the same reason.
+  The path pattern reaches `awk` through the environment rather than
+  `-v`, whose escape processing turned `\.md$` into `.md$`, and a
+  pattern which matches the empty string is refused, since it
+  matches every path and would count any fix as zero.
   `scripts/tests/test_issue_fix_measurement.py` builds throwaway
   repositories to pin each rule, including both spellings of the
   attribute, which git's `attr:` pathspec magic treats as different
@@ -247,7 +255,9 @@ to replace:
   deployment.
 - **`{{DOC_PATH_PATTERN}}`** -- regular expression matching
   documentation, also excluded from the size budget. The default,
-  `^docs/|\.md$`, suits most repositories.
+  `^docs/|\.md$`, suits most repositories. Either pattern may be
+  left empty to exclude nothing of that kind; the workflow joins only
+  the ones which are set.
 - **`{{INSTALL_DEPENDENCIES}}`** -- project dependency installation
 - **`{{PROJECT_CONTEXT}}`** -- project description for the Claude
   prompt
@@ -286,6 +296,28 @@ dispatches with no inputs at all, so the workflow's own defaults
 apply and the rename is invisible to it. A conductor which pins the
 model explicitly, or a human running `gh workflow run ... -f
 model=...`, needs to switch to `-f models=...`.
+
+The size budget change (an `ESTIMATE` before any code, over-budget
+fixes published with the `automated-fix-large` label, and only a
+change over `max_diff_lines_ceiling` held back) needs, when
+redeploying:
+
+- the new `DOC_PATH_PATTERN` env entry substituted for the
+  project's documentation layout (or left empty to keep counting
+  documentation);
+- a fresh copy of `tools/measure-change-size.sh`. The old copy still
+  runs, but passes the pattern through `awk -v`, so under gawk the
+  default `\.md$` also leaves out any file whose name ends in `md`;
+- a decision about the ceiling. `max_diff_lines` no longer stops
+  publication, so a deployment which relied on it as a hard cap
+  should set `max_diff_lines_ceiling` (which must be at least the
+  budget) to the limit it wants.
+
+Nothing else is needed. Both inputs have defaults, so a dispatcher
+which names neither is unaffected; the workflow creates the
+`automated-fix-large` label on its first run; and the large label
+is applied in addition to `automated-fix`, so a conductor which
+gates on that label sees no difference.
 
 ## Projects using these templates
 

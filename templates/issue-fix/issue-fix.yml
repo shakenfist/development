@@ -842,10 +842,12 @@ jobs:
       # as a branch.
       #
       # Tests, documentation and files the base commit's .gitattributes
-      # marks linguist-generated
-      # are not counted: regenerated protobuf stubs, for one, rewrite
-      # every serialized offset when a single field is added, and once
-      # held back a ~200 line fix as 1800. The count is made by
+      # marks linguist-generated are not counted: regenerated protobuf
+      # stubs, for one, rewrite every serialized offset when a single
+      # field is added, and once held back a ~200 line fix as 1800. The
+      # ceiling inherits those exclusions, so it does not bound a change
+      # which is all prose or tests; the full diffstat is logged here
+      # and published in the PR body for that. The count is made by
       # tools/measure-change-size.sh, read from the base commit like
       # the extraction scripts above and pinned by
       # scripts/tests/test_issue_fix_measurement.py in the template
@@ -863,8 +865,14 @@ jobs:
           chmod +x "${{ runner.temp }}/measure-change-size.sh"
 
           git add -A
+          # Join only the patterns which are set: a blank one joined as
+          # "^tests/|" would match every path, which the script refuses.
+          uncounted="${TEST_PATH_PATTERN}"
+          if [ -n "${DOC_PATH_PATTERN}" ]; then
+            uncounted="${uncounted:+${uncounted}|}${DOC_PATH_PATTERN}"
+          fi
           counted=$(${{ runner.temp }}/measure-change-size.sh \
-            "${BASE_SHA}" "${TEST_PATH_PATTERN}|${DOC_PATH_PATTERN}")
+            "${BASE_SHA}" "${uncounted}")
           case "${counted}" in
             ''|*[!0-9]*)
               echo "Could not measure the change (got '${counted}')." >&2
@@ -879,13 +887,21 @@ jobs:
                 ;;
             esac
           done
+          if [ "${MAX_DIFF_LINES_CEILING}" -lt "${MAX_DIFF_LINES}" ]; then
+            echo "The ceiling (${MAX_DIFF_LINES_CEILING}) must be at least the budget (${MAX_DIFF_LINES})." >&2
+            exit 1
+          fi
 
           # The model's own estimate, for the description. Absent is
-          # fine: it is reported, never gated on.
-          estimate=$(grep -m1 -oE '^ESTIMATE: *[0-9]+' \
-            ${{ runner.temp }}/claude-output.txt | grep -oE '[0-9]+' || true)
+          # fine: it is reported, never gated on. Lenient about the
+          # decoration a model puts on the line (indent, bullet, quote,
+          # markdown emphasis), but anchored to its start, so prose
+          # which mentions the word is not read as an estimate.
+          estimate=$(grep -m1 -oE '^[[:space:]>*_-]*ESTIMATE[*_]*:[*_[:space:]]*[0-9]+' \
+            ${{ runner.temp }}/claude-output.txt | grep -oE '[0-9]+$' || true)
 
           echo "Counted lines changed: ${counted} (budget ${MAX_DIFF_LINES}, ceiling ${MAX_DIFF_LINES_CEILING}, estimate ${estimate:-none})"
+          echo "All lines changed, counted or not: $(git diff --cached --shortstat "${BASE_SHA}")"
           echo "counted_lines=${counted}" >> $GITHUB_OUTPUT
           echo "estimate=${estimate}" >> $GITHUB_OUTPUT
 
