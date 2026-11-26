@@ -1015,6 +1015,94 @@
     {
       "path": "docs/audits/llm-doc-structure.md",
       "author": "mikal"
+    },
+    {
+      "path": "renovate.json",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/audits/renovate.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_renovate_fleet_workflow.py",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/renovate",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/audit/checks/packaging.py",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-fix/measure-change-size.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_registry.py",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-fix/issue-fix.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-fix/README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "templates/issue-fix",
+      "author": "mikal"
+    },
+    {
+      "path": "templates",
+      "author": "mikal"
+    },
+    {
+      "path": "renovate-runner.json",
+      "author": "mikal"
+    },
+    {
+      "path": ".pre-commit-config.yaml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/renovate-fleet.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_packaging_renovate.py",
+      "author": "mikal"
+    },
+    {
+      "path": "renovate-fleet.json",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_issue_fix_measurement.py",
+      "author": "mikal"
+    },
+    {
+      "path": "scripts/tests/test_npm_dependencies.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
