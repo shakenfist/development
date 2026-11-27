@@ -80,6 +80,7 @@ jobs:
           - ryll
           - shakenfist
           - sfui
+          - teneral
           - uncalibrated-sextant
           - visual-digest-rust
     steps:
