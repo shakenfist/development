@@ -186,7 +186,11 @@ identity in #352.
    `integration_id` 15368. Not `Automated reviewer` (cost, and
    #399), not `Issue links` (it re-runs on description edits and is
    advisory), not CodeQL's `Analyze` (its own path filter), not
-   `mermaid-lint` (trigger-filtered).
+   `mermaid-lint` (trigger-filtered). **Decided 2026-11-28: the
+   default, as `CI paths`, `Lint and test`, `Audit smoke run` and
+   `gitleaks`.** Phase 3's survey read all four reporting on a code
+   pull request (#452) and on a review-only one (#428) before
+   requiring any of them.
 3. **Merge queue?** **Decided 2026-11-18: no, not in this plan.** Required
    checks narrow #411 (a red pull request can no longer merge) but do
    not close it (two green pull requests can still merge into a red
@@ -199,7 +203,10 @@ identity in #352.
    not; the ruleset makes any such push fail loudly rather than
    silently, and `current_user_can_bypass` will read `never` for
    your credential, as on `actions`. Say so before phase 3 if there
-   is one.
+   is one. **Answered 2026-11-28: nothing does.** Mikal confirmed it
+   in phase 3's back brief: everything of his reaches `main` through
+   a pull request, so the `pull_request` rule refuses nothing he
+   relies on.
 5. **`export-repo-config` pull requests.** **Default:** document the
    workaround (close and reopen the pull request, which is an event
    from your account and so triggers CI) beside the ruleset template
@@ -581,29 +588,297 @@ token` succeeding.
 Planning effort: medium -- the template is in
 `docs/audits/moving-ref-source-protection.md` and
 `docs/audits/bypass-actor-identity.md`. Merged: not applicable (a
-settings change; record the date and the read-back instead).
+settings change; the date and the read-back are recorded here
+instead). Planned 2026-11-28 on
+`protect-development-main-phase-03-ruleset`.
 
-Operator steps, with a credential that can edit the ruleset:
+Make `main` a gate: one PUT to ruleset `21132499` adding the
+review-marks App as the only bypass actor and the `pull_request` and
+`required_status_checks` rules, then read it back and prove that every
+automated writer and every kind of pull request this repository sees
+still works.
 
-1. Build the PUT body from a GET of ruleset `21132499` with the
-   guarded `jq` transform in `bypass-actor-identity.md`'s *Template*,
-   adding the review-marks App to `bypass_actors` and these rules:
-   `pull_request` with `required_approving_review_count: 0`, and
-   `required_status_checks` with the contexts open question 2
-   settles, each with `integration_id: 15368`.
-2. PUT it, then read back `rules/branches/main` and the ruleset:
-   four rule types, `enforcement: active`, one bypass actor,
-   `current_user_can_bypass: never` for your own credential.
-3. Prove it: a direct `git push` to `main` from your credential is
-   refused; a throwaway code pull request offers a merge once its
-   checks finish; a throwaway review-only pull request (or the next
-   real one) offers a merge with the gated jobs skipped; the next
-   `prune-reviews` run lands its push; the next morning's
-   `export-repo-config` pull request starts CI after close-and-reopen.
-   Close the throwaway pull requests unmerged.
+**Scope.** In: the PUT, the read-back, the proofs, and the record of
+all three here. Out: adding `development` to `MOVING_REF_REPOS`, which
+is phase 4 and has to follow rather than lead (the table entry before
+the rules files an issue no code change can close); a merge queue
+(open question 3, *Future work*); turning `allow_auto_merge` on, which
+is off here and on for `actions` -- nothing in this phase needs it,
+and leaving it off keeps every merge a button you press; and any
+change to the shared `export-repo-config` workflow (open question 5).
 
-If any required context never reports, the way out is an admin edit
-to the ruleset: remove the context, not the rule.
+#### What the survey found
+
+Read on 2026-11-28 against the live repository, with `main` at
+`6dcb186`.
+
+* **Nothing in the phase's premises has gone stale.** Ruleset
+  `21132499` is still exactly what the *Situation* table records: name
+  "Protect default branch history", `enforcement: active`, condition
+  `~DEFAULT_BRANCH`, rules `deletion` and `non_fast_forward`,
+  `bypass_actors: []` present and visible, and
+  `current_user_can_bypass: "never"`. It is still the only ruleset on
+  the repository, and no organisation ruleset reaches the branch. All
+  four contexts open question 2 settles still exist as job names:
+  `CI paths` and `Lint and test` and `Audit smoke run` in `ci.yml`,
+  `gitleaks` in `secret-scan.yml`.
+* **Every one of those four already reports on both kinds of pull
+  request**, so none of them is at risk of being a context that never
+  reports. On #452, a Renovate pull request, all four are success --
+  which also re-confirms that Renovate's pull requests trigger CI. On
+  #428, a review-only pull request, `CI paths` and `gitleaks` are
+  success while `Lint and test` and `Audit smoke run` are skipping.
+  Worth knowing before anything else is ever required here: the two
+  contexts that come from reusable workflows report under a
+  two-part name, `Automated reviewer / Automated reviewer` and
+  `Issue link check / Issue links`, and a required context is matched
+  by the whole string.
+* **The worked recipe for this exact change is not where the master
+  plan's step 1 points.** `bypass-actor-identity.md`'s *Template*
+  adds a bypass actor and passes `rules` through untouched; it does
+  not add rules, and it carries no parameter sets for the two new
+  ones. What does carry them is `PLAN-workflow-ref-trust.md` step 2a,
+  which records the whole of `actions`' ruleset as read back on
+  2026-11-11 -- `pull_request` parameters copied there from instar's
+  live ruleset, which is also where `integration_id: 15368` comes
+  from -- along with the ordering it used and two proof reads this
+  phase borrows. Decision 1 builds the body from that record.
+* **Phase 2's writers are running, and they are the only two that
+  reach `main`.** `git push` across `.github/workflows/`, `scripts/`,
+  `templates/` and `tools/` finds exactly two sites that push to this
+  repository's default branch: `scripts/commit-audit-docs.sh`, run by
+  `consistency-audit.yml`'s `push-docs`, and
+  `tools/ci-prune-reviews.sh`, run by `prune-reviews.yml`. Everything
+  else is a template destined for another repository, or pushes a
+  branch or a tag. Both of the two now push with the App token
+  (phase 2's verification records the runs).
+* **The daily export will put the bypass list in the tree, where the
+  audit cannot see it.**
+  `.github/exported-config/ruleset-protect-default-branch-history.json`
+  is tracked and holds a `bypass_actors` key -- the `GITHUB_TOKEN` the
+  shared export workflow authenticates with can read what the audit's
+  read-only token is refused. So the morning after the PUT, the daily
+  export opens a pull request whose diff is this phase's whole change,
+  bypass actor included, and merging it leaves a record in the tree
+  that a reader can diff. That is not a measurement by the audit and
+  does not close [#352](https://github.com/shakenfist/development/issues/352),
+  but it is no longer only a reviewer's note either. Teaching the
+  criterion to read the exported file is *Future work*, not this
+  phase.
+* **One live claim goes stale the moment the PUT lands, and it is
+  phase 4's to fix:** the *Known gap* in
+  `docs/audits/moving-ref-source-protection.md`, which says this
+  repository's `main` "carries only `deletion` and `non_fast_forward`
+  rules today". Phase 4's step 4b already replaces it. The same
+  sentence appears three times in `PLAN-workflow-ref-trust.md`, each
+  time inside a dated survey or step record, so those are history and
+  are left alone -- rewriting them would make that plan's record of
+  what it found untrue. `docs/code-review-tracking.md` step 3 names
+  the same two rules as the *minimum* for a branch carrying review
+  state, which stays true.
+* Nothing else moved: no new workflow, no new push site, and no change
+  to the `review-marks` environment, which still holds one secret and
+  one branch policy.
+
+#### Decisions
+
+1. **One PUT, not two.** `actions` took its bypass actor and its two
+   rules in separate PUTs. Here it is one, because two have an
+   ordering hazard and one has none: rules first then bypass refuses
+   every `prune-reviews` push in between, and bypass first then rules
+   is harmless but is still two chances to mistype a `rules` array
+   that a PUT replaces wholesale. A ruleset PUT is one resource and
+   does not half-apply, so a rejection -- the symptom of an App that
+   is not installed -- changes nothing. The installation is proven
+   independently: `prune-reviews` minted an App token on run
+   46081289818 on 2026-11-27.
+2. **The body mirrors `actions`' ruleset parameter for parameter**,
+   with this repository's four contexts in place of its four. Those
+   parameter sets are already proven on a moving-ref source in this
+   organisation and came from a live ruleset rather than from the API
+   reference, and two moving-ref sources whose rulesets differ only in
+   their context list is one less thing for the next reader to hold.
+   The parameter that matters beyond consistency is
+   `allowed_merge_methods`, which keeps `merge`: this plan's `Merged`
+   column records merge commits read against their first parent, and a
+   squash-only branch would quietly end that.
+3. **`strict_required_status_checks_policy: false`** -- a branch need
+   not be up to date with `main` to merge. Requiring it taxes every
+   landing with a rebase, which this plan would have paid twice over
+   already (phases 1 and 2 ran concurrently, and `size-ratchet` has a
+   branch open now), and it does not buy what it appears to:
+   [#411](https://github.com/shakenfist/development/issues/411), two
+   green pull requests merging into a red `main`, is narrowed by
+   required checks and closed only by a merge queue.
+4. **`require_extra_approval_for_unattributed_changes: true`**, as on
+   `actions`. This is the decision to argue with. It demands an
+   approving review for commits GitHub cannot attribute to an account,
+   which a sole maintainer with `required_approving_review_count: 0`
+   cannot give, so on paper it can wedge a pull request. Kept, for
+   three reasons: every commit that reaches a pull request here is
+   authored by Mikal or by `shakenfist-bot`, and both resolve to
+   accounts (checked on `d04a24b`, where the API names
+   `shakenfist-bot` as author and committer); the bot's own writes to
+   `main` arrive through the bypass rather than through a pull
+   request; and `actions` has carried it since 2026-11-11 without
+   trouble. Proof item 3 is what tests it here, and if it does wedge
+   something the fix is to PUT the same body with the parameter
+   `false` -- phase 4's criterion reads rule types and context names,
+   not this parameter, so turning it off costs nothing that is
+   measured. Mikal confirmed keeping it in the back brief on
+   2026-11-28, with the escape understood.
+5. **The PUT happens while this phase's pull request is open**, and
+   that pull request merging is proof item 2. The pull request carries
+   the record of the read-back, so it cannot land before the thing it
+   records, and a real code pull request merging under the new rules
+   is better evidence than a throwaway one. The consequence to accept:
+   if a required context turns out never to report, the pull request
+   that documents the way out is itself stuck behind the rule. The way
+   out does not need it. If any required context never reports, the
+   fix is an admin edit to the ruleset that removes the context, not
+   the rule.
+
+#### Step plan
+
+Both steps are operator work, done by the management session together
+with Mikal rather than by a sub-agent: a credential that can edit the
+ruleset is involved, and a PUT replaces the ruleset wholesale.
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 3a | high | opus | none | Operator step. Pre-flight, in order, each read back before the next: (1) `gh api repos/shakenfist/development/rulesets/21132499 > ruleset-before.json` with the credential that will make the change, and confirm the file holds a `bypass_actors` key -- if GitHub omitted it, the credential cannot edit the ruleset and nothing else in this step may be run. Keep the file: PUTting it back restores the original verbatim, which is this phase's undo. (2) Confirm the four contexts still name jobs: `CI paths`, `Lint and test` and `Audit smoke run` in `.github/workflows/ci.yml`, `gitleaks` in `.github/workflows/secret-scan.yml`. Then build the body with the guarded transform below, diff it against `ruleset-before.json` to see that only `bypass_actors` and `rules` moved, and `gh api -X PUT repos/shakenfist/development/rulesets/21132499 --input ruleset-after.json`. Read back both `repos/shakenfist/development/rulesets/21132499` and `repos/shakenfist/development/rules/branches/main`, and check each of: four rule types present, `enforcement: active`, the `~DEFAULT_BRANCH` condition intact, exactly one bypass actor (`actor_id` 5538020, `actor_type` `Integration`, `bypass_mode` `always`), four contexts each with `integration_id` 15368, and `current_user_can_bypass: "never"` for the operator's own credential. Paste the read-back ruleset JSON, with `_links` removed, into this phase's section, and record the date and the time zone. |
+| 3b | medium | sonnet | none | Record the proofs in this phase's section as each one lands, from the outputs the management session holds; do not re-derive them. Each proof gets a verdict and the identifier a reader can chase (a pull request number, a run id, a commit sha), or a sentence saying why it was declined. The six are listed under *Definition of done* below. The two with a clock on them: the `export-repo-config` pull request arrives the morning after the PUT and needs closing and reopening from Mikal's account before its checks report (`docs/audits/moving-ref-source-protection.md` says why), and the compliance-page push comes with the Sunday 18:00 UTC run or a `workflow_dispatch` -- a dispatch files and closes real issues fleet-wide, so take it only when that is acceptable. |
+
+The transform, run against the live ruleset on 2026-11-28 and
+confirmed to produce exactly the intended body. The guard is inside
+it rather than before it: GitHub omits `bypass_actors` from a GET for
+a credential it will not show them to, so appending to a key that is
+not there would silently drop every actor the ruleset has, and
+`error()` says so on stderr and exits non-zero where a separate
+check would not. Dropping any existing `pull_request` or
+`required_status_checks` rule before appending makes it idempotent,
+so running it twice leaves one of each rather than two.
+
+```bash
+gh api repos/shakenfist/development/rulesets/21132499 > ruleset-before.json
+jq -f ruleset.jq ruleset-before.json > ruleset-after.json
+```
+
+```jq
+{name, target, enforcement, conditions,
+ bypass_actors: (if has("bypass_actors")
+                 then [.bypass_actors[] | select(.actor_id != 5538020)]
+                      + [{actor_id: 5538020, actor_type: "Integration",
+                          bypass_mode: "always"}]
+                 else error("bypass_actors not visible to this credential: "
+                        + "use one that can edit the ruleset") end),
+ rules: ([.rules[] | select(.type != "pull_request"
+                            and .type != "required_status_checks")]
+         + [{type: "pull_request",
+             parameters: {required_approving_review_count: 0,
+                          dismiss_stale_reviews_on_push: true,
+                          required_reviewers: [],
+                          require_code_owner_review: false,
+                          dismissal_restriction: {enabled: false,
+                                                  allowed_actors: []},
+                          require_last_push_approval: false,
+                          required_review_thread_resolution: false,
+                          require_extra_approval_for_unattributed_changes: true,
+                          allowed_merge_methods: ["merge", "squash", "rebase"]}},
+            {type: "required_status_checks",
+             parameters: {do_not_enforce_on_create: false,
+                          strict_required_status_checks_policy: false,
+                          required_status_checks:
+                            [{context: "CI paths", integration_id: 15368},
+                             {context: "Lint and test", integration_id: 15368},
+                             {context: "Audit smoke run", integration_id: 15368},
+                             {context: "gitleaks", integration_id: 15368}]}}])}
+```
+
+#### Risks and mitigations
+
+1. **A required context never reports and every pull request wedges.**
+   The checked mitigation is the survey above rather than a promise:
+   all four contexts were read reporting on a code pull request
+   (#452) and on a review-only one (#428) before being required. If
+   it happens anyway, Mikal edits the ruleset to remove the context,
+   not the rule, and 3b records which context and why.
+2. **The PUT drops a rule or the condition.** A ruleset PUT replaces
+   rather than merges. Mitigated by building the body with the
+   transform rather than by hand, diffing it against
+   `ruleset-before.json` before sending, reading all four rule types
+   and the condition back afterwards, and keeping
+   `ruleset-before.json` as a verbatim undo. The management session
+   checks each, in 3a.
+3. **The App's key is cleared or expires and `prune-reviews` falls
+   back.** `PUSH_TOKEN` is `steps.app-token.outputs.token ||
+   github.token`, so an absent key means a `GITHUB_TOKEN` push, which
+   the `pull_request` rule refuses because GitHub will not accept the
+   built-in Actions app as a bypass actor. That fails the job and the
+   workflow, so it is loud rather than silent -- which is the
+   behaviour this phase wants, and is worth stating because the
+   fallback reads like a safety net and is in fact a tripwire. The
+   `bypass-actor-identity` criterion keeps measuring the environment
+   and its branch policy weekly.
+4. **A pull request carrying an unattributed commit cannot merge**
+   (decision 4). Proof item 3 tests it; the fix is one PUT with the
+   parameter `false`, and 3b records it if taken.
+
+#### Definition of done
+
+Each item is recorded in this section with the identifier a reader can
+chase, or declined in writing with a reason.
+
+1. `repos/shakenfist/development/rulesets/21132499` reads back with
+   four rule types, `enforcement: active`, the `~DEFAULT_BRANCH`
+   condition, exactly one bypass actor (5538020, `Integration`,
+   `always`), the four contexts each with `integration_id` 15368, and
+   `current_user_can_bypass: "never"`; and that JSON, less `_links`,
+   is pasted here.
+2. A direct `git push` of a trivial commit to `main` from Mikal's own
+   credential is refused, with the refusal text recorded.
+3. This phase's own pull request merged, with `CI paths`,
+   `Lint and test`, `Audit smoke run` and `gitleaks` all reported.
+4. A throwaway review-only pull request -- a branch touching only
+   `REVIEWS.md` -- reached a mergeable state with `CI paths` and
+   `gitleaks` success and `Lint and test` and `Audit smoke run`
+   skipped, and was then closed unmerged with its branch deleted.
+   Throwaway rather than the next real one because review-only pull
+   requests here come from review sessions and may be weeks apart.
+5. The first `prune-reviews` run on `main` after the PUT landed its
+   push, and
+   `repos/shakenfist/development/rulesets/rule-suites?time_period=day&rule_suite_result=bypass`
+   names `shakenfist-review-marks[bot]` -- which is the only positive
+   evidence that the bypass was used, as distinct from the rules not
+   applying. `repos/shakenfist/development/deployments?environment=review-marks`
+   is empty, as it is on `actions`.
+6. The compliance page landed again -- the Sunday run, or a
+   dispatched one -- and the `export-repo-config` pull request opened,
+   reported its four contexts after a close and reopen, and merged,
+   leaving
+   `.github/exported-config/ruleset-protect-default-branch-history.json`
+   holding the four rules and the bypass actor.
+
+#### Back brief and gate
+
+Two things were asked of Mikal before the PUT, both cheap to answer
+and expensive to discover afterwards, and both answered on 2026-11-28
+when this phase was planned:
+
+* Open question 4, which this plan had been holding for phase 3: does
+  anything of yours push straight to `main` -- a habit, a script, a
+  plan close-out landed directly? **Nothing does.** So the only
+  writers the rules have to accommodate are the two in the *Situation*
+  table, both of which now push as the App.
+* Decision 4, `require_extra_approval_for_unattributed_changes`.
+  **Kept**, for consistency with `actions`, with the escape in that
+  decision understood.
+
+The PUT itself needs no gate beyond those: `ruleset-before.json` makes
+it a reversible change, and 3a does not send it until the body has
+been diffed against that file. What is left for the implementing
+session is the back brief the template asks for -- a statement of what
+it understands 3a and 3b to be -- before it touches the ruleset.
 
 ### Phase 4: measure it
 
