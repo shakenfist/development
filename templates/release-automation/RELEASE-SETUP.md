@@ -183,7 +183,28 @@ branch, or the queue waits for checks that never report.
    maintainers cannot push to, ask the author to merge the default
    branch
 
-### 5. Verify Sigstore/Rekor Access
+### 5. Declare the `persistent` runner label
+
+`publish-pypi` runs on `[self-hosted, static, persistent]`, so add
+`persistent` to `.github/actionlint.yaml`'s `self-hosted-runner.labels`
+or actionlint fails the workflow as using an unknown label. That file is
+per repository and is not itself a template, so adopting this template
+does not bring the label declaration with it.
+
+The label exists because the `static` pool is mixed. It holds both
+persistent VMs, which carry a Docker daemon, and container-based runner
+pods, which do not -- and `pypa/gh-action-pypi-publish` is a Docker
+container action, so it cannot run on a pod. `persistent` is what pins
+the job to a VM. Without it the job is eligible for a pod, where it
+fails *after* `sign-tag` has already force-pushed a signed tag, which
+is the worst moment to discover it.
+
+It is deliberately not called `vm`: that label already names the
+ephemeral runner pool across the fleet, so `[self-hosted, static, vm]`
+would read as a contradiction and would make the persistent VMs match
+jobs asking for a bare `[self-hosted, vm]`.
+
+### 6. Verify Sigstore/Rekor Access
 
 No configuration needed. Sigstore is a public service that:
 
