@@ -6,10 +6,13 @@
 # making this a required status check -- a path-filtered workflow that
 # a merge queue requires never reports, and blocks the queue.
 #
-# The runner label is not a typo. This needs a docker daemon, and
-# static runners do not have one: `debian-13-docker` is the fleet's
-# docker-capable image. Add it to .github/actionlint.yaml's runner
-# labels or actionlint fails.
+# The runner label is not a typo. This needs a docker daemon, and a
+# `static` job cannot rely on having one: that pool is mixed, holding
+# both persistent VMs, which do have Docker, and container-based
+# runner pods, which do not. `debian-13-docker` is the fleet's
+# unambiguously docker-capable image, and using it also keeps this job
+# out of the scarce static pool. Add it to .github/actionlint.yaml's
+# runner labels or actionlint fails.
 #
 # Living in its own file has one consequence worth stating. This job
 # can fail a pull request, but a `needs:` list in another workflow
