@@ -53,10 +53,6 @@
       "sha": "6d0ce3ba5bf1008a1139a1a1be27959413f8ad0a",
       "date": "2026-09-09"
     },
-    ".github/workflows/mermaid-lint.yml": {
-      "sha": "662b844fa020d0a5f85d6b2affc185ccb92da0e1",
-      "date": "2026-11-16"
-    },
     ".github/workflows/pr-re-review.yml": {
       "sha": "0f38d90143c93506f8c823ca6baf6ed2c7eef132",
       "date": "2026-11-16"
@@ -797,10 +793,6 @@
       "sha": "22f14bf915f76875950bb5589212b55ab0a91db1",
       "date": "2026-09-22"
     },
-    "templates/mermaid-lint/mermaid-lint.yml": {
-      "sha": "662b844fa020d0a5f85d6b2affc185ccb92da0e1",
-      "date": "2026-11-17"
-    },
     "templates/pin-indirect-dependencies/README.md": {
       "sha": "c340937342fdf83e0c24ec1c9ce6a024933e12b1",
       "date": "2026-10-01"
@@ -844,14 +836,6 @@
     "templates/release-automation/README.md": {
       "sha": "11aafdd34102b65249d15214c86a2ed3cf2e69f3",
       "date": "2026-10-30"
-    },
-    "templates/release-automation/RELEASE-SETUP.md": {
-      "sha": "7b880ebda6d241915e8e4fd5e3283c2e0dee6a04",
-      "date": "2026-10-22"
-    },
-    "templates/release-automation/release.yml": {
-      "sha": "26e4d5eb8ce5f74d96c9003f8c1b697ed5dc32f1",
-      "date": "2026-11-17"
     },
     "templates/renovate/README.md": {
       "sha": "1ae89d91bbb3ca957d5028da9a6a4cfcddd7a679",
