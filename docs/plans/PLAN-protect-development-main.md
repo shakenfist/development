@@ -212,9 +212,9 @@ identity in #352.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. CI that reports on every pull request | In progress | |
-| 2. Push identities for automated writers | In progress | |
-| 3. Apply the ruleset | Not started | |
+| 1. CI that reports on every pull request | Complete | `c020ce7` |
+| 2. Push identities for automated writers | Complete | `c020ce7` |
+| 3. Apply the ruleset | In progress | |
 | 4. Measure it | Not started | |
 | 5. Push audit | Not started | |
 
@@ -479,11 +479,20 @@ next push to main.
   script was exercised against a local bare repository standing in for
   GitHub: missing or empty token, missing page, an unchanged page, and
   a concurrent prose edit, with the token seen only by `git push`.
+* 2026-11-28 (AEDT): phases 1 and 2 closed out in the first commit of
+  phase 3's branch, as `plan-phase-landing` provides, with their
+  verification items read back from the live repository rather than
+  taken from their own pull request's claims. Ten days ran between the
+  merge and the close-out, which is what made the verification worth
+  doing: both phases have since been exercised by real traffic -- four
+  review-only pull requests, two audit runs and a fortnight of
+  `prune-reviews` pushes -- rather than by one dispatched run.
 
 ### Phase 1: CI that reports on every pull request
 
 Planning effort: medium -- `shakenfist/actions`' `ci.yml` is the
-worked example. Merged:
+worked example. Merged: `c020ce7`, the merge commit of #424, which
+landed phases 1 and 2 together.
 
 Replace `ci.yml`'s trigger-level `paths-ignore` with a filter job, so
 that every required context reports on every pull request, success
@@ -500,10 +509,23 @@ and `Audit smoke run` report success; on the next review-only pull
 request after merge, `CI paths` reports success and the two gated
 jobs report skipped. Record both pull request numbers.
 
+**Both done, read on 2026-11-28.** The code pull request was #424:
+`CI paths`, `Lint and test` and `Audit smoke run` all report success
+(`gh pr checks 424`), alongside `gitleaks`, `Check paths`, `Analyze`,
+`Issue links`, `Mermaid lint` and `Automated reviewer`. The next
+review-only pull request after the merge was #428, a `reviews` branch
+opened on 2026-11-20: `CI paths` and `gitleaks` report success while
+`Lint and test`, `Audit smoke run`, `Automated reviewer` and CodeQL's
+`Analyze` report skipping. That is the shape phase 3 needs -- a
+required context that reports on a review-only pull request rather
+than never starting -- and #428 is the evidence, two days before any
+rule required it.
+
 ### Phase 2: push identities for automated writers
 
 Planning effort: high -- it moves a bypass-holding key into a second
-workflow. Merged:
+workflow. Merged: `c020ce7`, the merge commit of #424, which landed
+phases 1 and 2 together.
 
 Operator steps (Mikal, with an owner credential), done first and read
 back:
@@ -533,6 +555,26 @@ the App token (the commit's pusher is the App), or reports "No
 changes" and the `push-docs` job's token step succeeds. A dispatched
 run files and closes real issues fleet-wide exactly as the Sunday run
 would, so take it only when that is acceptable, or wait for Sunday.
+
+**Done, read on 2026-11-28.** Two runs exercised it. The scheduled
+Sunday run 45080404513 (2026-11-22) and the dispatched run
+45674865787 (2026-11-25) both succeeded with 24 `Audit <repo>` jobs,
+`Manage consistency issues`, `Update the audit compliance page`, `Push
+the audit compliance page`, and `Report audit failure` skipped. The
+dispatched run pushed: `d04a24b`, *Regenerate the audit compliance
+page*, authored `shakenfist-bot <bot@shakenfist.com>` as
+`commit-audit-docs.sh` sets it. The push went through the App rather
+than the persisted checkout credential, which the job log shows
+rather than infers: `push-docs` ran with `HAS_REVIEW_MARKS_KEY: true`,
+downloaded `actions/create-github-app-token@f418cff`, re-cloned into
+`RUNNER_TEMP/audit-docs` and checked out `GITHUB_SHA` detached, and
+`commit-audit-docs.sh` fails on an empty `PUSH_TOKEN` rather than
+falling back -- so a successful push is an App push. The
+`review-marks` environment still holds exactly one secret,
+`REVIEW_MARKS_APP_KEY`, and exactly one branch policy, `main`.
+`prune-reviews` has been pushing as the App since the key was set:
+run 46081289818 on 2026-11-27 pushed from `main` with `Mint the push
+token` succeeding.
 
 ### Phase 3: apply the ruleset
 
