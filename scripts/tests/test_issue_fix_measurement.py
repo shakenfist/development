@@ -352,11 +352,13 @@ class UncountedPathsTest(MeasurementTestCase):
             base, pattern=TEST_PATH_PATTERN + '|' + DOC_PATH_PATTERN))
 
     def test_deleted_documentation_is_not_counted(self):
-        # Retiring a plan is mostly deleting it.
-        self.write('docs/plans/PLAN-old.md', 200)
+        # Retiring a plan is mostly deleting it. The plan is a fixture in
+        # the scratch repository, not a pointer into this one.
+        plan = 'docs/plans/PLAN-old.md'  # audit-ok: plan-reference
+        self.write(plan, 200)
         self.write('src/a.py', 1)
         base = self.commit()
-        os.unlink(os.path.join(self.repo, 'docs/plans/PLAN-old.md'))
+        os.unlink(os.path.join(self.repo, plan))
         self.write('src/a.py', 2)
         self.assertEqual(1, self.count(
             base, pattern=TEST_PATH_PATTERN + '|' + DOC_PATH_PATTERN))
