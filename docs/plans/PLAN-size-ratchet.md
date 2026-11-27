@@ -844,7 +844,7 @@ shifts are recorded here.
 | 3b | high | opus | worktree | Same ryll worktree. Measure the real `clippy::too_many_lines` distribution before anything is annotated. Add `too_many_lines = "warn"` to `[workspace.lints.clippy]` in the root `Cargo.toml` and `too-many-lines-threshold = 100` to `clippy.toml` *temporarily*, then run each of the eleven clippy invocations in `make lint` (`Makefile:337-340`, eight of them inside `tools/check-slim-renderer.sh`) separately, without `-D warnings`, capturing every `too_many_lines` hit with its file, function and reported line count. The build is Dockerised: use the `make` targets, do not install a toolchain on the host. Produce one table of every function clippy reports over 100, per lane, noting any function that appears in one lane and not another or with a different count -- that set is what decision 4's `#[allow]` escape exists for, and it is the single most important output of this step. Compare against the proxy measurement in finding 8 (4,151 functions; 44 over 100, 22 over 150, 14 over 200) and say where clippy disagrees with it and why. Then state whether decision 3's threshold of 150 still gives the 22-function inventory it predicts, or what figure does. Revert the temporary `clippy.toml` value before finishing; leave the `Cargo.toml` line in place. This step commits nothing: it reports. |
 | 3c | high | opus | worktree | Same ryll worktree, after the back brief gate on 3b's numbers. Set `too-many-lines-threshold` in `clippy.toml` to the confirmed figure, with a comment giving the figure, the date it was measured and the counts it came from (the `clippy.toml` already carries `allow-unwrap-in-tests`, so follow its comment style). Put `#[expect(clippy::too_many_lines, reason = "...")]` on every function 3b reported over that threshold. Each reason says why *this* function is long and what splitting it would cost -- a dispatch `match` over a wire protocol whose arms belong together, a decode loop whose state is shared, a `main` that is sequential setup -- and never restates the lint. For any function 3b flagged as feature-sensitive across the threshold, use `#[allow(clippy::too_many_lines)]` with an adjacent comment naming the lane that forced it, per decision 4. Then record the convention in `AGENTS.md` -- `#[expect]` rather than `#[allow]`, so an exemption that stops being needed fails the build and is removed -- and the rationale in `docs/development.md`, which is what shakenfist/ryll's `PLAN-app-split.md` phase 6 asks for. Verify with the full `make lint`: all eleven clippy lanes must pass with `-D warnings` and no `unfulfilled_lint_expectation`. Commit subject: `Require a function-length lint.` |
 | 3d | medium | sonnet | worktree | Same ryll worktree. Close out shakenfist/ryll's `docs/plans/PLAN-app-split.md`: set phase 4's row to `Complete` with `ecf54b5 (#726)` in its `Merged` cell (it merged on 2026-11-14 and no phase 5 branched to close it out, so this pull request is the first to touch the table since), and set phase 6's row to `Complete`, leaving its `Merged` cell to be filled with this pull request's own merge commit at close-out. Add two or three sentences to phase 6's section saying the phase was executed as shakenfist/development `PLAN-size-ratchet.md` phase 3, that the threshold was therefore measured before app-split phase 5 rather than after, and why that is safe (`#[expect]` turns a stale exemption into a build failure). Update ryll's `docs/plans/index.md` row for `PLAN-app-split.md` if its status changes. Do not mark the plan itself `Complete`: its phases 5 and 7 are outstanding. Commit subject: `Close out the function-length lint phase.` |
-| 3e | medium | sonnet | none | In the shakenfist/development worktree `development-wt-sr-p3`, after the ryll pull request merges. Add a `#### Pilot report` subsection at the end of this phase 3 section recording, as falsifiable statements: the threshold chosen and its derivation, the number of `#[expect]`s and the number of `#[allow]`s with the lane that forced each, the hook's wall-clock time on ryll's tree, the baseline size, and either the template changes the pilot motivates or one sentence saying it motivated none. Where it motivates a template change, make that change in `templates/source-size-ratchet/` in the same commit and say that ryll must re-copy, per this section's original instruction that template changes land here first. Also correct phase 4's section with what the pilot establishes: the `tools/gen-swatches-jpeg` exemption from finding 6, and decision 4's requirement that the criterion accept an `#[allow]` carrying a stated reason. The pilot has already motivated one template change, recorded in the execution notes: the README's claim that no workflow is needed. Commit subject: `Report the ryll source-size pilot.` |
+| 3e | medium | sonnet | none | In the shakenfist/development worktree `development-wt-sr-p3`, after the ryll pull request merges. Add a `#### Pilot report` subsection at the end of this phase 3 section recording, as falsifiable statements: the threshold chosen and its derivation, the number of `#[expect]`s and the number of `#[allow]`s with the lane that forced each, the hook's wall-clock time on ryll's tree, the baseline size, and either the template changes the pilot motivates or one sentence saying it motivated none. Where it motivates a template change, make that change in `templates/source-size-ratchet/` in the same commit and say whether adopters must re-copy, per this section's original instruction that template changes land here first. Also correct phase 4's section with what the pilot establishes: the `tools/gen-swatches-jpeg` exemption from finding 6, and decision 4's requirement that the criterion accept an `#[allow]` carrying a stated reason. The pilot has already motivated two template changes, both recorded in the execution notes: the README's claim that no workflow is needed, and that adopting alongside a function-length lint raises baseline entries. Commit subject: `Report the ryll source-size pilot.` |
 
 #### Risks and mitigations
 
@@ -1055,6 +1055,87 @@ is 20 entries on either base, so finding 2's count is unaffected.
   instruction was corrected rather than left to contradict the
   record.
 
+#### Pilot report
+
+Phase 4 reads this subsection. Each statement is checkable.
+
+* **Landing.** shakenfist/ryll pull request #746, "Adopt the
+  source-size ratchet and require a function-length lint", merged
+  2026-11-22 as `debf8b1` onto `develop`. Commits `965a14f` (3a),
+  `a1cfada` (3c) and `c70d276` (3d); step 3b committed nothing, by
+  design.
+* **Threshold: 200**, derived from clippy's own per-lane counts, not
+  the proxy. Of about 4,145 functions in the seven crates that
+  inherit the workspace lints, 40 are over 100 lines, 28 over 120,
+  21 over 150, 17 over 175 and 13 over 200. The management session
+  re-parsed the raw per-lane JSON and reproduced every count.
+  Planning proposed 150; Mikal took 200 at the first back-brief
+  gate once 3b had measured. Clippy's default of 100 would have
+  cost 40 exemptions.
+* **Exemptions: 13 `#[expect(clippy::too_many_lines, reason =
+  "...")]`, and zero `#[allow]`.** On ryll `origin/develop`:
+  `ryll/src/app/mod.rs:467`, `ryll/src/main.rs:586`,
+  `ryll/src/rdp.rs:507`,
+  `shakenfist-spice-compression/src/glz.rs:222`,
+  `shakenfist-spice-renderer/src/channels/display.rs:1423` and
+  `:2444`, `channels/inputs.rs:684`, `channels/main_channel.rs:958`,
+  `channels/playback.rs:1066`, `channels/usbredir.rs:433`,
+  `src/session.rs:223` and `:753`, and
+  `shakenfist-spice-renderer/tests/snapshots.rs:18`. Exactly one is
+  a test. The annotations are multi-line, so a single-line grep for
+  `expect(clippy::too_many_lines` finds none and under-reports to
+  zero.
+* **The `#[allow]` count is zero and cannot be otherwise.**
+  `clippy::too_many_lines` measures the lines of the function
+  body's source span, not the code left after `cfg` stripping, so a
+  feature flag changes only whether a function is linted, never its
+  reported length. Every lane that lints a function reports the
+  same count, and a function compiled out loses its `#[expect]`
+  with it. 3b ran all eleven lanes at a threshold of 100 and found
+  no function with a differing count.
+  `shakenfist-spice-renderer/src/session.rs::run_connection` holds
+  four `#[cfg(feature = ...)]` statements inside its body and
+  reports 268 lines in all ten lanes that lint it. Decision 4's
+  escape therefore has no instance here; it stays documented and
+  phase 4's criterion stays permissive.
+* **Hook cost: 0.169s**, best of five runs (range 0.169-0.181s),
+  for `python3 -I tools/source-size-ratchet.py` at `debf8b1`, exit
+  0, over 230 tracked files carrying one of the tool's source
+  extensions. Measured by the management session on the kasm host,
+  so it is an order-of-magnitude figure for a developer machine
+  rather than a CI guarantee.
+* **Baseline: 20 entries**; `grep -c 'assets/sfui/'` on it is 0;
+  and ryll's `tools/source-size-ratchet.py` is byte-identical to
+  `templates/source-size-ratchet/source-size-ratchet.py`.
+* **`source-file-size` v2 arrived through the daily audit, not this
+  phase.** ryll's `PUSH-AUDIT.md:333` is identical to
+  `templates/shared-blocks/source-file-size.md`, landed by #740
+  (merge `a6028d0`), and ryll's `push-audit` issue #733 is closed.
+  That is the first evidence that open question 5's audit-driven
+  approach closes a shared-block version bump without a sweep.
+* **Two template changes were motivated and landed with this
+  report**, both in `templates/source-size-ratchet/README.md`:
+  step 2 of "Adopting it" claimed the fleet's CI runs
+  `pre-commit run --all-files`, which is false for ryll (it runs
+  `skillsaw` through pre-commit and gives every other hook a job of
+  its own), and "Growing a baselined file" now says an adopter
+  taking a function-length lint should expect to raise entries.
+  `source-size-ratchet.py` itself is **unchanged**, so no adopter,
+  ryll included, needs to re-copy it; only the README's adoption
+  guidance changed. Step 3e's brief anticipated a re-copy, and
+  there is none to do.
+* **The interaction neither phase predicted.** A function-length
+  lint makes files longer, because the exemption reasons live next
+  to the functions they excuse. The thirteen reasons added 73 lines
+  of prose to six files already in the baseline, so step 3c's first
+  `pre-commit run --all-files` failed on the hook adopted two
+  commits earlier: `bugreport.rs` 5,101 to 5,110, `display.rs`
+  6,330 to 6,347, `inputs.rs` 3,201 to 3,210, `main_channel.rs`
+  3,921 to 3,929, `playback.rs` 2,331 to 2,340 and `session.rs`
+  1,663 to 1,681. The entries were raised by hand, since `--update`
+  never raises one, and every raised entry equals its file's
+  current length exactly. Phase 4 and every future adopter inherit
+  this.
 
 ### 4. Criteria and enforcement
 
@@ -1074,10 +1155,19 @@ Success criteria):
   `rust-unwrap-lint` and living beside it in
   `scripts/audit/checks/packaging.py`. Requires `too_many_lines`
   at `warn` or `deny` in the root `Cargo.toml`, inherited by every
-  first-party crate (same fuzz-crate exemption), and a
-  `too-many-lines-threshold` in `clippy.toml`. It does not judge
-  the number (open question 4). It does flag `#[allow(
-  clippy::too_many_lines)]`, which should be `#[expect]`.
+  first-party crate except those that cannot: the pilot found two
+  non-inheriting crates in ryll, `shakenfist-spice-protocol/fuzz`
+  and `tools/gen-swatches-jpeg`, neither of which has `[lints]
+  workspace = true`, so the criterion must allow for more than one
+  exemption or it fails ryll, the one repository the pilot made
+  compliant. It also requires a `too-many-lines-threshold` in
+  `clippy.toml`. It does not judge the number (open question 4).
+  Per decision 4 it accepts an `#[allow(clippy::too_many_lines)]`
+  that carries a stated reason and flags only a bare one: ryll needs
+  no `#[allow]` and the hazard has no instance in a tree clippy
+  measures this way, but a macro- or build-script-generated body
+  elsewhere may need the escape, and a criterion that refuses one
+  outright turns that into an argument about the criterion.
 
 **What switching them on does**, to be re-derived from the dry run
 before merging: `rust-function-length-lint` applies to 4
