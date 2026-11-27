@@ -1045,10 +1045,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/renovate-fleet.yml",
-      "author": "mikal"
-    },
-    {
       "path": "ARCHITECTURE.md",
       "author": "mikal"
     },
