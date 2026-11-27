@@ -50,10 +50,13 @@ in-repo, or another `shakenfist/` repository. Anything else is a
 concurrency group nobody has checked and the caller cannot fix.
 
 **Scarce** means any self-hosted pool except `static`. `static` is
-exempt because it is always-on, shared, and its jobs are seconds long;
-GitHub-hosted runners are exempt because there is no fleet runner to
-starve. A `runs-on:` expression is resolved against the matrix it
-reads, so `runs-on: ${{ matrix.runner }}` over self-hosted label lists
+exempt because it is always-on, shared, and its jobs are seconds long,
+and `[self-hosted, static, persistent]` with it: `persistent` names the
+always-on half of that same pool rather than a pool of its own (see
+`workflow-standards.md`). GitHub-hosted runners are exempt because
+there is no fleet runner to starve. A `runs-on:` expression is
+resolved against the matrix it reads, so
+`runs-on: ${{ matrix.runner }}` over self-hosted label lists
 is in scope, and so is a job bound to a runner of its own
 (`bound-<image>`, `bound-<size>` and a `bind-` token; see
 `workflow-standards.md`), which holds an ephemeral VM like any other.

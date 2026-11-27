@@ -21,7 +21,17 @@ RUNS_ON_RE = re.compile(r'^\s*runs-on:\s*(.+?)\s*$')
 # Anything else (a size like 's'/'l', 'vm', or an operating system
 # label like 'debian-12') describes a runner attribute the static
 # pool does not advertise, so the job would never be scheduled.
-STATIC_ALLOWED_LABELS = frozenset({'self-hosted', 'static'})
+#
+# 'persistent' is advertised, by the persistent VMs alone. The static
+# pool has two kinds of provider now: those VMs, and the ARC runner
+# pods on the k3s CI cluster, which carry 'static' but deliberately
+# not 'persistent'. So '[self-hosted, static, persistent]' is how a
+# job that cannot run on a pod -- the PyPI publish jobs, which run a
+# Docker action on an image with no Docker -- insists on a machine.
+# The authority is static_runner_flavor_labels in 33fl's
+# group_vars/all/static_runners.yml, which this repository cannot
+# reach; see docs/audits/workflow-standards.md.
+STATIC_ALLOWED_LABELS = frozenset({'self-hosted', 'static', 'persistent'})
 
 
 # GitHub-hosted runner labels (e.g. ubuntu-latest, windows-2022,

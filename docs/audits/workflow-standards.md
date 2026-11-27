@@ -69,11 +69,42 @@ machine-friendly.
   are much cheaper to start than a fresh VM. Reserve `vm` runners for
   jobs that genuinely need a throwaway machine.
 * **Measured** by `static-runner-tags`: a static runner advertises
-  exactly `self-hosted` and `static`, so a `static` job must request
-  those two labels **only**. Adding a size (`s`, `l`), `vm`, or an OS
-  (`debian-12`) asks for a runner that does not exist, and the job
-  waits forever. The check flags any `runs-on:` combining `static`
-  with additional labels.
+  `self-hosted`, `static`, and `persistent` on the persistent VMs, so
+  a `static` job must request those labels and nothing else. Adding a
+  size (`s`, `l`), `vm`, or an OS (`debian-12`) asks for a runner that
+  does not exist, and the job waits forever. The check flags any
+  `runs-on:` combining `static` with a label outside that set.
+
+#### `persistent`, and why it is not a pool
+
+Two kinds of provider answer to `static`: the long-lived VMs, and the
+ARC runner pods on the k3s CI cluster. A job asking for
+`[self-hosted, static]` can land on either. The pods carry no Docker
+daemon, and a handful of jobs need one -- the PyPI publish jobs run
+`pypa/gh-action-pypi-publish`, which delegates to a Docker container
+action -- so the VMs advertise `persistent` and the pods deliberately
+do not. `runs-on: [self-hosted, static, persistent]` is how such a job
+insists on a machine, and that asymmetry is the only thing keeping it
+off a pod that cannot run it. Granting the pods the label would break
+those jobs silently, and so would a criterion that pushed the fleet
+back to `[self-hosted, static]`.
+
+The label is not `vm`, which names the *ephemeral* Shaken Fist pool in
+these workflows, so `[self-hosted, static, vm]` would read as
+"persistent and throwaway at once" -- and would make the VMs eligible
+for the bare `[self-hosted, vm]` jobs meant for a throwaway machine. It
+is not `docker` either: Docker is why today's jobs qualify, but that
+name would be wrong for the first job that needs KVM or a loop device
+instead.
+
+`persistent` therefore rides with `static` everywhere this audit reads
+runner labels, and the sibling `merge-group-cancellation` criterion
+exempts it for the same reason it exempts `static`: it names the
+always-on half of one pool, not a pool of its own. The authority for
+the whole vocabulary is `static_runner_flavor_labels` in
+mach33labs/33fl's `group_vars/all/static_runners.yml`, which this
+repository cannot reach; `scripts/tests/test_runners.py` keeps the
+check's own set and this page in step.
 
 ### VM runners must name a size
 

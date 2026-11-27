@@ -1736,6 +1736,16 @@ class MergeGroupCancellationTest(CheckTestCase):
                       runs_on='[self-hosted, static]'))})
         self.assert_pass(result)
 
+    def test_the_persistent_label_stays_out_of_scope(self):
+        # 'persistent' narrows 'static' to the VMs rather than naming
+        # a pool of its own, so there is still nothing ephemeral for an
+        # abandoned entry to hold. Reading it as another self-hosted
+        # pool would put every PyPI publish job in scope.
+        result = self._check({'ci.yml': self._merge_group_workflow(
+            self._job(self.QUEUE_REF_KEY,
+                      runs_on='[self-hosted, static, persistent]'))})
+        self.assert_pass(result)
+
     def test_a_self_hosted_pool_without_the_vm_label_is_in_scope(self):
         # instar's ephemeral runners are [self-hosted, debian-12, xl].
         # The sibling path-filter audit's 'vm' test would miss them

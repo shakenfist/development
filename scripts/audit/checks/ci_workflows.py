@@ -763,6 +763,14 @@ def job_runs_on_scarce_runner(body):
     static pool is the exception because it is always-on and shared,
     and its jobs (path filters, gates) are seconds long.
 
+    'persistent' rides with 'static' rather than marking a pool of its
+    own, so a '[self-hosted, static, persistent]' job is exempt too. It
+    names the always-on half of the same pool -- the persistent VMs, as
+    against the runner pods -- and nothing an abandoned run could hold
+    there is ephemeral. Both label sets come from
+    STATIC_ALLOWED_LABELS, which is also what StaticRunnerTags accepts,
+    so the two cannot drift apart.
+
     A `runs-on:` that is an expression is resolved as far as the
     matrix it reads: `runs-on: ${{ matrix.os }}` over a matrix whose
     values are self-hosted label lists is a scarce job, and reading
