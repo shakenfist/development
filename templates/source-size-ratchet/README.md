@@ -109,9 +109,13 @@ whole, so the baseline is exactly the list of files that owe one.
    skipped job as success, so on a fork pull request the job does
    not run and nothing reports a ratchet verdict, while the pull
    request can still enqueue. That is the right trade for a job
-   that executes a script the fork controls, but an adopter who
-   wants fork branches measured has to run the ratchet from a
-   trusted workflow against a pinned copy of the script instead.
+   that executes a script the fork controls: this fleet's CI runs
+   on self-hosted runners, so running a fork's version of the
+   script is arbitrary code execution on our own infrastructure.
+   Dropping the guard to regain coverage is therefore not one of
+   the options. An adopter who wants fork branches measured runs
+   the ratchet from a trusted workflow against a pinned copy of
+   the script instead.
 3. If the repository tracks generated or vendored source, write
    `tools/source-size-exclude` first (see below), so those files never
    enter the baseline.

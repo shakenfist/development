@@ -716,6 +716,13 @@ shifts are recorded here.
    feature configurations rather than one -- nine of the eleven
    lanes in all, those eight plus the workspace lane.
 
+   Step 3b retired the headroom clause as well: the lint counts the
+   body's source span, so every lane that lints a function reports
+   the same length and headroom is not a correctness property.
+   Decision 3 carries the consequence. The rest of this finding
+   stands as the dated record of what was believed before the
+   measurement.
+
 8. **The function-length distribution.** A proxy measurement
    (brace-matching, counting non-blank, non-comment body lines,
    which is the shape `clippy::too_many_lines` counts) over the
@@ -772,8 +779,8 @@ shifts are recorded here.
    half true: of the two, just `app/mod.rs::new` carries an
    `#[expect]`, while `app/connection.rs::reconnect` sits below
    200 and carries none, so the build-failure guarantee covers one
-   function rather than both. This is
-   the decision a reviewer is most likely to argue with, because
+   function rather than both. This is the decision a reviewer is
+   most likely to argue with, because
    it takes a phase off a plan in another repository; the
    alternative, and its cost, are stated above.
 
@@ -790,7 +797,16 @@ shifts are recorded here.
    distribution, and the execution notes record the change. The
    derivation is clippy's own count over all eleven lanes: of about
    4,145 functions in the seven lint-inheriting crates, 40 are over
-   100 lines, 21 over 150 and 13 over 200. Thirteen reasons are an
+   100 lines, 21 over 150 and 13 over 200. The hit counts are
+   clippy's; the denominator is not, and cannot be -- clippy
+   reports only the functions over the threshold, never a total.
+   It comes from a proxy count over the same seven crates, which
+   finding 8 gives as 4,151; the 4,145 written here and in ryll's
+   `clippy.toml` and `docs/development.md` is six short of it and
+   the discrepancy was never run down. Nothing rests on the
+   denominator -- the inventory size is what the threshold was
+   chosen on -- but it should not be read as clippy's figure.
+   Thirteen reasons are an
    inventory a reviewer reads in one sitting; clippy's default of
    100 would have cost 40.
 
@@ -867,9 +883,9 @@ shifts are recorded here.
   which this bullet first gave as the mitigation, is not what
   rules it out -- decision 3 now disclaims headroom as a
   correctness property. What stands is step 3b measuring every
-  lane separately *before*
-  anything is annotated, and step 3c's verification being the
-  full `make lint` rather than one clippy run. The management
+  lane separately *before* anything is annotated, and step 3c's
+  verification being the full `make lint` rather than one clippy
+  run. The management
   session reads the lanes' output, not the sub-agent's
   summary of it.
 * **Thirteen reasons written to fill a slot.** A reason that
@@ -894,7 +910,7 @@ shifts are recorded here.
   pull request description should say that the two are the reason
   the count moved from twelve to twenty, so the baseline is not
   read as an endorsement.
-* **Taking a phase off another repository's plan.** If Michael
+* **Taking a phase off another repository's plan.** If Mikal
   prefers `PLAN-app-split.md` phase 6 to stay open, step 3d's
   close-out is the only part that changes and decision 1's gate in
   the back brief is where to say so.
@@ -980,9 +996,9 @@ is 20 entries on either base, so finding 2's count is unaffected.
   definition of done. It strengthens rather than weakens decision 3:
   `shakenfist-spice-renderer` holds the two longest functions in the
   workspace and is linted under eight feature configurations --
-  nine lanes counting the workspace lane -- which
-  is the exact shape that makes an `#[expect]` fire in one lane and
-  fail as `unfulfilled_lint_expectation` in another.
+  nine lanes counting the workspace lane -- which is the exact
+  shape that makes an `#[expect]` fire in one lane and fail as
+  `unfulfilled_lint_expectation` in another.
 * **ryll's CI does not run `pre-commit run --all-files`, so the
   template's step 2 is wrong about this repository.** The template
   README says there is no workflow to add, because the fleet's CI
@@ -1028,11 +1044,11 @@ is 20 entries on either base, so finding 2's count is unaffected.
   `shakenfist-spice-renderer/src/session.rs::run_connection` holds
   four `#[cfg(feature = ...)]` statements inside its body and reports
   268 lines in all nine lanes that lint it -- the workspace lane
-  plus the eight in `tools/check-slim-renderer.sh`, since the other
-  two clippy invocations select `ryll` and
+  plus the eight in `tools/check-slim-renderer.sh`, since the
+  other two clippy invocations select `ryll` and
   `shakenfist-spice-compression` and lint neither the renderer nor
-  it -- including the lane with no
-  features and the two that turn those features on. A feature flag
+  it -- including the lane with no features and the two that turn
+  those features on. A feature flag
   changes only whether a function is linted, and a function compiled
   out loses its `#[expect]` with it. Decision 4's escape therefore
   has no instance here; it stays documented, and phase 4's criterion
@@ -1096,16 +1112,30 @@ Phase 4 reads this subsection. Each statement is checkable.
   cost 40 exemptions.
 * **Exemptions: 13 `#[expect(clippy::too_many_lines, reason =
   "...")]`, and zero `#[allow]`.** As the pilot landed them, at
-  `debf8b1`: `ryll/src/app/mod.rs`, `ryll/src/bugreport.rs`,
-  `ryll/src/main.rs`, `ryll/src/rdp.rs`,
-  `shakenfist-spice-compression/src/glz.rs`,
-  `shakenfist-spice-renderer/src/channels/display.rs` (two),
-  `channels/inputs.rs`, `channels/main_channel.rs`,
-  `channels/playback.rs`, `channels/usbredir.rs` and
-  `src/session.rs` (two). Exactly one is
-  a test. The annotations are multi-line, so a single-line grep
-  for `expect(clippy::too_many_lines` finds none and under-reports
-  to zero.
+  `debf8b1`, by file and function: `app/mod.rs::new`,
+  `bugreport.rs::test_display_snapshot_serialises`,
+  `main.rs::run_web`, `rdp.rs::run_rdp`,
+  `glz.rs::decompress_glz`, `channels/display.rs::handle_message`
+  and `::decode_image_and_emit`,
+  `channels/inputs.rs::handle_input_event`,
+  `channels/main_channel.rs::handle_message`,
+  `channels/playback.rs::process_messages`,
+  `channels/usbredir.rs::handle_usbredir_message`,
+  `session.rs::run_connection` and `::run_headless`. Exactly one
+  is a test.
+
+  The functions matter, not just the files: `main.rs` is annotated
+  on `run_web` and `main_channel.rs` on `handle_message`, so
+  decision 3's observation that `main` (193) and `run_loop` (192)
+  sit below the threshold carrying no annotation is consistent
+  with this list rather than contradicted by it.
+
+  The annotations are multi-line, so a single-line grep for
+  `expect(clippy::too_many_lines` finds none and under-reports to
+  zero. What does reproduce the count is an occurrence count of the
+  lint's name, one per annotation:
+  `grep -rn 'clippy::too_many_lines' --include='*.rs' . | wc -l`
+  prints 13.
 
   ryll has moved since. The `bugreport.rs` annotation sat on
   `test_display_snapshot_serialises`, and ryll #823 (`213f53c`,
@@ -1267,12 +1297,18 @@ procedure in `PLAN-review-unit-size.md` phase 2. Never regenerate
 
 ### 5. Push audit
 
-Run `PUSH-AUDIT.md` over the accumulated diff of phases 1, 2 and 4
-here; cite the ryll pilot's own push audit for phase 3 rather than
-re-running it. In addition to the standard waves: run the ratchet
-against every local clone with `--init` into a scratch directory
-and confirm the exclusion list leaves no generated file in any
-baseline.
+Run `PUSH-AUDIT.md` over the accumulated diff of phases 1, 2,
+phase 3's development-side landing and 4 here; cite the ryll
+pilot's own push audit for the ryll commits of phase 3 rather than
+re-running those. Phase 3 landed in two repositories, and the
+development-side half includes the change to
+`templates/source-size-ratchet/README.md` -- adoption guidance
+shipped to the whole fleet, which ryll's audit cannot cover
+because it is not in ryll. Audit it here.
+
+In addition to the standard waves: run the ratchet against every
+local clone with `--init` into a scratch directory and confirm the
+exclusion list leaves no generated file in any baseline.
 
 
 ## Agent guidance
